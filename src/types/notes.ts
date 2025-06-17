@@ -143,6 +143,7 @@ export interface FieldEditorProps {
   onUpdateField: (field: TemplateField) => void;
   onDeleteField: (fieldId: string) => void;
   onMoveField: (fieldId: string, direction: 'up' | 'down') => void;
+  onCopyFieldValue?: (fieldId: string) => void;
   isFirst: boolean;
   isLast: boolean;
 }

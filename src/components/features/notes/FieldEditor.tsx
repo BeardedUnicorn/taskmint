@@ -24,11 +24,11 @@ import {
 } from '@mui/material';
 import {
   DragIndicator as DragIcon,
-  KeyboardArrowUp as UpIcon,
-  KeyboardArrowDown as DownIcon,
+  ArrowUpward as UpIcon,
+  ArrowDownward as DownIcon,
   Delete as DeleteIcon,
-  ExpandMore as ExpandIcon,
-  ExpandLess as CollapseIcon,
+  Settings as ExpandIcon,
+  SettingsOutlined as CollapseIcon,
   TextFields as TextIcon,
   Numbers as NumberIcon,
   CalendarToday as DateIcon,

@@ -216,6 +216,7 @@ function App() {
                 activeEntry={activeEntry}
                 onUpdateActiveEntry={handleUpdateActiveEntry}
                 onCreateNewTask={handleCreateNewTaskFromForm}
+                timeEntries={processedEntries}
               />
             </Box>
 

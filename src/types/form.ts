@@ -8,6 +8,7 @@
 import { ReactNode } from 'react';
 import { SxProps, Theme } from '@mui/material';
 import { Task } from './task';
+import { TimeEntry } from './timer';
 
 // Form Input Types
 export interface TaskSelectorProps {
@@ -20,6 +21,7 @@ export interface TaskSelectorProps {
   helperText?: string;
   placeholder?: string;
   sx?: SxProps<Theme>;
+  timeEntries?: TimeEntry[];
 }
 
 export interface TimeInputProps {

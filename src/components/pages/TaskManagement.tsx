@@ -189,7 +189,7 @@ export function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask }:
                   </TableRow>
                 ) : (
                   tasks
-                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
                     .map((task) => (
                       <TaskRow
                         key={task.id}

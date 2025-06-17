@@ -18,6 +18,7 @@ import {
   Chip,
   Alert,
   CircularProgress,
+  Snackbar,
 } from '@mui/material';
 import {
   ExpandMore as ExpandIcon,
@@ -26,6 +27,7 @@ import {
   Clear as ClearIcon,
   Notes as NotesIcon,
   PlayArrow as RunIcon,
+  ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import { invoke } from '@tauri-apps/api/core';
 import { NoteEditorProps, TemplateField } from '../../../types/notes';
@@ -46,6 +48,10 @@ export function NoteEditor({
   const [isRunningCommand, setIsRunningCommand] = useState<Record<string, boolean>>({});
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [copySnackbar, setCopySnackbar] = useState<{ open: boolean; message: string }>({
+    open: false,
+    message: '',
+  });
 
   // Initialize field values from existing note or template defaults
   useEffect(() => {
@@ -219,6 +225,31 @@ export function NoteEditor({
     setErrors({});
     setHasUnsavedChanges(true);
   }, [template]);
+
+  const handleCopyFieldValue = useCallback(async (fieldId: string, fieldLabel: string) => {
+    const value = fieldValues[fieldId];
+    if (value === undefined || value === null || value === '') {
+      setCopySnackbar({
+        open: true,
+        message: `No content to copy from ${fieldLabel}`,
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(String(value));
+      setCopySnackbar({
+        open: true,
+        message: `Copied ${fieldLabel} content to clipboard`,
+      });
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      setCopySnackbar({
+        open: true,
+        message: `Failed to copy ${fieldLabel} content`,
+      });
+    }
+  }, [fieldValues]);
 
   const renderField = useCallback((field: TemplateField) => {
     const value = fieldValues[field.id] || '';
@@ -399,8 +430,20 @@ export function NoteEditor({
             {template.fields
               .sort((a, b) => a.order - b.order)
               .map(field => (
-                <Box key={field.id}>
-                  {renderField(field)}
+                <Box key={field.id} sx={{ position: 'relative' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                    <Box sx={{ flex: 1 }}>
+                      {renderField(field)}
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCopyFieldValue(field.id, field.label)}
+                      title={`Copy ${field.label} content`}
+                      sx={{ mt: 1 }}
+                    >
+                      <CopyIcon />
+                    </IconButton>
+                  </Box>
                 </Box>
               ))}
 
@@ -443,6 +486,14 @@ export function NoteEditor({
           </Stack>
         </Box>
       </Collapse>
+
+      {/* Copy Snackbar */}
+      <Snackbar
+        open={copySnackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setCopySnackbar({ open: false, message: '' })}
+        message={copySnackbar.message}
+      />
     </Paper>
   );
 }

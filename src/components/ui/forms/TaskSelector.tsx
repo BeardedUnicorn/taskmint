@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Autocomplete, TextField, Button, Box, Stack } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { TaskSelectorProps } from '../../../types/form';
@@ -18,9 +18,46 @@ export function TaskSelector({
   helperText,
   placeholder = 'Select or enter task name...',
   sx,
+  timeEntries = [],
 }: TaskSelectorProps) {
   const [showNewTaskInput, setShowNewTaskInput] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
+
+  // Sort tasks by last time entry date
+  const sortedTasks = useMemo(() => {
+    if (!timeEntries || timeEntries.length === 0) {
+      return predefinedTasks.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    // Create a map of task names to their most recent time entry
+    const taskLastUsed = new Map<string, Date>();
+    
+    timeEntries.forEach(entry => {
+      const entryDate = new Date(entry.startTime);
+      const currentLastUsed = taskLastUsed.get(entry.taskName);
+      
+      if (!currentLastUsed || entryDate > currentLastUsed) {
+        taskLastUsed.set(entry.taskName, entryDate);
+      }
+    });
+
+    return predefinedTasks.sort((a, b) => {
+      const aLastUsed = taskLastUsed.get(a.name);
+      const bLastUsed = taskLastUsed.get(b.name);
+      
+      // If both have been used, sort by most recent first
+      if (aLastUsed && bLastUsed) {
+        return bLastUsed.getTime() - aLastUsed.getTime();
+      }
+      
+      // If only one has been used, it goes first
+      if (aLastUsed && !bLastUsed) return -1;
+      if (!aLastUsed && bLastUsed) return 1;
+      
+      // If neither has been used, sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
+  }, [predefinedTasks, timeEntries]);
 
   const handleTaskChange = (_event: any, newValue: string | Task | null) => {
     if (typeof newValue === 'string') {
@@ -59,7 +96,7 @@ export function TaskSelector({
   };
 
   // Find the selected task object
-  const selectedTask = predefinedTasks.find(task => task.name === value);
+  const selectedTask = sortedTasks.find(task => task.name === value);
 
   if (showNewTaskInput) {
     return (
@@ -108,7 +145,7 @@ export function TaskSelector({
         value={selectedTask || value || null}
         onChange={handleTaskChange}
         onInputChange={handleInputChange}
-        options={predefinedTasks}
+        options={sortedTasks}
         getOptionLabel={(option) => {
           if (typeof option === 'string') return option;
           return option.name;

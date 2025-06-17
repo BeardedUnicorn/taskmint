@@ -22,6 +22,7 @@ interface TimeEntryFormProps {
   activeEntry?: TimeEntry | null;
   onUpdateActiveEntry: (entry: TimeEntry | null) => void;
   onCreateNewTask: (taskName: string) => Promise<Task>;
+  timeEntries?: TimeEntry[];
 }
 
 export function TimeEntryForm({
@@ -29,7 +30,8 @@ export function TimeEntryForm({
                                 predefinedTasks,
                                 activeEntry,
                                 onUpdateActiveEntry,
-                                onCreateNewTask
+                                onCreateNewTask,
+                                timeEntries = []
                               }: TimeEntryFormProps) {
   const [taskName, setTaskName] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -54,6 +56,7 @@ export function TimeEntryForm({
     } else {
       // Reset form when no active entry
       setTaskName('');
+      setSelectedTask(null);
       setStartTime(null);
       setIsRunning(false);
       setCustomStartTime('');
@@ -105,8 +108,9 @@ export function TimeEntryForm({
       onSave(finalEntry);
       onUpdateActiveEntry(null);
 
-      // Reset form
+      // Reset form - this will clear the task select input
       setTaskName('');
+      setSelectedTask(null);
       setStartTime(null);
       setCustomStartTime('');
       setIsEditing(false);
@@ -149,6 +153,7 @@ export function TimeEntryForm({
             onCreateNewTask={onCreateNewTask}
             disabled={isRunning}
             placeholder="Select or enter task name..."
+            timeEntries={timeEntries}
           />
 
           {!isRunning && (
