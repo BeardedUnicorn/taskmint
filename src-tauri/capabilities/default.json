@@ -1,0 +1,41 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window and data-annotation webview with enhanced security",
+  "windows": ["main", "data-annotation"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-webview-position",
+    "core:webview:allow-webview-size",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "core:event:default",
+    "core:tray:default",
+    "core:menu:default",
+    "core:image:default"
+  ],
+  "scope": {
+    "allow": [
+      {
+        "url": "https://app.dataannotation.tech/*"
+      }
+    ],
+    "deny": [
+      {
+        "url": "http://*"
+      },
+      {
+        "url": "https://*",
+        "except": ["https://app.dataannotation.tech/*"]
+      },
+      {
+        "url": "file://*"
+      },
+      {
+        "url": "ftp://*"
+      }
+    ]
+  }
+}

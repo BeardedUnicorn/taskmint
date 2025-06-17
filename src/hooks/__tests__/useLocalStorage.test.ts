@@ -1,0 +1,264 @@
+/**
+ * Tests for useLocalStorage hook
+ */
+
+import { renderHook, act } from '@testing-library/react';
+import { useLocalStorage } from '../useLocalStorage';
+
+// Mock the migration utilities
+jest.mock('../../utils/dataMigration', () => ({
+  migrateData: jest.fn((_key, data) => {
+    // Return data in the expected format for migration
+    if (typeof data === 'object' && data !== null && 'version' in data) {
+      return data; // Already migrated
+    }
+    return {
+      version: 1,
+      data: data,
+      migratedAt: new Date().toISOString(),
+      originalVersion: 0,
+    };
+  }),
+  createBackup: jest.fn(),
+  needsMigration: jest.fn((data) => {
+    // Check if data needs migration (doesn't have version property)
+    return typeof data !== 'object' || data === null || !('version' in data);
+  }),
+}));
+
+describe('useLocalStorage', () => {
+  const TEST_KEY = 'test-key';
+  const INITIAL_VALUE = 'initial-value';
+
+  beforeEach(() => {
+    localStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  it('should return initial value when localStorage is empty', () => {
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
+    
+    expect(result.current[0]).toBe(INITIAL_VALUE);
+  });
+
+  it('should return stored value from localStorage', () => {
+    const storedValue = 'stored-value';
+    // Store data in the new versioned format
+    const versionedData = {
+      version: 1,
+      data: storedValue,
+      migratedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(TEST_KEY, JSON.stringify(versionedData));
+
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
+
+    expect(result.current[0]).toBe(storedValue);
+  });
+
+  it('should update localStorage when setValue is called', () => {
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
+    const newValue = 'new-value';
+
+    act(() => {
+      result.current[1](newValue);
+    });
+
+    expect(result.current[0]).toBe(newValue);
+
+    // Check that data is stored in versioned format
+    const storedData = JSON.parse(localStorage.getItem(TEST_KEY) || '{}');
+    expect(storedData.version).toBe(1);
+    expect(storedData.data).toBe(newValue);
+    expect(storedData.migratedAt).toBeDefined();
+  });
+
+  it('should handle function updates', () => {
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, 0));
+
+    act(() => {
+      result.current[1]((prev: number) => prev + 1);
+    });
+
+    expect(result.current[0]).toBe(1);
+
+    // Check that data is stored in versioned format
+    const storedData = JSON.parse(localStorage.getItem(TEST_KEY) || '{}');
+    expect(storedData.version).toBe(1);
+    expect(storedData.data).toBe(1);
+  });
+
+  it('should handle complex objects', () => {
+    const complexObject = {
+      id: '1',
+      name: 'Test',
+      nested: {
+        value: 42,
+        array: [1, 2, 3],
+      },
+    };
+
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, {}));
+
+    act(() => {
+      result.current[1](complexObject);
+    });
+
+    expect(result.current[0]).toEqual(complexObject);
+
+    // Check that data is stored in versioned format
+    const storedData = JSON.parse(localStorage.getItem(TEST_KEY) || '{}');
+    expect(storedData.version).toBe(1);
+    expect(storedData.data).toEqual(complexObject);
+  });
+
+  it('should handle localStorage errors gracefully', () => {
+    // Mock localStorage.getItem to throw an error
+    const originalGetItem = localStorage.getItem;
+    localStorage.getItem = jest.fn(() => {
+      throw new Error('localStorage error');
+    });
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
+
+    expect(result.current[0]).toBe(INITIAL_VALUE);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error reading localStorage key'),
+      expect.any(Error)
+    );
+
+    // Restore original implementation
+    localStorage.getItem = originalGetItem;
+    consoleSpy.mockRestore();
+  });
+
+  it('should handle JSON parsing errors gracefully', () => {
+    // Set invalid JSON in localStorage
+    localStorage.setItem(TEST_KEY, 'invalid-json');
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
+
+    expect(result.current[0]).toBe(INITIAL_VALUE);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error reading localStorage key'),
+      expect.any(SyntaxError)
+    );
+
+    consoleSpy.mockRestore();
+  });
+
+  it('should handle localStorage.setItem errors gracefully', () => {
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
+
+    // Mock localStorage.setItem to throw an error
+    const originalSetItem = localStorage.setItem;
+    localStorage.setItem = jest.fn(() => {
+      throw new Error('localStorage setItem error');
+    });
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    act(() => {
+      result.current[1]('new-value');
+    });
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error setting localStorage key'),
+      expect.any(Error)
+    );
+
+    // Restore original implementation
+    localStorage.setItem = originalSetItem;
+    consoleSpy.mockRestore();
+  });
+
+  it('should work with arrays', () => {
+    const arrayValue = [1, 2, 3, 4, 5];
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, [] as number[]));
+
+    act(() => {
+      result.current[1](arrayValue);
+    });
+
+    expect(result.current[0]).toEqual(arrayValue);
+
+    // Check that data is stored in versioned format
+    const storedData = JSON.parse(localStorage.getItem(TEST_KEY) || '{}');
+    expect(storedData.version).toBe(1);
+    expect(storedData.data).toEqual(arrayValue);
+  });
+
+  it('should work with boolean values', () => {
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, false));
+
+    act(() => {
+      result.current[1](true);
+    });
+
+    expect(result.current[0]).toBe(true);
+
+    // Check that data is stored in versioned format
+    const storedData = JSON.parse(localStorage.getItem(TEST_KEY) || '{}');
+    expect(storedData.version).toBe(1);
+    expect(storedData.data).toBe(true);
+  });
+
+  it('should work with null values', () => {
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, 'not-null'));
+
+    act(() => {
+      result.current[1](null as any);
+    });
+
+    expect(result.current[0]).toBe(null);
+
+    // Check that data is stored in versioned format
+    const storedData = JSON.parse(localStorage.getItem(TEST_KEY) || '{}');
+    expect(storedData.version).toBe(1);
+    expect(storedData.data).toBe(null);
+  });
+
+  it('should persist state across hook re-renders', () => {
+    const { result, rerender } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
+
+    act(() => {
+      result.current[1]('updated-value');
+    });
+
+    rerender();
+
+    expect(result.current[0]).toBe('updated-value');
+  });
+
+  it('should handle migration when needed', () => {
+    const { needsMigration, migrateData, createBackup } = require('../../utils/dataMigration');
+
+    // Reset mocks to ensure clean state
+    needsMigration.mockClear();
+    migrateData.mockClear();
+    createBackup.mockClear();
+
+    // Mock migration needed for old data format
+    needsMigration.mockReturnValue(true);
+    migrateData.mockReturnValue({
+      version: 1,
+      data: 'migrated-value',
+      migratedAt: new Date().toISOString(),
+      originalVersion: 0,
+    });
+
+    // Store old format data (without version)
+    localStorage.setItem(TEST_KEY, JSON.stringify('old-value'));
+
+    const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
+
+    expect(needsMigration).toHaveBeenCalledWith('old-value');
+    expect(createBackup).toHaveBeenCalledWith(TEST_KEY, 'old-value');
+    expect(migrateData).toHaveBeenCalledWith(TEST_KEY, 'old-value');
+    expect(result.current[0]).toBe('migrated-value');
+  });
+});

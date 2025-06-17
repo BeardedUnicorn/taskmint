@@ -1,0 +1,286 @@
+/**
+ * Storage Service
+ * 
+ * Centralized storage management with validation, migration, and error handling
+ * Provides a unified interface for all data persistence operations
+ */
+
+import { z } from 'zod';
+import { TimeEntry, TimeEntrySchema } from '../types/timer';
+import { Task, TaskSchema } from '../types/task';
+import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../types/notes';
+
+import { STORAGE_KEYS } from '../constants';
+import { migrateData, createBackup, needsMigration } from '../utils/dataMigration';
+import { validateWithSchema } from '../utils/validation';
+import { StorageErrorClass, createStorageError } from '../types/errors';
+
+export interface IStorageService {
+  // Generic storage operations
+  getItem<T>(key: string, defaultValue: T, schema?: z.ZodSchema<T>): Promise<T>;
+  setItem<T>(key: string, value: T, schema?: z.ZodSchema<T>): Promise<void>;
+  removeItem(key: string): Promise<void>;
+  clear(): Promise<void>;
+  
+  // Typed storage operations
+  getTimeEntries(): Promise<TimeEntry[]>;
+  setTimeEntries(entries: TimeEntry[]): Promise<void>;
+  getTasks(): Promise<Task[]>;
+  setTasks(tasks: Task[]): Promise<void>;
+  getNoteTemplates(): Promise<NoteTemplate[]>;
+  setNoteTemplates(templates: NoteTemplate[]): Promise<void>;
+  getTaskNotes(): Promise<TaskNote[]>;
+  setTaskNotes(notes: TaskNote[]): Promise<void>;
+
+  
+  // Backup and migration
+  createBackup(key: string): Promise<void>;
+  needsMigration(key: string): Promise<boolean>;
+}
+
+export class StorageService implements IStorageService {
+  private static instance: StorageService;
+
+  constructor() {
+    // Private constructor for singleton pattern
+  }
+
+  static getInstance(): StorageService {
+    if (!StorageService.instance) {
+      StorageService.instance = new StorageService();
+    }
+    return StorageService.instance;
+  }
+
+  /**
+   * Generic method to get data from localStorage with validation and migration
+   */
+  async getItem<T>(
+    key: string, 
+    defaultValue: T, 
+    schema?: z.ZodSchema<T>
+  ): Promise<T> {
+    try {
+      const item = localStorage.getItem(key);
+
+      if (!item) {
+        return defaultValue;
+      }
+
+      let parsedData = JSON.parse(item);
+
+      // Check if data needs migration
+      if (needsMigration(parsedData)) {
+        console.log(`Data migration needed for key "${key}"`);
+        
+        // Create backup before migration
+        await this.createBackup(key);
+        
+        // Migrate data
+        const migratedData = migrateData(key, parsedData);
+        
+        // Save migrated data back to localStorage
+        localStorage.setItem(key, JSON.stringify(migratedData));
+        
+        // Extract actual data from versioned structure
+        parsedData = migratedData.version ? migratedData.data : migratedData;
+      } else if (parsedData.version) {
+        // Data is already versioned, extract the actual data
+        parsedData = parsedData.data;
+      }
+
+      // Validate data if schema provided
+      if (schema) {
+        const validationResult = validateWithSchema(schema, parsedData);
+        if (!validationResult.success) {
+          console.error(`Validation failed for key "${key}":`, validationResult.error);
+          throw createStorageError('STORAGE_VALIDATION_FAILED', 
+            `Data validation failed for key "${key}": ${validationResult.error}`, 
+            { key, validationError: validationResult.error }
+          );
+        }
+        return validationResult.data!;
+      }
+
+      return parsedData;
+    } catch (error) {
+      if (error instanceof StorageErrorClass) {
+        throw error;
+      }
+      
+      console.error(`Failed to get item from localStorage for key "${key}":`, error);
+      throw createStorageError('STORAGE_READ_FAILED', 
+        `Failed to read data for key "${key}"`, 
+        { key, originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Generic method to set data in localStorage with validation
+   */
+  async setItem<T>(
+    key: string, 
+    value: T, 
+    schema?: z.ZodSchema<T>
+  ): Promise<void> {
+    try {
+      // Validate data if schema provided
+      if (schema) {
+        const validationResult = validateWithSchema(schema, value);
+        if (!validationResult.success) {
+          throw createStorageError('STORAGE_VALIDATION_FAILED', 
+            `Data validation failed for key "${key}": ${validationResult.error}`, 
+            { key, validationError: validationResult.error }
+          );
+        }
+      }
+
+      const serializedValue = JSON.stringify(value);
+      localStorage.setItem(key, serializedValue);
+    } catch (error) {
+      if (error instanceof StorageErrorClass) {
+        throw error;
+      }
+      
+      console.error(`Failed to set item in localStorage for key "${key}":`, error);
+      throw createStorageError('STORAGE_WRITE_FAILED', 
+        `Failed to write data for key "${key}"`, 
+        { key, originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Remove item from localStorage
+   */
+  async removeItem(key: string): Promise<void> {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.error(`Failed to remove item from localStorage for key "${key}":`, error);
+      throw createStorageError('STORAGE_DELETE_FAILED', 
+        `Failed to delete data for key "${key}"`, 
+        { key, originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Clear all localStorage data
+   */
+  async clear(): Promise<void> {
+    try {
+      localStorage.clear();
+    } catch (error) {
+      console.error('Failed to clear localStorage:', error);
+      throw createStorageError('STORAGE_CLEAR_FAILED', 
+        'Failed to clear all storage data', 
+        { originalError: error }
+      );
+    }
+  }
+
+  // Typed storage operations
+
+  async getTimeEntries(): Promise<TimeEntry[]> {
+    const entries = await this.getItem(
+      STORAGE_KEYS.TIME_ENTRIES, 
+      [], 
+      z.array(TimeEntrySchema)
+    );
+    
+    // Convert stored entries back to proper Date objects
+    return entries.map(entry => ({
+      ...entry,
+      startTime: new Date(entry.startTime),
+      endTime: entry.endTime ? new Date(entry.endTime) : undefined,
+    }));
+  }
+
+  async setTimeEntries(entries: TimeEntry[]): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.TIME_ENTRIES, 
+      entries, 
+      z.array(TimeEntrySchema)
+    );
+  }
+
+  async getTasks(): Promise<Task[]> {
+    return await this.getItem(
+      STORAGE_KEYS.PREDEFINED_TASKS,
+      [],
+      z.array(TaskSchema)
+    );
+  }
+
+  async setTasks(tasks: Task[]): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.PREDEFINED_TASKS,
+      tasks,
+      z.array(TaskSchema)
+    );
+  }
+
+  async getNoteTemplates(): Promise<NoteTemplate[]> {
+    return await this.getItem(
+      STORAGE_KEYS.NOTE_TEMPLATES,
+      [],
+      z.array(NoteTemplateSchema)
+    );
+  }
+
+  async setNoteTemplates(templates: NoteTemplate[]): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.NOTE_TEMPLATES,
+      templates,
+      z.array(NoteTemplateSchema)
+    );
+  }
+
+  async getTaskNotes(): Promise<TaskNote[]> {
+    return await this.getItem(
+      STORAGE_KEYS.TASK_NOTES,
+      [],
+      z.array(TaskNoteSchema)
+    );
+  }
+
+  async setTaskNotes(notes: TaskNote[]): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.TASK_NOTES,
+      notes,
+      z.array(TaskNoteSchema)
+    );
+  }
+
+
+
+  async createBackup(key: string): Promise<void> {
+    try {
+      const data = localStorage.getItem(key);
+      if (data) {
+        createBackup(key, JSON.parse(data));
+      }
+    } catch (error) {
+      console.error(`Failed to create backup for key "${key}":`, error);
+      throw createStorageError('STORAGE_BACKUP_FAILED', 
+        `Failed to create backup for key "${key}"`, 
+        { key, originalError: error }
+      );
+    }
+  }
+
+  async needsMigration(key: string): Promise<boolean> {
+    try {
+      const item = localStorage.getItem(key);
+      if (!item) return false;
+      
+      const parsedData = JSON.parse(item);
+      return needsMigration(parsedData);
+    } catch (error) {
+      console.error(`Failed to check migration status for key "${key}":`, error);
+      return false;
+    }
+  }
+}
