@@ -25,7 +25,9 @@ import {
   Save as SaveIcon,
   Clear as ClearIcon,
   Notes as NotesIcon,
+  PlayArrow as RunIcon,
 } from '@mui/icons-material';
+import { invoke } from '@tauri-apps/api/core';
 import { NoteEditorProps, TemplateField } from '../../../types/notes';
 
 export function NoteEditor({
@@ -41,6 +43,7 @@ export function NoteEditor({
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isRunningCommand, setIsRunningCommand] = useState<Record<string, boolean>>({});
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -55,6 +58,7 @@ export function NoteEditor({
       template.fields.forEach(field => {
         switch (field.type) {
           case 'text':
+          case 'command':
             initialValues[field.id] = '';
             break;
           case 'number':
@@ -70,6 +74,17 @@ export function NoteEditor({
     }
   }, [existingNote, template]);
 
+  // Run commands for new notes
+  useEffect(() => {
+    if (!existingNote && template) {
+      template.fields.forEach(field => {
+        if (field.type === 'command' && field.command) {
+          runCommand(field.id, field.command);
+        }
+      });
+    }
+  }, [template, existingNote]);
+
   const handleFieldChange = useCallback((fieldId: string, value: any) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
     setHasUnsavedChanges(true);
@@ -83,6 +98,19 @@ export function NoteEditor({
       });
     }
   }, [errors]);
+
+  const runCommand = useCallback(async (fieldId: string, command: string) => {
+    setIsRunningCommand(prev => ({ ...prev, [fieldId]: true }));
+    try {
+      const output = await invoke<string>('execute_cli_command', { command });
+      handleFieldChange(fieldId, output.trim());
+    } catch (error) {
+      console.error('Failed to run command:', error);
+      setErrors(prev => ({ ...prev, [fieldId]: 'Failed to run command' }));
+    } finally {
+      setIsRunningCommand(prev => ({ ...prev, [fieldId]: false }));
+    }
+  }, [handleFieldChange]);
 
   const validateFields = useCallback((): boolean => {
     if (!template) return false;
@@ -124,6 +152,7 @@ export function NoteEditor({
           }
           break;
         case 'text':
+        case 'command':
           if (typeof value === 'string') {
             if (field.validation?.min !== undefined && value.length < field.validation.min) {
               newErrors[field.id] = `${field.label} must be at least ${field.validation.min} characters`;
@@ -247,6 +276,36 @@ export function NoteEditor({
             type="date"
             InputLabelProps={{ shrink: true }}
           />
+        );
+      case 'command':
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+            <TextField
+              {...commonProps}
+              multiline
+              minRows={4}
+              maxRows={12}
+              placeholder={field.placeholder}
+              sx={{
+                flex: 1,
+                '& .MuiInputBase-root': {
+                  alignItems: 'flex-start',
+                },
+                '& .MuiInputBase-input': {
+                  whiteSpace: 'pre-wrap',
+                  wordWrap: 'break-word',
+                  lineHeight: 1.5,
+                },
+              }}
+            />
+            <IconButton
+              onClick={() => field.command && runCommand(field.id, field.command)}
+              disabled={isRunningCommand[field.id] || !field.command}
+              title="Run Command"
+            >
+              {isRunningCommand[field.id] ? <CircularProgress size={24} /> : <RunIcon />}
+            </IconButton>
+          </Box>
         );
       default:
         return null;

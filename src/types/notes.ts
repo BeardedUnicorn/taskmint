@@ -8,7 +8,7 @@
 import { z } from 'zod';
 
 // Field Types
-export type FieldType = 'text' | 'number' | 'date';
+export type FieldType = 'text' | 'number' | 'date' | 'command';
 
 export interface TemplateField {
   id: string;
@@ -22,6 +22,7 @@ export interface TemplateField {
     max?: number;
     pattern?: string;
   };
+  command?: string;
 }
 
 // Note Template
@@ -57,7 +58,7 @@ export interface FieldValue {
 export const TemplateFieldSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1).max(100),
-  type: z.enum(['text', 'number', 'date']),
+  type: z.enum(['text', 'number', 'date', 'command']),
   required: z.boolean(),
   placeholder: z.string().optional(),
   order: z.number().min(0),
@@ -66,6 +67,7 @@ export const TemplateFieldSchema = z.object({
     max: z.number().optional(),
     pattern: z.string().optional(),
   }).optional(),
+  command: z.string().optional(),
 });
 
 export const NoteTemplateSchema = z.object({

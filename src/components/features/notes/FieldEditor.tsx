@@ -32,6 +32,7 @@ import {
   TextFields as TextIcon,
   Numbers as NumberIcon,
   CalendarToday as DateIcon,
+  Terminal as CommandIcon,
 } from '@mui/icons-material';
 import { FieldEditorProps, TemplateField, FieldType } from '../../../types/notes';
 
@@ -39,12 +40,14 @@ const FIELD_TYPE_ICONS = {
   text: TextIcon,
   number: NumberIcon,
   date: DateIcon,
+  command: CommandIcon,
 };
 
 const FIELD_TYPE_LABELS = {
   text: 'Text',
   number: 'Number',
   date: 'Date',
+  command: 'Command',
 };
 
 export function FieldEditor({
@@ -69,10 +72,11 @@ export function FieldEditor({
   }, [handleFieldUpdate]);
 
   const handleTypeChange = useCallback((type: FieldType) => {
-    // Clear validation when type changes
+    // Clear validation and command when type changes
     const updates: Partial<TemplateField> = { 
       type,
       validation: undefined,
+      command: type === 'command' ? '' : undefined,
     };
     handleFieldUpdate(updates);
   }, [handleFieldUpdate]);
@@ -101,6 +105,10 @@ export function FieldEditor({
       validation: Object.keys(newValidation).length > 0 ? newValidation : undefined 
     });
   }, [localField.validation, handleFieldUpdate]);
+
+  const handleCommandChange = useCallback((command: string) => {
+    handleFieldUpdate({ command: command || undefined });
+  }, [handleFieldUpdate]);
 
   const TypeIcon = FIELD_TYPE_ICONS[localField.type];
 
@@ -288,6 +296,23 @@ export function FieldEditor({
             </Box>
           )}
 
+          {localField.type === 'command' && (
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                Command Configuration
+              </Typography>
+              <TextField
+                label="CLI Command"
+                value={localField.command || ''}
+                onChange={(e) => handleCommandChange(e.target.value)}
+                size="small"
+                fullWidth
+                placeholder="echo 'Hello World'"
+                helperText="The CLI command to execute when the note is created or the button is clicked"
+              />
+            </Box>
+          )}
+
           {/* Field Preview */}
           <Box>
             <Typography variant="subtitle2" gutterBottom>
@@ -338,6 +363,29 @@ export function FieldEditor({
                   disabled
                   size="small"
                   InputLabelProps={{ shrink: true }}
+                />
+              )}
+              {localField.type === 'command' && (
+                <TextField
+                  label={localField.label}
+                  placeholder={localField.placeholder || 'Output from command'}
+                  required={localField.required}
+                  multiline
+                  minRows={3}
+                  maxRows={6}
+                  fullWidth
+                  disabled
+                  size="small"
+                  sx={{
+                    '& .MuiInputBase-root': {
+                      alignItems: 'flex-start',
+                    },
+                    '& .MuiInputBase-input': {
+                      whiteSpace: 'pre-wrap',
+                      wordWrap: 'break-word',
+                      lineHeight: 1.5,
+                    },
+                  }}
                 />
               )}
             </Paper>

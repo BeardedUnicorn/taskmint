@@ -614,6 +614,21 @@ fn update_tray_menu_command(
         .map_err(|e| format!("Failed to update tray menu: {:?}", e))
 }
 
+#[tauri::command]
+async fn execute_cli_command(command: String) -> Result<String, String> {
+    use std::process::Command;
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(&command)
+        .output()
+        .map_err(|e| format!("Failed to execute command: {}", e))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
 
 
 
@@ -821,7 +836,8 @@ pub fn run() {
             start_timer_from_tray,
             stop_timer_from_tray,
             update_tray_menu_command,
-            test_new_task_dialog
+            test_new_task_dialog,
+            execute_cli_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
