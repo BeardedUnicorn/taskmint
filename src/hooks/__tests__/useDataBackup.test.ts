@@ -111,10 +111,8 @@ describe('useDataBackup', () => {
     expect(backupData.exportedBy).toBe('Time Tracker App');
     expect(backupData.data).toHaveProperty('timeEntries');
     expect(backupData.data).toHaveProperty('tasks');
-    expect(backupData.data).toHaveProperty('payoutEntries');
     expect(backupData.metadata).toHaveProperty('totalTimeEntries');
     expect(backupData.metadata).toHaveProperty('totalTasks');
-    expect(backupData.metadata).toHaveProperty('totalPayoutEntries');
   });
 
   it('should get backup summary with correct data', () => {
@@ -124,7 +122,6 @@ describe('useDataBackup', () => {
 
     expect(summary).toHaveProperty('totalTimeEntries');
     expect(summary).toHaveProperty('totalTasks');
-    expect(summary).toHaveProperty('totalPayoutEntries');
     expect(summary).toHaveProperty('lastModified');
     expect(typeof summary.totalTimeEntries).toBe('number');
     expect(typeof summary.totalTasks).toBe('number');

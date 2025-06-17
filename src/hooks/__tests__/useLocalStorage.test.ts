@@ -167,7 +167,7 @@ describe('useLocalStorage', () => {
     });
 
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error setting localStorage key'),
+      expect.stringContaining('Error saving to localStorage key'),
       expect.any(Error)
     );
 

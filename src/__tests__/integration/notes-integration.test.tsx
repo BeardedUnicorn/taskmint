@@ -4,8 +4,6 @@
  * Integration tests for the templated notes feature including
  * template management, note creation, and task integration.
  */
-
-import { describe, it, expect, beforeEach } from 'vitest';
 import { NoteTemplateService } from '../../services/NoteTemplateService';
 import { TaskNotesService } from '../../services/TaskNotesService';
 import { StorageService } from '../../services/StorageService';

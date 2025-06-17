@@ -35,6 +35,11 @@ export function TaskSelector({
     }
   };
 
+  const handleInputChange = (_event: any, newInputValue: string) => {
+    // Handle typing in freeSolo mode
+    onChange(newInputValue);
+  };
+
   const handleCreateNewTask = async () => {
     if (newTaskName.trim() && onCreateNewTask) {
       try {
@@ -102,6 +107,7 @@ export function TaskSelector({
       <Autocomplete
         value={selectedTask || value || null}
         onChange={handleTaskChange}
+        onInputChange={handleInputChange}
         options={predefinedTasks}
         getOptionLabel={(option) => {
           if (typeof option === 'string') return option;

@@ -215,11 +215,13 @@ const setupIntegrationTests = () => {
   });
 
   afterEach(() => {
-    // Only run pending timers if fake timers are active
-    try {
-      jest.runOnlyPendingTimers();
-    } catch (error) {
-      // Ignore errors if fake timers are not active
+    // Check if fake timers are active before running pending timers
+    if (jest.isMockFunction(setTimeout)) {
+      try {
+        jest.runOnlyPendingTimers();
+      } catch (error) {
+        // Ignore errors if fake timers are not properly set up
+      }
     }
 
     // Use real timers

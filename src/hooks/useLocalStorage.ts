@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { migrateData, createBackup, needsMigration } from '../utils/dataMigration';
 
 export function useLocalStorage<T>(key: string, initialValue: T) {
@@ -39,19 +39,26 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     try {
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}":`, error);
+    }
+  };
 
+  // Automatically save to localStorage whenever storedValue changes
+  useEffect(() => {
+    try {
       // Store data in versioned format
       const versionedData = {
         version: 1,
-        data: valueToStore,
+        data: storedValue,
         migratedAt: new Date().toISOString(),
       };
 
       window.localStorage.setItem(key, JSON.stringify(versionedData));
     } catch (error) {
-      console.error(`Error setting localStorage key "${key}":`, error);
+      console.error(`Error saving to localStorage key "${key}":`, error);
     }
-  };
+  }, [key, storedValue]);
 
   return [storedValue, setValue] as const;
 }
