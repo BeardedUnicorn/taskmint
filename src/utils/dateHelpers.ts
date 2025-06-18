@@ -124,3 +124,22 @@ export function getRelativeTime(date: Date | string): string {
 export function getTimeDifference(startDate: Date | string, endDate: Date | string): number {
   return dayjs(endDate).diff(dayjs(startDate));
 }
+
+/**
+ * Convert time entry date strings back to Date objects
+ * This is needed when loading time entries from localStorage where dates are serialized as strings
+ */
+export function convertTimeEntryDates<T extends { startTime: any; endTime?: any }>(entry: T): T {
+  return {
+    ...entry,
+    startTime: entry.startTime instanceof Date ? entry.startTime : new Date(entry.startTime),
+    endTime: entry.endTime ? (entry.endTime instanceof Date ? entry.endTime : new Date(entry.endTime)) : undefined,
+  };
+}
+
+/**
+ * Convert an array of time entries, ensuring all date fields are proper Date objects
+ */
+export function convertTimeEntriesDates<T extends { startTime: any; endTime?: any }>(entries: T[]): T[] {
+  return entries.map(convertTimeEntryDates);
+}

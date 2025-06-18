@@ -8,9 +8,10 @@
 import { memo, useMemo } from 'react';
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
 import { Box, Typography, Paper } from '@mui/material';
+import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { TimeEntry } from '../../types/timer';
-
 import { Task } from '../../types/task';
+import { ActionButton } from './buttons/ActionButton';
 
 // Common virtualized list props
 interface VirtualizedListProps {
@@ -25,6 +26,7 @@ interface VirtualizedListProps {
 interface TimeEntryItemProps extends ListChildComponentProps {
   data: {
     entries: TimeEntry[];
+    tasks?: Task[];
     onEdit?: (entry: TimeEntry) => void;
     onDelete?: (entryId: string) => void;
     formatDuration: (ms: number) => string;
@@ -33,7 +35,7 @@ interface TimeEntryItemProps extends ListChildComponentProps {
 }
 
 const TimeEntryItem = memo(({ index, style, data }: TimeEntryItemProps) => {
-  const { entries, onEdit, onDelete, formatDuration, calculateEarnings } = data;
+  const { entries, tasks, onEdit, onDelete, formatDuration, calculateEarnings } = data;
   const entry = entries[index];
 
   if (!entry) {
@@ -49,7 +51,12 @@ const TimeEntryItem = memo(({ index, style, data }: TimeEntryItemProps) => {
   }
 
   const duration = entry.duration || 0;
-  const earnings = calculateEarnings ? calculateEarnings(duration, 50) : undefined; // Default rate for demo
+
+  // Find the task to get the correct hourly rate
+  const task = tasks?.find(t => t.id === entry.taskId || t.name === entry.taskName);
+  const hourlyRate = task?.hourlyRate;
+
+  const earnings = calculateEarnings && hourlyRate ? calculateEarnings(duration, hourlyRate) : undefined;
 
   return (
     <div style={style}>
@@ -78,33 +85,24 @@ const TimeEntryItem = memo(({ index, style, data }: TimeEntryItemProps) => {
         </Box>
         <Box display="flex" gap={1}>
           {onEdit && (
-            <button
+            <ActionButton
               onClick={() => onEdit(entry)}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                background: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              Edit
-            </button>
+              icon={<EditIcon fontSize="small" />}
+              variant="text"
+              size="small"
+              color="primary"
+              tooltip="Edit Entry"
+            />
           )}
           {onDelete && (
-            <button
+            <ActionButton
               onClick={() => onDelete(entry.id)}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #f44336',
-                borderRadius: '4px',
-                background: 'none',
-                color: '#f44336',
-                cursor: 'pointer',
-              }}
-            >
-              Delete
-            </button>
+              icon={<DeleteIcon fontSize="small" />}
+              variant="text"
+              size="small"
+              color="error"
+              tooltip="Delete Entry"
+            />
           )}
         </Box>
       </Paper>
@@ -117,6 +115,7 @@ TimeEntryItem.displayName = 'TimeEntryItem';
 // Virtualized Time Entry List
 interface VirtualizedTimeEntryListProps extends VirtualizedListProps {
   entries: TimeEntry[];
+  tasks?: Task[];
   onEdit?: (entry: TimeEntry) => void;
   onDelete?: (entryId: string) => void;
   formatDuration: (ms: number) => string;
@@ -126,6 +125,7 @@ interface VirtualizedTimeEntryListProps extends VirtualizedListProps {
 
 export const VirtualizedTimeEntryList = memo(({
   entries,
+  tasks,
   height,
   width = '100%',
   itemSize = 80,
@@ -139,11 +139,12 @@ export const VirtualizedTimeEntryList = memo(({
 }: VirtualizedTimeEntryListProps) => {
   const itemData = useMemo(() => ({
     entries,
+    tasks,
     onEdit,
     onDelete,
     formatDuration,
     calculateEarnings,
-  }), [entries, onEdit, onDelete, formatDuration, calculateEarnings]);
+  }), [entries, tasks, onEdit, onDelete, formatDuration, calculateEarnings]);
 
   if (entries.length === 0) {
     return (
@@ -233,41 +234,26 @@ const TaskItem = memo(({ index, style, data }: TaskItemProps) => {
             {task.hourlyRate ? `$${task.hourlyRate}/hour` : 'No rate set'}
           </Typography>
         </Box>
-        <Box display="flex" gap={1}>
+        <Box display="flex" gap={1} onClick={(e) => e.stopPropagation()}>
           {onEdit && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(task);
-              }}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                background: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              Edit
-            </button>
+            <ActionButton
+              onClick={() => onEdit(task)}
+              icon={<EditIcon fontSize="small" />}
+              variant="text"
+              size="small"
+              color="primary"
+              tooltip="Edit Task"
+            />
           )}
           {onDelete && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(task.id);
-              }}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #f44336',
-                borderRadius: '4px',
-                background: 'none',
-                color: '#f44336',
-                cursor: 'pointer',
-              }}
-            >
-              Delete
-            </button>
+            <ActionButton
+              onClick={() => onDelete(task.id)}
+              icon={<DeleteIcon fontSize="small" />}
+              variant="text"
+              size="small"
+              color="error"
+              tooltip="Delete Task"
+            />
           )}
         </Box>
       </Paper>

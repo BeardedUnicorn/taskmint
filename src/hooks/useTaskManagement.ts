@@ -2,12 +2,14 @@ import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Task, UseTaskManagementReturn } from '../types/task';
 import { ServiceFactory } from '../services';
 import { useAsyncError } from './useAsyncError';
+import { useNotification } from '../contexts/NotificationContext';
 
 export function useTaskManagement(): UseTaskManagementReturn {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const taskService = ServiceFactory.getTaskService();
   const { executeAsync } = useAsyncError();
+  const { showError, showSuccess } = useNotification();
 
   // Load tasks on mount
   useEffect(() => {
@@ -18,6 +20,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
         setTasks(loadedTasks);
       } catch (error) {
         console.error('Failed to load tasks:', error);
+        showError('Failed to load tasks. Please refresh the page and try again.');
       } finally {
         setIsLoading(false);
       }
@@ -31,11 +34,15 @@ export function useTaskManagement(): UseTaskManagementReturn {
       async () => {
         const newTask = await taskService.createTask(taskData);
         setTasks(prev => [...prev, newTask]);
+        showSuccess(`Task "${newTask.name}" created successfully!`);
         return newTask;
       },
-      { operation: 'addTask' }
+      {
+        operation: 'addTask',
+        errorHandler: () => showError('Failed to create task. Please try again.')
+      }
     );
-  }, [taskService, executeAsync]);
+  }, [taskService, executeAsync, showSuccess, showError]);
 
   // Memoized task lookup maps for performance (must be defined before functions that use them)
   const taskByIdMap = useMemo(() => {
@@ -64,21 +71,30 @@ export function useTaskManagement(): UseTaskManagementReturn {
         setTasks(prev => prev.map(task =>
           task.id === taskId ? updatedTask : task
         ));
+        showSuccess(`Task "${updatedTask.name}" updated successfully!`);
         return updatedTask;
       },
-      { operation: 'updateTask' }
+      {
+        operation: 'updateTask',
+        errorHandler: () => showError('Failed to update task. Please try again.')
+      }
     );
-  }, [taskService, executeAsync]);
+  }, [taskService, executeAsync, showSuccess, showError]);
 
   const deleteTask = useCallback(async (taskId: string): Promise<void> => {
+    const taskToDelete = tasks.find(task => task.id === taskId);
     await executeAsync(
       async () => {
         await taskService.deleteTask(taskId);
         setTasks(prev => prev.filter(task => task.id !== taskId));
+        showSuccess(`Task "${taskToDelete?.name || 'Unknown'}" deleted successfully!`);
       },
-      { operation: 'deleteTask' }
+      {
+        operation: 'deleteTask',
+        errorHandler: () => showError('Failed to delete task. Please try again.')
+      }
     );
-  }, [taskService, executeAsync]);
+  }, [taskService, executeAsync, tasks, showSuccess, showError]);
 
   const getTaskById = useCallback((taskId: string): Task | undefined => {
     return taskByIdMap.get(taskId);

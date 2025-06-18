@@ -29,15 +29,15 @@ import { formatLocalTime } from '../../../utils/dateHelpers';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import dayjs from 'dayjs';
 
-interface TaskDetailEnhancedProps {
+interface TaskDetailPaneProps {
   task: Task;
   timeEntries: TimeEntry[];
 }
 
-export function TaskDetailEnhanced({
+export function TaskDetailPane({
   task,
   timeEntries,
-}: TaskDetailEnhancedProps) {
+}: TaskDetailPaneProps) {
   // Filter time entries for this task
   const taskEntries = useMemo(() => {
     return timeEntries.filter(entry => 
@@ -175,8 +175,8 @@ export function TaskDetailEnhanced({
               </TableHead>
               <TableBody>
                 {taskEntries.map((entry) => {
-                  const earnings = task.hourlyRate && entry.duration 
-                    ? (entry.duration / (1000 * 60 * 60)) * task.hourlyRate 
+                  const earnings = task.hourlyRate && entry.duration
+                    ? (entry.duration / (1000 * 60 * 60)) * task.hourlyRate
                     : 0;
 
                   return (

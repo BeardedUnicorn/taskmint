@@ -33,14 +33,10 @@ import { useTaskNotes } from '../../../hooks/useTaskNotes';
 
 interface TaskNotesIntegrationProps {
   task: Task;
-  isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
 }
 
 export function TaskNotesIntegration({
   task,
-  isCollapsed = false,
-  onToggleCollapse,
 }: TaskNotesIntegrationProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [editingNote, setEditingNote] = useState<TaskNote | null>(null);
@@ -66,6 +62,12 @@ export function TaskNotesIntegration({
       setSelectedTemplateId(activeTemplates[0].id);
     }
   }, [selectedTemplateId, activeTemplates]);
+
+  // Reset editor state when task changes
+  useEffect(() => {
+    setEditingNote(null);
+    setShowNoteEditor(false);
+  }, [task.id]);
 
   const handleTemplateChange = useCallback((templateId: string) => {
     if (editingNote) {
@@ -121,46 +123,15 @@ export function TaskNotesIntegration({
     setShowNoteEditor(false);
   }, []);
 
-  if (isCollapsed) {
-    return (
-      <Paper 
-        sx={{ 
-          p: 2, 
-          cursor: onToggleCollapse ? 'pointer' : 'default',
-          '&:hover': onToggleCollapse ? { bgcolor: 'action.hover' } : {},
-        }}
-        onClick={onToggleCollapse}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <NotesIcon color="primary" />
-          <Typography variant="subtitle1" fontWeight="medium">
-            Task Notes
-          </Typography>
-          <Chip
-            label={`${notesStats.totalNotes} notes`}
-            size="small"
-            color="primary"
-            variant="outlined"
-          />
-          {notesStats.templatesUsed.length > 0 && (
-            <Chip
-              label={`${notesStats.templatesUsed.length} templates`}
-              size="small"
-              variant="outlined"
-            />
-          )}
-        </Box>
-      </Paper>
-    );
-  }
+
 
   return (
-    <Paper sx={{ p: 3 }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <NotesIcon color="primary" />
-          <Typography variant="h6">
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Task Notes
           </Typography>
           <Chip
@@ -170,16 +141,10 @@ export function TaskNotesIntegration({
             variant="outlined"
           />
         </Box>
-        {onToggleCollapse && (
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={onToggleCollapse}
-          >
-            Collapse
-          </Button>
-        )}
       </Box>
+
+      {/* Content */}
+      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
 
       {/* Template Selection */}
       {activeTemplates.length > 0 ? (
@@ -321,6 +286,7 @@ export function TaskNotesIntegration({
           )}
         </Paper>
       )}
-    </Paper>
+      </Box>
+    </Box>
   );
 }

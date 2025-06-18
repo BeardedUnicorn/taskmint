@@ -206,8 +206,16 @@ export function TodaysEntriesList({
           entry={{
             id: editingEntry.id,
             taskName: editingEntry.taskName,
-            startTime: editingEntry.startTime.toISOString().slice(0, 16),
-            endTime: editingEntry.endTime?.toISOString().slice(0, 16) || '',
+            startTime: (editingEntry.startTime instanceof Date
+              ? editingEntry.startTime
+              : new Date(editingEntry.startTime)
+            ).toISOString().slice(0, 16),
+            endTime: editingEntry.endTime
+              ? (editingEntry.endTime instanceof Date
+                  ? editingEntry.endTime
+                  : new Date(editingEntry.endTime)
+                ).toISOString().slice(0, 16)
+              : '',
           }}
           tasks={tasks}
           onSave={handleSaveEdit}

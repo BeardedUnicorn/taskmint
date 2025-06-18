@@ -7,6 +7,8 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { ThemeProvider as MuiThemeProvider, Theme } from '@mui/material/styles';
+import { IconButton, Button, Box, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
+import { LightMode, DarkMode, Computer, Check } from '@mui/icons-material';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { darkTheme, createLightTheme } from '../theme';
 
@@ -176,7 +178,7 @@ export function useThemeOptions() {
 /**
  * Theme toggle button component
  */
-export function ThemeToggleButton({ 
+export function ThemeToggleButton({
   size = 'medium',
   showLabel = false,
   className,
@@ -186,33 +188,32 @@ export function ThemeToggleButton({
   className?: string;
 }) {
   const { isDark, toggleTheme } = useTheme();
-  
+
+  if (showLabel) {
+    return (
+      <Button
+        onClick={toggleTheme}
+        className={className}
+        aria-label={`Switch to ${isDark ? 'light' : 'dark'} theme`}
+        startIcon={isDark ? <LightMode /> : <DarkMode />}
+        size={size}
+        variant="outlined"
+      >
+        {isDark ? 'Light' : 'Dark'}
+      </Button>
+    );
+  }
+
   return (
-    <button
+    <IconButton
       onClick={toggleTheme}
       className={className}
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} theme`}
-      style={{
-        background: 'none',
-        border: 'none',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: size === 'small' ? '4px' : size === 'large' ? '12px' : '8px',
-        borderRadius: '4px',
-        transition: 'background-color 0.2s',
-      }}
+      size={size}
+      color="inherit"
     >
-      <span style={{ fontSize: size === 'small' ? '16px' : size === 'large' ? '24px' : '20px' }}>
-        {isDark ? '☀️' : '🌙'}
-      </span>
-      {showLabel && (
-        <span style={{ fontSize: size === 'small' ? '12px' : size === 'large' ? '16px' : '14px' }}>
-          {isDark ? 'Light' : 'Dark'}
-        </span>
-      )}
-    </button>
+      {isDark ? <LightMode /> : <DarkMode />}
+    </IconButton>
   );
 }
 
@@ -227,56 +228,116 @@ export function ThemeSelector({
   size?: 'small' | 'medium' | 'large';
 }) {
   const { options, currentMode, setMode } = useThemeOptions();
-  
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  const getIcon = (value: string) => {
+    switch (value) {
+      case 'light':
+        return <LightMode fontSize="small" />;
+      case 'dark':
+        return <DarkMode fontSize="small" />;
+      case 'system':
+        return <Computer fontSize="small" />;
+      default:
+        return null;
+    }
+  };
+
   if (variant === 'buttons') {
     return (
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <Box display="flex" gap={1}>
         {options.map((option) => (
-          <button
+          <Button
             key={option.value}
             onClick={() => setMode(option.value)}
-            style={{
-              background: currentMode === option.value ? 'rgba(144, 202, 249, 0.2)' : 'none',
-              border: '1px solid rgba(144, 202, 249, 0.5)',
-              borderRadius: '4px',
-              padding: size === 'small' ? '4px 8px' : size === 'large' ? '12px 16px' : '8px 12px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: size === 'small' ? '12px' : size === 'large' ? '16px' : '14px',
-            }}
+            variant={currentMode === option.value ? 'contained' : 'outlined'}
+            size={size}
+            startIcon={getIcon(option.value)}
           >
-            <span>{option.icon}</span>
-            <span>{option.label}</span>
-          </button>
+            {option.label}
+          </Button>
         ))}
-      </div>
+      </Box>
     );
   }
-  
-  // Default menu variant
-  return (
-    <div>
-      {options.map((option) => (
-        <div
-          key={option.value}
-          onClick={() => setMode(option.value)}
-          style={{
-            padding: '8px 16px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: currentMode === option.value ? 'rgba(144, 202, 249, 0.1)' : 'none',
+
+  if (variant === 'dropdown') {
+    const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+      setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = () => {
+      setAnchorEl(null);
+    };
+
+    const handleSelect = (value: string) => {
+      setMode(value as any);
+      handleClose();
+    };
+
+    const currentOption = options.find(opt => opt.value === currentMode);
+
+    return (
+      <>
+        <Button
+          onClick={handleClick}
+          variant="outlined"
+          size={size}
+          startIcon={getIcon(currentMode)}
+          aria-controls={Boolean(anchorEl) ? 'theme-menu' : undefined}
+          aria-haspopup="true"
+          aria-expanded={Boolean(anchorEl) ? 'true' : undefined}
+        >
+          {currentOption?.label}
+        </Button>
+        <Menu
+          id="theme-menu"
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={handleClose}
+          MenuListProps={{
+            'aria-labelledby': 'theme-button',
           }}
         >
-          <span>{option.icon}</span>
-          <span>{option.label}</span>
-          {currentMode === option.value && <span style={{ marginLeft: 'auto' }}>✓</span>}
-        </div>
+          {options.map((option) => (
+            <MenuItem
+              key={option.value}
+              onClick={() => handleSelect(option.value)}
+              selected={currentMode === option.value}
+            >
+              <ListItemIcon>
+                {getIcon(option.value)}
+              </ListItemIcon>
+              <ListItemText>{option.label}</ListItemText>
+              {currentMode === option.value && (
+                <Check fontSize="small" sx={{ ml: 1 }} />
+              )}
+            </MenuItem>
+          ))}
+        </Menu>
+      </>
+    );
+  }
+
+  // Default menu variant - render as simple menu items
+  return (
+    <Box>
+      {options.map((option) => (
+        <MenuItem
+          key={option.value}
+          onClick={() => setMode(option.value)}
+          selected={currentMode === option.value}
+        >
+          <ListItemIcon>
+            {getIcon(option.value)}
+          </ListItemIcon>
+          <ListItemText>{option.label}</ListItemText>
+          {currentMode === option.value && (
+            <Check fontSize="small" sx={{ ml: 1 }} />
+          )}
+        </MenuItem>
       ))}
-    </div>
+    </Box>
   );
 }
 

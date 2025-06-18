@@ -16,6 +16,7 @@ import {
  * - Task management integration
  */
 import { ThemeProvider } from './contexts/ThemeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { NewTaskDialog } from './components/pages';
 import { DashboardPage } from './components/pages/DashboardPage';
 import { TasksPage } from './components/pages/TasksPage';
@@ -29,6 +30,7 @@ import { useLocalStorage } from './hooks/useLocalStorage';
 import { useSystemTray } from './hooks/useSystemTray';
 import { useTaskManagement } from './hooks/useTaskManagement';
 import { STORAGE_KEYS } from './constants';
+import { convertTimeEntriesDates } from './utils/dateHelpers';
 
 
 function App() {
@@ -37,15 +39,15 @@ function App() {
   // ============================================================================
 
   // Timer and time entry state
-  const [timeEntries, setTimeEntries] = useLocalStorage<TimeEntry[]>(STORAGE_KEYS.TIME_ENTRIES, []);
+  const [rawTimeEntries, setRawTimeEntries] = useLocalStorage<TimeEntry[]>(STORAGE_KEYS.TIME_ENTRIES, []);
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
+
+  // Convert time entries to ensure proper Date objects
+  const timeEntries = convertTimeEntriesDates(rawTimeEntries);
 
   // Navigation state
   const [activeView, setActiveView] = useState<SidebarView>('dashboard');
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
-
-  // Task management
-  const { tasks, addTask } = useTaskManagement();
 
   // ============================================================================
   // EFFECTS & INITIALIZATION
@@ -55,13 +57,8 @@ function App() {
   useEffect(() => {
     const runningEntry = timeEntries.find(entry => entry.isRunning);
     if (runningEntry) {
-      // Convert string dates back to Date objects
-      const restoredEntry: TimeEntry = {
-        ...runningEntry,
-        startTime: new Date(runningEntry.startTime),
-        endTime: runningEntry.endTime ? new Date(runningEntry.endTime) : undefined,
-      };
-      setActiveEntry(restoredEntry);
+      // Time entries are already converted to proper Date objects
+      setActiveEntry(runningEntry);
     }
   }, [timeEntries]);
 
@@ -70,7 +67,7 @@ function App() {
   // ============================================================================
 
   const handleSaveEntry = (entry: TimeEntry) => {
-    setTimeEntries(prev => {
+    setRawTimeEntries(prev => {
       const existingIndex = prev.findIndex(e => e.id === entry.id);
       if (existingIndex >= 0) {
         // Update existing entry
@@ -89,7 +86,7 @@ function App() {
   const handleUpdateActiveEntry = (entry: TimeEntry | null) => {
     setActiveEntry(entry);
     if (entry) {
-      setTimeEntries(prev => {
+      setRawTimeEntries(prev => {
         const existingIndex = prev.findIndex(e => e.id === entry.id);
         if (existingIndex >= 0) {
           // Update existing entry
@@ -153,15 +150,6 @@ function App() {
     handleStartTimerFromTray(taskName, startTime);
   };
 
-  // Initialize system tray
-  useSystemTray({
-    activeEntry,
-    timeEntries,
-    onStartTimer: handleStartTimerFromTray,
-    onStopTimer: handleStopTimerFromTray,
-    onShowNewTaskDialog: handleShowNewTaskDialog,
-  });
-
   // ============================================================================
   // UI EVENT HANDLERS
   // ============================================================================
@@ -179,7 +167,7 @@ function App() {
 
   // Handle entry updates and deletions for dashboard
   const handleUpdateEntry = (updatedEntry: TimeEntry) => {
-    setTimeEntries(prev => {
+    setRawTimeEntries(prev => {
       const existingIndex = prev.findIndex(entry => entry.id === updatedEntry.id);
 
       if (existingIndex >= 0) {
@@ -193,13 +181,10 @@ function App() {
   };
 
   const handleDeleteEntry = (entryId: string) => {
-    setTimeEntries(prev => {
+    setRawTimeEntries(prev => {
       return prev.filter(entry => entry.id !== entryId);
     });
   };
-
-  // Prepare data for components
-  const existingTasks = tasks.map(task => task.name);
 
   // ============================================================================
   // RENDER
@@ -208,8 +193,82 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <CssBaseline />
-        <Box sx={{ height: '100vh', display: 'flex' }}>
+        <NotificationProvider>
+          <AppContent
+            timeEntries={timeEntries}
+            activeEntry={activeEntry}
+            activeView={activeView}
+            newTaskDialogOpen={newTaskDialogOpen}
+            setNewTaskDialogOpen={setNewTaskDialogOpen}
+            handleStopActiveTimer={handleStopActiveTimer}
+            handleStartTimerFromTray={handleStartTimerFromTray}
+            handleStopTimerFromTray={handleStopTimerFromTray}
+            handleShowNewTaskDialog={handleShowNewTaskDialog}
+            handleStartNewTask={handleStartNewTask}
+            handleViewChange={handleViewChange}
+            handleStartTimer={handleStartTimer}
+            handleUpdateEntry={handleUpdateEntry}
+            handleDeleteEntry={handleDeleteEntry}
+          />
+        </NotificationProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  );
+}
+
+// Separate component that uses hooks requiring NotificationProvider
+interface AppContentProps {
+  timeEntries: TimeEntry[];
+  activeEntry: TimeEntry | null;
+  activeView: SidebarView;
+  newTaskDialogOpen: boolean;
+  setNewTaskDialogOpen: (open: boolean) => void;
+  handleStopActiveTimer: () => void;
+  handleStartTimerFromTray: (taskName: string, startTime: Date) => void;
+  handleStopTimerFromTray: () => void;
+  handleShowNewTaskDialog: () => void;
+  handleStartNewTask: (taskName: string) => void;
+  handleViewChange: (view: SidebarView) => void;
+  handleStartTimer: (taskName: string) => void;
+  handleUpdateEntry: (entry: TimeEntry) => void;
+  handleDeleteEntry: (entryId: string) => void;
+}
+
+function AppContent({
+  timeEntries,
+  activeEntry,
+  activeView,
+  newTaskDialogOpen,
+  setNewTaskDialogOpen,
+  handleStopActiveTimer,
+  handleStartTimerFromTray,
+  handleStopTimerFromTray,
+  handleShowNewTaskDialog,
+  handleStartNewTask,
+  handleViewChange,
+  handleStartTimer,
+  handleUpdateEntry,
+  handleDeleteEntry,
+}: AppContentProps) {
+  // Task management - now inside NotificationProvider
+  const { tasks, addTask, updateTask, deleteTask } = useTaskManagement();
+
+  // Initialize system tray
+  useSystemTray({
+    activeEntry,
+    timeEntries,
+    onStartTimer: handleStartTimerFromTray,
+    onStopTimer: handleStopTimerFromTray,
+    onShowNewTaskDialog: handleShowNewTaskDialog,
+  });
+
+  // Prepare data for components
+  const existingTasks = tasks.map(task => task.name);
+
+  return (
+    <>
+      <CssBaseline />
+      <Box sx={{ height: '100vh', display: 'flex' }}>
           {/* Sidebar Navigation */}
           <Sidebar
             activeView={activeView}
@@ -244,6 +303,8 @@ function App() {
                   tasks={tasks}
                   timeEntries={timeEntries}
                   onAddTask={addTask}
+                  onUpdateTask={updateTask}
+                  onDeleteTask={deleteTask}
                 />
               )}
 
@@ -269,9 +330,8 @@ function App() {
           existingTasks={existingTasks}
         />
         </Box>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
+      </>
+    );
 }
 
 export default App;

@@ -29,6 +29,8 @@ interface TaskListPaneProps {
   selectedTask: Task | null;
   onSelectTask: (task: Task) => void;
   onAddTask: (taskData: { name: string; hourlyRate?: number }) => Promise<Task | null>;
+  onEditTask?: (task: Task) => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
 export function TaskListPane({
@@ -36,6 +38,8 @@ export function TaskListPane({
   selectedTask,
   onSelectTask,
   onAddTask,
+  onEditTask,
+  onDeleteTask,
 }: TaskListPaneProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
@@ -154,25 +158,29 @@ export function TaskListPane({
                   
                   <ListItemSecondaryAction>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // TODO: Implement edit functionality
-                        }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // TODO: Implement delete functionality
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      {onEditTask && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditTask(task);
+                          }}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                      {onDeleteTask && (
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteTask(task.id);
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
                     </Box>
                   </ListItemSecondaryAction>
                 </ListItemButton>
