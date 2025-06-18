@@ -180,9 +180,11 @@ export function FieldEditor({
       </Box>
 
       {/* Expanded Field Configuration */}
-      <Collapse in={expanded}>
+      <Collapse in={expanded} unmountOnExit>
         <Stack spacing={2}>
-          <Divider />
+          <div data-testid="field-config">
+            <Divider />
+          </div>
           
           {/* Basic Settings */}
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -193,14 +195,17 @@ export function FieldEditor({
                 onChange={(e) => handleTypeChange(e.target.value as FieldType)}
                 label="Field Type"
               >
-                {Object.entries(FIELD_TYPE_LABELS).map(([value, label]) => (
-                  <MenuItem key={value} value={value}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {React.createElement(FIELD_TYPE_ICONS[value as FieldType], { fontSize: 'small' })}
-                      {label}
-                    </Box>
-                  </MenuItem>
-                ))}
+                {Object.entries(FIELD_TYPE_LABELS).map(([value, label]) => {
+                  const Icon = FIELD_TYPE_ICONS[value as FieldType];
+                  return (
+                    <MenuItem key={value} value={value}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Icon fontSize="small" />
+                        {label}
+                      </Box>
+                    </MenuItem>
+                  );
+                })}
               </Select>
             </FormControl>
 

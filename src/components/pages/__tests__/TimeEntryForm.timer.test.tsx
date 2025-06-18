@@ -52,13 +52,6 @@ jest.mock('../../../utils/dateHelpers', () => ({
   formatDateString: (_date: Date) => '2023-01-01',
 }));
 
-// Mock dayjs
-jest.mock('dayjs', () => {
-  const mockDayjs = (_date?: any) => ({
-    format: (_format: string) => '10:00:00',
-  });
-  return mockDayjs;
-});
 
 describe('TimeEntryForm Timer Clearing', () => {
   const mockOnSave = jest.fn();

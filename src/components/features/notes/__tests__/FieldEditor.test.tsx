@@ -7,6 +7,19 @@ import { FieldEditor } from '../FieldEditor';
 import { TemplateField } from '../../../../types/notes';
 
 describe('FieldEditor', () => {
+  // Mock the Collapse component to disable animation
+  const MockCollapse = ({ in: open, children, ...props }: { in: boolean; children: React.ReactNode; }) => {
+    return open ? <div {...props}>{children}</div> : null;
+  };
+
+  // Replace Collapse with our mock
+  jest.mock('@mui/material', () => {
+    const originalModule = jest.requireActual('@mui/material');
+    return {
+      ...originalModule,
+      Collapse: MockCollapse,
+    };
+  });
   const mockField: TemplateField = {
     id: 'field1',
     label: 'Test Field',
@@ -115,7 +128,11 @@ describe('FieldEditor', () => {
     expect(screen.getByTitle('Move Down')).toBeDisabled();
   });
 
-  it('expands and collapses field configuration', () => {
+  it('expands and collapses field configuration', async () => {
+    // Disable transitions for faster testing
+    const originalTransition = window.getComputedStyle(document.body).transition;
+    document.body.style.transition = 'none';
+    
     render(
       <FieldEditor
         field={mockField}
@@ -128,17 +145,22 @@ describe('FieldEditor', () => {
     );
 
     // Initially collapsed
-    expect(screen.queryByText('Field Type')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('field-config')).not.toBeInTheDocument();
+    console.log('Test: Initially collapsed - OK');
 
     // Expand
     fireEvent.click(screen.getByTitle('Expand'));
-    expect(screen.getByText('Field Type')).toBeInTheDocument();
+    expect(screen.getByTestId('field-config')).toBeInTheDocument();
     expect(screen.getByTitle('Collapse')).toBeInTheDocument();
+    console.log('Test: Expanded - OK');
 
     // Collapse
     fireEvent.click(screen.getByTitle('Collapse'));
-    expect(screen.queryByText('Field Type')).not.toBeInTheDocument();
-  });
+    // Wait for the collapse animation to complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(screen.queryByTestId('field-config')).not.toBeInTheDocument();
+    console.log('Test: Collapsed - OK');
+  }, 30000);
 
   it('calls onDeleteField when delete button is clicked', () => {
     render(

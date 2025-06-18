@@ -102,10 +102,8 @@ describe('NoteEditor Copy Functionality', () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Sample text content');
+      expect(screen.getByText('Copied Text Field content to clipboard')).toBeInTheDocument();
     });
-
-    // Check for success message
-    expect(screen.getByText('Copied Text Field content to clipboard')).toBeInTheDocument();
   });
 
   it('shows message when trying to copy empty field', async () => {
@@ -183,9 +181,8 @@ describe('NoteEditor Copy Functionality', () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('42');
+      expect(screen.getByText('Copied Number Field content to clipboard')).toBeInTheDocument();
     });
-
-    expect(screen.getByText('Copied Number Field content to clipboard')).toBeInTheDocument();
   });
 
   it('closes snackbar after timeout', async () => {

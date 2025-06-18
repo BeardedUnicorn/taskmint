@@ -188,7 +188,7 @@ export function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask }:
                     </TableCell>
                   </TableRow>
                 ) : (
-                  tasks
+                  [...tasks]
                     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
                     .map((task) => (
                       <TaskRow
