@@ -2,4 +2,5 @@
  * Layout Components Exports
  */
 
-export { Navbar } from './Navbar';
+export { Sidebar, type SidebarView } from './Sidebar';
+export { GlobalTimerBar } from './GlobalTimerBar';

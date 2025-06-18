@@ -2,8 +2,9 @@
  * Page Components Exports
  */
 
-export { TimeEntryForm } from './TimeEntryForm';
-export { CalendarView } from './CalendarView';
 export { TaskManagement } from './TaskManagement';
 export { NewTaskDialog } from './NewTaskDialog';
-export { NoteTemplates } from './NoteTemplates';
+export { DashboardPage } from './DashboardPage';
+export { TasksPage } from './TasksPage';
+export { ReportsPage } from './ReportsPage';
+export { SettingsPage } from './SettingsPage';

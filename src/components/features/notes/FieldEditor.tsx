@@ -5,7 +5,7 @@
  * validation settings, and field management actions.
  */
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Paper,
   Box,

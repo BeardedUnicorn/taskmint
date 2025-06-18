@@ -130,7 +130,6 @@ describe('FieldEditor', () => {
 
   it('expands and collapses field configuration', async () => {
     // Disable transitions for faster testing
-    const originalTransition = window.getComputedStyle(document.body).transition;
     document.body.style.transition = 'none';
     
     render(

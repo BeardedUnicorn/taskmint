@@ -1,30 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   CssBaseline,
   Box,
 } from '@mui/material';
+
+/**
+ * Main Application Component
+ *
+ * This is the root component that orchestrates the entire time tracking application.
+ * It manages:
+ * - Global state for time entries, active timers, and navigation
+ * - Integration with system tray functionality
+ * - Routing between different pages (Dashboard, Tasks, Reports, Settings)
+ * - Timer operations (start, stop, persistence)
+ * - Task management integration
+ */
 import { ThemeProvider } from './contexts/ThemeContext';
-import { TimeEntryForm, CalendarView, TaskManagement, NewTaskDialog, NoteTemplates } from './components/pages';
-import { Navbar } from './components/layout';
+import { NewTaskDialog } from './components/pages';
+import { DashboardPage } from './components/pages/DashboardPage';
+import { TasksPage } from './components/pages/TasksPage';
+import { ReportsPage } from './components/pages/ReportsPage';
+import { SettingsPage } from './components/pages/SettingsPage';
+import { Sidebar, GlobalTimerBar, type SidebarView } from './components/layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
-import { Task } from './types/task';
+
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useSystemTray } from './hooks/useSystemTray';
 import { useTaskManagement } from './hooks/useTaskManagement';
-import { TAB_INDICES, STORAGE_KEYS } from './constants';
+import { STORAGE_KEYS } from './constants';
 
 
 function App() {
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
+
+  // Timer and time entry state
   const [timeEntries, setTimeEntries] = useLocalStorage<TimeEntry[]>(STORAGE_KEYS.TIME_ENTRIES, []);
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
-  const [currentTab, setCurrentTab] = useState<number>(TAB_INDICES.DAILY_TIME_ENTRIES);
+
+  // Navigation state
+  const [activeView, setActiveView] = useState<SidebarView>('dashboard');
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
 
   // Task management
-  const { tasks, addTask, updateTask, deleteTask } = useTaskManagement();
+  const { tasks, addTask } = useTaskManagement();
 
-
+  // ============================================================================
+  // EFFECTS & INITIALIZATION
+  // ============================================================================
 
   // Restore active entry on app start
   useEffect(() => {
@@ -39,6 +64,10 @@ function App() {
       setActiveEntry(restoredEntry);
     }
   }, [timeEntries]);
+
+  // ============================================================================
+  // TIMER MANAGEMENT HANDLERS
+  // ============================================================================
 
   const handleSaveEntry = (entry: TimeEntry) => {
     setTimeEntries(prev => {
@@ -75,26 +104,6 @@ function App() {
     }
   };
 
-  const handleUpdateEntry = (updatedEntry: TimeEntry) => {
-    setTimeEntries(prev => {
-      const existingIndex = prev.findIndex(entry => entry.id === updatedEntry.id);
-
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = updatedEntry;
-        return updated;
-      } else {
-        return [...prev, updatedEntry];
-      }
-    });
-  };
-
-  const handleDeleteEntry = (entryId: string) => {
-    setTimeEntries(prev => {
-      return prev.filter(entry => entry.id !== entryId);
-    });
-  };
-
   const handleStopActiveTimer = () => {
     if (activeEntry && activeEntry.startTime) {
       const now = new Date();
@@ -111,6 +120,10 @@ function App() {
       handleSaveEntry(finalEntry);
     }
   };
+
+  // ============================================================================
+  // SYSTEM TRAY HANDLERS
+  // ============================================================================
 
   // System tray handlers
   const handleStartTimerFromTray = (taskName: string, startTime: Date) => {
@@ -140,21 +153,6 @@ function App() {
     handleStartTimerFromTray(taskName, startTime);
   };
 
-  const handleCreateNewTaskFromForm = async (taskName: string): Promise<Task> => {
-    const result = await addTask({ name: taskName });
-    if (!result) {
-      throw new Error('Failed to create task');
-    }
-    return result;
-  };
-
-
-
-
-
-  // Get existing task names for the dialog
-  const existingTasks = Array.from(new Set(timeEntries.map(entry => entry.taskName)));
-
   // Initialize system tray
   useSystemTray({
     activeEntry,
@@ -164,102 +162,106 @@ function App() {
     onShowNewTaskDialog: handleShowNewTaskDialog,
   });
 
+  // ============================================================================
+  // UI EVENT HANDLERS
+  // ============================================================================
 
-
-
-
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setCurrentTab(newValue);
+  // Handle view changes from sidebar
+  const handleViewChange = (view: SidebarView) => {
+    setActiveView(view);
   };
 
-  // Convert stored entries back to proper Date objects for display
-  const processedEntries: TimeEntry[] = timeEntries.map(entry => ({
-    ...entry,
-    startTime: new Date(entry.startTime),
-    endTime: entry.endTime ? new Date(entry.endTime) : undefined,
-  }));
+  // Handle timer start from global timer bar
+  const handleStartTimer = (taskName: string) => {
+    const startTime = new Date();
+    handleStartTimerFromTray(taskName, startTime);
+  };
+
+  // Handle entry updates and deletions for dashboard
+  const handleUpdateEntry = (updatedEntry: TimeEntry) => {
+    setTimeEntries(prev => {
+      const existingIndex = prev.findIndex(entry => entry.id === updatedEntry.id);
+
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = updatedEntry;
+        return updated;
+      } else {
+        return [...prev, updatedEntry];
+      }
+    });
+  };
+
+  const handleDeleteEntry = (entryId: string) => {
+    setTimeEntries(prev => {
+      return prev.filter(entry => entry.id !== entryId);
+    });
+  };
+
+  // Prepare data for components
+  const existingTasks = tasks.map(task => task.name);
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <CssBaseline />
-        <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-          <Navbar
-            activeEntry={activeEntry}
-            onStopActiveTimer={handleStopActiveTimer}
-            currentTab={currentTab}
-            onTabChange={handleTabChange}
+        <Box sx={{ height: '100vh', display: 'flex' }}>
+          {/* Sidebar Navigation */}
+          <Sidebar
+            activeView={activeView}
+            onViewChange={handleViewChange}
           />
 
-
-
-        {/* Main Content Area */}
-        {currentTab === 0 && (
-          /* Daily Time Entries */
-          <Box sx={{
-            flex: 1,
-            display: 'flex',
-            p: 3,
-            overflow: 'hidden',
-            gap: 3
-          }}>
-            {/* Left Panel - Timer Form */}
-            <Box sx={{
-              width: '400px',
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              <TimeEntryForm
-                onSave={handleSaveEntry}
-                predefinedTasks={tasks}
+          {/* Main Content Area */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {/* Global Timer Bar */}
+            <Box sx={{ p: 2 }}>
+              <GlobalTimerBar
                 activeEntry={activeEntry}
-                onUpdateActiveEntry={handleUpdateActiveEntry}
-                onCreateNewTask={handleCreateNewTaskFromForm}
-                timeEntries={processedEntries}
+                predefinedTasks={tasks}
+                onStart={handleStartTimer}
+                onStop={handleStopActiveTimer}
               />
             </Box>
 
-            {/* Right Panel - Calendar View (Full Width) */}
-            <Box sx={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              minWidth: 0, // Important for flex item to shrink
-              overflow: 'hidden'
-            }}>
-              <CalendarView
-                entries={processedEntries}
-                tasks={tasks}
-                onUpdateEntry={handleUpdateEntry}
-                onDeleteEntry={handleDeleteEntry}
-              />
+            {/* Page Content */}
+            <Box sx={{ flex: 1, overflow: 'auto' }}>
+              {activeView === 'dashboard' && (
+                <DashboardPage
+                  timeEntries={timeEntries}
+                  tasks={tasks}
+                  onUpdateEntry={handleUpdateEntry}
+                  onDeleteEntry={handleDeleteEntry}
+                />
+              )}
+
+              {activeView === 'tasks' && (
+                <TasksPage
+                  tasks={tasks}
+                  timeEntries={timeEntries}
+                  onAddTask={addTask}
+                />
+              )}
+
+              {activeView === 'reports' && (
+                <ReportsPage
+                  timeEntries={timeEntries}
+                  tasks={tasks}
+                  onDeleteEntry={handleDeleteEntry}
+                />
+              )}
+
+              {activeView === 'settings' && (
+                <SettingsPage />
+              )}
             </Box>
           </Box>
-        )}
 
-        {currentTab === TAB_INDICES.TASK_MANAGEMENT && (
-          /* Task Management */
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
-            <TaskManagement
-              tasks={tasks}
-              onAddTask={addTask}
-              onUpdateTask={updateTask}
-              onDeleteTask={deleteTask}
-            />
-          </Box>
-        )}
-
-        {currentTab === TAB_INDICES.NOTE_TEMPLATES && (
-          /* Note Templates */
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
-            <NoteTemplates />
-          </Box>
-        )}
-
-
-
-        {/* New Task Dialog */}
+          {/* New Task Dialog */}
         <NewTaskDialog
           open={newTaskDialogOpen}
           onClose={() => setNewTaskDialogOpen(false)}
