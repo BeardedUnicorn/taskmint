@@ -134,23 +134,26 @@ export function GlobalTimerBar({
       sx={{
         p: 2,
         mb: 2,
-        backgroundColor: 'success.light',
+        backgroundColor: 'success.dark',
         borderRadius: 2,
         border: '1px solid',
         borderColor: 'success.main',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <TimerIcon color="success" />
+        <TimerIcon sx={{ color: 'success.contrastText' }} />
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{ color: 'success.contrastText' }}>
             Working on:
           </Typography>
           <Chip
             label={activeEntry.taskName}
-            color="success"
-            variant="outlined"
+            sx={{
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              color: 'success.contrastText',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+            }}
             size="small"
           />
         </Box>
@@ -160,7 +163,11 @@ export function GlobalTimerBar({
           isRunning={activeEntry.isRunning}
           showTaskName={false}
           size="small"
-          sx={{ fontWeight: 600, fontSize: '1.1rem' }}
+          sx={{ 
+            fontWeight: 600, 
+            fontSize: '1.1rem',
+            color: 'success.contrastText'
+          }}
         />
         
         <Button

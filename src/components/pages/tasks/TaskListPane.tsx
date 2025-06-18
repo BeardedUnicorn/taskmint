@@ -122,9 +122,24 @@ export function TaskListPane({
                   sx={{
                     py: 2,
                     '&.Mui-selected': {
-                      backgroundColor: 'primary.light',
+                      backgroundColor: 'primary.dark',
+                      color: 'primary.contrastText',
                       '&:hover': {
-                        backgroundColor: 'primary.light',
+                        backgroundColor: 'primary.dark',
+                      },
+                      '& .MuiTypography-root': {
+                        color: 'primary.contrastText',
+                      },
+                      '& .MuiChip-root': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        color: 'primary.contrastText',
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                      },
+                      '& .MuiIconButton-root': {
+                        color: 'primary.contrastText',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        },
                       },
                     },
                   }}
@@ -136,53 +151,52 @@ export function TaskListPane({
                       </Typography>
                     }
                     secondary={
-                      <Box sx={{ mt: 0.5 }}>
-                        {task.hourlyRate && task.hourlyRate > 0 ? (
-                          <Chip
-                            label={`${formatCurrency(task.hourlyRate)}/hr`}
-                            size="small"
-                            color="success"
-                            variant="outlined"
-                          />
-                        ) : (
-                          <Chip
-                            label="No rate set"
-                            size="small"
-                            color="default"
-                            variant="outlined"
-                          />
-                        )}
+                      <Box sx={{ mt: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                          {task.hourlyRate && task.hourlyRate > 0 ? (
+                            <Chip
+                              label={`${formatCurrency(task.hourlyRate)}/hr`}
+                              size="small"
+                              color="success"
+                              variant="outlined"
+                            />
+                          ) : (
+                            <Chip
+                              label="No rate set"
+                              size="small"
+                              color="default"
+                              variant="outlined"
+                            />
+                          )}
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          {onEditTask && (
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditTask(task);
+                              }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                          {onDeleteTask && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteTask(task.id);
+                              }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Box>
                       </Box>
                     }
                   />
-                  
-                  <ListItemSecondaryAction>
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      {onEditTask && (
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditTask(task);
-                          }}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      )}
-                      {onDeleteTask && (
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteTask(task.id);
-                          }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      )}
-                    </Box>
-                  </ListItemSecondaryAction>
                 </ListItemButton>
                 
                 {index < filteredTasks.length - 1 && <Divider />}
