@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   CssBaseline,
   Box,
@@ -16,7 +16,7 @@ import {
  * - Task management integration
  */
 import { ThemeProvider } from './contexts/ThemeContext';
-import { NotificationProvider } from './contexts/NotificationContext';
+import { NotificationProvider, useNotification } from './contexts/NotificationContext';
 import { NewTaskDialog } from './components/pages';
 import { DashboardPage } from './components/pages/DashboardPage';
 import { TasksPage } from './components/pages/TasksPage';
@@ -26,11 +26,10 @@ import { Sidebar, GlobalTimerBar, type SidebarView } from './components/layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
 
-import { useLocalStorage } from './hooks/useLocalStorage';
 import { useSystemTray } from './hooks/useSystemTray';
 import { useTaskManagement } from './hooks/useTaskManagement';
-import { STORAGE_KEYS } from './constants';
-import { convertTimeEntriesDates } from './utils/dateHelpers';
+import { TimerService } from './services/TimerService';
+import { StorageService } from './services/StorageService';
 
 
 function App() {
@@ -39,65 +38,87 @@ function App() {
   // ============================================================================
 
   // Timer and time entry state
-  const [rawTimeEntries, setRawTimeEntries] = useLocalStorage<TimeEntry[]>(STORAGE_KEYS.TIME_ENTRIES, []);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
-
-  // Convert time entries to ensure proper Date objects
-  const timeEntries = convertTimeEntriesDates(rawTimeEntries);
 
   // Navigation state
   const [activeView, setActiveView] = useState<SidebarView>('dashboard');
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
 
+  // Initialize services
+  const storageService = useMemo(() => StorageService.getInstance(), []);
+  const timerService = useMemo(() => new TimerService(storageService), [storageService]);
+
   // ============================================================================
   // EFFECTS & INITIALIZATION
   // ============================================================================
 
-  // Restore active entry on app start
+  // Load time entries on app start
   useEffect(() => {
-    const runningEntry = timeEntries.find(entry => entry.isRunning);
-    if (runningEntry) {
-      // Time entries are already converted to proper Date objects
-      setActiveEntry(runningEntry);
-    }
-  }, [timeEntries]);
+    const loadTimeEntries = async () => {
+      try {
+        const entries = await timerService.getTimeEntries();
+        setTimeEntries(entries);
+
+        // Find and set active entry
+        const runningEntry = entries.find(entry => entry.isRunning);
+        if (runningEntry) {
+          setActiveEntry(runningEntry);
+        }
+      } catch (error) {
+        console.error('Failed to load time entries:', error);
+      }
+    };
+
+    loadTimeEntries();
+  }, [timerService]);
 
   // ============================================================================
   // TIMER MANAGEMENT HANDLERS
   // ============================================================================
 
-  const handleSaveEntry = (entry: TimeEntry) => {
-    setRawTimeEntries(prev => {
-      const existingIndex = prev.findIndex(e => e.id === entry.id);
-      if (existingIndex >= 0) {
-        // Update existing entry
-        const updated = [...prev];
-        updated[existingIndex] = entry;
-        return updated;
-      } else {
-        // Add new entry
-        return [...prev, entry];
-      }
-    });
+  const handleSaveEntry = async (entry: TimeEntry) => {
+    try {
+      await timerService.saveTimeEntry(entry);
 
-    setActiveEntry(null);
-  };
-
-  const handleUpdateActiveEntry = (entry: TimeEntry | null) => {
-    setActiveEntry(entry);
-    if (entry) {
-      setRawTimeEntries(prev => {
+      // Update local state
+      setTimeEntries(prev => {
         const existingIndex = prev.findIndex(e => e.id === entry.id);
         if (existingIndex >= 0) {
-          // Update existing entry
           const updated = [...prev];
           updated[existingIndex] = entry;
           return updated;
         } else {
-          // Add new entry (for running timers)
           return [...prev, entry];
         }
       });
+
+      setActiveEntry(null);
+    } catch (error) {
+      console.error('Failed to save time entry:', error);
+    }
+  };
+
+  const handleUpdateActiveEntry = async (entry: TimeEntry | null) => {
+    setActiveEntry(entry);
+    if (entry) {
+      try {
+        await timerService.saveTimeEntry(entry);
+
+        // Update local state
+        setTimeEntries(prev => {
+          const existingIndex = prev.findIndex(e => e.id === entry.id);
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = entry;
+            return updated;
+          } else {
+            return [...prev, entry];
+          }
+        });
+      } catch (error) {
+        console.error('Failed to update active entry:', error);
+      }
     }
   };
 
@@ -166,24 +187,36 @@ function App() {
   };
 
   // Handle entry updates and deletions for dashboard
-  const handleUpdateEntry = (updatedEntry: TimeEntry) => {
-    setRawTimeEntries(prev => {
-      const existingIndex = prev.findIndex(entry => entry.id === updatedEntry.id);
+  const handleUpdateEntry = async (updatedEntry: TimeEntry) => {
+    try {
+      await timerService.updateTimeEntry(updatedEntry.id, updatedEntry);
 
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = updatedEntry;
-        return updated;
-      } else {
-        return [...prev, updatedEntry];
-      }
-    });
+      // Update local state
+      setTimeEntries(prev => {
+        const existingIndex = prev.findIndex(entry => entry.id === updatedEntry.id);
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = updatedEntry;
+          return updated;
+        } else {
+          return [...prev, updatedEntry];
+        }
+      });
+    } catch (error) {
+      console.error('Failed to update time entry:', error);
+    }
   };
 
-  const handleDeleteEntry = (entryId: string) => {
-    setRawTimeEntries(prev => {
-      return prev.filter(entry => entry.id !== entryId);
-    });
+  const handleDeleteEntry = async (entryId: string) => {
+    try {
+      await timerService.deleteTimeEntry(entryId);
+
+      // Update local state only after successful deletion
+      setTimeEntries(prev => prev.filter(entry => entry.id !== entryId));
+    } catch (error) {
+      console.error('Failed to delete time entry:', error);
+      // Note: Error handling will be improved in AppContent component
+    }
   };
 
   // ============================================================================
@@ -230,8 +263,8 @@ interface AppContentProps {
   handleStartNewTask: (taskName: string) => void;
   handleViewChange: (view: SidebarView) => void;
   handleStartTimer: (taskName: string) => void;
-  handleUpdateEntry: (entry: TimeEntry) => void;
-  handleDeleteEntry: (entryId: string) => void;
+  handleUpdateEntry: (entry: TimeEntry) => Promise<void>;
+  handleDeleteEntry: (entryId: string) => Promise<void>;
 }
 
 function AppContent({
@@ -252,6 +285,31 @@ function AppContent({
 }: AppContentProps) {
   // Task management - now inside NotificationProvider
   const { tasks, addTask, updateTask, deleteTask } = useTaskManagement();
+
+  // Notification context for error handling
+  const { showSuccess, showError } = useNotification();
+
+  // Enhanced delete handler with user feedback
+  const handleDeleteEntryWithFeedback = async (entryId: string) => {
+    try {
+      await handleDeleteEntry(entryId);
+      showSuccess('Time entry deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete time entry:', error);
+      showError('Failed to delete time entry. Please try again.');
+    }
+  };
+
+  // Enhanced update handler with user feedback
+  const handleUpdateEntryWithFeedback = async (updatedEntry: TimeEntry) => {
+    try {
+      await handleUpdateEntry(updatedEntry);
+      showSuccess('Time entry updated successfully');
+    } catch (error) {
+      console.error('Failed to update time entry:', error);
+      showError('Failed to update time entry. Please try again.');
+    }
+  };
 
   // Initialize system tray
   useSystemTray({
@@ -293,8 +351,8 @@ function AppContent({
                 <DashboardPage
                   timeEntries={timeEntries}
                   tasks={tasks}
-                  onUpdateEntry={handleUpdateEntry}
-                  onDeleteEntry={handleDeleteEntry}
+                  onUpdateEntry={handleUpdateEntryWithFeedback}
+                  onDeleteEntry={handleDeleteEntryWithFeedback}
                 />
               )}
 
@@ -312,7 +370,7 @@ function AppContent({
                 <ReportsPage
                   timeEntries={timeEntries}
                   tasks={tasks}
-                  onDeleteEntry={handleDeleteEntry}
+                  onDeleteEntry={handleDeleteEntryWithFeedback}
                 />
               )}
 

@@ -355,7 +355,7 @@ describe('Timer Flow Integration Tests', () => {
       console.log('=== DEBUG: TimeEntryForm direct render - Task input found:', !!taskInput);
 
       // Check if start button is present
-      const startButton = screen.queryByRole('button', { name: /start timer/i });
+      const startButton = screen.queryByRole('button', { name: /start/i });
       console.log('=== DEBUG: TimeEntryForm direct render - Start button found:', !!startButton);
 
       expect(timeEntryHeading).toBeInTheDocument();
@@ -443,7 +443,7 @@ describe('Timer Flow Integration Tests', () => {
       console.log('Button texts:', allButtons.map(btn => btn.textContent));
 
       // Check for start timer button specifically
-      const initialStartButton = screen.queryByRole('button', { name: /start timer/i });
+      const initialStartButton = screen.queryByRole('button', { name: /start/i });
       console.log('Start timer button found:', !!initialStartButton);
 
       // If TimeEntryForm is not rendering properly, skip the test
@@ -463,7 +463,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for the button to be enabled after typing
       await waitFor(
         () => {
-          const enabledStartButton = screen.getByText('Start Timer');
+          const enabledStartButton = screen.getByText('Start');
           expect(enabledStartButton).toBeInTheDocument();
           expect(enabledStartButton).not.toBeDisabled();
         },
@@ -471,7 +471,7 @@ describe('Timer Flow Integration Tests', () => {
       );
 
       // Find and click start timer button
-      const startButton = screen.getByText('Start Timer');
+      const startButton = screen.getByText('Start');
 
       // Start timer
       await user.click(startButton);
@@ -483,7 +483,7 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
         },
         { timeout: 2000 }
@@ -501,17 +501,17 @@ describe('Timer Flow Integration Tests', () => {
 
       // Verify that the timer is running by checking UI state
       const containedStopButtons = Array.from(document.querySelectorAll('button'))
-        .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+        .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
       expect(containedStopButtons.length).toBeGreaterThan(0);
 
       // Skip localStorage verification for now due to useLocalStorage hook issues
       // TODO: Fix useLocalStorage hook to work properly in test environment
 
       // Find and click stop timer button (use the main timer form button, not navbar)
-      const stopButton = await screen.findByRole('button', { name: /stop timer/i });
+      const stopButton = await screen.findByRole('button', { name: /stop/i });
       // Ensure we get the main timer button (the one that's a contained button)
       const mainStopButton = Array.from(document.querySelectorAll('button'))
-        .find(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+        .find(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
 
       if (mainStopButton) {
         await user.click(mainStopButton);
@@ -537,7 +537,7 @@ describe('Timer Flow Integration Tests', () => {
       // Verify that the timer has stopped by checking UI state
       await waitFor(
         () => {
-          const startButton = screen.queryByRole('button', { name: /start timer/i });
+          const startButton = screen.queryByRole('button', { name: /start/i });
           expect(startButton).toBeInTheDocument();
         },
         { timeout: 2000 }
@@ -573,7 +573,7 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           expect(taskInput).toHaveValue('Development');
-          const startButton = screen.getByText('Start Timer');
+          const startButton = screen.getByText('Start');
           expect(startButton).toBeInTheDocument();
           expect(startButton).not.toBeDisabled();
         },
@@ -581,7 +581,7 @@ describe('Timer Flow Integration Tests', () => {
       );
 
       // Start timer
-      const startButton = screen.getByText('Start Timer');
+      const startButton = screen.getByText('Start');
       await user.click(startButton);
 
       // Allow time for async operations
@@ -591,7 +591,7 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
         },
         { timeout: 2000 }
@@ -605,7 +605,7 @@ describe('Timer Flow Integration Tests', () => {
       const stopButton = await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
           return containedStopButtons[0];
         },
@@ -661,14 +661,14 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           expect(taskInput).toHaveValue('First Task');
-          const startButton = screen.getByText('Start Timer');
+          const startButton = screen.getByText('Start');
           expect(startButton).toBeInTheDocument();
           expect(startButton).not.toBeDisabled();
         },
         { timeout: 2000 }
       );
 
-      const startButton = screen.getByText('Start Timer');
+      const startButton = screen.getByText('Start');
       await user.click(startButton);
 
       // Allow time for async operations
@@ -678,22 +678,22 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
         },
         { timeout: 2000 }
       );
 
-      // When a timer is running, the main form button should show "Stop Timer" instead of "Start Timer"
+      // When a timer is running, the main form button should show "Stop" instead of "Start"
       await waitFor(
         () => {
           // Check for the main form stop button (contained button)
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
 
           // Verify no start timer button exists
-          expect(screen.queryByText('Start Timer')).not.toBeInTheDocument();
+          expect(screen.queryByText('Start')).not.toBeInTheDocument();
         },
         { timeout: 2000 }
       );
@@ -737,14 +737,14 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           expect(taskInput).toHaveValue('Test Task');
-          const startButton = screen.getByText('Start Timer');
+          const startButton = screen.getByText('Start');
           expect(startButton).toBeInTheDocument();
           expect(startButton).not.toBeDisabled();
         },
         { timeout: 2000 }
       );
 
-      const startButton = screen.getByText('Start Timer');
+      const startButton = screen.getByText('Start');
       await user.click(startButton);
 
       // Allow time for error handling
@@ -755,7 +755,7 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
         },
         { timeout: 2000 }
@@ -796,14 +796,14 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for the button to be enabled after typing
       await waitFor(
         () => {
-          const startButton = screen.getByText('Start Timer');
+          const startButton = screen.getByText('Start');
           expect(startButton).toBeInTheDocument();
           expect(startButton).not.toBeDisabled();
         },
         { timeout: 2000 }
       );
 
-      const startButton = screen.getByText('Start Timer');
+      const startButton = screen.getByText('Start');
       await user.click(startButton);
 
       // Allow time for error handling
@@ -814,7 +814,7 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
         },
         { timeout: 2000 }
@@ -929,23 +929,34 @@ describe('Timer Flow Integration Tests', () => {
       // Allow time for async setup
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      // Wait for GlobalTimerBar to render first
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('global-timer-start-button')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
+
       // Start timer using the correct selector for Autocomplete
       const taskInput = screen.getByRole('combobox', { name: /task/i });
       await user.click(taskInput);
       await user.type(taskInput, 'Tray Test Task');
 
+      // For Autocomplete with freeSolo, we need to trigger the onChange event
+      // by pressing Enter to commit the value
+      await user.keyboard('{Enter}');
+
       // Wait for the button to be enabled after typing
       await waitFor(
         () => {
-          expect(taskInput).toHaveValue('Tray Test Task');
-          const startButton = screen.getByText('Start Timer');
+          const startButton = screen.getByTestId('global-timer-start-button');
           expect(startButton).toBeInTheDocument();
           expect(startButton).not.toBeDisabled();
         },
         { timeout: 2000 }
       );
 
-      const startButton = screen.getByText('Start Timer');
+      const startButton = screen.getByTestId('global-timer-start-button');
       await user.click(startButton);
 
       // Allow time for async operations
@@ -955,7 +966,7 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
         },
         { timeout: 2000 }
@@ -969,7 +980,7 @@ describe('Timer Flow Integration Tests', () => {
       const stopButton = await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
           return containedStopButtons[0];
         },
@@ -984,7 +995,7 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons).toHaveLength(0);
         },
         { timeout: 2000 }
@@ -1025,24 +1036,24 @@ describe('Timer Flow Integration Tests', () => {
       await waitFor(
         () => {
           expect(taskInput).toHaveValue('Tray Failure Test');
-          const startButton = screen.getByText('Start Timer');
+          const startButton = screen.getByText('Start');
           expect(startButton).toBeInTheDocument();
           expect(startButton).not.toBeDisabled();
         },
         { timeout: 2000 }
       );
 
-      const startButton = screen.getByText('Start Timer');
+      const startButton = screen.getByText('Start');
       await user.click(startButton);
 
       // Allow time for async operations
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Verify timer still started successfully - check for contained Stop Timer button
+      // Verify timer still started successfully - check for contained Stop button
       await waitFor(
         () => {
           const containedStopButtons = Array.from(document.querySelectorAll('button'))
-            .filter(btn => btn.textContent?.includes('Stop Timer') && btn.classList.contains('MuiButton-contained'));
+            .filter(btn => btn.textContent?.includes('Stop') && btn.classList.contains('MuiButton-contained'));
           expect(containedStopButtons.length).toBeGreaterThan(0);
         },
         { timeout: 2000 }

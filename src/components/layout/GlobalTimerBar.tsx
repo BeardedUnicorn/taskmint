@@ -104,6 +104,8 @@ export function GlobalTimerBar({
                 size="small"
                 onKeyPress={handleKeyPress}
                 data-testid="global-timer-task-input"
+                aria-label="Task name input"
+                label="Task"
               />
             )}
             renderOption={(props, option) => (

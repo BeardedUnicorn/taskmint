@@ -2,7 +2,7 @@
  * FieldEditor Unit Tests
  */
 
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { FieldEditor } from '../FieldEditor';
 import { TemplateField } from '../../../../types/notes';
 
@@ -129,9 +129,6 @@ describe('FieldEditor', () => {
   });
 
   it('expands and collapses field configuration', async () => {
-    // Disable transitions for faster testing
-    document.body.style.transition = 'none';
-    
     render(
       <FieldEditor
         field={mockField}
@@ -143,23 +140,30 @@ describe('FieldEditor', () => {
       />
     );
 
-    // Initially collapsed
+    // Initially collapsed - field config should not be visible
     expect(screen.queryByTestId('field-config')).not.toBeInTheDocument();
-    console.log('Test: Initially collapsed - OK');
 
-    // Expand
-    fireEvent.click(screen.getByTitle('Expand'));
-    expect(screen.getByTestId('field-config')).toBeInTheDocument();
+    // Find and click the expand button (should have "Expand" title)
+    const expandButton = screen.getByTitle('Expand');
+    fireEvent.click(expandButton);
+
+    // After expanding, field config should be visible
+    await waitFor(() => {
+      expect(screen.getByTestId('field-config')).toBeInTheDocument();
+    });
+
+    // The button should now have "Collapse" title
     expect(screen.getByTitle('Collapse')).toBeInTheDocument();
-    console.log('Test: Expanded - OK');
 
-    // Collapse
-    fireEvent.click(screen.getByTitle('Collapse'));
-    // Wait for the collapse animation to complete
-    await new Promise(resolve => setTimeout(resolve, 100));
-    expect(screen.queryByTestId('field-config')).not.toBeInTheDocument();
-    console.log('Test: Collapsed - OK');
-  }, 30000);
+    // Click collapse button
+    const collapseButton = screen.getByTitle('Collapse');
+    fireEvent.click(collapseButton);
+
+    // After collapsing, field config should not be visible
+    await waitFor(() => {
+      expect(screen.queryByTestId('field-config')).not.toBeInTheDocument();
+    });
+  });
 
   it('calls onDeleteField when delete button is clicked', () => {
     render(
