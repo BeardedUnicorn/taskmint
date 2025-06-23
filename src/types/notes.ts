@@ -8,7 +8,12 @@
 import { z } from 'zod';
 
 // Field Types
-export type FieldType = 'text' | 'number' | 'date' | 'command';
+export type FieldType = 'text' | 'number' | 'date' | 'command' | 'checkbox' | 'select';
+
+export interface SelectOption {
+  label: string;
+  value: string;
+}
 
 export interface TemplateField {
   id: string;
@@ -23,6 +28,7 @@ export interface TemplateField {
     pattern?: string;
   };
   command?: string;
+  options?: SelectOption[]; // For select field type
 }
 
 // Note Template
@@ -43,6 +49,7 @@ export interface TaskNote {
   templateId: string;
   templateName: string; // Cached for display
   fieldValues: Record<string, any>; // Field ID -> Value mapping
+  timeEntryId?: string | null; // Optional link to specific time entry
   createdAt: string;
   updatedAt: string;
 }
@@ -55,10 +62,15 @@ export interface FieldValue {
 }
 
 // Zod Validation Schemas
+export const SelectOptionSchema = z.object({
+  label: z.string().min(1),
+  value: z.string().min(1),
+});
+
 export const TemplateFieldSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1).max(100),
-  type: z.enum(['text', 'number', 'date', 'command']),
+  type: z.enum(['text', 'number', 'date', 'command', 'checkbox', 'select']),
   required: z.boolean(),
   placeholder: z.string().optional(),
   order: z.number().min(0),
@@ -68,6 +80,7 @@ export const TemplateFieldSchema = z.object({
     pattern: z.string().optional(),
   }).optional(),
   command: z.string().optional(),
+  options: z.array(SelectOptionSchema).optional(),
 });
 
 export const NoteTemplateSchema = z.object({
@@ -86,6 +99,7 @@ export const TaskNoteSchema = z.object({
   templateId: z.string().min(1),
   templateName: z.string().min(1),
   fieldValues: z.record(z.any()),
+  timeEntryId: z.string().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -123,6 +137,7 @@ export interface NoteEditorProps {
   taskId: string;
   template: NoteTemplate | null;
   existingNote?: TaskNote | null;
+  timeEntryId?: string | null; // Optional time entry context
   onSaveNote: (note: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<TaskNote>;
   onUpdateNote: (noteId: string, updates: Partial<TaskNote>) => Promise<TaskNote>;
   onDeleteNote: (noteId: string) => Promise<void>;
@@ -166,6 +181,7 @@ export interface UseTaskNotesReturn {
   updateNote: (noteId: string, updates: Partial<TaskNote>) => Promise<TaskNote>;
   deleteNote: (noteId: string) => Promise<void>;
   getNotesByTaskId: (taskId: string) => TaskNote[];
+  getNotesByTimeEntryId: (timeEntryId: string) => TaskNote[];
   getNoteById: (noteId: string) => TaskNote | undefined;
   getNotesStats: () => {
     totalNotes: number;

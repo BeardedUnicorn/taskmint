@@ -91,3 +91,28 @@ export interface LoadingState {
 export interface ComponentState extends LoadingState {
   data?: any;
 }
+
+// Dashboard Widget Configuration Types
+export interface DashboardWidgetConfig {
+  id: string;
+  enabled: boolean;
+  order?: number;
+}
+
+export interface DashboardWidgetPreferences {
+  widgets: DashboardWidgetConfig[];
+}
+
+export type DashboardWidgetId =
+  | 'total-time-today'
+  | 'earnings-today'
+  | 'tasks-worked-on'
+  | 'todays-entries';
+
+export interface DashboardWidget {
+  id: DashboardWidgetId;
+  title: string;
+  description: string;
+  defaultEnabled: boolean;
+  defaultOrder: number;
+}

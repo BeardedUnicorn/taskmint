@@ -18,10 +18,12 @@ export function ConfirmDialog({
   open,
   onClose,
   onConfirm,
+  onCancel,
   title,
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  confirmColor,
   severity = 'warning',
   sx,
 }: ConfirmDialogProps) {
@@ -30,7 +32,19 @@ export function ConfirmDialog({
     onClose();
   };
 
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel();
+    }
+    onClose();
+  };
+
   const getConfirmButtonColor = () => {
+    // Use confirmColor prop if provided, otherwise fall back to severity-based logic
+    if (confirmColor) {
+      return confirmColor;
+    }
+
     switch (severity) {
       case 'error':
         return 'error';
@@ -62,7 +76,7 @@ export function ConfirmDialog({
       </DialogContent>
       
       <DialogActions>
-        <Button onClick={onClose} color="secondary">
+        <Button onClick={handleCancel} color="secondary">
           {cancelLabel}
         </Button>
         <Button

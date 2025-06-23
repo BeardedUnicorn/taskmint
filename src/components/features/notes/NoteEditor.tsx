@@ -19,6 +19,12 @@ import {
   Alert,
   CircularProgress,
   Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import {
   ExpandMore as ExpandIcon,
@@ -36,6 +42,7 @@ export function NoteEditor({
   taskId,
   template,
   existingNote,
+  timeEntryId,
   onSaveNote,
   onUpdateNote,
   onDeleteNote,
@@ -94,7 +101,7 @@ export function NoteEditor({
   const handleFieldChange = useCallback((fieldId: string, value: any) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
     setHasUnsavedChanges(true);
-    
+
     // Clear error for this field
     if (errors[fieldId]) {
       setErrors(prev => {
@@ -104,6 +111,14 @@ export function NoteEditor({
       });
     }
   }, [errors]);
+
+  const handleCheckboxChange = useCallback((fieldId: string, checked: boolean) => {
+    handleFieldChange(fieldId, checked);
+  }, [handleFieldChange]);
+
+  const handleSelectChange = useCallback((fieldId: string, value: string) => {
+    handleFieldChange(fieldId, value);
+  }, [handleFieldChange]);
 
   const runCommand = useCallback(async (fieldId: string, command: string) => {
     setIsRunningCommand(prev => ({ ...prev, [fieldId]: true }));
@@ -171,6 +186,23 @@ export function NoteEditor({
             }
           }
           break;
+        case 'checkbox':
+          // Checkbox validation - just check if required and not checked
+          if (field.required && !value) {
+            newErrors[field.id] = `${field.label} is required`;
+          }
+          break;
+        case 'select':
+          // Select validation - check if value is in options
+          if (field.required && !value) {
+            newErrors[field.id] = `${field.label} is required`;
+          } else if (value && field.options) {
+            const validValues = field.options.map(opt => opt.value);
+            if (!validValues.includes(value)) {
+              newErrors[field.id] = `${field.label} has an invalid selection`;
+            }
+          }
+          break;
       }
     });
 
@@ -191,6 +223,7 @@ export function NoteEditor({
           templateId: template.id,
           templateName: template.name,
           fieldValues,
+          timeEntryId,
         });
       }
       
@@ -338,10 +371,52 @@ export function NoteEditor({
             </IconButton>
           </Box>
         );
+      case 'checkbox':
+        return (
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!!value}
+                onChange={(e) => handleCheckboxChange(field.id, e.target.checked)}
+                color="primary"
+              />
+            }
+            label={field.label}
+            required={field.required}
+            sx={{ alignItems: 'flex-start' }}
+          />
+        );
+      case 'select':
+        return (
+          <FormControl fullWidth size="small" error={!!error} required={field.required}>
+            <InputLabel>{field.label}</InputLabel>
+            <Select
+              value={value || ''}
+              onChange={(e) => handleSelectChange(field.id, e.target.value)}
+              label={field.label}
+            >
+              {!field.required && (
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+              )}
+              {(field.options || []).map((option, index) => (
+                <MenuItem key={index} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+            {(error || field.placeholder) && (
+              <Typography variant="caption" color={error ? 'error' : 'text.secondary'} sx={{ mt: 0.5, ml: 1.5 }}>
+                {error || field.placeholder}
+              </Typography>
+            )}
+          </FormControl>
+        );
       default:
         return null;
     }
-  }, [fieldValues, errors, handleFieldChange]);
+  }, [fieldValues, errors, handleFieldChange, handleCheckboxChange, handleSelectChange, isRunningCommand, runCommand]);
 
   const notesSummary = useMemo(() => {
     if (!template) return 'No template selected';

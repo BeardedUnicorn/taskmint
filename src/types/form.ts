@@ -73,10 +73,12 @@ export interface ConfirmDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  onCancel?: () => void;
   title: string;
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  confirmColor?: 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success';
   severity?: 'warning' | 'error' | 'info';
   sx?: SxProps<Theme>;
 }

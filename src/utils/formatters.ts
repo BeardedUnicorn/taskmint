@@ -145,3 +145,60 @@ export function truncateToLines(text: string, maxLines: number): string {
 
   return lines.slice(0, maxLines).join('\n') + '...';
 }
+
+/**
+ * Timer rounding options
+ */
+export type TimerRoundingOption = 'none' | 'up-5min' | 'up-15min' | 'up-30min';
+
+/**
+ * Apply rounding to a duration based on the selected rounding option
+ * @param milliseconds - Duration in milliseconds
+ * @param roundingOption - The rounding option to apply
+ * @returns Rounded duration in milliseconds
+ */
+export function applyTimerRounding(
+  milliseconds: number,
+  roundingOption: TimerRoundingOption
+): number {
+  if (roundingOption === 'none' || milliseconds <= 0) {
+    return milliseconds;
+  }
+
+  const minutes = milliseconds / (1000 * 60);
+  let roundedMinutes: number;
+
+  switch (roundingOption) {
+    case 'up-5min':
+      roundedMinutes = Math.ceil(minutes / 5) * 5;
+      break;
+    case 'up-15min':
+      roundedMinutes = Math.ceil(minutes / 15) * 15;
+      break;
+    case 'up-30min':
+      roundedMinutes = Math.ceil(minutes / 30) * 30;
+      break;
+    default:
+      roundedMinutes = minutes;
+  }
+
+  return roundedMinutes * 60 * 1000;
+}
+
+/**
+ * Get display label for rounding option
+ */
+export function getRoundingOptionLabel(option: TimerRoundingOption): string {
+  switch (option) {
+    case 'none':
+      return 'No rounding';
+    case 'up-5min':
+      return 'Round up to 5 minutes';
+    case 'up-15min':
+      return 'Round up to 15 minutes';
+    case 'up-30min':
+      return 'Round up to 30 minutes';
+    default:
+      return 'No rounding';
+  }
+}

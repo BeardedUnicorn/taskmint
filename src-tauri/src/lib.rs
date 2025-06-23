@@ -5,14 +5,20 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::image::Image;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use std::fs;
+use std::path::Path;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use anyhow;
+
+mod google_drive;
+use google_drive::{GoogleDriveClient, GoogleDriveConfig, DriveFileMetadata};
 
 // Type aliases for shared state
 type SharedTimerState = Arc<Mutex<TimerState>>;
 type SharedTasks = Arc<Mutex<Vec<Task>>>;
 type SharedTrayIcon = Arc<Mutex<Option<tauri::tray::TrayIcon>>>;
+type SharedGoogleDriveClient = Arc<Mutex<Option<GoogleDriveClient>>>;
 
 // Timer state structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +35,7 @@ pub struct Task {
     pub id: String,
     pub name: String,
     pub hourly_rate: Option<f64>,
+    pub default_note_template_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -40,29 +47,38 @@ pub struct DailyTotal {
     pub task_count: usize,
 }
 
-// Error recovery utilities
-async fn retry_operation<T, F, Fut>(
-    operation: F,
-    max_retries: u32,
-    delay_ms: u64,
-) -> Result<T, String>
-where
-    F: Fn() -> Fut,
-    Fut: std::future::Future<Output = Result<T, String>>,
-{
-    let mut attempts = 0;
-    loop {
-        match operation().await {
-            Ok(result) => return Ok(result),
-            Err(e) if attempts < max_retries => {
-                attempts += 1;
-                eprintln!("Operation failed (attempt {}/{}): {}", attempts, max_retries + 1, e);
-                tokio::time::sleep(Duration::from_millis(delay_ms * attempts as u64)).await;
-            }
-            Err(e) => return Err(format!("Operation failed after {} attempts: {}", max_retries + 1, e)),
-        }
-    }
+// Backup result structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupResult {
+    pub success: bool,
+    pub file_path: Option<String>,
+    pub error: Option<String>,
+    pub timestamp: String,
+    pub file_size: Option<u64>,
 }
+
+// Google Drive authentication result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoogleDriveAuthResult {
+    pub success: bool,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    pub expires_at: Option<String>,
+    pub error: Option<String>,
+}
+
+// Google Drive sync result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoogleDriveSyncResult {
+    pub success: bool,
+    pub operation: String, // "upload", "download", "conflict"
+    pub timestamp: String,
+    pub error: Option<String>,
+    pub conflict_resolution: Option<String>,
+    pub data_changed: bool,
+}
+
+// Error recovery utilities
 
 fn retry_sync_operation<T, F>(
     operation: F,
@@ -581,20 +597,7 @@ fn setup_system_tray(
     Ok(())
 }
 
-fn cleanup_system_tray(tray_icon: &SharedTrayIcon) {
-    println!("Cleaning up system tray...");
-    if let Ok(mut tray_guard) = tray_icon.lock() {
-        if let Some(existing_tray) = tray_guard.take() {
-            println!("Removing existing tray icon...");
-            drop(existing_tray);
-            println!("System tray cleaned up successfully");
-        } else {
-            println!("No existing tray icon to clean up");
-        }
-    } else {
-        eprintln!("Failed to acquire tray lock for cleanup");
-    }
-}
+
 
 #[tauri::command]
 fn update_tray_menu_command(
@@ -629,6 +632,109 @@ async fn execute_cli_command(command: String) -> Result<String, String> {
     }
 }
 
+#[tauri::command]
+async fn perform_automatic_backup(
+    backup_path: String,
+    current_data_json: String,
+    max_backups: u32,
+) -> Result<BackupResult, String> {
+    let timestamp = Utc::now();
+    let timestamp_str = timestamp.format("%Y%m%d_%H%M%S").to_string();
+    let filename = format!("time_tracker_backup_{}.json", timestamp_str);
+    let file_path = Path::new(&backup_path).join(&filename);
+
+    // Ensure backup directory exists
+    if let Some(parent) = file_path.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            return Ok(BackupResult {
+                success: false,
+                file_path: None,
+                error: Some(format!("Failed to create backup directory: {}", e)),
+                timestamp: timestamp.to_rfc3339(),
+                file_size: None,
+            });
+        }
+    }
+
+    // Write backup file
+    match fs::write(&file_path, &current_data_json) {
+        Ok(_) => {
+            // Get file size
+            let file_size = fs::metadata(&file_path)
+                .map(|metadata| metadata.len())
+                .ok();
+
+            // Clean up old backups
+            if let Err(e) = cleanup_old_backups(&backup_path, max_backups) {
+                eprintln!("Warning: Failed to cleanup old backups: {}", e);
+            }
+
+            Ok(BackupResult {
+                success: true,
+                file_path: Some(file_path.to_string_lossy().to_string()),
+                error: None,
+                timestamp: timestamp.to_rfc3339(),
+                file_size,
+            })
+        }
+        Err(e) => Ok(BackupResult {
+            success: false,
+            file_path: None,
+            error: Some(format!("Failed to write backup file: {}", e)),
+            timestamp: timestamp.to_rfc3339(),
+            file_size: None,
+        }),
+    }
+}
+
+// Helper function to cleanup old backup files
+fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String> {
+    let backup_dir = Path::new(backup_path);
+
+    if !backup_dir.exists() {
+        return Ok(());
+    }
+
+    // Read directory entries
+    let entries = fs::read_dir(backup_dir)
+        .map_err(|e| format!("Failed to read backup directory: {}", e))?;
+
+    // Collect backup files with their metadata
+    let mut backup_files: Vec<(std::path::PathBuf, std::time::SystemTime)> = Vec::new();
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+
+        // Check if it's a backup file (starts with "time_tracker_backup_" and ends with ".json")
+        if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+            if filename.starts_with("time_tracker_backup_") && filename.ends_with(".json") {
+                if let Ok(metadata) = fs::metadata(&path) {
+                    if let Ok(modified) = metadata.modified() {
+                        backup_files.push((path, modified));
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort by modification time (newest first)
+    backup_files.sort_by(|a, b| b.1.cmp(&a.1));
+
+    // Remove excess backup files
+    if backup_files.len() > max_backups as usize {
+        for (path, _) in backup_files.iter().skip(max_backups as usize) {
+            if let Err(e) = fs::remove_file(path) {
+                eprintln!("Warning: Failed to remove old backup file {:?}: {}", path, e);
+            } else {
+                println!("Removed old backup file: {:?}", path);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 
 
 
@@ -658,6 +764,167 @@ fn test_new_task_dialog(app: AppHandle) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+// Google Drive Cloud Sync Commands
+
+#[tauri::command]
+async fn google_drive_get_auth_url(
+    client_id: String,
+    redirect_uri: String,
+) -> Result<String, String> {
+    let config = GoogleDriveConfig {
+        client_id,
+        client_secret: String::new(), // Not needed for auth URL
+        redirect_uri,
+    };
+
+    let client = GoogleDriveClient::new(config);
+    let state = uuid::Uuid::new_v4().to_string();
+
+    client.get_auth_url(&state)
+        .map_err(|e| format!("Failed to generate auth URL: {}", e))
+}
+
+#[tauri::command]
+async fn google_drive_authenticate(
+    client_id: String,
+    client_secret: String,
+    redirect_uri: String,
+    auth_code: String,
+    google_drive_client: State<'_, SharedGoogleDriveClient>,
+) -> Result<GoogleDriveAuthResult, String> {
+    let config = GoogleDriveConfig {
+        client_id,
+        client_secret,
+        redirect_uri,
+    };
+
+    let mut client = GoogleDriveClient::new(config);
+
+    match client.exchange_code_for_tokens(&auth_code).await {
+        Ok(tokens) => {
+            // Store the client with tokens in shared state
+            {
+                let mut client_guard = google_drive_client.lock()
+                    .map_err(|e| format!("Failed to lock Google Drive client: {}", e))?;
+                *client_guard = Some(client);
+            }
+
+            Ok(GoogleDriveAuthResult {
+                success: true,
+                access_token: Some(tokens.access_token),
+                refresh_token: tokens.refresh_token,
+                expires_at: Some(tokens.expires_at.to_rfc3339()),
+                error: None,
+            })
+        }
+        Err(e) => Ok(GoogleDriveAuthResult {
+            success: false,
+            access_token: None,
+            refresh_token: None,
+            expires_at: None,
+            error: Some(format!("Authentication failed: {}", e)),
+        })
+    }
+}
+
+#[tauri::command]
+async fn google_drive_list_files(
+    query: Option<String>,
+    google_drive_client: State<'_, SharedGoogleDriveClient>,
+) -> Result<Vec<DriveFileMetadata>, String> {
+    // Clone the client to avoid holding the mutex guard across await
+    let mut client = {
+        let mut client_guard = google_drive_client.lock()
+            .map_err(|e| format!("Failed to lock Google Drive client: {}", e))?;
+
+        client_guard.as_mut()
+            .ok_or_else(|| "Google Drive client not authenticated".to_string())?
+            .clone()
+    };
+
+    client.list_files(query.as_deref()).await
+        .map_err(|e| format!("Failed to list files: {}", e))
+}
+
+#[tauri::command]
+async fn google_drive_get_file_metadata(
+    file_id: String,
+    google_drive_client: State<'_, SharedGoogleDriveClient>,
+) -> Result<DriveFileMetadata, String> {
+    // Clone the client to avoid holding the mutex guard across await
+    let mut client = {
+        let mut client_guard = google_drive_client.lock()
+            .map_err(|e| format!("Failed to lock Google Drive client: {}", e))?;
+
+        client_guard.as_mut()
+            .ok_or_else(|| "Google Drive client not authenticated".to_string())?
+            .clone()
+    };
+
+    client.get_file_metadata(&file_id).await
+        .map_err(|e| format!("Failed to get file metadata: {}", e))
+}
+
+#[tauri::command]
+async fn google_drive_download_file(
+    file_id: String,
+    google_drive_client: State<'_, SharedGoogleDriveClient>,
+) -> Result<String, String> {
+    // Clone the client to avoid holding the mutex guard across await
+    let mut client = {
+        let mut client_guard = google_drive_client.lock()
+            .map_err(|e| format!("Failed to lock Google Drive client: {}", e))?;
+
+        client_guard.as_mut()
+            .ok_or_else(|| "Google Drive client not authenticated".to_string())?
+            .clone()
+    };
+
+    client.download_file(&file_id).await
+        .map_err(|e| format!("Failed to download file: {}", e))
+}
+
+#[tauri::command]
+async fn google_drive_upload_file(
+    filename: String,
+    content: String,
+    parent_folder_id: Option<String>,
+    google_drive_client: State<'_, SharedGoogleDriveClient>,
+) -> Result<DriveFileMetadata, String> {
+    // Clone the client to avoid holding the mutex guard across await
+    let mut client = {
+        let mut client_guard = google_drive_client.lock()
+            .map_err(|e| format!("Failed to lock Google Drive client: {}", e))?;
+
+        client_guard.as_mut()
+            .ok_or_else(|| "Google Drive client not authenticated".to_string())?
+            .clone()
+    };
+
+    client.upload_file(&filename, &content, parent_folder_id.as_deref()).await
+        .map_err(|e| format!("Failed to upload file: {}", e))
+}
+
+#[tauri::command]
+async fn google_drive_update_file(
+    file_id: String,
+    content: String,
+    google_drive_client: State<'_, SharedGoogleDriveClient>,
+) -> Result<DriveFileMetadata, String> {
+    // Clone the client to avoid holding the mutex guard across await
+    let mut client = {
+        let mut client_guard = google_drive_client.lock()
+            .map_err(|e| format!("Failed to lock Google Drive client: {}", e))?;
+
+        client_guard.as_mut()
+            .ok_or_else(|| "Google Drive client not authenticated".to_string())?
+            .clone()
+    };
+
+    client.update_file(&file_id, &content).await
+        .map_err(|e| format!("Failed to update file: {}", e))
 }
 
 
@@ -774,12 +1041,16 @@ pub fn run() {
 
     let tasks: SharedTasks = Arc::new(Mutex::new(Vec::new()));
     let tray_icon: SharedTrayIcon = Arc::new(Mutex::new(None));
+    let google_drive_client: SharedGoogleDriveClient = Arc::new(Mutex::new(None));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .manage(timer_state.clone())
         .manage(tasks.clone())
         .manage(tray_icon.clone())
+        .manage(google_drive_client.clone())
         .setup({
             let timer_state = timer_state.clone();
             let tasks = tasks.clone();
@@ -837,7 +1108,15 @@ pub fn run() {
             stop_timer_from_tray,
             update_tray_menu_command,
             test_new_task_dialog,
-            execute_cli_command
+            execute_cli_command,
+            perform_automatic_backup,
+            google_drive_get_auth_url,
+            google_drive_authenticate,
+            google_drive_list_files,
+            google_drive_get_file_metadata,
+            google_drive_download_file,
+            google_drive_upload_file,
+            google_drive_update_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

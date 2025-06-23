@@ -57,6 +57,7 @@ export interface TaskError extends AppError {
     | 'TASK_CREATE_FAILED'
     | 'TASK_UPDATE_FAILED'
     | 'TASK_DELETE_FAILED'
+    | 'TASK_DELETE_PREVENTED'
     | 'TASK_NOT_FOUND'
     | 'TASK_DUPLICATE_NAME'
     | 'TASK_INVALID_RATE'

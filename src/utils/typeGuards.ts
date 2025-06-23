@@ -119,13 +119,14 @@ export function isTimeEntry(value: unknown): value is TimeEntry {
 
 export function isTask(value: unknown): value is Task {
   if (!isObject(value)) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   return (
     isNonEmptyString(obj.id) &&
     isNonEmptyString(obj.name) &&
     (isUndefined(obj.hourlyRate) || isPositiveNumber(obj.hourlyRate)) &&
+    (isUndefined(obj.defaultNoteTemplateId) || obj.defaultNoteTemplateId === null || isNonEmptyString(obj.defaultNoteTemplateId)) &&
     isValidISOString(obj.createdAt) &&
     isValidISOString(obj.updatedAt)
   );

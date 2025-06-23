@@ -36,6 +36,7 @@ A modern, cross-platform time tracking application built with Tauri v2, React, a
 - **JSON Export**: Export time entries, tasks, and templates to JSON format
 - **Data Backup**: Comprehensive backup system with metadata
 - **Import/Export**: Full data portability with version control
+- **Cloud Sync**: Optional Google Drive integration for data synchronization
 
 ## 🛠 Technology Stack
 
@@ -73,7 +74,16 @@ npm install
 # Install Rust dependencies (handled automatically by Tauri)
 ```
 
-### 3. Development Setup
+### 3. Environment Configuration
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env file with your Google Drive API credentials (optional)
+# Only needed if you plan to use cloud sync features
+```
+
+### 4. Development Setup
 ```bash
 # Start development server
 npm run dev
@@ -327,6 +337,32 @@ npm test -- --clearCache
 # Run tests with verbose output
 npm test -- --verbose
 ```
+
+#### Google Drive API Setup (Optional)
+If you want to use cloud sync features:
+
+1. **Create Google Cloud Project**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select existing one
+
+2. **Enable Google Drive API**:
+   - Navigate to "APIs & Services" > "Library"
+   - Search for "Google Drive API" and enable it
+
+3. **Create OAuth 2.0 Credentials**:
+   - Go to "APIs & Services" > "Credentials"
+   - Click "Create Credentials" > "OAuth 2.0 Client IDs"
+   - Set application type to "Web application"
+   - Add `http://localhost:3000/auth/callback` to authorized redirect URIs
+
+4. **Configure Environment Variables**:
+   ```bash
+   # Edit .env file
+   VITE_GOOGLE_CLIENT_ID=your_actual_client_id_here
+   VITE_GOOGLE_CLIENT_SECRET=your_actual_client_secret_here
+   ```
+
+**Note**: Cloud sync is optional. The app works fully without Google Drive integration.
 
 ### Getting Help
 - Check existing issues in the repository

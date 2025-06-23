@@ -4,21 +4,35 @@ import {
   Typography,
   Paper,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  IconButton,
 } from '@mui/material';
+import {
+  Add as AddIcon,
+  Edit as EditIcon,
+} from '@mui/icons-material';
 import { Task } from '../../types/task';
 import { TimeEntry } from '../../types/timer';
-import { TaskListPane } from './tasks/TaskListPane';
 import { TaskDetailPane } from './tasks/TaskDetailPane';
 import { TaskNotesIntegration } from '../features/tasks/TaskNotesIntegration';
+import { AddTaskDialog } from './tasks/AddTaskDialog';
 import { EditTaskDialog } from './tasks/EditTaskDialog';
+import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui';
+import { EditTimeEntryData } from '../../types/form';
 
 interface TasksPageProps {
   tasks: Task[];
   timeEntries: TimeEntry[];
-  onAddTask: (taskData: { name: string; hourlyRate?: number }) => Promise<Task | null>;
-  onUpdateTask?: (taskId: string, updates: { name: string; hourlyRate?: number }) => Promise<Task | null>;
+  onAddTask: (taskData: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
+  onUpdateTask?: (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
   onDeleteTask?: (taskId: string) => Promise<void>;
+  onUpdateEntry?: (entry: TimeEntry) => void;
+  onDeleteEntry?: (entryId: string) => void;
 }
 
 export function TasksPage({
@@ -27,10 +41,15 @@ export function TasksPage({
   onAddTask,
   onUpdateTask,
   onDeleteTask,
+  onUpdateEntry,
+  onDeleteEntry,
 }: TasksPageProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(tasks.length > 0 ? tasks[0] : null);
+  const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
 
   // Update selected task when tasks change
   useEffect(() => {
@@ -42,19 +61,23 @@ export function TasksPage({
     }
   }, [tasks, selectedTask]);
 
-  const handleSelectTask = (task: Task) => {
-    setSelectedTask(task);
+  const handleSelectTask = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    setSelectedTask(task || null);
   };
 
-  const handleEditTask = (task: Task) => {
-    setEditingTask(task);
+  const handleAddTaskDialog = async (taskData: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => {
+    const newTask = await onAddTask(taskData);
+    if (newTask) {
+      setShowNewTaskDialog(false);
+      setSelectedTask(newTask); // Auto-select the newly created task
+    }
+    return newTask;
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    setDeletingTaskId(taskId);
-  };
 
-  const handleSaveEdit = async (taskId: string, updates: { name: string; hourlyRate?: number }) => {
+
+  const handleSaveEdit = async (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => {
     if (!onUpdateTask) return null;
 
     try {
@@ -83,6 +106,40 @@ export function TasksPage({
     }
   };
 
+  const handleEditEntry = (entry: TimeEntry) => {
+    setEditingEntry(entry);
+  };
+
+  const handleDeleteEntry = (entryId: string) => {
+    setDeletingEntryId(entryId);
+  };
+
+  const handleSaveEntryEdit = (data: EditTimeEntryData) => {
+    if (!editingEntry || !onUpdateEntry) return;
+
+    const startTime = new Date(data.startTime);
+    const endTime = new Date(data.endTime);
+
+    const updatedEntry: TimeEntry = {
+      ...editingEntry,
+      taskName: data.taskName,
+      startTime,
+      endTime,
+      duration: endTime.getTime() - startTime.getTime(),
+      date: startTime.toISOString().split('T')[0],
+    };
+
+    onUpdateEntry(updatedEntry);
+    setEditingEntry(null);
+  };
+
+  const handleConfirmEntryDelete = () => {
+    if (deletingEntryId && onDeleteEntry) {
+      onDeleteEntry(deletingEntryId);
+      setDeletingEntryId(null);
+    }
+  };
+
 
 
   return (
@@ -97,46 +154,70 @@ export function TasksPage({
         </Typography>
       </Box>
 
-      {/* Three-Pane Layout */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', px: 3, pb: 3, gap: 2 }}>
-        {/* Left Pane - Task List */}
-        <Paper
-          elevation={1}
-          sx={{
-            width: 350,
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            borderRight: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          <TaskListPane
-            tasks={tasks}
-            selectedTask={selectedTask}
-            onSelectTask={handleSelectTask}
-            onAddTask={onAddTask}
-            onEditTask={onUpdateTask ? handleEditTask : undefined}
-            onDeleteTask={onDeleteTask ? handleDeleteTask : undefined}
-          />
-        </Paper>
+      {/* Task Selector */}
+      <Box sx={{ px: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <FormControl sx={{ minWidth: 300, flex: 1 }}>
+          <InputLabel id="task-selector-label">Select Task</InputLabel>
+          <Select
+            labelId="task-selector-label"
+            value={selectedTask ? selectedTask.id : ''}
+            label="Select Task"
+            onChange={(e) => handleSelectTask(e.target.value)}
+            disabled={tasks.length === 0}
+          >
+            {tasks.length === 0 ? (
+              <MenuItem value="" disabled>
+                <em>No tasks available</em>
+              </MenuItem>
+            ) : (
+              tasks.map((task) => (
+                <MenuItem key={task.id} value={task.id}>
+                  {task.name}
+                </MenuItem>
+              ))
+            )}
+          </Select>
+        </FormControl>
 
-        {/* Middle Pane - Task Detail */}
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setShowNewTaskDialog(true)}
+        >
+          Add Task
+        </Button>
+
+        {selectedTask && onUpdateTask && (
+          <IconButton
+            onClick={() => setEditingTask(selectedTask)}
+            color="primary"
+            title="Edit Selected Task"
+          >
+            <EditIcon />
+          </IconButton>
+        )}
+      </Box>
+
+      {/* Two-Pane Layout: Time Worked (50%) + Notes (50%) */}
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', px: 3, pb: 3, gap: 2 }}>
+        {/* Pane 1 - Time Worked */}
         <Paper
           elevation={1}
           sx={{
-            flex: 1,
+            flexBasis: '50%',
+            minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            borderRight: '1px solid',
-            borderColor: 'divider',
           }}
         >
           {selectedTask ? (
             <TaskDetailPane
               task={selectedTask}
               timeEntries={timeEntries}
+              allTasks={tasks}
+              onEditEntry={onUpdateEntry ? handleEditEntry : () => {}}
+              onDeleteEntry={onDeleteEntry ? handleDeleteEntry : () => {}}
             />
           ) : (
             <Box
@@ -153,19 +234,19 @@ export function TasksPage({
                   Select a Task
                 </Typography>
                 <Typography variant="body2">
-                  Choose a task from the list on the left to view its details and time entries.
+                  Select a task to view details and time entries.
                 </Typography>
               </Alert>
             </Box>
           )}
         </Paper>
 
-        {/* Right Pane - Task Notes */}
+        {/* Pane 2 - Notes */}
         <Paper
           elevation={1}
           sx={{
-            width: 450,
-            flexShrink: 0,
+            flexBasis: '50%',
+            minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -188,7 +269,7 @@ export function TasksPage({
                   Task Notes
                 </Typography>
                 <Typography variant="body2">
-                  Select a task to view and manage its notes.
+                  Select a task to manage notes.
                 </Typography>
               </Alert>
             </Box>
@@ -196,12 +277,21 @@ export function TasksPage({
         </Paper>
       </Box>
 
+      {/* Add Task Dialog */}
+      <AddTaskDialog
+        open={showNewTaskDialog}
+        onClose={() => setShowNewTaskDialog(false)}
+        onSave={handleAddTaskDialog}
+        availableTasks={tasks}
+      />
+
       {/* Edit Task Dialog */}
       <EditTaskDialog
         open={editingTask !== null}
         task={editingTask}
         onClose={() => setEditingTask(null)}
         onSave={handleSaveEdit}
+        availableTasks={tasks}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -211,6 +301,41 @@ export function TasksPage({
         message="Are you sure you want to delete this task? This action cannot be undone and will remove all associated time entries."
         onConfirm={handleConfirmDelete}
         onClose={() => setDeletingTaskId(null)}
+        confirmLabel="Delete"
+        severity="error"
+      />
+
+      {/* Edit Time Entry Dialog */}
+      {editingEntry && (
+        <EditTimeEntryDialog
+          open={true}
+          entry={{
+            id: editingEntry.id,
+            taskName: editingEntry.taskName,
+            startTime: (editingEntry.startTime instanceof Date
+              ? editingEntry.startTime
+              : new Date(editingEntry.startTime)
+            ).toISOString().slice(0, 16),
+            endTime: editingEntry.endTime
+              ? (editingEntry.endTime instanceof Date
+                  ? editingEntry.endTime
+                  : new Date(editingEntry.endTime)
+                ).toISOString().slice(0, 16)
+              : '',
+          }}
+          tasks={tasks}
+          onSave={handleSaveEntryEdit}
+          onClose={() => setEditingEntry(null)}
+        />
+      )}
+
+      {/* Delete Time Entry Confirmation Dialog */}
+      <ConfirmDialog
+        open={deletingEntryId !== null}
+        title="Delete Time Entry"
+        message="Are you sure you want to delete this time entry? This action cannot be undone."
+        onConfirm={handleConfirmEntryDelete}
+        onClose={() => setDeletingEntryId(null)}
         confirmLabel="Delete"
         severity="error"
       />

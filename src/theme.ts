@@ -41,6 +41,10 @@ export const darkTheme = createTheme({
       main: '#4caf50',
       contrastText: '#ffffff',
     },
+    divider: 'rgba(255, 255, 255, 0.12)',
+  },
+  shape: {
+    borderRadius: 8,
   },
   typography: {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -95,7 +99,7 @@ export const darkTheme = createTheme({
       styleOverrides: {
         root: {
           backgroundColor: '#1e1e1e',
-          borderRadius: 12,
+          borderRadius: 12, // Specific value for cards
           // Enhanced focus outline for accessibility
           '&:focus-visible': {
             outline: '2px solid #90caf9',
@@ -110,9 +114,9 @@ export const darkTheme = createTheme({
         'aria-label': 'Button',
       },
       styleOverrides: {
-        root: {
+        root: ({ theme }) => ({
           textTransform: 'none',
-          borderRadius: 8,
+          borderRadius: theme.shape.borderRadius,
           minHeight: 44, // Minimum touch target size
           padding: '8px 16px',
           // Enhanced focus styles
@@ -124,7 +128,7 @@ export const darkTheme = createTheme({
           '&:hover': {
             backgroundColor: 'rgba(144, 202, 249, 0.08)',
           },
-        },
+        }),
         contained: {
           boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
           '&:hover': {
@@ -255,6 +259,23 @@ export const darkTheme = createTheme({
           backgroundColor: 'rgba(0, 0, 0, 0.9)',
           color: '#ffffff',
           maxWidth: 300,
+        },
+      },
+    },
+    // Paper component for consistent elevation
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none', // Remove default gradient
+        },
+        elevation1: {
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4)',
+        },
+        elevation2: {
+          boxShadow: '0 3px 6px rgba(0, 0, 0, 0.4), 0 3px 6px rgba(0, 0, 0, 0.5)',
+        },
+        elevation3: {
+          boxShadow: '0 10px 20px rgba(0, 0, 0, 0.5), 0 6px 6px rgba(0, 0, 0, 0.6)',
         },
       },
     },

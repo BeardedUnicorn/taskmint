@@ -1,8 +1,8 @@
 /**
  * Task Notes Integration Component
- * 
- * Integrates notes functionality into task views with template selection,
- * note editing, and seamless task-note management.
+ *
+ * Integrates notes functionality into task views with note editing
+ * and seamless task-note management.
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -10,118 +10,98 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
   Stack,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Alert,
   Chip,
-  Divider,
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Notes as NotesIcon,
-  Description as TemplateIcon,
 } from '@mui/icons-material';
 import { Task } from '../../../types/task';
-import { TaskNote } from '../../../types/notes';
-import { NoteEditor, NotesList } from '../notes';
-import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
+import { TaskNote, NoteTemplate } from '../../../types/notes';
+import { NotesList, NoteEditor } from '../notes';
 import { useTaskNotes } from '../../../hooks/useTaskNotes';
+import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 
 interface TaskNotesIntegrationProps {
   task: Task;
+  timeEntryId?: string | null; // Optional time entry context
 }
 
 export function TaskNotesIntegration({
   task,
+  timeEntryId,
 }: TaskNotesIntegrationProps) {
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [editingNote, setEditingNote] = useState<TaskNote | null>(null);
-  const [showNoteEditor, setShowNoteEditor] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
+  const [isEditorCollapsed, setIsEditorCollapsed] = useState(false);
 
-  // Hooks for templates and notes
-  const { templates, getActiveTemplates } = useNoteTemplates();
+  // Hooks for notes
   const {
     notes,
     createNote,
     updateNote,
     deleteNote,
-    getNotesStats,
+    getNotesByTimeEntryId,
   } = useTaskNotes(task.id);
 
-  const activeTemplates = getActiveTemplates();
-  const selectedTemplate = templates.find(t => t.id === selectedTemplateId) || null;
-  const notesStats = getNotesStats();
+  // Hooks for templates
+  const { templates } = useNoteTemplates();
 
-  // Auto-select first template if none selected and templates are available
-  useEffect(() => {
-    if (!selectedTemplateId && activeTemplates.length > 0) {
-      setSelectedTemplateId(activeTemplates[0].id);
-    }
-  }, [selectedTemplateId, activeTemplates]);
+  // Filter notes based on context
+  const filteredNotes = timeEntryId
+    ? getNotesByTimeEntryId(timeEntryId)
+    : notes.filter(note => note.taskId === task.id);
+
+  // const notesStats = getNotesStats(); // Commented out unused variable
 
   // Reset editor state when task changes
   useEffect(() => {
     setEditingNote(null);
-    setShowNoteEditor(false);
-  }, [task.id]);
+  }, [task]);
 
-  const handleTemplateChange = useCallback((templateId: string) => {
-    if (editingNote) {
-      const confirmChange = window.confirm(
-        'Changing templates will discard any unsaved changes. Continue?'
-      );
-      if (!confirmChange) return;
-      setEditingNote(null);
-    }
-    setSelectedTemplateId(templateId);
-  }, [editingNote]);
 
-  const handleSaveNote = useCallback(async (
-    noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>
-  ): Promise<TaskNote> => {
-    const savedNote = await createNote(noteData);
-    setEditingNote(null);
-    setShowNoteEditor(false);
-    return savedNote;
-  }, [createNote]);
-
-  const handleUpdateNote = useCallback(async (
-    noteId: string,
-    updates: Partial<TaskNote>
-  ): Promise<TaskNote> => {
-    const updatedNote = await updateNote(noteId, updates);
-    setEditingNote(null);
-    setShowNoteEditor(false);
-    return updatedNote;
-  }, [updateNote]);
 
   const handleDeleteNote = useCallback(async (noteId: string): Promise<void> => {
     await deleteNote(noteId);
     if (editingNote?.id === noteId) {
       setEditingNote(null);
-      setShowNoteEditor(false);
+      setSelectedTemplate(null);
     }
   }, [deleteNote, editingNote]);
 
   const handleEditNote = useCallback((note: TaskNote) => {
     setEditingNote(note);
-    setSelectedTemplateId(note.templateId);
-    setShowNoteEditor(true);
-  }, []);
+    // Find the template for this note
+    const template = templates.find(t => t.id === note.templateId);
+    setSelectedTemplate(template || null);
+    setIsEditorCollapsed(false);
+  }, [templates]);
 
   const handleCreateNote = useCallback(() => {
     setEditingNote(null);
-    setShowNoteEditor(true);
-  }, []);
+    // Use the first available template or null
+    const defaultTemplate = templates.length > 0 ? templates[0] : null;
+    setSelectedTemplate(defaultTemplate);
+    setIsEditorCollapsed(false);
+  }, [templates]);
 
-  const handleCancelEdit = useCallback(() => {
+  const handleSaveNote = useCallback(async (noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote> => {
+    const savedNote = await createNote(noteData);
     setEditingNote(null);
-    setShowNoteEditor(false);
-  }, []);
+    setSelectedTemplate(null);
+    return savedNote;
+  }, [createNote]);
+
+  const handleUpdateNote = useCallback(async (noteId: string, updates: Partial<TaskNote>): Promise<TaskNote> => {
+    const updatedNote = await updateNote(noteId, updates);
+    setEditingNote(null);
+    setSelectedTemplate(null);
+    return updatedNote;
+  }, [updateNote]);
+
+  const handleToggleEditor = useCallback(() => {
+    setIsEditorCollapsed(!isEditorCollapsed);
+  }, [isEditorCollapsed]);
 
 
 
@@ -132,10 +112,10 @@ export function TaskNotesIntegration({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <NotesIcon color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Task Notes
+            {timeEntryId ? 'Time Entry Notes' : 'Task Notes'}
           </Typography>
           <Chip
-            label={`${notesStats.totalNotes} notes`}
+            label={`${filteredNotes.length} notes`}
             size="small"
             color="primary"
             variant="outlined"
@@ -145,145 +125,48 @@ export function TaskNotesIntegration({
 
       {/* Content */}
       <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
-
-      {/* Template Selection */}
-      {activeTemplates.length > 0 ? (
-        <Box sx={{ mb: 3 }}>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel>Note Template</InputLabel>
-              <Select
-                value={selectedTemplateId}
-                onChange={(e) => handleTemplateChange(e.target.value)}
-                label="Note Template"
-              >
-                <MenuItem value="">
-                  <em>None</em>
-                </MenuItem>
-                {activeTemplates.map((template: any) => (
-                  <MenuItem key={template.id} value={template.id}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <TemplateIcon fontSize="small" />
-                      {template.name} ({template.fields.length} fields)
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            {selectedTemplate && !showNoteEditor && (
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleCreateNote}
-                size="small"
-              >
-                Add Note
-              </Button>
-            )}
-          </Stack>
-        </Box>
-      ) : (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          No note templates available. Create templates in the Note Templates section to start adding structured notes to this task.
-        </Alert>
-      )}
-
-      {/* Note Editor */}
-      {showNoteEditor && selectedTemplate && (
-        <Box sx={{ mb: 3 }}>
-          <NoteEditor
-            taskId={task.id}
-            template={selectedTemplate}
-            existingNote={editingNote}
-            onSaveNote={handleSaveNote}
-            onUpdateNote={handleUpdateNote}
-            onDeleteNote={handleDeleteNote}
-            isCollapsed={false}
-            onToggleCollapse={() => {}}
-          />
-          <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              onClick={handleCancelEdit}
-              size="small"
-            >
-              Cancel
-            </Button>
+        {/* Note Editor - Show when editing or creating */}
+        {(editingNote || selectedTemplate) && (
+          <Box sx={{ mb: 3 }}>
+            <NoteEditor
+              taskId={task.id}
+              template={selectedTemplate}
+              existingNote={editingNote}
+              timeEntryId={timeEntryId}
+              onSaveNote={handleSaveNote}
+              onUpdateNote={handleUpdateNote}
+              onDeleteNote={handleDeleteNote}
+              isCollapsed={isEditorCollapsed}
+              onToggleCollapse={handleToggleEditor}
+            />
           </Box>
-        </Box>
-      )}
+        )}
 
-      {/* Template Info */}
-      {selectedTemplate && !showNoteEditor && (
-        <Box sx={{ mb: 3 }}>
-          <Paper variant="outlined" sx={{ p: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              Selected Template: {selectedTemplate.name}
-            </Typography>
-            {selectedTemplate.description && (
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                {selectedTemplate.description}
-              </Typography>
-            )}
-            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
-              {selectedTemplate.fields.map((field) => (
-                <Chip
-                  key={field.id}
-                  label={`${field.label} (${field.type})`}
-                  size="small"
-                  variant="outlined"
-                  color={field.required ? 'primary' : 'default'}
-                />
-              ))}
-            </Box>
-          </Paper>
-        </Box>
-      )}
-
-      <Divider sx={{ my: 3 }} />
-
-      {/* Notes List */}
-      <NotesList
-        taskId={task.id}
-        notes={notes}
-        onEditNote={handleEditNote}
-        onDeleteNote={handleDeleteNote}
-        onCreateNote={handleCreateNote}
-      />
+        {/* Notes List */}
+        <NotesList
+          taskId={task.id}
+          notes={filteredNotes}
+          onEditNote={handleEditNote}
+          onDeleteNote={handleDeleteNote}
+          onCreateNote={handleCreateNote}
+        />
 
       {/* Notes Statistics */}
-      {notesStats.totalNotes > 0 && (
+      {filteredNotes.length > 0 && (
         <Paper variant="outlined" sx={{ mt: 3, p: 2 }}>
           <Typography variant="subtitle2" gutterBottom color="text.primary">
             Notes Summary
           </Typography>
           <Stack direction="row" spacing={2} flexWrap="wrap">
             <Typography variant="body2" color="text.secondary">
-              Total Notes: {notesStats.totalNotes}
+              {timeEntryId ? 'Time Entry Notes' : 'Total Notes'}: {filteredNotes.length}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Templates Used: {notesStats.templatesUsed.length}
-            </Typography>
-            {notesStats.lastNoteDate && (
+            {filteredNotes.length > 0 && (
               <Typography variant="body2" color="text.secondary">
-                Last Updated: {new Date(notesStats.lastNoteDate).toLocaleDateString()}
+                Last Updated: {new Date(filteredNotes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0].updatedAt).toLocaleDateString()}
               </Typography>
             )}
           </Stack>
-          {notesStats.templatesUsed.length > 0 && (
-            <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-              {notesStats.templatesUsed.map((templateName: string) => (
-                <Chip
-                  key={templateName}
-                  label={`${templateName}: ${notesStats.notesByTemplate[templateName]}`}
-                  size="small"
-                  variant="outlined"
-                  color="primary"
-                />
-              ))}
-            </Box>
-          )}
         </Paper>
       )}
       </Box>

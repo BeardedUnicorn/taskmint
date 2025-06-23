@@ -1,4 +1,5 @@
 
+import { useState } from 'react';
 import {
   Drawer,
   List,
@@ -8,15 +9,20 @@ import {
   Box,
   Typography,
   Divider,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   Task as TaskIcon,
+  AccessTime as TimeEntriesIcon,
   BarChart as BarChartIcon,
   Settings as SettingsIcon,
+  Menu as MenuIcon,
+  ChevronLeft as ChevronLeftIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'dashboard' | 'tasks' | 'reports' | 'settings';
+export type SidebarView = 'dashboard' | 'tasks' | 'time-entries' | 'reports' | 'settings';
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -24,6 +30,7 @@ interface SidebarProps {
 }
 
 const SIDEBAR_WIDTH = 240;
+const SIDEBAR_WIDTH_COLLAPSED = 72;
 
 const navigationItems = [
   {
@@ -35,6 +42,11 @@ const navigationItems = [
     id: 'tasks' as SidebarView,
     label: 'Tasks',
     icon: TaskIcon,
+  },
+  {
+    id: 'time-entries' as SidebarView,
+    label: 'Time Entries',
+    icon: TimeEntriesIcon,
   },
   {
     id: 'reports' as SidebarView,
@@ -49,35 +61,58 @@ const navigationItems = [
 ];
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   return (
     <Drawer
       variant="permanent"
       sx={{
-        width: SIDEBAR_WIDTH,
+        width: isCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
         flexShrink: 0,
         '& .MuiDrawer-paper': {
-          width: SIDEBAR_WIDTH,
+          width: isCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
           boxSizing: 'border-box',
           backgroundColor: 'background.paper',
           borderRight: '1px solid',
           borderColor: 'divider',
+          transition: (theme) => theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
         },
       }}
     >
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
-          Time Tracker
-        </Typography>
+      {/* Header with Title and Toggle Button */}
+      <Box sx={{
+        p: 2,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: isCollapsed ? 'center' : 'space-between'
+      }}>
+        {!isCollapsed && (
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+            Time Tracker
+          </Typography>
+        )}
+        <IconButton
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          size="small"
+          sx={{
+            ml: isCollapsed ? 0 : 1,
+          }}
+        >
+          {isCollapsed ? <MenuIcon /> : <ChevronLeftIcon />}
+        </IconButton>
       </Box>
-      
+
       <Divider />
-      
+
       <List sx={{ pt: 1 }}>
         {navigationItems.map((item) => {
           const IconComponent = item.icon;
           const isSelected = activeView === item.id;
-          
-          return (
+
+          const listItemButton = (
             <ListItemButton
               key={item.id}
               selected={isSelected}
@@ -100,11 +135,26 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
                 },
               }}
             >
-              <ListItemIcon>
+              <ListItemIcon
+                sx={isCollapsed ? {
+                  minWidth: 'auto',
+                  pr: 0,
+                  justifyContent: 'center'
+                } : {}}
+              >
                 <IconComponent />
               </ListItemIcon>
-              <ListItemText primary={item.label} />
+              {!isCollapsed && <ListItemText primary={item.label} />}
             </ListItemButton>
+          );
+
+          // Wrap with tooltip when collapsed
+          return isCollapsed ? (
+            <Tooltip key={item.id} title={item.label} placement="right">
+              {listItemButton}
+            </Tooltip>
+          ) : (
+            listItemButton
           );
         })}
       </List>

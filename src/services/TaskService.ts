@@ -6,27 +6,45 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { Task } from '../types/task';
+import { Task, TaskDeletionStrategy, TaskHierarchy } from '../types/task';
 import { IStorageService } from './StorageService';
 import { createTaskError, TaskErrorClass } from '../types/errors';
 import { validateTaskName } from '../utils/validation';
+import {
+  buildTaskHierarchy,
+  getChildTasks,
+  getParentTask,
+  getTaskPath,
+  canDeleteTask,
+  prepareTaskDeletion,
+  validateTaskHierarchy,
+  getNextChildOrder
+} from '../utils/taskHierarchy';
 
 export interface ITaskService {
   // CRUD operations
   createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task>;
   updateTask(taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task>;
-  deleteTask(taskId: string): Promise<void>;
+  deleteTask(taskId: string, strategy?: TaskDeletionStrategy): Promise<void>;
   getTask(taskId: string): Promise<Task | null>;
   getAllTasks(): Promise<Task[]>;
-  
+
   // Search and filtering
   searchTasks(query: string): Promise<Task[]>;
   getTasksByHourlyRate(minRate?: number, maxRate?: number): Promise<Task[]>;
-  
+
+  // Hierarchical operations
+  getTaskHierarchy(): Promise<TaskHierarchy[]>;
+  getChildTasks(parentId: string): Promise<Task[]>;
+  getParentTask(taskId: string): Promise<Task | undefined>;
+  getTaskPath(taskId: string): Promise<Task[]>;
+  moveTask(taskId: string, newParentId: string | null): Promise<Task>;
+
   // Validation
   validateTask(task: Partial<Task>): Promise<{ isValid: boolean; errors: string[] }>;
   isTaskNameUnique(name: string, excludeId?: string): Promise<boolean>;
-  
+  validateTaskHierarchy(taskId: string, newParentId: string | null): Promise<boolean>;
+
   // Tauri backend synchronization
   syncWithTauriBackend(): Promise<void>;
 }
@@ -73,6 +91,7 @@ export class TaskService implements ITaskService {
         ...taskData,
         id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         name: taskData.name.trim(),
+        childOrder: taskData.parentId ? await this.getNextChildOrderForParent(taskData.parentId) : undefined,
         createdAt: now,
         updatedAt: now,
       };
@@ -194,9 +213,9 @@ export class TaskService implements ITaskService {
   }
 
   /**
-   * Delete a task
+   * Delete a task with hierarchical support
    */
-  async deleteTask(taskId: string): Promise<void> {
+  async deleteTask(taskId: string, strategy: TaskDeletionStrategy = 'prevent'): Promise<void> {
     try {
       const existingTask = await this.getTask(taskId);
       if (!existingTask) {
@@ -208,28 +227,51 @@ export class TaskService implements ITaskService {
         );
       }
 
-      // Remove from storage
       const tasks = await this.getAllTasks();
-      const filteredTasks = tasks.filter(t => t.id !== taskId);
-      
-      if (filteredTasks.length === tasks.length) {
+
+      // Check if deletion is allowed with the given strategy
+      const deletionCheck = canDeleteTask(tasks, taskId, strategy);
+      if (!deletionCheck.canDelete) {
         throw createTaskError(
-          'TASK_NOT_FOUND',
-          `Task with ID ${taskId} not found in storage`,
-          { taskId },
+          'TASK_DELETE_PREVENTED',
+          deletionCheck.reason || 'Cannot delete task',
+          { taskId, strategy, affectedTasks: deletionCheck.affectedTasks },
           'deleteTask'
         );
       }
 
+      // Prepare deletion based on strategy
+      const { tasksToDelete, tasksToUpdate } = prepareTaskDeletion(tasks, taskId, strategy);
+
+      // Update tasks that need to be modified (orphaned children)
+      for (const update of tasksToUpdate) {
+        await this.updateTask(update.id, update.updates);
+      }
+
+      // Delete time entries associated with tasks being deleted
+      const timeEntries = await this.storageService.getTimeEntries();
+      const filteredTimeEntries = timeEntries.filter(entry =>
+        !tasksToDelete.includes(entry.taskId || '') &&
+        !tasksToDelete.some(deletedTaskId => {
+          const deletedTask = tasks.find(t => t.id === deletedTaskId);
+          return deletedTask && entry.taskName === deletedTask.name;
+        })
+      );
+
+      // Save the filtered time entries back to storage
+      await this.storageService.setTimeEntries(filteredTimeEntries);
+
+      // Remove tasks from storage
+      const filteredTasks = tasks.filter(t => !tasksToDelete.includes(t.id));
       await this.storageService.setTasks(filteredTasks);
 
       // Remove from cache
-      this.taskCache.delete(taskId);
+      tasksToDelete.forEach(id => this.taskCache.delete(id));
 
       // Sync with Tauri backend
       await this.syncWithTauriBackend();
 
-      console.log('Task deleted successfully:', taskId);
+      console.log('Task(s) deleted successfully:', tasksToDelete);
     } catch (error) {
       if (error instanceof TaskErrorClass) {
         throw error;
@@ -381,6 +423,13 @@ export class TaskService implements ITaskService {
       }
     }
 
+    // Validate defaultNoteTemplateId (optional validation - just check if it's a string when provided)
+    if (task.defaultNoteTemplateId !== undefined && task.defaultNoteTemplateId !== null) {
+      if (typeof task.defaultNoteTemplateId !== 'string' || task.defaultNoteTemplateId.trim() === '') {
+        errors.push('Default note template ID must be a valid string');
+      }
+    }
+
     return {
       isValid: errors.length === 0,
       errors,
@@ -415,6 +464,139 @@ export class TaskService implements ITaskService {
     } catch (error) {
       console.error('Failed to sync tasks with Tauri backend:', error);
       // Don't throw error for backend sync to avoid breaking main functionality
+    }
+  }
+
+  /**
+   * Get task hierarchy
+   */
+  async getTaskHierarchy(): Promise<TaskHierarchy[]> {
+    try {
+      const tasks = await this.getAllTasks();
+      return buildTaskHierarchy(tasks);
+    } catch (error) {
+      console.error('Failed to get task hierarchy:', error);
+      throw createTaskError(
+        'TASK_NOT_FOUND',
+        'Failed to retrieve task hierarchy',
+        { originalError: error },
+        'getTaskHierarchy'
+      );
+    }
+  }
+
+  /**
+   * Get child tasks of a parent
+   */
+  async getChildTasks(parentId: string): Promise<Task[]> {
+    try {
+      const tasks = await this.getAllTasks();
+      return getChildTasks(tasks, parentId);
+    } catch (error) {
+      console.error('Failed to get child tasks:', error);
+      throw createTaskError(
+        'TASK_NOT_FOUND',
+        'Failed to retrieve child tasks',
+        { originalError: error, parentId },
+        'getChildTasks'
+      );
+    }
+  }
+
+  /**
+   * Get parent task
+   */
+  async getParentTask(taskId: string): Promise<Task | undefined> {
+    try {
+      const tasks = await this.getAllTasks();
+      return getParentTask(tasks, taskId);
+    } catch (error) {
+      console.error('Failed to get parent task:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Get task path from root to task
+   */
+  async getTaskPath(taskId: string): Promise<Task[]> {
+    try {
+      const tasks = await this.getAllTasks();
+      return getTaskPath(tasks, taskId);
+    } catch (error) {
+      console.error('Failed to get task path:', error);
+      throw createTaskError(
+        'TASK_NOT_FOUND',
+        'Failed to retrieve task path',
+        { originalError: error, taskId },
+        'getTaskPath'
+      );
+    }
+  }
+
+  /**
+   * Move a task to a new parent
+   */
+  async moveTask(taskId: string, newParentId: string | null): Promise<Task> {
+    try {
+      const tasks = await this.getAllTasks();
+
+      // Validate the move
+      if (!validateTaskHierarchy(tasks, taskId, newParentId)) {
+        throw createTaskError(
+          'TASK_VALIDATION_FAILED',
+          'Invalid task hierarchy: would create circular reference',
+          { taskId, newParentId },
+          'moveTask'
+        );
+      }
+
+      const childOrder = newParentId ? getNextChildOrder(tasks, newParentId) : undefined;
+
+      return await this.updateTask(taskId, {
+        parentId: newParentId,
+        childOrder,
+      });
+    } catch (error) {
+      if (error instanceof TaskErrorClass) {
+        throw error;
+      }
+
+      console.error('Failed to move task:', error);
+      throw createTaskError(
+        'TASK_UPDATE_FAILED',
+        'Failed to move task',
+        { originalError: error, taskId, newParentId },
+        'moveTask'
+      );
+    }
+  }
+
+  /**
+   * Validate task hierarchy
+   */
+  async validateTaskHierarchy(taskId: string, newParentId: string | null): Promise<boolean> {
+    try {
+      const tasks = await this.getAllTasks();
+      return validateTaskHierarchy(tasks, taskId, newParentId);
+    } catch (error) {
+      console.error('Failed to validate task hierarchy:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get next child order for a parent
+   */
+  private async getNextChildOrderForParent(parentId: string | null): Promise<number | undefined> {
+    if (!parentId) return undefined;
+
+    try {
+      const tasks = await this.getAllTasks();
+      return getNextChildOrder(tasks, parentId);
+    } catch (error) {
+      console.error('Failed to get next child order:', error);
+      return 0;
     }
   }
 

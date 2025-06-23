@@ -6,33 +6,34 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { TimeEntry } from '../types/timer';
+import { TimeEntry, TimerRoundingOption } from '../types/timer';
 
 import { IStorageService } from './StorageService';
 import { createTimerError, TimerErrorClass } from '../types/errors';
 import { formatDateString } from '../utils/dateHelpers';
 import { measurePerformance } from '../utils/performance';
+import { applyTimerRounding } from '../utils/formatters';
 
 export interface ITimerService {
   // Timer operations
   startTimer(taskName: string, taskId?: string, startTime?: Date): Promise<TimeEntry>;
-  stopTimer(entryId: string): Promise<TimeEntry>;
+  stopTimer(entryId: string, roundingOption?: TimerRoundingOption): Promise<TimeEntry>;
   updateActiveTimer(entry: TimeEntry): Promise<void>;
-  
+
   // Timer state management
   getActiveTimer(): Promise<TimeEntry | null>;
   setActiveTimer(entry: TimeEntry | null): Promise<void>;
-  
+
   // System tray integration
   updateSystemTray(activeEntry: TimeEntry | null, allEntries: TimeEntry[]): Promise<void>;
-  
+
   // Data operations
   saveTimeEntry(entry: TimeEntry): Promise<void>;
   updateTimeEntry(entryId: string, updates: Partial<TimeEntry>): Promise<TimeEntry>;
   deleteTimeEntry(entryId: string): Promise<void>;
   getTimeEntries(): Promise<TimeEntry[]>;
   getTimeEntriesByDate(date: string): Promise<TimeEntry[]>;
-  
+
   // Daily totals
   getDailyTotal(date?: string): Promise<{ totalDuration: number; taskCount: number }>;
 }
@@ -120,7 +121,7 @@ export class TimerService implements ITimerService {
   /**
    * Stop an active timer
    */
-  async stopTimer(entryId: string): Promise<TimeEntry> {
+  async stopTimer(entryId: string, roundingOption: TimerRoundingOption = 'none'): Promise<TimeEntry> {
     try {
       const entries = await this.getTimeEntries();
       const entry = entries.find(e => e.id === entryId);
@@ -144,7 +145,10 @@ export class TimerService implements ITimerService {
       }
 
       const now = new Date();
-      const duration = now.getTime() - entry.startTime.getTime();
+      const rawDuration = now.getTime() - entry.startTime.getTime();
+
+      // Apply rounding if specified
+      const duration = applyTimerRounding(rawDuration, roundingOption);
 
       const updatedEntry: TimeEntry = {
         ...entry,
@@ -172,7 +176,7 @@ export class TimerService implements ITimerService {
       if (error instanceof TimerErrorClass) {
         throw error;
       }
-      
+
       console.error('Failed to stop timer:', error);
       throw createTimerError(
         'TIMER_STOP_FAILED',

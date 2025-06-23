@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { Task, UseTaskManagementReturn } from '../types/task';
+import { Task, UseTaskManagementReturn, TaskDeletionStrategy, TaskHierarchy } from '../types/task';
 import { ServiceFactory } from '../services';
 import { useAsyncError } from './useAsyncError';
 import { useNotification } from '../contexts/NotificationContext';
@@ -81,12 +81,14 @@ export function useTaskManagement(): UseTaskManagementReturn {
     );
   }, [taskService, executeAsync, showSuccess, showError]);
 
-  const deleteTask = useCallback(async (taskId: string): Promise<void> => {
+  const deleteTask = useCallback(async (taskId: string, strategy: TaskDeletionStrategy = 'prevent'): Promise<void> => {
     const taskToDelete = tasks.find(task => task.id === taskId);
     await executeAsync(
       async () => {
-        await taskService.deleteTask(taskId);
-        setTasks(prev => prev.filter(task => task.id !== taskId));
+        await taskService.deleteTask(taskId, strategy);
+        // Reload tasks to reflect all changes (including orphaned/cascaded deletions)
+        const updatedTasks = await taskService.getAllTasks();
+        setTasks(updatedTasks);
         showSuccess(`Task "${taskToDelete?.name || 'Unknown'}" deleted successfully!`);
       },
       {
@@ -114,6 +116,55 @@ export function useTaskManagement(): UseTaskManagementReturn {
     return hours * hourlyRate;
   }, []);
 
+  // Hierarchical methods
+  const getTaskHierarchy = useCallback(async (): Promise<TaskHierarchy[]> => {
+    return executeAsync(
+      async () => {
+        return await taskService.getTaskHierarchy();
+      },
+      {
+        operation: 'getTaskHierarchy',
+        errorHandler: () => showError('Failed to load task hierarchy. Please try again.')
+      }
+    ) || [];
+  }, [taskService, executeAsync, showError]);
+
+  const getChildTasks = useCallback(async (parentId: string): Promise<Task[]> => {
+    return executeAsync(
+      async () => {
+        return await taskService.getChildTasks(parentId);
+      },
+      {
+        operation: 'getChildTasks',
+        errorHandler: () => showError('Failed to load child tasks. Please try again.')
+      }
+    ) || [];
+  }, [taskService, executeAsync, showError]);
+
+  const getParentTask = useCallback(async (taskId: string): Promise<Task | undefined> => {
+    return executeAsync(
+      async () => {
+        return await taskService.getParentTask(taskId);
+      },
+      {
+        operation: 'getParentTask',
+        errorHandler: () => showError('Failed to load parent task. Please try again.')
+      }
+    );
+  }, [taskService, executeAsync, showError]);
+
+  const getTaskPath = useCallback(async (taskId: string): Promise<Task[]> => {
+    return executeAsync(
+      async () => {
+        return await taskService.getTaskPath(taskId);
+      },
+      {
+        operation: 'getTaskPath',
+        errorHandler: () => showError('Failed to load task path. Please try again.')
+      }
+    ) || [];
+  }, [taskService, executeAsync, showError]);
+
   return {
     tasks,
     addTask,
@@ -123,6 +174,11 @@ export function useTaskManagement(): UseTaskManagementReturn {
     getTaskByName,
     getTaskNames,
     calculateEarnings,
+    // Hierarchical methods
+    getTaskHierarchy,
+    getChildTasks,
+    getParentTask,
+    getTaskPath,
     isLoading,
   };
 }

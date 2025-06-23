@@ -4,6 +4,9 @@ export default {
   testEnvironment: 'jsdom',
 
   // Setup files
+  setupFiles: [
+    '<rootDir>/src/__tests__/setup/import-meta-mock.ts'
+  ],
   setupFilesAfterEnv: [
     '<rootDir>/src/setupTests.ts',
     '<rootDir>/src/__tests__/integration/test-setup.ts'

@@ -7,15 +7,22 @@ import {
   TextField,
   Button,
   Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
 } from '@mui/material';
 import { Task } from '../../../types/task';
 import { CurrencyInput } from '../../ui';
+import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 
 interface EditTaskDialogProps {
   open: boolean;
   task: Task | null;
   onClose: () => void;
-  onSave: (taskId: string, updates: { name: string; hourlyRate?: number }) => Promise<Task | null>;
+  onSave: (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null; parentId?: string | null }) => Promise<Task | null>;
+  availableTasks?: Task[]; // For parent task selection
 }
 
 export function EditTaskDialog({
@@ -23,16 +30,25 @@ export function EditTaskDialog({
   task,
   onClose,
   onSave,
+  availableTasks = [],
 }: EditTaskDialogProps) {
   const [taskName, setTaskName] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
+  const [defaultNoteTemplateId, setDefaultNoteTemplateId] = useState<string>('');
+  const [parentId, setParentId] = useState<string>('');
   const [errors, setErrors] = useState<{ taskName?: string; hourlyRate?: string }>({});
+
+  // Fetch note templates
+  const { getActiveTemplates, isLoading: templatesLoading } = useNoteTemplates();
+  const activeTemplates = getActiveTemplates();
 
   // Reset form when task changes
   useEffect(() => {
     if (task) {
       setTaskName(task.name);
       setHourlyRate(task.hourlyRate?.toString() || '');
+      setDefaultNoteTemplateId(task.defaultNoteTemplateId || '');
+      setParentId(task.parentId || '');
       setErrors({});
     }
   }, [task]);
@@ -63,14 +79,18 @@ export function EditTaskDialog({
     e.preventDefault();
     if (!task || !validateForm()) return;
 
-    const hourlyRateValue = hourlyRate.trim() 
-      ? parseFloat(hourlyRate) 
+    const hourlyRateValue = hourlyRate.trim()
+      ? parseFloat(hourlyRate)
       : undefined;
+
+    const templateId = defaultNoteTemplateId || null;
 
     try {
       const result = await onSave(task.id, {
         name: taskName.trim(),
         hourlyRate: hourlyRateValue,
+        defaultNoteTemplateId: templateId,
+        parentId: parentId || null,
       });
 
       if (result) {
@@ -84,6 +104,8 @@ export function EditTaskDialog({
   const handleClose = () => {
     setTaskName('');
     setHourlyRate('');
+    setDefaultNoteTemplateId('');
+    setParentId('');
     setErrors({});
     onClose();
   };
@@ -115,6 +137,50 @@ export function EditTaskDialog({
               helperText={errors.hourlyRate || 'Leave empty if not applicable'}
               placeholder="0.00"
             />
+
+            <FormControl fullWidth>
+              <InputLabel id="parent-task-label">Parent Task</InputLabel>
+              <Select
+                labelId="parent-task-label"
+                value={parentId}
+                label="Parent Task"
+                onChange={(e) => setParentId(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>None (Root Level)</em>
+                </MenuItem>
+                {availableTasks
+                  .filter(t => t.id !== task?.id) // Prevent task from being its own parent
+                  .map((availableTask) => (
+                    <MenuItem key={availableTask.id} value={availableTask.id}>
+                      {availableTask.name}
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel id="default-note-template-label">Default Note Template</InputLabel>
+              <Select
+                labelId="default-note-template-label"
+                value={defaultNoteTemplateId}
+                label="Default Note Template"
+                onChange={(e) => setDefaultNoteTemplateId(e.target.value)}
+                disabled={templatesLoading}
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                {activeTemplates.map((template) => (
+                  <MenuItem key={template.id} value={template.id}>
+                    {template.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              {templatesLoading && (
+                <CircularProgress size={20} sx={{ position: 'absolute', right: 40, top: '50%', transform: 'translateY(-50%)' }} />
+              )}
+            </FormControl>
           </Stack>
         </DialogContent>
 

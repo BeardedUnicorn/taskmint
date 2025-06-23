@@ -48,6 +48,9 @@ export function createLightTheme() {
       },
       divider: 'rgba(0, 0, 0, 0.12)',
     },
+    shape: {
+      borderRadius: 8,
+    },
     typography: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       // Improved font sizes for accessibility
@@ -109,7 +112,7 @@ export function createLightTheme() {
         styleOverrides: {
           root: {
             backgroundColor: '#ffffff',
-            borderRadius: 12,
+            borderRadius: 12, // Specific value for cards
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
             border: '1px solid rgba(0, 0, 0, 0.08)',
             // Enhanced focus outline for accessibility
@@ -126,9 +129,9 @@ export function createLightTheme() {
           'aria-label': 'Button',
         },
         styleOverrides: {
-          root: {
+          root: ({ theme }) => ({
             textTransform: 'none',
-            borderRadius: 8,
+            borderRadius: theme.shape.borderRadius,
             minHeight: 44, // Minimum touch target size
             padding: '8px 16px',
             // Enhanced focus styles
@@ -140,7 +143,7 @@ export function createLightTheme() {
             '&:hover': {
               backgroundColor: 'rgba(25, 118, 210, 0.08)',
             },
-          },
+          }),
           contained: {
             boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
             '&:hover': {

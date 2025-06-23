@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense, lazy } from 'react';
 import {
   Box,
   Typography,
@@ -15,6 +15,12 @@ import {
   TableRow,
   Alert,
   Button,
+  // Grid, // Removed unused import
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
 } from '@mui/material';
 import {
   DatePicker,
@@ -26,6 +32,20 @@ import { Task } from '../../types/task';
 import { formatLocalTime } from '../../utils/dateHelpers';
 import { formatDuration } from '../../utils/formatters';
 import { EarningsDisplay } from '../ui/display/EarningsDisplay';
+import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
+import { EditTimeEntryData } from '../../types/form';
+
+// Lazy load chart components for better performance
+const TaskTimeBarChart = lazy(() => import('../ui/charts/TaskTimeBarChart').then(module => ({ default: module.TaskTimeBarChart })));
+const TimelineChart = lazy(() => import('../ui/charts/TimelineChart').then(module => ({ default: module.TimelineChart })));
+const TaskDistributionPieChart = lazy(() => import('../ui/charts/TaskDistributionPieChart').then(module => ({ default: module.TaskDistributionPieChart })));
+import {
+  aggregateByTask,
+  aggregateByDay,
+  aggregateByWeek,
+  aggregateByMonth,
+  prepareTaskDistributionData,
+} from '../../utils/chartDataHelpers';
 import dayjs, { Dayjs } from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 
@@ -35,16 +55,20 @@ interface ReportsPageProps {
   timeEntries: TimeEntry[];
   tasks: Task[];
   onDeleteEntry: (entryId: string) => void;
+  onUpdateEntry: (entry: TimeEntry) => void;
 }
 
 export function ReportsPage({
   timeEntries,
   tasks,
   onDeleteEntry,
+  onUpdateEntry,
 }: ReportsPageProps) {
   const [startDate, setStartDate] = useState<Dayjs>(dayjs().subtract(7, 'days'));
   const [endDate, setEndDate] = useState<Dayjs>(dayjs());
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  const [timelineView, setTimelineView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
 
   // Filter entries based on date range and selected tasks
   const filteredEntries = useMemo(() => {
@@ -95,6 +119,30 @@ export function ReportsPage({
     };
   }, [filteredEntries, tasks]);
 
+  // Chart data
+  const chartData = useMemo(() => {
+    const taskTimeData = aggregateByTask(filteredEntries, tasks);
+    const taskDistributionData = prepareTaskDistributionData(filteredEntries);
+
+    let timelineData;
+    switch (timelineView) {
+      case 'weekly':
+        timelineData = aggregateByWeek(filteredEntries, tasks);
+        break;
+      case 'monthly':
+        timelineData = aggregateByMonth(filteredEntries, tasks);
+        break;
+      default:
+        timelineData = aggregateByDay(filteredEntries, tasks);
+    }
+
+    return {
+      taskTimeData,
+      taskDistributionData,
+      timelineData,
+    };
+  }, [filteredEntries, tasks, timelineView]);
+
   const getTaskById = (taskId?: string) => {
     if (!taskId) return undefined;
     return tasks.find(task => task.id === taskId);
@@ -102,6 +150,29 @@ export function ReportsPage({
 
   const getTaskByName = (taskName: string) => {
     return tasks.find(task => task.name === taskName);
+  };
+
+  const handleEditEntry = (entry: TimeEntry) => {
+    setEditingEntry(entry);
+  };
+
+  const handleSaveEdit = (data: EditTimeEntryData) => {
+    if (!editingEntry) return;
+
+    const startTime = new Date(data.startTime);
+    const endTime = new Date(data.endTime);
+
+    const updatedEntry: TimeEntry = {
+      ...editingEntry,
+      taskName: data.taskName,
+      startTime,
+      endTime,
+      duration: endTime.getTime() - startTime.getTime(),
+      date: startTime.toISOString().split('T')[0],
+    };
+
+    onUpdateEntry(updatedEntry);
+    setEditingEntry(null);
   };
 
   return (
@@ -218,6 +289,74 @@ export function ReportsPage({
           </Stack>
         </Paper>
 
+        {/* Charts Section */}
+        {filteredEntries.length > 0 && (
+          <>
+            {/* Chart Controls */}
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Visual Analytics
+                </Typography>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Timeline View</InputLabel>
+                  <Select
+                    value={timelineView}
+                    label="Timeline View"
+                    onChange={(e) => setTimelineView(e.target.value as any)}
+                  >
+                    <MenuItem value="daily">Daily</MenuItem>
+                    <MenuItem value="weekly">Weekly</MenuItem>
+                    <MenuItem value="monthly">Monthly</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
+
+              <Suspense fallback={
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+                  <CircularProgress />
+                </Box>
+              }>
+                <Stack spacing={3}>
+                  {/* Top Row - Task Time Bar Chart and Task Distribution Pie Chart */}
+                  <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>
+                    {/* Task Time Bar Chart */}
+                    <Box sx={{ flex: { lg: 2 }, minWidth: 0 }}>
+                      <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
+                        <TaskTimeBarChart
+                          data={chartData.taskTimeData}
+                          showEarnings={true}
+                          height={400}
+                        />
+                      </Paper>
+                    </Box>
+
+                    {/* Task Distribution Pie Chart */}
+                    <Box sx={{ flex: { lg: 1 }, minWidth: 0 }}>
+                      <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
+                        <TaskDistributionPieChart
+                          data={chartData.taskDistributionData}
+                          height={400}
+                        />
+                      </Paper>
+                    </Box>
+                  </Box>
+
+                  {/* Timeline Chart */}
+                  <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
+                    <TimelineChart
+                      data={chartData.timelineData}
+                      dataType={timelineView}
+                      showEarnings={true}
+                      height={400}
+                    />
+                  </Paper>
+                </Stack>
+              </Suspense>
+            </Paper>
+          </>
+        )}
+
         {/* Time Entries Table */}
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
@@ -307,7 +446,7 @@ export function ReportsPage({
                             <Button
                               size="small"
                               variant="outlined"
-                              onClick={() => {/* TODO: Implement edit */}}
+                              onClick={() => handleEditEntry(entry)}
                             >
                               Edit
                             </Button>
@@ -329,6 +468,30 @@ export function ReportsPage({
             </TableContainer>
           )}
         </Paper>
+
+        {/* Edit Time Entry Dialog */}
+        {editingEntry && (
+          <EditTimeEntryDialog
+            open={true}
+            entry={{
+              id: editingEntry.id,
+              taskName: editingEntry.taskName,
+              startTime: (editingEntry.startTime instanceof Date
+                ? editingEntry.startTime
+                : new Date(editingEntry.startTime)
+              ).toISOString().slice(0, 16),
+              endTime: editingEntry.endTime
+                ? (editingEntry.endTime instanceof Date
+                    ? editingEntry.endTime
+                    : new Date(editingEntry.endTime)
+                  ).toISOString().slice(0, 16)
+                : '',
+            }}
+            tasks={tasks}
+            onSave={handleSaveEdit}
+            onClose={() => setEditingEntry(null)}
+          />
+        )}
       </Box>
     </LocalizationProvider>
   );

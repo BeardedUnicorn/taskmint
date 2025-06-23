@@ -104,6 +104,13 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
   }, [notes]);
 
   /**
+   * Get notes by time entry ID
+   */
+  const getNotesByTimeEntryId = useCallback((timeEntryId: string): TaskNote[] => {
+    return notes.filter(note => note.timeEntryId === timeEntryId);
+  }, [notes]);
+
+  /**
    * Get note by ID
    */
   const getNoteById = useCallback((noteId: string): TaskNote | undefined => {
@@ -265,6 +272,7 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
     updateNote,
     deleteNote,
     getNotesByTaskId,
+    getNotesByTimeEntryId,
     getNoteById,
     isLoading,
     error,

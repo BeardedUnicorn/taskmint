@@ -12,7 +12,6 @@ import {
   Typography,
   List,
   ListItem,
-  ListItemText,
   ListItemSecondaryAction,
   IconButton,
   Chip,
@@ -98,6 +97,12 @@ function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
 
     // Show first non-empty value as preview
     const firstValue = values[0];
+
+    // Handle different field types
+    if (typeof firstValue === 'boolean') {
+      return firstValue ? '✓ Checked' : '✗ Unchecked';
+    }
+
     if (typeof firstValue === 'string') {
       return createTextPreview(firstValue, 100);
     }
@@ -127,48 +132,55 @@ function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
           cursor: 'pointer',
         }}
       >
-        <ListItemText
-          primary={
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          {/* Primary content - chips */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+            <Chip
+              label={note.templateName}
+              size="small"
+              color="primary"
+              variant="outlined"
+            />
+            <Chip
+              label={`${getFilledFieldsCount()} fields`}
+              size="small"
+              variant="outlined"
+            />
+            {note.timeEntryId && (
               <Chip
-                label={note.templateName}
+                label="Time Entry"
                 size="small"
-                color="primary"
+                color="secondary"
                 variant="outlined"
               />
-              <Chip
-                label={`${getFilledFieldsCount()} fields`}
-                size="small"
-                variant="outlined"
-              />
-            </Box>
-          }
-          secondary={
-            <Stack spacing={0.5}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <TimeIcon fontSize="small" color="action" />
-                <Typography variant="caption" color="text.secondary">
-                  {formatDate(note.updatedAt)}
-                </Typography>
-              </Box>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  lineHeight: 1.4,
-                  maxHeight: '2.8em', // 2 lines * 1.4 line-height
-                }}
-              >
-                {getFieldPreview()}
+            )}
+          </Box>
+
+          {/* Secondary content - date and preview */}
+          <Stack spacing={0.5}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <TimeIcon fontSize="small" color="action" />
+              <Typography variant="caption" color="text.secondary">
+                {formatDate(note.updatedAt)}
               </Typography>
-            </Stack>
-          }
-        />
+            </Box>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                lineHeight: 1.4,
+                maxHeight: '2.8em', // 2 lines * 1.4 line-height
+              }}
+            >
+              {getFieldPreview()}
+            </Typography>
+          </Stack>
+        </Box>
         <ListItemSecondaryAction>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <IconButton
@@ -197,9 +209,28 @@ function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
               if (value === undefined || value === null || value === '') return null;
 
               const fieldLabel = getFieldLabel(fieldId);
-              const displayValue = typeof value === 'object'
-                ? JSON.stringify(value, null, 2)
-                : formatMultilineText(String(value));
+
+              // Handle different field types for display
+              let displayValue: string;
+              let displayStyle = {};
+
+              if (typeof value === 'boolean') {
+                displayValue = value ? '✓ Yes' : '✗ No';
+                displayStyle = {
+                  color: value ? 'success.main' : 'text.secondary',
+                  fontWeight: 'medium'
+                };
+              } else if (typeof value === 'object') {
+                displayValue = JSON.stringify(value, null, 2);
+                displayStyle = {
+                  fontFamily: 'monospace',
+                  backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                  padding: 1,
+                  borderRadius: 1,
+                };
+              } else {
+                displayValue = formatMultilineText(String(value));
+              }
 
               return (
                 <Box key={fieldId}>
@@ -213,10 +244,7 @@ function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
                       whiteSpace: 'pre-wrap',
                       wordWrap: 'break-word',
                       lineHeight: 1.5,
-                      fontFamily: typeof value === 'object' ? 'monospace' : 'inherit',
-                      backgroundColor: typeof value === 'object' ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
-                      padding: typeof value === 'object' ? 1 : 0,
-                      borderRadius: typeof value === 'object' ? 1 : 0,
+                      ...displayStyle,
                     }}
                   >
                     {displayValue}
@@ -232,6 +260,9 @@ function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
                 Created: {formatDate(note.createdAt)}
                 {note.createdAt !== note.updatedAt && (
                   <> • Updated: {formatDate(note.updatedAt)}</>
+                )}
+                {note.timeEntryId && (
+                  <> • Linked to Time Entry: {note.timeEntryId}</>
                 )}
               </Typography>
               <Box>

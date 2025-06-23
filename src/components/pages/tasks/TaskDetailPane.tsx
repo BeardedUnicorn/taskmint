@@ -21,26 +21,38 @@ import {
   CalendarToday as DateIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  Star as StarIcon,
+  StarBorder as StarBorderIcon,
 } from '@mui/icons-material';
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { formatLocalTime } from '../../../utils/dateHelpers';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
+import { useFavoriteTasks } from '../../../hooks/useFavoriteTasks';
 import dayjs from 'dayjs';
 
 interface TaskDetailPaneProps {
   task: Task;
   timeEntries: TimeEntry[];
+  allTasks: Task[];
+  onEditEntry: (entry: TimeEntry) => void;
+  onDeleteEntry: (entryId: string) => void;
 }
 
 export function TaskDetailPane({
   task,
   timeEntries,
+  allTasks,
+  onEditEntry,
+  onDeleteEntry,
 }: TaskDetailPaneProps) {
+  // Favorite tasks functionality
+  const { toggleFavorite, isFavorite } = useFavoriteTasks(allTasks, timeEntries);
+
   // Filter time entries for this task
   const taskEntries = useMemo(() => {
-    return timeEntries.filter(entry => 
+    return timeEntries.filter(entry =>
       (entry.taskId === task.id || entry.taskName === task.name) &&
       entry.duration && entry.duration > 0
     ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
@@ -76,9 +88,20 @@ export function TaskDetailPane({
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-          {task.name}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600, flex: 1 }}>
+            {task.name}
+          </Typography>
+          <Tooltip title={isFavorite(task.id) ? 'Remove from favorites' : 'Add to favorites'}>
+            <IconButton
+              onClick={() => toggleFavorite(task.id)}
+              color={isFavorite(task.id) ? 'warning' : 'default'}
+              size="large"
+            >
+              {isFavorite(task.id) ? <StarIcon /> : <StarBorderIcon />}
+            </IconButton>
+          </Tooltip>
+        </Box>
 
         {/* Task Info */}
         <Stack direction="row" spacing={3} sx={{ mb: 2 }}>
@@ -208,12 +231,19 @@ export function TaskDetailPane({
                       )}
                       <TableCell align="right">
                         <Tooltip title="Edit Entry">
-                          <IconButton size="small">
+                          <IconButton
+                            size="small"
+                            onClick={() => onEditEntry(entry)}
+                          >
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete Entry">
-                          <IconButton size="small" color="error">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => onDeleteEntry(entry.id)}
+                          >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>

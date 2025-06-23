@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import {
   CssBaseline,
   Box,
+  CircularProgress,
 } from '@mui/material';
 
 /**
@@ -18,18 +19,23 @@ import {
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider, useNotification } from './contexts/NotificationContext';
 import { NewTaskDialog } from './components/pages';
-import { DashboardPage } from './components/pages/DashboardPage';
-import { TasksPage } from './components/pages/TasksPage';
-import { ReportsPage } from './components/pages/ReportsPage';
-import { SettingsPage } from './components/pages/SettingsPage';
 import { Sidebar, GlobalTimerBar, type SidebarView } from './components/layout';
+
+// Lazy load page components for code splitting
+const DashboardPage = lazy(() => import('./components/pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
+const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
+const TimeEntriesPage = lazy(() => import('./components/pages/TimeEntriesPage').then(module => ({ default: module.TimeEntriesPage })));
+const ReportsPage = lazy(() => import('./components/pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
+const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
 
 import { useSystemTray } from './hooks/useSystemTray';
 import { useTaskManagement } from './hooks/useTaskManagement';
+import { useTimerSettings } from './hooks/useTimerSettings';
 import { TimerService } from './services/TimerService';
 import { StorageService } from './services/StorageService';
+import { invoke } from '@tauri-apps/api/core';
 
 
 function App() {
@@ -49,6 +55,9 @@ function App() {
   const storageService = useMemo(() => StorageService.getInstance(), []);
   const timerService = useMemo(() => new TimerService(storageService), [storageService]);
 
+  // Timer settings hook
+  const { roundingOption } = useTimerSettings();
+
   // ============================================================================
   // EFFECTS & INITIALIZATION
   // ============================================================================
@@ -64,6 +73,21 @@ function App() {
         const runningEntry = entries.find(entry => entry.isRunning);
         if (runningEntry) {
           setActiveEntry(runningEntry);
+
+          // Synchronize timer state with Tauri backend
+          try {
+            const elapsedMs = Date.now() - new Date(runningEntry.startTime).getTime();
+            await invoke('update_timer_state', {
+              isRunning: true,
+              taskName: runningEntry.taskName,
+              startTime: runningEntry.startTime instanceof Date
+                ? runningEntry.startTime.toISOString()
+                : runningEntry.startTime,
+              elapsedMs: elapsedMs,
+            });
+          } catch (error) {
+            console.error('Failed to sync timer state with backend:', error);
+          }
         }
       } catch (error) {
         console.error('Failed to load time entries:', error);
@@ -77,27 +101,7 @@ function App() {
   // TIMER MANAGEMENT HANDLERS
   // ============================================================================
 
-  const handleSaveEntry = async (entry: TimeEntry) => {
-    try {
-      await timerService.saveTimeEntry(entry);
 
-      // Update local state
-      setTimeEntries(prev => {
-        const existingIndex = prev.findIndex(e => e.id === entry.id);
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = entry;
-          return updated;
-        } else {
-          return [...prev, entry];
-        }
-      });
-
-      setActiveEntry(null);
-    } catch (error) {
-      console.error('Failed to save time entry:', error);
-    }
-  };
 
   const handleUpdateActiveEntry = async (entry: TimeEntry | null) => {
     setActiveEntry(entry);
@@ -122,20 +126,28 @@ function App() {
     }
   };
 
-  const handleStopActiveTimer = () => {
-    if (activeEntry && activeEntry.startTime) {
-      const now = new Date();
-      const duration = now.getTime() - new Date(activeEntry.startTime).getTime();
+  const handleStopActiveTimer = async () => {
+    if (activeEntry && activeEntry.id) {
+      try {
+        // Use TimerService to stop timer with rounding option
+        const stoppedEntry = await timerService.stopTimer(activeEntry.id, roundingOption);
 
-      const finalEntry: TimeEntry = {
-        ...activeEntry,
-        endTime: now,
-        duration: duration,
-        isRunning: false,
-        date: new Date(activeEntry.startTime).toISOString().split('T')[0],
-      };
+        // Update local state
+        setTimeEntries(prev => {
+          const existingIndex = prev.findIndex(e => e.id === stoppedEntry.id);
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = stoppedEntry;
+            return updated;
+          } else {
+            return [...prev, stoppedEntry];
+          }
+        });
 
-      handleSaveEntry(finalEntry);
+        setActiveEntry(null);
+      } catch (error) {
+        console.error('Failed to stop timer:', error);
+      }
     }
   };
 
@@ -219,6 +231,20 @@ function App() {
     }
   };
 
+  const handleBulkDeleteEntries = async (entryIds: string[]) => {
+    try {
+      // Delete entries one by one
+      for (const entryId of entryIds) {
+        await timerService.deleteTimeEntry(entryId);
+      }
+
+      // Update local state only after successful deletion
+      setTimeEntries(prev => prev.filter(entry => !entryIds.includes(entry.id)));
+    } catch (error) {
+      console.error('Failed to delete time entries:', error);
+    }
+  };
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -242,6 +268,7 @@ function App() {
             handleStartTimer={handleStartTimer}
             handleUpdateEntry={handleUpdateEntry}
             handleDeleteEntry={handleDeleteEntry}
+            handleBulkDeleteEntries={handleBulkDeleteEntries}
           />
         </NotificationProvider>
       </ThemeProvider>
@@ -265,6 +292,7 @@ interface AppContentProps {
   handleStartTimer: (taskName: string) => void;
   handleUpdateEntry: (entry: TimeEntry) => Promise<void>;
   handleDeleteEntry: (entryId: string) => Promise<void>;
+  handleBulkDeleteEntries: (entryIds: string[]) => Promise<void>;
 }
 
 function AppContent({
@@ -282,6 +310,7 @@ function AppContent({
   handleStartTimer,
   handleUpdateEntry,
   handleDeleteEntry,
+  handleBulkDeleteEntries,
 }: AppContentProps) {
   // Task management - now inside NotificationProvider
   const { tasks, addTask, updateTask, deleteTask } = useTaskManagement();
@@ -297,6 +326,17 @@ function AppContent({
     } catch (error) {
       console.error('Failed to delete time entry:', error);
       showError('Failed to delete time entry. Please try again.');
+    }
+  };
+
+  // Enhanced bulk delete handler with user feedback
+  const handleBulkDeleteEntriesWithFeedback = async (entryIds: string[]) => {
+    try {
+      await handleBulkDeleteEntries(entryIds);
+      showSuccess(`${entryIds.length} time entries deleted successfully`);
+    } catch (error) {
+      console.error('Failed to delete time entries:', error);
+      showError('Failed to delete time entries. Please try again.');
     }
   };
 
@@ -347,36 +387,55 @@ function AppContent({
 
             {/* Page Content */}
             <Box sx={{ flex: 1, overflow: 'auto' }}>
-              {activeView === 'dashboard' && (
-                <DashboardPage
-                  timeEntries={timeEntries}
-                  tasks={tasks}
-                  onUpdateEntry={handleUpdateEntryWithFeedback}
-                  onDeleteEntry={handleDeleteEntryWithFeedback}
-                />
-              )}
+              <Suspense fallback={
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <CircularProgress />
+                </Box>
+              }>
+                {activeView === 'dashboard' && (
+                  <DashboardPage
+                    timeEntries={timeEntries}
+                    tasks={tasks}
+                    onUpdateEntry={handleUpdateEntryWithFeedback}
+                    onDeleteEntry={handleDeleteEntryWithFeedback}
+                  />
+                )}
 
-              {activeView === 'tasks' && (
-                <TasksPage
-                  tasks={tasks}
-                  timeEntries={timeEntries}
-                  onAddTask={addTask}
-                  onUpdateTask={updateTask}
-                  onDeleteTask={deleteTask}
-                />
-              )}
+                {activeView === 'tasks' && (
+                  <TasksPage
+                    tasks={tasks}
+                    timeEntries={timeEntries}
+                    onAddTask={addTask}
+                    onUpdateTask={updateTask}
+                    onDeleteTask={deleteTask}
+                    onUpdateEntry={handleUpdateEntryWithFeedback}
+                    onDeleteEntry={handleDeleteEntryWithFeedback}
+                  />
+                )}
 
-              {activeView === 'reports' && (
-                <ReportsPage
-                  timeEntries={timeEntries}
-                  tasks={tasks}
-                  onDeleteEntry={handleDeleteEntryWithFeedback}
-                />
-              )}
+                {activeView === 'time-entries' && (
+                  <TimeEntriesPage
+                    timeEntries={timeEntries}
+                    tasks={tasks}
+                    onUpdateEntry={handleUpdateEntryWithFeedback}
+                    onDeleteEntry={handleDeleteEntryWithFeedback}
+                    onBulkDeleteEntries={handleBulkDeleteEntriesWithFeedback}
+                  />
+                )}
 
-              {activeView === 'settings' && (
-                <SettingsPage />
-              )}
+                {activeView === 'reports' && (
+                  <ReportsPage
+                    timeEntries={timeEntries}
+                    tasks={tasks}
+                    onDeleteEntry={handleDeleteEntryWithFeedback}
+                    onUpdateEntry={handleUpdateEntryWithFeedback}
+                  />
+                )}
+
+                {activeView === 'settings' && (
+                  <SettingsPage />
+                )}
+              </Suspense>
             </Box>
           </Box>
 

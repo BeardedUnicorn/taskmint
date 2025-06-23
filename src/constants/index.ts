@@ -18,6 +18,8 @@ export const STORAGE_KEYS = {
   PREDEFINED_TASKS: 'predefinedTasks',
   NOTE_TEMPLATES: 'noteTemplates',
   TASK_NOTES: 'taskNotes',
+  TIMER_SETTINGS: 'timerSettings',
+  FAVORITE_TASKS: 'favoriteTasks',
 } as const;
 
 // Time formatting constants

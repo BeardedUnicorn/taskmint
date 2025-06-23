@@ -21,6 +21,7 @@ import {
   Collapse,
   Stack,
   Divider,
+  Button,
 } from '@mui/material';
 import {
   DragIndicator as DragIcon,
@@ -33,14 +34,20 @@ import {
   Numbers as NumberIcon,
   CalendarToday as DateIcon,
   Terminal as CommandIcon,
+  CheckBox as CheckboxIcon,
+  List as SelectIcon,
+  Add as AddIcon,
+  Remove as RemoveIcon,
 } from '@mui/icons-material';
-import { FieldEditorProps, TemplateField, FieldType } from '../../../types/notes';
+import { FieldEditorProps, TemplateField, FieldType, SelectOption } from '../../../types/notes';
 
 const FIELD_TYPE_ICONS = {
   text: TextIcon,
   number: NumberIcon,
   date: DateIcon,
   command: CommandIcon,
+  checkbox: CheckboxIcon,
+  select: SelectIcon,
 };
 
 const FIELD_TYPE_LABELS = {
@@ -48,6 +55,8 @@ const FIELD_TYPE_LABELS = {
   number: 'Number',
   date: 'Date',
   command: 'Command',
+  checkbox: 'Checkbox',
+  select: 'Select',
 };
 
 export function FieldEditor({
@@ -72,11 +81,12 @@ export function FieldEditor({
   }, [handleFieldUpdate]);
 
   const handleTypeChange = useCallback((type: FieldType) => {
-    // Clear validation and command when type changes
-    const updates: Partial<TemplateField> = { 
+    // Clear validation, command, and options when type changes
+    const updates: Partial<TemplateField> = {
       type,
       validation: undefined,
       command: type === 'command' ? '' : undefined,
+      options: type === 'select' ? [{ label: 'Option 1', value: 'option1' }] : undefined,
     };
     handleFieldUpdate(updates);
   }, [handleFieldUpdate]);
@@ -109,6 +119,33 @@ export function FieldEditor({
   const handleCommandChange = useCallback((command: string) => {
     handleFieldUpdate({ command: command || undefined });
   }, [handleFieldUpdate]);
+
+  const handleOptionsChange = useCallback((options: SelectOption[]) => {
+    handleFieldUpdate({ options });
+  }, [handleFieldUpdate]);
+
+  const addOption = useCallback(() => {
+    const currentOptions = localField.options || [];
+    const newOption: SelectOption = {
+      label: `Option ${currentOptions.length + 1}`,
+      value: `option${currentOptions.length + 1}`,
+    };
+    handleOptionsChange([...currentOptions, newOption]);
+  }, [localField.options, handleOptionsChange]);
+
+  const removeOption = useCallback((index: number) => {
+    const currentOptions = localField.options || [];
+    const newOptions = currentOptions.filter((_, i) => i !== index);
+    handleOptionsChange(newOptions);
+  }, [localField.options, handleOptionsChange]);
+
+  const updateOption = useCallback((index: number, updates: Partial<SelectOption>) => {
+    const currentOptions = localField.options || [];
+    const newOptions = currentOptions.map((option, i) =>
+      i === index ? { ...option, ...updates } : option
+    );
+    handleOptionsChange(newOptions);
+  }, [localField.options, handleOptionsChange]);
 
   const TypeIcon = FIELD_TYPE_ICONS[localField.type];
 
@@ -318,6 +355,50 @@ export function FieldEditor({
             </Box>
           )}
 
+          {localField.type === 'select' && (
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                Select Options
+              </Typography>
+              <Stack spacing={2}>
+                {(localField.options || []).map((option, index) => (
+                  <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                    <TextField
+                      label="Label"
+                      value={option.label}
+                      onChange={(e) => updateOption(index, { label: e.target.value })}
+                      size="small"
+                      sx={{ flex: 1 }}
+                    />
+                    <TextField
+                      label="Value"
+                      value={option.value}
+                      onChange={(e) => updateOption(index, { value: e.target.value })}
+                      size="small"
+                      sx={{ flex: 1 }}
+                    />
+                    <IconButton
+                      onClick={() => removeOption(index)}
+                      disabled={(localField.options || []).length <= 1}
+                      size="small"
+                      color="error"
+                    >
+                      <RemoveIcon />
+                    </IconButton>
+                  </Box>
+                ))}
+                <Button
+                  startIcon={<AddIcon />}
+                  onClick={addOption}
+                  variant="outlined"
+                  size="small"
+                >
+                  Add Option
+                </Button>
+              </Stack>
+            </Box>
+          )}
+
           {/* Field Preview */}
           <Box>
             <Typography variant="subtitle2" gutterBottom>
@@ -392,6 +473,28 @@ export function FieldEditor({
                     },
                   }}
                 />
+              )}
+              {localField.type === 'checkbox' && (
+                <FormControlLabel
+                  control={<input type="checkbox" disabled />}
+                  label={localField.label}
+                  required={localField.required}
+                />
+              )}
+              {localField.type === 'select' && (
+                <FormControl fullWidth size="small" disabled>
+                  <InputLabel>{localField.label}</InputLabel>
+                  <Select
+                    value=""
+                    label={localField.label}
+                  >
+                    {(localField.options || []).map((option, index) => (
+                      <MenuItem key={index} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               )}
             </Paper>
           </Box>

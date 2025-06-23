@@ -62,6 +62,19 @@ export class TaskNotesService {
   }
 
   /**
+   * Get notes by time entry ID
+   */
+  async getNotesByTimeEntryId(timeEntryId: string): Promise<TaskNote[]> {
+    try {
+      const notes = await this.getAllNotes();
+      return notes.filter(note => note.timeEntryId === timeEntryId);
+    } catch (error) {
+      console.error(`Failed to get notes for time entry ${timeEntryId}:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Get note by ID
    */
   async getNoteById(noteId: string): Promise<TaskNote | null> {

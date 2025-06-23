@@ -7,6 +7,7 @@ import {
   Autocomplete,
   TextField,
   Chip,
+  Stack,
 } from '@mui/material';
 import {
   PlayArrow as PlayIcon,
@@ -21,6 +22,7 @@ import { useTimer } from '../../hooks/useTimer';
 interface GlobalTimerBarProps {
   activeEntry: TimeEntry | null;
   predefinedTasks: Task[];
+  timeEntries: TimeEntry[];
   onStart: (taskName: string) => void;
   onStop: () => void;
 }
@@ -30,7 +32,7 @@ export function GlobalTimerBar({
   predefinedTasks,
   onStart,
   onStop,
-}: GlobalTimerBarProps) {
+}: Omit<GlobalTimerBarProps, 'timeEntries'>) {
   const [selectedTask, setSelectedTask] = useState<string>('');
   const [inputValue, setInputValue] = useState<string>('');
 
@@ -43,8 +45,10 @@ export function GlobalTimerBar({
   const taskOptions = predefinedTasks.map(task => task.name);
 
   const handleStart = () => {
-    if (selectedTask.trim()) {
-      onStart(selectedTask.trim());
+    // Use selectedTask if available, otherwise fall back to inputValue
+    const taskName = selectedTask.trim() || inputValue.trim();
+    if (taskName) {
+      onStart(taskName);
       setSelectedTask('');
       setInputValue('');
     }
@@ -63,7 +67,8 @@ export function GlobalTimerBar({
   };
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' && selectedTask.trim() && !activeEntry) {
+    const taskName = selectedTask.trim() || inputValue.trim();
+    if (event.key === 'Enter' && taskName && !activeEntry) {
       handleStart();
     }
   };
@@ -82,49 +87,48 @@ export function GlobalTimerBar({
           borderColor: 'divider',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <TimerIcon color="action" />
-          
-          <Typography variant="body2" color="text.secondary" sx={{ minWidth: 'fit-content' }}>
-            Start Timer:
-          </Typography>
-          
-          <Autocomplete
-            value={selectedTask}
-            onChange={handleTaskChange}
-            inputValue={inputValue}
-            onInputChange={handleInputChange}
-            options={taskOptions}
-            freeSolo
-            sx={{ flex: 1, minWidth: 200 }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                placeholder="Select or type task name..."
-                size="small"
-                onKeyPress={handleKeyPress}
-                data-testid="global-timer-task-input"
-                aria-label="Task name input"
-                label="Task"
-              />
-            )}
-            renderOption={(props, option) => (
-              <li {...props} key={option}>
-                {option}
-              </li>
-            )}
-          />
-          
-          <Button
-            variant="contained"
-            startIcon={<PlayIcon />}
-            onClick={handleStart}
-            disabled={!selectedTask.trim()}
-            data-testid="global-timer-start-button"
-          >
-            Start
-          </Button>
-        </Box>
+        <Stack spacing={2}>
+          {/* Main Timer Controls */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <TimerIcon color="action" />
+
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 'fit-content' }}>
+              Start Timer:
+            </Typography>
+
+            <Autocomplete
+              value={selectedTask}
+              onChange={handleTaskChange}
+              inputValue={inputValue}
+              onInputChange={handleInputChange}
+              options={taskOptions}
+              freeSolo
+              disabled={activeEntry?.isRunning}
+              sx={{ flex: 1, minWidth: 200 }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="Select or type task name..."
+                  size="small"
+                  onKeyPress={handleKeyPress}
+                  data-testid="global-timer-task-input"
+                  aria-label="Task name input"
+                  label="Task"
+                />
+              )}
+            />
+
+            <Button
+              variant="contained"
+              startIcon={<PlayIcon />}
+              onClick={handleStart}
+              disabled={!selectedTask.trim() && !inputValue.trim()}
+              data-testid="global-timer-start-button"
+            >
+              Start
+            </Button>
+          </Box>
+        </Stack>
       </Paper>
     );
   }

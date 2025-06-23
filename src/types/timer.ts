@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { Task } from './task';
 
 export interface TimeEntry {
   id: string;
@@ -79,3 +80,33 @@ export interface UseSystemTrayProps {
   onStopTimer: () => void;
   onShowNewTaskDialog: () => void;
 }
+
+// Timer rounding options
+export type TimerRoundingOption = 'none' | 'up-5min' | 'up-15min' | 'up-30min';
+
+export interface TimerSettings {
+  roundingOption: TimerRoundingOption;
+}
+
+// Zod schema for timer settings
+export const TimerSettingsSchema = z.object({
+  roundingOption: z.enum(['none', 'up-5min', 'up-15min', 'up-30min'])
+});
+
+// Favorite tasks functionality
+export interface FavoriteTasksSettings {
+  favoriteTaskIds: string[];
+  maxRecentTasks: number;
+}
+
+export interface TaskWithUsage extends Task {
+  lastUsed?: Date;
+  usageCount?: number;
+  isFavorite?: boolean;
+}
+
+// Zod schema for favorite tasks settings
+export const FavoriteTasksSettingsSchema = z.object({
+  favoriteTaskIds: z.array(z.string()),
+  maxRecentTasks: z.number().min(1).max(20).default(5)
+});

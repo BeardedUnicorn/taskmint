@@ -20,17 +20,18 @@
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.1.0",
-    "@mui/lab": "^7.0.0-beta.12",
     "@mui/material": "^7.1.0",
     "@mui/x-date-pickers": "^8.4.0",
     "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.2.2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-store": "^2",
     "@types/react-window": "^1.8.8",
     "dayjs": "^1.11.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-window": "^1.8.11",
-    "react-window-infinite-loader": "^1.0.10",
+    "recharts": "^2.15.4",
     "zod": "^3.25.39"
   },
   "devDependencies": {
@@ -44,6 +45,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^30.0.0-beta.3",
+    "rollup-plugin-visualizer": "^6.0.3",
     "ts-jest": "^29.3.4",
     "typescript": "~5.6.2",
     "vite": "^6.0.3"

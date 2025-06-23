@@ -12,6 +12,10 @@ export type {
   TimeEntryFormProps,
   CalendarViewProps,
   UseSystemTrayProps,
+  TimerRoundingOption,
+  TimerSettings,
+  FavoriteTasksSettings,
+  TaskWithUsage,
 } from './timer';
 
 // Task Management Types
@@ -43,6 +47,7 @@ export type {
   TemplateFieldSchema,
   NoteTemplateSchema,
   TaskNoteSchema,
+  SelectOption,
 } from './notes';
 
 
