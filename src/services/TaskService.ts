@@ -107,13 +107,8 @@ export class TaskService implements ITaskService {
       // Sync with Tauri backend
       await this.syncWithTauriBackend();
 
-      console.log('Task created successfully:', newTask);
       return newTask;
     } catch (error) {
-      if (error instanceof TaskErrorClass) {
-        throw error;
-      }
-      
       console.error('Failed to create task:', error);
       throw createTaskError(
         'TASK_CREATE_FAILED',
@@ -132,15 +127,6 @@ export class TaskService implements ITaskService {
     updates: Partial<Omit<Task, 'id' | 'createdAt'>>
   ): Promise<Task> {
     try {
-      const existingTask = await this.getTask(taskId);
-      if (!existingTask) {
-        throw createTaskError(
-          'TASK_NOT_FOUND',
-          `Task with ID ${taskId} not found`,
-          { taskId },
-          'updateTask'
-        );
-      }
 
       // Validate updates
       const updatedTaskData = { ...existingTask, ...updates };
@@ -195,13 +181,8 @@ export class TaskService implements ITaskService {
       // Sync with Tauri backend
       await this.syncWithTauriBackend();
 
-      console.log('Task updated successfully:', updatedTask);
       return updatedTask;
     } catch (error) {
-      if (error instanceof TaskErrorClass) {
-        throw error;
-      }
-      
       console.error('Failed to update task:', error);
       throw createTaskError(
         'TASK_UPDATE_FAILED',
@@ -217,15 +198,6 @@ export class TaskService implements ITaskService {
    */
   async deleteTask(taskId: string, strategy: TaskDeletionStrategy = 'prevent'): Promise<void> {
     try {
-      const existingTask = await this.getTask(taskId);
-      if (!existingTask) {
-        throw createTaskError(
-          'TASK_NOT_FOUND',
-          `Task with ID ${taskId} not found`,
-          { taskId },
-          'deleteTask'
-        );
-      }
 
       const tasks = await this.getAllTasks();
 
@@ -271,12 +243,7 @@ export class TaskService implements ITaskService {
       // Sync with Tauri backend
       await this.syncWithTauriBackend();
 
-      console.log('Task(s) deleted successfully:', tasksToDelete);
     } catch (error) {
-      if (error instanceof TaskErrorClass) {
-        throw error;
-      }
-      
       console.error('Failed to delete task:', error);
       throw createTaskError(
         'TASK_DELETE_FAILED',

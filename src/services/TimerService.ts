@@ -97,13 +97,8 @@ export class TimerService implements ITimerService {
       // Save to storage
       await this.saveTimeEntry(newEntry);
 
-          console.log('Timer started successfully:', newEntry);
           return newEntry;
         } catch (error) {
-          if (error instanceof TimerErrorClass) {
-            throw error;
-          }
-
           console.error('Failed to start timer:', error);
           throw createTimerError(
             'TIMER_START_FAILED',
@@ -170,13 +165,8 @@ export class TimerService implements ITimerService {
         isRunning: false,
       });
 
-      console.log('Timer stopped successfully:', updatedEntry);
       return updatedEntry;
     } catch (error) {
-      if (error instanceof TimerErrorClass) {
-        throw error;
-      }
-
       console.error('Failed to stop timer:', error);
       throw createTimerError(
         'TIMER_STOP_FAILED',
@@ -285,7 +275,6 @@ export class TimerService implements ITimerService {
       
       await this.storageService.setTimeEntries(entries);
     } catch (error) {
-      console.error('Failed to save time entry:', error);
       throw createTimerError(
         'TIMER_SYNC_FAILED',
         'Failed to save time entry',
@@ -351,10 +340,6 @@ export class TimerService implements ITimerService {
       
       await this.storageService.setTimeEntries(filteredEntries);
     } catch (error) {
-      if (error instanceof TimerErrorClass) {
-        throw error;
-      }
-      
       console.error('Failed to delete time entry:', error);
       throw createTimerError(
         'TIMER_SYNC_FAILED',

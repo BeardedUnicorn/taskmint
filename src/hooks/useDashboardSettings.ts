@@ -5,7 +5,7 @@
  * Provides functionality to customize which widgets are shown and in what order.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { 
   DashboardWidgetPreferences, 
@@ -42,9 +42,19 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
     title: "Today's Time Entries",
     description: 'Shows a detailed list of all time entries for today',
     defaultEnabled: true,
+    defaultOrder: 5,
+  },
+  {
+    id: 'daily-goal-progress',
+    title: 'Daily Goal Progress',
+    description: 'Shows progress towards your daily earnings goal with notifications',
+    defaultEnabled: true,
     defaultOrder: 4,
   },
 ];
+
+// Current migration version - increment when adding new widgets or changing structure
+const CURRENT_MIGRATION_VERSION = 1;
 
 // Default preferences
 const DEFAULT_PREFERENCES: DashboardWidgetPreferences = {
@@ -53,6 +63,7 @@ const DEFAULT_PREFERENCES: DashboardWidgetPreferences = {
     enabled: widget.defaultEnabled,
     order: widget.defaultOrder,
   })),
+  migrationVersion: CURRENT_MIGRATION_VERSION,
 };
 
 export function useDashboardSettings() {
@@ -60,6 +71,48 @@ export function useDashboardSettings() {
     'dashboardWidgetPrefs',
     DEFAULT_PREFERENCES
   );
+
+  // Version-based migration: Add new widgets to existing preferences
+  useEffect(() => {
+    const currentVersion = preferences.migrationVersion || 0;
+
+    // Only run migration if we're behind the current version
+    if (currentVersion >= CURRENT_MIGRATION_VERSION) {
+      return;
+    }
+
+    console.log(`Running dashboard widget migration from version ${currentVersion} to ${CURRENT_MIGRATION_VERSION}`);
+
+    // Migration logic for version 1: Add any missing widgets
+    if (currentVersion < 1) {
+      const existingWidgetIds = new Set(preferences.widgets.map(w => w.id));
+      const newWidgets = DEFAULT_WIDGETS.filter(widget => !existingWidgetIds.has(widget.id));
+
+      if (newWidgets.length > 0) {
+        console.log('Adding new dashboard widgets:', newWidgets.map(w => w.id));
+        const newWidgetConfigs = newWidgets.map(widget => ({
+          id: widget.id,
+          enabled: widget.defaultEnabled,
+          order: widget.defaultOrder,
+        }));
+
+        setPreferences(prev => ({
+          ...prev,
+          widgets: [...prev.widgets, ...newWidgetConfigs],
+          migrationVersion: CURRENT_MIGRATION_VERSION,
+        }));
+        return; // Exit early since setPreferences will trigger a re-render
+      }
+    }
+
+    // If no widgets were added but version is still behind, just update the version
+    if (currentVersion < CURRENT_MIGRATION_VERSION) {
+      setPreferences(prev => ({
+        ...prev,
+        migrationVersion: CURRENT_MIGRATION_VERSION,
+      }));
+    }
+  }, [preferences, setPreferences]);
 
   // Get all available widgets
   const getAvailableWidgets = useCallback((): DashboardWidget[] => {

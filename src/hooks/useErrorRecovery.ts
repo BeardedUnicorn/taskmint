@@ -264,32 +264,6 @@ export function useErrorRecovery(options: ErrorRecoveryOptions = {}): UseErrorRe
   };
 }
 
-/**
- * Higher-order function to wrap operations with automatic error recovery
- */
-export function withErrorRecovery<T extends (...args: any[]) => Promise<any>>(
-  operation: T,
-  recoveryOptions?: ErrorRecoveryOptions
-): T {
-  return (async (...args: Parameters<T>) => {
-    const { recoverFromError } = useErrorRecovery(recoveryOptions);
-    
-    try {
-      return await operation(...args);
-    } catch (error) {
-      const appError = error as ApplicationError;
-      const recovered = await recoverFromError(appError, () => operation(...args));
-      
-      if (!recovered) {
-        throw error;
-      }
-    }
-  }) as T;
-}
-
-/**
- * Predefined recovery strategies for common scenarios
- */
 export const RecoveryStrategies = {
   // Network operations - more retries, longer delays
   network: {

@@ -21,6 +21,7 @@ export default {
     '^@tauri-apps/api/webviewWindow$': '<rootDir>/src/__mocks__/@tauri-apps/api/webviewWindow.ts',
     '^@tauri-apps/api/fs$': '<rootDir>/src/__mocks__/@tauri-apps/api/fs.ts',
     '^@tauri-apps/api/path$': '<rootDir>/src/__mocks__/@tauri-apps/api/path.ts',
+    '^@tauri-apps/plugin-notification$': '<rootDir>/src/__mocks__/tauri-api.ts',
     '^dayjs$': '<rootDir>/src/__mocks__/dayjs.ts',
     '^dayjs/plugin/(.*)$': '<rootDir>/src/__mocks__/dayjs.ts',
   },

@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-  "productName": "Time Tracker",
-  "version": "0.1.0",
-  "identifier": "com.timetracker.app",
+  "productName": "TaskMint",
+  "version": "1.0.0",
+  "identifier": "com.taskmint.app",
   "build": {
     "beforeBuildCommand": "npm run build",
     "beforeDevCommand": "npm run dev",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Time Tracker",
+        "title": "TaskMint",
         "width": 1620,
         "height": 1000,
         "minWidth": 800,

@@ -101,13 +101,15 @@ export interface DashboardWidgetConfig {
 
 export interface DashboardWidgetPreferences {
   widgets: DashboardWidgetConfig[];
+  migrationVersion?: number; // Track migration version for robust upgrades
 }
 
 export type DashboardWidgetId =
   | 'total-time-today'
   | 'earnings-today'
   | 'tasks-worked-on'
-  | 'todays-entries';
+  | 'todays-entries'
+  | 'daily-goal-progress';
 
 export interface DashboardWidget {
   id: DashboardWidgetId;

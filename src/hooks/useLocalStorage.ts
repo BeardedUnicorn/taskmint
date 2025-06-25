@@ -8,6 +8,11 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       if (item) {
         const parsedData = JSON.parse(item);
 
+        // If the stored value is literally null, return it without migration
+        if (parsedData === null) {
+          return parsedData;
+        }
+
         // Check if data needs migration
         if (needsMigration(parsedData)) {
           console.log(`Data migration needed for key "${key}"`);

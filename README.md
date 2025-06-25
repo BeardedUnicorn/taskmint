@@ -1,6 +1,10 @@
-# Time Tracker
+# TaskMint
 
-A modern, cross-platform time tracking application built with Tauri v2, React, and TypeScript. Features comprehensive timer functionality, task management with hourly rates, system tray integration, and templated notes system.
+A fresh, modern time tracking and earnings management application built with Tauri v2, React, and TypeScript. TaskMint combines precision time tracking with beautiful task management, featuring hourly rates, system tray integration, and templated notes system.
+
+**Fresh Productivity, Minted Daily.**
+
+*Tasks Managed. Goals Achieved. Time is Money. Track Both Beautifully.*
 
 ## 🚀 Features
 
@@ -63,7 +67,7 @@ A modern, cross-platform time tracking application built with Tauri v2, React, a
 ### 1. Clone the Repository
 ```bash
 git clone <repository-url>
-cd time-tracker
+cd taskmint
 ```
 
 ### 2. Install Dependencies
@@ -119,7 +123,7 @@ npm run test:integration # Run integration tests only
 ### Project Structure
 
 ```
-time-tracker/
+taskmint/
 ├── src/                    # React frontend source
 │   ├── components/         # React components
 │   ├── hooks/             # Custom React hooks
@@ -294,6 +298,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🔗 Links
 
+- **Website**: https://taskmint.app
 - [Tauri Documentation](https://tauri.app/)
 - [React Documentation](https://react.dev/)
 - [Material-UI Documentation](https://mui.com/)
@@ -374,4 +379,6 @@ If you want to use cloud sync features:
 
 **Built with ❤️ using Tauri v2, React, and TypeScript**
 
-*Last updated: 2025-06-14*
+*TaskMint - Fresh Productivity, Minted Daily*
+
+*Last updated: 2025-06-24*

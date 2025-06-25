@@ -27,7 +27,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
     };
 
     loadTasks();
-  }, [taskService]);
+  }, [taskService, showError]);
 
   const addTask = useCallback(async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     return executeAsync(
@@ -111,7 +111,9 @@ export function useTaskManagement(): UseTaskManagementReturn {
   }, [taskNames]);
 
   const calculateEarnings = useCallback((durationMs: number, hourlyRate?: number): number | undefined => {
-    if (!hourlyRate || hourlyRate <= 0) return undefined;
+    if (!hourlyRate || hourlyRate <= 0 || durationMs <= 0) {
+      return undefined;
+    }
     const hours = durationMs / (1000 * 60 * 60);
     return hours * hourlyRate;
   }, []);

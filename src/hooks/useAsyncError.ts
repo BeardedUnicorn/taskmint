@@ -317,7 +317,7 @@ export function useMultipleAsyncErrors() {
         errorHandler(asyncError);
       }
       
-      return null;
+      throw asyncError;
     }
   }, [setLoading, clearError]);
 

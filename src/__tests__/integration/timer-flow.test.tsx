@@ -338,7 +338,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -367,7 +367,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -400,7 +400,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load and all async operations to complete
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -540,7 +540,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -631,7 +631,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -714,7 +714,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -774,7 +774,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -851,7 +851,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load and verify existing data is available
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -892,7 +892,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -915,7 +915,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -1022,7 +1022,7 @@ describe('Timer Flow Integration Tests', () => {
       // Wait for app to load
       await waitFor(
         () => {
-          expect(screen.getByText('Time Tracker')).toBeInTheDocument();
+          expect(screen.getByText('TaskMint')).toBeInTheDocument();
         },
         { timeout: 5000 }
       );

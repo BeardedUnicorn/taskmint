@@ -206,7 +206,7 @@ export class WebviewWindow {
 export const appWindow = new WebviewWindow('main');
 
 // Mock for @tauri-apps/api/app
-export const getName = jest.fn().mockResolvedValue('Time Tracker');
+export const getName = jest.fn().mockResolvedValue('TaskMint');
 export const getVersion = jest.fn().mockResolvedValue('1.0.0');
 export const getTauriVersion = jest.fn().mockResolvedValue('2.0.0');
 
@@ -262,7 +262,7 @@ export const message = jest.fn().mockResolvedValue(undefined);
 export const ask = jest.fn().mockResolvedValue(false);
 export const confirm = jest.fn().mockResolvedValue(false);
 
-// Mock for @tauri-apps/api/notification
+// Mock for @tauri-apps/api/notification and @tauri-apps/plugin-notification
 export const sendNotification = jest.fn().mockResolvedValue(undefined);
 export const requestPermission = jest.fn().mockResolvedValue('granted');
 export const isPermissionGranted = jest.fn().mockResolvedValue(true);

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { TimeEntry, TimeEntrySchema } from '../types/timer';
 import { Task, TaskSchema } from '../types/task';
 import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../types/notes';
+import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
 
 import { STORAGE_KEYS } from '../constants';
 import { migrateData, createBackup, needsMigration } from '../utils/dataMigration';
@@ -31,6 +32,10 @@ export interface IStorageService {
   setNoteTemplates(templates: NoteTemplate[]): Promise<void>;
   getTaskNotes(): Promise<TaskNote[]>;
   setTaskNotes(notes: TaskNote[]): Promise<void>;
+  getDailyGoal(): Promise<DailyGoal | null>;
+  setDailyGoal(goal: DailyGoal): Promise<void>;
+  getGoalAchievements(): Promise<DailyGoalAchievement[]>;
+  setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void>;
 
   
   // Backup and migration
@@ -56,35 +61,38 @@ export class StorageService implements IStorageService {
    * Generic method to get data from localStorage with validation and migration
    */
   async getItem<T>(
-    key: string, 
-    defaultValue: T, 
+    key: string,
+    defaultValue: T,
     schema?: z.ZodSchema<T>
   ): Promise<T> {
     try {
       const item = localStorage.getItem(key);
 
-      if (!item) {
+      // If key is not found in localStorage, return defaultValue immediately
+      if (item === null) {
         return defaultValue;
       }
 
       let parsedData = JSON.parse(item);
 
       // Check if data needs migration
-      if (needsMigration(parsedData)) {
+      // Only attempt migration if parsedData is not null or if null is a valid state for this key
+      // For most cases, null should not be migrated unless it's explicitly a valid stored value
+      if (parsedData !== null && needsMigration(parsedData)) {
         console.log(`Data migration needed for key "${key}"`);
-        
+
         // Create backup before migration
         await this.createBackup(key);
-        
+
         // Migrate data
         const migratedData = migrateData(key, parsedData);
-        
+
         // Save migrated data back to localStorage
         localStorage.setItem(key, JSON.stringify(migratedData));
-        
+
         // Extract actual data from versioned structure
         parsedData = migratedData.version ? migratedData.data : migratedData;
-      } else if (parsedData.version) {
+      } else if (parsedData !== null && parsedData.version) {
         // Data is already versioned, extract the actual data
         parsedData = parsedData.data;
       }
@@ -94,8 +102,8 @@ export class StorageService implements IStorageService {
         const validationResult = validateWithSchema(schema, parsedData);
         if (!validationResult.success) {
           console.error(`Validation failed for key "${key}":`, validationResult.error);
-          throw createStorageError('STORAGE_VALIDATION_FAILED', 
-            `Data validation failed for key "${key}": ${validationResult.error}`, 
+          throw createStorageError('STORAGE_VALIDATION_FAILED',
+            `Data validation failed for key "${key}": ${validationResult.error}`,
             { key, validationError: validationResult.error }
           );
         }
@@ -107,10 +115,10 @@ export class StorageService implements IStorageService {
       if (error instanceof StorageErrorClass) {
         throw error;
       }
-      
+
       console.error(`Failed to get item from localStorage for key "${key}":`, error);
-      throw createStorageError('STORAGE_READ_FAILED', 
-        `Failed to read data for key "${key}"`, 
+      throw createStorageError('STORAGE_READ_FAILED',
+        `Failed to read data for key "${key}"`,
         { key, originalError: error }
       );
     }
@@ -254,7 +262,37 @@ export class StorageService implements IStorageService {
     );
   }
 
+  async getDailyGoal(): Promise<DailyGoal | null> {
+    return await this.getItem(
+      STORAGE_KEYS.DAILY_GOAL,
+      null,
+      DailyGoalSchema.nullable()
+    );
+  }
 
+  async setDailyGoal(goal: DailyGoal): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.DAILY_GOAL,
+      goal,
+      DailyGoalSchema
+    );
+  }
+
+  async getGoalAchievements(): Promise<DailyGoalAchievement[]> {
+    return await this.getItem(
+      STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
+      [],
+      z.array(DailyGoalAchievementSchema)
+    );
+  }
+
+  async setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
+      achievements,
+      z.array(DailyGoalAchievementSchema)
+    );
+  }
 
   async createBackup(key: string): Promise<void> {
     try {

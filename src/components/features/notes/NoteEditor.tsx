@@ -354,11 +354,15 @@ export function NoteEditor({
                 flex: 1,
                 '& .MuiInputBase-root': {
                   alignItems: 'flex-start',
+                  backgroundColor: '#E8F8F5',
+                  border: '1px solid',
+                  borderColor: 'secondary.main',
                 },
                 '& .MuiInputBase-input': {
                   whiteSpace: 'pre-wrap',
                   wordWrap: 'break-word',
                   lineHeight: 1.5,
+                  fontFamily: '"Roboto Mono", monospace',
                 },
               }}
             />

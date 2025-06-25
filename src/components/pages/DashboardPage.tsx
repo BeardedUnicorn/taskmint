@@ -15,9 +15,12 @@ import { TimeEntry } from '../../types/timer';
 import { Task } from '../../types/task';
 import { StatsCard } from '../ui/display/StatsCard';
 import { TodaysEntriesList } from './dashboard/TodaysEntriesList';
+import { DailyGoalProgressWidget } from '../ui/display/DailyGoalProgressWidget';
 import { formatDuration } from '../../utils/formatters';
 import { useDashboardSettings } from '../../hooks/useDashboardSettings';
+import { useDailyGoals } from '../../hooks/useDailyGoals';
 import { DashboardWidgetId } from '../../types/ui';
+
 import dayjs from 'dayjs';
 
 interface DashboardPageProps {
@@ -46,6 +49,7 @@ export function DashboardPage({
   });
 
   const { getEnabledWidgets, isWidgetEnabled } = useDashboardSettings();
+  const { currentGoal } = useDailyGoals();
 
   // Calculate today's statistics
   useEffect(() => {
@@ -125,6 +129,15 @@ export function DashboardPage({
           />
         );
 
+      case 'daily-goal-progress':
+        // Use the same earnings calculation as the dashboard stats for consistency
+        return (
+          <DailyGoalProgressWidget
+            currentEarnings={stats.earningsToday}
+            dailyGoal={currentGoal}
+          />
+        );
+
       case 'todays-entries':
         return (
           <Card>
@@ -168,6 +181,7 @@ export function DashboardPage({
   );
   const hasStatsWidgets = statsWidgets.length > 0;
   const showTodaysEntries = isWidgetEnabled('todays-entries');
+  const showDailyGoalProgress = isWidgetEnabled('daily-goal-progress');
 
   return (
     <Box sx={{ p: 3 }}>
@@ -188,6 +202,13 @@ export function DashboardPage({
               {renderWidget(widget.id as DashboardWidgetId)}
             </Box>
           ))}
+        </Box>
+      )}
+
+      {/* Daily Goal Progress Section - Only show if enabled */}
+      {showDailyGoalProgress && (
+        <Box sx={{ mb: 4 }}>
+          {renderWidget('daily-goal-progress')}
         </Box>
       )}
 

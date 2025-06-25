@@ -7,30 +7,30 @@ export const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#90caf9',
-      dark: '#42a5f5',
-      light: '#e3f2fd',
+      main: '#65D6A1',
+      dark: '#4CAF50',
+      light: '#B2DFDB',
     },
     secondary: {
-      main: '#ce93d8',
-      dark: '#ab47bc',
-      light: '#f3e5f5',
+      main: '#0D7377',
+      dark: '#004D40',
+      light: '#4DB6AC',
     },
     background: {
       default: '#121212',
       paper: '#1e1e1e',
     },
     text: {
-      primary: '#ffffff',
-      secondary: '#b3b3b3',
+      primary: '#FAFAFA',
+      secondary: '#b0b0b0',
     },
     // Enhanced contrast for accessibility
     error: {
-      main: '#f44336',
+      main: '#FF5C5C',
       contrastText: '#ffffff',
     },
     warning: {
-      main: '#ff9800',
+      main: '#FFD700',
       contrastText: '#000000',
     },
     info: {
@@ -38,16 +38,16 @@ export const darkTheme = createTheme({
       contrastText: '#ffffff',
     },
     success: {
-      main: '#4caf50',
+      main: '#32CD32',
       contrastText: '#ffffff',
     },
     divider: 'rgba(255, 255, 255, 0.12)',
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 12,
   },
   typography: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     // Improved font sizes for accessibility
     fontSize: 14,
     h1: {
@@ -102,7 +102,7 @@ export const darkTheme = createTheme({
           borderRadius: 12, // Specific value for cards
           // Enhanced focus outline for accessibility
           '&:focus-visible': {
-            outline: '2px solid #90caf9',
+            outline: '2px solid #65D6A1',
             outlineOffset: '2px',
           },
         },
@@ -121,12 +121,12 @@ export const darkTheme = createTheme({
           padding: '8px 16px',
           // Enhanced focus styles
           '&:focus-visible': {
-            outline: '2px solid #90caf9',
+            outline: '2px solid #65D6A1',
             outlineOffset: '2px',
           },
           // Better hover contrast
           '&:hover': {
-            backgroundColor: 'rgba(144, 202, 249, 0.08)',
+            backgroundColor: 'rgba(101, 214, 161, 0.08)',
           },
         }),
         contained: {
@@ -147,7 +147,7 @@ export const darkTheme = createTheme({
           minHeight: 44,
           // Enhanced focus styles
           '&:focus-visible': {
-            outline: '2px solid #90caf9',
+            outline: '2px solid #65D6A1',
             outlineOffset: '2px',
           },
         },
@@ -160,7 +160,7 @@ export const darkTheme = createTheme({
           '& .MuiOutlinedInput-root': {
             '&:focus-within': {
               '& .MuiOutlinedInput-notchedOutline': {
-                borderColor: '#90caf9',
+                borderColor: '#65D6A1',
                 borderWidth: '2px',
               },
             },
@@ -192,7 +192,7 @@ export const darkTheme = createTheme({
           minHeight: 48, // Minimum touch target size
           // Enhanced focus styles
           '&:focus-visible': {
-            outline: '2px solid #90caf9',
+            outline: '2px solid #65D6A1',
             outlineOffset: '2px',
           },
         },
@@ -204,7 +204,7 @@ export const darkTheme = createTheme({
           minHeight: 44, // Minimum touch target size
           // Enhanced focus styles
           '&:focus-visible': {
-            outline: '2px solid #90caf9',
+            outline: '2px solid #65D6A1',
             outlineOffset: '-2px',
           },
         },
@@ -216,7 +216,7 @@ export const darkTheme = createTheme({
           minHeight: 44, // Minimum touch target size
           // Enhanced focus styles
           '&:focus-visible': {
-            outline: '2px solid #90caf9',
+            outline: '2px solid #65D6A1',
             outlineOffset: '-2px',
           },
         },
@@ -229,7 +229,7 @@ export const darkTheme = createTheme({
           borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
           // Better contrast for table cells
           '&:focus-visible': {
-            outline: '2px solid #90caf9',
+            outline: '2px solid #65D6A1',
             outlineOffset: '-2px',
           },
         },
@@ -245,7 +245,7 @@ export const darkTheme = createTheme({
         paper: {
           // Ensure dialogs have proper focus management
           '&:focus-visible': {
-            outline: '2px solid #90caf9',
+            outline: '2px solid #65D6A1',
             outlineOffset: '2px',
           },
         },

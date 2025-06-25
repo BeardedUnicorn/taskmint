@@ -1,6 +1,6 @@
 /**
  * Data Backup and Export Hook
- * 
+ *
  * This hook provides functionality for backing up and exporting user data
  * including time entries and tasks with JSON export capabilities.
  */
@@ -9,9 +9,9 @@ import { useCallback, useState } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useAsyncError } from './useAsyncError';
 import { STORAGE_KEYS } from '../constants';
-import { TimeEntry } from '../types/timer';
-import { Task } from '../types/task';
-import { NoteTemplate, TaskNote } from '../types/notes';
+import { TimeEntry, TimeEntrySchema } from '../types/timer';
+import { Task, TaskSchema } from '../types/task';
+import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../types/notes';
 
 
 // Backup data structure
@@ -48,6 +48,18 @@ export interface ImportResult {
     taskNotes: number;
   };
   errors?: string[];
+  validationErrors?: {
+    timeEntries: string[];
+    tasks: string[];
+    noteTemplates: string[];
+    taskNotes: string[];
+  };
+  skipped?: {
+    timeEntries: number;
+    tasks: number;
+    noteTemplates: number;
+    taskNotes: number;
+  };
 }
 
 // Hook options
@@ -64,9 +76,9 @@ export interface UseDataBackupOptions {
 export function useDataBackup(options: UseDataBackupOptions = {}) {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  
+
   const { executeAsync } = useAsyncError();
-  
+
   // Get data from localStorage
   const [timeEntries, setTimeEntries] = useLocalStorage<TimeEntry[]>(STORAGE_KEYS.TIME_ENTRIES, []);
   const [tasks, setTasks] = useLocalStorage<Task[]>(STORAGE_KEYS.PREDEFINED_TASKS, []);
@@ -96,7 +108,7 @@ export function useDataBackup(options: UseDataBackupOptions = {}) {
     return {
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
-      exportedBy: 'Time Tracker App',
+      exportedBy: 'TaskMint',
       data: {
         timeEntries,
         tasks,
@@ -121,29 +133,29 @@ export function useDataBackup(options: UseDataBackupOptions = {}) {
 
         const backupData = createBackupData();
         const jsonString = JSON.stringify(backupData, null, 2);
-        
+
         // Create blob and download
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        
+
         const defaultFilename = `time-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
         const finalFilename = filename || defaultFilename;
-        
+
         const link = document.createElement('a');
         link.href = url;
         link.download = finalFilename;
         link.style.display = 'none';
-        
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         URL.revokeObjectURL(url);
-        
+
         if (options.onExportSuccess) {
           options.onExportSuccess(finalFilename);
         }
-        
+
         return finalFilename;
       },
       {
@@ -179,21 +191,21 @@ export function useDataBackup(options: UseDataBackupOptions = {}) {
         const jsonString = JSON.stringify(exportData, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        
+
         const defaultFilename = `time-entries-${new Date().toISOString().split('T')[0]}.json`;
         const finalFilename = filename || defaultFilename;
-        
+
         const link = document.createElement('a');
         link.href = url;
         link.download = finalFilename;
         link.style.display = 'none';
-        
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         URL.revokeObjectURL(url);
-        
+
         return finalFilename;
       },
       {
@@ -228,21 +240,21 @@ export function useDataBackup(options: UseDataBackupOptions = {}) {
         const jsonString = JSON.stringify(exportData, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        
+
         const defaultFilename = `tasks-${new Date().toISOString().split('T')[0]}.json`;
         const finalFilename = filename || defaultFilename;
-        
+
         const link = document.createElement('a');
         link.href = url;
         link.download = finalFilename;
         link.style.display = 'none';
-        
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         URL.revokeObjectURL(url);
-        
+
         return finalFilename;
       },
       {
@@ -276,6 +288,76 @@ export function useDataBackup(options: UseDataBackupOptions = {}) {
     );
   };
 
+  // Deep validation helper function
+  const validateImportedData = (data: BackupData) => {
+    const validationErrors = {
+      timeEntries: [] as string[],
+      tasks: [] as string[],
+      noteTemplates: [] as string[],
+      taskNotes: [] as string[]
+    };
+
+    const validData = {
+      timeEntries: [] as TimeEntry[],
+      tasks: [] as Task[],
+      noteTemplates: [] as NoteTemplate[],
+      taskNotes: [] as TaskNote[]
+    };
+
+    const skipped = {
+      timeEntries: 0,
+      tasks: 0,
+      noteTemplates: 0,
+      taskNotes: 0
+    };
+
+    // Validate time entries
+    data.data.timeEntries.forEach((entry, index) => {
+      try {
+        const validatedEntry = TimeEntrySchema.parse(entry);
+        validData.timeEntries.push(validatedEntry);
+      } catch (error) {
+        skipped.timeEntries++;
+        validationErrors.timeEntries.push(`Time entry ${index + 1}: ${error instanceof Error ? error.message : 'Invalid data'}`);
+      }
+    });
+
+    // Validate tasks
+    data.data.tasks.forEach((task, index) => {
+      try {
+        const validatedTask = TaskSchema.parse(task);
+        validData.tasks.push(validatedTask);
+      } catch (error) {
+        skipped.tasks++;
+        validationErrors.tasks.push(`Task ${index + 1}: ${error instanceof Error ? error.message : 'Invalid data'}`);
+      }
+    });
+
+    // Validate note templates
+    (data.data.noteTemplates || []).forEach((template, index) => {
+      try {
+        const validatedTemplate = NoteTemplateSchema.parse(template);
+        validData.noteTemplates.push(validatedTemplate);
+      } catch (error) {
+        skipped.noteTemplates++;
+        validationErrors.noteTemplates.push(`Note template ${index + 1}: ${error instanceof Error ? error.message : 'Invalid data'}`);
+      }
+    });
+
+    // Validate task notes
+    (data.data.taskNotes || []).forEach((note, index) => {
+      try {
+        const validatedNote = TaskNoteSchema.parse(note);
+        validData.taskNotes.push(validatedNote);
+      } catch (error) {
+        skipped.taskNotes++;
+        validationErrors.taskNotes.push(`Task note ${index + 1}: ${error instanceof Error ? error.message : 'Invalid data'}`);
+      }
+    });
+
+    return { validData, validationErrors, skipped };
+  };
+
   // Import data from JSON file
   const importData = useCallback(async (mergeMode: 'merge' | 'replace' = 'merge') => {
     return executeAsync(
@@ -300,36 +382,47 @@ export function useDataBackup(options: UseDataBackupOptions = {}) {
               const text = await file.text();
               const importedData = JSON.parse(text);
 
-              // Validate the imported data
+              // Validate the imported data structure
               if (!validateBackupData(importedData)) {
-                throw new Error('Invalid backup file format. Please select a valid Time Tracker backup file.');
+                throw new Error('Invalid backup file format. Please select a valid TaskMint backup file.');
               }
 
-              // Process the imported data based on merge mode
+              // Perform deep validation of imported data
+              const { validData, validationErrors, skipped } = validateImportedData(importedData);
+
+              // Check if we have any valid data to import
+              const totalValidItems = validData.timeEntries.length + validData.tasks.length +
+                validData.noteTemplates.length + validData.taskNotes.length;
+
+              if (totalValidItems === 0) {
+                throw new Error('No valid data found in the backup file. All items failed validation.');
+              }
+
+              // Process the validated data based on merge mode
               if (mergeMode === 'replace') {
-                // Replace all existing data
-                setTimeEntries(importedData.data.timeEntries);
-                setTasks(importedData.data.tasks);
-                setNoteTemplates(importedData.data.noteTemplates || []);
-                setTaskNotes(importedData.data.taskNotes || []);
+                // Replace all existing data with validated data
+                setTimeEntries(validData.timeEntries);
+                setTasks(validData.tasks);
+                setNoteTemplates(validData.noteTemplates);
+                setTaskNotes(validData.taskNotes);
               } else {
-                // Merge with existing data
+                // Merge with existing data, filtering out duplicates
                 const existingEntryIds = new Set(timeEntries.map(entry => entry.id));
                 const existingTaskIds = new Set(tasks.map(task => task.id));
                 const existingTemplateIds = new Set(noteTemplates.map(template => template.id));
                 const existingNoteIds = new Set(taskNotes.map(note => note.id));
 
-                // Filter out duplicates and merge
-                const newTimeEntries = importedData.data.timeEntries.filter(
+                // Filter out duplicates from validated data
+                const newTimeEntries = validData.timeEntries.filter(
                   (entry: TimeEntry) => !existingEntryIds.has(entry.id)
                 );
-                const newTasks = importedData.data.tasks.filter(
+                const newTasks = validData.tasks.filter(
                   (task: Task) => !existingTaskIds.has(task.id)
                 );
-                const newNoteTemplates = (importedData.data.noteTemplates || []).filter(
+                const newNoteTemplates = validData.noteTemplates.filter(
                   (template: NoteTemplate) => !existingTemplateIds.has(template.id)
                 );
-                const newTaskNotes = (importedData.data.taskNotes || []).filter(
+                const newTaskNotes = validData.taskNotes.filter(
                   (note: TaskNote) => !existingNoteIds.has(note.id)
                 );
 
@@ -339,17 +432,39 @@ export function useDataBackup(options: UseDataBackupOptions = {}) {
                 setTaskNotes([...taskNotes, ...newTaskNotes]);
               }
 
+              // Calculate actual imported counts (for merge mode, exclude duplicates)
+              const actualImported = mergeMode === 'replace'
+                ? {
+                  timeEntries: validData.timeEntries.length,
+                  tasks: validData.tasks.length,
+                  noteTemplates: validData.noteTemplates.length,
+                  taskNotes: validData.taskNotes.length,
+                }
+                : {
+                  timeEntries: validData.timeEntries.filter(entry => !timeEntries.some(e => e.id === entry.id)).length,
+                  tasks: validData.tasks.filter(task => !tasks.some(t => t.id === task.id)).length,
+                  noteTemplates: validData.noteTemplates.filter(template => !noteTemplates.some(t => t.id === template.id)).length,
+                  taskNotes: validData.taskNotes.filter(note => !taskNotes.some(n => n.id === note.id)).length,
+                };
+
+              // Create detailed message including validation results
+              const hasValidationErrors = Object.values(validationErrors).some(errors => errors.length > 0);
+              const hasSkippedItems = Object.values(skipped).some(count => count > 0);
+
+              let message = mergeMode === 'replace'
+                ? `Data replaced successfully. Imported ${actualImported.timeEntries} time entries, ${actualImported.tasks} tasks, ${actualImported.noteTemplates} note templates, and ${actualImported.taskNotes} task notes.`
+                : `Data merged successfully. Added ${actualImported.timeEntries} time entries, ${actualImported.tasks} tasks, ${actualImported.noteTemplates} note templates, and ${actualImported.taskNotes} task notes.`;
+
+              if (hasSkippedItems) {
+                message += ` Skipped ${skipped.timeEntries} invalid time entries, ${skipped.tasks} invalid tasks, ${skipped.noteTemplates} invalid note templates, and ${skipped.taskNotes} invalid task notes.`;
+              }
+
               const importResult: ImportResult = {
                 success: true,
-                message: mergeMode === 'replace'
-                  ? `Data replaced successfully. Imported ${importedData.metadata.totalTimeEntries} time entries, ${importedData.metadata.totalTasks} tasks, ${importedData.metadata.totalNoteTemplates || 0} note templates, and ${importedData.metadata.totalTaskNotes || 0} task notes.`
-                  : `Data merged successfully. Added ${importedData.data.timeEntries.length} time entries, ${importedData.data.tasks.length} tasks, ${(importedData.data.noteTemplates || []).length} note templates, and ${(importedData.data.taskNotes || []).length} task notes.`,
-                imported: {
-                  timeEntries: mergeMode === 'replace' ? importedData.metadata.totalTimeEntries : importedData.data.timeEntries.length,
-                  tasks: mergeMode === 'replace' ? importedData.metadata.totalTasks : importedData.data.tasks.length,
-                  noteTemplates: mergeMode === 'replace' ? (importedData.metadata.totalNoteTemplates || 0) : (importedData.data.noteTemplates || []).length,
-                  taskNotes: mergeMode === 'replace' ? (importedData.metadata.totalTaskNotes || 0) : (importedData.data.taskNotes || []).length,
-                }
+                message,
+                imported: actualImported,
+                validationErrors: hasValidationErrors ? validationErrors : undefined,
+                skipped: hasSkippedItems ? skipped : undefined,
               };
 
               if (options.onImportSuccess) {
@@ -388,7 +503,7 @@ export function useDataBackup(options: UseDataBackupOptions = {}) {
     ).finally(() => {
       setIsImporting(false);
     });
-  }, [timeEntries, tasks, noteTemplates, taskNotes, setTimeEntries, setTasks, setNoteTemplates, setTaskNotes, executeAsync, options]);
+  }, [timeEntries, tasks, noteTemplates, taskNotes, setTimeEntries, setTasks, setNoteTemplates, setTaskNotes, executeAsync, options, validateBackupData, validateImportedData]);
 
   // Get backup summary
   const getBackupSummary = useCallback(() => {

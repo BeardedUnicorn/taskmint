@@ -8,9 +8,10 @@
 import { useCallback, useState, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useDataBackup } from './useDataBackup';
-import { 
-  BackupConfig, 
-  BackupStatus, 
+import { useNotification } from '../contexts/NotificationContext';
+import {
+  BackupConfig,
+  BackupStatus,
   BackupResult,
   BackupFrequency,
   DEFAULT_BACKUP_CONFIG,
@@ -24,7 +25,7 @@ export function useBackupSettings() {
     'automaticBackupConfig',
     DEFAULT_BACKUP_CONFIG
   );
-  
+
   const [status, setStatus] = useState<BackupStatus>({
     isRunning: false,
     lastBackupTime: config.lastBackupTime,
@@ -33,6 +34,7 @@ export function useBackupSettings() {
   });
 
   const { createBackupData } = useDataBackup();
+  const { showError, showSuccess } = useNotification();
 
   // Update status when config changes
   useEffect(() => {
@@ -54,13 +56,16 @@ export function useBackupSettings() {
         multiple: false,
         title: 'Select Backup Directory',
       });
-      
+
       return selected as string | null;
     } catch (error) {
+      // Propagate specific error message from Tauri dialog
+      const errorMessage = error instanceof Error ? error.message : 'Failed to open directory selection dialog';
       console.error('Failed to open directory dialog:', error);
+      showError(`Directory selection failed: ${errorMessage}`);
       return null;
     }
-  }, []);
+  }, [showError]);
 
   // Update backup configuration
   const updateConfig = useCallback((updates: Partial<BackupConfig>) => {
@@ -87,12 +92,45 @@ export function useBackupSettings() {
     setConfig(prev => ({ ...prev, maxBackups }));
   }, [setConfig]);
 
+  // Validate backup path
+  const validateBackupPath = useCallback(async (path: string): Promise<{ isValid: boolean; error?: string }> => {
+    if (!path || path.trim() === '') {
+      return { isValid: false, error: 'Backup path cannot be empty' };
+    }
+
+    try {
+      // Call Tauri command to validate the path
+      const result = await invoke<{ isValid: boolean; error?: string }>('validate_backup_path', {
+        path: path.trim(),
+      });
+      return result;
+    } catch (error) {
+      // If the Tauri command doesn't exist or fails, do basic validation
+      const errorMessage = error instanceof Error ? error.message : 'Failed to validate backup path';
+      return { isValid: false, error: errorMessage };
+    }
+  }, []);
+
   // Perform manual backup
   const performManualBackup = useCallback(async (): Promise<BackupResult> => {
     if (!config.backupPath) {
+      const errorMessage = 'No backup directory selected';
+      showError(errorMessage);
       return {
         success: false,
-        error: 'No backup directory selected',
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // Validate backup path before proceeding
+    const validation = await validateBackupPath(config.backupPath);
+    if (!validation.isValid) {
+      const errorMessage = validation.error || 'Invalid backup directory';
+      showError(`Backup path validation failed: ${errorMessage}`);
+      return {
+        success: false,
+        error: errorMessage,
         timestamp: new Date().toISOString(),
       };
     }
@@ -122,15 +160,25 @@ export function useBackupSettings() {
         lastBackupTime: now,
         lastBackupSuccess: result.success,
         lastBackupError: result.success ? undefined : result.error,
-        nextScheduledBackup: config.enabled 
+        nextScheduledBackup: config.enabled
           ? getNextBackupTime(config.frequency, now).toISOString()
           : undefined,
       }));
 
+      // Show user notification based on result
+      if (result.success) {
+        showSuccess('Backup completed successfully');
+      } else {
+        // Propagate specific error from Rust backend
+        const backendError = result.error || 'Backup failed for unknown reason';
+        showError(`Backup failed: ${backendError}`);
+      }
+
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
+      // Extract specific error message from Tauri invoke call
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred during backup';
+
       setStatus(prev => ({
         ...prev,
         isRunning: false,
@@ -138,13 +186,16 @@ export function useBackupSettings() {
         lastBackupError: errorMessage,
       }));
 
+      // Show specific error message to user
+      showError(`Backup failed: ${errorMessage}`);
+
       return {
         success: false,
         error: errorMessage,
         timestamp: new Date().toISOString(),
       };
     }
-  }, [config, createBackupData, setConfig]);
+  }, [config, createBackupData, setConfig, showError, showSuccess, validateBackupPath]);
 
   // Check if backup is due
   const checkBackupDue = useCallback((): boolean => {
@@ -223,5 +274,6 @@ export function useBackupSettings() {
     performManualBackup,
     performAutomaticBackupIfDue,
     checkBackupDue,
+    validateBackupPath,
   };
 }

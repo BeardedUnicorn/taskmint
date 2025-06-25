@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { useNotification } from '../contexts/NotificationContext';
 import { UseSystemTrayProps } from '../types/timer';
 
 export function useSystemTray({
@@ -14,6 +15,7 @@ export function useSystemTray({
   const prevActiveEntryRef = useRef(activeEntry);
   const prevTimeEntriesLengthRef = useRef(timeEntries.length);
   const lastUpdateRef = useRef(0);
+  const { showError } = useNotification();
   // Update tray menu with daily totals
   const updateTrayMenuWithDailyTotal = useCallback(async () => {
     try {
@@ -71,9 +73,12 @@ export function useSystemTray({
       // Only log errors in Tauri environment
       if (typeof window !== 'undefined' && window.__TAURI__) {
         console.error('Failed to update timer state:', error);
+        // Propagate specific error from Rust backend
+        const errorMessage = error instanceof Error ? error.message : 'Failed to update system tray timer state';
+        showError(`System tray update failed: ${errorMessage}`);
       }
     }
-  }, [activeEntry, updateTrayMenuWithDailyTotal]);
+  }, [activeEntry, updateTrayMenuWithDailyTotal, showError]);
 
   // Update tasks list in backend when timeEntries change
   const updateTasks = useCallback(async () => {
@@ -110,9 +115,12 @@ export function useSystemTray({
       // Only log errors in Tauri environment
       if (typeof window !== 'undefined' && window.__TAURI__) {
         console.error('Failed to update tasks:', error);
+        // Propagate specific error from Rust backend
+        const errorMessage = error instanceof Error ? error.message : 'Failed to update system tray tasks';
+        showError(`System tray task update failed: ${errorMessage}`);
       }
     }
-  }, [timeEntries, updateTrayMenuWithDailyTotal]);
+  }, [timeEntries, updateTrayMenuWithDailyTotal, showError]);
 
   // Listen for tray events
   useEffect(() => {
@@ -160,6 +168,9 @@ export function useSystemTray({
         // Only log errors in Tauri environment
         if (typeof window !== 'undefined' && window.__TAURI__) {
           console.error('Failed to setup event listeners:', error);
+          // Propagate specific error from Rust backend
+          const errorMessage = error instanceof Error ? error.message : 'Failed to setup system tray event listeners';
+          showError(`System tray initialization failed: ${errorMessage}`);
         }
         return () => {};
       }
@@ -175,7 +186,7 @@ export function useSystemTray({
         cleanup();
       }
     };
-  }, [onStartTimer, onStopTimer, onShowNewTaskDialog]);
+  }, [onStartTimer, onStopTimer, onShowNewTaskDialog, showError]);
 
   // Update backend state when frontend state changes (with throttling)
   useEffect(() => {

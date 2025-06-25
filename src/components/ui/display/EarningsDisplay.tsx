@@ -38,7 +38,7 @@ export function EarningsDisplay({
       sx={{
         color: getDisplayColor(),
         fontWeight: amount > 0 ? 600 : 400,
-        fontFamily: 'monospace',
+        fontFamily: '"Roboto Mono", monospace',
         ...sx,
       }}
     >

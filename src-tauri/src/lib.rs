@@ -1,4 +1,4 @@
-// Time Tracker Tauri app with system tray and timer functionality
+// TaskMint Tauri app with system tray and timer functionality
 use tauri::{AppHandle, State, Manager, Emitter};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -567,7 +567,7 @@ fn setup_system_tray(
     let tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
-        .tooltip("Time Tracker")
+        .tooltip("TaskMint")
         .on_tray_icon_event({
             let app_handle = app_handle.clone();
             move |_tray, event| {
@@ -632,6 +632,72 @@ async fn execute_cli_command(command: String) -> Result<String, String> {
     }
 }
 
+#[derive(serde::Serialize)]
+struct PathValidationResult {
+    is_valid: bool,
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn validate_backup_path(path: String) -> Result<PathValidationResult, String> {
+    let backup_path = Path::new(&path);
+
+    // Check if path is empty
+    if path.trim().is_empty() {
+        return Ok(PathValidationResult {
+            is_valid: false,
+            error: Some("Backup path cannot be empty".to_string()),
+        });
+    }
+
+    // Check if path exists
+    if !backup_path.exists() {
+        // Try to create the directory to test if it's writable
+        match fs::create_dir_all(&backup_path) {
+            Ok(_) => {
+                // Successfully created, path is valid
+                return Ok(PathValidationResult {
+                    is_valid: true,
+                    error: None,
+                });
+            }
+            Err(e) => {
+                return Ok(PathValidationResult {
+                    is_valid: false,
+                    error: Some(format!("Cannot create backup directory: {}", e)),
+                });
+            }
+        }
+    }
+
+    // Path exists, check if it's a directory
+    if !backup_path.is_dir() {
+        return Ok(PathValidationResult {
+            is_valid: false,
+            error: Some("Backup path must be a directory, not a file".to_string()),
+        });
+    }
+
+    // Test write permissions by creating a temporary file
+    let test_file_path = backup_path.join(".taskmint_write_test");
+    match fs::write(&test_file_path, "test") {
+        Ok(_) => {
+            // Clean up test file
+            let _ = fs::remove_file(&test_file_path);
+            Ok(PathValidationResult {
+                is_valid: true,
+                error: None,
+            })
+        }
+        Err(e) => {
+            Ok(PathValidationResult {
+                is_valid: false,
+                error: Some(format!("Directory is not writable: {}", e)),
+            })
+        }
+    }
+}
+
 #[tauri::command]
 async fn perform_automatic_backup(
     backup_path: String,
@@ -657,7 +723,7 @@ async fn perform_automatic_backup(
     }
 
     // Write backup file
-    match fs::write(&file_path, &current_data_json) {
+    match fs::write(&file_path, ¤t_data_json) {
         Ok(_) => {
             // Get file size
             let file_size = fs::metadata(&file_path)
@@ -687,6 +753,46 @@ async fn perform_automatic_backup(
     }
 }
 
+// Helper function to validate backup timestamp format (YYYYMMDD_HHMMSS)
+fn is_valid_backup_timestamp(timestamp: &str) -> bool {
+    if timestamp.len() != 15 {
+        return false;
+    }
+
+    let parts: Vec<&str> = timestamp.split('_').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+
+    let date_part = parts[0];
+    let time_part = parts[1];
+
+    // Check date part (YYYYMMDD)
+    if date_part.len() != 8 || !date_part.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+
+    // Check time part (HHMMSS)
+    if time_part.len() != 6 || !time_part.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+
+    // Basic range validation
+    let year: u32 = date_part[0..4].parse().unwrap_or(0);
+    let month: u32 = date_part[4..6].parse().unwrap_or(0);
+    let day: u32 = date_part[6..8].parse().unwrap_or(0);
+    let hour: u32 = time_part[0..2].parse().unwrap_or(0);
+    let minute: u32 = time_part[2..4].parse().unwrap_or(0);
+    let second: u32 = time_part[4..6].parse().unwrap_or(0);
+
+    year >= 2020 && year <= 2100 &&
+    month >= 1 && month <= 12 &&
+    day >= 1 && day <= 31 &&
+    hour <= 23 &&
+    minute <= 59 &&
+    second <= 59
+}
+
 // Helper function to cleanup old backup files
 fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String> {
     let backup_dir = Path::new(backup_path);
@@ -695,41 +801,47 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
         return Ok(());
     }
 
-    // Read directory entries
-    let entries = fs::read_dir(backup_dir)
-        .map_err(|e| format!("Failed to read backup directory: {}", e))?;
+    let entries = match fs::read_dir(backup_dir) {
+        Ok(e) => e,
+        Err(err) => return Err(format!("Failed to read backup directory: {}", err)),
+    };
 
-    // Collect backup files with their metadata
-    let mut backup_files: Vec<(std::path::PathBuf, std::time::SystemTime)> = Vec::new();
+    let mut backup_files: Vec<String> = Vec::new();
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
-        let path = entry.path();
-
-        // Check if it's a backup file (starts with "time_tracker_backup_" and ends with ".json")
-        if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-            if filename.starts_with("time_tracker_backup_") && filename.ends_with(".json") {
-                if let Ok(metadata) = fs::metadata(&path) {
-                    if let Ok(modified) = metadata.modified() {
-                        backup_files.push((path, modified));
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                if filename.starts_with("time_tracker_backup_") && filename.ends_with(".json") {
+                    if let Some(timestamp_part) = filename.strip_prefix("time_tracker_backup_").and_then(|s| s.strip_suffix(".json")) {
+                        if is_valid_backup_timestamp(timestamp_part) {
+                            backup_files.push(path.to_string_lossy().to_string());
+                        } else {
+                            println!("Skipping file with invalid timestamp format: {}", filename);
+                        }
+                    } else {
+                        println!("Skipping file with unexpected name format: {}", filename);
                     }
                 }
             }
         }
     }
 
-    // Sort by modification time (newest first)
-    backup_files.sort_by(|a, b| b.1.cmp(&a.1));
+    // Sort by filename descending (newest first)
+    backup_files.sort_by(|a, b| b.cmp(a));
 
-    // Remove excess backup files
     if backup_files.len() > max_backups as usize {
-        for (path, _) in backup_files.iter().skip(max_backups as usize) {
-            if let Err(e) = fs::remove_file(path) {
-                eprintln!("Warning: Failed to remove old backup file {:?}: {}", path, e);
+        let files_to_remove = backup_files.iter().skip(max_backups as usize);
+
+        for path_str in files_to_remove {
+            if let Err(e) = fs::remove_file(path_str) {
+                eprintln!("Warning: Failed to remove old backup file {}: {}", path_str, e);
             } else {
-                println!("Removed old backup file: {:?}", path);
+                println!("Removed old backup file: {}", path_str);
             }
         }
+    } else {
+        println!("No cleanup needed: {} backup files found (max: {})", backup_files.len(), max_backups);
     }
 
     Ok(())
@@ -951,7 +1063,7 @@ fn update_tray_tooltip_only(
                         let tooltip = format!("⏱️ {} - {} (Click for menu)", state.task_name, duration_text_tooltip);
                         (tooltip, true, duration_text_title)
                     } else {
-                        let tooltip = "Time Tracker - No active timer (Click for menu)".to_string();
+                        let tooltip = "TaskMint - No active timer (Click for menu)".to_string();
                         (tooltip, false, String::new())
                     }
                 };
@@ -1047,6 +1159,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(timer_state.clone())
         .manage(tasks.clone())
         .manage(tray_icon.clone())
@@ -1109,6 +1222,7 @@ pub fn run() {
             update_tray_menu_command,
             test_new_task_dialog,
             execute_cli_command,
+            validate_backup_path,
             perform_automatic_backup,
             google_drive_get_auth_url,
             google_drive_authenticate,

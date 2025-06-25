@@ -12,89 +12,89 @@ export function createLightTheme() {
     palette: {
       mode: 'light',
       primary: {
-        main: '#1976d2',
-        dark: '#115293',
-        light: '#42a5f5',
+        main: '#65D6A1',
+        dark: '#4CAF50',
+        light: '#B2DFDB',
       },
       secondary: {
-        main: '#9c27b0',
-        dark: '#6a1b9a',
-        light: '#ba68c8',
+        main: '#0D7377',
+        dark: '#004D40',
+        light: '#4DB6AC',
       },
       background: {
-        default: '#fafafa',
+        default: '#FAFAFA',
         paper: '#ffffff',
       },
       text: {
-        primary: '#212121',
+        primary: '#3F4E4F',
         secondary: '#757575',
       },
       // Enhanced contrast for accessibility
       error: {
-        main: '#d32f2f',
+        main: '#FF5C5C',
         contrastText: '#ffffff',
       },
       warning: {
-        main: '#ed6c02',
-        contrastText: '#ffffff',
+        main: '#FFD700',
+        contrastText: '#000000',
       },
       info: {
         main: '#0288d1',
         contrastText: '#ffffff',
       },
       success: {
-        main: '#2e7d32',
+        main: '#32CD32',
         contrastText: '#ffffff',
       },
       divider: 'rgba(0, 0, 0, 0.12)',
     },
     shape: {
-      borderRadius: 8,
+      borderRadius: 12,
     },
     typography: {
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       // Improved font sizes for accessibility
       fontSize: 14,
       h1: {
         fontSize: '2.5rem',
         fontWeight: 600,
         lineHeight: 1.2,
-        color: '#212121',
+        color: '#3F4E4F',
       },
       h2: {
         fontSize: '2rem',
         fontWeight: 600,
         lineHeight: 1.3,
-        color: '#212121',
+        color: '#3F4E4F',
       },
       h3: {
         fontSize: '1.75rem',
         fontWeight: 600,
         lineHeight: 1.3,
-        color: '#212121',
+        color: '#3F4E4F',
       },
       h4: {
         fontSize: '1.5rem',
         fontWeight: 600,
         lineHeight: 1.4,
-        color: '#212121',
+        color: '#3F4E4F',
       },
       h5: {
         fontSize: '1.25rem',
         fontWeight: 600,
         lineHeight: 1.4,
-        color: '#212121',
+        color: '#3F4E4F',
       },
       h6: {
         fontSize: '1.125rem',
         fontWeight: 600,
         lineHeight: 1.4,
-        color: '#212121',
+        color: '#3F4E4F',
       },
       body1: {
         fontSize: '1rem',
         lineHeight: 1.5,
-        color: '#212121',
+        color: '#3F4E4F',
       },
       body2: {
         fontSize: '0.875rem',
@@ -117,7 +117,7 @@ export function createLightTheme() {
             border: '1px solid rgba(0, 0, 0, 0.08)',
             // Enhanced focus outline for accessibility
             '&:focus-visible': {
-              outline: '2px solid #1976d2',
+              outline: '2px solid #65D6A1',
               outlineOffset: '2px',
             },
           },
@@ -136,12 +136,12 @@ export function createLightTheme() {
             padding: '8px 16px',
             // Enhanced focus styles
             '&:focus-visible': {
-              outline: '2px solid #1976d2',
+              outline: '2px solid #65D6A1',
               outlineOffset: '2px',
             },
             // Better hover contrast
             '&:hover': {
-              backgroundColor: 'rgba(25, 118, 210, 0.08)',
+              backgroundColor: 'rgba(101, 214, 161, 0.08)',
             },
           }),
           contained: {
@@ -162,7 +162,7 @@ export function createLightTheme() {
             minHeight: 44,
             // Enhanced focus styles
             '&:focus-visible': {
-              outline: '2px solid #1976d2',
+              outline: '2px solid #65D6A1',
               outlineOffset: '2px',
             },
           },
@@ -175,7 +175,7 @@ export function createLightTheme() {
             '& .MuiOutlinedInput-root': {
               '&:focus-within': {
                 '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#1976d2',
+                  borderColor: '#65D6A1',
                   borderWidth: '2px',
                 },
               },
@@ -189,7 +189,7 @@ export function createLightTheme() {
             minHeight: 48, // Minimum touch target size
             // Enhanced focus styles
             '&:focus-visible': {
-              outline: '2px solid #1976d2',
+              outline: '2px solid #65D6A1',
               outlineOffset: '2px',
             },
           },
@@ -201,7 +201,7 @@ export function createLightTheme() {
             minHeight: 44, // Minimum touch target size
             // Enhanced focus styles
             '&:focus-visible': {
-              outline: '2px solid #1976d2',
+              outline: '2px solid #65D6A1',
               outlineOffset: '-2px',
             },
           },
@@ -213,7 +213,7 @@ export function createLightTheme() {
             minHeight: 44, // Minimum touch target size
             // Enhanced focus styles
             '&:focus-visible': {
-              outline: '2px solid #1976d2',
+              outline: '2px solid #65D6A1',
               outlineOffset: '-2px',
             },
           },
@@ -226,7 +226,7 @@ export function createLightTheme() {
             borderBottom: '1px solid rgba(0, 0, 0, 0.12)',
             // Better contrast for table cells
             '&:focus-visible': {
-              outline: '2px solid #1976d2',
+              outline: '2px solid #65D6A1',
               outlineOffset: '-2px',
             },
           },
@@ -242,7 +242,7 @@ export function createLightTheme() {
           paper: {
             // Ensure dialogs have proper focus management
             '&:focus-visible': {
-              outline: '2px solid #1976d2',
+              outline: '2px solid #65D6A1',
               outlineOffset: '2px',
             },
           },
@@ -290,10 +290,10 @@ export function createLightTheme() {
       MuiChip: {
         styleOverrides: {
           root: {
-            backgroundColor: 'rgba(25, 118, 210, 0.08)',
-            color: '#1976d2',
+            backgroundColor: 'rgba(101, 214, 161, 0.08)',
+            color: '#65D6A1',
             '&:hover': {
-              backgroundColor: 'rgba(25, 118, 210, 0.12)',
+              backgroundColor: 'rgba(101, 214, 161, 0.12)',
             },
           },
         },

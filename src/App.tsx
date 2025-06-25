@@ -33,6 +33,7 @@ import { TimeEntry } from './types/timer';
 import { useSystemTray } from './hooks/useSystemTray';
 import { useTaskManagement } from './hooks/useTaskManagement';
 import { useTimerSettings } from './hooks/useTimerSettings';
+import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
 import { TimerService } from './services/TimerService';
 import { StorageService } from './services/StorageService';
 import { invoke } from '@tauri-apps/api/core';
@@ -358,6 +359,12 @@ function AppContent({
     onStartTimer: handleStartTimerFromTray,
     onStopTimer: handleStopTimerFromTray,
     onShowNewTaskDialog: handleShowNewTaskDialog,
+  });
+
+  // Initialize daily goal progress monitoring
+  useDailyGoalProgressMonitor({
+    timeEntries,
+    tasks,
   });
 
   // Prepare data for components

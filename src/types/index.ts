@@ -50,7 +50,15 @@ export type {
   SelectOption,
 } from './notes';
 
-
+// Daily Goals Types
+export type {
+  DailyGoal,
+  DailyGoalAchievement,
+  DailyGoalFormData,
+  DailyGoalProgress,
+  GoalNotificationType,
+  GoalNotificationData,
+} from './goal';
 
 // UI Component Types
 export type {

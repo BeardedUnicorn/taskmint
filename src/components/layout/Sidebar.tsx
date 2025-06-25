@@ -91,7 +91,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       }}>
         {!isCollapsed && (
           <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
-            Time Tracker
+            TaskMint
           </Typography>
         )}
         <IconButton

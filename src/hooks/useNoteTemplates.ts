@@ -117,17 +117,17 @@ export function useNoteTemplates(): UseNoteTemplatesReturn {
    * Duplicate a template
    */
   const duplicateTemplate = useCallback(async (
-    templateId: string, 
+    templateId: string,
     newName?: string
   ): Promise<NoteTemplate> => {
     return executeAsync(async () => {
       setError(null);
-      
+
       const duplicatedTemplate = await templateService.duplicateTemplate(templateId, newName);
-      
+
       // Update local state
       setTemplates(prev => [...prev, duplicatedTemplate]);
-      
+
       return duplicatedTemplate;
     });
   }, [templateService, executeAsync]);

@@ -67,7 +67,7 @@ export function TimerDisplay({
           variant={getTypographyVariant()}
           component="div"
           sx={{
-            fontFamily: 'monospace',
+            fontFamily: '"Roboto Mono", monospace',
             fontWeight: 600,
             letterSpacing: 1,
           }}

@@ -1,4 +1,4 @@
-import { useState, useMemo, Suspense, lazy } from 'react';
+import { useState, useMemo, useEffect, Suspense, lazy } from 'react';
 import {
   Box,
   Typography,
@@ -29,9 +29,12 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { TimeEntry } from '../../types/timer';
 import { Task } from '../../types/task';
+import { DailyGoalAchievement } from '../../types/goal';
 import { formatLocalTime } from '../../utils/dateHelpers';
 import { formatDuration } from '../../utils/formatters';
 import { EarningsDisplay } from '../ui/display/EarningsDisplay';
+import { GoalAchievementsTable } from '../ui/tables/GoalAchievementsTable';
+import { useDailyGoals } from '../../hooks/useDailyGoals';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { EditTimeEntryData } from '../../types/form';
 
@@ -69,6 +72,11 @@ export function ReportsPage({
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [timelineView, setTimelineView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+
+  // Daily goals hook and state
+  const { getAchievementsForDateRange } = useDailyGoals();
+  const [filteredAchievements, setFilteredAchievements] = useState<DailyGoalAchievement[]>([]);
+  const [achievementsLoading, setAchievementsLoading] = useState(false);
 
   // Filter entries based on date range and selected tasks
   const filteredEntries = useMemo(() => {
@@ -118,6 +126,26 @@ export function ReportsPage({
       taskCount: uniqueTasks.size,
     };
   }, [filteredEntries, tasks]);
+
+  // Load goal achievements when date range changes
+  useEffect(() => {
+    const loadAchievements = async () => {
+      setAchievementsLoading(true);
+      try {
+        const startDateStr = startDate.format('YYYY-MM-DD');
+        const endDateStr = endDate.format('YYYY-MM-DD');
+        const achievements = await getAchievementsForDateRange(startDateStr, endDateStr);
+        setFilteredAchievements(achievements);
+      } catch (error) {
+        console.error('Failed to load achievements:', error);
+        setFilteredAchievements([]);
+      } finally {
+        setAchievementsLoading(false);
+      }
+    };
+
+    loadAchievements();
+  }, [startDate, endDate, getAchievementsForDateRange]);
 
   // Chart data
   const chartData = useMemo(() => {
@@ -467,6 +495,22 @@ export function ReportsPage({
               </Table>
             </TableContainer>
           )}
+        </Paper>
+
+        {/* Daily Goal Achievements Section */}
+        <Paper sx={{ p: 3, mt: 3 }}>
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+            Daily Goal Achievements
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Track your daily earnings goal performance over the selected date range
+          </Typography>
+
+          <GoalAchievementsTable
+            achievements={filteredAchievements}
+            loading={achievementsLoading}
+          />
         </Paper>
 
         {/* Edit Time Entry Dialog */}

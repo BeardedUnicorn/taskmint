@@ -73,7 +73,7 @@ export function StatsCard({
                 color: getColorValue(),
                 fontWeight: 700,
                 mb: 0.5,
-                fontFamily: 'monospace',
+                fontFamily: '"Roboto Mono", monospace',
               }}
             >
               {formatValue(value)}

@@ -9,6 +9,8 @@ import { useCallback, useState } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useDataBackup } from './useDataBackup';
 import { useAsyncError } from './useAsyncError';
+import { useNotification } from '../contexts/NotificationContext';
+import { getGoogleDriveConfig } from '../utils/environment';
 import { invoke } from '@tauri-apps/api/core';
 import {
   CloudSyncConfig,
@@ -27,30 +29,7 @@ import {
 } from '../types/cloudSync';
 
 // Google OAuth configuration
-// In Tauri apps, use import.meta.env instead of process.env
-// Handle Jest environment where import.meta might not be available
-const getEnvVar = (key: string, defaultValue: string = '') => {
-  // Check if we're in a test environment (Jest)
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    return defaultValue;
-  }
-
-  // Check if import.meta is available (Vite environment)
-  try {
-    // Use eval to avoid TypeScript compilation issues with import.meta
-    const importMeta = eval('import.meta');
-    if (importMeta && importMeta.env) {
-      return importMeta.env[key] || defaultValue;
-    }
-  } catch {
-    // Fallback if import.meta is not available
-  }
-
-  return defaultValue;
-};
-
-const GOOGLE_CLIENT_ID = getEnvVar('VITE_GOOGLE_CLIENT_ID');
-const GOOGLE_CLIENT_SECRET = getEnvVar('VITE_GOOGLE_CLIENT_SECRET');
+const { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET } = getGoogleDriveConfig();
 const REDIRECT_URI = 'http://localhost:3000/auth/callback';
 
 // App-specific file configuration
@@ -78,6 +57,7 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
 
   const { executeAsync } = useAsyncError();
   const { createBackupData, importData } = useDataBackup();
+  const { showError, showSuccess } = useNotification();
 
   // Update config
   const updateConfig = useCallback((updates: Partial<CloudSyncConfig>) => {
@@ -97,13 +77,18 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
       {
         operation: 'get-auth-url',
         errorHandler: (error) => {
+          // Propagate specific error from Rust backend
+          const errorMessage = `Failed to get authentication URL: ${error.message}`;
           if (options.onAuthError) {
-            options.onAuthError(error.message);
+            options.onAuthError(errorMessage);
+          } else {
+            // Fallback to notification system if no callback provided
+            showError(errorMessage);
           }
         },
       }
     );
-  }, [executeAsync, options]);
+  }, [executeAsync, options, showError]);
 
   // Authenticate with Google Drive
   const authenticate = useCallback(async (authCode: string): Promise<boolean> => {
@@ -126,6 +111,9 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
 
           if (options.onAuthSuccess) {
             options.onAuthSuccess();
+          } else {
+            // Fallback to notification system
+            showSuccess('Successfully connected to Google Drive');
           }
 
           return true;
@@ -135,8 +123,13 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
             authStatus: 'error',
           }));
 
+          // Propagate specific error from Rust backend
+          const errorMessage = result.error || 'Authentication failed';
           if (options.onAuthError) {
-            options.onAuthError(result.error || 'Authentication failed');
+            options.onAuthError(errorMessage);
+          } else {
+            // Fallback to notification system
+            showError(`Google Drive authentication failed: ${errorMessage}`);
           }
 
           return false;
@@ -150,13 +143,18 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
             authStatus: 'error',
           }));
 
+          // Propagate specific error from Rust backend
+          const errorMessage = `Authentication failed: ${error.message}`;
           if (options.onAuthError) {
-            options.onAuthError(error.message);
+            options.onAuthError(errorMessage);
+          } else {
+            // Fallback to notification system
+            showError(errorMessage);
           }
         },
       }
     );
-  }, [executeAsync, options]);
+  }, [executeAsync, options, showError, showSuccess]);
 
   // Disconnect from Google Drive
   const disconnect = useCallback(() => {

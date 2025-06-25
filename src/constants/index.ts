@@ -20,6 +20,8 @@ export const STORAGE_KEYS = {
   TASK_NOTES: 'taskNotes',
   TIMER_SETTINGS: 'timerSettings',
   FAVORITE_TASKS: 'favoriteTasks',
+  DAILY_GOAL: 'dailyGoal',
+  DAILY_GOAL_ACHIEVEMENTS: 'dailyGoalAchievements',
 } as const;
 
 // Time formatting constants

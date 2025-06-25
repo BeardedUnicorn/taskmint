@@ -45,7 +45,7 @@ export function TaskNotesIntegration({
   } = useTaskNotes(task.id);
 
   // Hooks for templates
-  const { templates } = useNoteTemplates();
+  const { templates, getTemplateById } = useNoteTemplates();
 
   // Filter notes based on context
   const filteredNotes = timeEntryId
@@ -79,11 +79,26 @@ export function TaskNotesIntegration({
 
   const handleCreateNote = useCallback(() => {
     setEditingNote(null);
-    // Use the first available template or null
-    const defaultTemplate = templates.length > 0 ? templates[0] : null;
+
+    // First, try to use the task's default note template
+    let defaultTemplate: NoteTemplate | null = null;
+
+    if (task.defaultNoteTemplateId) {
+      const foundTemplate = getTemplateById(task.defaultNoteTemplateId);
+      if (foundTemplate) {
+        defaultTemplate = foundTemplate;
+      }
+    }
+
+    // If no default template is set or the default template is not found,
+    // fall back to the first available active template
+    if (!defaultTemplate && templates.length > 0) {
+      defaultTemplate = templates.find(template => template.isActive) || templates[0];
+    }
+
     setSelectedTemplate(defaultTemplate);
     setIsEditorCollapsed(false);
-  }, [templates]);
+  }, [task.defaultNoteTemplateId, templates, getTemplateById]);
 
   const handleSaveNote = useCallback(async (noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote> => {
     const savedNote = await createNote(noteData);
