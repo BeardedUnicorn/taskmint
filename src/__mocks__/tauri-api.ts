@@ -6,7 +6,7 @@
  */
 
 // Mock for @tauri-apps/api/core
-export const invoke = jest.fn().mockImplementation((command: string, _args?: any) => {
+export const invoke = vi.fn().mockImplementation((command: string, _args?: any) => {
   switch (command) {
     case 'start_timer':
       return Promise.resolve();
@@ -31,13 +31,13 @@ export const invoke = jest.fn().mockImplementation((command: string, _args?: any
 });
 
 // Mock for @tauri-apps/api/event
-export const listen = jest.fn().mockImplementation((_event: string, _handler: Function) => {
+export const listen = vi.fn().mockImplementation((_event: string, _handler: Function) => {
   return Promise.resolve(() => {}); // Return unsubscribe function
 });
 
-export const emit = jest.fn().mockResolvedValue(undefined);
+export const emit = vi.fn().mockResolvedValue(undefined);
 
-export const once = jest.fn().mockImplementation((_event: string, _handler: Function) => {
+export const once = vi.fn().mockImplementation((_event: string, _handler: Function) => {
   return Promise.resolve(() => {});
 });
 
@@ -206,73 +206,73 @@ export class WebviewWindow {
 export const appWindow = new WebviewWindow('main');
 
 // Mock for @tauri-apps/api/app
-export const getName = jest.fn().mockResolvedValue('TaskMint');
-export const getVersion = jest.fn().mockResolvedValue('1.0.0');
-export const getTauriVersion = jest.fn().mockResolvedValue('2.0.0');
+export const getName = vi.fn().mockResolvedValue('TaskMint');
+export const getVersion = vi.fn().mockResolvedValue('1.0.0');
+export const getTauriVersion = vi.fn().mockResolvedValue('2.0.0');
 
 // Mock for @tauri-apps/api/os
-export const platform = jest.fn().mockResolvedValue('darwin');
-export const version = jest.fn().mockResolvedValue('13.0.0');
-export const type = jest.fn().mockResolvedValue('Darwin');
-export const arch = jest.fn().mockResolvedValue('x86_64');
-export const tempdir = jest.fn().mockResolvedValue('/tmp');
+export const platform = vi.fn().mockResolvedValue('darwin');
+export const version = vi.fn().mockResolvedValue('13.0.0');
+export const type = vi.fn().mockResolvedValue('Darwin');
+export const arch = vi.fn().mockResolvedValue('x86_64');
+export const tempdir = vi.fn().mockResolvedValue('/tmp');
 
 // Mock for @tauri-apps/api/path
-export const appDir = jest.fn().mockResolvedValue('/app');
-export const appConfigDir = jest.fn().mockResolvedValue('/app/config');
-export const appDataDir = jest.fn().mockResolvedValue('/app/data');
-export const appLocalDataDir = jest.fn().mockResolvedValue('/app/local-data');
-export const appCacheDir = jest.fn().mockResolvedValue('/app/cache');
-export const appLogDir = jest.fn().mockResolvedValue('/app/logs');
-export const audioDir = jest.fn().mockResolvedValue('/audio');
-export const cacheDir = jest.fn().mockResolvedValue('/cache');
-export const configDir = jest.fn().mockResolvedValue('/config');
-export const dataDir = jest.fn().mockResolvedValue('/data');
-export const desktopDir = jest.fn().mockResolvedValue('/desktop');
-export const documentDir = jest.fn().mockResolvedValue('/documents');
-export const downloadDir = jest.fn().mockResolvedValue('/downloads');
-export const executableDir = jest.fn().mockResolvedValue('/executable');
-export const fontDir = jest.fn().mockResolvedValue('/fonts');
-export const homeDir = jest.fn().mockResolvedValue('/home');
-export const localDataDir = jest.fn().mockResolvedValue('/local-data');
-export const pictureDir = jest.fn().mockResolvedValue('/pictures');
-export const publicDir = jest.fn().mockResolvedValue('/public');
-export const resourceDir = jest.fn().mockResolvedValue('/resources');
-export const runtimeDir = jest.fn().mockResolvedValue('/runtime');
-export const templateDir = jest.fn().mockResolvedValue('/templates');
-export const videoDir = jest.fn().mockResolvedValue('/videos');
-export const logDir = jest.fn().mockResolvedValue('/logs');
+export const appDir = vi.fn().mockResolvedValue('/app');
+export const appConfigDir = vi.fn().mockResolvedValue('/app/config');
+export const appDataDir = vi.fn().mockResolvedValue('/app/data');
+export const appLocalDataDir = vi.fn().mockResolvedValue('/app/local-data');
+export const appCacheDir = vi.fn().mockResolvedValue('/app/cache');
+export const appLogDir = vi.fn().mockResolvedValue('/app/logs');
+export const audioDir = vi.fn().mockResolvedValue('/audio');
+export const cacheDir = vi.fn().mockResolvedValue('/cache');
+export const configDir = vi.fn().mockResolvedValue('/config');
+export const dataDir = vi.fn().mockResolvedValue('/data');
+export const desktopDir = vi.fn().mockResolvedValue('/desktop');
+export const documentDir = vi.fn().mockResolvedValue('/documents');
+export const downloadDir = vi.fn().mockResolvedValue('/downloads');
+export const executableDir = vi.fn().mockResolvedValue('/executable');
+export const fontDir = vi.fn().mockResolvedValue('/fonts');
+export const homeDir = vi.fn().mockResolvedValue('/home');
+export const localDataDir = vi.fn().mockResolvedValue('/local-data');
+export const pictureDir = vi.fn().mockResolvedValue('/pictures');
+export const publicDir = vi.fn().mockResolvedValue('/public');
+export const resourceDir = vi.fn().mockResolvedValue('/resources');
+export const runtimeDir = vi.fn().mockResolvedValue('/runtime');
+export const templateDir = vi.fn().mockResolvedValue('/templates');
+export const videoDir = vi.fn().mockResolvedValue('/videos');
+export const logDir = vi.fn().mockResolvedValue('/logs');
 
 // Mock for @tauri-apps/api/fs
-export const readTextFile = jest.fn().mockResolvedValue('');
-export const writeTextFile = jest.fn().mockResolvedValue(undefined);
-export const readBinaryFile = jest.fn().mockResolvedValue(new Uint8Array());
-export const writeBinaryFile = jest.fn().mockResolvedValue(undefined);
-export const exists = jest.fn().mockResolvedValue(true);
-export const createDir = jest.fn().mockResolvedValue(undefined);
-export const removeDir = jest.fn().mockResolvedValue(undefined);
-export const removeFile = jest.fn().mockResolvedValue(undefined);
-export const renameFile = jest.fn().mockResolvedValue(undefined);
-export const copyFile = jest.fn().mockResolvedValue(undefined);
+export const readTextFile = vi.fn().mockResolvedValue('');
+export const writeTextFile = vi.fn().mockResolvedValue(undefined);
+export const readBinaryFile = vi.fn().mockResolvedValue(new Uint8Array());
+export const writeBinaryFile = vi.fn().mockResolvedValue(undefined);
+export const exists = vi.fn().mockResolvedValue(true);
+export const createDir = vi.fn().mockResolvedValue(undefined);
+export const removeDir = vi.fn().mockResolvedValue(undefined);
+export const removeFile = vi.fn().mockResolvedValue(undefined);
+export const renameFile = vi.fn().mockResolvedValue(undefined);
+export const copyFile = vi.fn().mockResolvedValue(undefined);
 
 // Mock for @tauri-apps/api/dialog
-export const open = jest.fn().mockResolvedValue(null);
-export const save = jest.fn().mockResolvedValue(null);
-export const message = jest.fn().mockResolvedValue(undefined);
-export const ask = jest.fn().mockResolvedValue(false);
-export const confirm = jest.fn().mockResolvedValue(false);
+export const open = vi.fn().mockResolvedValue(null);
+export const save = vi.fn().mockResolvedValue(null);
+export const message = vi.fn().mockResolvedValue(undefined);
+export const ask = vi.fn().mockResolvedValue(false);
+export const confirm = vi.fn().mockResolvedValue(false);
 
 // Mock for @tauri-apps/api/notification and @tauri-apps/plugin-notification
-export const sendNotification = jest.fn().mockResolvedValue(undefined);
-export const requestPermission = jest.fn().mockResolvedValue('granted');
-export const isPermissionGranted = jest.fn().mockResolvedValue(true);
+export const sendNotification = vi.fn().mockResolvedValue(undefined);
+export const requestPermission = vi.fn().mockResolvedValue('granted');
+export const isPermissionGranted = vi.fn().mockResolvedValue(true);
 
 // Mock for @tauri-apps/api/clipboard
-export const writeText = jest.fn().mockResolvedValue(undefined);
-export const readText = jest.fn().mockResolvedValue('');
+export const writeText = vi.fn().mockResolvedValue(undefined);
+export const readText = vi.fn().mockResolvedValue('');
 
 // Mock for @tauri-apps/api/shell
-export const shellOpen = jest.fn().mockResolvedValue(undefined);
+export const shellOpen = vi.fn().mockResolvedValue(undefined);
 
 // Default export for the entire module
 export default {

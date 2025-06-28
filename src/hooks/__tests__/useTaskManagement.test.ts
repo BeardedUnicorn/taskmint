@@ -7,36 +7,36 @@ import { Task, TaskHierarchy } from '../../types';
 
 // Mock ServiceFactory
 const mockTaskService = {
-  getAllTasks: jest.fn(),
-  createTask: jest.fn(),
-  updateTask: jest.fn(),
-  deleteTask: jest.fn(),
-  getTask: jest.fn(),
-  getTaskByName: jest.fn(),
-  getTaskHierarchy: jest.fn(),
-  getChildTasks: jest.fn(),
-  getParentTask: jest.fn(),
-  getTaskPath: jest.fn(),
+  getAllTasks: vi.fn(),
+  createTask: vi.fn(),
+  updateTask: vi.fn(),
+  deleteTask: vi.fn(),
+  getTask: vi.fn(),
+  getTaskByName: vi.fn(),
+  getTaskHierarchy: vi.fn(),
+  getChildTasks: vi.fn(),
+  getParentTask: vi.fn(),
+  getTaskPath: vi.fn(),
 };
 
-jest.mock('../../services', () => ({
+vi.mock('../../services', () => ({
   ServiceFactory: {
     getTaskService: () => mockTaskService,
   },
 }));
 
 // Mock useAsyncError
-const mockExecuteAsync = jest.fn();
-jest.mock('../useAsyncError', () => ({
+const mockExecuteAsync = vi.fn();
+vi.mock('../useAsyncError', () => ({
   useAsyncError: () => ({
     executeAsync: mockExecuteAsync,
   }),
 }));
 
 // Mock useNotification
-const mockShowError = jest.fn();
-const mockShowSuccess = jest.fn();
-jest.mock('../../contexts/NotificationContext', () => ({
+const mockShowError = vi.fn();
+const mockShowSuccess = vi.fn();
+vi.mock('../../contexts/NotificationContext', () => ({
   useNotification: () => ({
     showError: mockShowError,
     showSuccess: mockShowSuccess,
@@ -101,7 +101,7 @@ describe('useTaskManagement', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockTaskService.getAllTasks.mockResolvedValue(sampleTasks);
     mockTaskService.getTaskHierarchy.mockResolvedValue(sampleHierarchy);
     mockExecuteAsync.mockImplementation(async (fn, options) => {

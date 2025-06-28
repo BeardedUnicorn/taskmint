@@ -6,6 +6,5 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["vite.config.ts"],
-  "exclude": ["src/__tests__"]
+  "include": ["vite.config.ts"]
 }

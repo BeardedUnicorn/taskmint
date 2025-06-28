@@ -6,8 +6,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate } from '../../../../types/notes';
 
-jest.mock('@tauri-apps/api/core', () => ({
-  invoke: jest.fn().mockResolvedValue('Command output'),
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue('Command output'),
 }));
 
 describe('NoteEditor', () => {
@@ -36,9 +36,9 @@ describe('NoteEditor', () => {
     isActive: true,
   };
 
-  const mockOnSaveNote = jest.fn().mockResolvedValue({ id: 'note1' });
-  const mockOnUpdateNote = jest.fn().mockResolvedValue({});
-  const mockOnDeleteNote = jest.fn().mockResolvedValue({});
+  const mockOnSaveNote = vi.fn().mockResolvedValue({ id: 'note1' });
+  const mockOnUpdateNote = vi.fn().mockResolvedValue({});
+  const mockOnDeleteNote = vi.fn().mockResolvedValue({});
 
   it('renders fields correctly', () => {
     render(

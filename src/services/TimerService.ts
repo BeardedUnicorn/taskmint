@@ -99,6 +99,9 @@ export class TimerService implements ITimerService {
 
           return newEntry;
         } catch (error) {
+          if (error instanceof TimerErrorClass) {
+            throw error;
+          }
           console.error('Failed to start timer:', error);
           throw createTimerError(
             'TIMER_START_FAILED',
@@ -167,6 +170,9 @@ export class TimerService implements ITimerService {
 
       return updatedEntry;
     } catch (error) {
+      if (error instanceof TimerErrorClass) {
+        throw error;
+      }
       console.error('Failed to stop timer:', error);
       throw createTimerError(
         'TIMER_STOP_FAILED',
@@ -186,6 +192,9 @@ export class TimerService implements ITimerService {
       await this.updateTauriTimerState(entry);
       await this.updateTimeEntry(entry.id, entry);
     } catch (error) {
+      if (error instanceof TimerErrorClass) {
+        throw error;
+      }
       console.error('Failed to update active timer:', error);
       throw createTimerError(
         'TIMER_SYNC_FAILED',
@@ -275,6 +284,9 @@ export class TimerService implements ITimerService {
       
       await this.storageService.setTimeEntries(entries);
     } catch (error) {
+      if (error instanceof TimerErrorClass) {
+        throw error;
+      }
       throw createTimerError(
         'TIMER_SYNC_FAILED',
         'Failed to save time entry',

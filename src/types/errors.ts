@@ -349,19 +349,8 @@ export class ErrorFactory {
     message: string,
     details?: unknown,
     operation?: string
-  ): StorageError {
-    return {
-      code,
-      message,
-      details,
-      timestamp: new Date(),
-      operation,
-      severity: this.getSeverityForCode(code),
-      category: 'storage',
-      retryable: this.isRetryableCode(code),
-      userMessage: this.getUserMessage('storage', code),
-      suggestions: this.getSuggestions('storage', code),
-    };
+  ): StorageErrorClass {
+    return new StorageErrorClass(code, message, details, operation);
   }
 
   static createValidationError(
@@ -483,20 +472,8 @@ export function createStorageError(
   message: string,
   details?: unknown,
   operation?: string
-): StorageError {
-  return {
-    code,
-    message,
-    details,
-    timestamp: new Date(),
-    operation,
-    severity: 'medium',
-    category: 'storage',
-    userMessage: 'There was a problem accessing stored data. Please try again.',
-    technicalMessage: message,
-    suggestions: ['Check if storage is available', 'Try refreshing the application'],
-    retryable: true,
-  };
+): StorageErrorClass {
+  return new StorageErrorClass(code, message, details, operation);
 }
 
 export function createTimerError(

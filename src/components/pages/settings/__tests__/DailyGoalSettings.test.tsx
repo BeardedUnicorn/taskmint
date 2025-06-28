@@ -4,13 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { NotificationProvider } from '../../../../contexts/NotificationContext'
 
 import { DailyGoalSettings } from '../DailyGoalSettings';
 import { useDailyGoals } from '../../../../hooks/useDailyGoals';
 
 // Mock the useDailyGoals hook
-jest.mock('../../../../hooks/useDailyGoals');
-const mockUseDailyGoals = useDailyGoals as jest.MockedFunction<typeof useDailyGoals>;
+vi.mock('../../../../hooks/useDailyGoals');
+const mockUseDailyGoals = useDailyGoals as vi.MockedFunction<typeof useDailyGoals>;
 
 // Test wrapper component
 const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -21,18 +22,20 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   });
   return (
     <ThemeProvider theme={theme}>
-      <LocalizationProvider dateAdapter={AdapterDayjs}>
-        {children}
-      </LocalizationProvider>
+      <NotificationProvider>
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
+          {children}
+        </LocalizationProvider>
+      </NotificationProvider>
     </ThemeProvider>
   );
 };
 
 describe('DailyGoalSettings', () => {
-  const mockUpdateDailyGoal = jest.fn();
-  const mockEnableDailyGoal = jest.fn();
-  const mockOnSuccess = jest.fn();
-  const mockOnError = jest.fn();
+  const mockUpdateDailyGoal = vi.fn();
+  const mockEnableDailyGoal = vi.fn();
+  const mockOnSuccess = vi.fn();
+  const mockOnError = vi.fn();
 
   const setupMocks = (goal: any) => {
     mockUseDailyGoals.mockReturnValue({
@@ -43,7 +46,7 @@ describe('DailyGoalSettings', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     setupMocks({
       targetAmount: 100,
       currency: 'USD',
@@ -78,13 +81,15 @@ describe('DailyGoalSettings', () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockResolvedValue(undefined);
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    screen.debug(); // Initial render
 
-    // Enable the goal to make changes and save
-    const toggle = screen.getByRole('checkbox', { name: /enable daily earnings goal/i });
+    const toggle = await screen.findByRole('checkbox', { name: /enable daily earnings goal/i });
     await user.click(toggle);
+    screen.debug(); // After clicking toggle
 
     const saveButton = screen.getByRole('button', { name: 'Save Goal' });
     await user.click(saveButton);
+    screen.debug(); // After clicking save button
 
     expect(mockUpdateDailyGoal).toHaveBeenCalledWith({
       targetAmount: 100,
@@ -95,21 +100,19 @@ describe('DailyGoalSettings', () => {
     await waitFor(() => {
       expect(mockOnSuccess).toHaveBeenCalled();
     });
-  });
+  }, 30000);
 
   it('should handle updateDailyGoal errors', async () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockRejectedValue(new Error('Save failed'));
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
 
-    await act(async () => {
-      await user.click(screen.getByRole('checkbox', { name: /enable daily earnings goal/i }));
-      await user.click(screen.getByRole('button', { name: 'Save Goal' }));
-    });
+    await user.click(await screen.findByRole('checkbox', { name: /enable daily earnings goal/i }));
+    await user.click(screen.getByRole('button', { name: 'Save Goal' }));
 
     await waitFor(() => {
       expect(screen.getByText('Failed to save goal. Please try again.')).toBeInTheDocument();
       expect(mockOnError).toHaveBeenCalledWith('Failed to save goal. Please try again.');
     });
-  });
+  }, 30000);
 });

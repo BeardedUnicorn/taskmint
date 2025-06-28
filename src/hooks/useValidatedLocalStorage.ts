@@ -74,6 +74,7 @@ export function useValidatedLocalStorage<T>(
   // Initialize state with validated data
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
+      // Always call getItem with the key argument for test compatibility
       const item = window.localStorage.getItem(key);
       if (item) {
         let parsedData = JSON.parse(item);
@@ -85,6 +86,7 @@ export function useValidatedLocalStorage<T>(
           try {
             // Create backup before migration
             if (enableBackup) {
+              console.log('[useValidatedLocalStorage] createBackup (migration)', key, parsedData)
               createBackup(key, parsedData);
             }
             
@@ -165,8 +167,10 @@ export function useValidatedLocalStorage<T>(
       // Create backup before updating if enabled
       if (enableBackup) {
         try {
+          console.log('[useValidatedLocalStorage] getItem (setValue)', key)
           const currentItem = window.localStorage.getItem(key);
           if (currentItem) {
+            console.log('[useValidatedLocalStorage] createBackup (setValue)', key, JSON.parse(currentItem))
             createBackup(key, JSON.parse(currentItem));
           }
         } catch (backupError) {
@@ -179,6 +183,7 @@ export function useValidatedLocalStorage<T>(
       setStoredValue(valueToStore);
       
       // Store in localStorage
+      console.log('[useValidatedLocalStorage] setItem', key, valueToStore)
       window.localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -198,6 +203,7 @@ export function useValidatedLocalStorage<T>(
   // Function to force re-validation and reload from localStorage
   const revalidate = useCallback(() => {
     try {
+      console.log('[useValidatedLocalStorage] getItem (revalidate)', key)
       const item = window.localStorage.getItem(key);
       if (item) {
         const parsedData = JSON.parse(item);
@@ -231,15 +237,17 @@ export function useValidatedLocalStorage<T>(
       // Create backup before clearing if enabled
       if (enableBackup) {
         try {
+          console.log('[useValidatedLocalStorage] getItem (clearValue)', key)
           const currentItem = window.localStorage.getItem(key);
           if (currentItem) {
+            console.log('[useValidatedLocalStorage] createBackup (clearValue)', key, JSON.parse(currentItem))
             createBackup(key, JSON.parse(currentItem));
           }
         } catch (backupError) {
           console.warn(`Failed to create backup before clearing key "${key}":`, backupError);
         }
       }
-
+      console.log('[useValidatedLocalStorage] removeItem', key)
       window.localStorage.removeItem(key);
       setStoredValue(initialValue);
     } catch (error) {

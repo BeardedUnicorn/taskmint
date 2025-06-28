@@ -723,7 +723,7 @@ async fn perform_automatic_backup(
     }
 
     // Write backup file
-    match fs::write(&file_path, ¤t_data_json) {
+    match fs::write(&file_path, &current_data_json) {
         Ok(_) => {
             // Get file size
             let file_size = fs::metadata(&file_path)

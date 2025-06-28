@@ -7,17 +7,24 @@ import { useDashboardSettings } from '../useDashboardSettings';
 import { DashboardWidgetId, DashboardWidgetConfig } from '../../types/ui';
 
 // Mock useLocalStorage
-const mockSetPreferences = jest.fn();
-const mockUseLocalStorage = jest.fn();
+vi.mock('../useLocalStorage', async (importOriginal) => {
+  const actual = await importOriginal();
+  const mockSetPreferences = vi.fn();
+  const mockUseLocalStorage = vi.fn();
+  return {
+    ...actual,
+    useLocalStorage: mockUseLocalStorage,
+    mockSetPreferences,
+    mockUseLocalStorage,
+  };
+});
 
-jest.mock('../useLocalStorage', () => ({
-  useLocalStorage: jest.fn(),
-}));
+const { mockUseLocalStorage, mockSetPreferences } = vi.mocked(await import('../useLocalStorage'));
 
 // Mock console.log to avoid noise in tests
 const originalConsoleLog = console.log;
 beforeAll(() => {
-  console.log = jest.fn();
+  console.log = vi.fn();
 });
 
 afterAll(() => {
@@ -36,17 +43,14 @@ describe('useDashboardSettings', () => {
     migrationVersion: 1,
   };
 
-  beforeEach(() => {
-    jest.clearAllMocks();
+  beforeEach(async () => {
+    vi.clearAllMocks();
     
-    // Default mock implementation
+    // Setup default mocks
     mockUseLocalStorage.mockReturnValue([
       defaultPreferences,
       mockSetPreferences,
     ]);
-    
-    const { useLocalStorage } = require('../useLocalStorage');
-    useLocalStorage.mockImplementation(mockUseLocalStorage);
   });
 
   describe('initialization', () => {

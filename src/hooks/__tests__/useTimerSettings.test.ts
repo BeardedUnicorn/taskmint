@@ -7,15 +7,25 @@ import { useTimerSettings } from '../useTimerSettings';
 import { TimerRoundingOption } from '../../types/timer';
 
 // Mock useLocalStorage
-const mockSetSettings = jest.fn();
-const mockUseLocalStorage = jest.fn();
+vi.mock('../useLocalStorage', async (importOriginal) => {
+  const actual = await importOriginal();
+  const mockSetSettings = vi.fn();
+  const mockUseLocalStorage = vi.fn(() => [
+    { roundingOption: 'none' },
+    mockSetSettings,
+  ]);
+  return {
+    ...actual,
+    useLocalStorage: mockUseLocalStorage,
+    mockSetSettings,
+    mockUseLocalStorage,
+  };
+});
 
-jest.mock('../useLocalStorage', () => ({
-  useLocalStorage: jest.fn(),
-}));
+const { mockSetSettings, mockUseLocalStorage } = vi.mocked(await import('../useLocalStorage'));
 
 // Mock constants
-jest.mock('../../constants', () => ({
+vi.mock('../../constants', () => ({
   STORAGE_KEYS: {
     TIMER_SETTINGS: 'timerSettings',
   },
@@ -23,16 +33,13 @@ jest.mock('../../constants', () => ({
 
 describe('useTimerSettings', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Default mock implementation
     mockUseLocalStorage.mockReturnValue([
       { roundingOption: 'none' },
       mockSetSettings,
     ]);
-    
-    const { useLocalStorage } = require('../useLocalStorage');
-    useLocalStorage.mockImplementation(mockUseLocalStorage);
   });
 
   describe('initialization', () => {

@@ -59,6 +59,8 @@ class PerformanceMonitor {
     console.log(`Performance monitoring ${enabled ? 'enabled' : 'disabled'}`);
   }
 
+  
+
   /**
    * Record a performance metric
    */
@@ -229,46 +231,58 @@ export function withPerformanceMonitoring<T extends (...args: any[]) => any>(
   category: PerformanceMetric['category'] = 'computation',
   metadata?: Record<string, any>
 ): T {
-  return ((...args: Parameters<T>) => {
+  return function (this: any, ...args: Parameters<T>): ReturnType<T> {
+    if (!performanceMonitor.isEnabled()) {
+      return fn.apply(this, args);
+    }
+
     const start = performance.now();
-    
+
     try {
-      const result = fn(...args);
-      
-      // Handle async functions
+      const result = fn.apply(this, args);
+
       if (result instanceof Promise) {
-        return result.finally(() => {
-          const duration = performance.now() - start;
+        return result.then(res => {
+          const end = performance.now();
           performanceMonitor.recordMetric({
             operation,
-            duration,
+            duration: end - start,
             category,
             metadata: { ...metadata, args: args.length },
           });
-        });
+          return res;
+        }).catch(error => {
+          const end = performance.now();
+          performanceMonitor.recordMetric({
+            operation: `${operation}_error`,
+            duration: end - start,
+            category,
+            metadata: { ...metadata, args: args.length, error: error?.message || 'Unknown error' },
+          });
+          throw error;
+        }) as ReturnType<T>;
       }
-      
-      // Handle sync functions
-      const duration = performance.now() - start;
+
+      const end = performance.now();
       performanceMonitor.recordMetric({
         operation,
-        duration,
+        duration: end - start,
         category,
         metadata: { ...metadata, args: args.length },
       });
-      
+
       return result;
-    } catch (error) {
-      const duration = performance.now() - start;
+    } catch (error: any) {
+      const end = performance.now();
       performanceMonitor.recordMetric({
         operation: `${operation}_error`,
-        duration,
+        duration: end - start,
         category,
-        metadata: { ...metadata, error: error instanceof Error ? error.message : 'Unknown error' },
+        metadata: { ...metadata, args: args.length, error: error?.message || 'Unknown error' },
       });
       throw error;
     }
-  }) as T;
+  } as T;
 }
 
 /**
@@ -316,30 +330,34 @@ export async function measurePerformance<T>(
   category: PerformanceMetric['category'] = 'computation',
   metadata?: Record<string, any>
 ): Promise<T> {
+  if (!performanceMonitor.isEnabled()) {
+    return await Promise.resolve(fn());
+  }
+
   const start = performance.now();
-  
+
   try {
     const result = await fn();
     const duration = performance.now() - start;
-    
+
     performanceMonitor.recordMetric({
       operation,
       duration,
       category,
       metadata,
     });
-    
+
     return result;
   } catch (error) {
     const duration = performance.now() - start;
-    
+
     performanceMonitor.recordMetric({
       operation: `${operation}_error`,
       duration,
       category,
       metadata: { ...metadata, error: error instanceof Error ? error.message : 'Unknown error' },
     });
-    
+
     throw error;
   }
 }

@@ -9,12 +9,12 @@ import { NoteTemplate, TaskNote } from '../../../../types/notes';
 // Mock clipboard API
 Object.assign(navigator, {
   clipboard: {
-    writeText: jest.fn(),
+    writeText: vi.fn(),
   },
 });
 
-jest.mock('@tauri-apps/api/core', () => ({
-  invoke: jest.fn().mockResolvedValue('Command output'),
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue('Command output'),
 }));
 
 describe('NoteEditor Copy Functionality', () => {
@@ -55,13 +55,13 @@ describe('NoteEditor Copy Functionality', () => {
     updatedAt: new Date().toISOString(),
   };
 
-  const mockOnSaveNote = jest.fn().mockResolvedValue({ id: 'note1' });
-  const mockOnUpdateNote = jest.fn().mockResolvedValue({});
-  const mockOnDeleteNote = jest.fn().mockResolvedValue({});
+  const mockOnSaveNote = vi.fn().mockResolvedValue({ id: 'note1' });
+  const mockOnUpdateNote = vi.fn().mockResolvedValue({});
+  const mockOnDeleteNote = vi.fn().mockResolvedValue({});
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (navigator.clipboard.writeText as jest.Mock).mockResolvedValue(undefined);
+    vi.clearAllMocks();
+    (navigator.clipboard.writeText as vi.Mock).mockResolvedValue(undefined);
   });
 
   it('renders copy buttons for each field', () => {
@@ -139,7 +139,7 @@ describe('NoteEditor Copy Functionality', () => {
   });
 
   it('handles clipboard write failure gracefully', async () => {
-    (navigator.clipboard.writeText as jest.Mock).mockRejectedValue(new Error('Clipboard error'));
+    (navigator.clipboard.writeText as vi.Mock).mockRejectedValue(new Error('Clipboard error'));
 
     render(
       <NoteEditor

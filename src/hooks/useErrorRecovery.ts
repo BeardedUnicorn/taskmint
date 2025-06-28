@@ -45,51 +45,18 @@ export interface UseErrorRecoveryReturn {
  * Hook for managing error recovery with intelligent retry strategies
  */
 export function useErrorRecovery(options: ErrorRecoveryOptions = {}): UseErrorRecoveryReturn {
-  const {
-    maxRetries = 3,
-    baseDelay = 1000,
-    maxDelay = 30000,
-    backoffMultiplier = 2,
-    onRetry,
-    onMaxRetriesReached,
-    onRecoverySuccess,
-  } = options;
+  try {
+    const {
+      maxRetries = 3,
+      baseDelay = 1000,
+      maxDelay = 30000,
+      backoffMultiplier = 2,
+      onRetry,
+      onMaxRetriesReached,
+      onRecoverySuccess,
+    } = options;
 
-  const [recoveryState, setRecoveryState] = useState<ErrorRecoveryState>({
-    isRecovering: false,
-    retryCount: 0,
-    lastError: null,
-    recoveryAttempts: 0,
-    canRetry: false,
-  });
-
-  const lastOperationRef = useRef<(() => Promise<any>) | null>(null);
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  /**
-   * Calculate retry delay with exponential backoff
-   */
-  const getRetryDelay = useCallback((attempt: number): number => {
-    const delay = Math.min(
-      baseDelay * Math.pow(backoffMultiplier, attempt - 1),
-      maxDelay
-    );
-    
-    // Add jitter to prevent thundering herd
-    const jitter = Math.random() * 0.1 * delay;
-    return Math.floor(delay + jitter);
-  }, [baseDelay, backoffMultiplier, maxDelay]);
-
-  /**
-   * Reset recovery state
-   */
-  const resetRecovery = useCallback(() => {
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
-
-    setRecoveryState({
+    const [recoveryState, setRecoveryState] = useState<ErrorRecoveryState>({
       isRecovering: false,
       retryCount: 0,
       lastError: null,
@@ -97,171 +64,188 @@ export function useErrorRecovery(options: ErrorRecoveryOptions = {}): UseErrorRe
       canRetry: false,
     });
 
-    lastOperationRef.current = null;
-  }, []);
+    const lastOperationRef = useRef<(() => Promise<any>) | null>(null);
+    const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const retryCountRef = useRef<number>(0);
 
-  /**
-   * Attempt to recover from an error with retry logic
-   */
-  const recoverFromError = useCallback(async (
-    error: ApplicationError,
-    operation: () => Promise<any>
-  ): Promise<boolean> => {
-    console.log('🔄 Error recovery: Starting recovery for error:', error);
-
-    // Store the operation for potential retries
-    lastOperationRef.current = operation;
-
-    // Check if error is retryable
-    if (!isRetryableError(error)) {
-      console.log('❌ Error recovery: Error is not retryable');
-      setRecoveryState(prev => ({
-        ...prev,
-        lastError: error,
-        canRetry: false,
-      }));
-      return false;
+    if (retryCountRef.current !== recoveryState.retryCount) {
+      retryCountRef.current = recoveryState.retryCount;
     }
 
-    // Check if we've exceeded max retries
-    if (recoveryState.retryCount >= maxRetries) {
-      console.log('❌ Error recovery: Max retries exceeded');
-      setRecoveryState(prev => ({
-        ...prev,
-        lastError: error,
-        canRetry: false,
-      }));
+    /**
+     * Calculate retry delay with exponential backoff
+     */
+    const getRetryDelay = useCallback((attempt: number): number => {
+      const delay = Math.min(
+        baseDelay * Math.pow(backoffMultiplier, attempt - 1),
+        maxDelay
+      );
       
-      if (onMaxRetriesReached) {
-        onMaxRetriesReached(error);
+      // Add jitter to prevent thundering herd
+      const jitter = Math.random() * 0.1 * delay;
+      return Math.floor(delay + jitter);
+    }, [baseDelay, backoffMultiplier, maxDelay]);
+
+    /**
+     * Reset recovery state
+     */
+    const resetRecovery = useCallback(() => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
       }
-      
-      return false;
-    }
 
-    // Start recovery process
-    setRecoveryState(prev => ({
-      ...prev,
-      isRecovering: true,
-      lastError: error,
-      retryCount: prev.retryCount + 1,
-      recoveryAttempts: prev.recoveryAttempts + 1,
-      canRetry: true,
-    }));
-
-    const currentAttempt = recoveryState.retryCount + 1;
-    const delay = getRetryDelay(currentAttempt);
-
-    console.log(`🔄 Error recovery: Attempting retry ${currentAttempt}/${maxRetries} after ${delay}ms`);
-
-    if (onRetry) {
-      onRetry(currentAttempt, error);
-    }
-
-    try {
-      // Wait for the calculated delay
-      await new Promise(resolve => {
-        retryTimeoutRef.current = setTimeout(resolve, delay);
+      setRecoveryState({
+        isRecovering: false,
+        retryCount: 0,
+        lastError: null,
+        recoveryAttempts: 0,
+        canRetry: false,
       });
 
-      // Attempt the operation again
-      await operation();
+      lastOperationRef.current = null;
+    }, []);
 
-      // Success! Reset recovery state
-      console.log('✅ Error recovery: Operation succeeded on retry');
-      
-      if (onRecoverySuccess) {
-        onRecoverySuccess(currentAttempt);
-      }
+    /**
+     * Attempt to recover from an error with retry logic
+     */
+    const recoverFromError = useCallback(async (
+      error: ApplicationError,
+      operation: () => Promise<any>
+    ): Promise<boolean> => {
+      console.log('🔄 Error recovery: Starting recovery for error:', error);
 
-      resetRecovery();
-      return true;
-    } catch (retryError) {
-      console.log(`❌ Error recovery: Retry ${currentAttempt} failed:`, retryError);
-      
+      lastOperationRef.current = operation;
+      let currentError = error;
+
       setRecoveryState(prev => ({
         ...prev,
-        isRecovering: false,
-        lastError: retryError as ApplicationError,
+        isRecovering: true,
+        lastError: currentError,
+        retryCount: 0,
+        recoveryAttempts: prev.recoveryAttempts + 1,
+        canRetry: true,
       }));
 
-      // If this was the last retry, mark as non-retryable
-      if (currentAttempt >= maxRetries) {
-        setRecoveryState(prev => ({
-          ...prev,
-          canRetry: false,
-        }));
-        
-        if (onMaxRetriesReached) {
-          onMaxRetriesReached(retryError as ApplicationError);
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        if (!isRetryableError(currentError)) {
+          console.log('❌ Error recovery: Error is not retryable');
+          setRecoveryState(prev => ({
+            ...prev,
+            lastError: currentError,
+            canRetry: false,
+            isRecovering: false,
+          }));
+          return false;
+        }
+
+        setRecoveryState(prev => ({ ...prev, retryCount: attempt }));
+
+        const delay = getRetryDelay(attempt);
+        console.log(`🔄 Error recovery: Attempting retry ${attempt}/${maxRetries} after ${delay}ms`);
+
+        if (onRetry) {
+          onRetry(attempt, currentError);
+        }
+
+        await new Promise(resolve => {
+          retryTimeoutRef.current = setTimeout(resolve, delay);
+        });
+
+        try {
+          await operation();
+          console.log('✅ Error recovery: Operation succeeded on retry');
+          if (onRecoverySuccess) {
+            onRecoverySuccess(attempt);
+          }
+          resetRecovery();
+          return true;
+        } catch (retryError) {
+          console.log(`❌ Error recovery: Retry ${attempt} failed:`, retryError);
+          currentError = retryError as ApplicationError;
+          setRecoveryState(prev => ({ ...prev, lastError: currentError }));
         }
       }
 
+      console.log('❌ Error recovery: Max retries exceeded');
+      setRecoveryState(prev => ({
+        ...prev,
+        isRecovering: false,
+        lastError: currentError,
+        canRetry: false,
+      }));
+      if (onMaxRetriesReached) {
+        onMaxRetriesReached(currentError);
+      }
       return false;
-    }
-  }, [
-    recoveryState.retryCount,
-    maxRetries,
-    getRetryDelay,
-    onRetry,
-    onMaxRetriesReached,
-    onRecoverySuccess,
-    resetRecovery,
-  ]);
+    }, [
+      maxRetries,
+      getRetryDelay,
+      onRetry,
+      onMaxRetriesReached,
+      onRecoverySuccess,
+      resetRecovery,
+    ]);
 
-  /**
-   * Retry the last failed operation
-   */
-  const retryLastOperation = useCallback(async (): Promise<boolean> => {
-    if (!lastOperationRef.current || !recoveryState.lastError) {
-      console.log('❌ Error recovery: No operation to retry');
-      return false;
-    }
+    /**
+     * Retry the last failed operation
+     */
+    const retryLastOperation = useCallback(async (): Promise<boolean> => {
+      if (!lastOperationRef.current || !recoveryState.lastError) {
+        console.log('❌ Error recovery: No operation to retry');
+        return false;
+      }
 
-    return recoverFromError(recoveryState.lastError, lastOperationRef.current);
-  }, [recoveryState.lastError, recoverFromError]);
+      return recoverFromError(recoveryState.lastError, lastOperationRef.current);
+    }, [recoveryState.lastError, recoverFromError]);
 
-  /**
-   * Check if retry button should be shown to user
-   */
-  const shouldShowRetryButton = useCallback((): boolean => {
-    return (
-      recoveryState.canRetry &&
-      !recoveryState.isRecovering &&
-      recoveryState.lastError !== null &&
-      isRetryableError(recoveryState.lastError)
-    );
-  }, [recoveryState]);
+    /**
+     * Check if retry button should be shown to user
+     */
+    const shouldShowRetryButton = useCallback((): boolean => {
+      return (
+        recoveryState.canRetry &&
+        !recoveryState.isRecovering &&
+        recoveryState.lastError !== null &&
+        isRetryableError(recoveryState.lastError)
+      );
+    }, [recoveryState]);
 
-  /**
-   * Get user-friendly recovery message
-   */
-  const getRecoveryMessage = useCallback((): string => {
-    if (!recoveryState.lastError) {
-      return '';
-    }
+    /**
+     * Get user-friendly recovery message
+     */
+    const getRecoveryMessage = useCallback((): string => {
+      if (!recoveryState.lastError) {
+        return '';
+      }
 
-    if (recoveryState.isRecovering) {
-      return `Retrying... (Attempt ${recoveryState.retryCount}/${maxRetries})`;
-    }
+      if (recoveryState.isRecovering) {
+        return `Retrying... (Attempt ${recoveryState.retryCount}/${maxRetries})`;
+      }
 
-    if (!recoveryState.canRetry) {
-      return `${formatErrorForUser(recoveryState.lastError)} Please try again later.`;
-    }
+      if (!recoveryState.canRetry) {
+        return `${formatErrorForUser(recoveryState.lastError)} Please try again later.`;
+      }
 
-    const remainingRetries = maxRetries - recoveryState.retryCount;
-    return `${formatErrorForUser(recoveryState.lastError)} ${remainingRetries > 0 ? `(${remainingRetries} retries remaining)` : ''}`;
-  }, [recoveryState, maxRetries]);
+      const remainingRetries = maxRetries - recoveryState.retryCount;
+      return `${formatErrorForUser(recoveryState.lastError)} ${remainingRetries > 0 ? `(${remainingRetries} retries remaining)` : ''}`;
+    }, [recoveryState, maxRetries]);
 
-  return {
-    recoveryState,
-    recoverFromError,
-    retryLastOperation,
-    resetRecovery,
-    shouldShowRetryButton,
-    getRecoveryMessage,
-    getRetryDelay,
-  };
+    return {
+      recoveryState,
+      recoverFromError,
+      retryLastOperation,
+      resetRecovery,
+      shouldShowRetryButton,
+      getRecoveryMessage,
+      getRetryDelay,
+    };
+  } catch (err) {
+    // Log the error for diagnostics
+    // eslint-disable-next-line no-console
+    console.error('Error thrown in useErrorRecovery:', err)
+    throw err
+  }
 }
 
 export const RecoveryStrategies = {

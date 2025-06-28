@@ -100,7 +100,7 @@ export function aggregateByDay(entries: TimeEntry[], tasks: Task[]): DailyData[]
   entries.forEach(entry => {
     if (!entry.duration) return;
     
-    const date = dayjs(entry.startTime).format('YYYY-MM-DD');
+    const date = entry.date || dayjs(entry.startTime).format('YYYY-MM-DD');
     const earnings = calculateEarnings(entry, tasks);
     
     if (dayMap.has(date)) {

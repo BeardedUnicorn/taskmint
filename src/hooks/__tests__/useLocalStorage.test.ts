@@ -6,8 +6,8 @@ import { renderHook, act } from '@testing-library/react';
 import { useLocalStorage } from '../useLocalStorage';
 
 // Mock the migration utilities
-jest.mock('../../utils/dataMigration', () => ({
-  migrateData: jest.fn((_key, data) => {
+vi.mock('../../utils/dataMigration', () => ({
+  migrateData: vi.fn((_key, data) => {
     // Return data in the expected format for migration
     if (typeof data === 'object' && data !== null && 'version' in data) {
       return data; // Already migrated
@@ -19,8 +19,8 @@ jest.mock('../../utils/dataMigration', () => ({
       originalVersion: 0,
     };
   }),
-  createBackup: jest.fn(),
-  needsMigration: jest.fn((data) => {
+  createBackup: vi.fn(),
+  needsMigration: vi.fn((data) => {
     // Check if data needs migration (doesn't have version property)
     return typeof data !== 'object' || data === null || !('version' in data);
   }),
@@ -32,7 +32,7 @@ describe('useLocalStorage', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should return initial value when localStorage is empty', () => {
@@ -115,11 +115,11 @@ describe('useLocalStorage', () => {
   it('should handle localStorage errors gracefully', () => {
     // Mock localStorage.getItem to throw an error
     const originalGetItem = localStorage.getItem;
-    localStorage.getItem = jest.fn(() => {
+    localStorage.getItem = vi.fn(() => {
       throw new Error('localStorage error');
     });
 
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
 
     const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
 
@@ -138,7 +138,7 @@ describe('useLocalStorage', () => {
     // Set invalid JSON in localStorage
     localStorage.setItem(TEST_KEY, 'invalid-json');
 
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
 
     const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
 
@@ -156,11 +156,11 @@ describe('useLocalStorage', () => {
 
     // Mock localStorage.setItem to throw an error
     const originalSetItem = localStorage.setItem;
-    localStorage.setItem = jest.fn(() => {
+    localStorage.setItem = vi.fn(() => {
       throw new Error('localStorage setItem error');
     });
 
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
 
     act(() => {
       result.current[1]('new-value');
@@ -234,8 +234,8 @@ describe('useLocalStorage', () => {
     expect(result.current[0]).toBe('updated-value');
   });
 
-  it('should handle migration when needed', () => {
-    const { needsMigration, migrateData, createBackup } = require('../../utils/dataMigration');
+  it('should handle migration when needed', async () => {
+    const { needsMigration, migrateData, createBackup } = await import('../../utils/dataMigration');
 
     // Reset mocks to ensure clean state
     needsMigration.mockClear();

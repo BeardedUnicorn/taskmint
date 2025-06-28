@@ -6,11 +6,11 @@
  */
 
 // Mock dayjs instance
-const mockDayjs: any = jest.fn((date?: any): any => {
+const mockDayjs: any = vi.fn((date?: any): any => {
   const mockDate = date ? new Date(date) : new Date();
 
   return {
-    format: jest.fn((format?: string) => {
+    format: vi.fn((format?: string) => {
       if (format === 'HH:mm') {
         return mockDate.toTimeString().slice(0, 5);
       }
@@ -27,8 +27,8 @@ const mockDayjs: any = jest.fn((date?: any): any => {
       return mockDate.toISOString();
     }),
 
-    local: jest.fn(() => ({
-      format: jest.fn((format?: string) => {
+    local: vi.fn(() => ({
+      format: vi.fn((format?: string) => {
         if (format === 'HH:mm') {
           return mockDate.toTimeString().slice(0, 5);
         }
@@ -36,8 +36,8 @@ const mockDayjs: any = jest.fn((date?: any): any => {
       }),
     })),
 
-    utc: jest.fn(() => ({
-      format: jest.fn((format?: string) => {
+    utc: vi.fn(() => ({
+      format: vi.fn((format?: string) => {
         if (format === 'HH:mm') {
           return mockDate.toTimeString().slice(0, 5);
         }
@@ -45,8 +45,8 @@ const mockDayjs: any = jest.fn((date?: any): any => {
       }),
     })),
 
-    tz: jest.fn((_timezone?: string) => ({
-      format: jest.fn((format?: string) => {
+    tz: vi.fn((_timezone?: string) => ({
+      format: vi.fn((format?: string) => {
         if (format === 'HH:mm') {
           return mockDate.toTimeString().slice(0, 5);
         }
@@ -54,36 +54,36 @@ const mockDayjs: any = jest.fn((date?: any): any => {
       }),
     })),
 
-    fromNow: jest.fn(() => 'a few seconds ago'),
+    fromNow: vi.fn(() => 'a few seconds ago'),
 
-    toDate: jest.fn(() => mockDate),
+    toDate: vi.fn(() => mockDate),
 
-    valueOf: jest.fn(() => mockDate.getTime()),
+    valueOf: vi.fn(() => mockDate.getTime()),
 
-    isSame: jest.fn(() => true),
-    isBefore: jest.fn(() => false),
-    isAfter: jest.fn(() => false),
+    isSame: vi.fn(() => true),
+    isBefore: vi.fn(() => false),
+    isAfter: vi.fn(() => false),
 
-    add: jest.fn((): any => mockDayjs(new Date(mockDate.getTime() + 86400000))),
-    subtract: jest.fn(() => mockDayjs(new Date(mockDate.getTime() - 86400000))),
+    add: vi.fn((): any => mockDayjs(new Date(mockDate.getTime() + 86400000))),
+    subtract: vi.fn(() => mockDayjs(new Date(mockDate.getTime() - 86400000))),
 
-    startOf: jest.fn(() => mockDayjs(mockDate)),
-    endOf: jest.fn(() => mockDayjs(mockDate)),
+    startOf: vi.fn(() => mockDayjs(mockDate)),
+    endOf: vi.fn(() => mockDayjs(mockDate)),
   };
 });
 
 // Mock extend function for plugins
-mockDayjs.extend = jest.fn();
+mockDayjs.extend = vi.fn();
 
 // Mock static methods
-mockDayjs.utc = jest.fn((date?: any) => mockDayjs(date));
-mockDayjs.tz = jest.fn((date?: any, _timezone?: string) => mockDayjs(date));
+mockDayjs.utc = vi.fn((date?: any) => mockDayjs(date));
+mockDayjs.tz = vi.fn((date?: any, _timezone?: string) => mockDayjs(date));
 
 // Export the mock
 export default mockDayjs;
 
 // Export plugin mocks
-export const localizedFormat = jest.fn();
-export const timezone = jest.fn();
-export const utc = jest.fn();
-export const relativeTime = jest.fn();
+export const localizedFormat = vi.fn();
+export const timezone = vi.fn();
+export const utc = vi.fn();
+export const relativeTime = vi.fn();

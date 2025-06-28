@@ -13,13 +13,7 @@ describe('FieldEditor', () => {
   };
 
   // Replace Collapse with our mock
-  jest.mock('@mui/material', () => {
-    const originalModule = jest.requireActual('@mui/material');
-    return {
-      ...originalModule,
-      Collapse: MockCollapse,
-    };
-  });
+  
   const mockField: TemplateField = {
     id: 'field1',
     label: 'Test Field',
@@ -28,12 +22,12 @@ describe('FieldEditor', () => {
     order: 0,
   };
 
-  const mockOnUpdateField = jest.fn();
-  const mockOnDeleteField = jest.fn();
-  const mockOnMoveField = jest.fn();
+  const mockOnUpdateField = vi.fn();
+  const mockOnDeleteField = vi.fn();
+  const mockOnMoveField = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders field with correct icons', () => {

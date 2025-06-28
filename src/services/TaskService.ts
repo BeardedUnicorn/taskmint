@@ -109,6 +109,9 @@ export class TaskService implements ITaskService {
 
       return newTask;
     } catch (error) {
+      if (error instanceof TaskErrorClass) {
+        throw error;
+      }
       console.error('Failed to create task:', error);
       throw createTaskError(
         'TASK_CREATE_FAILED',

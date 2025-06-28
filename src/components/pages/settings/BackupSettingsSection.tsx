@@ -129,8 +129,10 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
 
           {/* Backup Frequency */}
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Backup Frequency</InputLabel>
+            <InputLabel id="backup-frequency-label">Backup Frequency</InputLabel>
             <Select
+              labelId="backup-frequency-label"
+              id="backup-frequency"
               value={backupConfig.frequency}
               label="Backup Frequency"
               onChange={(e) => updateBackupFrequency(e.target.value as BackupFrequency)}

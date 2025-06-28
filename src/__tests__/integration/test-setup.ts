@@ -18,10 +18,10 @@ const mockBrowserApis = () => {
   // Performance API
   Object.defineProperty(window, 'performance', {
     value: {
-      now: jest.fn(() => Date.now()),
-      mark: jest.fn(),
-      measure: jest.fn(),
-      getEntriesByType: jest.fn(() => []),
+      now: vi.fn(() => Date.now()),
+      mark: vi.fn(),
+      measure: vi.fn(),
+      getEntriesByType: vi.fn(() => []),
       memory: {
         usedJSHeapSize: 1024 * 1024 * 10, // 10MB
         totalJSHeapSize: 1024 * 1024 * 50, // 50MB
@@ -32,44 +32,44 @@ const mockBrowserApis = () => {
   });
 
   // ResizeObserver
-  global.ResizeObserver = jest.fn().mockImplementation(() => ({
-    observe: jest.fn(),
-    unobserve: jest.fn(),
-    disconnect: jest.fn(),
+  global.ResizeObserver = vi.fn().mockImplementation(() => ({
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
   }));
 
   // IntersectionObserver
-  global.IntersectionObserver = jest.fn().mockImplementation(() => ({
-    observe: jest.fn(),
-    unobserve: jest.fn(),
-    disconnect: jest.fn(),
+  global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
   }));
 
   // matchMedia
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
-    value: jest.fn().mockImplementation(query => ({
+    value: vi.fn().mockImplementation(query => ({
       matches: false,
       media: query,
       onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(), // deprecated
+      removeListener: vi.fn(), // deprecated
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     })),
   });
 
   // scrollTo
   Object.defineProperty(window, 'scrollTo', {
-    value: jest.fn(),
+    value: vi.fn(),
     writable: true,
   });
 
   // getComputedStyle
   Object.defineProperty(window, 'getComputedStyle', {
-    value: jest.fn().mockImplementation(() => ({
-      getPropertyValue: jest.fn(),
+    value: vi.fn().mockImplementation(() => ({
+      getPropertyValue: vi.fn(),
     })),
     writable: true,
   });
@@ -80,17 +80,17 @@ const createMockLocalStorage = () => {
   const store: Record<string, string> = {};
   
   return {
-    getItem: jest.fn((key: string) => store[key] || null),
-    setItem: jest.fn((key: string, value: string) => {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => {
       store[key] = value;
     }),
-    removeItem: jest.fn((key: string) => {
+    removeItem: vi.fn((key: string) => {
       delete store[key];
     }),
-    clear: jest.fn(() => {
+    clear: vi.fn(() => {
       Object.keys(store).forEach(key => delete store[key]);
     }),
-    key: jest.fn((index: number) => Object.keys(store)[index] || null),
+    key: vi.fn((index: number) => Object.keys(store)[index] || null),
     get length() {
       return Object.keys(store).length;
     },
@@ -110,18 +110,18 @@ const mockConsole = () => {
 
   const setupConsoleMocks = () => {
     if (process.env.JEST_VERBOSE !== 'true') {
-      jest.spyOn(console, 'log').mockImplementation(() => {});
-      jest.spyOn(console, 'info').mockImplementation(() => {});
-      jest.spyOn(console, 'debug').mockImplementation(() => {});
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+      vi.spyOn(console, 'debug').mockImplementation(() => {});
     }
 
     // Always capture warnings and errors for test assertions
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   };
 
   const restoreConsoleMocks = () => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   };
 
   return { originalConsole, setupConsoleMocks, restoreConsoleMocks };
@@ -132,13 +132,13 @@ const mockDate = () => {
   
   return {
     setSystemTime: (date: string | number | Date) => {
-      jest.setSystemTime(new Date(date));
+      vi.setSystemTime(new Date(date));
     },
     restoreSystemTime: () => {
-      jest.useRealTimers();
+      vi.useRealTimers();
     },
     advanceTime: (ms: number) => {
-      jest.advanceTimersByTime(ms);
+      vi.advanceTimersByTime(ms);
     },
   };
 };
@@ -198,7 +198,7 @@ const setupIntegrationTests = () => {
 
   beforeEach(() => {
     // Reset all timers
-    jest.useFakeTimers();
+    vi.useFakeTimers();
 
     // Setup console mocks
     setupConsoleMocks();
@@ -211,27 +211,27 @@ const setupIntegrationTests = () => {
     });
 
     // Reset system time to a known date
-    jest.setSystemTime(new Date('2024-01-01T12:00:00.000Z'));
+    vi.setSystemTime(new Date('2024-01-01T12:00:00.000Z'));
   });
 
   afterEach(() => {
     // Check if fake timers are active before running pending timers
-    if (jest.isMockFunction(setTimeout)) {
+    if (vi.isMockFunction(setTimeout)) {
       try {
-        jest.runOnlyPendingTimers();
+        vi.runOnlyPendingTimers();
       } catch (error) {
         // Ignore errors if fake timers are not properly set up
       }
     }
 
     // Use real timers
-    jest.useRealTimers();
+    vi.useRealTimers();
 
     // Restore console mocks
     restoreConsoleMocks();
 
     // Clear all mocks
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 };
 

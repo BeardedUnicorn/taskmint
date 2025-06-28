@@ -8,8 +8,8 @@ import { Task } from '../../../../types/task';
 import { TimeEntry } from '../../../../types/timer';
 
 // Mock Material-UI Autocomplete
-jest.mock('@mui/material', () => ({
-  ...jest.requireActual('@mui/material'),
+vi.mock('@mui/material', async () => ({
+  ...(await vi.importActual('@mui/material')),
   Autocomplete: ({ options, getOptionLabel, renderOption, renderInput }: any) => {
     return (
       <div data-testid="autocomplete">
@@ -29,8 +29,8 @@ jest.mock('@mui/material', () => ({
 }));
 
 describe('TaskSelector Sorting', () => {
-  const mockOnChange = jest.fn();
-  const mockOnCreateNewTask = jest.fn();
+  const mockOnChange = vi.fn();
+  const mockOnCreateNewTask = vi.fn();
 
   const mockTasks: Task[] = [
     {
@@ -78,7 +78,7 @@ describe('TaskSelector Sorting', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('sorts tasks alphabetically when no time entries provided', () => {

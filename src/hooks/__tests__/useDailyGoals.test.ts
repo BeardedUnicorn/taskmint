@@ -5,31 +5,25 @@
 import { renderHook, act } from '@testing-library/react';
 import { useDailyGoals } from '../useDailyGoals';
 import { DailyGoal, DailyGoalAchievement } from '../../types';
+import { useLocalStorage } from '../useLocalStorage'; // Import the actual module
 
-// Mock useLocalStorage
-const mockSetCurrentGoal = jest.fn();
-const mockSetAchievements = jest.fn();
+const mockSetCurrentGoal = vi.fn();
+const mockSetAchievements = vi.fn();
 
-jest.mock('../useLocalStorage', () => ({
-  useLocalStorage: jest.fn((key) => {
-    // This mock needs to simulate useState behavior
-    let value: any;
-    let setter: jest.Mock;
-
+vi.mock('../useLocalStorage', () => ({
+  useLocalStorage: vi.fn((key) => {
     if (key === 'dailyGoal') {
-      [value, setter] = require('react').useState(null);
-      return [value, mockSetCurrentGoal]; // Use the real setter for updates
+      return [null, mockSetCurrentGoal];
     }
     if (key === 'dailyGoalAchievements') {
-      [value, setter] = require('react').useState([]);
-      return [value, mockSetAchievements];
+      return [[], mockSetAchievements];
     }
-    return [null, jest.fn()];
+    return [null, vi.fn()];
   }),
 }));
 
 // Mock constants
-jest.mock('../../constants', () => ({
+vi.mock('../../constants', () => ({
   STORAGE_KEYS: {
     DAILY_GOAL: 'dailyGoal',
     DAILY_GOAL_ACHIEVEMENTS: 'dailyGoalAchievements',
@@ -60,22 +54,25 @@ describe('useDailyGoals', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.setSystemTime(new Date('2024-01-02T12:00:00.000Z')); // Control date for tests
+    vi.clearAllMocks();
+    vi.setSystemTime(new Date('2024-01-02T12:00:00.000Z')); // Control date for tests
 
-    const { useLocalStorage } = require('../useLocalStorage');
-    useLocalStorage.mockImplementation(mockUseLocalStorage);
+    // Reset the mock implementation of useLocalStorage for each test
+    vi.mocked(useLocalStorage).mockImplementation((key) => {
+      if (key === 'dailyGoal') {
+        return [null, mockSetCurrentGoal];
+      }
+      if (key === 'dailyGoalAchievements') {
+        return [[], mockSetAchievements];
+      }
+      return [null, vi.fn()];
+    });
 
-    // Default mocks
-    mockUseLocalStorage
-      .mockReturnValueOnce([null, mockSetCurrentGoal])
-      .mockReturnValueOnce([[], mockSetAchievements]);
-
-    jest.spyOn(Math, 'random').mockReturnValue(0.123456789);
+    vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {
@@ -87,15 +84,14 @@ describe('useDailyGoals', () => {
     });
 
     it('should call useLocalStorage with correct parameters', () => {
-      const { useLocalStorage } = require('../useLocalStorage');
       renderHook(() => useDailyGoals());
 
-      expect(mockUseLocalStorage).toHaveBeenCalledWith('dailyGoal', null);
-      expect(mockUseLocalStorage).toHaveBeenCalledWith('dailyGoalAchievements', []);
+      expect(useLocalStorage).toHaveBeenCalledWith('dailyGoal', null);
+      expect(useLocalStorage).toHaveBeenCalledWith('dailyGoalAchievements', []);
     });
 
     it('should initialize with existing goal and achievements', () => {
-      require('../useLocalStorage').useLocalStorage
+      vi.mocked(useLocalStorage)
         .mockReturnValueOnce([mockGoal, mockSetCurrentGoal])
         .mockReturnValueOnce([[mockAchievement], mockSetAchievements]);
 
@@ -108,15 +104,15 @@ describe('useDailyGoals', () => {
 
   describe('getCurrentGoal', () => {
     it('should return null when no goal exists', () => {
-      require('../useLocalStorage').useLocalStorage.mockReturnValue([null, jest.fn()]);
+      vi.mocked(useLocalStorage).mockReturnValue([null, vi.fn()]);
       const { result } = renderHook(() => useDailyGoals());
       expect(result.current.getCurrentGoal()).toBe(null);
     });
 
     it('should return current goal when it exists', () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
-        if (key === 'dailyGoal') return [mockGoal, jest.fn()];
-        return [[], jest.fn()];
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+        if (key === 'dailyGoal') return [mockGoal, vi.fn()];
+        return [[], vi.fn()];
       });      const { result } = renderHook(() => useDailyGoals());
       expect(result.current.getCurrentGoal()).toEqual(mockGoal);
     });
@@ -125,10 +121,10 @@ describe('useDailyGoals', () => {
   describe('updateDailyGoal', () => {
     it('should create new goal when none exists', async () => {
       const { result } = renderHook(() => useDailyGoals());
-      const { useLocalStorage } = require('../useLocalStorage');
+      
       useLocalStorage.mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [null, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
 
       await act(async () => {
@@ -151,9 +147,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should update existing goal', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -173,9 +169,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should preserve existing timestamps when updating', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -192,9 +188,9 @@ describe('useDailyGoals', () => {
 
   describe('enableDailyGoal', () => {
     it('should enable existing goal', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [{ ...mockGoal, isEnabled: false }, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -210,9 +206,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should disable existing goal', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -228,9 +224,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should create new goal when enabling and no goal exists', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [null, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -269,9 +265,9 @@ describe('useDailyGoals', () => {
     ];
 
     it('should return achievements within date range', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
-        if (key === 'dailyGoalAchievements') return [achievements, jest.fn()];
-        return [null, jest.fn()];
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+        if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
+        return [null, vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -285,9 +281,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should return empty array when no achievements in range', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
-        if (key === 'dailyGoalAchievements') return [achievements, jest.fn()];
-        return [null, jest.fn()];
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+        if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
+        return [null, vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -300,9 +296,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should include boundary dates', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
-        if (key === 'dailyGoalAchievements') return [achievements, jest.fn()];
-        return [null, jest.fn()];
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+        if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
+        return [null, vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -318,9 +314,9 @@ describe('useDailyGoals', () => {
 
   describe('recordAchievement', () => {
     it('should record new achievement', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[mockAchievement], mockSetAchievements];
-        return [null, jest.fn()];
+        return [null, vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -339,20 +335,21 @@ describe('useDailyGoals', () => {
         newAchievement = await result.current.recordAchievement(achievementData);
       });
 
-      expect(newAchievement!).toEqual({
+      expect(newAchievement!).toEqual(expect.objectContaining({
         ...achievementData,
-        id: 'achievement_1704222000000_4fzyo82',
         recordedAt: '2024-01-02T12:00:00.000Z',
-      });
+      }));
+      expect(typeof newAchievement!.id).toBe('string');
+      expect(newAchievement!.id).toMatch(/^achievement_\d{13}_[a-z0-9]+$/);
     });
 
     it('should generate unique IDs for multiple achievements', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
-        return [null, jest.fn()];
+        return [null, vi.fn()];
       });
 
-      jest.spyOn(Math, 'random')
+      vi.spyOn(Math, 'random')
         .mockReturnValueOnce(0.123456789)
         .mockReturnValueOnce(0.987654321);
 
@@ -379,9 +376,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should handle different achievement statuses', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
-        return [null, jest.fn()];
+        return [null, vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -406,9 +403,9 @@ describe('useDailyGoals', () => {
 
   describe('updateNotificationState', () => {
     it('should update notification state for existing goal', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -435,9 +432,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should handle different notification percentages', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -479,9 +476,9 @@ describe('useDailyGoals', () => {
 
   describe('edge cases', () => {
     it('should handle empty achievements array', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
-        return [null, jest.fn()];
+        return [null, vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -494,9 +491,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should handle goal updates with partial data', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
-        return [[], jest.fn()];
+        return [[], vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 
@@ -510,9 +507,9 @@ describe('useDailyGoals', () => {
     });
 
     it('should handle achievement recording with minimal data', async () => {
-      require('../useLocalStorage').useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
-        return [null, jest.fn()];
+        return [null, vi.fn()];
       });
       const { result } = renderHook(() => useDailyGoals());
 

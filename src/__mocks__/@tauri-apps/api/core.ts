@@ -2,7 +2,7 @@
  * Mock for @tauri-apps/api/core
  */
 
-export const invoke = jest.fn().mockImplementation((command: string, _args?: any) => {
+export const invoke = vi.fn().mockImplementation((command: string, _args?: any) => {
   switch (command) {
     case 'start_timer':
       return Promise.resolve();

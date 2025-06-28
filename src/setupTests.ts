@@ -5,7 +5,7 @@
  * with necessary polyfills, mocks, and global configurations.
  */
 
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 
 // Setup DOM container for React testing
 beforeEach(() => {
@@ -28,20 +28,20 @@ const localStorageMock = (() => {
   let store: Record<string, string> = {};
 
   return {
-    getItem: jest.fn((key: string) => store[key] || null),
-    setItem: jest.fn((key: string, value: string) => {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => {
       store[key] = value;
     }),
-    removeItem: jest.fn((key: string) => {
+    removeItem: vi.fn((key: string) => {
       delete store[key];
     }),
-    clear: jest.fn(() => {
+    clear: vi.fn(() => {
       store = {};
     }),
     get length() {
       return Object.keys(store).length;
     },
-    key: jest.fn((index: number) => Object.keys(store)[index] || null),
+    key: vi.fn((index: number) => Object.keys(store)[index] || null),
   };
 })();
 
@@ -51,12 +51,12 @@ Object.defineProperty(window, 'localStorage', {
 
 // Mock sessionStorage
 const sessionStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
   length: 0,
-  key: jest.fn(),
+  key: vi.fn(),
 };
 
 Object.defineProperty(window, 'sessionStorage', {
@@ -66,48 +66,48 @@ Object.defineProperty(window, 'sessionStorage', {
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: jest.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
 });
 
 // Mock ResizeObserver
-global.ResizeObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn(),
+global.ResizeObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
 }));
 
 // Mock IntersectionObserver
-global.IntersectionObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn(),
+global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
 }));
 
 // Mock URL.createObjectURL
 Object.defineProperty(URL, 'createObjectURL', {
   writable: true,
-  value: jest.fn(() => 'mocked-url'),
+  value: vi.fn(() => 'mocked-url'),
 });
 
 Object.defineProperty(URL, 'revokeObjectURL', {
   writable: true,
-  value: jest.fn(),
+  value: vi.fn(),
 });
 
 // Mock navigator.clipboard - make it configurable for userEvent
 Object.defineProperty(navigator, 'clipboard', {
   value: {
-    writeText: jest.fn(() => Promise.resolve()),
-    readText: jest.fn(() => Promise.resolve('')),
+    writeText: vi.fn(() => Promise.resolve()),
+    readText: vi.fn(() => Promise.resolve('')),
   },
   writable: true,
   configurable: true,
@@ -118,7 +118,7 @@ const mockLink = {
   href: '',
   download: '',
   style: { display: '' },
-  click: jest.fn(),
+  click: vi.fn(),
 };
 
 // Store original DOM methods for testing
@@ -127,8 +127,8 @@ const originalAppendChild = document.body.appendChild;
 const originalRemoveChild = document.body.removeChild;
 
 // Mock DOM methods for file download tests
-const mockAppendChild = jest.fn();
-const mockRemoveChild = jest.fn();
+const mockAppendChild = vi.fn();
+const mockRemoveChild = vi.fn();
 
 // Create a proper DOM container for React Testing Library
 beforeEach(() => {
@@ -151,7 +151,7 @@ afterEach(() => {
   }
 
   // Set up mocks for file download tests
-  document.createElement = jest.fn((tagName) => {
+  document.createElement = vi.fn((tagName) => {
     if (tagName === 'a') {
       return mockLink;
     }
@@ -195,14 +195,14 @@ afterAll(() => {
 
 // Clear all mocks before each test
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   localStorageMock.clear();
   sessionStorageMock.clear();
 });
 
 // Global test utilities
 declare global {
-  namespace jest {
+  namespace Vi {
     interface Matchers<R> {
       toBeInTheDocument(): R;
       toHaveClass(className: string): R;
@@ -215,20 +215,20 @@ declare global {
 export const testUtils = {
   // Mock timer functions
   mockTimer: () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     return {
-      advanceTimersByTime: (ms: number) => jest.advanceTimersByTime(ms),
-      runAllTimers: () => jest.runAllTimers(),
-      restore: () => jest.useRealTimers(),
+      advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms),
+      runAllTimers: () => vi.runAllTimers(),
+      restore: () => vi.useRealTimers(),
     };
   },
 
   // Mock date functions
   mockDate: (date: string | Date) => {
     const mockDate = new Date(date);
-    jest.spyOn(global, 'Date').mockImplementation(() => mockDate);
+    vi.spyOn(global, 'Date').mockImplementation(() => mockDate);
     return {
-      restore: () => jest.restoreAllMocks(),
+      restore: () => vi.restoreAllMocks(),
     };
   },
 
@@ -253,8 +253,6 @@ export const testUtils = {
     updatedAt: '2023-01-01T00:00:00Z',
     ...overrides,
   }),
-
-
 
   // Wait for async operations
   waitFor: async (callback: () => void | Promise<void>, timeout = 1000) => {

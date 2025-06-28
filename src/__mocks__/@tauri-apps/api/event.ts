@@ -5,7 +5,7 @@
 // Track active listeners for cleanup
 const activeListeners = new Map<string, Function[]>();
 
-export const listen = jest.fn().mockImplementation((event: string, handler: Function) => {
+export const listen = vi.fn().mockImplementation((event: string, handler: Function) => {
   // Store the handler for potential triggering in tests
   if (!activeListeners.has(event)) {
     activeListeners.set(event, []);
@@ -27,7 +27,7 @@ export const listen = jest.fn().mockImplementation((event: string, handler: Func
   return Promise.resolve(unsubscribe);
 });
 
-export const emit = jest.fn().mockImplementation((event: string, payload?: any) => {
+export const emit = vi.fn().mockImplementation((event: string, payload?: any) => {
   // Trigger any registered listeners for this event
   const handlers = activeListeners.get(event);
   if (handlers) {
@@ -42,7 +42,7 @@ export const emit = jest.fn().mockImplementation((event: string, payload?: any) 
   return Promise.resolve();
 });
 
-export const once = jest.fn().mockImplementation((event: string, handler: Function) => {
+export const once = vi.fn().mockImplementation((event: string, handler: Function) => {
   // Create a one-time handler that unsubscribes itself after first call
   const onceHandler = (eventData: any) => {
     handler(eventData);
@@ -68,7 +68,7 @@ export const once = jest.fn().mockImplementation((event: string, handler: Functi
 });
 
 // Helper function for tests to trigger events
-export const __triggerEvent = (event: string, payload?: any) => {
+export const __triggerEvent = vi.fn((event: string, payload?: any) => {
   const handlers = activeListeners.get(event);
   if (handlers) {
     handlers.forEach(handler => {

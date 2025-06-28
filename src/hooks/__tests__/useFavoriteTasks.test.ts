@@ -9,10 +9,10 @@ import { TimeEntry } from '../../types/timer';
 
 // Mock localStorage
 const mockLocalStorage = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
 };
 
 Object.defineProperty(window, 'localStorage', {
@@ -20,8 +20,8 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 // Mock useLocalStorage
-jest.mock('../useLocalStorage', () => ({
-  useLocalStorage: jest.fn((_key, defaultValue) => {
+vi.mock('../useLocalStorage', () => ({
+  useLocalStorage: vi.fn((_key, defaultValue) => {
     const [value, setValue] = require('react').useState(defaultValue);
     return [value, setValue];
   }),
@@ -85,7 +85,7 @@ describe('useFavoriteTasks', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should initialize with empty favorites', () => {
