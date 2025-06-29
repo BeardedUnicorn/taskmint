@@ -33,7 +33,7 @@ export function useBackupSettings() {
     lastBackupError: undefined,
   });
 
-  const { createBackupData } = useDataBackup();
+  const { createBackupData } = useDataBackup({});
   const { showError, showSuccess } = useNotification();
 
   // Update status when config changes

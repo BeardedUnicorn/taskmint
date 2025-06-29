@@ -34,6 +34,7 @@ export function TaskNotesIntegration({
   const [editingNote, setEditingNote] = useState<TaskNote | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
   const [isEditorCollapsed, setIsEditorCollapsed] = useState(false);
+  const [isCreatingNewNote, setIsCreatingNewNote] = useState(false);
 
   // Hooks for notes
   const {
@@ -79,31 +80,16 @@ export function TaskNotesIntegration({
 
   const handleCreateNote = useCallback(() => {
     setEditingNote(null);
-
-    // First, try to use the task's default note template
-    let defaultTemplate: NoteTemplate | null = null;
-
-    if (task.defaultNoteTemplateId) {
-      const foundTemplate = getTemplateById(task.defaultNoteTemplateId);
-      if (foundTemplate) {
-        defaultTemplate = foundTemplate;
-      }
-    }
-
-    // If no default template is set or the default template is not found,
-    // fall back to the first available active template
-    if (!defaultTemplate && templates.length > 0) {
-      defaultTemplate = templates.find(template => template.isActive) || templates[0];
-    }
-
-    setSelectedTemplate(defaultTemplate);
+    setSelectedTemplate(null); // Clear any selected template
     setIsEditorCollapsed(false);
-  }, [task.defaultNoteTemplateId, templates, getTemplateById]);
+    setIsCreatingNewNote(true); // Indicate that a new note is being created
+  }, []);
 
   const handleSaveNote = useCallback(async (noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote> => {
     const savedNote = await createNote(noteData);
     setEditingNote(null);
     setSelectedTemplate(null);
+    setIsCreatingNewNote(false); // Reset state after saving
     return savedNote;
   }, [createNote]);
 
@@ -111,6 +97,7 @@ export function TaskNotesIntegration({
     const updatedNote = await updateNote(noteId, updates);
     setEditingNote(null);
     setSelectedTemplate(null);
+    setIsCreatingNewNote(false); // Reset state after updating
     return updatedNote;
   }, [updateNote]);
 
@@ -141,7 +128,7 @@ export function TaskNotesIntegration({
       {/* Content */}
       <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
         {/* Note Editor - Show when editing or creating */}
-        {(editingNote || selectedTemplate) && (
+        {(editingNote || selectedTemplate || isCreatingNewNote) && (
           <Box sx={{ mb: 3 }}>
             <NoteEditor
               taskId={task.id}
@@ -153,6 +140,11 @@ export function TaskNotesIntegration({
               onDeleteNote={handleDeleteNote}
               isCollapsed={isEditorCollapsed}
               onToggleCollapse={handleToggleEditor}
+              onCloseEditor={() => {
+                setEditingNote(null);
+                setSelectedTemplate(null);
+                setIsCreatingNewNote(false);
+              }}
             />
           </Box>
         )}

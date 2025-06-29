@@ -25,15 +25,15 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
     onExportSuccess: () => {
       onSuccess?.();
     },
-    onExportError: (error) => {
-      onError?.(error);
+    onExportError: (error: unknown) => {
+      onError?.(error as string);
     },
-    onImportSuccess: (result) => {
+    onImportSuccess: (result: any) => {
       console.log('Import successful:', result);
       onImportSuccess?.();
     },
-    onImportError: (error) => {
-      onImportError?.(error);
+    onImportError: (error: unknown) => {
+      onImportError?.(error as string);
     },
   });
 

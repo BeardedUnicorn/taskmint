@@ -36,11 +36,13 @@ import {
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import { invoke } from '@tauri-apps/api/core';
-import { NoteEditorProps, TemplateField } from '../../../types/notes';
+import { NoteEditorProps, TemplateField, NoteTemplate } from '../../../types/notes';
+
+import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 
 export function NoteEditor({
   taskId,
-  template,
+  template: initialTemplate,
   existingNote,
   timeEntryId,
   onSaveNote,
@@ -48,7 +50,11 @@ export function NoteEditor({
   onDeleteNote,
   isCollapsed,
   onToggleCollapse,
+  onCloseEditor,
 }: NoteEditorProps) {
+  const { templates } = useNoteTemplates();
+  const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(initialTemplate);
+
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -65,10 +71,10 @@ export function NoteEditor({
     if (existingNote) {
       setFieldValues(existingNote.fieldValues);
       setHasUnsavedChanges(false);
-    } else if (template) {
+    } else if (selectedTemplate) {
       // Initialize with empty values based on field types
       const initialValues: Record<string, any> = {};
-      template.fields.forEach(field => {
+      selectedTemplate.fields.forEach(field => {
         switch (field.type) {
           case 'text':
           case 'command':
@@ -84,19 +90,23 @@ export function NoteEditor({
       });
       setFieldValues(initialValues);
       setHasUnsavedChanges(false);
+    } else if (!existingNote && !selectedTemplate) {
+      // For new free-form notes
+      setFieldValues({ content: '' });
+      setHasUnsavedChanges(false);
     }
-  }, [existingNote, template]);
+  }, [existingNote, selectedTemplate]);
 
   // Run commands for new notes
   useEffect(() => {
-    if (!existingNote && template) {
-      template.fields.forEach(field => {
+    if (!existingNote && selectedTemplate) {
+      selectedTemplate.fields.forEach(field => {
         if (field.type === 'command' && field.command) {
           runCommand(field.id, field.command);
         }
       });
     }
-  }, [template, existingNote]);
+  }, [selectedTemplate, existingNote]);
 
   const handleFieldChange = useCallback((fieldId: string, value: any) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
@@ -134,11 +144,11 @@ export function NoteEditor({
   }, [handleFieldChange]);
 
   const validateFields = useCallback((): boolean => {
-    if (!template) return false;
+    if (!selectedTemplate) return true; // No template, no field-specific validation
 
     const newErrors: Record<string, string> = {};
 
-    template.fields.forEach(field => {
+    selectedTemplate.fields.forEach((field: TemplateField) => {
       const value = fieldValues[field.id];
       
       // Required field validation
@@ -208,56 +218,82 @@ export function NoteEditor({
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [template, fieldValues]);
+  }, [selectedTemplate, fieldValues]);
 
   const handleSave = useCallback(async () => {
-    if (!template || !validateFields()) return;
-
     setIsSaving(true);
     try {
       if (existingNote) {
         await onUpdateNote(existingNote.id, { fieldValues });
-      } else {
-        await onSaveNote({
+        setLastSaved(new Date());
+        setHasUnsavedChanges(false);
+        onCloseEditor?.();
+        return;
+      }
+
+      let noteToSave: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>;
+
+      if (selectedTemplate) {
+        // Validate fields only if a template is selected
+        if (!validateFields()) {
+          setIsSaving(false); // Reset saving state if validation fails
+          return;
+        }
+        noteToSave = {
           taskId,
-          templateId: template.id,
-          templateName: template.name,
+          templateId: selectedTemplate.id,
+          templateName: selectedTemplate.name,
           fieldValues,
           timeEntryId,
-        });
+        };
+      } else {
+        // Free-form note
+        noteToSave = {
+          taskId,
+          templateId: 'free-form',
+          templateName: 'Free-form Note',
+          fieldValues: { content: fieldValues.content || '' },
+          timeEntryId,
+        };
       }
+
+      await onSaveNote(noteToSave);
       
       setLastSaved(new Date());
       setHasUnsavedChanges(false);
+      onCloseEditor?.(); // Close editor after successful save
     } catch (error) {
       console.error('Failed to save note:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [template, validateFields, existingNote, onUpdateNote, onSaveNote, taskId, fieldValues]);
+  }, [selectedTemplate, validateFields, existingNote, onUpdateNote, onSaveNote, taskId, fieldValues, timeEntryId, onCloseEditor]);
 
   const handleClear = useCallback(() => {
-    if (!template) return;
-
-    const clearedValues: Record<string, any> = {};
-    template.fields.forEach(field => {
-      switch (field.type) {
-        case 'text':
-          clearedValues[field.id] = '';
-          break;
-        case 'number':
-          clearedValues[field.id] = '';
-          break;
-        case 'date':
-          clearedValues[field.id] = '';
-          break;
-      }
-    });
-    
-    setFieldValues(clearedValues);
+    if (selectedTemplate) {
+      const clearedValues: Record<string, any> = {};
+      selectedTemplate.fields.forEach((field: TemplateField) => {
+        switch (field.type) {
+          case 'text':
+          case 'command':
+            clearedValues[field.id] = '';
+            break;
+          case 'number':
+            clearedValues[field.id] = '';
+            break;
+          case 'date':
+            clearedValues[field.id] = '';
+            break;
+        }
+      });
+      setFieldValues(clearedValues);
+    } else {
+      // Clear for free-form notes
+      setFieldValues({ content: '' });
+    }
     setErrors({});
     setHasUnsavedChanges(true);
-  }, [template]);
+  }, [selectedTemplate]);
 
   const handleCopyFieldValue = useCallback(async (fieldId: string, fieldLabel: string) => {
     const value = fieldValues[fieldId];
@@ -423,15 +459,18 @@ export function NoteEditor({
   }, [fieldValues, errors, handleFieldChange, handleCheckboxChange, handleSelectChange, isRunningCommand, runCommand]);
 
   const notesSummary = useMemo(() => {
-    if (!template) return 'No template selected';
+    if (!selectedTemplate) {
+      const content = fieldValues.content || '';
+      return content.length > 0 ? `${content.length} characters` : 'Empty note';
+    }
     
-    const filledFields = template.fields.filter(field => {
+    const filledFields = selectedTemplate.fields.filter((field: TemplateField) => {
       const value = fieldValues[field.id];
       return value !== undefined && value !== null && value !== '';
     }).length;
     
-    return `${filledFields}/${template.fields.length} fields completed`;
-  }, [template, fieldValues]);
+    return `${filledFields}/${selectedTemplate.fields.length} fields completed`;
+  }, [selectedTemplate, fieldValues]);
 
   const lastSavedText = useMemo(() => {
     if (!lastSaved) return '';
@@ -447,12 +486,113 @@ export function NoteEditor({
     return `Saved ${diffHours}h ago`;
   }, [lastSaved]);
 
-  if (!template) {
+  const handleCloseEditor = useCallback(() => {
+    onCloseEditor?.();
+  }, [onCloseEditor]);
+
+  // If no template is selected and we are creating a new note, allow template selection
+  if (!selectedTemplate && !existingNote) {
     return (
-      <Paper sx={{ p: 2 }}>
-        <Alert severity="info">
-          Select a template to start adding notes to this task.
-        </Alert>
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Stack spacing={2}>
+          <Alert severity="info">
+            No template selected. You can choose a template below or create a free-form note.
+          </Alert>
+          <FormControl fullWidth size="small">
+            <InputLabel>Select Template</InputLabel>
+            <Select
+              value={selectedTemplate?.id || ''}
+              onChange={(e) => {
+                const selected = templates.find((t: NoteTemplate) => t.id === e.target.value);
+                setSelectedTemplate(selected || null);
+                // If a template is selected, initialize its fields. Otherwise, clear for free-form.
+                if (selected) {
+                  const initialValues: Record<string, any> = {};
+                  selected.fields.forEach((field: TemplateField) => {
+                    initialValues[field.id] = '';
+                  });
+                  setFieldValues(initialValues);
+                } else {
+                  setFieldValues({ content: fieldValues.content || '' }); // Keep existing content if switching to free-form
+                }
+              }}
+              label="Select Template"
+            >
+              <MenuItem value="">
+                <em>Free-form Note</em>
+              </MenuItem>
+              {templates.map((tmpl: NoteTemplate) => (
+                <MenuItem key={tmpl.id} value={tmpl.id}>
+                  {tmpl.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {selectedTemplate ? (
+            // Render template fields if a template is selected
+            <Stack spacing={2}>
+              {selectedTemplate.fields
+                .sort((a: TemplateField, b: TemplateField) => a.order - b.order)
+                .map((field: TemplateField) => (
+                  <Box key={field.id} sx={{ position: 'relative' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                      <Box sx={{ flex: 1 }}>
+                        {renderField(field)}
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleCopyFieldValue(field.id, field.label)}
+                        title={`Copy ${field.label} content`}
+                        sx={{ mt: 1 }}
+                      >
+                        <CopyIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                ))}
+            </Stack>
+          ) : (
+            // Render a single TextField for free-form notes
+            <TextField
+              label="Note Content"
+              multiline
+              minRows={4}
+              maxRows={12}
+              fullWidth
+              value={fieldValues.content || ''}
+              onChange={(e) => handleFieldChange('content', e.target.value)}
+              placeholder="Start typing your note here..."
+            />
+          )}
+
+          <Box sx={{ display: 'flex', gap: 1, pt: 1 }}>
+            <Button
+              variant="contained"
+              startIcon={isSaving ? <CircularProgress size={16} /> : <SaveIcon />}
+              onClick={handleSave}
+              disabled={isSaving || Object.keys(errors).length > 0}
+            >
+              {existingNote ? 'Update Note' : 'Save Note'}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ClearIcon />}
+              onClick={handleClear}
+              disabled={isSaving}
+            >
+              Clear
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={handleCloseEditor}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+          </Box>
+        </Stack>
       </Paper>
     );
   }
@@ -473,7 +613,7 @@ export function NoteEditor({
         <NotesIcon sx={{ mr: 1, color: 'primary.main' }} />
         <Box sx={{ flex: 1 }}>
           <Typography variant="subtitle1" fontWeight="medium">
-            Notes - {template.name}
+            Notes - {selectedTemplate?.name || 'Free-form Note'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {notesSummary}
@@ -491,40 +631,58 @@ export function NoteEditor({
         <Box sx={{ p: 2, pt: 0 }}>
           <Stack spacing={2}>
             {/* Template Info */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Chip
-                label={template.name}
-                color="primary"
-                variant="outlined"
-                size="small"
-              />
-              {template.description && (
-                <Typography variant="body2" color="text.secondary">
-                  {template.description}
-                </Typography>
-              )}
-            </Box>
+            {selectedTemplate && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Chip
+                  label={(selectedTemplate as NoteTemplate).name}
+                  color="primary"
+                  variant="outlined"
+                  size="small"
+                />
+                {(selectedTemplate as NoteTemplate).description && (
+                  <Typography variant="body2" color="text.secondary">
+                    {(selectedTemplate as NoteTemplate).description}
+                  </Typography>
+                )}
+              </Box>
+            )}
 
             {/* Form Fields */}
-            {template.fields
-              .sort((a, b) => a.order - b.order)
-              .map(field => (
-                <Box key={field.id} sx={{ position: 'relative' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                    <Box sx={{ flex: 1 }}>
-                      {renderField(field)}
+            {selectedTemplate && (
+              <Stack spacing={2}>
+                {selectedTemplate.fields
+                  .sort((a: TemplateField, b: TemplateField) => a.order - b.order)
+                  .map((field: TemplateField) => (
+                    <Box key={field.id} sx={{ position: 'relative' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Box sx={{ flex: 1 }}>
+                          {renderField(field)}
+                        </Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleCopyFieldValue(field.id, field.label)}
+                          title={`Copy ${field.label} content`}
+                          sx={{ mt: 1 }}
+                        >
+                          <CopyIcon />
+                        </IconButton>
+                      </Box>
                     </Box>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleCopyFieldValue(field.id, field.label)}
-                      title={`Copy ${field.label} content`}
-                      sx={{ mt: 1 }}
-                    >
-                      <CopyIcon />
-                    </IconButton>
-                  </Box>
-                </Box>
-              ))}
+                  ))}
+              </Stack>
+            )}
+            {!selectedTemplate && (
+              <TextField
+                label="Note Content"
+                multiline
+                minRows={4}
+                maxRows={12}
+                fullWidth
+                value={fieldValues.content || ''}
+                onChange={(e) => handleFieldChange('content', e.target.value)}
+                placeholder="Start typing your note here..."
+              />
+            )}
 
             {/* Actions */}
             <Box sx={{ display: 'flex', gap: 1, pt: 1 }}>

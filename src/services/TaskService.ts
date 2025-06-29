@@ -131,6 +131,16 @@ export class TaskService implements ITaskService {
   ): Promise<Task> {
     try {
 
+      const existingTask = await this.getTask(taskId);
+      if (!existingTask) {
+        throw createTaskError(
+          'TASK_NOT_FOUND',
+          `Task with ID ${taskId} not found`,
+          { taskId },
+          'updateTask'
+        );
+      }
+
       // Validate updates
       const updatedTaskData = { ...existingTask, ...updates };
       const validation = await this.validateTask(updatedTaskData);

@@ -1,7 +1,4 @@
-const originalModule = await vi.importActual('../performance');
-
 export const performanceMonitor = {
-  ...originalModule.performanceMonitor,
   recordMetric: vi.fn(),
   setEnabled: vi.fn(),
   isEnabled: vi.fn(() => true),

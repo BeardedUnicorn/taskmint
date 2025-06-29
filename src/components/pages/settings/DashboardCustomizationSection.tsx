@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { Dashboard as DashboardIcon } from '@mui/icons-material';
 import { useDashboardSettings } from '../../../hooks/useDashboardSettings';
+import { DashboardWidgetId } from '../../../types/ui';
 
 interface DashboardCustomizationSectionProps {
   onSuccess?: () => void;
@@ -29,7 +30,7 @@ export function DashboardCustomizationSection({ onSuccess, onError }: DashboardC
 
   const availableWidgets = getAvailableWidgets();
 
-  const handleToggleWidget = async (widgetId: string) => {
+  const handleToggleWidget = async (widgetId: DashboardWidgetId) => {
     try {
       toggleWidget(widgetId);
       onSuccess?.();

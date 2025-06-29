@@ -56,7 +56,7 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
   });
 
   const { executeAsync } = useAsyncError();
-  const { createBackupData, importData } = useDataBackup();
+  const { createBackupData, importData } = useDataBackup({});
   const { showError, showSuccess } = useNotification();
 
   // Update config

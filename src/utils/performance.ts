@@ -49,23 +49,28 @@ class PerformanceMonitor {
   private memoryMetrics: MemoryMetric[] = [];
   private maxMetrics = 1000; // Keep last 1000 metrics
   private maxMemoryMetrics = 100; // Keep last 100 memory snapshots
-  private isEnabled = true;
+  private _isEnabled = true;
 
   /**
    * Enable or disable performance monitoring
    */
   setEnabled(enabled: boolean): void {
-    this.isEnabled = enabled;
+    this._isEnabled = enabled;
     console.log(`Performance monitoring ${enabled ? 'enabled' : 'disabled'}`);
   }
 
-  
+  /**
+   * Check if performance monitoring is enabled
+   */
+  isEnabled(): boolean {
+    return this._isEnabled;
+  }
 
   /**
    * Record a performance metric
    */
   recordMetric(metric: Omit<PerformanceMetric, 'timestamp' | 'severity'>): void {
-    if (!this.isEnabled) return;
+    if (!this._isEnabled) return;
 
     const severity = this.calculateSeverity(metric.duration);
     const fullMetric: PerformanceMetric = {

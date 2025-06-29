@@ -143,6 +143,7 @@ export interface NoteEditorProps {
   onDeleteNote: (noteId: string) => Promise<void>;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  onCloseEditor?: () => void; // New prop to signal editor closure
 }
 
 export interface NotesListProps {
