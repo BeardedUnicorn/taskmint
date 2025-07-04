@@ -25,6 +25,7 @@ import {
   MenuItem,
   FormControlLabel,
   Checkbox,
+  useTheme,
 } from '@mui/material';
 import {
   ExpandMore as ExpandIcon,
@@ -378,6 +379,7 @@ export function NoteEditor({
           />
         );
       case 'command':
+        const theme = useTheme();
         return (
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
             <TextField
@@ -390,15 +392,16 @@ export function NoteEditor({
                 flex: 1,
                 '& .MuiInputBase-root': {
                   alignItems: 'flex-start',
-                  backgroundColor: '#E8F8F5',
+                  backgroundColor: theme.palette.background.default,
                   border: '1px solid',
-                  borderColor: 'secondary.main',
+                  borderColor: theme.palette.divider,
                 },
                 '& .MuiInputBase-input': {
                   whiteSpace: 'pre-wrap',
                   wordWrap: 'break-word',
                   lineHeight: 1.5,
                   fontFamily: '"Roboto Mono", monospace',
+                  color: theme.palette.text.primary,
                 },
               }}
             />
