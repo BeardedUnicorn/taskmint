@@ -1,10 +1,11 @@
 // System tray functionality
 
+use crate::config::Config;
 use crate::error::{AppError};
 use crate::state::AppState;
 use crate::timer;
-use crate::utils::{format_duration, format_duration_hm, get_current_elapsed_ms, is_macos};
-use std::time::Duration;
+use crate::utils::{format_duration_hm, get_current_elapsed_ms, is_macos};
+
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
@@ -327,7 +328,7 @@ fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
                         } else {
                             timer_state.elapsed_ms
                         };
-                        let duration_text_tooltip = format_duration(current_elapsed);
+                        let duration_text_tooltip = format_duration_hm(current_elapsed);
                         let duration_text_title = format_duration_hm(current_elapsed);
                         let tooltip = format!(
                             "⏱️ {} - {} (Click for menu)",
@@ -365,12 +366,13 @@ fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
 pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
     let app_clone = app.clone();
     let state_clone = state.clone();
+    let config = Config::default();
 
     std::thread::spawn(move || {
         let mut last_menu_update = std::time::Instant::now();
 
         loop {
-            std::thread::sleep(Duration::from_secs(1));
+            std::thread::sleep(config.tray_status_update_duration());
 
             // Check if timer is running
             let is_running = state_clone
@@ -383,8 +385,8 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
                     eprintln!("Failed to update tray tooltip: {:?}", e);
                 }
 
-                // Update menu every 30 seconds to refresh the elapsed time display
-                if last_menu_update.elapsed() >= Duration::from_secs(30) {
+                // Update menu periodically to refresh the elapsed time display
+                if last_menu_update.elapsed() >= config.tray_menu_refresh_duration() {
                     if let Err(e) = update_tray_menu(&app_clone, &state_clone) {
                         eprintln!("Failed to update tray menu: {:?}", e);
                     }

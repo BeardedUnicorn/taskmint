@@ -13,6 +13,8 @@ pub mod tray;
 pub mod utils;
 pub mod backup;
 pub mod google_drive;
+pub mod config;
+
 
 // Re-export commonly used types
 pub use types::*;

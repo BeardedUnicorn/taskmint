@@ -14,8 +14,11 @@ edition = "2021"
 name = "taskmint_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
