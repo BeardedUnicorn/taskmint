@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Typography, Paper, CircularProgress, IconButton, useTheme, Button } from '@mui/material';
 import { format, addMonths, subMonths, subDays } from 'date-fns';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
-import Calendar from '@toast-ui/react-calendar';
-import '@toast-ui/calendar/dist/toastui-calendar.min.css';
-
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
 import { TimerService } from '../../services/TimerService';
 import { TaskService } from '../../services/TaskService';
@@ -46,68 +45,6 @@ const CalendarControls: React.FC<{
   );
 };
 
-const CalendarSchedule: React.FC<{
-  calendarRef: React.RefObject<any>;
-  calendarSchedules: any[];
-  theme: any;
-}> = ({ calendarRef, calendarSchedules, theme }) => (
-  <Box
-    sx={{
-      // Override detail popup to match site theme
-      '.tui-full-calendar-popup-container, .tui-full-calendar-popup': {
-        backgroundColor: theme.palette.background.paper,
-        color: theme.palette.text.primary,
-        border: `1px solid ${theme.palette.divider}`,
-      },
-      '.tui-full-calendar-popup-close-btn, .tui-full-calendar-popup-title': {
-        color: theme.palette.text.primary,
-      },
-    }}
-  >
-    <Calendar
-      ref={calendarRef}
-      height="800px"
-      view="month"
-      month={{
-        daynames: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-        startDayOfWeek: 0,
-        narrowWeekend: false,
-        isAlways6Weeks: true,
-      }}
-      events={calendarSchedules}
-      isReadOnly
-      useDetailPopup
-      template={{
-        month: {
-          schedule(event: any) {
-            return (
-              <div style={{ fontSize: '12px', lineHeight: 1.2 }}>
-                <div>Earned: {event.earned.toFixed(2)}</div>
-                <div>Transferable: {event.transferable.toFixed(2)}</div>
-              </div>
-            );
-          },
-        },
-      }}
-      theme={{
-        common: {
-          backgroundColor: theme.palette.background.paper,
-          border: `1px solid ${theme.palette.divider}`,
-          dayname: { color: theme.palette.text.secondary },
-          holiday: { color: theme.palette.error.main },
-          saturday: { color: theme.palette.text.secondary },
-          today: { color: theme.palette.primary.main },
-        },
-        month: {
-          dayExceptThisMonth: { color: theme.palette.text.disabled },
-          holidayExceptThisMonth: { color: 'rgba(255, 64, 64, 0.4)' },
-          weekend: { backgroundColor: 'inherit' },
-        },
-      }}
-    />
-  </Box>
-);
-
 const CalendarPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -135,7 +72,13 @@ const CalendarPage: React.FC = () => {
     fetchData();
   }, [timerService, taskService]);
 
-  const calendarSchedules = useMemo(() => {
+  useEffect(() => {
+    if (calendarRef.current) {
+      calendarRef.current.getApi().gotoDate(currentDate);
+    }
+  }, [currentDate]);
+
+  const dailyData = useMemo(() => {
     const dailyEarned: Record<string, number> = {};
     timeEntries.forEach(entry => {
       const dateKey = format(new Date(entry.date), 'yyyy-MM-dd');
@@ -149,42 +92,68 @@ const CalendarPage: React.FC = () => {
       const transferable = dailyEarned[transferableKey] || 0;
 
       return {
-        id: dateStr,
-        calendarId: '1',
-        title: `Earned: ${earned.toFixed(2)}`,
-        category: 'time',
-        start: dateStr,
-        end: dateStr,
-        isAllday: true,
-        backgroundColor: theme.palette.primary.main,
-        borderColor: theme.palette.primary.dark,
+        date: dateStr,
         earned,
         transferable,
       };
     });
-  }, [timeEntries, tasks, fundsReleaseDays, theme.palette.primary.main, theme.palette.primary.dark]);
-
-  useEffect(() => {
-    const cal = calendarRef.current?.getInstance();
-    if (cal) {
-      cal.clear();
-      cal.createEvents(calendarSchedules);
-    }
-  }, [calendarSchedules]);
+  }, [timeEntries, tasks, fundsReleaseDays]);
 
   const handlePrevMonth = () => {
-    calendarRef.current?.getInstance().prev();
     setCurrentDate(prev => subMonths(prev, 1));
   };
 
   const handleNextMonth = () => {
-    calendarRef.current?.getInstance().next();
     setCurrentDate(prev => addMonths(prev, 1));
   };
 
   const handleToday = () => {
-    calendarRef.current?.getInstance().today();
     setCurrentDate(new Date());
+  };
+
+  const renderDayCell = (info: any) => {
+    const dateStr = format(info.date, 'yyyy-MM-dd');
+    const dayData = dailyData.find(d => d.date === dateStr);
+
+    return (
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            height: '100%',
+            padding: '4px',
+            fontSize: '12px',
+            lineHeight: 1.2,
+          }}
+        >
+          <Box sx={{ fontSize: '14px', fontWeight: 'bold', mb: 0.5 }}>
+            {format(info.date, 'd')}
+          </Box>
+          {dayData && (
+            <>
+              <Box
+                sx={{
+                  fontWeight: 'bold',
+                  color: theme.palette.primary.main,
+                  mb: 0.5,
+                }}
+              >
+                Earned: {dayData.earned.toFixed(2)}
+              </Box>
+              <Box
+                sx={{
+                  color: theme.palette.success.main,
+                  fontSize: '10px',
+                }}
+              >
+                Transferable: {dayData.transferable.toFixed(2)}
+              </Box>
+            </>
+          )}
+        </Box>
+    );
   };
 
   if (loading) {
@@ -204,10 +173,63 @@ const CalendarPage: React.FC = () => {
           onNext={handleNextMonth}
           onToday={handleToday}
         />
-        <CalendarSchedule
-          calendarRef={calendarRef}
-          calendarSchedules={calendarSchedules}
-          theme={theme}
+        <FullCalendar
+          ref={calendarRef}
+          plugins={[dayGridPlugin]}
+          initialView="dayGridMonth"
+          initialDate={currentDate}
+          headerToolbar={false}
+          height="auto"
+          fixedWeekCount={false}
+          dayCellContent={renderDayCell}
+          themeSystem="standard"
+          customButtons={{
+            prev: {
+              text: 'prev',
+              click: handlePrevMonth,
+            },
+            next: {
+              text: 'next',
+              click: handleNextMonth,
+            },
+            today: {
+              text: 'today',
+              click: handleToday,
+            },
+          }}
+          dayHeaderContent={(info) => (
+            <Box
+              sx={{
+                fontWeight: 'bold',
+                textAlign: 'center',
+                backgroundColor: theme.palette.background.paper,
+                padding: '4px 0',
+                margin: 'auto'
+              }}
+            >
+              {format(info.date, 'eee')}
+            </Box>
+          )}
+          dayCellClassNames={(info) => {
+            const dateStr = format(info.date, 'yyyy-MM-dd');
+            const hasData = dailyData.some(d => d.date === dateStr);
+            return hasData ? 'has-data' : '';
+          }}
+          eventContent={(eventInfo) => {
+            return (
+              <Box
+                sx={{
+                  backgroundColor: theme.palette.background.paper,
+                  color: theme.palette.primary.contrastText,
+                  borderRadius: '4px',
+                  padding: '2px 4px',
+                  fontSize: '12px',
+                }}
+              >
+                {eventInfo.event.title}
+              </Box>
+            );
+          }}
         />
       </Paper>
     </Box>
