@@ -46,7 +46,7 @@ export function TaskNotesIntegration({
   } = useTaskNotes(task.id);
 
   // Hooks for templates
-  const { templates, getTemplateById } = useNoteTemplates();
+  const { templates } = useNoteTemplates();
 
   // Filter notes based on context
   const filteredNotes = timeEntryId

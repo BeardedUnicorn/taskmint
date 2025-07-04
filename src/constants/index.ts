@@ -22,6 +22,7 @@ export const STORAGE_KEYS = {
   FAVORITE_TASKS: 'favoriteTasks',
   DAILY_GOAL: 'dailyGoal',
   DAILY_GOAL_ACHIEVEMENTS: 'dailyGoalAchievements',
+  FUNDS_RELEASE_DAYS: 'fundsReleaseDays',
 } as const;
 
 // Time formatting constants

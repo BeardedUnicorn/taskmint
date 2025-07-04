@@ -17,6 +17,7 @@ import {
 } from '@mui/icons-material';
 import { NoteTemplates } from './NoteTemplates';
 import { useTimerSettings } from '../../hooks/useTimerSettings';
+import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
 import { TimerRoundingOption } from '../../types/timer';
 import { getRoundingOptionLabel } from '../../utils/formatters';
 import {
@@ -34,6 +35,7 @@ export function SettingsPage() {
   const [importError, setImportError] = useState<string | null>(null);
 
   const { roundingOption, updateRoundingOption } = useTimerSettings();
+  const { days, updateDays } = useFundsReleaseSettings();
 
   const roundingOptions: TimerRoundingOption[] = ['none', 'up-5min', 'up-15min', 'up-30min'];
 
@@ -104,6 +106,28 @@ export function SettingsPage() {
           <Typography variant="body2">
             <strong>Duration Rounding:</strong> Choose how timer durations are rounded when stopping a timer.
             This affects the final duration saved for time entries and earnings calculations.
+          </Typography>
+        </Alert>
+
+        <FormControl sx={{ minWidth: 250, mt: 3 }}>
+          <InputLabel id="funds-release-label">Days Before Funds Released</InputLabel>
+          <Select
+            labelId="funds-release-label"
+            value={days}
+            label="Days Before Funds Released"
+            onChange={(e) => updateDays(Number(e.target.value))}
+          >
+            {[...Array(31).keys()].map((day) => (
+              <MenuItem key={day} value={day}>
+                {day}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Alert severity="info" sx={{ mt: 2 }}>
+          <Typography variant="body2">
+            <strong>Days Before Funds Released:</strong> Set the number of days before earned funds become transferable.
           </Typography>
         </Alert>
       </Paper>

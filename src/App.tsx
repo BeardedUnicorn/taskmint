@@ -26,6 +26,7 @@ const DashboardPage = lazy(() => import('./components/pages/DashboardPage').then
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
 const TimeEntriesPage = lazy(() => import('./components/pages/TimeEntriesPage').then(module => ({ default: module.TimeEntriesPage })));
 const ReportsPage = lazy(() => import('./components/pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
+const CalendarPage = lazy(() => import('./components/pages/CalendarPage'));
 const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
@@ -438,6 +439,8 @@ function AppContent({
                     onUpdateEntry={handleUpdateEntryWithFeedback}
                   />
                 )}
+
+                {activeView === 'calendar' && <CalendarPage />}
 
                 {activeView === 'settings' && (
                   <SettingsPage />

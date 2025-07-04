@@ -73,8 +73,6 @@ impl GoogleDriveClient {
         }
     }
 
-
-
     /// Generate OAuth 2.0 authorization URL
     pub fn get_auth_url(&self, state: &str) -> Result<String> {
         let mut url = Url::parse(GOOGLE_OAUTH_URL)?;

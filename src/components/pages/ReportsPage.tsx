@@ -67,8 +67,8 @@ export function ReportsPage({
   onDeleteEntry,
   onUpdateEntry,
 }: ReportsPageProps) {
-  const [startDate, setStartDate] = useState<Dayjs>(dayjs().subtract(7, 'days'));
-  const [endDate, setEndDate] = useState<Dayjs>(dayjs());
+  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().subtract(7, 'days'));
+  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [timelineView, setTimelineView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
@@ -83,7 +83,7 @@ export function ReportsPage({
     return timeEntries.filter(entry => {
       // Filter by date range
       const entryDate = dayjs(entry.startTime);
-      const isInDateRange = entryDate.isBetween(startDate, endDate, 'day', '[]');
+      const isInDateRange = startDate && endDate ? entryDate.isBetween(startDate, endDate, 'day', '[]') : true;
       
       // Filter by selected tasks (if any)
       const isTaskSelected = selectedTasks.length === 0 || 
@@ -132,8 +132,8 @@ export function ReportsPage({
     const loadAchievements = async () => {
       setAchievementsLoading(true);
       try {
-        const startDateStr = startDate.format('YYYY-MM-DD');
-        const endDateStr = endDate.format('YYYY-MM-DD');
+        const startDateStr = startDate ? startDate.format('YYYY-MM-DD') : '';
+        const endDateStr = endDate ? endDate.format('YYYY-MM-DD') : '';
         const achievements = await getAchievementsForDateRange(startDateStr, endDateStr);
         setFilteredAchievements(achievements);
       } catch (error) {
@@ -227,7 +227,7 @@ export function ReportsPage({
               <DatePicker
                 label="Start Date"
                 value={startDate}
-                onChange={(newValue) => newValue && setStartDate(newValue)}
+                onChange={(newValue) => setStartDate(newValue as Dayjs | null)}
                 slotProps={{ textField: { size: 'small' } }}
               />
               <Typography variant="body2" color="text.secondary">
@@ -236,7 +236,7 @@ export function ReportsPage({
               <DatePicker
                 label="End Date"
                 value={endDate}
-                onChange={(newValue) => newValue && setEndDate(newValue)}
+                onChange={(newValue) => setEndDate(newValue as Dayjs | null)}
                 slotProps={{ textField: { size: 'small' } }}
               />
             </Box>

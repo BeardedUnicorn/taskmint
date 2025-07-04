@@ -205,7 +205,7 @@ export function TimeEntriesFilters({
                 <DatePicker
                   label="Start Date"
                   value={filters.startDate}
-                  onChange={(date) => updateFilters({ startDate: date })}
+                  onChange={(date) => updateFilters({ startDate: date as Dayjs | null })}
                   slotProps={{
                     textField: {
                       size: 'small',
@@ -219,7 +219,7 @@ export function TimeEntriesFilters({
                 <DatePicker
                   label="End Date"
                   value={filters.endDate}
-                  onChange={(date) => updateFilters({ endDate: date })}
+                  onChange={(date) => updateFilters({ endDate: date as Dayjs | null })}
                   minDate={filters.startDate || undefined}
                   slotProps={{
                     textField: {

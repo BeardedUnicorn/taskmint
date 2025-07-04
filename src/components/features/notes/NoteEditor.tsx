@@ -1,6 +1,6 @@
 /**
  * Note Editor Component
- * 
+ *
  * Dynamic form generator for creating and editing task notes based on templates.
  * Features collapsible interface, auto-save, and field validation.
  */
@@ -36,22 +36,22 @@ import {
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import { invoke } from '@tauri-apps/api/core';
-import { NoteEditorProps, TemplateField, NoteTemplate } from '../../../types/notes';
+import {NoteEditorProps, TemplateField, NoteTemplate, TaskNote} from '../../../types';
 
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 
 export function NoteEditor({
-  taskId,
-  template: initialTemplate,
-  existingNote,
-  timeEntryId,
-  onSaveNote,
-  onUpdateNote,
-  onDeleteNote,
-  isCollapsed,
-  onToggleCollapse,
-  onCloseEditor,
-}: NoteEditorProps) {
+                             taskId,
+                             template: initialTemplate,
+                             existingNote,
+                             timeEntryId,
+                             onSaveNote,
+                             onUpdateNote,
+                             onDeleteNote,
+                             isCollapsed,
+                             onToggleCollapse,
+                             onCloseEditor,
+                           }: NoteEditorProps) {
   const { templates } = useNoteTemplates();
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(initialTemplate);
 
@@ -150,7 +150,7 @@ export function NoteEditor({
 
     selectedTemplate.fields.forEach((field: TemplateField) => {
       const value = fieldValues[field.id];
-      
+
       // Required field validation
       if (field.required && (value === undefined || value === null || value === '')) {
         newErrors[field.id] = `${field.label} is required`;
@@ -258,7 +258,7 @@ export function NoteEditor({
       }
 
       await onSaveNote(noteToSave);
-      
+
       setLastSaved(new Date());
       setHasUnsavedChanges(false);
       onCloseEditor?.(); // Close editor after successful save
@@ -463,22 +463,22 @@ export function NoteEditor({
       const content = fieldValues.content || '';
       return content.length > 0 ? `${content.length} characters` : 'Empty note';
     }
-    
+
     const filledFields = selectedTemplate.fields.filter((field: TemplateField) => {
       const value = fieldValues[field.id];
       return value !== undefined && value !== null && value !== '';
     }).length;
-    
+
     return `${filledFields}/${selectedTemplate.fields.length} fields completed`;
   }, [selectedTemplate, fieldValues]);
 
   const lastSavedText = useMemo(() => {
     if (!lastSaved) return '';
-    
+
     const now = new Date();
     const diffMs = now.getTime() - lastSaved.getTime();
     const diffSeconds = Math.floor(diffMs / 1000);
-    
+
     if (diffSeconds < 60) return `Saved ${diffSeconds}s ago`;
     const diffMinutes = Math.floor(diffSeconds / 60);
     if (diffMinutes < 60) return `Saved ${diffMinutes}m ago`;
@@ -501,7 +501,7 @@ export function NoteEditor({
           <FormControl fullWidth size="small">
             <InputLabel>Select Template</InputLabel>
             <Select
-              value={selectedTemplate?.id || ''}
+              value={''}
               onChange={(e) => {
                 const selected = templates.find((t: NoteTemplate) => t.id === e.target.value);
                 setSelectedTemplate(selected || null);
@@ -529,42 +529,16 @@ export function NoteEditor({
             </Select>
           </FormControl>
 
-          {selectedTemplate ? (
-            // Render template fields if a template is selected
-            <Stack spacing={2}>
-              {selectedTemplate.fields
-                .sort((a: TemplateField, b: TemplateField) => a.order - b.order)
-                .map((field: TemplateField) => (
-                  <Box key={field.id} sx={{ position: 'relative' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                      <Box sx={{ flex: 1 }}>
-                        {renderField(field)}
-                      </Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleCopyFieldValue(field.id, field.label)}
-                        title={`Copy ${field.label} content`}
-                        sx={{ mt: 1 }}
-                      >
-                        <CopyIcon />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                ))}
-            </Stack>
-          ) : (
-            // Render a single TextField for free-form notes
-            <TextField
-              label="Note Content"
-              multiline
-              minRows={4}
-              maxRows={12}
-              fullWidth
-              value={fieldValues.content || ''}
-              onChange={(e) => handleFieldChange('content', e.target.value)}
-              placeholder="Start typing your note here..."
-            />
-          )}
+          <TextField
+            label="Note Content"
+            multiline
+            minRows={4}
+            maxRows={12}
+            fullWidth
+            value={fieldValues.content || ''}
+            onChange={(e) => handleFieldChange('content', e.target.value)}
+            placeholder="Start typing your note here..."
+          />
 
           <Box sx={{ display: 'flex', gap: 1, pt: 1 }}>
             <Button
