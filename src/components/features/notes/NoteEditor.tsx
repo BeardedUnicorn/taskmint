@@ -501,7 +501,7 @@ export function NoteEditor({
           <FormControl fullWidth size="small">
             <InputLabel>Select Template</InputLabel>
             <Select
-              value={''}
+              value={selectedTemplate?.id || ''}
               onChange={(e) => {
                 const selected = templates.find((t: NoteTemplate) => t.id === e.target.value);
                 setSelectedTemplate(selected || null);
