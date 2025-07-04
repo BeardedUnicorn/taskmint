@@ -80,10 +80,18 @@ export function TaskNotesIntegration({
 
   const handleCreateNote = useCallback(() => {
     setEditingNote(null);
-    setSelectedTemplate(null); // Clear any selected template
+    
+    // Check if task has a default template and use it
+    if (task.defaultNoteTemplateId) {
+      const defaultTemplate = templates.find(t => t.id === task.defaultNoteTemplateId);
+      setSelectedTemplate(defaultTemplate || null);
+    } else {
+      setSelectedTemplate(null); // Clear any selected template if no default
+    }
+    
     setIsEditorCollapsed(false);
     setIsCreatingNewNote(true); // Indicate that a new note is being created
-  }, []);
+  }, [task.defaultNoteTemplateId, templates]);
 
   const handleSaveNote = useCallback(async (noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote> => {
     const savedNote = await createNote(noteData);
