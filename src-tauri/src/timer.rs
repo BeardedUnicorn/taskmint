@@ -1,5 +1,6 @@
 // Timer-related functionality
 
+use crate::config::get_config;
 use crate::error::{AppError, retry_operation};
 use crate::state::AppState;
 use crate::utils::get_current_elapsed_ms;
@@ -12,6 +13,7 @@ pub fn start_timer_from_tray(
     state: &AppState,
     task_name: String,
 ) -> Result<(), AppError> {
+    let config = get_config();
     let start_time = Utc::now();
 
     // Update timer state with retry
@@ -25,8 +27,8 @@ pub fn start_timer_from_tray(
             })?;
             Ok(())
         },
-        3,
-        100,
+        config.retry_max_attempts,
+        config.retry_base_delay_ms,
     )?;
 
     // Emit event to frontend with retry
@@ -41,8 +43,8 @@ pub fn start_timer_from_tray(
             )
             .map_err(|e| AppError::new(format!("Failed to emit timer started event: {}", e)))
         },
-        3,
-        100,
+        config.retry_max_attempts,
+        config.retry_base_delay_ms,
     )?;
 
     println!("✅ Timer started successfully for task: '{}'", task_name);
@@ -51,6 +53,8 @@ pub fn start_timer_from_tray(
 
 // Stop timer functionality
 pub fn stop_timer_from_tray(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
+    let config = get_config();
+    
     let (task_name, start_time, elapsed_ms) = retry_operation(
         || {
             state.with_timer_state_mut(|timer_state| {
@@ -69,8 +73,8 @@ pub fn stop_timer_from_tray(app: &AppHandle, state: &AppState) -> Result<(), App
                 Ok((task_name, start_time, elapsed_ms))
             })?
         },
-        3,
-        100,
+        config.retry_max_attempts,
+        config.retry_base_delay_ms,
     )?;
 
     // Emit event to frontend with retry
@@ -86,8 +90,8 @@ pub fn stop_timer_from_tray(app: &AppHandle, state: &AppState) -> Result<(), App
             )
             .map_err(|e| AppError::new(format!("Failed to emit timer stopped event: {}", e)))
         },
-        3,
-        100,
+        config.retry_max_attempts,
+        config.retry_base_delay_ms,
     )?;
 
     println!("✅ Timer stopped successfully");

@@ -1,6 +1,6 @@
 // System tray functionality
 
-use crate::config::Config;
+use crate::config::{Config, get_config};
 use crate::error::{AppError};
 use crate::state::AppState;
 use crate::timer;
@@ -12,6 +12,7 @@ use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
 
 pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri::Wry>, tauri::Error> {
+    let config = get_config();
     println!("🔧 Creating tray menu...");
     let menu = Menu::new(app)?;
 
@@ -56,10 +57,10 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
         let start_submenu = Submenu::new(app, "▶️ Start Timer", true)?;
         println!("✅ Created start timer submenu");
 
-        // Add recent/favorite tasks (limit to 5 for menu size)
+        // Add recent/favorite tasks (limit to configured max)
         state
             .with_tasks(|tasks| {
-                for task in tasks.iter().take(5) {
+                for task in tasks.iter().take(config.tray_max_recent_tasks) {
                     let menu_id = format!("start_task_{}", task.id);
                     let task_item = MenuItem::new(app, &task.name, true, Some(&menu_id))?;
                     start_submenu.append(&task_item)?;
@@ -225,6 +226,7 @@ pub fn update_tray_menu(app: &AppHandle, state: &AppState) -> Result<(), tauri::
 }
 
 pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
+    let config = get_config();
     println!("Starting system tray setup...");
 
     // Check if tray icon already exists to prevent duplicates
@@ -255,7 +257,7 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
     let tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
-        .tooltip("TaskMint")
+        .tooltip(&config.tray_tooltip_app_name)
         .on_tray_icon_event({
             let app_handle = app.clone();
             move |_tray, event| {
@@ -283,6 +285,8 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
 }
 
 fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
+    let config = get_config();
+    
     // Try primary icon first
     let primary_icon_bytes = include_bytes!("../icons/32x32.png");
     println!(
@@ -292,11 +296,11 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
 
     match Image::from_bytes(primary_icon_bytes) {
         Ok(icon) => {
-            println!("Successfully created icon from primary 32x32.png");
+            println!("Successfully created icon from primary {}", config.icon_tray_primary);
             Ok(icon)
         }
         Err(e) => {
-            eprintln!("Failed to create icon from 32x32.png: {:?}", e);
+            eprintln!("Failed to create icon from {}: {:?}", config.icon_tray_primary, e);
             println!("Trying fallback icon...");
 
             // Try fallback icon
@@ -307,7 +311,7 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
             );
 
             Image::from_bytes(fallback_icon_bytes).map_err(|e2| {
-                eprintln!("Failed to create icon from fallback icon.png: {:?}", e2);
+                eprintln!("Failed to create icon from fallback {}: {:?}", config.icon_tray_fallback, e2);
                 eprintln!("Both primary and fallback icons failed!");
                 e2
             })
@@ -316,6 +320,8 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
 }
 
 fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
+    let config = get_config();
+    
     state.with_tray_icon(|tray_option| {
         if let Some(ref tray) = tray_option {
             let (tooltip, should_show_title, title_text) = state
@@ -337,7 +343,7 @@ fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
                         (tooltip, true, duration_text_title)
                     } else {
                         let tooltip =
-                            "TaskMint - No active timer (Click for menu)".to_string();
+                            format!("{} - No active timer (Click for menu)", config.tray_tooltip_app_name);
                         (tooltip, false, String::new())
                     }
                 })?;

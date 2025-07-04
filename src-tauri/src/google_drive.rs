@@ -4,19 +4,12 @@
  * Handles OAuth 2.0 authentication and file operations with Google Drive API.
  */
 
+use crate::config::get_config;
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use url::Url;
-
-// Google Drive API endpoints
-const GOOGLE_OAUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
-const GOOGLE_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
-const GOOGLE_DRIVE_API_URL: &str = "https://www.googleapis.com/drive/v3";
-
-// OAuth 2.0 scopes for Google Drive
-const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
 
 // OAuth 2.0 client configuration
 #[derive(Debug, Clone)]
@@ -75,12 +68,13 @@ impl GoogleDriveClient {
 
     /// Generate OAuth 2.0 authorization URL
     pub fn get_auth_url(&self, state: &str) -> Result<String> {
-        let mut url = Url::parse(GOOGLE_OAUTH_URL)?;
+        let app_config = get_config();
+        let mut url = Url::parse(&app_config.google_drive_oauth_url)?;
         
         url.query_pairs_mut()
             .append_pair("client_id", &self.config.client_id)
             .append_pair("redirect_uri", &self.config.redirect_uri)
-            .append_pair("scope", DRIVE_SCOPE)
+            .append_pair("scope", &app_config.google_drive_scope)
             .append_pair("response_type", "code")
             .append_pair("access_type", "offline")
             .append_pair("prompt", "consent")
@@ -91,6 +85,7 @@ impl GoogleDriveClient {
 
     /// Exchange authorization code for tokens
     pub async fn exchange_code_for_tokens(&mut self, code: &str) -> Result<GoogleDriveTokens> {
+        let app_config = get_config();
         let mut params = HashMap::new();
         params.insert("client_id", self.config.client_id.as_str());
         params.insert("client_secret", self.config.client_secret.as_str());
@@ -99,7 +94,7 @@ impl GoogleDriveClient {
         params.insert("redirect_uri", self.config.redirect_uri.as_str());
 
         let response = self.client
-            .post(GOOGLE_TOKEN_URL)
+            .post(&app_config.google_drive_token_url)
             .form(&params)
             .send()
             .await?;
@@ -124,6 +119,7 @@ impl GoogleDriveClient {
 
     /// Refresh access token using refresh token
     pub async fn refresh_tokens(&mut self) -> Result<GoogleDriveTokens> {
+        let app_config = get_config();
         let current_tokens = self.tokens.as_ref()
             .ok_or_else(|| anyhow!("No tokens available"))?;
         
@@ -137,7 +133,7 @@ impl GoogleDriveClient {
         params.insert("grant_type", "refresh_token");
 
         let response = self.client
-            .post(GOOGLE_TOKEN_URL)
+            .post(&app_config.google_drive_token_url)
             .form(&params)
             .send()
             .await?;
@@ -162,12 +158,13 @@ impl GoogleDriveClient {
 
     /// Ensure we have a valid access token
     async fn ensure_valid_token(&mut self) -> Result<()> {
+        let app_config = get_config();
         let tokens = self.tokens.as_ref()
             .ok_or_else(|| anyhow!("No tokens available"))?;
 
-        // Check if token is expired (with 5 minute buffer)
+        // Check if token is expired (with configured buffer)
         let now = chrono::Utc::now();
-        let expires_soon = tokens.expires_at - chrono::Duration::minutes(5);
+        let expires_soon = tokens.expires_at - app_config.google_drive_token_refresh_buffer_duration();
         
         if now >= expires_soon {
             self.refresh_tokens().await?;
@@ -186,9 +183,10 @@ impl GoogleDriveClient {
 
     /// List files in Google Drive
     pub async fn list_files(&mut self, query: Option<&str>) -> Result<Vec<DriveFileMetadata>> {
+        let app_config = get_config();
         self.ensure_valid_token().await?;
 
-        let mut url = format!("{}/files", GOOGLE_DRIVE_API_URL);
+        let mut url = format!("{}/files", app_config.google_drive_api_url);
         
         if let Some(q) = query {
             url = format!("{}?q={}", url, urlencoding::encode(q));
@@ -216,9 +214,10 @@ impl GoogleDriveClient {
 
     /// Get file metadata
     pub async fn get_file_metadata(&mut self, file_id: &str) -> Result<DriveFileMetadata> {
+        let app_config = get_config();
         self.ensure_valid_token().await?;
 
-        let url = format!("{}/files/{}", GOOGLE_DRIVE_API_URL, file_id);
+        let url = format!("{}/files/{}", app_config.google_drive_api_url, file_id);
 
         let response = self.client
             .get(&url)
@@ -237,9 +236,10 @@ impl GoogleDriveClient {
 
     /// Download file content
     pub async fn download_file(&mut self, file_id: &str) -> Result<String> {
+        let app_config = get_config();
         self.ensure_valid_token().await?;
 
-        let url = format!("{}/files/{}?alt=media", GOOGLE_DRIVE_API_URL, file_id);
+        let url = format!("{}/files/{}?alt=media", app_config.google_drive_api_url, file_id);
 
         let response = self.client
             .get(&url)
@@ -258,6 +258,7 @@ impl GoogleDriveClient {
 
     /// Upload file content
     pub async fn upload_file(&mut self, filename: &str, content: &str, parent_folder_id: Option<&str>) -> Result<DriveFileMetadata> {
+        let app_config = get_config();
         self.ensure_valid_token().await?;
 
         // Create metadata
@@ -282,7 +283,7 @@ impl GoogleDriveClient {
         body.push_str(content);
         body.push_str(&format!("\r\n--{}--\r\n", boundary));
 
-        let url = format!("{}/files?uploadType=multipart", GOOGLE_DRIVE_API_URL);
+        let url = format!("{}/files?uploadType=multipart", app_config.google_drive_api_url);
 
         let response = self.client
             .post(&url)
@@ -303,9 +304,10 @@ impl GoogleDriveClient {
 
     /// Update existing file content
     pub async fn update_file(&mut self, file_id: &str, content: &str) -> Result<DriveFileMetadata> {
+        let app_config = get_config();
         self.ensure_valid_token().await?;
 
-        let url = format!("{}/files/{}?uploadType=media", GOOGLE_DRIVE_API_URL, file_id);
+        let url = format!("{}/files/{}?uploadType=media", app_config.google_drive_api_url, file_id);
 
         let response = self.client
             .patch(&url)

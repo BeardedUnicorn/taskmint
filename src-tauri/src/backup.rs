@@ -1,5 +1,6 @@
 // Backup functionality
 
+use crate::config::get_config;
 use crate::types::{BackupResult, PathValidationResult};
 use crate::utils::is_valid_backup_timestamp;
 use chrono::Utc;
@@ -7,6 +8,7 @@ use std::fs;
 use std::path::Path;
 
 pub fn validate_backup_path(path: &str) -> Result<PathValidationResult, String> {
+    let config = get_config();
     let backup_path = Path::new(path);
 
     // Check if path is empty
@@ -45,7 +47,7 @@ pub fn validate_backup_path(path: &str) -> Result<PathValidationResult, String> 
     }
 
     // Test write permissions by creating a temporary file
-    let test_file_path = backup_path.join(".taskmint_write_test");
+    let test_file_path = backup_path.join(&config.backup_write_test_filename);
     match fs::write(&test_file_path, "test") {
         Ok(_) => {
             // Clean up test file
@@ -67,9 +69,10 @@ pub fn perform_automatic_backup(
     current_data_json: &str,
     max_backups: u32,
 ) -> Result<BackupResult, String> {
+    let config = get_config();
     let timestamp = Utc::now();
     let timestamp_str = timestamp.format("%Y%m%d_%H%M%S").to_string();
-    let filename = format!("time_tracker_backup_{}.json", timestamp_str);
+    let filename = format!("{}{}{}", config.backup_filename_prefix, timestamp_str, config.backup_filename_extension);
     let file_path = Path::new(backup_path).join(&filename);
 
     // Ensure backup directory exists
@@ -115,6 +118,7 @@ pub fn perform_automatic_backup(
 }
 
 fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String> {
+    let config = get_config();
     let backup_dir = Path::new(backup_path);
 
     if !backup_dir.exists() {
@@ -132,10 +136,10 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                if filename.starts_with("time_tracker_backup_") && filename.ends_with(".json") {
+                if filename.starts_with(&config.backup_filename_prefix) && filename.ends_with(&config.backup_filename_extension) {
                     if let Some(timestamp_part) = filename
-                        .strip_prefix("time_tracker_backup_")
-                        .and_then(|s| s.strip_suffix(".json"))
+                        .strip_prefix(&config.backup_filename_prefix)
+                        .and_then(|s| s.strip_suffix(&config.backup_filename_extension))
                     {
                         if is_valid_backup_timestamp(timestamp_part) {
                             backup_files.push(path.to_string_lossy().to_string());

@@ -1,2 +1,79 @@
-tray_status_update_interval = 1
-tray_menu_refresh_interval = 60
+# TaskMint Configuration File
+# This file contains all configuration values that were previously hardcoded
+
+# Tray and UI Configuration
+[tray]
+status_update_interval = 1      # Interval in seconds for updating the tray tooltip status
+menu_refresh_interval = 60     # Interval in seconds for refreshing the tray menu
+tooltip_app_name = "TaskMint"   # Application name shown in tray tooltip
+max_recent_tasks = 5           # Maximum number of recent tasks to show in tray menu
+
+# Retry Configuration
+[retry]
+max_attempts = 3               # Maximum number of retry attempts for operations
+base_delay_ms = 100           # Base delay in milliseconds between retry attempts
+
+# Time Formatting Configuration
+[time]
+ms_per_second = 1000          # Milliseconds per second
+seconds_per_minute = 60       # Seconds per minute
+seconds_per_hour = 3600       # Seconds per hour
+minutes_per_hour = 60         # Minutes per hour
+
+# Backup Configuration
+[backup]
+default_max_backups = 10      # Default maximum number of backup files to keep
+filename_prefix = "time_tracker_backup_"  # Prefix for backup filenames
+filename_extension = ".json"   # Extension for backup files
+write_test_filename = ".taskmint_write_test"  # Test file for checking write permissions
+
+# Date/Time Validation Configuration
+[validation]
+timestamp_length = 15         # Expected length of backup timestamp strings
+min_year = 2020              # Minimum valid year for timestamps
+max_year = 2100              # Maximum valid year for timestamps
+max_month = 12               # Maximum month value
+max_day = 31                 # Maximum day value
+max_hour = 23                # Maximum hour value
+max_minute = 59              # Maximum minute value
+max_second = 59              # Maximum second value
+
+# Google Drive Configuration
+[google_drive]
+oauth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+token_url = "https://oauth2.googleapis.com/token"
+api_url = "https://www.googleapis.com/drive/v3"
+scope = "https://www.googleapis.com/auth/drive.file"
+token_refresh_buffer_minutes = 5  # Minutes before expiry to refresh tokens
+
+# Application Metadata
+[app]
+product_name = "TaskMint"
+version = "1.0.0"
+identifier = "com.taskmint.app"
+
+# Window Configuration
+[window]
+title = "TaskMint"
+default_width = 1620
+default_height = 1000
+min_width = 800
+min_height = 500
+resizable = true
+fullscreen = false
+
+# Development Configuration
+[dev]
+frontend_url = "http://localhost:1420"
+
+# Icon Paths
+[icons]
+tray_primary = "../icons/32x32.png"
+tray_fallback = "../icons/icon.png"
+bundle_icons = [
+    "icons/32x32.png",
+    "icons/128x128.png", 
+    "icons/128x128@2x.png",
+    "icons/icon.icns",
+    "icons/icon.ico"
+]

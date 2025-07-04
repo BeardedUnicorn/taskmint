@@ -1,5 +1,6 @@
 // Utility functions used throughout the application
 
+use crate::config::get_config;
 use chrono::{DateTime, Utc};
 
 // Time formatting utilities
@@ -8,16 +9,18 @@ pub fn get_current_elapsed_ms(start_time: &DateTime<Utc>) -> u64 {
 }
 
 pub fn format_duration(ms: u64) -> String {
-    let total_seconds = ms / 1000;
-    let minutes = total_seconds / 60;
-    let seconds = total_seconds % 60;
+    let config = get_config();
+    let total_seconds = ms / config.ms_per_second;
+    let minutes = total_seconds / config.seconds_per_minute;
+    let seconds = total_seconds % config.seconds_per_minute;
     format!("{:02}:{:02}", minutes, seconds)
 }
 
 pub fn format_duration_hm(ms: u64) -> String {
-    let total_seconds = ms / 1000;
-    let hours = total_seconds / 3600;
-    let minutes = (total_seconds % 3600) / 60;
+    let config = get_config();
+    let total_seconds = ms / config.ms_per_second;
+    let hours = total_seconds / config.seconds_per_hour;
+    let minutes = (total_seconds % config.seconds_per_hour) / config.seconds_per_minute;
     format!("{:02}:{:02}", hours, minutes)
 }
 
@@ -28,7 +31,9 @@ pub fn is_macos() -> bool {
 
 // Validation utilities
 pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
-    if timestamp.len() != 15 {
+    let config = get_config();
+    
+    if timestamp.len() != config.validation_timestamp_length {
         return false;
     }
 
@@ -45,7 +50,7 @@ pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
         return false;
     }
 
-    // Check time part (HHMMSS)
+    // Check time part (HHMMSS)  
     if time_part.len() != 6 || !time_part.chars().all(|c| c.is_ascii_digit()) {
         return false;
     }
@@ -58,13 +63,13 @@ pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
     let minute: u32 = time_part[2..4].parse().unwrap_or(0);
     let second: u32 = time_part[4..6].parse().unwrap_or(0);
 
-    year >= 2020
-        && year <= 2100
+    year >= config.validation_min_year
+        && year <= config.validation_max_year
         && month >= 1
-        && month <= 12
+        && month <= config.validation_max_month
         && day >= 1
-        && day <= 31
-        && hour <= 23
-        && minute <= 59
-        && second <= 59
+        && day <= config.validation_max_day
+        && hour <= config.validation_max_hour
+        && minute <= config.validation_max_minute
+        && second <= config.validation_max_second
 }
