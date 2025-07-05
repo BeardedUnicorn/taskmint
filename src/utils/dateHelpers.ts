@@ -25,17 +25,77 @@ export function formatLocalTime(date: Date | string): string {
 }
 
 /**
- * Format a date to YYYY-MM-DD format
+ * Format a date to YYYY-MM-DD format in local timezone
  */
 export function formatDateString(date: Date | string): string {
-  return dayjs(date).format('YYYY-MM-DD');
+  return dayjs(date).local().format('YYYY-MM-DD');
 }
 
 /**
- * Format a date/time for datetime-local input
+ * Format a date/time for datetime-local input in local timezone
  */
 export function formatDateTimeLocal(date: Date | string): string {
-  return dayjs(date).format('YYYY-MM-DDTHH:mm');
+  return dayjs(date).local().format('YYYY-MM-DDTHH:mm');
+}
+
+/**
+ * Format a date to local date string (MMM DD, YYYY format)
+ */
+export function formatLocalDate(date: Date | string): string {
+  return dayjs(date).local().format('MMM DD, YYYY');
+}
+
+/**
+ * Format a date to local date string with day of week (dddd format)
+ */
+export function formatLocalDateWithDay(date: Date | string): string {
+  return dayjs(date).local().format('dddd');
+}
+
+/**
+ * Format a date to full local date and time string
+ */
+export function formatLocalDateTime(date: Date | string): string {
+  return dayjs(date).local().format('MMM DD, YYYY [at] h:mm A');
+}
+
+/**
+ * Format a date for display with relative time logic (Today, Yesterday, etc.)
+ */
+export function formatRelativeDate(date: Date | string): string {
+  const dateObj = dayjs(date).local();
+  const now = dayjs().local();
+  const diffDays = now.diff(dateObj, 'day');
+  
+  if (diffDays === 0) {
+    return `Today at ${dateObj.format('h:mm A')}`;
+  } else if (diffDays === 1) {
+    return `Yesterday at ${dateObj.format('h:mm A')}`;
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  } else {
+    return dateObj.format('MMM DD, YYYY');
+  }
+}
+
+/**
+ * Format a date for table display (uses browser's locale)
+ */
+export function formatLocalDateForTable(date: Date | string): string {
+  return dayjs(date).local().toDate().toLocaleDateString();
+}
+
+/**
+ * Format a date and time for detailed display (uses browser's locale)
+ */
+export function formatLocalDateTimeForDisplay(date: Date | string): string {
+  return dayjs(date).local().toDate().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /**

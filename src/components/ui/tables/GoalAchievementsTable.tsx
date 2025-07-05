@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import { DailyGoalAchievement } from '../../../types/goal';
 import { formatCurrency } from '../../../utils/formatters';
-import { isToday } from '../../../utils/dateHelpers';
+import { isToday, formatLocalDate, formatLocalDateWithDay } from '../../../utils/dateHelpers';
 import dayjs from 'dayjs';
 
 export interface GoalAchievementsTableProps {
@@ -253,10 +253,10 @@ export function GoalAchievementsTable({
               <TableCell>
                 <Box>
                   <Typography variant="body2" fontWeight={500}>
-                    {dayjs(achievement.date).format('MMM DD, YYYY')}
+                    {formatLocalDate(achievement.date)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {dayjs(achievement.date).format('dddd')}
+                    {formatLocalDateWithDay(achievement.date)}
                   </Typography>
                 </Box>
               </TableCell>

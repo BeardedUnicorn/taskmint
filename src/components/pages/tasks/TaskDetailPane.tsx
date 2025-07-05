@@ -27,7 +27,7 @@ import {
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
-import { formatLocalTime } from '../../../utils/dateHelpers';
+import { formatLocalTime, formatLocalDate, formatLocalDateTimeForDisplay } from '../../../utils/dateHelpers';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import { useFavoriteTasks } from '../../../hooks/useFavoriteTasks';
 import dayjs from 'dayjs';
@@ -75,13 +75,7 @@ export function TaskDetailPane({
   }, [taskEntries, task.hourlyRate]);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatLocalDateTimeForDisplay(dateString);
   };
 
   return (
@@ -206,7 +200,7 @@ export function TaskDetailPane({
                     <TableRow key={entry.id} hover>
                       <TableCell>
                         <Typography variant="body2">
-                          {dayjs(entry.startTime).format('MMM DD, YYYY')}
+                          {formatLocalDate(entry.startTime)}
                         </Typography>
                       </TableCell>
                       <TableCell>

@@ -17,10 +17,10 @@ import { StatsCard } from '../ui/display/StatsCard';
 import { TodaysEntriesList } from './dashboard/TodaysEntriesList';
 import { DailyGoalProgressWidget } from '../ui/display/DailyGoalProgressWidget';
 import { formatDuration } from '../../utils/formatters';
+import { formatDateString } from '../../utils/dateHelpers';
 import { useDashboardSettings } from '../../hooks/useDashboardSettings';
 import { useDailyGoals } from '../../hooks/useDailyGoals';
 import { DashboardWidgetId } from '../../types/ui';
-
 import dayjs from 'dayjs';
 
 interface DashboardPageProps {
@@ -53,11 +53,11 @@ export function DashboardPage({
 
   // Calculate today's statistics
   useEffect(() => {
-    const today = dayjs().format('YYYY-MM-DD');
+    const today = formatDateString(new Date());
     
     // Filter entries for today
     const todaysEntries = timeEntries.filter(entry => {
-      const entryDate = dayjs(entry.startTime).format('YYYY-MM-DD');
+      const entryDate = formatDateString(entry.startTime);
       return entryDate === today && entry.duration && entry.duration > 0;
     });
 
@@ -168,9 +168,9 @@ export function DashboardPage({
   };
 
   // Get today's entries for the list
-  const today = dayjs().format('YYYY-MM-DD');
+  const today = formatDateString(new Date());
   const todaysEntries = timeEntries.filter(entry => {
-    const entryDate = dayjs(entry.startTime).format('YYYY-MM-DD');
+    const entryDate = formatDateString(entry.startTime);
     return entryDate === today && entry.duration && entry.duration > 0;
   });
 
@@ -191,7 +191,7 @@ export function DashboardPage({
       </Typography>
 
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        {dayjs().format('dddd, MMMM DD, YYYY')}
+        {dayjs().local().format('dddd, MMMM DD, YYYY')}
       </Typography>
 
       {/* Stats Cards Row - Only show if there are enabled stats widgets */}

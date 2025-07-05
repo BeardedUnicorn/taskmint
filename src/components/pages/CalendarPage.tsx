@@ -1,15 +1,30 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Typography, Paper, CircularProgress, IconButton, useTheme, Button } from '@mui/material';
 import { format, addMonths, subMonths, subDays } from 'date-fns';
+import { formatLocalDate } from '../../utils/dateHelpers';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
+import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
+import moment from 'moment';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
 import { TimerService } from '../../services/TimerService';
 import { TaskService } from '../../services/TaskService';
 import { StorageService } from '../../services/StorageService';
 import { TimeEntry, Task } from '../../types';
 import { calculateEntryEarnings } from '../../utils/earningsCalculator';
+
+const localizer = momentLocalizer(moment);
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  resource: {
+    earned: number;
+    transferable: number;
+  };
+}
 
 const CalendarControls: React.FC<{
   currentDate: Date;
@@ -50,9 +65,9 @@ const CalendarPage: React.FC = () => {
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<View>(Views.MONTH);
   const { days: fundsReleaseDays } = useFundsReleaseSettings();
   const theme = useTheme();
-  const calendarRef = useRef<any>(null);
 
   const storageService = useMemo(() => StorageService.getInstance(), []);
   const timerService = useMemo(() => new TimerService(storageService), [storageService]);
@@ -71,12 +86,6 @@ const CalendarPage: React.FC = () => {
     };
     fetchData();
   }, [timerService, taskService]);
-
-  useEffect(() => {
-    if (calendarRef.current) {
-      calendarRef.current.getApi().gotoDate(currentDate);
-    }
-  }, [currentDate]);
 
   const dailyData = useMemo(() => {
     const dailyEarned: Record<string, number> = {};
@@ -99,62 +108,80 @@ const CalendarPage: React.FC = () => {
     });
   }, [timeEntries, tasks, fundsReleaseDays]);
 
-  const handlePrevMonth = () => {
+  const events = useMemo((): CalendarEvent[] => {
+    return dailyData.map(dayData => {
+      const date = new Date(dayData.date);
+      return {
+        id: dayData.date,
+        title: `Earned: $${dayData.earned.toFixed(2)}`,
+        start: date,
+        end: date,
+        resource: {
+          earned: dayData.earned,
+          transferable: dayData.transferable,
+        },
+      };
+    });
+  }, [dailyData]);
+
+  const handlePrevMonth = useCallback(() => {
     setCurrentDate(prev => subMonths(prev, 1));
-  };
+  }, []);
 
-  const handleNextMonth = () => {
+  const handleNextMonth = useCallback(() => {
     setCurrentDate(prev => addMonths(prev, 1));
-  };
+  }, []);
 
-  const handleToday = () => {
+  const handleToday = useCallback(() => {
     setCurrentDate(new Date());
-  };
+  }, []);
 
-  const renderDayCell = (info: any) => {
-    const dateStr = format(info.date, 'yyyy-MM-dd');
-    const dayData = dailyData.find(d => d.date === dateStr);
+  const handleNavigate = useCallback((newDate: Date) => {
+    setCurrentDate(newDate);
+  }, []);
 
+  const handleViewChange = useCallback((newView: View) => {
+    setView(newView);
+  }, []);
+
+  const EventComponent = useCallback(({ event }: { event: CalendarEvent }) => {
     return (
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            height: '100%',
-            padding: '4px',
-            fontSize: '12px',
-            lineHeight: 1.2,
-          }}
-        >
-          <Box sx={{ fontSize: '14px', fontWeight: 'bold', mb: 0.5 }}>
-            {format(info.date, 'd')}
-          </Box>
-          {dayData && (
-            <>
-              <Box
-                sx={{
-                  fontWeight: 'bold',
-                  color: theme.palette.primary.main,
-                  mb: 0.5,
-                }}
-              >
-                Earned: {dayData.earned.toFixed(2)}
-              </Box>
-              <Box
-                sx={{
-                  color: theme.palette.success.main,
-                  fontSize: '10px',
-                }}
-              >
-                Transferable: {dayData.transferable.toFixed(2)}
-              </Box>
-            </>
-          )}
+      <Box
+        sx={{
+          fontSize: '11px',
+          lineHeight: 1.2,
+          padding: '2px',
+          backgroundColor: theme.palette.primary.main,
+          color: theme.palette.primary.contrastText,
+          borderRadius: '3px',
+          overflow: 'hidden',
+        }}
+      >
+        <Box sx={{ fontWeight: 'bold', mb: 0.5 }}>
+          ${event.resource.earned.toFixed(2)}
         </Box>
+        <Box sx={{ fontSize: '9px', opacity: 0.9 }}>
+          Transferable: ${event.resource.transferable.toFixed(2)}
+        </Box>
+      </Box>
     );
-  };
+  }, [theme]);
+
+  const DayPropGetter = useCallback((date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const hasData = dailyData.some(d => d.date === dateStr);
+    
+    return {
+      style: {
+        backgroundColor: hasData ? theme.palette.action.hover : 'transparent',
+      },
+    };
+  }, [dailyData, theme]);
+
+  const calendarStyle = useMemo(() => ({
+    height: 600,
+    // All styling is now handled by CSS to prevent theme conflicts
+  }), []);
 
   if (loading) {
     return (
@@ -173,64 +200,49 @@ const CalendarPage: React.FC = () => {
           onNext={handleNextMonth}
           onToday={handleToday}
         />
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin]}
-          initialView="dayGridMonth"
-          initialDate={currentDate}
-          headerToolbar={false}
-          height="auto"
-          fixedWeekCount={false}
-          dayCellContent={renderDayCell}
-          themeSystem="standard"
-          customButtons={{
-            prev: {
-              text: 'prev',
-              click: handlePrevMonth,
-            },
-            next: {
-              text: 'next',
-              click: handleNextMonth,
-            },
-            today: {
-              text: 'today',
-              click: handleToday,
-            },
+        <Box 
+          sx={{
+            ...calendarStyle,
+            // Set CSS custom properties for theme integration
+            '--mui-palette-background-default': theme.palette.background.default,
+            '--mui-palette-background-paper': theme.palette.background.paper,
+            '--mui-palette-text-primary': theme.palette.text.primary,
+            '--mui-palette-text-secondary': theme.palette.text.secondary,
+            '--mui-palette-text-disabled': theme.palette.text.disabled,
+            '--mui-palette-divider': theme.palette.divider,
+            '--mui-palette-action-disabled': theme.palette.action.disabled,
+            '--mui-palette-primary-main': theme.palette.primary.main,
           }}
-          dayHeaderContent={(info) => (
-            <Box
-              sx={{
-                fontWeight: 'bold',
-                textAlign: 'center',
-                backgroundColor: theme.palette.background.paper,
-                padding: '4px 0',
-                margin: 'auto'
-              }}
-            >
-              {format(info.date, 'eee')}
-            </Box>
-          )}
-          dayCellClassNames={(info) => {
-            const dateStr = format(info.date, 'yyyy-MM-dd');
-            const hasData = dailyData.some(d => d.date === dateStr);
-            return hasData ? 'has-data' : '';
-          }}
-          eventContent={(eventInfo) => {
-            return (
-              <Box
-                sx={{
-                  backgroundColor: theme.palette.background.paper,
-                  color: theme.palette.primary.contrastText,
-                  borderRadius: '4px',
-                  padding: '2px 4px',
-                  fontSize: '12px',
-                }}
-              >
-                {eventInfo.event.title}
-              </Box>
-            );
-          }}
-        />
+        >
+          <Calendar
+            localizer={localizer}
+            events={events}
+            startAccessor="start"
+            endAccessor="end"
+            view={view}
+            onView={handleViewChange}
+            date={currentDate}
+            onNavigate={handleNavigate}
+            views={[Views.MONTH]}
+            toolbar={false}
+            popup={false}
+            components={{
+              event: EventComponent,
+            }}
+            dayPropGetter={DayPropGetter}
+            formats={{
+              dateFormat: 'D',
+              dayFormat: (date: Date, culture?: string, localizer?: any) =>
+                localizer.format(date, 'ddd', culture),
+            }}
+            eventPropGetter={() => ({
+              style: {
+                backgroundColor: 'transparent',
+                border: 'none',
+              },
+            })}
+          />
+        </Box>
       </Paper>
     </Box>
   );

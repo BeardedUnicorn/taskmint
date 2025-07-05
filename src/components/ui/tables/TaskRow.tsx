@@ -3,6 +3,7 @@ import { Edit as EditIcon, Delete as DeleteIcon, Visibility as ViewIcon } from '
 import { TaskRowProps } from '../../../types/table';
 import { ActionButton } from '../buttons/ActionButton';
 import { formatCurrency } from '../../../utils/formatters';
+import { formatLocalDateForTable } from '../../../utils/dateHelpers';
 
 /**
  * Table row component for displaying task data
@@ -37,7 +38,7 @@ export function TaskRow({
       
       <TableCell>
         <Typography variant="body2" color="text.secondary">
-          {new Date(task.createdAt).toLocaleDateString()}
+          {formatLocalDateForTable(task.createdAt)}
         </Typography>
       </TableCell>
       

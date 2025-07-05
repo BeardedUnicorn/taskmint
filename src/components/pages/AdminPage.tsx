@@ -40,6 +40,7 @@ import {
   Feature,
   FEATURES,
 } from '../../types/subscription';
+import { formatLocalDateForTable } from '../../utils/dateHelpers';
 
 export function AdminPage() {
   const {
@@ -162,7 +163,7 @@ export function AdminPage() {
                     SKU: {subscription.sku}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Activated: {new Date(subscription.activatedAt).toLocaleDateString()}
+                    Activated: {formatLocalDateForTable(subscription.activatedAt)}
                   </Typography>
                 </Box>
                 
