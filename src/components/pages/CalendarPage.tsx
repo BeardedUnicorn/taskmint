@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Typography, Paper, CircularProgress, IconButton, useTheme, Button } from '@mui/material';
 import { format, addMonths, subMonths, subDays } from 'date-fns';
-import { formatLocalDate } from '../../utils/dateHelpers';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment';

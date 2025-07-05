@@ -4,7 +4,7 @@
  * Provides subscription state and feature access control throughout the application
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
   SubscriptionSku,
   UserSubscription,

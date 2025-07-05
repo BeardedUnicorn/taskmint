@@ -30,7 +30,6 @@ import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { formatLocalTime, formatLocalDate, formatLocalDateTimeForDisplay } from '../../../utils/dateHelpers';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import { useFavoriteTasks } from '../../../hooks/useFavoriteTasks';
-import dayjs from 'dayjs';
 
 interface TaskDetailPaneProps {
   task: Task;

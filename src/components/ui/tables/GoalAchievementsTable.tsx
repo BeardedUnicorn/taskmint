@@ -31,7 +31,6 @@ import {
 import { DailyGoalAchievement } from '../../../types/goal';
 import { formatCurrency } from '../../../utils/formatters';
 import { isToday, formatLocalDate, formatLocalDateWithDay } from '../../../utils/dateHelpers';
-import dayjs from 'dayjs';
 
 export interface GoalAchievementsTableProps {
   achievements: DailyGoalAchievement[];

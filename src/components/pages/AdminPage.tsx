@@ -4,7 +4,7 @@
  * Administrative interface for testing subscription tiers and managing user settings
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Paper,

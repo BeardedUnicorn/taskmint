@@ -4,7 +4,6 @@
  * Shows subscription upgrade options when users try to access premium features
  */
 
-import React from 'react';
 import {
   Dialog,
   DialogTitle,
