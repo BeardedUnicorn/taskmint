@@ -2,6 +2,7 @@
  * NoteEditor Unit Tests
  */
 
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate } from '../../../../types/notes';
@@ -40,7 +41,7 @@ describe('NoteEditor', () => {
   const mockOnUpdateNote = vi.fn().mockResolvedValue({});
   const mockOnDeleteNote = vi.fn().mockResolvedValue({});
 
-  it('renders fields correctly', () => {
+  it('renders fields correctly', async () => {
     render(
       <NoteEditor
         taskId="task1"
@@ -53,8 +54,10 @@ describe('NoteEditor', () => {
       />
     );
 
-    expect(screen.getByLabelText('Text Field')).toBeInTheDocument();
-    expect(screen.getByLabelText('Command Field')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Text Field')).toBeInTheDocument();
+      expect(screen.getByLabelText('Command Field')).toBeInTheDocument();
+    });
   });
 
   it('runs command on button click', async () => {

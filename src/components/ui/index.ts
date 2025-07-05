@@ -18,3 +18,6 @@ export * from './display';
 
 // Table Components
 export * from './tables';
+
+// Subscription Components
+export { UpgradeDialog } from './UpgradeDialog';

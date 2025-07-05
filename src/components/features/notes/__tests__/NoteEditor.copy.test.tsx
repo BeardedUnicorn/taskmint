@@ -2,7 +2,8 @@
  * NoteEditor Copy Functionality Unit Tests
  */
 
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate, TaskNote } from '../../../../types/notes';
 
@@ -64,19 +65,21 @@ describe('NoteEditor Copy Functionality', () => {
     (navigator.clipboard.writeText as vi.Mock).mockResolvedValue(undefined);
   });
 
-  it('renders copy buttons for each field', () => {
-    render(
-      <NoteEditor
-        taskId="task1"
-        template={mockTemplate}
-        existingNote={mockExistingNote}
-        onSaveNote={mockOnSaveNote}
-        onUpdateNote={mockOnUpdateNote}
-        onDeleteNote={mockOnDeleteNote}
-        isCollapsed={false}
-        onToggleCollapse={() => {}}
-      />
-    );
+  it('renders copy buttons for each field', async () => {
+    await act(async () => {
+      render(
+        <NoteEditor
+          taskId="task1"
+          template={mockTemplate}
+          existingNote={mockExistingNote}
+          onSaveNote={mockOnSaveNote}
+          onUpdateNote={mockOnUpdateNote}
+          onDeleteNote={mockOnDeleteNote}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+        />
+      );
+    });
 
     // Check for copy buttons
     expect(screen.getByTitle('Copy Text Field content')).toBeInTheDocument();
@@ -141,6 +144,8 @@ describe('NoteEditor Copy Functionality', () => {
   it('handles clipboard write failure gracefully', async () => {
     (navigator.clipboard.writeText as vi.Mock).mockRejectedValue(new Error('Clipboard error'));
 
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     render(
       <NoteEditor
         taskId="task1"
@@ -160,6 +165,8 @@ describe('NoteEditor Copy Functionality', () => {
     await waitFor(() => {
       expect(screen.getByText('Failed to copy Text Field content')).toBeInTheDocument();
     });
+
+    consoleSpy.mockRestore();
   });
 
   it('copies number field content as string', async () => {

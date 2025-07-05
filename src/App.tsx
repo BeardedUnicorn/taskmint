@@ -18,6 +18,7 @@ import {
  */
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider, useNotification } from './contexts/NotificationContext';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { NewTaskDialog } from './components/pages';
 import { Sidebar, GlobalTimerBar, type SidebarView } from './components/layout';
 
@@ -28,6 +29,7 @@ const TimeEntriesPage = lazy(() => import('./components/pages/TimeEntriesPage').
 const ReportsPage = lazy(() => import('./components/pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
 const CalendarPage = lazy(() => import('./components/pages/CalendarPage'));
 const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
+const AdminPage = lazy(() => import('./components/pages/AdminPage').then(module => ({ default: module.AdminPage })));
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
 
@@ -176,7 +178,6 @@ function App() {
   };
 
   const handleShowNewTaskDialog = () => {
-    console.log('handleShowNewTaskDialog called - opening new task dialog');
     setNewTaskDialogOpen(true);
   };
 
@@ -255,23 +256,25 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <NotificationProvider>
-          <AppContent
-            timeEntries={timeEntries}
-            activeEntry={activeEntry}
-            activeView={activeView}
-            newTaskDialogOpen={newTaskDialogOpen}
-            setNewTaskDialogOpen={setNewTaskDialogOpen}
-            handleStopActiveTimer={handleStopActiveTimer}
-            handleStartTimerFromTray={handleStartTimerFromTray}
-            handleStopTimerFromTray={handleStopTimerFromTray}
-            handleShowNewTaskDialog={handleShowNewTaskDialog}
-            handleStartNewTask={handleStartNewTask}
-            handleViewChange={handleViewChange}
-            handleStartTimer={handleStartTimer}
-            handleUpdateEntry={handleUpdateEntry}
-            handleDeleteEntry={handleDeleteEntry}
-            handleBulkDeleteEntries={handleBulkDeleteEntries}
-          />
+          <SubscriptionProvider>
+            <AppContent
+              timeEntries={timeEntries}
+              activeEntry={activeEntry}
+              activeView={activeView}
+              newTaskDialogOpen={newTaskDialogOpen}
+              setNewTaskDialogOpen={setNewTaskDialogOpen}
+              handleStopActiveTimer={handleStopActiveTimer}
+              handleStartTimerFromTray={handleStartTimerFromTray}
+              handleStopTimerFromTray={handleStopTimerFromTray}
+              handleShowNewTaskDialog={handleShowNewTaskDialog}
+              handleStartNewTask={handleStartNewTask}
+              handleViewChange={handleViewChange}
+              handleStartTimer={handleStartTimer}
+              handleUpdateEntry={handleUpdateEntry}
+              handleDeleteEntry={handleDeleteEntry}
+              handleBulkDeleteEntries={handleBulkDeleteEntries}
+            />
+          </SubscriptionProvider>
         </NotificationProvider>
       </ThemeProvider>
     </ErrorBoundary>
@@ -444,6 +447,10 @@ function AppContent({
 
                 {activeView === 'settings' && (
                   <SettingsPage />
+                )}
+
+                {activeView === 'admin' && (
+                  <AdminPage />
                 )}
               </Suspense>
             </Box>

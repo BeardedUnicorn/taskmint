@@ -132,11 +132,12 @@ export class TaskNotesService {
 
       // Update cache
       this.notesCache.set(newNote.id, newNote);
-
-      console.log('Note created successfully:', newNote);
       return newNote;
     } catch (error) {
-      console.error('Failed to create note:', error);
+      // Only log errors in non-test environments
+      if (process.env.NODE_ENV !== 'test') {
+        console.error('Failed to create note:', error);
+      }
       throw new Error('Failed to create task note');
     }
   }
@@ -192,7 +193,6 @@ export class TaskNotesService {
       // Update cache
       this.notesCache.set(noteId, updatedNote);
 
-      console.log('Note updated successfully:', updatedNote);
       return updatedNote;
     } catch (error) {
       console.error(`Failed to update note ${noteId}:`, error);
@@ -217,8 +217,6 @@ export class TaskNotesService {
 
       // Remove from cache
       this.notesCache.delete(noteId);
-
-      console.log(`Note ${noteId} deleted successfully`);
     } catch (error) {
       console.error(`Failed to delete note ${noteId}:`, error);
       throw new Error('Failed to delete task note');
@@ -242,8 +240,6 @@ export class TaskNotesService {
           this.notesCache.delete(note.id);
         }
       });
-
-      console.log(`All notes for task ${taskId} deleted successfully`);
     } catch (error) {
       console.error(`Failed to delete notes for task ${taskId}:`, error);
       throw new Error('Failed to delete task notes');

@@ -1,4 +1,5 @@
 import React from 'react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {act, render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
@@ -81,15 +82,12 @@ describe('DailyGoalSettings', () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockResolvedValue(undefined);
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
-    screen.debug(); // Initial render
 
     const toggle = await screen.findByRole('checkbox', { name: /enable daily earnings goal/i });
     await user.click(toggle);
-    screen.debug(); // After clicking toggle
 
     const saveButton = screen.getByRole('button', { name: 'Save Goal' });
     await user.click(saveButton);
-    screen.debug(); // After clicking save button
 
     expect(mockUpdateDailyGoal).toHaveBeenCalledWith({
       targetAmount: 100,
@@ -105,6 +103,9 @@ describe('DailyGoalSettings', () => {
   it('should handle updateDailyGoal errors', async () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockRejectedValue(new Error('Save failed'));
+    
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
 
     await user.click(await screen.findByRole('checkbox', { name: /enable daily earnings goal/i }));
@@ -114,5 +115,7 @@ describe('DailyGoalSettings', () => {
       expect(screen.getByText('Failed to save goal. Please try again.')).toBeInTheDocument();
       expect(mockOnError).toHaveBeenCalledWith('Failed to save goal. Please try again.');
     });
+    
+    consoleSpy.mockRestore();
   }, 30000);
 });

@@ -2,6 +2,7 @@
  * Tests for useLocalStorage hook
  */
 
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useLocalStorage } from '../useLocalStorage';
 
@@ -119,7 +120,7 @@ describe('useLocalStorage', () => {
       throw new Error('localStorage error');
     });
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
 
@@ -138,7 +139,7 @@ describe('useLocalStorage', () => {
     // Set invalid JSON in localStorage
     localStorage.setItem(TEST_KEY, 'invalid-json');
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
 
@@ -160,7 +161,7 @@ describe('useLocalStorage', () => {
       throw new Error('localStorage setItem error');
     });
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     act(() => {
       result.current[1]('new-value');
@@ -238,13 +239,13 @@ describe('useLocalStorage', () => {
     const { needsMigration, migrateData, createBackup } = await import('../../utils/dataMigration');
 
     // Reset mocks to ensure clean state
-    needsMigration.mockClear();
-    migrateData.mockClear();
-    createBackup.mockClear();
+    (needsMigration as any).mockClear();
+    (migrateData as any).mockClear();
+    (createBackup as any).mockClear();
 
     // Mock migration needed for old data format
-    needsMigration.mockReturnValue(true);
-    migrateData.mockReturnValue({
+    (needsMigration as any).mockReturnValue(true);
+    (migrateData as any).mockReturnValue({
       version: 1,
       data: 'migrated-value',
       migratedAt: new Date().toISOString(),

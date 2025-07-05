@@ -23,6 +23,7 @@ export const STORAGE_KEYS = {
   DAILY_GOAL: 'dailyGoal',
   DAILY_GOAL_ACHIEVEMENTS: 'dailyGoalAchievements',
   FUNDS_RELEASE_DAYS: 'fundsReleaseDays',
+  USER_SUBSCRIPTION: 'userSubscription',
 } as const;
 
 // Time formatting constants

@@ -1,9 +1,12 @@
 /**
  * Tests for useTaskManagement hook
  */
+import React from 'react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTaskManagement } from '../useTaskManagement';
 import { Task, TaskHierarchy } from '../../types';
+import { SubscriptionProvider } from '../../contexts/SubscriptionContext';
 
 // Mock ServiceFactory
 const mockTaskService = {
@@ -43,14 +46,29 @@ vi.mock('../../contexts/NotificationContext', () => ({
   }),
 }));
 
+// Mock SubscriptionService
+const mockSubscriptionService = {
+  checkTaskLimit: vi.fn(),
+  getUserSubscription: vi.fn(),
+  getCurrentTier: vi.fn(),
+  hasFeatureAccess: vi.fn(),
+  hasUnlimitedTasks: vi.fn(),
+  upgradeSubscription: vi.fn(),
+  getAvailableUpgrades: vi.fn(),
+  getFeatureAccessSummary: vi.fn(),
+};
+vi.mock('../../services/SubscriptionService', () => ({
+  SubscriptionService: {
+    getInstance: () => mockSubscriptionService,
+  },
+}));
+
 describe('useTaskManagement', () => {
   const sampleTasks: Task[] = [
     {
       id: 'task-1',
       name: 'Development',
       hourlyRate: 50,
-      color: '#FF5722',
-      isActive: true,
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-01T00:00:00.000Z',
     },
@@ -58,8 +76,6 @@ describe('useTaskManagement', () => {
       id: 'task-2',
       name: 'Design',
       hourlyRate: 75,
-      color: '#2196F3',
-      isActive: true,
       parentId: 'task-1',
       childOrder: 1,
       createdAt: '2024-01-02T00:00:00.000Z',
@@ -69,8 +85,6 @@ describe('useTaskManagement', () => {
       id: 'task-3',
       name: 'Testing',
       hourlyRate: 60,
-      color: '#4CAF50',
-      isActive: false,
       parentId: 'task-1',
       childOrder: 2,
       createdAt: '2024-01-03T00:00:00.000Z',
@@ -100,10 +114,33 @@ describe('useTaskManagement', () => {
     },
   ];
 
+  // Wrapper component for SubscriptionProvider
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    React.createElement(SubscriptionProvider, null, children)
+  );
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockTaskService.getAllTasks.mockResolvedValue(sampleTasks);
     mockTaskService.getTaskHierarchy.mockResolvedValue(sampleHierarchy);
+    mockSubscriptionService.checkTaskLimit.mockResolvedValue({
+      canAddTask: true,
+      currentCount: 0,
+    });
+    mockSubscriptionService.getUserSubscription.mockResolvedValue({
+      sku: 'FREE',
+      activatedAt: '2024-01-01T00:00:00.000Z',
+    });
+    mockSubscriptionService.getCurrentTier.mockResolvedValue({
+      name: 'Free',
+      taskLimit: 10,
+      features: [],
+    });
+    mockSubscriptionService.hasFeatureAccess.mockResolvedValue({ hasAccess: true });
+    mockSubscriptionService.hasUnlimitedTasks.mockResolvedValue(false);
+    mockSubscriptionService.upgradeSubscription.mockResolvedValue(undefined);
+    mockSubscriptionService.getAvailableUpgrades.mockResolvedValue([]);
+    mockSubscriptionService.getFeatureAccessSummary.mockResolvedValue({});
     mockExecuteAsync.mockImplementation(async (fn, options) => {
       try {
         return await fn();
@@ -117,15 +154,18 @@ describe('useTaskManagement', () => {
   });
 
   describe('initialization', () => {
-    it('should initialize with empty tasks and loading state', () => {
-      const { result } = renderHook(() => useTaskManagement());
+    it('should initialize with empty tasks and loading state', async () => {
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
 
       expect(result.current.tasks).toEqual([]);
       expect(result.current.isLoading).toBe(true);
+      
+      // Wait for the hook to finish loading
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
     });
 
     it('should load tasks on mount', async () => {
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
 
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -137,10 +177,14 @@ describe('useTaskManagement', () => {
       const error = new Error('Failed to load tasks');
       mockTaskService.getAllTasks.mockRejectedValue(error);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       expect(mockShowError).toHaveBeenCalledWith('Failed to load tasks. Please refresh the page and try again.');
+      
+      consoleSpy.mockRestore();
     });
   });
 
@@ -149,8 +193,6 @@ describe('useTaskManagement', () => {
       const newTaskData = {
         name: 'New Task',
         hourlyRate: 80,
-        color: '#9C27B0',
-        isActive: true,
       };
 
       const createdTask = {
@@ -163,7 +205,7 @@ describe('useTaskManagement', () => {
       mockTaskService.createTask.mockResolvedValue(createdTask);
       mockTaskService.getAllTasks.mockResolvedValue([...sampleTasks, createdTask]);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       let returnedTask: Task | null = null;
@@ -181,11 +223,11 @@ describe('useTaskManagement', () => {
       const error = new Error('Failed to create task');
       mockTaskService.createTask.mockRejectedValue(error);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       await expect(
-        result.current.addTask({ name: 'Test Task', hourlyRate: 50, color: '#000000', isActive: true })
+        result.current.addTask({ name: 'Test Task', hourlyRate: 50 })
       ).rejects.toThrow('Failed to create task');
 
       expect(mockShowError).toHaveBeenCalledWith('Failed to create task. Please try again.');
@@ -200,7 +242,7 @@ describe('useTaskManagement', () => {
       mockTaskService.updateTask.mockResolvedValue(updatedTask);
       mockTaskService.getAllTasks.mockResolvedValue([updatedTask, ...sampleTasks.slice(1)]);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       let returnedTask: Task | null = null;
@@ -217,7 +259,7 @@ describe('useTaskManagement', () => {
       const error = new Error('Failed to update task');
       mockTaskService.updateTask.mockRejectedValue(error);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       await expect(result.current.updateTask('task-1', { name: 'Updated' })).rejects.toThrow('Failed to update task');
@@ -230,7 +272,7 @@ describe('useTaskManagement', () => {
     it('should delete task with default strategy', async () => {
       mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       mockTaskService.deleteTask.mockResolvedValue(undefined);
@@ -247,7 +289,7 @@ describe('useTaskManagement', () => {
     it('should delete task with cascade strategy', async () => {
       mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       mockTaskService.deleteTask.mockResolvedValue(undefined);
@@ -264,7 +306,7 @@ describe('useTaskManagement', () => {
       mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
       const orphanedTasks = sampleTasks.slice(1).map(task => ({ ...task, parentId: undefined }));
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       mockTaskService.deleteTask.mockResolvedValue(undefined);
@@ -281,7 +323,7 @@ describe('useTaskManagement', () => {
       const error = new Error('Failed to delete task');
       mockTaskService.deleteTask.mockRejectedValue(error);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       await expect(result.current.deleteTask('task-1')).rejects.toThrow('Failed to delete task');
@@ -290,7 +332,7 @@ describe('useTaskManagement', () => {
 
   describe('task lookup methods', () => {
     it('should get task by id', async () => {
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       const task = result.current.getTaskById('task-1');
@@ -298,7 +340,7 @@ describe('useTaskManagement', () => {
     });
 
     it('should return undefined for non-existent task id', async () => {
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       const task = result.current.getTaskById('non-existent');
@@ -306,7 +348,7 @@ describe('useTaskManagement', () => {
     });
 
     it('should get task by name', async () => {
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       const task = result.current.getTaskByName('Development');
@@ -314,7 +356,7 @@ describe('useTaskManagement', () => {
     });
 
     it('should return undefined for non-existent task name', async () => {
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       const task = result.current.getTaskByName('Non-existent');
@@ -322,7 +364,7 @@ describe('useTaskManagement', () => {
     });
 
     it('should get all task names', async () => {
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       const names = result.current.getTaskNames();
@@ -331,22 +373,31 @@ describe('useTaskManagement', () => {
   });
 
   describe('earnings calculation', () => {
-    it('should calculate earnings with provided hourly rate', () => {
-      const { result } = renderHook(() => useTaskManagement());
+    it('should calculate earnings with provided hourly rate', async () => {
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
+      
+      // Wait for initialization to complete
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       const earnings = result.current.calculateEarnings(3600000, 50); // 1 hour at $50/hour
       expect(earnings).toBe(50);
     });
 
-    it('should calculate earnings for partial hours', () => {
-      const { result } = renderHook(() => useTaskManagement());
+    it('should calculate earnings for partial hours', async () => {
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
+      
+      // Wait for initialization to complete
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       const earnings = result.current.calculateEarnings(1800000, 60); // 30 minutes at $60/hour
       expect(earnings).toBe(30);
     });
 
-    it('should return undefined for invalid inputs', () => {
-      const { result } = renderHook(() => useTaskManagement());
+    it('should return undefined for invalid inputs', async () => {
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
+      
+      // Wait for initialization to complete
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       expect(result.current.calculateEarnings(-1000, 50)).toBeUndefined();
       expect(result.current.calculateEarnings(3600000, -50)).toBeUndefined();
@@ -355,7 +406,7 @@ describe('useTaskManagement', () => {
 
   describe('hierarchical methods', () => {
     it('should get task hierarchy', async () => {
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       let hierarchy: TaskHierarchy[] = [];
@@ -371,7 +422,7 @@ describe('useTaskManagement', () => {
       const childTasks = [sampleTasks[1], sampleTasks[2]];
       mockTaskService.getChildTasks.mockResolvedValue(childTasks);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       let children: Task[] = [];
@@ -386,7 +437,7 @@ describe('useTaskManagement', () => {
     it('should get parent task', async () => {
       mockTaskService.getParentTask.mockResolvedValue(sampleTasks[0]);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       let parent: Task | undefined;
@@ -402,7 +453,7 @@ describe('useTaskManagement', () => {
       const taskPath = [sampleTasks[0], sampleTasks[1]];
       mockTaskService.getTaskPath.mockResolvedValue(taskPath);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       let path: Task[] = [];
@@ -418,7 +469,7 @@ describe('useTaskManagement', () => {
       const error = new Error('Hierarchy error');
       mockTaskService.getTaskHierarchy.mockRejectedValue(error);
 
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       await expect(result.current.getTaskHierarchy()).rejects.toThrow('Hierarchy error');
@@ -429,7 +480,7 @@ describe('useTaskManagement', () => {
 
   describe('return values', () => {
     it('should return all expected properties and methods', async () => {
-      const { result } = renderHook(() => useTaskManagement());
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
       await waitFor(() => expect(result.current).not.toBeNull());
 
       // State properties

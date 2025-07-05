@@ -2,6 +2,7 @@
  * Tests for useValidatedLocalStorage hook
  */
 
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { z } from 'zod';
 import { useValidatedLocalStorage, createTypeGuards, useValidatedArrayStorage } from '../useValidatedLocalStorage';
@@ -16,20 +17,16 @@ import { migrateData as mockMigrateData, createBackup as mockCreateBackup, needs
 
 // Mock localStorage
 const mockLocalStorage = {
-  getItem: vi.fn((...args): string | null => {
-    console.log('[mockLocalStorage] getItem', ...args)
+  getItem: vi.fn((): string | null => {
     return null
   }),
-  setItem: vi.fn((...args) => {
-    console.log('[mockLocalStorage] setItem', ...args)
+  setItem: vi.fn(() => {
     return undefined
   }),
-  removeItem: vi.fn((...args) => {
-    console.log('[mockLocalStorage] removeItem', ...args)
+  removeItem: vi.fn(() => {
     return undefined
   }),
   clear: vi.fn(() => {
-    console.log('[mockLocalStorage] clear')
     return undefined
   }),
 };
@@ -68,11 +65,11 @@ describe('useValidatedLocalStorage', () => {
     mockLocalStorage.setItem.mockReset();
     mockLocalStorage.removeItem.mockReset();
     mockLocalStorage.getItem.mockReturnValue(null);
-    mockNeedsMigration.mockReset();
-    mockNeedsMigration.mockReturnValue(false);
-    mockMigrateData.mockReset();
-    mockMigrateData.mockImplementation((_key, data) => data);
-    mockCreateBackup.mockReset();
+    (mockNeedsMigration as any).mockReset();
+    (mockNeedsMigration as any).mockReturnValue(false);
+    (mockMigrateData as any).mockReset();
+    (mockMigrateData as any).mockImplementation((_key, data) => data);
+    (mockCreateBackup as any).mockReset();
     mockOnValidationError.mockReset();
     mockOnMigrationError.mockReset();
     // Re-define window.localStorage before each test to ensure the mock is always used
@@ -90,7 +87,6 @@ describe('useValidatedLocalStorage', () => {
       );
       expect(result.current.value).toEqual(initialValue);
       expect(mockLocalStorage.getItem).toHaveBeenCalledWith(testKey);
-      console.log('getItem calls:', mockLocalStorage.getItem.mock.calls);
     });
 
     it('should load valid data from localStorage', () => {
@@ -100,7 +96,6 @@ describe('useValidatedLocalStorage', () => {
         useValidatedLocalStorage(testKey, initialValue, testValidator, testSchema)
       );
       expect(result.current.value).toEqual(storedData);
-      console.log('getItem calls:', mockLocalStorage.getItem.mock.calls);
     });
 
     it('should use initial value for invalid stored data', () => {
@@ -116,7 +111,6 @@ describe('useValidatedLocalStorage', () => {
         expect.stringContaining('Schema validation failed'),
         testKey
       );
-      console.log('getItem calls:', mockLocalStorage.getItem.mock.calls);
     });
 
     it('should handle JSON parse errors gracefully', () => {
@@ -128,7 +122,6 @@ describe('useValidatedLocalStorage', () => {
       );
       expect(result.current.value).toEqual(initialValue);
       expect(mockOnValidationError).toHaveBeenCalled();
-      console.log('getItem calls:', mockLocalStorage.getItem.mock.calls);
     });
   });
 
@@ -138,8 +131,8 @@ describe('useValidatedLocalStorage', () => {
       const migratedData = { name: 'migrated', count: 0 };
 
       mockLocalStorage.getItem.mockImplementationOnce(() => JSON.stringify(oldData));
-      mockNeedsMigration.mockReturnValue(true);
-      mockMigrateData.mockReturnValue({ version: 1, data: migratedData });
+      (mockNeedsMigration as any).mockReturnValue(true);
+      (mockMigrateData as any).mockReturnValue({ version: 1, data: migratedData });
 
       const { result } = renderHook(() =>
         useValidatedLocalStorage(testKey, initialValue, testValidator, testSchema, {
@@ -155,8 +148,8 @@ describe('useValidatedLocalStorage', () => {
       const oldData = { name: 'old', version: 1 };
 
       mockLocalStorage.getItem.mockImplementationOnce(() => JSON.stringify(oldData));
-      mockNeedsMigration.mockReturnValue(true);
-      mockMigrateData.mockImplementation(() => {
+      (mockNeedsMigration as any).mockReturnValue(true);
+      (mockMigrateData as any).mockImplementation(() => {
         throw new Error('Migration failed');
       });
 
@@ -175,7 +168,7 @@ describe('useValidatedLocalStorage', () => {
       const oldData = { name: 'old', version: 1 };
 
       mockLocalStorage.getItem.mockImplementationOnce(() => JSON.stringify(oldData));
-      mockNeedsMigration.mockReturnValue(true);
+      (mockNeedsMigration as any).mockReturnValue(true);
 
       renderHook(() =>
         useValidatedLocalStorage(testKey, initialValue, testValidator, testSchema, {
@@ -202,7 +195,6 @@ describe('useValidatedLocalStorage', () => {
         testKey,
         JSON.stringify(newValue)
       );
-      console.log('setItem calls:', mockLocalStorage.setItem.mock.calls);
     });
 
     it('should create backup before setting new value', () => {
@@ -218,8 +210,6 @@ describe('useValidatedLocalStorage', () => {
         result.current.setValue(newValue);
       });
       expect(mockCreateBackup).toHaveBeenCalledWith(testKey, existingValue);
-      console.log('getItem calls:', mockLocalStorage.getItem.mock.calls);
-      console.log('setItem calls:', mockLocalStorage.setItem.mock.calls);
     });
 
     it('should reject invalid values', () => {
@@ -257,7 +247,6 @@ describe('useValidatedLocalStorage', () => {
         'Storage quota exceeded',
         testKey
       );
-      console.log('setItem calls:', mockLocalStorage.setItem.mock.calls);
     });
   });
 
@@ -303,7 +292,6 @@ describe('useValidatedLocalStorage', () => {
       });
       // After revalidate, value should be updated to the fixed data
       expect(result.current.value).toEqual({ name: 'fixed', count: 5 });
-      console.log('getItem calls:', mockLocalStorage.getItem.mock.calls);
     });
   });
 
@@ -324,7 +312,6 @@ describe('useValidatedLocalStorage', () => {
       // After clear, value should be reset to initialValue
       expect(result.current.value).toEqual(initialValue);
       expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(testKey);
-      console.log('removeItem calls:', mockLocalStorage.removeItem.mock.calls);
     });
 
     it('should create backup before clearing', () => {
@@ -339,8 +326,6 @@ describe('useValidatedLocalStorage', () => {
         result.current.clearValue();
       });
       expect(mockCreateBackup).toHaveBeenCalledWith(testKey, storedData);
-      console.log('getItem calls:', mockLocalStorage.getItem.mock.calls);
-      console.log('removeItem calls:', mockLocalStorage.removeItem.mock.calls);
     });
 
     it('should handle clear errors gracefully', () => {
@@ -357,7 +342,6 @@ describe('useValidatedLocalStorage', () => {
       });
       // onValidationError should be called with the error
       expect(mockOnValidationError).toHaveBeenCalledWith('Clear failed', testKey);
-      console.log('removeItem calls:', mockLocalStorage.removeItem.mock.calls);
     });
   });
 

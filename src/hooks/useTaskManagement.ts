@@ -3,6 +3,7 @@ import { Task, UseTaskManagementReturn, TaskDeletionStrategy, TaskHierarchy } fr
 import { ServiceFactory } from '../services';
 import { useAsyncError } from './useAsyncError';
 import { useNotification } from '../contexts/NotificationContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 export function useTaskManagement(): UseTaskManagementReturn {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -10,6 +11,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
   const taskService = ServiceFactory.getTaskService();
   const { executeAsync } = useAsyncError();
   const { showError, showSuccess } = useNotification();
+  const { checkTaskLimit } = useSubscription();
 
   // Load tasks on mount
   useEffect(() => {
@@ -32,6 +34,13 @@ export function useTaskManagement(): UseTaskManagementReturn {
   const addTask = useCallback(async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     return executeAsync(
       async () => {
+        // Check subscription task limit before creating
+        const limitCheck = await checkTaskLimit(tasks);
+        if (!limitCheck.canAddTask) {
+          showError(limitCheck.reason || 'Cannot add more tasks with current subscription');
+          return null;
+        }
+
         const newTask = await taskService.createTask(taskData);
         setTasks(prev => [...prev, newTask]);
         showSuccess(`Task "${newTask.name}" created successfully!`);
@@ -42,7 +51,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
         errorHandler: () => showError('Failed to create task. Please try again.')
       }
     );
-  }, [taskService, executeAsync, showSuccess, showError]);
+  }, [taskService, executeAsync, showSuccess, showError, checkTaskLimit, tasks]);
 
   // Memoized task lookup maps for performance (must be defined before functions that use them)
   const taskByIdMap = useMemo(() => {

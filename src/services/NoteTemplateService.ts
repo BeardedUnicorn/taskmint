@@ -94,8 +94,6 @@ export class NoteTemplateService {
 
       // Update cache
       this.templateCache.set(newTemplate.id, newTemplate);
-
-      console.log('Template created successfully:', newTemplate);
       return newTemplate;
     } catch (error) {
       console.error('Failed to create template:', error);
@@ -140,8 +138,6 @@ export class NoteTemplateService {
 
       // Update cache
       this.templateCache.set(templateId, updatedTemplate);
-
-      console.log('Template updated successfully:', updatedTemplate);
       return updatedTemplate;
     } catch (error) {
       console.error(`Failed to update template ${templateId}:`, error);
@@ -167,7 +163,6 @@ export class NoteTemplateService {
       // Remove from cache
       this.templateCache.delete(templateId);
 
-      console.log(`Template ${templateId} deleted successfully`);
     } catch (error) {
       console.error(`Failed to delete template ${templateId}:`, error);
       throw new Error('Failed to delete note template');

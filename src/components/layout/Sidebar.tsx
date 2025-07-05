@@ -21,9 +21,10 @@ import {
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
   CalendarToday as CalendarIcon,
+  AdminPanelSettings as AdminIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'dashboard' | 'tasks' | 'time-entries' | 'reports' | 'calendar' | 'settings';
+export type SidebarView = 'dashboard' | 'tasks' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -63,6 +64,11 @@ const navigationItems = [
     id: 'settings' as SidebarView,
     label: 'Settings',
     icon: SettingsIcon,
+  },
+  {
+    id: 'admin' as SidebarView,
+    label: 'Admin',
+    icon: AdminIcon,
   },
 ];
 

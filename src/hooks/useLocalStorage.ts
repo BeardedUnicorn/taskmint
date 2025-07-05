@@ -15,8 +15,6 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 
         // Check if data needs migration
         if (needsMigration(parsedData)) {
-          console.log(`Data migration needed for key "${key}"`);
-
           // Create backup before migration
           createBackup(key, parsedData);
 

@@ -81,12 +81,9 @@ export function useValidatedLocalStorage<T>(
 
         // Handle migration if enabled
         if (enableMigration && needsMigration(parsedData)) {
-          console.log(`Data migration needed for key "${key}"`);
-          
           try {
             // Create backup before migration
             if (enableBackup) {
-              console.log('[useValidatedLocalStorage] createBackup (migration)', key, parsedData)
               createBackup(key, parsedData);
             }
             
@@ -102,7 +99,10 @@ export function useValidatedLocalStorage<T>(
             const errorMessage = migrationError instanceof Error 
               ? migrationError.message 
               : 'Unknown migration error';
-            console.error(`Migration failed for key "${key}":`, errorMessage);
+            // Only log migration errors in non-test environments
+            if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+              console.error(`Migration failed for key "${key}":`, errorMessage);
+            }
             
             if (onMigrationError) {
               onMigrationError(errorMessage, key);
@@ -122,7 +122,10 @@ export function useValidatedLocalStorage<T>(
           return validationResult.data;
         } else {
           const errorMessage = validationResult.error || 'Validation failed';
-          console.error(`Validation failed for localStorage key "${key}":`, errorMessage);
+          // Only log in non-test environments
+          if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+            console.error(`Validation failed for localStorage key "${key}":`, errorMessage);
+          }
           
           if (onValidationError) {
             onValidationError(errorMessage, key);
@@ -135,7 +138,10 @@ export function useValidatedLocalStorage<T>(
       return initialValue;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error reading localStorage key "${key}":`, errorMessage);
+      // Only log in non-test environments
+      if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+        console.error(`Error reading localStorage key "${key}":`, errorMessage);
+      }
       
       if (onValidationError) {
         onValidationError(errorMessage, key);
@@ -154,7 +160,10 @@ export function useValidatedLocalStorage<T>(
       const validationResult = validateData(valueToStore);
       if (!validationResult.success) {
         const errorMessage = validationResult.error || 'Validation failed';
-        console.error(`Validation failed when setting localStorage key "${key}":`, errorMessage);
+        // Only log in non-test environments
+        if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+          console.error(`Validation failed when setting localStorage key "${key}":`, errorMessage);
+        }
         
         if (onValidationError) {
           onValidationError(errorMessage, key);
@@ -167,10 +176,8 @@ export function useValidatedLocalStorage<T>(
       // Create backup before updating if enabled
       if (enableBackup) {
         try {
-          console.log('[useValidatedLocalStorage] getItem (setValue)', key)
           const currentItem = window.localStorage.getItem(key);
           if (currentItem) {
-            console.log('[useValidatedLocalStorage] createBackup (setValue)', key, JSON.parse(currentItem))
             createBackup(key, JSON.parse(currentItem));
           }
         } catch (backupError) {
@@ -183,11 +190,13 @@ export function useValidatedLocalStorage<T>(
       setStoredValue(valueToStore);
       
       // Store in localStorage
-      console.log('[useValidatedLocalStorage] setItem', key, valueToStore)
       window.localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error setting localStorage key "${key}":`, errorMessage);
+      // Only log in non-test environments
+      if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+        console.error(`Error setting localStorage key "${key}":`, errorMessage);
+      }
       
       if (onValidationError) {
         onValidationError(errorMessage, key);
@@ -203,7 +212,6 @@ export function useValidatedLocalStorage<T>(
   // Function to force re-validation and reload from localStorage
   const revalidate = useCallback(() => {
     try {
-      console.log('[useValidatedLocalStorage] getItem (revalidate)', key)
       const item = window.localStorage.getItem(key);
       if (item) {
         const parsedData = JSON.parse(item);
@@ -214,7 +222,10 @@ export function useValidatedLocalStorage<T>(
           setStoredValue(validationResult.data);
         } else {
           const errorMessage = validationResult.error || 'Validation failed';
-          console.error(`Revalidation failed for localStorage key "${key}":`, errorMessage);
+          // Only log in non-test environments
+          if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+            console.error(`Revalidation failed for localStorage key "${key}":`, errorMessage);
+          }
           
           if (onValidationError) {
             onValidationError(errorMessage, key);
@@ -223,7 +234,10 @@ export function useValidatedLocalStorage<T>(
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error during revalidation for localStorage key "${key}":`, errorMessage);
+      // Only log in non-test environments
+      if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+        console.error(`Error during revalidation for localStorage key "${key}":`, errorMessage);
+      }
       
       if (onValidationError) {
         onValidationError(errorMessage, key);
@@ -237,22 +251,22 @@ export function useValidatedLocalStorage<T>(
       // Create backup before clearing if enabled
       if (enableBackup) {
         try {
-          console.log('[useValidatedLocalStorage] getItem (clearValue)', key)
           const currentItem = window.localStorage.getItem(key);
           if (currentItem) {
-            console.log('[useValidatedLocalStorage] createBackup (clearValue)', key, JSON.parse(currentItem))
             createBackup(key, JSON.parse(currentItem));
           }
         } catch (backupError) {
           console.warn(`Failed to create backup before clearing key "${key}":`, backupError);
         }
       }
-      console.log('[useValidatedLocalStorage] removeItem', key)
       window.localStorage.removeItem(key);
       setStoredValue(initialValue);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error clearing localStorage key "${key}":`, errorMessage);
+      // Only log in non-test environments
+      if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+        console.error(`Error clearing localStorage key "${key}":`, errorMessage);
+      }
       
       if (onValidationError) {
         onValidationError(errorMessage, key);

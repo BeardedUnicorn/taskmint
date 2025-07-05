@@ -79,8 +79,6 @@ export class StorageService implements IStorageService {
       // Only attempt migration if parsedData is not null or if null is a valid state for this key
       // For most cases, null should not be migrated unless it's explicitly a valid stored value
       if (parsedData !== null && needsMigration(parsedData)) {
-        console.log(`Data migration needed for key "${key}"`);
-
         // Create backup before migration
         await this.createBackup(key);
 

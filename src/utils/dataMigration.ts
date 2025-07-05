@@ -100,14 +100,20 @@ export function migrateData(key: string, data: any): any {
       return data;
     }
 
-    console.log(`Migrating data for key "${key}" from version ${currentVersion} to ${CURRENT_DATA_VERSION}`);
+    // Only log migration info in non-test environments
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`Migrating data for key "${key}" from version ${currentVersion} to ${CURRENT_DATA_VERSION}`);
+    }
 
     // Apply migrations sequentially
     let migratedData = data;
     const applicableMigrations = migrations.filter(m => m.version > currentVersion);
 
     for (const migration of applicableMigrations) {
-      console.log(`Applying migration ${migration.version}: ${migration.description}`);
+      // Only log migration steps in non-test environments
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`Applying migration ${migration.version}: ${migration.description}`);
+      }
       try {
         migratedData = migration.migrate(migratedData);
       } catch (error) {
@@ -116,7 +122,10 @@ export function migrateData(key: string, data: any): any {
       }
     }
 
-    console.log(`Successfully migrated data for key "${key}" to version ${CURRENT_DATA_VERSION}`);
+    // Only log success in non-test environments
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`Successfully migrated data for key "${key}" to version ${CURRENT_DATA_VERSION}`);
+    }
     return migratedData;
 
   } catch (error) {
@@ -196,7 +205,10 @@ export function createBackup(key: string, data: any): void {
     };
     
     localStorage.setItem(backupKey, JSON.stringify(backupData));
-    console.log(`Created backup for "${key}" as "${backupKey}"`);
+    // Only log backup creation in non-test environments
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`Created backup for "${key}" as "${backupKey}"`);
+    }
     
     // Clean up old backups (keep only the last 5)
     cleanupOldBackups(key);
@@ -231,7 +243,10 @@ function cleanupOldBackups(key: string): void {
     const backupsToRemove = backupKeys.slice(5);
     for (const backupKey of backupsToRemove) {
       localStorage.removeItem(backupKey);
-      console.log(`Removed old backup: ${backupKey}`);
+      // Only log backup removal in non-test environments
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`Removed old backup: ${backupKey}`);
+      }
     }
   } catch (error) {
     console.error('Failed to cleanup old backups:', error);
@@ -277,7 +292,10 @@ export function restoreFromBackup(backupKey: string): any {
     }
     
     const parsed = JSON.parse(backupData);
-    console.log(`Restored data from backup: ${backupKey}`);
+    // Only log restore in non-test environments
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`Restored data from backup: ${backupKey}`);
+    }
     return parsed.data;
   } catch (error) {
     console.error(`Failed to restore from backup "${backupKey}":`, error);
