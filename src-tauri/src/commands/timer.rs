@@ -8,6 +8,7 @@ use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub fn update_timer_state(
+    app: AppHandle,
     app_state: State<AppState>,
     is_running: bool,
     task_name: String,
@@ -26,6 +27,13 @@ pub fn update_timer_state(
         };
         timer_state.elapsed_ms = elapsed_ms;
     })?;
+    
+    // Immediately update the tray menu to reflect the new timer state
+    if let Err(e) = crate::tray::update_tray_menu(&app, &*app_state) {
+        eprintln!("Failed to update tray menu after timer state change: {:?}", e);
+        // Don't fail the command if tray update fails, just log the error
+    }
+    
     Ok(())
 }
 

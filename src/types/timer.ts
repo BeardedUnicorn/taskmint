@@ -76,7 +76,7 @@ export interface CalendarViewProps {
 export interface UseSystemTrayProps {
   activeEntry: TimeEntry | null;
   timeEntries: TimeEntry[];
-  onStartTimer: (taskName: string, startTime: Date) => void;
+  onStartTimer: (taskName: string, startTime: Date) => Promise<void>;
   onStopTimer: () => void;
   onShowNewTaskDialog: () => void;
 }

@@ -88,14 +88,14 @@ export class TimerService implements ITimerService {
         date: formatDateString(now),
       };
 
-      // Update Tauri backend state
-      await this.updateTauriTimerState(newEntry);
-
       // Set as active timer
       this.activeTimer = newEntry;
 
       // Save to storage
       await this.saveTimeEntry(newEntry);
+
+      // Update Tauri backend state (this will also trigger tray menu update)
+      await this.updateTauriTimerState(newEntry);
 
           return newEntry;
         } catch (error) {

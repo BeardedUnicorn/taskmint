@@ -188,20 +188,17 @@ export function useSystemTray({
     };
   }, [onStartTimer, onStopTimer, onShowNewTaskDialog, showError]);
 
-  // Update backend state when frontend state changes (with throttling)
+  // Update backend state when frontend state changes
   useEffect(() => {
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastUpdateRef.current;
-
-    // Only update if activeEntry actually changed or enough time has passed
+    // Only update if activeEntry actually changed
     const activeEntryChanged =
       prevActiveEntryRef.current?.id !== activeEntry?.id ||
       prevActiveEntryRef.current?.isRunning !== activeEntry?.isRunning;
 
-    if (activeEntryChanged || timeSinceLastUpdate > 5000) { // Throttle to max once per 5 seconds
+    if (activeEntryChanged) {
       updateTimerState();
       prevActiveEntryRef.current = activeEntry;
-      lastUpdateRef.current = now;
+      lastUpdateRef.current = Date.now();
     }
   }, [activeEntry, updateTimerState]);
 

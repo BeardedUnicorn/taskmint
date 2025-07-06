@@ -160,7 +160,7 @@ function App() {
   // ============================================================================
 
   // System tray handlers
-  const handleStartTimerFromTray = (taskName: string, startTime: Date) => {
+  const handleStartTimerFromTray = async (taskName: string, startTime: Date) => {
     const entry: TimeEntry = {
       id: Date.now().toString(),
       taskName,
@@ -170,7 +170,21 @@ function App() {
     };
 
     setActiveEntry(entry);
-    handleUpdateActiveEntry(entry);
+    await handleUpdateActiveEntry(entry);
+
+    // Immediately synchronize timer state with Tauri backend
+    try {
+      await invoke('update_timer_state', {
+        isRunning: true,
+        taskName: entry.taskName,
+        startTime: entry.startTime instanceof Date
+          ? entry.startTime.toISOString()
+          : entry.startTime,
+        elapsedMs: 0,
+      });
+    } catch (error) {
+      console.error('Failed to sync new timer state with backend:', error);
+    }
   };
 
   const handleStopTimerFromTray = () => {
@@ -289,7 +303,7 @@ interface AppContentProps {
   newTaskDialogOpen: boolean;
   setNewTaskDialogOpen: (open: boolean) => void;
   handleStopActiveTimer: () => void;
-  handleStartTimerFromTray: (taskName: string, startTime: Date) => void;
+  handleStartTimerFromTray: (taskName: string, startTime: Date) => Promise<void>;
   handleStopTimerFromTray: () => void;
   handleShowNewTaskDialog: () => void;
   handleStartNewTask: (taskName: string) => void;
