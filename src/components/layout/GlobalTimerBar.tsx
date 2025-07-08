@@ -13,6 +13,8 @@ import {
   PlayArrow as PlayIcon,
   Stop as StopIcon,
   Timer as TimerIcon,
+  Notes as NotesIcon,
+  NoteAdd as NoteAddIcon,
 } from '@mui/icons-material';
 import { TimeEntry } from '../../types/timer';
 import { Task } from '../../types/task';
@@ -25,6 +27,8 @@ interface GlobalTimerBarProps {
   timeEntries: TimeEntry[];
   onStart: (taskName: string) => void;
   onStop: () => void;
+  onOpenNotes?: () => void;
+  onOpenTaskNote?: () => void;
 }
 
 export function GlobalTimerBar({
@@ -32,6 +36,8 @@ export function GlobalTimerBar({
   predefinedTasks,
   onStart,
   onStop,
+  onOpenNotes,
+  onOpenTaskNote,
 }: Omit<GlobalTimerBarProps, 'timeEntries'>) {
   const [selectedTask, setSelectedTask] = useState<string>('');
   const [inputValue, setInputValue] = useState<string>('');
@@ -176,6 +182,22 @@ export function GlobalTimerBar({
             color: 'secondary.contrastText'
           }}
         />
+        <Button
+          variant="outlined"
+          startIcon={<NotesIcon />}
+          onClick={onOpenNotes}
+          sx={{ color: 'secondary.contrastText', borderColor: 'secondary.contrastText' }}
+        >
+          Notes
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<NoteAddIcon />}
+          onClick={onOpenTaskNote}
+          sx={{ color: 'secondary.contrastText', borderColor: 'secondary.contrastText' }}
+        >
+          Task Note
+        </Button>
         
         <Button
           variant="contained"

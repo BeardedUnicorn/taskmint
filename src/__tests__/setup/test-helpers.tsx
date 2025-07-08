@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { NotificationProvider } from '@/contexts/NotificationContext';
+import { NotificationProvider } from '../../contexts/NotificationContext';
 
 const theme = createTheme();
 

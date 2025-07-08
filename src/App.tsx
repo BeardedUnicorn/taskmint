@@ -33,6 +33,7 @@ const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(m
 const AdminPage = lazy(() => import('./components/pages/AdminPage').then(module => ({ default: module.AdminPage })));
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
+import { TaskNote } from './types/notes';
 
 import { useSystemTray } from './hooks/useSystemTray';
 import { useTaskManagement } from './hooks/useTaskManagement';
@@ -40,6 +41,7 @@ import { useTimerSettings } from './hooks/useTimerSettings';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
 import { TimerService } from './services/TimerService';
 import { StorageService } from './services/StorageService';
+import { TaskNotesService } from './services/TaskNotesService';
 import { invoke } from '@tauri-apps/api/core';
 
 
@@ -55,6 +57,7 @@ function App() {
   // Navigation state
   const [activeView, setActiveView] = useState<SidebarView>('dashboard');
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
+  const [notesPageState, setNotesPageState] = useState<{ filterTaskId: string | null; openNoteId: string | null }>({ filterTaskId: null, openNoteId: null });
 
   // Initialize services
   const storageService = useMemo(() => StorageService.getInstance(), []);
@@ -208,6 +211,9 @@ function App() {
   // Handle view changes from sidebar
   const handleViewChange = (view: SidebarView) => {
     setActiveView(view);
+    if (view !== 'notes') {
+      setNotesPageState({ filterTaskId: null, openNoteId: null });
+    }
   };
 
   // Handle timer start from global timer bar
@@ -272,23 +278,25 @@ function App() {
       <ThemeProvider>
         <NotificationProvider>
           <SubscriptionProvider>
-            <AppContent
-              timeEntries={timeEntries}
-              activeEntry={activeEntry}
-              activeView={activeView}
-              newTaskDialogOpen={newTaskDialogOpen}
-              setNewTaskDialogOpen={setNewTaskDialogOpen}
-              handleStopActiveTimer={handleStopActiveTimer}
-              handleStartTimerFromTray={handleStartTimerFromTray}
-              handleStopTimerFromTray={handleStopTimerFromTray}
-              handleShowNewTaskDialog={handleShowNewTaskDialog}
-              handleStartNewTask={handleStartNewTask}
-              handleViewChange={handleViewChange}
-              handleStartTimer={handleStartTimer}
-              handleUpdateEntry={handleUpdateEntry}
-              handleDeleteEntry={handleDeleteEntry}
-              handleBulkDeleteEntries={handleBulkDeleteEntries}
-            />
+          <AppContent
+            timeEntries={timeEntries}
+            activeEntry={activeEntry}
+            activeView={activeView}
+            newTaskDialogOpen={newTaskDialogOpen}
+            setNewTaskDialogOpen={setNewTaskDialogOpen}
+            handleStopActiveTimer={handleStopActiveTimer}
+            handleStartTimerFromTray={handleStartTimerFromTray}
+            handleStopTimerFromTray={handleStopTimerFromTray}
+            handleShowNewTaskDialog={handleShowNewTaskDialog}
+            handleStartNewTask={handleStartNewTask}
+            handleViewChange={handleViewChange}
+            handleStartTimer={handleStartTimer}
+            handleUpdateEntry={handleUpdateEntry}
+            handleDeleteEntry={handleDeleteEntry}
+            handleBulkDeleteEntries={handleBulkDeleteEntries}
+            notesPageState={notesPageState}
+            setNotesPageState={setNotesPageState}
+          />
           </SubscriptionProvider>
         </NotificationProvider>
       </ThemeProvider>
@@ -313,6 +321,8 @@ interface AppContentProps {
   handleUpdateEntry: (entry: TimeEntry) => Promise<void>;
   handleDeleteEntry: (entryId: string) => Promise<void>;
   handleBulkDeleteEntries: (entryIds: string[]) => Promise<void>;
+  notesPageState: { filterTaskId: string | null; openNoteId: string | null };
+  setNotesPageState: (state: { filterTaskId: string | null; openNoteId: string | null }) => void;
 }
 
 function AppContent({
@@ -331,9 +341,11 @@ function AppContent({
   handleUpdateEntry,
   handleDeleteEntry,
   handleBulkDeleteEntries,
+  notesPageState,
+  setNotesPageState,
 }: AppContentProps) {
   // Task management - now inside NotificationProvider
-  const { tasks, addTask, updateTask, deleteTask } = useTaskManagement();
+  const { tasks, addTask, updateTask, deleteTask, getTaskByName, getTaskById } = useTaskManagement();
 
   // Notification context for error handling
   const { showSuccess, showError } = useNotification();
@@ -357,6 +369,61 @@ function AppContent({
     } catch (error) {
       console.error('Failed to delete time entries:', error);
       showError('Failed to delete time entries. Please try again.');
+    }
+  };
+  const onOpenNotes = async () => {
+    if (!activeEntry) return;
+    let task = getTaskByName(activeEntry.taskName);
+    if (!task) {
+      const newTask = await addTask({ name: activeEntry.taskName });
+      if (!newTask) {
+        showError('Failed to create task for the active timer.');
+        return;
+      }
+      task = newTask;
+    }
+    const taskId = task.id;
+    setNotesPageState({ filterTaskId: taskId, openNoteId: null });
+    handleViewChange('notes');
+  };
+  const onOpenTaskNote = async () => {
+    if (!activeEntry) return;
+    let task = getTaskByName(activeEntry.taskName);
+    if (!task) {
+      const newTask = await addTask({ name: activeEntry.taskName });
+      if (!newTask) {
+        showError('Failed to create task for the active timer.');
+        return;
+      }
+      task = newTask;
+    }
+    const taskId = task.id;
+    const notesService = TaskNotesService.getInstance();
+    const timeEntryNotes = await notesService.getNotesByTimeEntryId(activeEntry.id);
+    let note: TaskNote | null = timeEntryNotes[0] || null;
+    if (!note) {
+      const defaultTemplateId = task.defaultNoteTemplateId || null;
+      if (!defaultTemplateId) {
+        showError('No default note template set for this task.');
+        return;
+      }
+      const noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'> = {
+        taskId,
+        templateId: defaultTemplateId,
+        templateName: '',
+        fieldValues: {},
+        timeEntryId: activeEntry.id,
+      };
+      try {
+        note = await notesService.createNote(noteData);
+      } catch (error) {
+        showError('Failed to create task note.');
+        return;
+      }
+    }
+    if (note) {
+      setNotesPageState({ filterTaskId: taskId, openNoteId: note.id });
+      handleViewChange('notes');
     }
   };
 
@@ -408,6 +475,8 @@ function AppContent({
                 predefinedTasks={tasks}
                 onStart={handleStartTimer}
                 onStop={handleStopActiveTimer}
+                onOpenNotes={onOpenNotes}
+                onOpenTaskNote={onOpenTaskNote}
               />
             </Box>
 
@@ -443,6 +512,7 @@ function AppContent({
                   <NotesPage
                     tasks={tasks}
                     activeEntry={activeEntry}
+                    notesPageState={notesPageState}
                   />
                 )}
 
