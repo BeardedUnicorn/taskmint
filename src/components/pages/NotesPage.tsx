@@ -29,7 +29,6 @@ import {
   Add as AddIcon,
   Search as SearchIcon,
   Notes as NotesIcon,
-  FilterList as FilterIcon,
 } from '@mui/icons-material';
 import { Task } from '../../types/task';
 import { TimeEntry } from '../../types/timer';
@@ -62,7 +61,6 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
     updateNote,
     deleteNote,
     searchNotes,
-    sortNotes,
   } = useTaskNotes() as any; // Type assertion for extended methods
 
   // Hooks for templates
