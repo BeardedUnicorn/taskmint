@@ -25,6 +25,7 @@ import { Sidebar, GlobalTimerBar, type SidebarView } from './components/layout';
 // Lazy load page components for code splitting
 const DashboardPage = lazy(() => import('./components/pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
+const NotesPage = lazy(() => import('./components/pages/NotesPage').then(module => ({ default: module.NotesPage })));
 const TimeEntriesPage = lazy(() => import('./components/pages/TimeEntriesPage').then(module => ({ default: module.TimeEntriesPage })));
 const ReportsPage = lazy(() => import('./components/pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
 const CalendarPage = lazy(() => import('./components/pages/CalendarPage'));
@@ -435,6 +436,13 @@ function AppContent({
                     onDeleteTask={deleteTask}
                     onUpdateEntry={handleUpdateEntryWithFeedback}
                     onDeleteEntry={handleDeleteEntryWithFeedback}
+                  />
+                )}
+
+                {activeView === 'notes' && (
+                  <NotesPage
+                    tasks={tasks}
+                    activeEntry={activeEntry}
                   />
                 )}
 

@@ -18,7 +18,6 @@ import {
 import { Task } from '../../types/task';
 import { TimeEntry } from '../../types/timer';
 import { TaskDetailPane } from './tasks/TaskDetailPane';
-import { TaskNotesIntegration } from '../features/tasks/TaskNotesIntegration';
 import { AddTaskDialog } from './tasks/AddTaskDialog';
 import { EditTaskDialog } from './tasks/EditTaskDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
@@ -125,6 +124,12 @@ export function TasksPage({
 
     const startTime = new Date(data.startTime);
     const endTime = new Date(data.endTime);
+
+    // Validate dates
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+      console.error('Invalid date values provided');
+      return;
+    }
 
     const updatedEntry: TimeEntry = {
       ...editingEntry,
@@ -241,14 +246,12 @@ export function TasksPage({
         )}
       </Box>
 
-      {/* Two-Pane Layout: Time Worked (50%) + Notes (50%) */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', px: 3, pb: 3, gap: 2 }}>
-        {/* Pane 1 - Time Worked */}
+      {/* Main Content - Time Worked */}
+      <Box sx={{ flex: 1, overflow: 'hidden', px: 3, pb: 3 }}>
         <Paper
           elevation={1}
           sx={{
-            flexBasis: '50%',
-            minWidth: 0,
+            height: '100%',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -277,42 +280,7 @@ export function TasksPage({
                   Select a Task
                 </Typography>
                 <Typography variant="body2">
-                  Select a task to view details and time entries.
-                </Typography>
-              </Alert>
-            </Box>
-          )}
-        </Paper>
-
-        {/* Pane 2 - Notes */}
-        <Paper
-          elevation={1}
-          sx={{
-            flexBasis: '50%',
-            minWidth: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          {selectedTask ? (
-            <TaskNotesIntegration task={selectedTask} />
-          ) : (
-            <Box
-              sx={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                p: 4,
-              }}
-            >
-              <Alert severity="info" sx={{ maxWidth: 350 }}>
-                <Typography variant="h6" gutterBottom>
-                  Task Notes
-                </Typography>
-                <Typography variant="body2">
-                  Select a task to manage notes.
+                  Select a task to view details and time entries. For notes management, visit the Notes page.
                 </Typography>
               </Alert>
             </Box>
@@ -355,15 +323,19 @@ export function TasksPage({
           entry={{
             id: editingEntry.id,
             taskName: editingEntry.taskName,
-            startTime: (editingEntry.startTime instanceof Date
-              ? editingEntry.startTime
-              : new Date(editingEntry.startTime)
-            ).toISOString().slice(0, 16),
+            startTime: (() => {
+              const date = editingEntry.startTime instanceof Date
+                ? editingEntry.startTime
+                : new Date(editingEntry.startTime);
+              return isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 16);
+            })(),
             endTime: editingEntry.endTime
-              ? (editingEntry.endTime instanceof Date
-                  ? editingEntry.endTime
-                  : new Date(editingEntry.endTime)
-                ).toISOString().slice(0, 16)
+              ? (() => {
+                  const date = editingEntry.endTime instanceof Date
+                    ? editingEntry.endTime
+                    : new Date(editingEntry.endTime);
+                  return isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 16);
+                })()
               : '',
           }}
           tasks={tasks}

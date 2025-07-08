@@ -15,6 +15,7 @@ import {
 import {
   Dashboard as DashboardIcon,
   Task as TaskIcon,
+  Notes as NotesIcon,
   AccessTime as TimeEntriesIcon,
   BarChart as BarChartIcon,
   Settings as SettingsIcon,
@@ -24,7 +25,7 @@ import {
   AdminPanelSettings as AdminIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'dashboard' | 'tasks' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';
+export type SidebarView = 'dashboard' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -44,6 +45,11 @@ const navigationItems = [
     id: 'tasks' as SidebarView,
     label: 'Tasks',
     icon: TaskIcon,
+  },
+  {
+    id: 'notes' as SidebarView,
+    label: 'Notes',
+    icon: NotesIcon,
   },
   {
     id: 'time-entries' as SidebarView,
