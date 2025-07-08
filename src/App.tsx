@@ -345,7 +345,7 @@ function AppContent({
   setNotesPageState,
 }: AppContentProps) {
   // Task management - now inside NotificationProvider
-  const { tasks, addTask, updateTask, deleteTask, getTaskByName, getTaskById } = useTaskManagement();
+  const { tasks, addTask, updateTask, deleteTask, getTaskByName } = useTaskManagement();
 
   // Notification context for error handling
   const { showSuccess, showError } = useNotification();
