@@ -5,8 +5,10 @@
  * These mocks allow tests to run without the actual Tauri runtime.
  */
 
+import { vi } from 'vitest';
+
 // Mock for @tauri-apps/api/core
-export const invoke = vi.fn().mockImplementation((command: string, _args?: any) => {
+export const invoke = vi.fn().mockImplementation((command: string, args?: any) => {
   switch (command) {
     case 'start_timer':
       return Promise.resolve();
@@ -25,6 +27,10 @@ export const invoke = vi.fn().mockImplementation((command: string, _args?: any) 
         total_duration_ms: 0,
         task_count: 0,
       });
+    case 'export_data_to_file':
+      // Mock successful export with a fake file path
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      return Promise.resolve(`/mock/path/taskmint_export_${timestamp}.json`);
     default:
       return Promise.resolve();
   }

@@ -84,6 +84,7 @@ pub fn run() {
             // Backup commands
             commands::backup::validate_backup_path,
             commands::backup::perform_automatic_backup,
+            commands::backup::export_data_to_file,
             
             // Google Drive commands
             commands::google_drive::get_auth_url,
