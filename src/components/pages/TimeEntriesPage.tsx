@@ -29,6 +29,7 @@ import {
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { formatDateTimeLocal } from '../../utils/dateHelpers';
 
 interface TimeEntriesPageProps {
   timeEntries: TimeEntry[];
@@ -113,8 +114,8 @@ export function TimeEntriesPage({
   const handleSaveEdit = (data: EditTimeEntryData) => {
     if (!editingEntry) return;
 
-    const startTime = new Date(data.startTime);
-    const endTime = new Date(data.endTime);
+    const startTime = new Date(data.startTime.replace('T', ' ') + ':00');
+    const endTime = new Date(data.endTime.replace('T', ' ') + ':00');
 
     const updatedEntry: TimeEntry = {
       ...editingEntry,
@@ -290,16 +291,8 @@ export function TimeEntriesPage({
           entry={{
             id: editingEntry.id,
             taskName: editingEntry.taskName,
-            startTime: (editingEntry.startTime instanceof Date
-              ? editingEntry.startTime
-              : new Date(editingEntry.startTime)
-            ).toISOString().slice(0, 16),
-            endTime: editingEntry.endTime
-              ? (editingEntry.endTime instanceof Date
-                  ? editingEntry.endTime
-                  : new Date(editingEntry.endTime)
-                ).toISOString().slice(0, 16)
-              : '',
+            startTime: formatDateTimeLocal(editingEntry.startTime),
+            endTime: editingEntry.endTime ? formatDateTimeLocal(editingEntry.endTime) : '',
           }}
           tasks={tasks}
           onSave={handleSaveEdit}

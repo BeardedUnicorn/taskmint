@@ -50,8 +50,8 @@ export function EditTimeEntryDialog({
     }
 
     if (formData.startTime && formData.endTime) {
-      const startTime = new Date(formData.startTime);
-      const endTime = new Date(formData.endTime);
+    const startTime = new Date(formData.startTime.replace('T', ' ') + ':00');
+    const endTime = new Date(formData.endTime.replace('T', ' ') + ':00');
       
       if (endTime <= startTime) {
         newErrors.endTime = 'End time must be after start time';
@@ -64,8 +64,8 @@ export function EditTimeEntryDialog({
 
   const handleSubmit = () => {
     if (validateForm()) {
-      const startTime = new Date(formData.startTime);
-      const endTime = new Date(formData.endTime);
+      const startTime = new Date(formData.startTime.replace('T', ' ') + ':00');
+      const endTime = new Date(formData.endTime.replace('T', ' ') + ':00');
       const duration = endTime.getTime() - startTime.getTime();
 
       onSave({
