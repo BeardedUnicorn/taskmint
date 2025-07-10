@@ -2,7 +2,7 @@
  * Tests for enhanced notes types including new field types
  */
 
-// import { z } from 'zod'; // Commented out unused import
+import { describe, it, expect } from 'vitest';
 import {
   TemplateFieldSchema,
   SelectOptionSchema,
@@ -260,6 +260,9 @@ describe('Enhanced Notes Types', () => {
           checkbox_field: true,
           select_field: 'option_a',
         },
+        timeEntryId: null,
+        isArchived: false,
+        archivedAt: null,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
       };
@@ -277,6 +280,9 @@ describe('Enhanced Notes Types', () => {
           checkbox_field: false,
           another_checkbox: true,
         },
+        timeEntryId: null,
+        isArchived: false,
+        archivedAt: null,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
       };

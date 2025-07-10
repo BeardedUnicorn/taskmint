@@ -189,6 +189,58 @@ export function migrateTasks(data: any): any {
   }
 }
 
+/**
+ * Migrate and validate task notes data
+ */
+export function migrateTaskNotes(data: any): any {
+  try {
+    // First migrate the data structure
+    const migratedData = migrateData('taskNotes', data);
+    
+    // Extract the actual notes from the versioned data structure
+    const notes = migratedData.version ? migratedData.data : migratedData;
+    
+    // Ensure notes is an array
+    if (!Array.isArray(notes)) {
+      console.warn('Task notes data is not an array, returning empty array');
+      return migratedData.version ? { ...migratedData, data: [] } : [];
+    }
+
+    // Migrate each note to include archive fields if missing
+    const migratedNotes = notes.map((note: any) => {
+      if (typeof note !== 'object' || note === null) {
+        return note;
+      }
+
+      // Add archive fields if they don't exist
+      const migratedNote = {
+        ...note,
+        isArchived: note.isArchived ?? false,
+        archivedAt: note.archivedAt ?? null,
+      };
+
+      return migratedNote;
+    });
+
+    // Only log migration in non-test environments
+    if (process.env.NODE_ENV !== 'test' && migratedNotes.length > 0) {
+      const notesWithoutArchiveFields = notes.filter((note: any) => 
+        typeof note === 'object' && note !== null && 
+        (note.isArchived === undefined || note.archivedAt === undefined)
+      ).length;
+      
+      if (notesWithoutArchiveFields > 0) {
+        console.log(`Migrated ${notesWithoutArchiveFields} task notes to include archive fields`);
+      }
+    }
+
+    return migratedData.version ? { ...migratedData, data: migratedNotes } : migratedNotes;
+  } catch (error) {
+    console.error('Task notes migration failed:', error);
+    return [];
+  }
+}
+
 
 
 /**

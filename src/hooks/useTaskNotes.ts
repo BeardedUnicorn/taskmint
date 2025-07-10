@@ -97,6 +97,46 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
   }, [notesService, executeAsync]);
 
   /**
+   * Archive a note
+   */
+  const archiveNote = useCallback(async (noteId: string): Promise<TaskNote> => {
+    return executeAsync(async () => {
+      setError(null);
+      
+      const archivedNote = await notesService.archiveNote(noteId);
+      
+      // Update local state
+      setNotes(prev => 
+        prev.map(note => 
+          note.id === noteId ? archivedNote : note
+        )
+      );
+      
+      return archivedNote;
+    });
+  }, [notesService, executeAsync]);
+
+  /**
+   * Unarchive a note
+   */
+  const unarchiveNote = useCallback(async (noteId: string): Promise<TaskNote> => {
+    return executeAsync(async () => {
+      setError(null);
+      
+      const unarchivedNote = await notesService.unarchiveNote(noteId);
+      
+      // Update local state
+      setNotes(prev => 
+        prev.map(note => 
+          note.id === noteId ? unarchivedNote : note
+        )
+      );
+      
+      return unarchivedNote;
+    });
+  }, [notesService, executeAsync]);
+
+  /**
    * Get notes by task ID
    */
   const getNotesByTaskId = useCallback((targetTaskId: string): TaskNote[] => {
@@ -227,6 +267,34 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
   }, [notes]);
 
   /**
+   * Get active (non-archived) notes
+   */
+  const getActiveNotes = useCallback((): TaskNote[] => {
+    return notes.filter(note => !note.isArchived);
+  }, [notes]);
+
+  /**
+   * Get archived notes
+   */
+  const getArchivedNotes = useCallback((): TaskNote[] => {
+    return notes.filter(note => note.isArchived);
+  }, [notes]);
+
+  /**
+   * Get active notes by task ID
+   */
+  const getActiveNotesByTaskId = useCallback((targetTaskId: string): TaskNote[] => {
+    return notes.filter(note => note.taskId === targetTaskId && !note.isArchived);
+  }, [notes]);
+
+  /**
+   * Get archived notes by task ID
+   */
+  const getArchivedNotesByTaskId = useCallback((targetTaskId: string): TaskNote[] => {
+    return notes.filter(note => note.taskId === targetTaskId && note.isArchived);
+  }, [notes]);
+
+  /**
    * Validate note field values
    */
   const validateNoteData = useCallback(async (
@@ -271,6 +339,8 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
     createNote,
     updateNote,
     deleteNote,
+    archiveNote,
+    unarchiveNote,
     getNotesByTaskId,
     getNotesByTimeEntryId,
     getNoteById,
@@ -283,9 +353,15 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
     searchNotes,
     sortNotes,
     getRecentNotes,
+    getActiveNotes,
+    getArchivedNotes,
+    getActiveNotesByTaskId,
+    getArchivedNotesByTaskId,
     validateNoteData,
     refreshNotes: loadNotes,
   } as UseTaskNotesReturn & {
+    archiveNote: (noteId: string) => Promise<TaskNote>;
+    unarchiveNote: (noteId: string) => Promise<TaskNote>;
     deleteNotesByTaskId: (taskId: string) => Promise<void>;
     getNotesByTemplateId: (templateId: string) => TaskNote[];
     getNotesStats: () => {
@@ -297,6 +373,10 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
     searchNotes: (query: string) => TaskNote[];
     sortNotes: (sortBy: 'createdAt' | 'updatedAt' | 'templateName', order?: 'asc' | 'desc') => TaskNote[];
     getRecentNotes: (days?: number) => TaskNote[];
+    getActiveNotes: () => TaskNote[];
+    getArchivedNotes: () => TaskNote[];
+    getActiveNotesByTaskId: (taskId: string) => TaskNote[];
+    getArchivedNotesByTaskId: (taskId: string) => TaskNote[];
     validateNoteData: (noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ isValid: boolean; errors: Record<string, string> }>;
     refreshNotes: () => Promise<void>;
   };

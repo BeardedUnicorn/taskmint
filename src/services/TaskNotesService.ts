@@ -115,6 +115,8 @@ export class TaskNotesService {
         ...noteData,
         id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         templateName: template.name, // Cache template name
+        isArchived: false, // New notes are not archived by default
+        archivedAt: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -146,6 +148,13 @@ export class TaskNotesService {
    * Update an existing task note
    */
   async updateNote(noteId: string, updates: Partial<TaskNote>): Promise<TaskNote> {
+    return this.updateNoteInternal(noteId, updates, true);
+  }
+
+  /**
+   * Internal update method with optional template validation
+   */
+  private async updateNoteInternal(noteId: string, updates: Partial<TaskNote>, validateTemplate: boolean = true): Promise<TaskNote> {
     try {
       const notes = await this.getAllNotes();
       const noteIndex = notes.findIndex(note => note.id === noteId);
@@ -155,12 +164,15 @@ export class TaskNotesService {
       }
 
       const existingNote = notes[noteIndex];
+      let template: NoteTemplate | null = null;
 
-      // If template is being changed, validate the new template
-      const templateId = updates.templateId || existingNote.templateId;
-      const template = await this.templateService.getTemplateById(templateId);
-      if (!template) {
-        throw new Error(`Template with ID ${templateId} not found`);
+      // Only validate template if required and if template-related fields are being updated
+      if (validateTemplate && (updates.templateId || updates.fieldValues)) {
+        const templateId = updates.templateId || existingNote.templateId;
+        template = await this.templateService.getTemplateById(templateId);
+        if (!template) {
+          throw new Error(`Template with ID ${templateId} not found`);
+        }
       }
 
       // Apply updates
@@ -168,12 +180,16 @@ export class TaskNotesService {
         ...existingNote,
         ...updates,
         id: noteId, // Ensure ID doesn't change
-        templateName: template.name, // Update cached template name
         updatedAt: new Date().toISOString(),
       };
 
-      // Validate field values if they were updated
-      if (updates.fieldValues) {
+      // Update template name if template was validated
+      if (template) {
+        updatedNote.templateName = template.name;
+      }
+
+      // Validate field values if they were updated and template is available
+      if (updates.fieldValues && template) {
         const validationResult = this.validateNoteFieldValues(updatedNote.fieldValues, template);
         if (!validationResult.isValid) {
           throw new Error(`Note validation failed: ${Object.values(validationResult.errors).join(', ')}`);
@@ -320,19 +336,84 @@ export class TaskNotesService {
   }
 
   /**
+   * Archive a task note
+   */
+  async archiveNote(noteId: string): Promise<TaskNote> {
+    try {
+      const now = new Date().toISOString();
+      // Skip template validation for archive operations
+      return await this.updateNoteInternal(noteId, {
+        isArchived: true,
+        archivedAt: now,
+      }, false);
+    } catch (error) {
+      console.error(`Failed to archive note ${noteId}:`, error);
+      throw new Error('Failed to archive task note');
+    }
+  }
+
+  /**
+   * Unarchive a task note
+   */
+  async unarchiveNote(noteId: string): Promise<TaskNote> {
+    try {
+      // Skip template validation for unarchive operations
+      return await this.updateNoteInternal(noteId, {
+        isArchived: false,
+        archivedAt: null,
+      }, false);
+    } catch (error) {
+      console.error(`Failed to unarchive note ${noteId}:`, error);
+      throw new Error('Failed to unarchive task note');
+    }
+  }
+
+  /**
+   * Get active (non-archived) notes by task ID
+   */
+  async getActiveNotesByTaskId(taskId: string): Promise<TaskNote[]> {
+    try {
+      const notes = await this.getNotesByTaskId(taskId);
+      return notes.filter(note => !note.isArchived);
+    } catch (error) {
+      console.error(`Failed to get active notes for task ${taskId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get archived notes by task ID
+   */
+  async getArchivedNotesByTaskId(taskId: string): Promise<TaskNote[]> {
+    try {
+      const notes = await this.getNotesByTaskId(taskId);
+      return notes.filter(note => note.isArchived);
+    } catch (error) {
+      console.error(`Failed to get archived notes for task ${taskId}:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Get notes statistics for a task
    */
   async getTaskNotesStats(taskId: string): Promise<{
     totalNotes: number;
+    activeNotes: number;
+    archivedNotes: number;
     templatesUsed: string[];
     lastNoteDate?: string;
   }> {
     const notes = await this.getNotesByTaskId(taskId);
+    const activeNotes = notes.filter(note => !note.isArchived);
+    const archivedNotes = notes.filter(note => note.isArchived);
     const templatesUsed = [...new Set(notes.map(note => note.templateName))];
     const lastNote = notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
     return {
       totalNotes: notes.length,
+      activeNotes: activeNotes.length,
+      archivedNotes: archivedNotes.length,
       templatesUsed,
       lastNoteDate: lastNote?.updatedAt,
     };

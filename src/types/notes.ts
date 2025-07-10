@@ -50,6 +50,8 @@ export interface TaskNote {
   templateName: string; // Cached for display
   fieldValues: Record<string, any>; // Field ID -> Value mapping
   timeEntryId?: string | null; // Optional link to specific time entry
+  isArchived: boolean; // Archive status
+  archivedAt?: string | null; // When the note was archived
   createdAt: string;
   updatedAt: string;
 }
@@ -100,6 +102,8 @@ export const TaskNoteSchema = z.object({
   templateName: z.string().min(1),
   fieldValues: z.record(z.any()),
   timeEntryId: z.string().nullable().optional(),
+  isArchived: z.boolean(),
+  archivedAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -152,6 +156,8 @@ export interface NotesListProps {
   onEditNote: (note: TaskNote) => void;
   onDeleteNote: (noteId: string) => void;
   onCreateNote: () => void;
+  onArchiveNote?: (noteId: string) => void;
+  onUnarchiveNote?: (noteId: string) => void;
 }
 
 export interface FieldEditorProps {

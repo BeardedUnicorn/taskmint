@@ -413,6 +413,7 @@ function AppContent({
         templateName: '',
         fieldValues: {},
         timeEntryId: activeEntry.id,
+        isArchived: false,
       };
       try {
         note = await notesService.createNote(noteData);

@@ -12,7 +12,7 @@ import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../t
 import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
 
 import { STORAGE_KEYS } from '../constants';
-import { migrateData, createBackup, needsMigration } from '../utils/dataMigration';
+import { migrateData, createBackup, needsMigration, migrateTaskNotes } from '../utils/dataMigration';
 import { validateWithSchema } from '../utils/validation';
 import { StorageErrorClass, createStorageError } from '../types/errors';
 
@@ -245,11 +245,53 @@ export class StorageService implements IStorageService {
   }
 
   async getTaskNotes(): Promise<TaskNote[]> {
-    return await this.getItem(
-      STORAGE_KEYS.TASK_NOTES,
-      [],
-      z.array(TaskNoteSchema)
-    );
+    try {
+      const item = localStorage.getItem(STORAGE_KEYS.TASK_NOTES);
+
+      // If key is not found in localStorage, return empty array
+      if (item === null) {
+        return [];
+      }
+
+      let parsedData = JSON.parse(item);
+
+      // Use specific task notes migration
+      if (parsedData !== null) {
+        // Create backup before migration
+        await this.createBackup(STORAGE_KEYS.TASK_NOTES);
+
+        // Migrate task notes with archive fields
+        const migratedData = migrateTaskNotes(parsedData);
+
+        // Save migrated data back to localStorage
+        localStorage.setItem(STORAGE_KEYS.TASK_NOTES, JSON.stringify(migratedData));
+
+        // Extract actual data from versioned structure
+        parsedData = migratedData.version ? migratedData.data : migratedData;
+      }
+
+      // Validate data
+      const validationResult = validateWithSchema(z.array(TaskNoteSchema), parsedData);
+      if (!validationResult.success) {
+        console.error(`Validation failed for task notes:`, validationResult.error);
+        throw createStorageError('STORAGE_VALIDATION_FAILED',
+          `Data validation failed for key "${STORAGE_KEYS.TASK_NOTES}": ${validationResult.error}`,
+          { key: STORAGE_KEYS.TASK_NOTES, validationError: validationResult.error }
+        );
+      }
+
+      return validationResult.data!;
+    } catch (error) {
+      if (error instanceof StorageErrorClass) {
+        throw error;
+      }
+
+      console.error(`Failed to get task notes:`, error);
+      throw createStorageError('STORAGE_READ_FAILED',
+        `Failed to read data for key "${STORAGE_KEYS.TASK_NOTES}"`,
+        { key: STORAGE_KEYS.TASK_NOTES, originalError: error }
+      );
+    }
   }
 
   async setTaskNotes(notes: TaskNote[]): Promise<void> {

@@ -32,6 +32,8 @@ import {
   ExpandLess as CollapseIcon,
   Notes as NotesIcon,
   Schedule as TimeIcon,
+  Archive as ArchiveIcon,
+  Unarchive as UnarchiveIcon,
 } from '@mui/icons-material';
 import { NotesListProps, TaskNote } from '../../../types/notes';
 import { ConfirmDialog } from '../../ui';
@@ -43,9 +45,11 @@ interface NoteItemProps {
   note: TaskNote;
   onEdit: (note: TaskNote) => void;
   onDelete: (noteId: string) => void;
+  onArchive?: (noteId: string) => void;
+  onUnarchive?: (noteId: string) => void;
 }
 
-function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
+function NoteItem({ note, onEdit, onDelete, onArchive, onUnarchive }: NoteItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -71,6 +75,20 @@ function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
     onDelete(note.id);
     handleMenuClose();
   }, [note.id, onDelete, handleMenuClose]);
+
+  const handleArchive = useCallback(() => {
+    if (onArchive) {
+      onArchive(note.id);
+    }
+    handleMenuClose();
+  }, [note.id, onArchive, handleMenuClose]);
+
+  const handleUnarchive = useCallback(() => {
+    if (onUnarchive) {
+      onUnarchive(note.id);
+    }
+    handleMenuClose();
+  }, [note.id, onUnarchive, handleMenuClose]);
 
   const formatDate = useCallback((dateString: string) => {
     return formatRelativeDate(dateString);
@@ -139,6 +157,14 @@ function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
                 label="Time Entry"
                 size="small"
                 color="secondary"
+                variant="outlined"
+              />
+            )}
+            {note.isArchived && (
+              <Chip
+                label="Archived"
+                size="small"
+                color="warning"
                 variant="outlined"
               />
             )}
@@ -285,6 +311,22 @@ function NoteItem({ note, onEdit, onDelete }: NoteItemProps) {
           <EditIcon fontSize="small" sx={{ mr: 1 }} />
           Edit Note
         </MenuItem>
+        {note.isArchived ? (
+          onUnarchive && (
+            <MenuItem onClick={handleUnarchive}>
+              <UnarchiveIcon fontSize="small" sx={{ mr: 1 }} />
+              Unarchive Note
+            </MenuItem>
+          )
+        ) : (
+          onArchive && (
+            <MenuItem onClick={handleArchive}>
+              <ArchiveIcon fontSize="small" sx={{ mr: 1 }} />
+              Archive Note
+            </MenuItem>
+          )
+        )}
+        <Divider />
         <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
           <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
           Delete Note
@@ -299,6 +341,8 @@ export function NotesList({
   onEditNote,
   onDeleteNote,
   onCreateNote,
+  onArchiveNote,
+  onUnarchiveNote,
 }: NotesListProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
@@ -361,6 +405,8 @@ export function NotesList({
             note={note}
             onEdit={onEditNote}
             onDelete={(noteId) => setDeleteConfirm(noteId)}
+            onArchive={onArchiveNote}
+            onUnarchive={onUnarchiveNote}
           />
         ))}
       </List>

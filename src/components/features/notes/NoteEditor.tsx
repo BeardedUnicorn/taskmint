@@ -246,6 +246,7 @@ export function NoteEditor({
           templateName: selectedTemplate.name,
           fieldValues,
           timeEntryId,
+          isArchived: false,
         };
       } else {
         // Free-form note
@@ -255,6 +256,7 @@ export function NoteEditor({
           templateName: 'Free-form Note',
           fieldValues: { content: fieldValues.content || '' },
           timeEntryId,
+          isArchived: false,
         };
       }
 
