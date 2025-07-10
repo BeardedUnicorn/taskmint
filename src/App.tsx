@@ -39,7 +39,6 @@ import { useSystemTray } from './hooks/useSystemTray';
 import { useTaskManagement } from './hooks/useTaskManagement';
 import { useTimerSettings } from './hooks/useTimerSettings';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
-import { useSentryErrorHandler } from './hooks/useSentryErrorHandler';
 import { TimerService } from './services/TimerService';
 import { StorageService } from './services/StorageService';
 import { TaskNotesService } from './services/TaskNotesService';
