@@ -72,15 +72,19 @@ vi.mock('./global-mocks', async (importOriginal) => {
   };
 });
 
-vi.mock('../../utils/dateHelpers', () => ({
-  isToday: vi.fn((date: Date | string) => {
-    const today = new Date();
-    const d = new Date(date);
-    return d.getFullYear() === today.getFullYear() &&
-           d.getMonth() === today.getMonth() &&
-           d.getDate() === today.getDate();
-  }),
-}));
+vi.mock('../../utils/dateHelpers', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/dateHelpers')>('../../utils/dateHelpers');
+  return {
+    ...actual,
+    isToday: vi.fn((date: Date | string) => {
+      const today = new Date();
+      const d = new Date(date);
+      return d.getFullYear() === today.getFullYear() &&
+             d.getMonth() === today.getMonth() &&
+             d.getDate() === today.getDate();
+    }),
+  };
+});
 
 vi.mock('@/hooks/useLocalStorage', async () => {
   const actual = await vi.importActual<typeof import('@/hooks/useLocalStorage')>('@/hooks/useLocalStorage');

@@ -29,7 +29,7 @@ import {
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
-import { formatDateTimeLocal } from '../../utils/dateHelpers';
+import { formatDateTimeLocal, formatDateString } from '../../utils/dateHelpers';
 
 interface TimeEntriesPageProps {
   timeEntries: TimeEntry[];
@@ -114,8 +114,10 @@ export function TimeEntriesPage({
   const handleSaveEdit = (data: EditTimeEntryData) => {
     if (!editingEntry) return;
 
-    const startTime = new Date(data.startTime.replace('T', ' ') + ':00');
-    const endTime = new Date(data.endTime.replace('T', ' ') + ':00');
+    // Parse datetime-local values as local time and convert to UTC for storage
+    // The datetime-local input provides time in the user's local timezone
+    const startTime = new Date(data.startTime);
+    const endTime = new Date(data.endTime);
 
     const updatedEntry: TimeEntry = {
       ...editingEntry,
@@ -123,7 +125,7 @@ export function TimeEntriesPage({
       startTime,
       endTime,
       duration: endTime.getTime() - startTime.getTime(),
-      date: startTime.toISOString().split('T')[0],
+      date: formatDateString(startTime), // Use local timezone for date calculation
     };
 
     onUpdateEntry(updatedEntry);
