@@ -44,6 +44,7 @@ import { TimerService } from './services/TimerService';
 import { StorageService } from './services/StorageService';
 import { TaskNotesService } from './services/TaskNotesService';
 import { invoke } from '@tauri-apps/api/core';
+import { createServiceErrorHandler } from './utils/errorHandler';
 
 
 function App() {
@@ -67,8 +68,8 @@ function App() {
   // Timer settings hook
   const { roundingOption } = useTimerSettings();
 
-  // Sentry error handler
-  const { handleError, logInfo } = useSentryErrorHandler();
+  // App-level error handler
+  const appErrorHandler = useMemo(() => createServiceErrorHandler('App'), []);
 
   // ============================================================================
   // EFFECTS & INITIALIZATION
@@ -77,10 +78,10 @@ function App() {
   // Load time entries on app start
   useEffect(() => {
     const loadTimeEntries = async () => {
-      try {
+      await appErrorHandler.handleAsync(async () => {
         const entries = await timerService.getTimeEntries();
         setTimeEntries(entries);
-        logInfo('Time entries loaded successfully', { count: entries.length });
+        appErrorHandler.logInfo(`Time entries loaded successfully`, 'loadTimeEntries', { count: entries.length });
 
         // Find and set active entry
         const runningEntry = entries.find(entry => entry.isRunning);
@@ -98,24 +99,19 @@ function App() {
                 : runningEntry.startTime,
               elapsedMs: elapsedMs,
             });
-            logInfo('Timer state synchronized with backend', { taskName: runningEntry.taskName });
+            appErrorHandler.logInfo('Timer state synchronized with backend', 'loadTimeEntries', { taskName: runningEntry.taskName });
           } catch (error) {
-            const errorObj = error instanceof Error ? error : new Error(String(error));
-            handleError(errorObj, { 
-              context: 'timer_sync',
+            appErrorHandler.handleError(error, 'syncTimerState', { 
               taskName: runningEntry.taskName,
               elapsedMs: elapsedMs 
             });
           }
         }
-      } catch (error) {
-        const errorObj = error instanceof Error ? error : new Error(String(error));
-        handleError(errorObj, { context: 'load_time_entries' });
-      }
+      }, 'loadTimeEntries');
     };
 
     loadTimeEntries();
-  }, [timerService, handleError, logInfo]);
+  }, [timerService, appErrorHandler]);
 
   // ============================================================================
   // TIMER MANAGEMENT HANDLERS
@@ -126,7 +122,7 @@ function App() {
   const handleUpdateActiveEntry = async (entry: TimeEntry | null) => {
     setActiveEntry(entry);
     if (entry) {
-      try {
+      await appErrorHandler.handleAsync(async () => {
         await timerService.saveTimeEntry(entry);
 
         // Update local state
@@ -140,15 +136,18 @@ function App() {
             return [...prev, entry];
           }
         });
-      } catch (error) {
-        console.error('Failed to update active entry:', error);
-      }
+
+        appErrorHandler.logInfo('Active entry updated successfully', 'handleUpdateActiveEntry', { 
+          entryId: entry.id,
+          taskName: entry.taskName 
+        });
+      }, 'handleUpdateActiveEntry', { entryId: entry.id, taskName: entry.taskName });
     }
   };
 
   const handleStopActiveTimer = async () => {
     if (activeEntry && activeEntry.id) {
-      try {
+      await appErrorHandler.handleAsync(async () => {
         // Use TimerService to stop timer with rounding option
         const stoppedEntry = await timerService.stopTimer(activeEntry.id, roundingOption);
 
@@ -165,9 +164,11 @@ function App() {
         });
 
         setActiveEntry(null);
-      } catch (error) {
-        console.error('Failed to stop timer:', error);
-      }
+        appErrorHandler.logInfo('Timer stopped successfully', 'handleStopActiveTimer', { 
+          entryId: activeEntry.id,
+          taskName: activeEntry.taskName 
+        });
+      }, 'handleStopActiveTimer', { entryId: activeEntry.id, taskName: activeEntry.taskName });
     }
   };
 
@@ -236,7 +237,7 @@ function App() {
 
   // Handle entry updates and deletions for dashboard
   const handleUpdateEntry = async (updatedEntry: TimeEntry) => {
-    try {
+    await appErrorHandler.handleAsync(async () => {
       await timerService.updateTimeEntry(updatedEntry.id, updatedEntry);
 
       // Update local state
@@ -250,25 +251,27 @@ function App() {
           return [...prev, updatedEntry];
         }
       });
-    } catch (error) {
-      console.error('Failed to update time entry:', error);
-    }
+
+      appErrorHandler.logInfo('Time entry updated successfully', 'handleUpdateEntry', { 
+        entryId: updatedEntry.id,
+        taskName: updatedEntry.taskName 
+      });
+    }, 'handleUpdateEntry', { entryId: updatedEntry.id, taskName: updatedEntry.taskName });
   };
 
   const handleDeleteEntry = async (entryId: string) => {
-    try {
+    await appErrorHandler.handleAsync(async () => {
       await timerService.deleteTimeEntry(entryId);
 
       // Update local state only after successful deletion
       setTimeEntries(prev => prev.filter(entry => entry.id !== entryId));
-    } catch (error) {
-      console.error('Failed to delete time entry:', error);
-      // Note: Error handling will be improved in AppContent component
-    }
+
+      appErrorHandler.logInfo('Time entry deleted successfully', 'handleDeleteEntry', { entryId });
+    }, 'handleDeleteEntry', { entryId });
   };
 
   const handleBulkDeleteEntries = async (entryIds: string[]) => {
-    try {
+    await appErrorHandler.handleAsync(async () => {
       // Delete entries one by one
       for (const entryId of entryIds) {
         await timerService.deleteTimeEntry(entryId);
@@ -276,9 +279,12 @@ function App() {
 
       // Update local state only after successful deletion
       setTimeEntries(prev => prev.filter(entry => !entryIds.includes(entry.id)));
-    } catch (error) {
-      console.error('Failed to delete time entries:', error);
-    }
+
+      appErrorHandler.logInfo(`Bulk deleted ${entryIds.length} time entries`, 'handleBulkDeleteEntries', { 
+        count: entryIds.length,
+        entryIds 
+      });
+    }, 'handleBulkDeleteEntries', { data: { entryIds } });
   };
 
   // ============================================================================

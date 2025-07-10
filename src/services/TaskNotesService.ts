@@ -9,12 +9,14 @@ import { TaskNote, TaskNoteSchema, NoteTemplate } from '../types/notes';
 import { StorageService } from './StorageService';
 import { NoteTemplateService } from './NoteTemplateService';
 import { validateWithSchema } from '../utils/validation';
+import { createServiceErrorHandler } from '../utils/errorHandler';
 
 export class TaskNotesService {
   private static instance: TaskNotesService;
   private storageService: StorageService;
   private templateService: NoteTemplateService;
   private notesCache = new Map<string, TaskNote>();
+  private errorHandler = createServiceErrorHandler('TaskNotesService');
 
   constructor() {
     this.storageService = StorageService.getInstance();
@@ -32,7 +34,7 @@ export class TaskNotesService {
    * Get all task notes
    */
   async getAllNotes(): Promise<TaskNote[]> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const notes = await this.storageService.getTaskNotes();
       
       // Update cache
@@ -41,63 +43,65 @@ export class TaskNotesService {
         this.notesCache.set(note.id, note);
       });
 
+      this.errorHandler.logInfo(`Loaded ${notes.length} notes`, 'getAllNotes');
       return notes;
-    } catch (error) {
-      console.error('Failed to get task notes:', error);
-      throw new Error('Failed to load task notes');
-    }
+    }, 'getAllNotes');
   }
 
   /**
    * Get notes by task ID
    */
   async getNotesByTaskId(taskId: string): Promise<TaskNote[]> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const notes = await this.getAllNotes();
-      return notes.filter(note => note.taskId === taskId);
-    } catch (error) {
-      console.error(`Failed to get notes for task ${taskId}:`, error);
-      return [];
-    }
+      const filteredNotes = notes.filter(note => note.taskId === taskId);
+      this.errorHandler.logInfo(`Found ${filteredNotes.length} notes for task`, 'getNotesByTaskId', { taskId });
+      return filteredNotes;
+    }, 'getNotesByTaskId', { taskId });
   }
 
   /**
    * Get notes by time entry ID
    */
   async getNotesByTimeEntryId(timeEntryId: string): Promise<TaskNote[]> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const notes = await this.getAllNotes();
-      return notes.filter(note => note.timeEntryId === timeEntryId);
-    } catch (error) {
-      console.error(`Failed to get notes for time entry ${timeEntryId}:`, error);
-      return [];
-    }
+      const filteredNotes = notes.filter(note => note.timeEntryId === timeEntryId);
+      this.errorHandler.logInfo(`Found ${filteredNotes.length} notes for time entry`, 'getNotesByTimeEntryId', { timeEntryId });
+      return filteredNotes;
+    }, 'getNotesByTimeEntryId', { entryId: timeEntryId });
   }
 
   /**
    * Get note by ID
    */
   async getNoteById(noteId: string): Promise<TaskNote | null> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       // Check cache first
       if (this.notesCache.has(noteId)) {
+        this.errorHandler.logInfo('Note found in cache', 'getNoteById', { noteId });
         return this.notesCache.get(noteId)!;
       }
 
       // Load from storage
       const notes = await this.getAllNotes();
-      return notes.find(note => note.id === noteId) || null;
-    } catch (error) {
-      console.error(`Failed to get note ${noteId}:`, error);
-      return null;
-    }
+      const note = notes.find(note => note.id === noteId) || null;
+      
+      if (note) {
+        this.errorHandler.logInfo('Note found in storage', 'getNoteById', { noteId });
+      } else {
+        this.errorHandler.logWarning('Note not found', 'getNoteById', { noteId });
+      }
+      
+      return note;
+    }, 'getNoteById', { noteId });
   }
 
   /**
    * Create a new task note
    */
   async createNote(noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       // Validate template exists
       const template = await this.templateService.getTemplateById(noteData.templateId);
       if (!template) {
@@ -134,14 +138,19 @@ export class TaskNotesService {
 
       // Update cache
       this.notesCache.set(newNote.id, newNote);
+      
+      this.errorHandler.logInfo('Note created successfully', 'createNote', { 
+        noteId: newNote.id, 
+        taskId: noteData.taskId,
+        templateId: noteData.templateId 
+      });
+      
       return newNote;
-    } catch (error) {
-      // Only log errors in non-test environments
-      if (process.env.NODE_ENV !== 'test') {
-        console.error('Failed to create note:', error);
-      }
-      throw new Error('Failed to create task note');
-    }
+    }, 'createNote', { 
+      taskId: noteData.taskId, 
+      templateId: noteData.templateId,
+      timeEntryId: noteData.timeEntryId || undefined 
+    });
   }
 
   /**
@@ -155,7 +164,7 @@ export class TaskNotesService {
    * Internal update method with optional template validation
    */
   private async updateNoteInternal(noteId: string, updates: Partial<TaskNote>, validateTemplate: boolean = true): Promise<TaskNote> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const notes = await this.getAllNotes();
       const noteIndex = notes.findIndex(note => note.id === noteId);
 
@@ -209,19 +218,23 @@ export class TaskNotesService {
       // Update cache
       this.notesCache.set(noteId, updatedNote);
 
+      this.errorHandler.logInfo('Note updated successfully', 'updateNoteInternal', { 
+        noteId, 
+        taskId: updatedNote.taskId,
+        templateValidation: validateTemplate 
+      });
+
       return updatedNote;
-    } catch (error) {
-      console.error(`Failed to update note ${noteId}:`, error);
-      throw new Error('Failed to update task note');
-    }
+    }, 'updateNoteInternal', { noteId, taskId: updates.taskId });
   }
 
   /**
    * Delete a task note
    */
   async deleteNote(noteId: string): Promise<void> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const notes = await this.getAllNotes();
+      const noteToDelete = notes.find(note => note.id === noteId);
       const filteredNotes = notes.filter(note => note.id !== noteId);
 
       if (filteredNotes.length === notes.length) {
@@ -233,33 +246,36 @@ export class TaskNotesService {
 
       // Remove from cache
       this.notesCache.delete(noteId);
-    } catch (error) {
-      console.error(`Failed to delete note ${noteId}:`, error);
-      throw new Error('Failed to delete task note');
-    }
+
+      this.errorHandler.logInfo('Note deleted successfully', 'deleteNote', { 
+        noteId,
+        taskId: noteToDelete?.taskId 
+      });
+    }, 'deleteNote', { noteId });
   }
 
   /**
    * Delete all notes for a specific task
    */
   async deleteNotesByTaskId(taskId: string): Promise<void> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const notes = await this.getAllNotes();
+      const notesToDelete = notes.filter(note => note.taskId === taskId);
       const filteredNotes = notes.filter(note => note.taskId !== taskId);
 
       // Save updated list
       await this.storageService.setTaskNotes(filteredNotes);
 
       // Remove from cache
-      notes.forEach(note => {
-        if (note.taskId === taskId) {
-          this.notesCache.delete(note.id);
-        }
+      notesToDelete.forEach(note => {
+        this.notesCache.delete(note.id);
       });
-    } catch (error) {
-      console.error(`Failed to delete notes for task ${taskId}:`, error);
-      throw new Error('Failed to delete task notes');
-    }
+
+      this.errorHandler.logInfo(`Deleted ${notesToDelete.length} notes for task`, 'deleteNotesByTaskId', { 
+        taskId,
+        deletedCount: notesToDelete.length 
+      });
+    }, 'deleteNotesByTaskId', { taskId });
   }
 
   /**
@@ -339,59 +355,57 @@ export class TaskNotesService {
    * Archive a task note
    */
   async archiveNote(noteId: string): Promise<TaskNote> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const now = new Date().toISOString();
       // Skip template validation for archive operations
-      return await this.updateNoteInternal(noteId, {
+      const archivedNote = await this.updateNoteInternal(noteId, {
         isArchived: true,
         archivedAt: now,
       }, false);
-    } catch (error) {
-      console.error(`Failed to archive note ${noteId}:`, error);
-      throw new Error('Failed to archive task note');
-    }
+
+      this.errorHandler.logInfo('Note archived successfully', 'archiveNote', { noteId });
+      return archivedNote;
+    }, 'archiveNote', { noteId });
   }
 
   /**
    * Unarchive a task note
    */
   async unarchiveNote(noteId: string): Promise<TaskNote> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       // Skip template validation for unarchive operations
-      return await this.updateNoteInternal(noteId, {
+      const unarchivedNote = await this.updateNoteInternal(noteId, {
         isArchived: false,
         archivedAt: null,
       }, false);
-    } catch (error) {
-      console.error(`Failed to unarchive note ${noteId}:`, error);
-      throw new Error('Failed to unarchive task note');
-    }
+
+      this.errorHandler.logInfo('Note unarchived successfully', 'unarchiveNote', { noteId });
+      return unarchivedNote;
+    }, 'unarchiveNote', { noteId });
   }
 
   /**
    * Get active (non-archived) notes by task ID
    */
   async getActiveNotesByTaskId(taskId: string): Promise<TaskNote[]> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const notes = await this.getNotesByTaskId(taskId);
-      return notes.filter(note => !note.isArchived);
-    } catch (error) {
-      console.error(`Failed to get active notes for task ${taskId}:`, error);
-      return [];
-    }
+      const activeNotes = notes.filter(note => !note.isArchived);
+      this.errorHandler.logInfo(`Found ${activeNotes.length} active notes for task`, 'getActiveNotesByTaskId', { taskId });
+      return activeNotes;
+    }, 'getActiveNotesByTaskId', { taskId });
   }
 
   /**
    * Get archived notes by task ID
    */
   async getArchivedNotesByTaskId(taskId: string): Promise<TaskNote[]> {
-    try {
+    return this.errorHandler.handleAsync(async () => {
       const notes = await this.getNotesByTaskId(taskId);
-      return notes.filter(note => note.isArchived);
-    } catch (error) {
-      console.error(`Failed to get archived notes for task ${taskId}:`, error);
-      return [];
-    }
+      const archivedNotes = notes.filter(note => note.isArchived);
+      this.errorHandler.logInfo(`Found ${archivedNotes.length} archived notes for task`, 'getArchivedNotesByTaskId', { taskId });
+      return archivedNotes;
+    }, 'getArchivedNotesByTaskId', { taskId });
   }
 
   /**
@@ -404,18 +418,27 @@ export class TaskNotesService {
     templatesUsed: string[];
     lastNoteDate?: string;
   }> {
-    const notes = await this.getNotesByTaskId(taskId);
-    const activeNotes = notes.filter(note => !note.isArchived);
-    const archivedNotes = notes.filter(note => note.isArchived);
-    const templatesUsed = [...new Set(notes.map(note => note.templateName))];
-    const lastNote = notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+    return this.errorHandler.handleAsync(async () => {
+      const notes = await this.getNotesByTaskId(taskId);
+      const activeNotes = notes.filter(note => !note.isArchived);
+      const archivedNotes = notes.filter(note => note.isArchived);
+      const templatesUsed = [...new Set(notes.map(note => note.templateName))];
+      const lastNote = notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
-    return {
-      totalNotes: notes.length,
-      activeNotes: activeNotes.length,
-      archivedNotes: archivedNotes.length,
-      templatesUsed,
-      lastNoteDate: lastNote?.updatedAt,
-    };
+      const stats = {
+        totalNotes: notes.length,
+        activeNotes: activeNotes.length,
+        archivedNotes: archivedNotes.length,
+        templatesUsed,
+        lastNoteDate: lastNote?.updatedAt,
+      };
+
+      this.errorHandler.logInfo('Generated task notes statistics', 'getTaskNotesStats', { 
+        taskId,
+        ...stats 
+      });
+
+      return stats;
+    }, 'getTaskNotesStats', { taskId });
   }
 }
