@@ -60,3 +60,37 @@ pub async fn export_data_to_file(
         None => Err("Export cancelled by user".to_string()),
     }
 }
+
+#[tauri::command]
+pub async fn import_data_from_file(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri_plugin_dialog::DialogExt;
+    
+    // Create an open dialog
+    let file_path = app
+        .dialog()
+        .file()
+        .set_title("Import Data")
+        .add_filter("JSON Files", &["json"])
+        .blocking_pick_file();
+
+    match file_path {
+        Some(file_path) => {
+            // Get the path as a string
+            let path_str = file_path.to_string();
+            let path = std::path::Path::new(&path_str);
+            
+            // Read the data from the selected file
+            match std::fs::read_to_string(&path) {
+                Ok(file_contents) => {
+                    // Validate that it's valid JSON
+                    match serde_json::from_str::<serde_json::Value>(&file_contents) {
+                        Ok(_) => Ok(file_contents),
+                        Err(e) => Err(format!("Invalid JSON file: {}", e)),
+                    }
+                }
+                Err(e) => Err(format!("Failed to read import file: {}", e)),
+            }
+        }
+        None => Err("Import cancelled by user".to_string()),
+    }
+}

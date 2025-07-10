@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { StorageService } from '../services/StorageService';
+import { Task } from '../types/task';
+import { NoteTemplate, TaskNote } from '../types/notes';
+import { DailyGoalAchievement } from '../types/goal';
 
 interface UseDataBackupProps {
   onExportSuccess?: () => void;
@@ -88,19 +91,137 @@ export const useDataBackup = ({
     }
   };
 
-  const importData = async (mode: string) => {
+  const importData = async (mode: 'merge' | 'replace' = 'merge') => {
     if (isImporting) return;
     
     setIsImporting(true);
     
     try {
-      // TODO: Implement import functionality
-      // For now, just simulate success
-      console.log(`Import mode: ${mode}`);
-      onImportSuccess?.({});
+      // Call Tauri command to show open dialog and get file contents
+      const fileContents = await invoke<string>('import_data_from_file');
+      
+      // Parse the imported data
+      const importedData = JSON.parse(fileContents);
+      
+      // Validate the imported data structure
+      if (!importedData.data) {
+        throw new Error('Invalid backup file format: missing data section');
+      }
+      
+      const storageService = StorageService.getInstance();
+      
+      // Import each data type
+      const { data } = importedData;
+      
+      // Handle time entries
+      if (data.timeEntries && Array.isArray(data.timeEntries)) {
+        if (mode === 'replace') {
+          await storageService.setTimeEntries(data.timeEntries);
+        } else {
+          // Merge mode: get existing entries and merge
+          const existingEntries = await storageService.getTimeEntries();
+          const mergedEntries = [...existingEntries, ...data.timeEntries];
+          await storageService.setTimeEntries(mergedEntries);
+        }
+      } else if (mode === 'replace') {
+        await storageService.setTimeEntries([]);
+      }
+      
+      // Handle tasks
+      if (data.tasks && Array.isArray(data.tasks)) {
+        if (mode === 'replace') {
+          await storageService.setTasks(data.tasks);
+        } else {
+          // Merge mode: get existing tasks and merge (avoid duplicates by id)
+          const existingTasks = await storageService.getTasks();
+          const existingTaskIds = new Set(existingTasks.map(t => t.id));
+          const newTasks = data.tasks.filter((t: Task) => !existingTaskIds.has(t.id));
+          const mergedTasks = [...existingTasks, ...newTasks];
+          await storageService.setTasks(mergedTasks);
+        }
+      } else if (mode === 'replace') {
+        await storageService.setTasks([]);
+      }
+      
+      // Handle note templates
+      if (data.noteTemplates && Array.isArray(data.noteTemplates)) {
+        if (mode === 'replace') {
+          await storageService.setNoteTemplates(data.noteTemplates);
+        } else {
+          // Merge mode: get existing templates and merge (avoid duplicates by id)
+          const existingTemplates = await storageService.getNoteTemplates();
+          const existingTemplateIds = new Set(existingTemplates.map(t => t.id));
+          const newTemplates = data.noteTemplates.filter((t: NoteTemplate) => !existingTemplateIds.has(t.id));
+          const mergedTemplates = [...existingTemplates, ...newTemplates];
+          await storageService.setNoteTemplates(mergedTemplates);
+        }
+      } else if (mode === 'replace') {
+        await storageService.setNoteTemplates([]);
+      }
+      
+      // Handle task notes
+      if (data.taskNotes && Array.isArray(data.taskNotes)) {
+        if (mode === 'replace') {
+          await storageService.setTaskNotes(data.taskNotes);
+        } else {
+          // Merge mode: get existing notes and merge (avoid duplicates by id)
+          const existingNotes = await storageService.getTaskNotes();
+          const existingNoteIds = new Set(existingNotes.map(n => n.id));
+          const newNotes = data.taskNotes.filter((n: TaskNote) => !existingNoteIds.has(n.id));
+          const mergedNotes = [...existingNotes, ...newNotes];
+          await storageService.setTaskNotes(mergedNotes);
+        }
+      } else if (mode === 'replace') {
+        await storageService.setTaskNotes([]);
+      }
+      
+      // Handle daily goal
+      if (data.dailyGoal) {
+        await storageService.setDailyGoal(data.dailyGoal);
+      }
+      
+      // Handle goal achievements
+      if (data.goalAchievements && Array.isArray(data.goalAchievements)) {
+        if (mode === 'replace') {
+          await storageService.setGoalAchievements(data.goalAchievements);
+        } else {
+          // Merge mode: get existing achievements and merge (avoid duplicates by date)
+          const existingAchievements = await storageService.getGoalAchievements();
+          const existingDates = new Set(existingAchievements.map(a => a.date));
+          const newAchievements = data.goalAchievements.filter((a: DailyGoalAchievement) => !existingDates.has(a.date));
+          const mergedAchievements = [...existingAchievements, ...newAchievements];
+          await storageService.setGoalAchievements(mergedAchievements);
+        }
+      } else if (mode === 'replace') {
+        await storageService.setGoalAchievements([]);
+      }
+      
+      console.log('Data imported successfully');
+      onImportSuccess?.({ 
+        mode,
+        importedCounts: {
+          timeEntries: data.timeEntries?.length || 0,
+          tasks: data.tasks?.length || 0,
+          noteTemplates: data.noteTemplates?.length || 0,
+          taskNotes: data.taskNotes?.length || 0,
+          goalAchievements: data.goalAchievements?.length || 0
+        }
+      });
+      
     } catch (error) {
       console.error('Import failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to import data';
+      let errorMessage = 'Failed to import data';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('cancelled by user')) {
+          errorMessage = 'Import cancelled';
+        } else if (error.message.includes('Invalid JSON')) {
+          errorMessage = 'Invalid file format. Please select a valid TaskMint export file.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       onImportError?.(errorMessage);
     } finally {
       setIsImporting(false);
