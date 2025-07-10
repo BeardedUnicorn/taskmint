@@ -39,6 +39,7 @@ import { useSystemTray } from './hooks/useSystemTray';
 import { useTaskManagement } from './hooks/useTaskManagement';
 import { useTimerSettings } from './hooks/useTimerSettings';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
+import { useSentryErrorHandler } from './hooks/useSentryErrorHandler';
 import { TimerService } from './services/TimerService';
 import { StorageService } from './services/StorageService';
 import { TaskNotesService } from './services/TaskNotesService';
@@ -66,6 +67,9 @@ function App() {
   // Timer settings hook
   const { roundingOption } = useTimerSettings();
 
+  // Sentry error handler
+  const { handleError, logInfo } = useSentryErrorHandler();
+
   // ============================================================================
   // EFFECTS & INITIALIZATION
   // ============================================================================
@@ -76,6 +80,7 @@ function App() {
       try {
         const entries = await timerService.getTimeEntries();
         setTimeEntries(entries);
+        logInfo('Time entries loaded successfully', { count: entries.length });
 
         // Find and set active entry
         const runningEntry = entries.find(entry => entry.isRunning);
@@ -83,8 +88,8 @@ function App() {
           setActiveEntry(runningEntry);
 
           // Synchronize timer state with Tauri backend
+          const elapsedMs = Date.now() - new Date(runningEntry.startTime).getTime();
           try {
-            const elapsedMs = Date.now() - new Date(runningEntry.startTime).getTime();
             await invoke('update_timer_state', {
               isRunning: true,
               taskName: runningEntry.taskName,
@@ -93,17 +98,24 @@ function App() {
                 : runningEntry.startTime,
               elapsedMs: elapsedMs,
             });
+            logInfo('Timer state synchronized with backend', { taskName: runningEntry.taskName });
           } catch (error) {
-            console.error('Failed to sync timer state with backend:', error);
+            const errorObj = error instanceof Error ? error : new Error(String(error));
+            handleError(errorObj, { 
+              context: 'timer_sync',
+              taskName: runningEntry.taskName,
+              elapsedMs: elapsedMs 
+            });
           }
         }
       } catch (error) {
-        console.error('Failed to load time entries:', error);
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        handleError(errorObj, { context: 'load_time_entries' });
       }
     };
 
     loadTimeEntries();
-  }, [timerService]);
+  }, [timerService, handleError, logInfo]);
 
   // ============================================================================
   // TIMER MANAGEMENT HANDLERS

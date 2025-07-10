@@ -21,6 +21,12 @@ const mockStorageService = {
   getTaskNotes: vi.fn(),
   getDailyGoal: vi.fn(),
   getGoalAchievements: vi.fn(),
+  setTimeEntries: vi.fn(),
+  setTasks: vi.fn(),
+  setNoteTemplates: vi.fn(),
+  setTaskNotes: vi.fn(),
+  setDailyGoal: vi.fn(),
+  setGoalAchievements: vi.fn(),
 };
 
 // Mock the Tauri invoke function
@@ -311,15 +317,52 @@ describe('useDataBackup', () => {
 
   describe('importData', () => {
     it('should set isImporting state correctly', async () => {
+      // Mock the Tauri invoke to return valid JSON data
+      const validJsonData = JSON.stringify({
+        version: '1.0',
+        exportDate: '2023-01-01T10:00:00.000Z',
+        data: {
+          timeEntries: [],
+          tasks: [],
+          noteTemplates: [],
+          taskNotes: [],
+          dailyGoal: null,
+          goalAchievements: []
+        }
+      });
+      
+      (invoke as any).mockResolvedValue(validJsonData);
+
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
       await act(async () => {
         await result.current.importData('merge');
       });
 
-      expect(mockCallbacks.onImportSuccess).toHaveBeenCalledWith({});
+      expect(mockCallbacks.onImportSuccess).toHaveBeenCalledWith({
+        mode: 'merge',
+        importedCounts: {
+          timeEntries: 0,
+          tasks: 0,
+          noteTemplates: 0,
+          taskNotes: 0,
+          goalAchievements: 0
+        }
+      });
     });
 
+    it('should handle invalid JSON data', async () => {
+      // Mock the Tauri invoke to return invalid JSON
+      (invoke as any).mockResolvedValue('invalid json');
+
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      await act(async () => {
+        await result.current.importData('merge');
+      });
+
+      expect(mockCallbacks.onImportError).toHaveBeenCalledWith(expect.stringContaining('not valid JSON'));
+    });
   });
 
   describe('error handling', () => {

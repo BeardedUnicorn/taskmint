@@ -17,6 +17,7 @@ import {
   BugReport as BugReportIcon,
   Autorenew as AutorenewIcon,
 } from '@mui/icons-material';
+import { captureException, addBreadcrumb, setContext } from '../utils/sentry';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -95,8 +96,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   private logErrorToService = (error: Error, errorInfo: ErrorInfo) => {
-    // This is where you would send the error to your error reporting service
-    // For now, we'll just log it to the console with additional context
+    // Prepare error context for Sentry
     const errorReport = {
       message: error.message,
       stack: error.stack,
@@ -104,17 +104,32 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       timestamp: new Date().toISOString(),
       userAgent: navigator.userAgent,
       url: window.location.href,
+      recoveryAttempts: this.state.recoveryAttempts,
     };
 
     console.error('Error Report:', errorReport);
 
-    // Example: Send to error reporting service
-    // errorReportingService.captureException(error, {
-    //   extra: errorReport,
-    //   tags: {
-    //     component: 'ErrorBoundary',
-    //   },
-    // });
+    // Add breadcrumb for error context
+    addBreadcrumb(
+      'Error caught by ErrorBoundary',
+      'error',
+      'error',
+      {
+        errorMessage: error.message,
+        recoveryAttempts: this.state.recoveryAttempts,
+      }
+    );
+
+    // Set additional context for this error
+    setContext('errorBoundary', {
+      componentStack: errorInfo.componentStack,
+      recoveryAttempts: this.state.recoveryAttempts,
+      maxRecoveryAttempts: this.state.maxRecoveryAttempts,
+      timestamp: errorReport.timestamp,
+    });
+
+    // Send error to Sentry
+    captureException(error, errorReport);
   };
 
   private handleRetry = () => {
