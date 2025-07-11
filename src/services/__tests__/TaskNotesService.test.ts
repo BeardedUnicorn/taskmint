@@ -124,13 +124,13 @@ describe('TaskNotesService', () => {
     it('should throw error when archiving non-existent note', async () => {
       mockStorageService.getTaskNotes.mockResolvedValue([]);
 
-      await expect(service.archiveNote('nonexistent')).rejects.toThrow('Failed to archive task note');
+      await expect(service.archiveNote('nonexistent')).rejects.toThrow('Note with ID nonexistent not found');
     });
 
     it('should throw error when unarchiving non-existent note', async () => {
       mockStorageService.getTaskNotes.mockResolvedValue([]);
 
-      await expect(service.unarchiveNote('nonexistent')).rejects.toThrow('Failed to unarchive task note');
+      await expect(service.unarchiveNote('nonexistent')).rejects.toThrow('Note with ID nonexistent not found');
     });
   });
 
@@ -244,7 +244,7 @@ describe('TaskNotesService', () => {
 
       mockTemplateService.getTemplateById.mockResolvedValue(null);
 
-      await expect(service.createNote(noteData)).rejects.toThrow('Failed to create task note');
+      await expect(service.createNote(noteData)).rejects.toThrow('Template with ID nonexistent not found');
     });
   });
 

@@ -75,26 +75,56 @@ const CalendarPage: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [entries, allTasks] = await Promise.all([
-        timerService.getTimeEntries(),
-        taskService.getAllTasks(),
-      ]);
-      setTimeEntries(entries);
-      setTasks(allTasks);
-      setLoading(false);
+      try {
+        const [entries, allTasks] = await Promise.all([
+          timerService.getTimeEntries(),
+          taskService.getAllTasks(),
+        ]);
+        setTimeEntries(entries);
+        setTasks(allTasks);
+      } catch (error) {
+        console.error('Error fetching calendar data:', error);
+        // Set empty arrays as fallback
+        setTimeEntries([]);
+        setTasks([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [timerService, taskService]);
 
   const dailyData = useMemo(() => {
+    // Calculate earnings for all days that have time entries
     const dailyEarned: Record<string, number> = {};
     timeEntries.forEach(entry => {
       const dateKey = format(new Date(entry.date), 'yyyy-MM-dd');
       dailyEarned[dateKey] = (dailyEarned[dateKey] || 0) + calculateEntryEarnings(entry, tasks);
     });
 
-    return Object.keys(dailyEarned).map(dateStr => {
-      const earned = dailyEarned[dateStr];
+    // Generate all days in the current month view
+    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    
+    // Get the start of the calendar view (may include days from previous month)
+    const startOfCalendar = new Date(startOfMonth);
+    startOfCalendar.setDate(startOfCalendar.getDate() - startOfMonth.getDay());
+    
+    // Get the end of the calendar view (may include days from next month)
+    const endOfCalendar = new Date(endOfMonth);
+    endOfCalendar.setDate(endOfCalendar.getDate() + (6 - endOfMonth.getDay()));
+    
+    const allDates: string[] = [];
+    const current = new Date(startOfCalendar);
+    
+    while (current <= endOfCalendar) {
+      allDates.push(format(current, 'yyyy-MM-dd'));
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Create data for all dates in the calendar view
+    return allDates.map(dateStr => {
+      const earned = dailyEarned[dateStr] || 0;
       const transferableDate = subDays(new Date(dateStr), fundsReleaseDays);
       const transferableKey = format(transferableDate, 'yyyy-MM-dd');
       const transferable = dailyEarned[transferableKey] || 0;
@@ -105,7 +135,7 @@ const CalendarPage: React.FC = () => {
         transferable,
       };
     });
-  }, [timeEntries, tasks, fundsReleaseDays]);
+  }, [timeEntries, tasks, fundsReleaseDays, currentDate]);
 
   const events = useMemo((): CalendarEvent[] => {
     return dailyData.map(dayData => {
