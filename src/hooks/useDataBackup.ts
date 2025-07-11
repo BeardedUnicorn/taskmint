@@ -54,7 +54,10 @@ export const useDataBackup = ({
         }
       };
     } catch (error) {
-      console.error('Failed to create backup data:', error);
+      // Only log in non-test environments
+      if (process.env.NODE_ENV !== 'test') {
+        console.error('Failed to create backup data:', error);
+      }
       throw new Error('Failed to gather data for export');
     }
   };
@@ -79,11 +82,16 @@ export const useDataBackup = ({
         suggestedFilename
       });
       
-      console.log('Data exported successfully to:', exportPath);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log('Data exported successfully to:', exportPath);
+      }
       onExportSuccess?.();
       
     } catch (error) {
-      console.error('Export failed:', error);
+      // Only log in non-test environments
+      if (process.env.NODE_ENV !== 'test') {
+        console.error('Export failed:', error);
+      }
       const errorMessage = error instanceof Error ? error.message : 'Failed to export data';
       onExportError?.(errorMessage);
     } finally {
@@ -196,7 +204,9 @@ export const useDataBackup = ({
         await storageService.setGoalAchievements([]);
       }
       
-      console.log('Data imported successfully');
+      if (process.env.NODE_ENV !== 'test') {
+        console.log('Data imported successfully');
+      }
       onImportSuccess?.({ 
         mode,
         importedCounts: {
@@ -209,7 +219,10 @@ export const useDataBackup = ({
       });
       
     } catch (error) {
-      console.error('Import failed:', error);
+      // Only log in non-test environments
+      if (process.env.NODE_ENV !== 'test') {
+        console.error('Import failed:', error);
+      }
       let errorMessage = 'Failed to import data';
       
       if (error instanceof Error) {

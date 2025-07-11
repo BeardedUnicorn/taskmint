@@ -83,7 +83,10 @@ const CalendarPage: React.FC = () => {
         setTimeEntries(entries);
         setTasks(allTasks);
       } catch (error) {
-        console.error('Error fetching calendar data:', error);
+        // Only log in non-test environments
+        if (process.env.NODE_ENV !== 'test') {
+          console.error('Error fetching calendar data:', error);
+        }
         // Set empty arrays as fallback
         setTimeEntries([]);
         setTasks([]);

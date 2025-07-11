@@ -17,7 +17,7 @@ import { Task } from '../../../types/task';
 import { EditTimeEntryDialog } from '../../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../../ui';
 import { EditTimeEntryData } from '../../../types/form';
-import { formatLocalTime } from '../../../utils/dateHelpers';
+import { formatLocalTime, formatDateTimeLocal } from '../../../utils/dateHelpers';
 import { formatDuration } from '../../../utils/formatters';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 
@@ -206,15 +206,9 @@ export function TodaysEntriesList({
           entry={{
             id: editingEntry.id,
             taskName: editingEntry.taskName,
-            startTime: (editingEntry.startTime instanceof Date
-              ? editingEntry.startTime
-              : new Date(editingEntry.startTime)
-            ).toISOString().slice(0, 16),
+            startTime: formatDateTimeLocal(editingEntry.startTime),
             endTime: editingEntry.endTime
-              ? (editingEntry.endTime instanceof Date
-                  ? editingEntry.endTime
-                  : new Date(editingEntry.endTime)
-                ).toISOString().slice(0, 16)
+              ? formatDateTimeLocal(editingEntry.endTime)
               : '',
           }}
           tasks={tasks}

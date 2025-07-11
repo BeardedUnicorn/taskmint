@@ -40,7 +40,7 @@ vi.mock('../tasks/AddTaskDialog', () => ({
   AddTaskDialog: vi.fn(({ open, onSave, onClose }) => 
     open ? (
       <div data-testid="add-task-dialog">
-        <button onClick={() => onSave({ name: 'New Task', hourlyRate: 50 })}>Save Task</button>
+        <button onClick={() => onSave({ name: 'New Task', hourlyRate: 50 }).then(() => onClose())}>Save Task</button>
         <button onClick={onClose}>Close</button>
       </div>
     ) : null
@@ -212,7 +212,7 @@ describe('TasksPage - Updated without Notes Section', () => {
   });
 
   it('calls onAddTask when saving new task', async () => {
-    const mockOnAddTask = vi.fn().mockResolvedValue({ id: 'new-task', name: 'New Task' });
+    const mockOnAddTask = vi.fn().mockResolvedValue(null); // Return null to avoid auto-selection
     render(<TasksPage {...mockProps} onAddTask={mockOnAddTask} />);
 
     const addButton = screen.getByText('Add Task');
@@ -394,10 +394,20 @@ describe('TasksPage - Updated without Notes Section', () => {
   });
 
   it('auto-selects newly created task', async () => {
-    const newTask = { id: 'new-task', name: 'New Task', hourlyRate: 50, createdAt: '2024-01-01T12:00:00Z', updatedAt: '2024-01-01T12:00:00Z' };
+    const newTask = { 
+      id: 'task3', 
+      name: 'New Task', 
+      hourlyRate: 50, 
+      defaultNoteTemplateId: null,
+      createdAt: '2024-01-01T12:00:00Z', 
+      updatedAt: '2024-01-01T12:00:00Z' 
+    };
     const mockOnAddTask = vi.fn().mockResolvedValue(newTask);
     
-    render(<TasksPage {...mockProps} onAddTask={mockOnAddTask} />);
+    // Start with the original tasks, then add the new one
+    const updatedTasks = [...mockTasks, newTask];
+    
+    render(<TasksPage {...mockProps} tasks={updatedTasks} onAddTask={mockOnAddTask} />);
 
     const addButton = screen.getByText('Add Task');
     fireEvent.click(addButton);

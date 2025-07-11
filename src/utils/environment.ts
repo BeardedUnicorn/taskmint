@@ -30,10 +30,9 @@ export const getEnvVar = (key: EnvironmentVariable, defaultValue: string = ''): 
 
   // Check if import.meta is available (Vite environment)
   try {
-    // Use eval to avoid TypeScript compilation issues with import.meta
-    const importMeta = eval('import.meta');
-    if (importMeta && importMeta.env) {
-      return importMeta.env[key] || defaultValue;
+    // Safe access to import.meta without eval
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      return import.meta.env[key] || defaultValue;
     }
   } catch {
     // Fallback if import.meta is not available

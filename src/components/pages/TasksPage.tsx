@@ -24,6 +24,7 @@ import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog, UpgradeDialog } from '../ui';
 import { EditTimeEntryData } from '../../types/form';
 import { useSubscription, useTaskLimit } from '../../contexts/SubscriptionContext';
+import { formatDateTimeLocal } from '../../utils/dateHelpers';
 
 interface TasksPageProps {
   tasks: Task[];
@@ -323,19 +324,9 @@ export function TasksPage({
           entry={{
             id: editingEntry.id,
             taskName: editingEntry.taskName,
-            startTime: (() => {
-              const date = editingEntry.startTime instanceof Date
-                ? editingEntry.startTime
-                : new Date(editingEntry.startTime);
-              return isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 16);
-            })(),
+            startTime: formatDateTimeLocal(editingEntry.startTime),
             endTime: editingEntry.endTime
-              ? (() => {
-                  const date = editingEntry.endTime instanceof Date
-                    ? editingEntry.endTime
-                    : new Date(editingEntry.endTime);
-                  return isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 16);
-                })()
+              ? formatDateTimeLocal(editingEntry.endTime)
               : '',
           }}
           tasks={tasks}
