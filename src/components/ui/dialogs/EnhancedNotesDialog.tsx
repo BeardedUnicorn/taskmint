@@ -31,6 +31,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  CircularProgress,
+  useTheme,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -41,7 +43,9 @@ import {
   Timer as TimerIcon,
   Task as TaskIcon,
   FolderOpen as SessionIcon,
+  PlayArrow as RunIcon,
 } from '@mui/icons-material';
+import { invoke } from '@tauri-apps/api/core';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 import { useTaskNotes } from '../../../hooks/useTaskNotes';
@@ -116,6 +120,8 @@ const NoteEditor: React.FC<{
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   const [tags, setTags] = useState<string[]>(note?.tags || []);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRunningCommand, setIsRunningCommand] = useState<Record<string, boolean>>({});
+  const theme = useTheme();
 
   // Get active templates
   const activeTemplates = getActiveTemplates();
@@ -197,6 +203,30 @@ const NoteEditor: React.FC<{
   const handleFieldChange = (fieldId: string, value: any) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
   };
+
+  const runCommand = useCallback(async (fieldId: string, command: string) => {
+    setIsRunningCommand(prev => ({ ...prev, [fieldId]: true }));
+    try {
+      const output = await invoke<string>('execute_cli_command', { command });
+      handleFieldChange(fieldId, output.trim());
+    } catch (error) {
+      console.error('Failed to run command:', error);
+      // Could show an error notification here if needed
+    } finally {
+      setIsRunningCommand(prev => ({ ...prev, [fieldId]: false }));
+    }
+  }, []);
+
+  // Run commands for new notes when template is selected
+  useEffect(() => {
+    if (!note && selectedTemplate) {
+      selectedTemplate.fields.forEach(field => {
+        if (field.type === 'command' && field.command) {
+          runCommand(field.id, field.command);
+        }
+      });
+    }
+  }, [selectedTemplate, note, runCommand]);
 
   const renderTemplateField = (field: TemplateField) => {
     const value = fieldValues[field.id] || '';
@@ -284,6 +314,46 @@ const NoteEditor: React.FC<{
               ))}
             </Select>
           </FormControl>
+        );
+      case 'command':
+        return (
+          <Box key={field.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+            <TextField
+              label={field.label}
+              value={value}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              placeholder={field.placeholder}
+              required={field.required}
+              fullWidth
+              multiline
+              rows={4}
+              size="small"
+              sx={{
+                flex: 1,
+                '& .MuiInputBase-root': {
+                  alignItems: 'flex-start',
+                  backgroundColor: theme.palette.background.default,
+                  border: '1px solid',
+                  borderColor: theme.palette.divider,
+                },
+                '& .MuiInputBase-input': {
+                  whiteSpace: 'pre-wrap',
+                  wordWrap: 'break-word',
+                  lineHeight: 1.5,
+                  fontFamily: '"Roboto Mono", monospace',
+                  color: theme.palette.text.primary,
+                },
+              }}
+            />
+            <IconButton
+              onClick={() => field.command && runCommand(field.id, field.command)}
+              disabled={isRunningCommand[field.id] || !field.command}
+              title="Run Command"
+              sx={{ mt: 1 }}
+            >
+              {isRunningCommand[field.id] ? <CircularProgress size={24} /> : <RunIcon />}
+            </IconButton>
+          </Box>
         );
       default:
         return null;
@@ -523,7 +593,21 @@ const NoteList: React.FC<{
                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
                     {field.label}:
                   </Typography>
-                  <Typography variant="body2" sx={{ pl: 1 }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      pl: 1,
+                      ...(field.type === 'command' && {
+                        fontFamily: '"Roboto Mono", monospace',
+                        whiteSpace: 'pre-wrap',
+                        backgroundColor: 'background.default',
+                        padding: 1,
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      })
+                    }}
+                  >
                     {field.type === 'checkbox' ? (value ? 'Yes' : 'No') : String(value)}
                   </Typography>
                 </Box>
