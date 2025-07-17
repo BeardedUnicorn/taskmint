@@ -12,18 +12,17 @@ import {
   Chip, 
   Stack, 
   Paper,
-  LinearProgress,
   Tooltip,
   IconButton,
 } from '@mui/material';
 import {
-  AccessTime,
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   Stop as StopIcon,
   Timer as TimerIcon,
   FolderOpen as SessionIcon,
   Notes as NotesIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { TaskSession, TimerInstance } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
@@ -38,6 +37,7 @@ interface SessionTimerDisplayProps {
   onStopTimer?: (instanceId: string) => void;
   onPauseTimer?: (instanceId: string) => void;
   onResumeTimer?: (instanceId: string) => void;
+  onDeleteTimer?: (instanceId: string) => void;
   onOpenNotes?: (sessionId: string, instanceId?: string) => void;
   sx?: any;
 }
@@ -51,11 +51,11 @@ export function SessionTimerDisplay({
   onStopTimer,
   onPauseTimer,
   onResumeTimer,
+  onDeleteTimer,
   onOpenNotes,
   sx,
 }: SessionTimerDisplayProps) {
   const runningInstance = session.timerInstances?.find(i => i.isRunning);
-  const completedInstances = session.timerInstances?.filter(i => !i.isRunning && !i.isPaused && i.duration) || [];
 
   // Calculate current elapsed time for running timer
   // Ensure startTime is properly converted to Date object
@@ -70,8 +70,6 @@ export function SessionTimerDisplay({
     startTime
   );
 
-  // Calculate total session time including current running timer
-  const totalSessionTime = session.totalDuration + (runningInstance ? currentElapsed : 0);
 
   const getDisplaySize = () => {
     switch (size) {
@@ -171,47 +169,6 @@ export function SessionTimerDisplay({
         )}
       </Box>
 
-      {/* Session Total Time */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 1,
-          p: displayConfig.spacing,
-          borderRadius: 1,
-          bgcolor: runningInstance ? 'success.dark' : 'grey.800',
-          color: 'white',
-          mb: 2,
-        }}
-      >
-        <AccessTime fontSize={displayConfig.iconSize} />
-        <Typography
-          variant={displayConfig.sessionTime}
-          component="div"
-          sx={{
-            fontFamily: '"Roboto Mono", monospace',
-            fontWeight: 600,
-            letterSpacing: 1,
-          }}
-        >
-          {formatTime(totalSessionTime)}
-        </Typography>
-        {runningInstance && (
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'success.light',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: 1,
-              ml: 1,
-            }}
-          >
-            Running
-          </Typography>
-        )}
-      </Box>
 
       {/* Timer Instances */}
       {(session.timerInstances?.length || 0) > 0 && (
@@ -241,6 +198,7 @@ export function SessionTimerDisplay({
                 onStop={() => onStopTimer?.(instance.id)}
                 onPause={() => onPauseTimer?.(instance.id)}
                 onResume={() => onResumeTimer?.(instance.id)}
+                onDelete={() => onDeleteTimer?.(instance.id)}
                 onOpenNotes={() => onOpenNotes?.(session.id, instance.id)}
                 isSessionActive={session.isActive}
               />
@@ -249,44 +207,6 @@ export function SessionTimerDisplay({
         </Box>
       )}
 
-      {/* Session Progress (if there's a goal or target) */}
-      {(session.timerInstances?.length || 0) > 1 && (
-        <Box sx={{ mt: 2 }}>
-          <Typography
-            variant="caption"
-            sx={{
-              color: session.isActive ? 'primary.contrastText' : 'text.secondary',
-              mb: 0.5,
-              display: 'block'
-            }}
-          >
-            Session Progress
-          </Typography>
-          <LinearProgress
-            variant="determinate"
-            value={Math.min((completedInstances.length / (session.timerInstances?.length || 1)) * 100, 100)}
-            sx={{
-              height: 6,
-              borderRadius: 3,
-              bgcolor: session.isActive ? 'primary.dark' : 'grey.200',
-              '& .MuiLinearProgress-bar': {
-                bgcolor: 'success.main',
-                borderRadius: 3,
-              },
-            }}
-          />
-          <Typography
-            variant="caption"
-            sx={{
-              color: session.isActive ? 'primary.contrastText' : 'text.secondary',
-              mt: 0.5,
-              display: 'block'
-            }}
-          >
-            {completedInstances.length} of {session.timerInstances?.length || 0} timers completed
-          </Typography>
-        </Box>
-      )}
     </Paper>
   );
 }
@@ -303,6 +223,7 @@ interface TimerInstanceRowProps {
   onStop: () => void;
   onPause: () => void;
   onResume: () => void;
+  onDelete: () => void;
   onOpenNotes: () => void;
   isSessionActive: boolean;
 }
@@ -318,6 +239,7 @@ function TimerInstanceRow({
   onStop,
   onPause,
   onResume,
+  onDelete,
   onOpenNotes,
   isSessionActive,
 }: TimerInstanceRowProps) {
@@ -406,6 +328,15 @@ function TimerInstanceRow({
             <Tooltip title="Resume Timer">
               <IconButton size="small" onClick={onResume} sx={{ color: 'inherit' }}>
                 <PlayIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          
+          {/* Delete button - only show for stopped timers */}
+          {!instance.isRunning && !instance.isPaused && (
+            <Tooltip title="Delete Timer">
+              <IconButton size="small" onClick={onDelete} sx={{ color: 'inherit' }}>
+                <DeleteIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}

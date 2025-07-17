@@ -99,12 +99,14 @@ pub fn run() {
             commands::sessions::stop_timer_instance,
             commands::sessions::pause_timer_instance,
             commands::sessions::resume_timer_instance,
+            commands::sessions::delete_timer_instance,
             commands::sessions::get_enhanced_timer_state,
             commands::sessions::update_inactivity_settings,
             commands::sessions::get_inactivity_settings,
             commands::sessions::update_timer_activity_state,
             commands::sessions::get_timer_activity_state,
             commands::sessions::set_active_session,
+            commands::sessions::clear_all_sessions,
 
             // Tray commands
             commands::tray::update_tray_menu_command,

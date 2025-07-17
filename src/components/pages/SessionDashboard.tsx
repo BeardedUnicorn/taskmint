@@ -5,7 +5,7 @@
  * session management, timer instances, inactivity detection, and notes.
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -60,6 +60,7 @@ export function SessionDashboard() {
     stopTimerInstance,
     pauseTimerInstance,
     resumeTimerInstance,
+    deleteTimerInstance,
     isLoading: sessionsLoading,
     error: sessionsError,
   } = useSessionManagement();
@@ -73,26 +74,26 @@ export function SessionDashboard() {
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { showError, showSuccess } = useNotification();
 
-  // Handle inactivity warning
-  const handleContinueWork = () => {
+  // Handle inactivity warning - memoized to prevent re-renders
+  const handleContinueWork = useCallback(() => {
     window.dispatchEvent(new CustomEvent('timer-continue-activity', {
       detail: { reason: 'user-action', timestamp: new Date() }
     }));
-  };
+  }, []);
 
-  const handlePauseFromInactivity = () => {
+  const handlePauseFromInactivity = useCallback(() => {
     window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
       detail: { reason: 'user-action', timestamp: new Date() }
     }));
-  };
+  }, []);
 
-  const handleSaveSessionUpdate = async (sessionId: string, updates: { notes?: string }) => {
+  const handleSaveSessionUpdate = useCallback(async (sessionId: string, updates: { notes?: string }) => {
     await updateSession(sessionId, updates);
     showSuccess("Session notes updated successfully.");
-  };
+  }, [updateSession, showSuccess]);
 
-  // Notes handlers
-  const handleOpenSessionNotes = (sessionId: string) => {
+  // Notes handlers - memoized to prevent re-renders
+  const handleOpenSessionNotes = useCallback((sessionId: string) => {
     const session = sessions.find(s => s.id === sessionId);
     if (session) {
       setNotesContext({
@@ -102,9 +103,9 @@ export function SessionDashboard() {
       });
       setNotesDialogOpen(true);
     }
-  };
+  }, [sessions]);
 
-  const handleOpenTimerNotes = (sessionId: string, instanceId?: string) => {
+  const handleOpenTimerNotes = useCallback((sessionId: string, instanceId?: string) => {
     const session = sessions.find(s => s.id === sessionId);
     if (session) {
       setNotesContext({
@@ -115,31 +116,42 @@ export function SessionDashboard() {
       });
       setNotesDialogOpen(true);
     }
-  };
+  }, [sessions]);
 
-  const handleSelectSession = (session: TaskSession) => {
+  const handleSelectSession = useCallback((session: TaskSession) => {
     setSelectedSessionId(session.id);
-  };
+  }, []);
 
-  const handleStartSelectedSession = async (session: TaskSession) => {
+  const handleStartSelectedSession = useCallback(async (session: TaskSession) => {
     try {
       await setActiveSession(session);
     } catch (error) {
       showError('Failed to activate session');
     }
-  };
+  }, [setActiveSession, showError]);
 
-  const handleEditSession = (session: TaskSession) => {
+  const handleEditSession = useCallback((session: TaskSession) => {
     setEditingSession(session);
-  };
+  }, []);
   
-  const handleStartQuickSession = async (taskId: string, taskName: string): Promise<TaskSession> => {
+  const handleStartQuickSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession> => {
     const session = await createSession(taskId, taskName);
     if (!session) {
       throw new Error("Failed to start session from quick dialog.");
     }
     return session;
-  };
+  }, [createSession]);
+
+  // Memoized callback for timer notes with proper typing
+  const handleOpenTimerNotesForActiveSession = useCallback((instanceId: string) => {
+    handleOpenTimerNotes(activeSession?.id || '', instanceId);
+  }, [activeSession?.id, handleOpenTimerNotes]);
+
+  // Memoized dialog close callbacks
+  const handleCloseNotesDialog = useCallback(() => setNotesDialogOpen(false), []);
+  const handleCloseQuickSessionDialog = useCallback(() => setQuickSessionDialogOpen(false), []);
+  const handleCloseEditSessionDialog = useCallback(() => setEditingSession(null), []);
+  const handleOpenQuickSessionDialog = useCallback(() => setQuickSessionDialogOpen(true), []);
 
   // Show loading state
   if (sessionsLoading || tasksLoading) {
@@ -178,7 +190,7 @@ export function SessionDashboard() {
           onPauseTimer={pauseTimerInstance}
           onResumeTimer={resumeTimerInstance}
           onOpenSessionNotes={handleOpenSessionNotes}
-          onOpenTimerNotes={(instanceId) => handleOpenTimerNotes(activeSession?.id || '', instanceId)}
+          onOpenTimerNotes={handleOpenTimerNotesForActiveSession}
         />
       </Box>
 
@@ -198,6 +210,7 @@ export function SessionDashboard() {
               onStopTimer={stopTimerInstance}
               onPauseTimer={pauseTimerInstance}
               onResumeTimer={resumeTimerInstance}
+              onDeleteTimer={deleteTimerInstance}
               onOpenNotes={handleOpenTimerNotes}
             />
           </Box>
@@ -235,7 +248,7 @@ export function SessionDashboard() {
       {/* Enhanced Notes Dialog */}
       <EnhancedNotesDialog
         open={notesDialogOpen}
-        onClose={() => setNotesDialogOpen(false)}
+        onClose={handleCloseNotesDialog}
         activeTaskId={notesContext.activeTaskId}
         activeSessionId={notesContext.activeSessionId}
         activeTimerInstanceId={notesContext.activeTimerInstanceId}
@@ -244,14 +257,14 @@ export function SessionDashboard() {
 
       <QuickSessionDialog
         open={quickSessionDialogOpen}
-        onClose={() => setQuickSessionDialogOpen(false)}
+        onClose={handleCloseQuickSessionDialog}
         onStartSession={handleStartQuickSession}
         tasks={tasks}
       />
 
       <EditSessionDialog
         open={!!editingSession}
-        onClose={() => setEditingSession(null)}
+        onClose={handleCloseEditSessionDialog}
         session={editingSession}
         onSave={handleSaveSessionUpdate}
       />
@@ -265,7 +278,7 @@ export function SessionDashboard() {
           bottom: 16,
           right: 16,
         }}
-        onClick={() => setQuickSessionDialogOpen(true)}
+        onClick={handleOpenQuickSessionDialog}
       >
         <AddIcon />
       </Fab>

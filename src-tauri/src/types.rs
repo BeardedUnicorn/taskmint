@@ -87,16 +87,25 @@ pub struct GoogleDriveSyncResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimerInstance {
     pub id: String,
+    #[serde(rename = "sessionId")]
     pub session_id: String,
+    #[serde(rename = "startTime")]
     pub start_time: DateTime<Utc>,
+    #[serde(rename = "endTime")]
     pub end_time: Option<DateTime<Utc>>,
     pub duration: Option<u64>, // in milliseconds
+    #[serde(rename = "isRunning")]
     pub is_running: bool,
+    #[serde(rename = "isPaused")]
     pub is_paused: bool,
+    #[serde(rename = "pausedAt")]
     pub paused_at: Option<DateTime<Utc>>,
+    #[serde(rename = "pausedDuration")]
     pub paused_duration: Option<u64>, // Total time paused in milliseconds
     pub notes: Option<String>,
+    #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(rename = "updatedAt")]
     pub updated_at: String,
 }
 
@@ -104,29 +113,46 @@ pub struct TimerInstance {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskSession {
     pub id: String,
+    #[serde(rename = "taskId")]
     pub task_id: String,
+    #[serde(rename = "taskName")]
     pub task_name: String,
+    #[serde(rename = "timerInstances")]
     pub timer_instances: Vec<TimerInstance>,
+    #[serde(rename = "totalDuration")]
     pub total_duration: u64, // Sum of all timer instances in milliseconds
     pub notes: Option<String>,
+    #[serde(rename = "isActive")]
     pub is_active: bool,
     pub date: String, // YYYY-MM-DD format
+    #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(rename = "updatedAt")]
     pub updated_at: String,
 }
 
 // Enhanced Timer State with session support
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancedTimerState {
+    #[serde(rename = "activeSession")]
     pub active_session: Option<TaskSession>,
+    #[serde(rename = "activeInstance")]
     pub active_instance: Option<TimerInstance>,
+    #[serde(rename = "isRunning")]
     pub is_running: bool,
+    #[serde(rename = "taskName")]
     pub task_name: String,
+    #[serde(rename = "sessionId")]
     pub session_id: Option<String>,
+    #[serde(rename = "instanceId")]
     pub instance_id: Option<String>,
+    #[serde(rename = "startTime")]
     pub start_time: Option<DateTime<Utc>>,
+    #[serde(rename = "elapsedMs")]
     pub elapsed_ms: u64,
+    #[serde(rename = "isPaused")]
     pub is_paused: bool,
+    #[serde(rename = "pausedDueToInactivity")]
     pub paused_due_to_inactivity: bool,
 }
 

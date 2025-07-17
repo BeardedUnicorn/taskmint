@@ -9,7 +9,12 @@ import { useEffect, useCallback, useState } from 'react';
 import { listen, emit } from '@tauri-apps/api/event';
 import { useSessionManagement } from './useSessionManagement';
 import { useNotification } from '../contexts/NotificationContext';
-import { TaskSession, TimerInstance, TimerSyncEvent } from '../types';
+import { TaskSession, TimerInstance } from '../types/timer';
+
+// Define TimerSyncEvent type locally since it's not exported from types
+interface TimerSyncEvent<T = any> {
+  payload: T;
+}
 
 /**
  * Custom hook to synchronize session timers with a global timer state.

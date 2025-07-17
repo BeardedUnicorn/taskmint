@@ -50,12 +50,25 @@ export function useSessionManagement(): UseSessionManagementReturn {
     }
   }, [showError]);
   
-  const updateLocalSession = (updatedSession: TaskSession) => {
-    setSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
-    if (activeSession?.id === updatedSession.id) {
-        setActiveSessionState(updatedSession);
-    }
-  };
+  const updateLocalSession = useCallback((updatedSession: TaskSession) => {
+    console.log('Updating local session:', updatedSession.id);
+    
+    // Update sessions array
+    setSessions(prev => {
+      const updated = prev.map(s => s.id === updatedSession.id ? updatedSession : s);
+      console.log('Updated sessions array:', updated);
+      return updated;
+    });
+    
+    // Update active session if it matches - use functional update to avoid dependency
+    setActiveSessionState(currentActive => {
+      if (currentActive && currentActive.id === updatedSession.id) {
+        console.log('Updating active session state');
+        return updatedSession;
+      }
+      return currentActive;
+    });
+  }, []);
   
   const createTimerInstance = useCallback(async (sessionId: string): Promise<TimerInstance | null> => {
     console.log(`Attempting to create timer instance for session ${sessionId}...`);
@@ -97,7 +110,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         setIsLoading(false);
       }
     });
-  }, [showError, showSuccess]);
+  }, [updateLocalSession, showError, showSuccess]);
 
   const stopTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
     return measurePerformance('useSessionManagement.stopTimerInstance', async () => {
@@ -116,7 +129,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         setIsLoading(false);
       }
     });
-  }, [showError, showSuccess]);
+  }, [updateLocalSession, showError, showSuccess]);
 
   const pauseTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
     return measurePerformance('useSessionManagement.pauseTimerInstance', async () => {
@@ -135,7 +148,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         setIsLoading(false);
       }
     });
-  }, [showError, showSuccess]);
+  }, [updateLocalSession, showError, showSuccess]);
 
   const resumeTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
     return measurePerformance('useSessionManagement.resumeTimerInstance', async () => {
@@ -154,24 +167,51 @@ export function useSessionManagement(): UseSessionManagementReturn {
         setIsLoading(false);
       }
     });
-  }, [showError, showSuccess]);
+  }, [updateLocalSession, showError, showSuccess]);
 
-  // Initialize sessions and event listeners on mount
+  const deleteTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
+    return measurePerformance('useSessionManagement.deleteTimerInstance', async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const updatedSession = await invoke<TaskSession>('delete_timer_instance', { instanceId });
+        updateLocalSession(updatedSession);
+        showSuccess('Timer deleted');
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to delete timer';
+        setError(errorMessage);
+        showError(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    });
+  }, [updateLocalSession, showError, showSuccess]);
+
+  // Initialize sessions on mount
   useEffect(() => {
     loadSessions();
+  }, [loadSessions]);
 
+  // Setup event listeners separately to avoid dependency issues
+  useEffect(() => {
     const setupEventListeners = async () => {
         await listen('timer-pause-inactivity', async () => {
-            if (activeSession) {
-                const runningTimers = activeSession.timerInstances.filter(t => t.isRunning);
-                for (const timer of runningTimers) {
-                    await pauseTimerInstance(timer.id);
-                }
-            }
+            // Get current active session from state instead of dependency
+            setSessions(currentSessions => {
+              const currentActiveSession = currentSessions.find(s => s.isActive);
+              if (currentActiveSession) {
+                const runningTimers = currentActiveSession.timerInstances.filter(t => t.isRunning);
+                runningTimers.forEach(timer => {
+                  pauseTimerInstance(timer.id);
+                });
+              }
+              return currentSessions;
+            });
         });
     };
     setupEventListeners();
-  }, [loadSessions, activeSession, pauseTimerInstance]);
+  }, [pauseTimerInstance]);
 
   const createSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession | null> => {
     console.log(`Attempting to create session for task ${taskId}...`);
@@ -183,7 +223,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         const trimmedTaskName = taskName?.trim() || '';
         if (!trimmedTaskName) throw new Error('Task name cannot be empty');
 
-        const [newSession] = await invoke<[TaskSession, TimerInstance]>('create_session_with_timer', { taskId, taskName: trimmedTaskName });
+        const newSession = await invoke<TaskSession>('create_session', { taskId, taskName: trimmedTaskName });
         
         await loadSessions(); // Reload all sessions to reflect the new active one
         showSuccess(`Session started for "${trimmedTaskName}"`);
@@ -193,7 +233,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create session';
         setError(errorMessage);
         showError(errorMessage);
-        return null;
+        throw err; // Re-throw the error so tests can catch it
       } finally {
         setIsLoading(false);
       }
@@ -218,7 +258,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         setIsLoading(false);
       }
     });
-  }, [showError]);
+  }, [updateLocalSession, showError]);
 
   const deleteSession = useCallback(async (sessionId: string): Promise<void> => {
     return measurePerformance('useSessionManagement.deleteSession', async () => {
@@ -352,6 +392,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     stopTimerInstance,
     pauseTimerInstance,
     resumeTimerInstance,
+    deleteTimerInstance,
     isLoading,
     error,
   };

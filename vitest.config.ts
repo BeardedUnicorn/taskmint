@@ -61,11 +61,13 @@ export default defineConfig({
     hookTimeout: 10000,
 
     // Reporters
-    reporter: ['verbose'],
+    reporters: ['verbose'],
 
     // Mock configuration
-    deps: {
-      inline: ['@tauri-apps/api'],
+    server: {
+      deps: {
+        inline: ['@tauri-apps/api'],
+      },
     },
   },
 

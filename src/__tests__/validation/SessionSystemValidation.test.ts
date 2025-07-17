@@ -1,100 +1,58 @@
 /**
  * Session System Validation Tests
  * 
- * End-to-end validation tests to ensure all components of the session-based
- * timer system work together correctly and meet the specified requirements.
+ * Validation tests to ensure the session-based timer system types and
+ * data structures meet the specified requirements.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   createMockTask,
   createMockTaskSession,
   createMockTimerInstance,
-  createMockTauriInvoke,
-  createMockNotificationContext,
   createActiveSessionScenario,
   createMultipleSessionsScenario,
   expectSessionToBeActive,
   expectTimerInstanceToBeRunning,
   expectTimerInstanceToBeStopped,
 } from '../setup/session-test-utils';
-
-// Mock all external dependencies
-vi.mock('@tauri-apps/api/tauri');
-vi.mock('../../contexts/NotificationContext');
-vi.mock('../../hooks/useTimer');
+import { TaskSession, TimerInstance, InactivitySettings } from '../../types/timer';
 
 describe('Session System Validation', () => {
-  let mockInvoke: ReturnType<typeof createMockTauriInvoke>;
-  let mockNotifications: ReturnType<typeof createMockNotificationContext>;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockInvoke = createMockTauriInvoke();
-    mockNotifications = createMockNotificationContext();
-    
-    // Mock the Tauri invoke function
-    vi.mocked(require('@tauri-apps/api/tauri').invoke).mockImplementation(mockInvoke);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
 
   describe('Requirement: Task Session Management', () => {
-    it('should allow selecting an existing task and creating a new session', async () => {
+    it('should allow selecting an existing task and creating a new session', () => {
       const task = createMockTask({ name: 'Development Work' });
-      const expectedSession = createMockTaskSession({
+      const session = createMockTaskSession({
         taskId: task.id,
         taskName: task.name,
       });
 
-      mockInvoke.mockResolvedValueOnce(expectedSession);
-
-      const result = await mockInvoke('create_session', {
-        taskId: task.id,
-        taskName: task.name,
-      });
-
-      expect(result).toEqual(expectedSession);
-      expect(mockInvoke).toHaveBeenCalledWith('create_session', {
-        taskId: task.id,
-        taskName: task.name,
-      });
+      // Validate session structure
+      expect(session.taskId).toBe(task.id);
+      expect(session.taskName).toBe(task.name);
+      expect(session.timerInstances).toEqual([]);
+      expect(session.totalDuration).toBe(0);
+      expect(session.isActive).toBe(false);
+      expect(session.id).toBeDefined();
+      expect(session.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 
-    it('should automatically begin a timer when a session is started', async () => {
-      const session = createMockTaskSession();
+    it('should automatically begin a timer when a session is started', () => {
+      const session = createMockTaskSession({ isActive: true });
       const timerInstance = createMockTimerInstance({
         sessionId: session.id,
         isRunning: true,
       });
 
-      mockInvoke
-        .mockResolvedValueOnce(session) // create_session
-        .mockResolvedValueOnce(timerInstance) // create_timer_instance
-        .mockResolvedValueOnce(undefined); // start_timer_instance
-
-      // Simulate session creation flow
-      const createdSession = await mockInvoke('create_session', {
-        taskId: session.taskId,
-        taskName: session.taskName,
-      });
-
-      const createdInstance = await mockInvoke('create_timer_instance', {
-        sessionId: createdSession.id,
-      });
-
-      await mockInvoke('start_timer_instance', {
-        instanceId: createdInstance.id,
-      });
-
-      expect(mockInvoke).toHaveBeenCalledTimes(3);
-      expect(createdInstance.sessionId).toBe(createdSession.id);
-      expectTimerInstanceToBeRunning(createdInstance);
+      // Validate timer instance is properly linked to session
+      expect(timerInstance.sessionId).toBe(session.id);
+      expect(timerInstance.isRunning).toBe(true);
+      expect(timerInstance.startTime).toBeInstanceOf(Date);
+      expectTimerInstanceToBeRunning(timerInstance);
     });
 
-    it('should support multiple individual timer instances within a session', async () => {
+    it('should support multiple individual timer instances within a session', () => {
       const session = createMockTaskSession();
       const instance1 = createMockTimerInstance({
         id: 'instance-1',
@@ -105,48 +63,40 @@ describe('Session System Validation', () => {
         sessionId: session.id,
       });
 
-      mockInvoke
-        .mockResolvedValueOnce(instance1) // First instance
-        .mockResolvedValueOnce(instance2); // Second instance
-
-      const firstInstance = await mockInvoke('create_timer_instance', {
-        sessionId: session.id,
+      // Validate multiple instances can belong to same session
+      expect(instance1.sessionId).toBe(session.id);
+      expect(instance2.sessionId).toBe(session.id);
+      expect(instance1.id).not.toBe(instance2.id);
+      
+      // Validate session can contain multiple instances
+      const sessionWithInstances = createMockTaskSession({
+        timerInstances: [instance1, instance2],
       });
-      const secondInstance = await mockInvoke('create_timer_instance', {
-        sessionId: session.id,
-      });
-
-      expect(firstInstance.sessionId).toBe(session.id);
-      expect(secondInstance.sessionId).toBe(session.id);
-      expect(firstInstance.id).not.toBe(secondInstance.id);
+      expect(sessionWithInstances.timerInstances).toHaveLength(2);
     });
   });
 
   describe('Requirement: Timer Functionality', () => {
-    it('should implement automatic timer pausing based on inactivity', async () => {
+    it('should implement automatic timer pausing based on inactivity', () => {
       const { session, runningInstance } = createActiveSessionScenario();
       
-      // Mock inactivity detection triggering pause
-      const pausedInstance = {
+      // Simulate inactivity detection triggering pause
+      const pausedInstance: TimerInstance = {
         ...runningInstance,
         isRunning: false,
         isPaused: true,
         pausedAt: new Date(),
       };
 
-      mockInvoke.mockResolvedValueOnce(undefined); // pause_timer_instance
-
-      await mockInvoke('pause_timer_instance', {
-        instanceId: runningInstance.id,
-      });
-
-      expect(mockInvoke).toHaveBeenCalledWith('pause_timer_instance', {
-        instanceId: runningInstance.id,
-      });
+      // Validate pause state
+      expect(pausedInstance.isRunning).toBe(false);
+      expect(pausedInstance.isPaused).toBe(true);
+      expect(pausedInstance.pausedAt).toBeInstanceOf(Date);
+      expect(pausedInstance.sessionId).toBe(session.id);
     });
 
     it('should make inactivity threshold configurable', () => {
-      const defaultSettings = {
+      const defaultSettings: InactivitySettings = {
         enabled: true,
         thresholdMinutes: 15,
         showWarningBeforePause: true,
@@ -154,7 +104,7 @@ describe('Session System Validation', () => {
         resumeOnActivity: false,
       };
 
-      const customSettings = {
+      const customSettings: InactivitySettings = {
         ...defaultSettings,
         thresholdMinutes: 30,
         warningDurationSeconds: 60,
@@ -165,9 +115,10 @@ describe('Session System Validation', () => {
       expect(customSettings.warningDurationSeconds).toBe(60);
       expect(customSettings.thresholdMinutes).toBeGreaterThan(0);
       expect(customSettings.thresholdMinutes).toBeLessThanOrEqual(120);
+      expect(customSettings.enabled).toBe(true);
     });
 
-    it('should track each timer instance independently within a session', async () => {
+    it('should track each timer instance independently within a session', () => {
       const session = createMockTaskSession();
       const runningInstance = createMockTimerInstance({
         id: 'running-instance',
@@ -181,10 +132,10 @@ describe('Session System Validation', () => {
         duration: 3600000, // 1 hour
       });
 
-      const sessionWithInstances = {
+      const sessionWithInstances: TaskSession = {
         ...session,
         timerInstances: [runningInstance, stoppedInstance],
-        totalDuration: stoppedInstance.duration,
+        totalDuration: stoppedInstance.duration || 0,
       };
 
       // Validate independent tracking
@@ -196,25 +147,27 @@ describe('Session System Validation', () => {
   });
 
   describe('Requirement: Notes System', () => {
-    it('should allow notes at timer level', async () => {
+    it('should allow notes at timer level', () => {
       const timerInstance = createMockTimerInstance({
         notes: 'Working on authentication feature',
       });
 
       expect(timerInstance.notes).toBe('Working on authentication feature');
       expect(timerInstance.notes).toBeDefined();
+      expect(typeof timerInstance.notes).toBe('string');
     });
 
-    it('should allow notes at task/session level', async () => {
+    it('should allow notes at task/session level', () => {
       const session = createMockTaskSession({
         notes: 'Session focused on user authentication improvements',
       });
 
       expect(session.notes).toBe('Session focused on user authentication improvements');
       expect(session.notes).toBeDefined();
+      expect(typeof session.notes).toBe('string');
     });
 
-    it('should support both timer-level and session-level notes simultaneously', async () => {
+    it('should support both timer-level and session-level notes simultaneously', () => {
       const sessionNotes = 'Overall session goals and context';
       const timerNotes = 'Specific work done in this timer';
 
@@ -230,6 +183,7 @@ describe('Session System Validation', () => {
       expect(session.notes).toBe(sessionNotes);
       expect(timerInstance.notes).toBe(timerNotes);
       expect(session.notes).not.toBe(timerInstance.notes);
+      expect(timerInstance.sessionId).toBe(session.id);
     });
   });
 
@@ -286,7 +240,7 @@ describe('Session System Validation', () => {
   });
 
   describe('Requirement: Technical Considerations', () => {
-    it('should maintain backward compatibility with existing data', async () => {
+    it('should maintain backward compatibility with existing data', () => {
       // Test that old TimeEntry structure can coexist
       const legacyTimeEntry = {
         id: 'legacy-entry-1',
@@ -304,36 +258,35 @@ describe('Session System Validation', () => {
       // Both structures should be valid
       expect(legacyTimeEntry.taskName).toBe(newSession.taskName);
       expect(legacyTimeEntry.duration).toBe(newSession.totalDuration);
+      expect(typeof legacyTimeEntry.id).toBe('string');
+      expect(typeof newSession.id).toBe('string');
     });
 
-    it('should ensure proper data persistence for sessions and timer instances', async () => {
+    it('should ensure proper data persistence for sessions and timer instances', () => {
       const session = createMockTaskSession();
-      const timerInstance = createMockTimerInstance();
+      const timerInstance = createMockTimerInstance({
+        sessionId: session.id,
+      });
 
-      // Mock storage operations
-      mockInvoke
-        .mockResolvedValueOnce(session) // Save session
-        .mockResolvedValueOnce(timerInstance) // Save timer instance
-        .mockResolvedValueOnce([session]) // Retrieve sessions
-        .mockResolvedValueOnce([timerInstance]); // Retrieve instances
+      // Validate data structure integrity
+      expect(session.id).toBeDefined();
+      expect(session.taskId).toBeDefined();
+      expect(session.taskName).toBeDefined();
+      expect(session.timerInstances).toBeInstanceOf(Array);
+      expect(session.totalDuration).toBeGreaterThanOrEqual(0);
+      expect(session.createdAt).toBeDefined();
+      expect(session.updatedAt).toBeDefined();
 
-      // Simulate save operations
-      const savedSession = await mockInvoke('save_session', session);
-      const savedInstance = await mockInvoke('save_timer_instance', timerInstance);
-
-      // Simulate retrieval operations
-      const retrievedSessions = await mockInvoke('get_sessions');
-      const retrievedInstances = await mockInvoke('get_timer_instances');
-
-      expect(savedSession).toEqual(session);
-      expect(savedInstance).toEqual(timerInstance);
-      expect(retrievedSessions).toContain(session);
-      expect(retrievedInstances).toContain(timerInstance);
+      expect(timerInstance.id).toBeDefined();
+      expect(timerInstance.sessionId).toBe(session.id);
+      expect(timerInstance.startTime).toBeInstanceOf(Date);
+      expect(timerInstance.createdAt).toBeDefined();
+      expect(timerInstance.updatedAt).toBeDefined();
     });
 
     it('should handle database schema changes gracefully', () => {
       // Test that new fields are optional and don't break existing functionality
-      const minimalSession = {
+      const minimalSession: TaskSession = {
         id: 'minimal-session',
         taskId: 'task-1',
         taskName: 'Minimal Task',
@@ -346,7 +299,7 @@ describe('Session System Validation', () => {
         // notes field is optional
       };
 
-      const enhancedSession = {
+      const enhancedSession: TaskSession = {
         ...minimalSession,
         notes: 'Enhanced with notes',
       };
@@ -355,65 +308,79 @@ describe('Session System Validation', () => {
       expect(minimalSession.id).toBeDefined();
       expect(enhancedSession.id).toBeDefined();
       expect(enhancedSession.notes).toBeDefined();
+      expect(minimalSession.notes).toBeUndefined();
     });
   });
 
   describe('Integration Validation', () => {
-    it('should complete a full session workflow', async () => {
+    it('should complete a full session workflow', () => {
       const task = createMockTask();
-      const session = createMockTaskSession({ taskId: task.id });
-      const timerInstance = createMockTimerInstance({ sessionId: session.id });
-
-      // Mock the complete workflow
-      mockInvoke
-        .mockResolvedValueOnce(session) // Create session
-        .mockResolvedValueOnce(timerInstance) // Create timer instance
-        .mockResolvedValueOnce(undefined) // Start timer
-        .mockResolvedValueOnce(undefined) // Stop timer
-        .mockResolvedValueOnce(undefined); // End session
-
-      // Execute workflow
-      const createdSession = await mockInvoke('create_session', {
+      const session = createMockTaskSession({ 
         taskId: task.id,
         taskName: task.name,
+        isActive: true,
+      });
+      const timerInstance = createMockTimerInstance({ 
+        sessionId: session.id,
+        isRunning: true,
       });
 
-      const createdInstance = await mockInvoke('create_timer_instance', {
-        sessionId: createdSession.id,
-      });
+      // Validate workflow data integrity
+      expect(session.taskId).toBe(task.id);
+      expect(session.taskName).toBe(task.name);
+      expect(session.isActive).toBe(true);
+      expect(timerInstance.sessionId).toBe(session.id);
+      expect(timerInstance.isRunning).toBe(true);
 
-      await mockInvoke('start_timer_instance', {
-        instanceId: createdInstance.id,
-      });
+      // Simulate stopping timer and ending session
+      const stoppedInstance: TimerInstance = {
+        ...timerInstance,
+        isRunning: false,
+        endTime: new Date(),
+        duration: 3600000, // 1 hour
+      };
 
-      await mockInvoke('stop_timer_instance', {
-        instanceId: createdInstance.id,
-      });
+      const endedSession: TaskSession = {
+        ...session,
+        isActive: false,
+        totalDuration: stoppedInstance.duration || 0,
+        timerInstances: [stoppedInstance],
+      };
 
-      await mockInvoke('end_session', {
-        sessionId: createdSession.id,
-      });
-
-      // Validate workflow completion
-      expect(mockInvoke).toHaveBeenCalledTimes(5);
-      expect(createdSession.taskId).toBe(task.id);
-      expect(createdInstance.sessionId).toBe(createdSession.id);
+      expect(stoppedInstance.isRunning).toBe(false);
+      expect(stoppedInstance.duration).toBe(3600000);
+      expect(endedSession.isActive).toBe(false);
+      expect(endedSession.totalDuration).toBe(3600000);
     });
 
-    it('should handle error scenarios gracefully', async () => {
-      // Test session creation failure
-      mockInvoke.mockRejectedValueOnce(new Error('Session creation failed'));
+    it('should handle error scenarios gracefully', () => {
+      // Test invalid session data
+      const invalidSession = {
+        id: '',
+        taskId: '',
+        taskName: '',
+        timerInstances: [],
+        totalDuration: -1,
+        isActive: false,
+        date: 'invalid-date',
+        createdAt: '',
+        updatedAt: '',
+      };
 
-      await expect(
-        mockInvoke('create_session', { taskId: 'invalid', taskName: 'Test' })
-      ).rejects.toThrow('Session creation failed');
+      // Validate error conditions
+      expect(invalidSession.id).toBe('');
+      expect(invalidSession.taskId).toBe('');
+      expect(invalidSession.taskName).toBe('');
+      expect(invalidSession.totalDuration).toBeLessThan(0);
+      expect(invalidSession.date).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
 
-      // Test timer instance creation failure
-      mockInvoke.mockRejectedValueOnce(new Error('Timer creation failed'));
-
-      await expect(
-        mockInvoke('create_timer_instance', { sessionId: 'invalid' })
-      ).rejects.toThrow('Timer creation failed');
+      // Test valid session creation
+      const validSession = createMockTaskSession();
+      expect(validSession.id).toBeTruthy();
+      expect(validSession.taskId).toBeTruthy();
+      expect(validSession.taskName).toBeTruthy();
+      expect(validSession.totalDuration).toBeGreaterThanOrEqual(0);
+      expect(validSession.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
   });
 });

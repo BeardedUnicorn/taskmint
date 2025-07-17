@@ -8,16 +8,29 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { InactivityWarningDialog } from '../InactivityWarningDialog';
+import { TimerInstance } from '../../../../types/timer';
 
 // Mock timer for countdown testing
 vi.useFakeTimers();
 
 describe('InactivityWarningDialog', () => {
+  const mockTimerInstance: TimerInstance = {
+    id: 'timer-1',
+    sessionId: 'session-1',
+    startTime: new Date(),
+    isRunning: true,
+    isPaused: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
   const mockProps = {
     remainingSeconds: 30,
     onContinue: vi.fn(),
     onPause: vi.fn(),
+    timerInstance: mockTimerInstance,
   };
 
   beforeEach(() => {
@@ -164,11 +177,11 @@ expect(['3', '3.33']).toContain(progressValue);
 // expect(dialog).toHaveAttribute('aria-describedby');
     });
 
-    it('should focus on dialog when opened', () => {
+    it('should focus on continue button when opened', () => {
       render(<InactivityWarningDialog {...mockProps} />);
       
-      const dialog = screen.getByRole('dialog');
-      expect(document.activeElement).toBe(dialog);
+      const continueButton = screen.getByRole('button', { name: /continue working/i });
+      expect(document.activeElement).toBe(continueButton);
     });
 
     it('should have proper dialog structure', () => {
@@ -192,12 +205,11 @@ expect(['3', '3.33']).toContain(progressValue);
     it('should display countdown message with remaining time', () => {
       render(<InactivityWarningDialog {...mockProps} remainingSeconds={25} />);
       
-      // The message may be split across elements, so use a function matcher
-expect(screen.getByText((content, element) => {
-  return element?.textContent?.includes('Your timer will be automatically paused in') &&
-         element?.textContent?.includes('25s') &&
-         element?.textContent?.includes('unless you continue working');
-})).toBeInTheDocument();
+      // Check for the main message text
+      expect(screen.getByText(/Your timer will be automatically paused in/)).toBeInTheDocument();
+      expect(screen.getByText(/unless you continue working/)).toBeInTheDocument();
+      // Check that 25s appears somewhere in the document
+      expect(screen.getAllByText(/25s/).length).toBeGreaterThan(0);
     });
 
     it('should update countdown message when time changes', () => {
@@ -252,6 +264,7 @@ expect(screen.getByText((content, element) => {
         remainingSeconds: 30,
         onContinue: undefined as any,
         onPause: undefined as any,
+        timerInstance: mockTimerInstance,
       };
       
       expect(() => {

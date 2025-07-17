@@ -42,8 +42,10 @@ import {
   Task as TaskIcon,
   FolderOpen as SessionIcon,
 } from '@mui/icons-material';
-import { invoke } from '@tauri-apps/api/core';
 import { useNotification } from '../../../contexts/NotificationContext';
+import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
+import { useTaskNotes } from '../../../hooks/useTaskNotes';
+import { NoteTemplate, TaskNote, TemplateField } from '../../../types/notes';
 
 // Enhanced note types with hierarchy
 interface Note {
@@ -61,15 +63,8 @@ interface Note {
     duration?: number;
     timerState?: 'running' | 'paused' | 'stopped';
     sessionPhase?: 'planning' | 'working' | 'review';
+    templateName?: string;
   };
-}
-
-interface NoteTemplate {
-  id: string;
-  name: string;
-  content: string;
-  type: 'timer' | 'session' | 'task';
-  isDefault: boolean;
 }
 
 interface EnhancedNotesDialogProps {
@@ -103,11 +98,10 @@ const noteTypeConfig = {
   },
 };
 
-// Note editor component
+// Enhanced note editor component with template support
 const NoteEditor: React.FC<{
   note?: Note;
   type: Note['type'];
-  templates: NoteTemplate[];
   onSave: (noteData: Partial<Note>) => Promise<void>;
   onCancel: () => void;
   contextIds: {
@@ -115,38 +109,222 @@ const NoteEditor: React.FC<{
     sessionId?: string;
     timerInstanceId?: string;
   };
-}> = ({ note, type, templates, onSave, onCancel, contextIds }) => {
+}> = ({ note, type, onSave, onCancel, contextIds }) => {
+  const { getActiveTemplates } = useNoteTemplates();
   const [content, setContent] = useState(note?.content || '');
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
+  const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   const [tags, setTags] = useState<string[]>(note?.tags || []);
   const [isLoading, setIsLoading] = useState(false);
 
-  const typeTemplates = templates.filter(t => t.type === type);
+  // Get active templates
+  const activeTemplates = getActiveTemplates();
+
+  // Initialize field values when template is selected or note is loaded
+  useEffect(() => {
+    if (selectedTemplate) {
+      const initialValues: Record<string, any> = {};
+      
+      // If editing an existing note, try to load its field values
+      if (note && note.templateId === selectedTemplate.id) {
+        try {
+          const existingValues = JSON.parse(note.content);
+          selectedTemplate.fields.forEach(field => {
+            initialValues[field.id] = existingValues[field.id] !== undefined 
+              ? existingValues[field.id] 
+              : getDefaultFieldValue(field.type);
+          });
+        } catch {
+          // Fallback to default values if parsing fails
+          selectedTemplate.fields.forEach(field => {
+            initialValues[field.id] = getDefaultFieldValue(field.type);
+          });
+        }
+      } else {
+        // New note - use default values
+        selectedTemplate.fields.forEach(field => {
+          initialValues[field.id] = getDefaultFieldValue(field.type);
+        });
+      }
+      
+      setFieldValues(initialValues);
+    } else {
+      setFieldValues({});
+    }
+  }, [selectedTemplate, note]);
+
+  // Initialize template selection for existing notes
+  useEffect(() => {
+    if (note && note.templateId && note.templateId !== 'free-form') {
+      const template = activeTemplates.find(t => t.id === note.templateId);
+      if (template) {
+        setSelectedTemplate(template);
+      }
+    }
+  }, [note, activeTemplates]);
+
+  const getDefaultFieldValue = (fieldType: string) => {
+    switch (fieldType) {
+      case 'text':
+      case 'command':
+        return '';
+      case 'number':
+        return '';
+      case 'date':
+        return '';
+      case 'checkbox':
+        return false;
+      case 'select':
+        return '';
+      default:
+        return '';
+    }
+  };
 
   const handleTemplateSelect = (templateId: string) => {
-    const template = templates.find(t => t.id === templateId);
+    if (templateId === '') {
+      setSelectedTemplate(null);
+      setContent(note?.content || '');
+      return;
+    }
+    
+    const template = activeTemplates.find(t => t.id === templateId);
     if (template) {
-      setContent(template.content);
-      setSelectedTemplate(templateId);
+      setSelectedTemplate(template);
+    }
+  };
+
+  const handleFieldChange = (fieldId: string, value: any) => {
+    setFieldValues(prev => ({ ...prev, [fieldId]: value }));
+  };
+
+  const renderTemplateField = (field: TemplateField) => {
+    const value = fieldValues[field.id] || '';
+
+    switch (field.type) {
+      case 'text':
+        return (
+          <TextField
+            key={field.id}
+            label={field.label}
+            value={value}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+            required={field.required}
+            fullWidth
+            multiline
+            rows={3}
+            size="small"
+          />
+        );
+      case 'number':
+        return (
+          <TextField
+            key={field.id}
+            label={field.label}
+            type="number"
+            value={value}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+            required={field.required}
+            fullWidth
+            size="small"
+            inputProps={{
+              min: field.validation?.min,
+              max: field.validation?.max,
+            }}
+          />
+        );
+      case 'date':
+        return (
+          <TextField
+            key={field.id}
+            label={field.label}
+            type="date"
+            value={value}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            required={field.required}
+            fullWidth
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+        );
+      case 'checkbox':
+        return (
+          <FormControl key={field.id} component="fieldset">
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={!!value}
+                onChange={(e) => handleFieldChange(field.id, e.target.checked)}
+                style={{ marginRight: 8 }}
+              />
+              <Typography variant="body2">{field.label}</Typography>
+            </Box>
+          </FormControl>
+        );
+      case 'select':
+        return (
+          <FormControl key={field.id} fullWidth size="small" required={field.required}>
+            <InputLabel>{field.label}</InputLabel>
+            <Select
+              value={value || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              label={field.label}
+            >
+              {!field.required && (
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+              )}
+              {(field.options || []).map((option, index) => (
+                <MenuItem key={index} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        );
+      default:
+        return null;
     }
   };
 
   const handleSave = async () => {
-    if (!content.trim()) return;
+    if (!selectedTemplate && !content.trim()) return;
 
     setIsLoading(true);
     try {
-      const noteData: Partial<Note> = {
-        content: content.trim(),
-        type,
-        tags,
-        templateId: selectedTemplate || undefined,
-        ...contextIds,
-        metadata: {
-          timerState: type === 'timer' ? 'running' : undefined,
-          sessionPhase: type === 'session' ? 'working' : undefined,
-        },
-      };
+      let noteData: Partial<Note>;
+
+      if (selectedTemplate) {
+        // Template-based note
+        noteData = {
+          content: JSON.stringify(fieldValues), // Store field values as JSON
+          type,
+          tags,
+          templateId: selectedTemplate.id,
+          ...contextIds,
+          metadata: {
+            timerState: type === 'timer' ? 'running' : undefined,
+            sessionPhase: type === 'session' ? 'working' : undefined,
+            templateName: selectedTemplate.name,
+          },
+        };
+      } else {
+        // Free-form note
+        noteData = {
+          content: content.trim(),
+          type,
+          tags,
+          templateId: undefined,
+          ...contextIds,
+          metadata: {
+            timerState: type === 'timer' ? 'running' : undefined,
+            sessionPhase: type === 'session' ? 'working' : undefined,
+          },
+        };
+      }
 
       await onSave(noteData);
     } finally {
@@ -154,40 +332,63 @@ const NoteEditor: React.FC<{
     }
   };
 
+  const validateFields = () => {
+    if (!selectedTemplate) return true;
+    
+    return selectedTemplate.fields.every(field => {
+      if (!field.required) return true;
+      const value = fieldValues[field.id];
+      return value !== undefined && value !== null && value !== '';
+    });
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Template selection */}
-      {typeTemplates.length > 0 && (
-        <FormControl size="small">
-          <InputLabel>Template</InputLabel>
-          <Select
-            value={selectedTemplate}
-            onChange={(e) => handleTemplateSelect(e.target.value)}
-            label="Template"
-          >
-            <MenuItem value="">
-              <em>Free-form note</em>
+      <FormControl size="small">
+        <InputLabel>Note Template</InputLabel>
+        <Select
+          value={selectedTemplate?.id || ''}
+          onChange={(e) => handleTemplateSelect(e.target.value)}
+          label="Note Template"
+        >
+          <MenuItem value="">
+            <em>Free-form note</em>
+          </MenuItem>
+          {activeTemplates.map(template => (
+            <MenuItem key={template.id} value={template.id}>
+              {template.name}
+              {template.description && (
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                  - {template.description}
+                </Typography>
+              )}
             </MenuItem>
-            {typeTemplates.map(template => (
-              <MenuItem key={template.id} value={template.id}>
-                {template.name}
-                {template.isDefault && <Chip size="small" label="Default" sx={{ ml: 1 }} />}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      )}
+          ))}
+        </Select>
+      </FormControl>
 
-      {/* Content editor */}
-      <TextField
-        multiline
-        rows={6}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder={`Enter your ${type} note...`}
-        variant="outlined"
-        fullWidth
-      />
+      {/* Template fields or free-form content */}
+      {selectedTemplate ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            {selectedTemplate.description}
+          </Typography>
+          {selectedTemplate.fields
+            .sort((a, b) => a.order - b.order)
+            .map(field => renderTemplateField(field))}
+        </Box>
+      ) : (
+        <TextField
+          multiline
+          rows={6}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder={`Enter your ${type} note...`}
+          variant="outlined"
+          fullWidth
+        />
+      )}
 
       {/* Tags input */}
       <Autocomplete
@@ -224,7 +425,7 @@ const NoteEditor: React.FC<{
         <Button
           variant="contained"
           onClick={handleSave}
-          disabled={!content.trim() || isLoading}
+          disabled={(!selectedTemplate && !content.trim()) || (selectedTemplate && !validateFields()) || isLoading}
           startIcon={<SaveIcon />}
         >
           Save Note
@@ -241,6 +442,7 @@ const NoteList: React.FC<{
   onEdit: (note: Note) => void;
   onDelete: (noteId: string) => void;
 }> = ({ notes, type, onEdit, onDelete }) => {
+  const { getTemplateById } = useNoteTemplates();
   const typeNotes = notes.filter(note => note.type === type);
 
   if (typeNotes.length === 0) {
@@ -254,6 +456,84 @@ const NoteList: React.FC<{
     );
   }
 
+  const renderNoteContent = (note: Note) => {
+    if (!note.templateId || note.templateId === 'free-form') {
+      // Free-form note
+      return (
+        <Typography
+          variant="body1"
+          sx={{
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          {note.content}
+        </Typography>
+      );
+    }
+
+    // Template-based note
+    const template = getTemplateById(note.templateId);
+    let fieldValues: Record<string, any> = {};
+    
+    try {
+      fieldValues = JSON.parse(note.content);
+    } catch {
+      // Fallback for non-JSON content
+      return (
+        <Typography
+          variant="body1"
+          sx={{
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          {note.content}
+        </Typography>
+      );
+    }
+
+    if (!template) {
+      return (
+        <Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Template: {note.metadata?.templateName || 'Unknown'}
+          </Typography>
+          <Typography variant="body1">
+            {JSON.stringify(fieldValues, null, 2)}
+          </Typography>
+        </Box>
+      );
+    }
+
+    return (
+      <Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          Template: {template.name}
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {template.fields
+            .sort((a, b) => a.order - b.order)
+            .map(field => {
+              const value = fieldValues[field.id];
+              if (value === undefined || value === null || value === '') return null;
+              
+              return (
+                <Box key={field.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                    {field.label}:
+                  </Typography>
+                  <Typography variant="body2" sx={{ pl: 1 }}>
+                    {field.type === 'checkbox' ? (value ? 'Yes' : 'No') : String(value)}
+                  </Typography>
+                </Box>
+              );
+            })}
+        </Box>
+      </Box>
+    );
+  };
+
   return (
     <List>
       {typeNotes.map((note, index) => (
@@ -265,22 +545,20 @@ const NoteList: React.FC<{
                   <Typography variant="body2" color="text.secondary">
                     {new Date(note.createdAt).toLocaleString()}
                   </Typography>
+                  {note.templateId && note.templateId !== 'free-form' && (
+                    <Chip 
+                      label="Template" 
+                      size="small" 
+                      variant="outlined" 
+                      color="primary"
+                    />
+                  )}
                   {note.tags.map(tag => (
                     <Chip key={tag} label={tag} size="small" variant="outlined" />
                   ))}
                 </Box>
               }
-              secondary={
-                <Typography
-                  variant="body1"
-                  sx={{
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {note.content}
-                </Typography>
-              }
+              secondary={renderNoteContent(note)}
             />
             <ListItemSecondaryAction>
               <IconButton
@@ -318,67 +596,127 @@ export function EnhancedNotesDialog({
   taskName,
 }: EnhancedNotesDialogProps) {
   const { showError, showSuccess } = useNotification();
+  const { 
+    notes: taskNotes, 
+    createNote, 
+    updateNote, 
+    deleteNote,
+    getNotesBySessionId,
+    getNotesByTimerInstanceId 
+  } = useTaskNotes();
+  
   const [notes, setNotes] = useState<Note[]>([]);
-  const [templates, setTemplates] = useState<NoteTemplate[]>([]);
   const [activeTab, setActiveTab] = useState<Note['type']>('task');
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load notes and templates
+  // Load notes based on context
   useEffect(() => {
     if (!open) return;
 
-    const loadData = async () => {
+    const loadNotes = () => {
       setIsLoading(true);
       try {
-        const [notesData, templatesData] = await Promise.all([
-          invoke<Note[]>('get_notes', {
-            taskId: activeTaskId,
-            sessionId: activeSessionId,
-            timerInstanceId: activeTimerInstanceId,
-          }),
-          invoke<NoteTemplate[]>('get_note_templates'),
-        ]);
+        let contextNotes: TaskNote[] = [];
+        
+        if (activeTimerInstanceId) {
+          contextNotes = getNotesByTimerInstanceId(activeTimerInstanceId);
+        } else if (activeSessionId) {
+          contextNotes = getNotesBySessionId(activeSessionId);
+        } else if (activeTaskId) {
+          contextNotes = taskNotes.filter(note => note.taskId === activeTaskId);
+        }
 
-        setNotes(notesData);
-        setTemplates(templatesData);
+        // Convert TaskNote to Note format for compatibility
+        const convertedNotes: Note[] = contextNotes.map(note => ({
+          id: note.id,
+          content: typeof note.fieldValues === 'object' && note.fieldValues !== null 
+            ? JSON.stringify(note.fieldValues) 
+            : String((note.fieldValues as any)?.content || ''),
+          type: (note.noteLevel || 'task') as Note['type'],
+          taskId: note.taskId,
+          sessionId: note.sessionId || undefined,
+          timerInstanceId: note.timerInstanceId || undefined,
+          templateId: note.templateId,
+          tags: [], // TaskNote doesn't have tags, could be extended
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+          metadata: {
+            templateName: note.templateName,
+          },
+        }));
+
+        setNotes(convertedNotes);
       } catch (error) {
-        console.error('Failed to load notes data:', error);
+        console.error('Failed to load notes:', error);
         showError('Failed to load notes');
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadData();
-  }, [open, activeTaskId, activeSessionId, activeTimerInstanceId, showError]);
+    loadNotes();
+  }, [open, activeTaskId, activeSessionId, activeTimerInstanceId, taskNotes, getNotesBySessionId, getNotesByTimerInstanceId, showError]);
 
   // Save note handler
   const handleSaveNote = useCallback(async (noteData: Partial<Note>) => {
     try {
-      const note: Note = {
-        id: editingNote?.id || `note-${Date.now()}`,
-        content: noteData.content!,
-        type: noteData.type!,
-        taskId: noteData.taskId,
-        sessionId: noteData.sessionId,
-        timerInstanceId: noteData.timerInstanceId,
-        templateId: noteData.templateId,
-        tags: noteData.tags || [],
-        createdAt: editingNote?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        metadata: noteData.metadata,
+      let fieldValues: Record<string, any>;
+      
+      if (noteData.templateId) {
+        // Template-based note - content is JSON string of field values
+        try {
+          fieldValues = JSON.parse(noteData.content || '{}');
+        } catch {
+          fieldValues = { content: noteData.content || '' };
+        }
+      } else {
+        // Free-form note
+        fieldValues = { content: noteData.content || '' };
+      }
+
+      const taskNoteData = {
+        taskId: noteData.taskId!,
+        templateId: noteData.templateId || 'free-form',
+        templateName: noteData.metadata?.templateName || 'Free-form Note',
+        fieldValues,
+        sessionId: noteData.sessionId || null,
+        timerInstanceId: noteData.timerInstanceId || null,
+        noteLevel: noteData.type as 'task' | 'session' | 'timer',
       };
 
-      await invoke('save_note', { note });
+      let savedNote: TaskNote;
+      if (editingNote) {
+        savedNote = await updateNote(editingNote.id, taskNoteData);
+      } else {
+        savedNote = await createNote(taskNoteData);
+      }
 
-      // Update local state
+      // Convert back to Note format and update local state
+      const convertedNote: Note = {
+        id: savedNote.id,
+        content: typeof savedNote.fieldValues === 'object' && savedNote.fieldValues !== null 
+          ? JSON.stringify(savedNote.fieldValues) 
+          : String((savedNote.fieldValues as any)?.content || ''),
+        type: (savedNote.noteLevel || 'task') as Note['type'],
+        taskId: savedNote.taskId,
+        sessionId: savedNote.sessionId || undefined,
+        timerInstanceId: savedNote.timerInstanceId || undefined,
+        templateId: savedNote.templateId,
+        tags: [],
+        createdAt: savedNote.createdAt,
+        updatedAt: savedNote.updatedAt,
+        metadata: {
+          templateName: savedNote.templateName,
+        },
+      };
+
       setNotes(prev => {
         if (editingNote) {
-          return prev.map(n => n.id === note.id ? note : n);
+          return prev.map(n => n.id === convertedNote.id ? convertedNote : n);
         } else {
-          return [...prev, note];
+          return [...prev, convertedNote];
         }
       });
 
@@ -390,19 +728,19 @@ export function EnhancedNotesDialog({
       console.error('Failed to save note:', error);
       showError('Failed to save note');
     }
-  }, [editingNote, showError, showSuccess]);
+  }, [editingNote, createNote, updateNote, showError, showSuccess]);
 
   // Delete note handler
   const handleDeleteNote = useCallback(async (noteId: string) => {
     try {
-      await invoke('delete_note', { noteId });
+      await deleteNote(noteId);
       setNotes(prev => prev.filter(n => n.id !== noteId));
       showSuccess('Note deleted successfully');
     } catch (error) {
       console.error('Failed to delete note:', error);
       showError('Failed to delete note');
     }
-  }, [showError, showSuccess]);
+  }, [deleteNote, showError, showSuccess]);
 
   // Edit note handler
   const handleEditNote = useCallback((note: Note) => {
@@ -531,7 +869,6 @@ export function EnhancedNotesDialog({
                 <NoteEditor
                   note={editingNote || undefined}
                   type={activeTab}
-                  templates={templates}
                   onSave={handleSaveNote}
                   onCancel={handleCancelEditor}
                   contextIds={getContextIds()}

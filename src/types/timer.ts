@@ -321,6 +321,7 @@ export interface UseSessionManagementReturn {
   stopTimerInstance: (instanceId: string) => Promise<void>;
   pauseTimerInstance: (instanceId: string) => Promise<void>;
   resumeTimerInstance: (instanceId: string) => Promise<void>;
+  deleteTimerInstance: (instanceId: string) => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }

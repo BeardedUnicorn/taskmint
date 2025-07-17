@@ -126,7 +126,7 @@ interface SessionTimerBarProps {
   onOpenTimerNotes?: (instanceId: string) => void;
 }
 
-export function SessionTimerBar({
+export const SessionTimerBar = memo(function SessionTimerBar({
   activeSession,
   predefinedTasks,
   onStartSession,
@@ -145,20 +145,7 @@ export function SessionTimerBar({
   const [inputValue, setInputValue] = useState<string>('');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
-  // Get running timer instance
-  const runningInstance = activeSession?.timerInstances?.find(i => i.isRunning);
-
-  // Calculate elapsed time for running timer
-  const startTime = runningInstance?.startTime
-    ? (runningInstance.startTime instanceof Date
-        ? runningInstance.startTime
-        : new Date(runningInstance.startTime))
-    : undefined;
-
-  const elapsed = useTimer(
-    runningInstance?.isRunning || false,
-    startTime
-  );
+  // We don't need a single global elapsed timer anymore since each instance will calculate its own
   
   const sessionStatus = useMemo(() => {
     if (!activeSession || !Array.isArray(activeSession.timerInstances)) return { running: 0, paused: 0 };
@@ -166,22 +153,14 @@ export function SessionTimerBar({
         running: activeSession.timerInstances.filter(t => t.isRunning).length,
         paused: activeSession.timerInstances.filter(t => t.isPaused).length,
     };
-  }, [activeSession]);
+  }, [activeSession?.timerInstances]);
 
-  const getInstanceElapsedTime = (instance: TimerInstance): number => {
-    if (instance.isRunning) {
-      return elapsed;
-    } else if (instance.isPaused) {
-      const startTimeMs = instance.startTime instanceof Date ? instance.startTime.getTime() : new Date(instance.startTime).getTime();
-      const pausedAtMs = instance.pausedAt instanceof Date ? instance.pausedAt.getTime() : new Date(instance.pausedAt || Date.now()).getTime();
-      const elapsedToPause = pausedAtMs - startTimeMs;
-      const previousPausedDuration = instance.pausedDuration || 0;
-      return Math.max(0, elapsedToPause - previousPausedDuration);
-    }
-    return instance.duration || 0;
-  };
+  // Remove the old getInstanceElapsedTime function since each TimerInstanceCard will handle its own timing
 
-  const taskOptions = predefinedTasks.map(task => ({ label: task.name, id: task.id }));
+  const taskOptions = useMemo(() => 
+    predefinedTasks.map(task => ({ label: task.name, id: task.id })),
+    [predefinedTasks]
+  );
 
   const handleStartSession = async () => {
     let taskName = '';
@@ -216,15 +195,13 @@ export function SessionTimerBar({
     }
 
     try {
-      const newInstance = await onCreateTimerInstance(activeSession.id);
-      if (newInstance?.id) {
-        await onStartTimer(newInstance.id);
-      }
+      await onCreateTimerInstance(activeSession.id);
+      // Don't automatically start the new timer - let user start it manually
     } catch (error) {
       console.error('Failed to add timer instance:', error);
       alert(`Failed to add timer: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [activeSession, onCreateTimerInstance, onStartTimer]);
+  }, [activeSession, onCreateTimerInstance]);
 
   const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
     setMenuAnchor(event.currentTarget);
@@ -314,14 +291,6 @@ export function SessionTimerBar({
             {sessionStatus.paused > 0 && <Button variant="outlined" color="success" size="small" onClick={onResumeAll} startIcon={<ResumeIcon />}>Resume All</Button>}
         </Box>
         
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2" sx={{ opacity: 0.8 }}>
-            Total:
-          </Typography>
-          <Typography variant="h6" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-            {formatTime((activeSession.timerInstances || []).reduce((total, instance) => total + getInstanceElapsedTime(instance), 0))}
-          </Typography>
-        </Box>
         
         <IconButton
           onClick={handleMenuOpen}
@@ -362,8 +331,6 @@ export function SessionTimerBar({
               key={instance.id}
               instance={instance}
               index={index + 1}
-              isRunning={instance.isRunning}
-              elapsed={getInstanceElapsedTime(instance)}
               {...callbacks}
             />
           );
@@ -391,14 +358,12 @@ export function SessionTimerBar({
       </Menu>
     </Paper>
   );
-}
+});
 
 // Timer Instance Card Component
 interface TimerInstanceCardProps {
   instance: TimerInstance;
   index: number;
-  isRunning: boolean;
-  elapsed: number;
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
@@ -409,90 +374,247 @@ interface TimerInstanceCardProps {
 const TimerInstanceCard = memo(function TimerInstanceCard({
   instance,
   index,
-  isRunning,
-  elapsed,
   onStart,
   onStop,
   onPause,
   onResume,
   onOpenNotes,
 }: TimerInstanceCardProps) {
+  // Determine timer state from instance properties
+  const getTimerState = () => {
+    if (instance.isRunning === true) {
+      return 'running';
+    }
+    if (instance.isPaused === true) {
+      return 'paused';
+    }
+    return 'stopped';
+  };
+
+  const timerState = getTimerState();
+
+  // Calculate elapsed time for this specific instance
+  const startTime = useMemo(() => {
+    if (!instance.isRunning || !instance.startTime) return undefined;
+    return instance.startTime instanceof Date
+      ? instance.startTime
+      : new Date(instance.startTime);
+  }, [instance.isRunning, instance.startTime]);
+
+  const liveElapsed = useTimer(instance.isRunning || false, startTime);
+
+  const getInstanceElapsedTime = useCallback((): number => {
+    if (instance.isRunning) {
+      // For running timers, use the live elapsed time from useTimer hook
+      return liveElapsed;
+    } else if (instance.isPaused) {
+      // For paused timers, calculate elapsed time up to pause point
+      const startTimeMs = instance.startTime instanceof Date ? instance.startTime.getTime() : new Date(instance.startTime).getTime();
+      const pausedAtMs = instance.pausedAt instanceof Date ? instance.pausedAt.getTime() : new Date(instance.pausedAt || Date.now()).getTime();
+      const elapsedToPause = pausedAtMs - startTimeMs;
+      const previousPausedDuration = instance.pausedDuration || 0;
+      return Math.max(0, elapsedToPause - previousPausedDuration);
+    } else {
+      // For stopped timers, show their stored duration (preserves previous values)
+      return instance.duration || 0;
+    }
+  }, [instance, liveElapsed]);
+
+  const elapsed = getInstanceElapsedTime();
+
+  // Determine background color and text color based on timer state
+  const getTimerStyles = () => {
+    switch (timerState) {
+      case 'running':
+        return {
+          bgcolor: '#2e7d32', // success.dark
+          color: '#ffffff',
+          boxShadow: '0 0 12px rgba(76, 175, 80, 0.4)',
+          border: '1px solid rgba(76, 175, 80, 0.3)',
+        };
+      case 'paused':
+        return {
+          bgcolor: '#f57c00', // warning.dark
+          color: '#ffffff',
+          boxShadow: '0 0 12px rgba(255, 152, 0, 0.4)',
+          border: '1px solid rgba(255, 152, 0, 0.3)',
+        };
+      case 'stopped':
+      default:
+        return {
+          bgcolor: '#424242', // grey.800
+          color: '#ffffff',
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+        };
+    }
+  };
+
+  const timerStyles = getTimerStyles();
+
   return (
     <Box
       component="section"
       tabIndex={0}
       role="region"
-      aria-label={`Timer ${index}: ${isRunning ? 'running' : instance.isPaused ? 'paused' : 'stopped'}`}
+      aria-label={`Timer ${index}: ${timerState}`}
       sx={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         gap: 1,
-        p: 1.5,
-        borderRadius: 1,
-        bgcolor: isRunning ? 'success.dark' : instance.isPaused ? 'warning.dark' : 'secondary.dark',
-        color: 'white',
-        minWidth: 120,
-        transition: 'background-color 0.3s ease, transform 0.2s ease',
+        p: 2,
+        borderRadius: 2,
+        minWidth: 140,
+        minHeight: 120,
+        transition: 'all 0.3s ease',
+        cursor: 'pointer',
+        backgroundColor: timerStyles.bgcolor,
+        color: timerStyles.color,
+        boxShadow: timerStyles.boxShadow,
+        border: timerStyles.border,
         '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: 2,
+          transform: 'translateY(-3px)',
+          boxShadow: timerState === 'running' 
+            ? '0 0 16px rgba(76, 175, 80, 0.6)' 
+            : timerState === 'paused'
+            ? '0 0 16px rgba(255, 152, 0, 0.6)'
+            : '0 4px 8px rgba(0, 0, 0, 0.3)',
         },
         '&:focus': {
-          outline: '2px solid white',
+          outline: '2px solid #ffffff',
           outlineOffset: '2px',
         },
-        ...(isRunning && {
-          boxShadow: '0 0 10px rgba(76, 175, 80, 0.3)',
-        }),
-        ...(instance.isPaused && {
-          boxShadow: '0 0 10px rgba(255, 152, 0, 0.3)',
-        }),
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          if (isRunning) onPause();
-          else if (instance.isPaused) onResume();
+          if (timerState === 'running') onPause();
+          else if (timerState === 'paused') onResume();
           else onStart();
         }
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.8 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            fontWeight: 700, 
+            fontSize: '0.75rem',
+            color: '#ffffff',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}
+        >
           Timer {index}
         </Typography>
         <TimerStatusIndicator
-          status={isRunning ? 'running' : instance.isPaused ? 'paused' : 'stopped'}
+          status={timerState}
           size="small"
         />
       </Box>
       
       <Typography
-        variant="body1"
+        variant="h6"
         component="time"
         aria-label={`Timer ${index} elapsed time: ${formatTime(elapsed)}`}
-        sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.9rem' }}
+        sx={{ 
+          fontFamily: 'monospace', 
+          fontWeight: 700, 
+          fontSize: '1.1rem',
+          color: '#ffffff',
+          textAlign: 'center',
+          mb: 1,
+          textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+        }}
       >
         {formatTime(elapsed)}
       </Typography>
       
       <Box sx={{ display: 'flex', gap: 0.5 }} role="group" aria-label={`Timer ${index} controls`}>
-        {isRunning ? (
+        {timerState === 'running' ? (
           <>
-            <IconButton size="small" onClick={onPause} sx={{ color: 'white' }} aria-label={`Pause timer ${index}`}><PauseIcon fontSize="small" /></IconButton>
-            <IconButton size="small" onClick={onStop} sx={{ color: 'white' }} aria-label={`Stop timer ${index}`}><StopIcon fontSize="small" /></IconButton>
+            <IconButton 
+              size="small" 
+              onClick={onPause} 
+              sx={{ 
+                color: '#ffffff',
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+              }} 
+              aria-label={`Pause timer ${index}`}
+            >
+              <PauseIcon fontSize="small" />
+            </IconButton>
+            <IconButton 
+              size="small" 
+              onClick={onStop} 
+              sx={{ 
+                color: '#ffffff',
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+              }} 
+              aria-label={`Stop timer ${index}`}
+            >
+              <StopIcon fontSize="small" />
+            </IconButton>
           </>
-        ) : instance.isPaused ? (
+        ) : timerState === 'paused' ? (
           <>
-            <IconButton size="small" onClick={onResume} sx={{ color: 'white' }} aria-label={`Resume timer ${index}`}><PlayIcon fontSize="small" /></IconButton>
-            <IconButton size="small" onClick={onStop} sx={{ color: 'white' }} aria-label={`Stop timer ${index}`}><StopIcon fontSize="small" /></IconButton>
+            <IconButton 
+              size="small" 
+              onClick={onResume} 
+              sx={{ 
+                color: '#ffffff',
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+              }} 
+              aria-label={`Resume timer ${index}`}
+            >
+              <PlayIcon fontSize="small" />
+            </IconButton>
+            <IconButton 
+              size="small" 
+              onClick={onStop} 
+              sx={{ 
+                color: '#ffffff',
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+              }} 
+              aria-label={`Stop timer ${index}`}
+            >
+              <StopIcon fontSize="small" />
+            </IconButton>
           </>
         ) : (
-          <IconButton size="small" onClick={onStart} sx={{ color: 'white' }} aria-label={`Start timer ${index}`}><PlayIcon fontSize="small" /></IconButton>
+          <IconButton 
+            size="small" 
+            onClick={onStart} 
+            sx={{ 
+              color: '#ffffff',
+              bgcolor: 'rgba(255, 255, 255, 0.1)',
+              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+            }} 
+            aria-label={`Start timer ${index}`}
+          >
+            <PlayIcon fontSize="small" />
+          </IconButton>
         )}
 
-        {onOpenNotes && <IconButton size="small" onClick={onOpenNotes} sx={{ color: 'white' }} aria-label={`Open notes for timer ${index}`}><NoteAddIcon fontSize="small" /></IconButton>}
+        {onOpenNotes && (
+          <IconButton 
+            size="small" 
+            onClick={onOpenNotes} 
+            sx={{ 
+              color: '#ffffff',
+              bgcolor: 'rgba(255, 255, 255, 0.1)',
+              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+            }} 
+            aria-label={`Open notes for timer ${index}`}
+          >
+            <NoteAddIcon fontSize="small" />
+          </IconButton>
+        )}
       </Box>
     </Box>
   );
