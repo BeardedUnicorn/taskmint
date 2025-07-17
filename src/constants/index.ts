@@ -24,6 +24,14 @@ export const STORAGE_KEYS = {
   DAILY_GOAL_ACHIEVEMENTS: 'dailyGoalAchievements',
   FUNDS_RELEASE_DAYS: 'fundsReleaseDays',
   USER_SUBSCRIPTION: 'userSubscription',
+  FEATURE_OVERRIDES: 'featureOverrides',
+  TASK_LIMIT_OVERRIDE: 'taskLimitOverride',
+  // New session-based storage keys
+  TASK_SESSIONS: 'taskSessions',
+  TIMER_INSTANCES: 'timerInstances',
+  ENHANCED_TIMER_SETTINGS: 'enhancedTimerSettings',
+  INACTIVITY_SETTINGS: 'inactivitySettings',
+  TIMER_ACTIVITY_STATE: 'timerActivityState',
 } as const;
 
 // Time formatting constants
@@ -32,6 +40,26 @@ export const TIME_FORMATS = {
   DATE_ONLY: 'YYYY-MM-DD',
   DATETIME_LOCAL: 'YYYY-MM-DDTHH:mm',
   ISO_STRING: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
+} as const;
+
+// Inactivity detection constants
+export const INACTIVITY_CONSTANTS = {
+  MIN_THRESHOLD_MINUTES: 1,
+  MAX_THRESHOLD_MINUTES: 120,
+  DEFAULT_THRESHOLD_MINUTES: 15,
+  MIN_WARNING_SECONDS: 5,
+  MAX_WARNING_SECONDS: 60,
+  DEFAULT_WARNING_SECONDS: 30,
+  ACTIVITY_CHECK_INTERVAL_MS: 1000, // Check every second
+  ACTIVITY_EVENTS: ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'] as const,
+} as const;
+
+// Session management constants
+export const SESSION_CONSTANTS = {
+  MAX_TIMER_INSTANCES_PER_SESSION: 50,
+  MAX_SESSION_NAME_LENGTH: 100,
+  MAX_SESSION_NOTES_LENGTH: 1000,
+  MAX_TIMER_NOTES_LENGTH: 500,
 } as const;
 
 // Timer update intervals (in milliseconds)

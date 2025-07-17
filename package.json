@@ -14,7 +14,20 @@
     "test:ci": "vitest run --coverage --watchAll=false",
     "test:unit": "vitest run --exclude src/__tests__/integration/",
     "test:integration": "vitest run src/__tests__/integration/",
-    "test:all": "vitest run --coverage --verbose"
+    "test:all": "vitest run --coverage --verbose",
+    "test:sessions": "vitest run src/hooks/__tests__/useSessionManagement.test.ts src/services/__tests__/SessionService.test.ts",
+    "test:inactivity": "vitest run src/hooks/__tests__/useInactivityDetection.test.ts",
+    "test:migration": "vitest run src/services/__tests__/MigrationService.test.ts",
+    "test:session-system": "vitest run src/__tests__/integration/SessionSystem.integration.test.tsx",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:sessions": "playwright test e2e/session-management.e2e.ts",
+    "test:e2e:notes": "playwright test e2e/notes-functionality.e2e.ts",
+    "test:e2e:inactivity": "playwright test e2e/inactivity-detection.e2e.ts",
+    "test:e2e:workflows": "playwright test e2e/user-workflows.e2e.ts",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -40,6 +53,7 @@
     "zod": "^3.25.39"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.1",
     "@tauri-apps/cli": "^2.5.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",

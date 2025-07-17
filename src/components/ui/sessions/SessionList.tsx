@@ -1,0 +1,360 @@
+/**
+ * Session List Component
+ * 
+ * Displays a list of task sessions with management capabilities,
+ * filtering, and detailed session information.
+ */
+
+import React, { useState, useMemo } from 'react';
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Chip,
+  IconButton,
+  Stack,
+  TextField,
+  InputAdornment,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
+  Alert,
+} from '@mui/material';
+import {
+  Search as SearchIcon,
+  MoreVert as MoreIcon,
+  PlayArrow as PlayIcon,
+  Stop as StopIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Notes as NotesIcon,
+  Timer as TimerIcon,
+  Today as DateIcon,
+} from '@mui/icons-material';
+import { TaskSession } from '../../../types/timer';
+import { formatTime, formatDate } from '../../../utils/formatters';
+
+interface SessionListProps {
+  sessions: TaskSession[];
+  onSelectSession: (session: TaskSession) => void;
+  onDeleteSession: (sessionId: string) => void;
+  onStartSession: (session: TaskSession) => void;
+  onStopSession: (sessionId: string) => void;
+  selectedSessionId?: string;
+  isLoading?: boolean;
+  onEditSession: (session: TaskSession) => void;
+  onOpenNotes: (sessionId: string) => void;
+}
+
+export function SessionList({
+  sessions,
+  onSelectSession,
+  onDeleteSession,
+  onStartSession,
+  onStopSession,
+  selectedSessionId,
+  isLoading = false,
+  onEditSession,
+  onOpenNotes,
+}: SessionListProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedSession, setSelectedSession] = useState<TaskSession | null>(null);
+
+  // Filter sessions based on search query
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery.trim()) return sessions;
+    
+    const query = searchQuery.toLowerCase();
+    return sessions.filter(session =>
+      session.taskName.toLowerCase().includes(query) ||
+      session.notes?.toLowerCase().includes(query) ||
+      session.date.includes(query)
+    );
+  }, [sessions, searchQuery]);
+
+  // Group sessions by date
+  const sessionsByDate = useMemo(() => {
+    const grouped = filteredSessions.reduce((acc, session) => {
+      const date = session.date;
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(session);
+      return acc;
+    }, {} as Record<string, TaskSession[]>);
+
+    // Sort dates in descending order
+    const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+    
+    return sortedDates.map(date => ({
+      date,
+      sessions: grouped[date].sort((a, b) => 
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )
+    }));
+  }, [filteredSessions]);
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, session: TaskSession) => {
+    event.stopPropagation();
+    setMenuAnchor(event.currentTarget);
+    setSelectedSession(session);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setSelectedSession(null);
+  };
+
+  const handleDeleteSession = () => {
+    if (selectedSession) {
+      onDeleteSession(selectedSession.id);
+      handleMenuClose();
+    }
+  };
+
+  const handleToggleActive = () => {
+    if (selectedSession) {
+      if (selectedSession.isActive) {
+        onStopSession(selectedSession.id);
+      } else {
+        onStartSession(selectedSession);
+      }
+      handleMenuClose();
+    }
+  };
+
+  const handleEditSession = () => {
+    if (selectedSession) {
+      onEditSession(selectedSession);
+      handleMenuClose();
+    }
+  };
+
+  const handleOpenNotes = () => {
+    if (selectedSession) {
+      onOpenNotes(selectedSession.id);
+      handleMenuClose();
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography>Loading sessions...</Typography>
+      </Box>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Alert severity="info">
+          No sessions found. Create your first session to get started!
+        </Alert>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 2 }}>
+      {/* Search bar */}
+      <TextField
+        fullWidth
+        placeholder="Search sessions..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon />
+            </InputAdornment>
+          ),
+        }}
+        sx={{ mb: 3 }}
+      />
+
+      {/* Sessions grouped by date */}
+      {sessionsByDate.length === 0 ? (
+        <Alert severity="info">
+          No sessions match your search criteria.
+        </Alert>
+      ) : (
+        <Stack spacing={3}>
+          {sessionsByDate.map(({ date, sessions: dateSessions }) => (
+            <Box key={date}>
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  color: 'text.secondary',
+                  fontWeight: 600,
+                }}
+              >
+                <DateIcon />
+                {formatDate(new Date(date))}
+              </Typography>
+
+              <Stack spacing={2}>
+                {dateSessions.map((session) => (
+                  <SessionCard
+                    key={session.id}
+                    session={session}
+                    isSelected={session.id === selectedSessionId}
+                    onSelect={() => onSelectSession(session)}
+                    onMenuOpen={(e) => handleMenuOpen(e, session)}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      )}
+
+      {/* Context menu */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleMenuClose}
+      >
+        <MenuItem onClick={handleToggleActive}>
+          <ListItemIcon>
+            {selectedSession?.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}
+          </ListItemIcon>
+          <ListItemText>
+            {selectedSession?.isActive ? 'Stop Session' : 'Start Session'}
+          </ListItemText>
+        </MenuItem>
+        
+        <MenuItem onClick={handleEditSession}>
+          <ListItemIcon>
+            <EditIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Edit Session Notes</ListItemText>
+        </MenuItem>
+        
+        <MenuItem onClick={handleOpenNotes}>
+          <ListItemIcon>
+            <NotesIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Detailed Notes</ListItemText>
+        </MenuItem>
+        
+        <Divider />
+        
+        <MenuItem onClick={handleDeleteSession} sx={{ color: 'error.main' }}>
+          <ListItemIcon>
+            <DeleteIcon color="error" fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Delete Session</ListItemText>
+        </MenuItem>
+      </Menu>
+    </Box>
+  );
+}
+
+// Session Card Component
+interface SessionCardProps {
+  session: TaskSession;
+  isSelected: boolean;
+  onSelect: () => void;
+  onMenuOpen: (event: React.MouseEvent<HTMLElement>) => void;
+}
+
+function SessionCard({
+  session,
+  isSelected,
+  onSelect,
+  onMenuOpen,
+}: SessionCardProps) {
+
+  const runningInstances = session.timerInstances?.filter(i => i.isRunning) || [];
+  const totalInstances = session.timerInstances?.length || 0;
+
+  return (
+    <Card
+      sx={{
+        cursor: 'pointer',
+        border: isSelected ? 2 : 1,
+        borderColor: isSelected ? 'primary.main' : 'divider',
+        bgcolor: session.isActive ? 'action.selected' : 'background.paper',
+        '&:hover': {
+          bgcolor: 'action.hover',
+        },
+      }}
+      onClick={onSelect}
+    >
+      <CardContent sx={{ pb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+              {session.taskName}
+            </Typography>
+            
+            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+              <Chip
+                icon={<TimerIcon />}
+                label={formatTime(session.totalDuration)}
+                size="small"
+                color={session.isActive ? 'primary' : 'default'}
+                variant={session.isActive ? 'filled' : 'outlined'}
+              />
+              
+              <Chip
+                label={`${totalInstances} timer${totalInstances !== 1 ? 's' : ''}`}
+                size="small"
+                variant="outlined"
+              />
+              
+              {runningInstances.length > 0 && (
+                <Chip
+                  label={`${runningInstances.length} running`}
+                  size="small"
+                  color="success"
+                />
+              )}
+              
+              {session.isActive && (
+                <Chip
+                  label="Active"
+                  size="small"
+                  color="primary"
+                />
+              )}
+            </Stack>
+            
+            {session.notes && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {session.notes}
+              </Typography>
+            )}
+          </Box>
+          
+          <IconButton
+            onClick={onMenuOpen}
+            size="small"
+            sx={{ mt: -1, mr: -1 }}
+          >
+            <MoreIcon />
+          </IconButton>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}

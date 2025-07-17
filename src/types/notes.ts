@@ -50,7 +50,10 @@ export interface TaskNote {
   templateName: string; // Cached for display
   fieldValues: Record<string, any>; // Field ID -> Value mapping
   timeEntryId?: string | null; // Optional link to specific time entry
-  isArchived: boolean; // Archive status
+  sessionId?: string | null; // Optional link to task session
+  timerInstanceId?: string | null; // Optional link to timer instance
+  noteLevel?: 'task' | 'session' | 'timer'; // Level of the note (defaults to 'task')
+  isArchived?: boolean; // Archive status (defaults to false)
   archivedAt?: string | null; // When the note was archived
   createdAt: string;
   updatedAt: string;
@@ -102,7 +105,10 @@ export const TaskNoteSchema = z.object({
   templateName: z.string().min(1),
   fieldValues: z.record(z.any()),
   timeEntryId: z.string().nullable().optional(),
-  isArchived: z.boolean(),
+  sessionId: z.string().nullable().optional(),
+  timerInstanceId: z.string().nullable().optional(),
+  noteLevel: z.enum(['task', 'session', 'timer']).default('task'),
+  isArchived: z.boolean().default(false),
   archivedAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -142,6 +148,9 @@ export interface NoteEditorProps {
   template: NoteTemplate | null;
   existingNote?: TaskNote | null;
   timeEntryId?: string | null; // Optional time entry context
+  sessionId?: string | null; // Optional session context
+  timerInstanceId?: string | null; // Optional timer instance context
+  noteLevel: 'task' | 'session' | 'timer'; // Level of the note
   onSaveNote: (note: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<TaskNote>;
   onUpdateNote: (noteId: string, updates: Partial<TaskNote>) => Promise<TaskNote>;
   onDeleteNote: (noteId: string) => Promise<void>;
@@ -189,12 +198,16 @@ export interface UseTaskNotesReturn {
   deleteNote: (noteId: string) => Promise<void>;
   getNotesByTaskId: (taskId: string) => TaskNote[];
   getNotesByTimeEntryId: (timeEntryId: string) => TaskNote[];
+  getNotesBySessionId: (sessionId: string) => TaskNote[];
+  getNotesByTimerInstanceId: (timerInstanceId: string) => TaskNote[];
+  getNotesByLevel: (level: 'task' | 'session' | 'timer') => TaskNote[];
   getNoteById: (noteId: string) => TaskNote | undefined;
   getNotesStats: () => {
     totalNotes: number;
     templatesUsed: string[];
     lastNoteDate?: string;
     notesByTemplate: Record<string, number>;
+    notesByLevel: Record<'task' | 'session' | 'timer', number>;
   };
   isLoading: boolean;
   error: string | null;

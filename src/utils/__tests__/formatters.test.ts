@@ -17,6 +17,14 @@ describe('formatTime', () => {
     expect(formatTime(60000)).toBe('00:01:00');
     expect(formatTime(3661000)).toBe('01:01:01');
   });
+
+  it('should handle invalid input values', () => {
+    expect(formatTime(NaN)).toBe('00:00:00');
+    expect(formatTime(-1000)).toBe('00:00:00');
+    expect(formatTime(undefined as any)).toBe('00:00:00');
+    expect(formatTime(null as any)).toBe('00:00:00');
+    expect(formatTime('invalid' as any)).toBe('00:00:00');
+  });
 });
 
 describe('formatDuration', () => {

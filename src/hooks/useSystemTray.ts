@@ -1,8 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { useNotification } from '../contexts/NotificationContext';
 import { UseSystemTrayProps } from '../types/timer';
+import { safeInvoke, safeListen } from '../utils/tauri';
 
 export function useSystemTray({
   activeEntry,
@@ -15,7 +13,11 @@ export function useSystemTray({
   const prevActiveEntryRef = useRef(activeEntry);
   const prevTimeEntriesLengthRef = useRef(timeEntries.length);
   const lastUpdateRef = useRef(0);
-  const { showError } = useNotification();
+
+  // Safe error handling without NotificationProvider dependency
+  const showError = useCallback((message: string) => {
+    console.error('System Tray Error:', message);
+  }, []);
   // Update tray menu with daily totals
   const updateTrayMenuWithDailyTotal = useCallback(async () => {
     try {
@@ -32,7 +34,7 @@ export function useSystemTray({
         taskName: entry.taskName,
       }));
 
-      await invoke('update_tray_menu_command', {
+      await safeInvoke('update_tray_menu_command', {
         timeEntries: timeEntriesData,
       });
     } catch (error) {
@@ -52,14 +54,14 @@ export function useSystemTray({
       }
 
       if (activeEntry && activeEntry.isRunning) {
-        await invoke('update_timer_state', {
+        await safeInvoke('update_timer_state', {
           isRunning: true,
           taskName: activeEntry.taskName,
           startTime: activeEntry.startTime.toISOString(),
           elapsedMs: Date.now() - activeEntry.startTime.getTime(),
         });
       } else {
-        await invoke('update_timer_state', {
+        await safeInvoke('update_timer_state', {
           isRunning: false,
           taskName: '',
           startTime: null,
@@ -105,7 +107,7 @@ export function useSystemTray({
         updatedAt: new Date().toISOString(),
       }));
 
-      await invoke('update_tasks', {
+      await safeInvoke('update_tasks', {
         newTasks: tasks,
       });
 
@@ -132,37 +134,27 @@ export function useSystemTray({
         }
 
         // Listen for timer started from tray
-        const unlistenTimerStarted = await listen<{
-          taskName: string;
-          startTime: string;
-        }>('timer-started-from-tray', (event) => {
+        const unlistenTimerStarted = await safeListen('timer-started-from-tray', (event: any) => {
           const { taskName, startTime } = event.payload;
           onStartTimer(taskName, new Date(startTime));
         });
 
         // Listen for timer stopped from tray
-        const unlistenTimerStopped = await listen<{
-          taskName: string;
-          startTime: string | null;
-          elapsedMs: number;
-        }>('timer-stopped-from-tray', (_event) => {
+        const unlistenTimerStopped = await safeListen('timer-stopped-from-tray', (_event: any) => {
           onStopTimer();
         });
 
         // Listen for new task dialog request
-        const unlistenNewTaskDialog = await listen(
-          'show-new-task-dialog',
-          (event) => {
-            console.log('Received show-new-task-dialog event:', event);
-            onShowNewTaskDialog();
-          }
-        );
+        const unlistenNewTaskDialog = await safeListen('show-new-task-dialog', (event: any) => {
+          console.log('Received show-new-task-dialog event:', event);
+          onShowNewTaskDialog();
+        });
 
         // Return cleanup function
         return () => {
-          unlistenTimerStarted();
-          unlistenTimerStopped();
-          unlistenNewTaskDialog();
+          if (unlistenTimerStarted) unlistenTimerStarted();
+          if (unlistenTimerStopped) unlistenTimerStopped();
+          if (unlistenNewTaskDialog) unlistenNewTaskDialog();
         };
       } catch (error) {
         // Only log errors in Tauri environment

@@ -35,6 +35,15 @@ interface SubscriptionContextType {
   // Utility methods
   getAvailableUpgrades: () => Promise<SubscriptionSku[]>;
   getFeatureAccessSummary: () => Promise<Record<Feature, boolean>>;
+  
+  // Feature override methods
+  setFeatureOverride: (feature: Feature, enabled: boolean) => Promise<void>;
+  clearFeatureOverride: (feature: Feature) => Promise<void>;
+  
+  // Task limit override methods
+  getTaskLimitOverride: () => Promise<number | null>;
+  setTaskLimitOverride: (limit: number | null) => Promise<void>;
+  getEffectiveTaskLimit: () => Promise<number | undefined>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -114,6 +123,26 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     return await subscriptionService.getFeatureAccessSummary();
   };
 
+  const setFeatureOverride = async (feature: Feature, enabled: boolean): Promise<void> => {
+    await subscriptionService.setFeatureOverride(feature, enabled);
+  };
+
+  const clearFeatureOverride = async (feature: Feature): Promise<void> => {
+    await subscriptionService.clearFeatureOverride(feature);
+  };
+
+  const getTaskLimitOverride = async (): Promise<number | null> => {
+    return await subscriptionService.getTaskLimitOverride();
+  };
+
+  const setTaskLimitOverride = async (limit: number | null): Promise<void> => {
+    await subscriptionService.setTaskLimitOverride(limit);
+  };
+
+  const getEffectiveTaskLimit = async (): Promise<number | undefined> => {
+    return await subscriptionService.getEffectiveTaskLimit();
+  };
+
   const contextValue: SubscriptionContextType = {
     subscription,
     currentTier,
@@ -125,6 +154,11 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     refreshSubscription,
     getAvailableUpgrades,
     getFeatureAccessSummary,
+    setFeatureOverride,
+    clearFeatureOverride,
+    getTaskLimitOverride,
+    setTaskLimitOverride,
+    getEffectiveTaskLimit,
   };
 
   return (

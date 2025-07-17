@@ -27,6 +27,22 @@ filename_prefix = "time_tracker_backup_"  # Prefix for backup filenames
 filename_extension = ".json"   # Extension for backup files
 write_test_filename = ".taskmint_write_test"  # Test file for checking write permissions
 
+# Inactivity Detection Configuration
+[inactivity]
+enabled = true                # Enable inactivity detection by default
+threshold_minutes = 15        # Default inactivity threshold in minutes
+show_warning_before_pause = true  # Show warning before auto-pause
+warning_duration_seconds = 30     # Warning duration in seconds
+resume_on_activity = false        # Manual resume by default for safety
+activity_check_interval_ms = 1000 # Check for activity every second
+
+# Session Management Configuration
+[sessions]
+max_timer_instances_per_session = 50  # Maximum timer instances per session
+max_session_name_length = 100         # Maximum session name length
+max_session_notes_length = 1000       # Maximum session notes length
+max_timer_notes_length = 500          # Maximum timer instance notes length
+
 # Date/Time Validation Configuration
 [validation]
 timestamp_length = 15         # Expected length of backup timestamp strings

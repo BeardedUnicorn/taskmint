@@ -336,6 +336,7 @@ export function NotesPage({ tasks, activeEntry, notesPageState }: NotesPageProps
                   taskId={editingNote?.taskId || getDefaultTaskId()}
                   template={selectedTemplate}
                   existingNote={editingNote}
+                  noteLevel="task"
                   onSaveNote={handleSaveNote}
                   onUpdateNote={handleUpdateNote}
                   onDeleteNote={handleDeleteNote}

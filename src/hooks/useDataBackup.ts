@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { StorageService } from '../services/StorageService';
 import { Task } from '../types/task';
 import { NoteTemplate, TaskNote } from '../types/notes';
 import { DailyGoalAchievement } from '../types/goal';
+import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
 
 interface UseDataBackupProps {
   onExportSuccess?: () => void;
@@ -64,29 +64,37 @@ export const useDataBackup = ({
 
   const exportData = async () => {
     if (isExporting) return;
-    
+
     setIsExporting(true);
-    
+
     try {
+      if (!isTauriEnvironment()) {
+        throw new Error('Export functionality is only available in the desktop app');
+      }
+
       // Create the backup data
       const backupData = await createBackupData();
       const dataJson = JSON.stringify(backupData, null, 2);
-      
+
       // Generate suggested filename
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const suggestedFilename = `taskmint_export_${timestamp}.json`;
-      
+
       // Call Tauri command to show save dialog and export
-      const exportPath = await invoke<string>('export_data_to_file', {
+      const exportPath = await safeInvoke<string>('export_data_to_file', {
         dataJson,
         suggestedFilename
       });
-      
+
+      if (!exportPath) {
+        throw new Error('Export was cancelled or failed');
+      }
+
       if (process.env.NODE_ENV !== 'test') {
         console.log('Data exported successfully to:', exportPath);
       }
       onExportSuccess?.();
-      
+
     } catch (error) {
       // Only log in non-test environments
       if (process.env.NODE_ENV !== 'test') {
@@ -101,12 +109,20 @@ export const useDataBackup = ({
 
   const importData = async (mode: 'merge' | 'replace' = 'merge') => {
     if (isImporting) return;
-    
+
     setIsImporting(true);
-    
+
     try {
+      if (!isTauriEnvironment()) {
+        throw new Error('Import functionality is only available in the desktop app');
+      }
+
       // Call Tauri command to show open dialog and get file contents
-      const fileContents = await invoke<string>('import_data_from_file');
+      const fileContents = await safeInvoke<string>('import_data_from_file');
+
+      if (!fileContents) {
+        throw new Error('Import was cancelled or failed');
+      }
       
       // Parse the imported data
       const importedData = JSON.parse(fileContents);

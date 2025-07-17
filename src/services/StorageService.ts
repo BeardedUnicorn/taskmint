@@ -6,7 +6,20 @@
  */
 
 import { z } from 'zod';
-import { TimeEntry, TimeEntrySchema } from '../types/timer';
+import {
+  TimeEntry,
+  TimeEntrySchema,
+  TaskSession,
+  TaskSessionSchema,
+  TimerInstance,
+  TimerInstanceSchema,
+  EnhancedTimerSettings,
+  EnhancedTimerSettingsSchema,
+  InactivitySettings,
+  InactivitySettingsSchema,
+  TimerActivityState,
+  TimerActivityStateSchema
+} from '../types/timer';
 import { Task, TaskSchema } from '../types/task';
 import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../types/notes';
 import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
@@ -37,7 +50,18 @@ export interface IStorageService {
   getGoalAchievements(): Promise<DailyGoalAchievement[]>;
   setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void>;
 
-  
+  // Session-based storage operations
+  getTaskSessions(): Promise<TaskSession[]>;
+  setTaskSessions(sessions: TaskSession[]): Promise<void>;
+  getTimerInstances(): Promise<TimerInstance[]>;
+  setTimerInstances(instances: TimerInstance[]): Promise<void>;
+  getEnhancedTimerSettings(): Promise<EnhancedTimerSettings>;
+  setEnhancedTimerSettings(settings: EnhancedTimerSettings): Promise<void>;
+  getInactivitySettings(): Promise<InactivitySettings>;
+  setInactivitySettings(settings: InactivitySettings): Promise<void>;
+  getTimerActivityState(): Promise<TimerActivityState | null>;
+  setTimerActivityState(state: TimerActivityState): Promise<void>;
+
   // Backup and migration
   createBackup(key: string): Promise<void>;
   needsMigration(key: string): Promise<boolean>;
@@ -331,6 +355,107 @@ export class StorageService implements IStorageService {
       STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
       achievements,
       z.array(DailyGoalAchievementSchema)
+    );
+  }
+
+  // Session-based storage operations
+
+  async getTaskSessions(): Promise<TaskSession[]> {
+    const sessions = await this.getItem(
+      STORAGE_KEYS.TASK_SESSIONS,
+      [],
+      z.array(TaskSessionSchema)
+    );
+
+    // Convert stored sessions back to proper Date objects
+    return sessions.map(session => ({
+      ...session,
+      timerInstances: session.timerInstances.map(instance => ({
+        ...instance,
+        startTime: new Date(instance.startTime),
+        endTime: instance.endTime ? new Date(instance.endTime) : undefined,
+        pausedAt: instance.pausedAt ? new Date(instance.pausedAt) : undefined,
+      }))
+    }));
+  }
+
+  async setTaskSessions(sessions: TaskSession[]): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.TASK_SESSIONS,
+      sessions,
+      z.array(TaskSessionSchema)
+    );
+  }
+
+  async getTimerInstances(): Promise<TimerInstance[]> {
+    const instances = await this.getItem(
+      STORAGE_KEYS.TIMER_INSTANCES,
+      [],
+      z.array(TimerInstanceSchema)
+    );
+
+    // Convert stored instances back to proper Date objects
+    return instances.map(instance => ({
+      ...instance,
+      startTime: new Date(instance.startTime),
+      endTime: instance.endTime ? new Date(instance.endTime) : undefined,
+      pausedAt: instance.pausedAt ? new Date(instance.pausedAt) : undefined,
+    }));
+  }
+
+  async setTimerInstances(instances: TimerInstance[]): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.TIMER_INSTANCES,
+      instances,
+      z.array(TimerInstanceSchema)
+    );
+  }
+
+  async getEnhancedTimerSettings(): Promise<EnhancedTimerSettings> {
+    return await this.getItem(
+      STORAGE_KEYS.ENHANCED_TIMER_SETTINGS,
+      { roundingOption: 'none', inactivity: { enabled: true, thresholdMinutes: 15, showWarningBeforePause: true, warningDurationSeconds: 30, resumeOnActivity: false } },
+      EnhancedTimerSettingsSchema
+    );
+  }
+
+  async setEnhancedTimerSettings(settings: EnhancedTimerSettings): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.ENHANCED_TIMER_SETTINGS,
+      settings,
+      EnhancedTimerSettingsSchema
+    );
+  }
+
+  async getInactivitySettings(): Promise<InactivitySettings> {
+    return await this.getItem(
+      STORAGE_KEYS.INACTIVITY_SETTINGS,
+      { enabled: true, thresholdMinutes: 15, showWarningBeforePause: true, warningDurationSeconds: 30, resumeOnActivity: false },
+      InactivitySettingsSchema
+    );
+  }
+
+  async setInactivitySettings(settings: InactivitySettings): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.INACTIVITY_SETTINGS,
+      settings,
+      InactivitySettingsSchema
+    );
+  }
+
+  async getTimerActivityState(): Promise<TimerActivityState | null> {
+    return await this.getItem(
+      STORAGE_KEYS.TIMER_ACTIVITY_STATE,
+      null,
+      TimerActivityStateSchema.nullable()
+    );
+  }
+
+  async setTimerActivityState(state: TimerActivityState): Promise<void> {
+    await this.setItem(
+      STORAGE_KEYS.TIMER_ACTIVITY_STATE,
+      state,
+      TimerActivityStateSchema
     );
   }
 

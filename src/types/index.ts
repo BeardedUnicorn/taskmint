@@ -16,6 +16,21 @@ export type {
   TimerSettings,
   FavoriteTasksSettings,
   TaskWithUsage,
+  // New session-based types
+  TimerInstance,
+  TaskSession,
+  InactivitySettings,
+  EnhancedTimerSettings,
+  TimerActivityState,
+  SessionStats,
+  SessionTimerBarProps,
+  SessionListProps,
+  TimerInstanceListProps,
+  InactivityWarningProps,
+  UseSessionManagementReturn,
+  UseTimerInstanceReturn,
+  UseInactivityDetectionReturn,
+  UseEnhancedSystemTrayProps,
 } from './timer';
 
 // Task Management Types

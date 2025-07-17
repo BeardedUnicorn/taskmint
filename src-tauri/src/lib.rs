@@ -14,6 +14,7 @@ pub mod utils;
 pub mod backup;
 pub mod google_drive;
 pub mod config;
+pub mod storage;
 
 
 // Re-export commonly used types
@@ -34,6 +35,17 @@ pub fn run() {
         .setup({
             let app_state = app_state.clone();
             move |app| {
+                // Load sessions from store
+                let sessions_result = storage::load_sessions(app.handle());
+                match sessions_result {
+                    Ok(sessions) => {
+                        *app_state.task_sessions.lock().unwrap() = sessions;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to load sessions: {}", e);
+                    }
+                }
+
                 // Set up menu event handling
                 let app_handle = app.handle().clone();
                 let state_for_menu = app_state.clone();
@@ -73,7 +85,27 @@ pub fn run() {
             commands::tasks::update_tasks,
             commands::tasks::get_tasks,
             commands::tasks::get_daily_total,
-            
+
+            // Session commands
+            commands::sessions::create_session,
+            commands::sessions::create_session_with_timer,
+            commands::sessions::get_sessions,
+            commands::sessions::get_session_by_id,
+            commands::sessions::update_session,
+            commands::sessions::delete_session,
+            commands::sessions::create_timer_instance,
+            commands::sessions::update_timer_instance,
+            commands::sessions::start_timer_instance,
+            commands::sessions::stop_timer_instance,
+            commands::sessions::pause_timer_instance,
+            commands::sessions::resume_timer_instance,
+            commands::sessions::get_enhanced_timer_state,
+            commands::sessions::update_inactivity_settings,
+            commands::sessions::get_inactivity_settings,
+            commands::sessions::update_timer_activity_state,
+            commands::sessions::get_timer_activity_state,
+            commands::sessions::set_active_session,
+
             // Tray commands
             commands::tray::update_tray_menu_command,
             commands::tray::test_new_task_dialog,

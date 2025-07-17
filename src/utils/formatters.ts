@@ -9,6 +9,11 @@
  * Format time duration from milliseconds to HH:MM:SS format
  */
 export function formatTime(milliseconds: number): string {
+  // Handle invalid input values
+  if (typeof milliseconds !== 'number' || isNaN(milliseconds) || milliseconds < 0) {
+    return '00:00:00';
+  }
+
   const seconds = Math.floor(milliseconds / 1000);
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -25,6 +30,18 @@ export function formatDuration(milliseconds: number): string {
   const hours = Math.floor(milliseconds / (1000 * 60 * 60));
   const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
   return `${hours}h ${minutes}m`;
+}
+
+/**
+ * Format date to human-readable format
+ */
+export function formatDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 }
 
 /**
