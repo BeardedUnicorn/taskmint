@@ -177,7 +177,7 @@ pub async fn delete_session(
     app_state: State<'_, AppState>,
     session_id: String,
 ) -> Result<(), String> {
-    app_state.with_task_sessions_mut(|sessions| {
+    let _ = app_state.with_task_sessions_mut(|sessions| {
         let initial_len = sessions.len();
         sessions.retain(|s| s.id != session_id);
         
