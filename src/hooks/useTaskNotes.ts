@@ -151,6 +151,23 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
   }, [notes]);
 
   /**
+   * Get notes by session ID
+   */
+  const getNotesBySessionId = useCallback((sessionId: string): TaskNote[] => {
+    return notes.filter(note => note.sessionId === sessionId);
+  }, [notes]);
+
+  /**
+   * Get notes by timer instance ID
+   */
+  const getNotesByTimerInstanceId = useCallback(
+    (timerInstanceId: string): TaskNote[] => {
+      return notes.filter(note => note.timerInstanceId === timerInstanceId);
+    },
+    [notes]
+  );
+
+  /**
    * Get note by ID
    */
   const getNoteById = useCallback((noteId: string): TaskNote | undefined => {
@@ -343,6 +360,8 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
     unarchiveNote,
     getNotesByTaskId,
     getNotesByTimeEntryId,
+    getNotesBySessionId,
+    getNotesByTimerInstanceId,
     getNoteById,
     isLoading,
     error,
