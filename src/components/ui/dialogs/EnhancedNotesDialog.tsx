@@ -690,7 +690,10 @@ export function EnhancedNotesDialog({
   } = useTaskNotes();
   
   const [notes, setNotes] = useState<Note[]>([]);
-  const [activeTab, setActiveTab] = useState<Note['type']>('task');
+  const [activeTab, setActiveTab] = useState<Note['type']>(() => {
+    const types = getAvailableTypes();
+    return types[0] || 'task';
+  });
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -869,17 +872,24 @@ export function EnhancedNotesDialog({
   };
 
   // Get available note types based on context
-  const getAvailableTypes = (): Note['type'][] => {
+  function getAvailableTypes(): Note['type'][] {
     const types: Note['type'][] = [];
-    
+
     if (activeTaskId) types.push('task');
     if (activeSessionId) types.push('session');
     if (activeTimerInstanceId) types.push('timer');
-    
+
     return types;
-  };
+  }
 
   const availableTypes = getAvailableTypes();
+
+  // Reset active tab if available types change
+  useEffect(() => {
+    if (availableTypes.length > 0) {
+      setActiveTab(availableTypes[0]);
+    }
+  }, [activeTaskId, activeSessionId, activeTimerInstanceId]);
 
   return (
     <Dialog
@@ -909,6 +919,10 @@ export function EnhancedNotesDialog({
         {isLoading ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Typography>Loading notes...</Typography>
+          </Box>
+        ) : availableTypes.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography>No note types available for this context.</Typography>
           </Box>
         ) : (
           <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
