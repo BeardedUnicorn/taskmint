@@ -121,6 +121,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         <IconButton
           onClick={() => setIsCollapsed(!isCollapsed)}
           size="small"
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           sx={{
             ml: isCollapsed ? 0 : 1,
           }}
@@ -141,6 +142,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
               key={item.id}
               selected={isSelected}
               onClick={() => onViewChange(item.id)}
+              aria-label={item.label}
               sx={{
                 mx: 1,
                 borderRadius: 1,
