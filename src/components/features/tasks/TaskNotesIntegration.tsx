@@ -143,6 +143,7 @@ export function TaskNotesIntegration({
               template={selectedTemplate}
               existingNote={editingNote}
               timeEntryId={timeEntryId}
+              noteLevel="task"
               onSaveNote={handleSaveNote}
               onUpdateNote={handleUpdateNote}
               onDeleteNote={handleDeleteNote}

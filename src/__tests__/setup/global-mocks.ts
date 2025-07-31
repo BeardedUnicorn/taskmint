@@ -17,6 +17,10 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock('@tauri-apps/api/tauri', () => ({
+  invoke: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn(() => Promise.resolve(null)),
   save: vi.fn(() => Promise.resolve(null)),
@@ -86,17 +90,4 @@ vi.mock('../../utils/dateHelpers', async () => {
   };
 });
 
-vi.mock('@/hooks/useLocalStorage', async () => {
-  const actual = await vi.importActual<typeof import('@/hooks/useLocalStorage')>('@/hooks/useLocalStorage');
-  const mockSetState = vi.fn();
-  const mockUseLocalStorage = vi.fn((key, initialValue) => {
-    const [value, setValue] = actual.useLocalStorage(key, initialValue);
-    return [value, mockSetState];
-  });
 
-  return {
-    ...actual,
-    useLocalStorage: mockUseLocalStorage,
-    _mockSetState: mockSetState, 
-  };
-});

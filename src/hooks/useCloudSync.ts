@@ -11,7 +11,7 @@ import { useDataBackup } from './useDataBackup';
 import { useAsyncError } from './useAsyncError';
 import { useNotification } from '../contexts/NotificationContext';
 import { getGoogleDriveConfig } from '../utils/environment';
-import { invoke } from '@tauri-apps/api/core';
+import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
 import {
   CloudSyncConfig,
   CloudSyncStatus,
@@ -68,10 +68,19 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
   const getAuthUrl = useCallback(async (): Promise<string> => {
     return executeAsync(
       async () => {
-        const authUrl = await invoke<string>('google_drive_get_auth_url', {
+        if (!isTauriEnvironment()) {
+          throw new Error('Google Drive authentication is only available in the desktop app');
+        }
+
+        const authUrl = await safeInvoke<string>('google_drive_get_auth_url', {
           clientId: GOOGLE_CLIENT_ID,
           redirectUri: REDIRECT_URI,
         });
+
+        if (!authUrl) {
+          throw new Error('Failed to generate authentication URL');
+        }
+
         return authUrl;
       },
       {
@@ -96,12 +105,20 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
 
     return executeAsync(
       async () => {
-        const result = await invoke<GoogleDriveAuthResult>('google_drive_authenticate', {
+        if (!isTauriEnvironment()) {
+          throw new Error('Google Drive authentication is only available in the desktop app');
+        }
+
+        const result = await safeInvoke<GoogleDriveAuthResult>('google_drive_authenticate', {
           clientId: GOOGLE_CLIENT_ID,
           clientSecret: GOOGLE_CLIENT_SECRET,
           redirectUri: REDIRECT_URI,
           authCode,
         });
+
+        if (!result) {
+          throw new Error('Authentication failed');
+        }
 
         if (result.success) {
           setStatus(prev => ({
@@ -182,9 +199,13 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
       async () => {
         // First, try to find existing backup file
         const query = `name='${BACKUP_FILE_NAME}' and mimeType='application/json'`;
-        const files = await invoke<GoogleDriveFileMetadata[]>('google_drive_list_files', {
+        const files = await safeInvoke<GoogleDriveFileMetadata[]>('google_drive_list_files', {
           query,
         });
+
+        if (!files) {
+          throw new Error('Failed to search for backup files');
+        }
 
         if (files.length > 0) {
           // Use existing file
@@ -197,11 +218,15 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
         const backupData = createBackupData();
         const backupJson = JSON.stringify(backupData, null, 2);
 
-        const fileMetadata = await invoke<GoogleDriveFileMetadata>('google_drive_upload_file', {
+        const fileMetadata = await safeInvoke<GoogleDriveFileMetadata>('google_drive_upload_file', {
           filename: BACKUP_FILE_NAME,
           content: backupJson,
           parentFolderId: null, // Root folder
         });
+
+        if (!fileMetadata) {
+          throw new Error('Failed to create backup file');
+        }
 
         updateConfig({ googleDriveFileId: fileMetadata.id });
         return fileMetadata.id;
@@ -226,10 +251,14 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
 
         if (fileId) {
           // Update existing file
-          await invoke<GoogleDriveFileMetadata>('google_drive_update_file', {
+          const result = await safeInvoke<GoogleDriveFileMetadata>('google_drive_update_file', {
             fileId,
             content: backupJson,
           });
+
+          if (!result) {
+            throw new Error('Failed to update backup file');
+          }
         } else {
           // Create new file
           fileId = await findOrCreateBackupFile();
@@ -305,9 +334,13 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
           throw new Error('No backup file found on Google Drive');
         }
 
-        const backupJson = await invoke<string>('google_drive_download_file', {
+        const backupJson = await safeInvoke<string>('google_drive_download_file', {
           fileId,
         });
+
+        if (!backupJson) {
+          throw new Error('Failed to download backup file');
+        }
 
         const backupData = JSON.parse(backupJson);
         await importData(backupData);
@@ -380,9 +413,13 @@ export function useCloudSync(options: UseCloudSyncOptions = {}) {
           return null;
         }
 
-        const fileMetadata = await invoke<GoogleDriveFileMetadata>('google_drive_get_file_metadata', {
+        const fileMetadata = await safeInvoke<GoogleDriveFileMetadata>('google_drive_get_file_metadata', {
           fileId,
         });
+
+        if (!fileMetadata) {
+          throw new Error('Failed to get file metadata');
+        }
 
         const remoteModified = new Date(fileMetadata.modifiedTime);
         const localModified = config.lastSyncTime ? new Date(config.lastSyncTime) : new Date(0);

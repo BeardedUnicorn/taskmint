@@ -23,9 +23,10 @@ import {
   ChevronLeft as ChevronLeftIcon,
   CalendarToday as CalendarIcon,
   AdminPanelSettings as AdminIcon,
+  PlayCircleOutline as SessionsIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'dashboard' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';
+export type SidebarView = 'dashboard' | 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -40,6 +41,11 @@ const navigationItems = [
     id: 'dashboard' as SidebarView,
     label: 'Dashboard',
     icon: DashboardIcon,
+  },
+  {
+    id: 'sessions' as SidebarView,
+    label: 'Sessions',
+    icon: SessionsIcon,
   },
   {
     id: 'tasks' as SidebarView,

@@ -31,6 +31,49 @@ export const invoke = vi.fn().mockImplementation((command: string, args?: any) =
       // Mock successful export with a fake file path
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       return Promise.resolve(`/mock/path/taskmint_export_${timestamp}.json`);
+    case 'get_sessions':
+      return Promise.resolve([]);
+    case 'get_tasks':
+      return Promise.resolve([]);
+    case 'create_session':
+      return Promise.resolve({
+        id: 'session-1',
+        taskId: args?.taskId || 'task-1',
+        taskName: args?.taskName || 'Test Task',
+        timerInstances: [],
+        totalDuration: 0,
+        isActive: false,
+        date: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    case 'create_session_with_timer':
+      const session = {
+        id: 'session-1',
+        taskId: args?.taskId || 'task-1',
+        taskName: args?.taskName || 'Test Task',
+        timerInstances: [],
+        totalDuration: 0,
+        isActive: true,
+        date: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const timerInstance = {
+        id: 'instance-1',
+        sessionId: 'session-1',
+        startTime: new Date(),
+        endTime: null,
+        duration: null,
+        isRunning: true,
+        isPaused: false,
+        pausedAt: null,
+        pausedDuration: null,
+        notes: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      return Promise.resolve([session, timerInstance]);
     default:
       return Promise.resolve();
   }

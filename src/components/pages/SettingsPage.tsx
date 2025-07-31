@@ -27,6 +27,7 @@ import {
   DashboardCustomizationSection,
   DataManagementSection,
 } from './settings';
+import { InactivitySettingsSection } from './settings/InactivitySettingsSection';
 
 export function SettingsPage() {
   const [exportSuccess, setExportSuccess] = useState(false);
@@ -131,6 +132,11 @@ export function SettingsPage() {
           </Typography>
         </Alert>
       </Paper>
+
+      <Divider sx={{ my: 4 }} />
+
+      {/* Inactivity Detection Settings Section */}
+      <InactivitySettingsSection onSuccess={handleSuccess} onError={handleError} />
 
       <Divider sx={{ my: 4 }} />
 

@@ -196,11 +196,12 @@ export class SubscriptionService implements ISubscriptionService {
   }
 
   /**
-   * Get feature access summary for current subscription
+   * Get feature access summary for current subscription, including overrides
    */
   async getFeatureAccessSummary(): Promise<Record<Feature, boolean>> {
     const subscription = await this.getUserSubscription();
     const tier = SUBSCRIPTION_TIERS[subscription.sku];
+    const featureOverrides = await this.getFeatureOverrides();
 
     const summary: Record<string, boolean> = {};
     
@@ -221,9 +222,74 @@ export class SubscriptionService implements ISubscriptionService {
     }) as Feature[];
 
     for (const feature of allFeatures) {
-      summary[feature] = tier.features.includes(feature);
+      // Check if there's an override, otherwise use the tier's feature list
+      if (featureOverrides.hasOwnProperty(feature)) {
+        summary[feature] = featureOverrides[feature];
+      } else {
+        summary[feature] = tier.features.includes(feature);
+      }
     }
 
     return summary as Record<Feature, boolean>;
+  }
+
+  /**
+   * Get feature overrides from storage
+   */
+  async getFeatureOverrides(): Promise<Record<Feature, boolean>> {
+    return await this.storageService.getItem(
+      STORAGE_KEYS.FEATURE_OVERRIDES,
+      {} as Record<Feature, boolean>
+    );
+  }
+
+  /**
+   * Set a feature override
+   */
+  async setFeatureOverride(feature: Feature, enabled: boolean): Promise<void> {
+    const overrides = await this.getFeatureOverrides();
+    overrides[feature] = enabled;
+    await this.storageService.setItem(STORAGE_KEYS.FEATURE_OVERRIDES, overrides);
+  }
+
+  /**
+   * Clear a feature override
+   */
+  async clearFeatureOverride(feature: Feature): Promise<void> {
+    const overrides = await this.getFeatureOverrides();
+    delete overrides[feature];
+    await this.storageService.setItem(STORAGE_KEYS.FEATURE_OVERRIDES, overrides);
+  }
+
+  /**
+   * Get task limit override
+   */
+  async getTaskLimitOverride(): Promise<number | null> {
+    return await this.storageService.getItem(STORAGE_KEYS.TASK_LIMIT_OVERRIDE, null);
+  }
+
+  /**
+   * Set task limit override
+   */
+  async setTaskLimitOverride(limit: number | null): Promise<void> {
+    if (limit === null) {
+      await this.storageService.removeItem(STORAGE_KEYS.TASK_LIMIT_OVERRIDE);
+    } else {
+      await this.storageService.setItem(STORAGE_KEYS.TASK_LIMIT_OVERRIDE, limit);
+    }
+  }
+
+  /**
+   * Get the effective task limit (considering overrides)
+   */
+  async getEffectiveTaskLimit(): Promise<number | undefined> {
+    const override = await this.getTaskLimitOverride();
+    if (override !== null) {
+      return override;
+    }
+
+    const subscription = await this.getUserSubscription();
+    const tier = SUBSCRIPTION_TIERS[subscription.sku];
+    return tier.taskLimit;
   }
 }

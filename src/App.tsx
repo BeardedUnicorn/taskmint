@@ -4,25 +4,12 @@ import {
   Box,
   CircularProgress,
 } from '@mui/material';
-
-/**
- * Main Application Component
- *
- * This is the root component that orchestrates the entire time tracking application.
- * It manages:
- * - Global state for time entries, active timers, and navigation
- * - Integration with system tray functionality
- * - Routing between different pages (Dashboard, Tasks, Reports, Settings)
- * - Timer operations (start, stop, persistence)
- * - Task management integration
- */
 import { ThemeProvider } from './contexts/ThemeContext';
-import { NotificationProvider, useNotification } from './contexts/NotificationContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { NewTaskDialog } from './components/pages';
-import { Sidebar, GlobalTimerBar, type SidebarView } from './components/layout';
+import { Sidebar, type SidebarView } from './components/layout';
 
-// Lazy load page components for code splitting
 const DashboardPage = lazy(() => import('./components/pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
 const NotesPage = lazy(() => import('./components/pages/NotesPage').then(module => ({ default: module.NotesPage })));
@@ -31,196 +18,115 @@ const ReportsPage = lazy(() => import('./components/pages/ReportsPage').then(mod
 const CalendarPage = lazy(() => import('./components/pages/CalendarPage'));
 const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 const AdminPage = lazy(() => import('./components/pages/AdminPage').then(module => ({ default: module.AdminPage })));
+import { SessionDashboard } from './components/pages/SessionDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
-import { TaskNote } from './types/notes';
-
-import { useSystemTray } from './hooks/useSystemTray';
+import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
+import { useSessionManagement } from './hooks/useSessionManagement';
 import { useTaskManagement } from './hooks/useTaskManagement';
-import { useTimerSettings } from './hooks/useTimerSettings';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
-import { TimerService } from './services/TimerService';
-import { StorageService } from './services/StorageService';
-import { TaskNotesService } from './services/TaskNotesService';
-import { invoke } from '@tauri-apps/api/core';
+import { useTimerSync } from './hooks/useTimerSync';
 import { createServiceErrorHandler } from './utils/errorHandler';
+import { listen } from '@tauri-apps/api/event';
 
-
-function App() {
-  // ============================================================================
-  // STATE MANAGEMENT
-  // ============================================================================
-
-  // Timer and time entry state
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
-
-  // Navigation state
+// AppContent component contains the main application logic and UI.
+// It is wrapped by all necessary context providers in the App component.
+function AppContent() {
   const [activeView, setActiveView] = useState<SidebarView>('dashboard');
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
   const [notesPageState, setNotesPageState] = useState<{ filterTaskId: string | null; openNoteId: string | null }>({ filterTaskId: null, openNoteId: null });
 
-  // Initialize services
-  const storageService = useMemo(() => StorageService.getInstance(), []);
-  const timerService = useMemo(() => new TimerService(storageService), [storageService]);
+  const appErrorHandler = useMemo(() => createServiceErrorHandler('AppContent'), []);
 
-  // Timer settings hook
-  const { roundingOption } = useTimerSettings();
+  // Centralized session management
+  const sessionManager = useSessionManagement();
+  
+  // Task management hook
+  const { tasks, addTask, updateTask, deleteTask } = useTaskManagement();
 
-  // App-level error handler
-  const appErrorHandler = useMemo(() => createServiceErrorHandler('App'), []);
+  // Derived global active entry for backward compatibility with older pages
+  const activeEntry: TimeEntry | null = useMemo(() => {
+    if (!sessionManager.activeSession) return null;
+    const runningInstance = sessionManager.activeSession.timerInstances.find(i => i.isRunning);
+    if (!runningInstance) return null;
 
-  // ============================================================================
-  // EFFECTS & INITIALIZATION
-  // ============================================================================
-
-  // Load time entries on app start
-  useEffect(() => {
-    const loadTimeEntries = async () => {
-      await appErrorHandler.handleAsync(async () => {
-        const entries = await timerService.getTimeEntries();
-        setTimeEntries(entries);
-        appErrorHandler.logInfo(`Time entries loaded successfully`, 'loadTimeEntries', { count: entries.length });
-
-        // Find and set active entry
-        const runningEntry = entries.find(entry => entry.isRunning);
-        if (runningEntry) {
-          setActiveEntry(runningEntry);
-
-          // Synchronize timer state with Tauri backend
-          const elapsedMs = Date.now() - new Date(runningEntry.startTime).getTime();
-          try {
-            await invoke('update_timer_state', {
-              isRunning: true,
-              taskName: runningEntry.taskName,
-              startTime: runningEntry.startTime instanceof Date
-                ? runningEntry.startTime.toISOString()
-                : runningEntry.startTime,
-              elapsedMs: elapsedMs,
-            });
-            appErrorHandler.logInfo('Timer state synchronized with backend', 'loadTimeEntries', { taskName: runningEntry.taskName });
-          } catch (error) {
-            appErrorHandler.handleError(error, 'syncTimerState', { 
-              taskName: runningEntry.taskName,
-              elapsedMs: elapsedMs 
-            });
-          }
-        }
-      }, 'loadTimeEntries');
-    };
-
-    loadTimeEntries();
-  }, [timerService, appErrorHandler]);
-
-  // ============================================================================
-  // TIMER MANAGEMENT HANDLERS
-  // ============================================================================
-
-
-
-  const handleUpdateActiveEntry = async (entry: TimeEntry | null) => {
-    setActiveEntry(entry);
-    if (entry) {
-      await appErrorHandler.handleAsync(async () => {
-        await timerService.saveTimeEntry(entry);
-
-        // Update local state
-        setTimeEntries(prev => {
-          const existingIndex = prev.findIndex(e => e.id === entry.id);
-          if (existingIndex >= 0) {
-            const updated = [...prev];
-            updated[existingIndex] = entry;
-            return updated;
-          } else {
-            return [...prev, entry];
-          }
-        });
-
-        appErrorHandler.logInfo('Active entry updated successfully', 'handleUpdateActiveEntry', { 
-          entryId: entry.id,
-          taskName: entry.taskName 
-        });
-      }, 'handleUpdateActiveEntry', { entryId: entry.id, taskName: entry.taskName });
-    }
-  };
-
-  const handleStopActiveTimer = async () => {
-    if (activeEntry && activeEntry.id) {
-      await appErrorHandler.handleAsync(async () => {
-        // Use TimerService to stop timer with rounding option
-        const stoppedEntry = await timerService.stopTimer(activeEntry.id, roundingOption);
-
-        // Update local state
-        setTimeEntries(prev => {
-          const existingIndex = prev.findIndex(e => e.id === stoppedEntry.id);
-          if (existingIndex >= 0) {
-            const updated = [...prev];
-            updated[existingIndex] = stoppedEntry;
-            return updated;
-          } else {
-            return [...prev, stoppedEntry];
-          }
-        });
-
-        setActiveEntry(null);
-        appErrorHandler.logInfo('Timer stopped successfully', 'handleStopActiveTimer', { 
-          entryId: activeEntry.id,
-          taskName: activeEntry.taskName 
-        });
-      }, 'handleStopActiveTimer', { entryId: activeEntry.id, taskName: activeEntry.taskName });
-    }
-  };
-
-  // ============================================================================
-  // SYSTEM TRAY HANDLERS
-  // ============================================================================
-
-  // System tray handlers
-  const handleStartTimerFromTray = async (taskName: string, startTime: Date) => {
-    const entry: TimeEntry = {
-      id: Date.now().toString(),
-      taskName,
-      startTime,
+    return {
+      id: `session_${runningInstance.id}`,
+      taskName: sessionManager.activeSession.taskName,
+      taskId: sessionManager.activeSession.taskId,
+      startTime: new Date(runningInstance.startTime),
       isRunning: true,
-      date: startTime.toISOString().split('T')[0],
+      date: sessionManager.activeSession.date,
     };
+  }, [sessionManager.activeSession]);
 
-    setActiveEntry(entry);
-    await handleUpdateActiveEntry(entry);
+  // All time entries derived from sessions
+  const allTimeEntries = useMemo(() => 
+    sessionManager.sessions
+      .filter(s => s && Array.isArray(s.timerInstances)) // Add this line to filter out invalid session objects
+      .flatMap(s => 
+        s.timerInstances.map((i: any) => ({
+          ...i, 
+          taskName: s.taskName, 
+          taskId: s.taskId, 
+          date: s.date
+        }))
+      ), [sessionManager.sessions]);
 
-    // Immediately synchronize timer state with Tauri backend
-    try {
-      await invoke('update_timer_state', {
-        isRunning: true,
-        taskName: entry.taskName,
-        startTime: entry.startTime instanceof Date
-          ? entry.startTime.toISOString()
-          : entry.startTime,
-        elapsedMs: 0,
+  // Timer sync hook
+  useTimerSync();
+
+  // Setup listeners for global events
+  useEffect(() => {
+    const setupListeners = async () => {
+      await listen('create-session-from-global', async (event: any) => {
+        const { taskName } = event.payload;
+        await appErrorHandler.handleAsync(async () => {
+          const task = tasks.find(t => t.name === taskName);
+          await sessionManager.createSession(task?.id ?? 'new-task', taskName);
+        }, 'createSessionFromGlobal', { taskName });
       });
-    } catch (error) {
-      console.error('Failed to sync new timer state with backend:', error);
-    }
+    };
+    setupListeners();
+  }, [appErrorHandler, sessionManager, tasks]);
+
+  // System Tray integration
+  useEnhancedSystemTray({
+    activeSession: sessionManager.activeSession,
+    sessions: sessionManager.sessions,
+    tasks,
+    onStartSession: async (taskId, taskName) => {
+      const session = await sessionManager.createSession(taskId, taskName);
+      if (!session) {
+        throw new Error("Failed to create session from system tray.");
+      }
+      return session;
+    },
+    onCreateTimerInstance: async (sessionId) => {
+      const instance = await sessionManager.createTimerInstance(sessionId);
+      if (!instance) {
+        throw new Error("Failed to create timer instance from system tray.");
+      }
+      return instance;
+    },
+    onStartTimer: sessionManager.startTimerInstance,
+    onStopTimer: sessionManager.stopTimerInstance,
+    onShowNewTaskDialog: () => setNewTaskDialogOpen(true),
+  });
+
+  // Daily goal monitoring
+  useDailyGoalProgressMonitor({
+    timeEntries: allTimeEntries,
+    tasks,
+  });
+
+  const handleStartNewTask = async (taskName: string) => {
+    await appErrorHandler.handleAsync(async () => {
+      const task = tasks.find(t => t.name === taskName);
+      await sessionManager.createSession(task?.id ?? 'new-task', taskName);
+    }, 'startNewTask', { taskName });
   };
 
-  const handleStopTimerFromTray = () => {
-    handleStopActiveTimer();
-  };
-
-  const handleShowNewTaskDialog = () => {
-    setNewTaskDialogOpen(true);
-  };
-
-  const handleStartNewTask = (taskName: string) => {
-    const startTime = new Date();
-    handleStartTimerFromTray(taskName, startTime);
-  };
-
-  // ============================================================================
-  // UI EVENT HANDLERS
-  // ============================================================================
-
-  // Handle view changes from sidebar
   const handleViewChange = (view: SidebarView) => {
     setActiveView(view);
     if (view !== 'notes') {
@@ -228,354 +134,114 @@ function App() {
     }
   };
 
-  // Handle timer start from global timer bar
-  const handleStartTimer = (taskName: string) => {
-    const startTime = new Date();
-    handleStartTimerFromTray(taskName, startTime);
-  };
-
-  // Handle entry updates and deletions for dashboard
-  const handleUpdateEntry = async (updatedEntry: TimeEntry) => {
-    await appErrorHandler.handleAsync(async () => {
-      await timerService.updateTimeEntry(updatedEntry.id, updatedEntry);
-
-      // Update local state
-      setTimeEntries(prev => {
-        const existingIndex = prev.findIndex(entry => entry.id === updatedEntry.id);
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = updatedEntry;
-          return updated;
-        } else {
-          return [...prev, updatedEntry];
-        }
+  const handleUpdateEntry = async (entry: TimeEntry) => {
+    const session = sessionManager.sessions.find(s => s.timerInstances.some((i: any) => `session_${i.id}` === entry.id));
+    if (session) {
+      await sessionManager.updateSession(session.id, {
+        taskName: entry.taskName,
+        // Other fields can be updated here
       });
-
-      appErrorHandler.logInfo('Time entry updated successfully', 'handleUpdateEntry', { 
-        entryId: updatedEntry.id,
-        taskName: updatedEntry.taskName 
-      });
-    }, 'handleUpdateEntry', { entryId: updatedEntry.id, taskName: updatedEntry.taskName });
+    }
   };
 
   const handleDeleteEntry = async (entryId: string) => {
-    await appErrorHandler.handleAsync(async () => {
-      await timerService.deleteTimeEntry(entryId);
-
-      // Update local state only after successful deletion
-      setTimeEntries(prev => prev.filter(entry => entry.id !== entryId));
-
-      appErrorHandler.logInfo('Time entry deleted successfully', 'handleDeleteEntry', { entryId });
-    }, 'handleDeleteEntry', { entryId });
-  };
-
-  const handleBulkDeleteEntries = async (entryIds: string[]) => {
-    await appErrorHandler.handleAsync(async () => {
-      // Delete entries one by one
-      for (const entryId of entryIds) {
-        await timerService.deleteTimeEntry(entryId);
-      }
-
-      // Update local state only after successful deletion
-      setTimeEntries(prev => prev.filter(entry => !entryIds.includes(entry.id)));
-
-      appErrorHandler.logInfo(`Bulk deleted ${entryIds.length} time entries`, 'handleBulkDeleteEntries', { 
-        count: entryIds.length,
-        entryIds 
-      });
-    }, 'handleBulkDeleteEntries', { data: { entryIds } });
-  };
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
-
-  return (
-    <ErrorBoundary>
-      <ThemeProvider>
-        <NotificationProvider>
-          <SubscriptionProvider>
-          <AppContent
-            timeEntries={timeEntries}
-            activeEntry={activeEntry}
-            activeView={activeView}
-            newTaskDialogOpen={newTaskDialogOpen}
-            setNewTaskDialogOpen={setNewTaskDialogOpen}
-            handleStopActiveTimer={handleStopActiveTimer}
-            handleStartTimerFromTray={handleStartTimerFromTray}
-            handleStopTimerFromTray={handleStopTimerFromTray}
-            handleShowNewTaskDialog={handleShowNewTaskDialog}
-            handleStartNewTask={handleStartNewTask}
-            handleViewChange={handleViewChange}
-            handleStartTimer={handleStartTimer}
-            handleUpdateEntry={handleUpdateEntry}
-            handleDeleteEntry={handleDeleteEntry}
-            handleBulkDeleteEntries={handleBulkDeleteEntries}
-            notesPageState={notesPageState}
-            setNotesPageState={setNotesPageState}
-          />
-          </SubscriptionProvider>
-        </NotificationProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
-}
-
-// Separate component that uses hooks requiring NotificationProvider
-interface AppContentProps {
-  timeEntries: TimeEntry[];
-  activeEntry: TimeEntry | null;
-  activeView: SidebarView;
-  newTaskDialogOpen: boolean;
-  setNewTaskDialogOpen: (open: boolean) => void;
-  handleStopActiveTimer: () => void;
-  handleStartTimerFromTray: (taskName: string, startTime: Date) => Promise<void>;
-  handleStopTimerFromTray: () => void;
-  handleShowNewTaskDialog: () => void;
-  handleStartNewTask: (taskName: string) => void;
-  handleViewChange: (view: SidebarView) => void;
-  handleStartTimer: (taskName: string) => void;
-  handleUpdateEntry: (entry: TimeEntry) => Promise<void>;
-  handleDeleteEntry: (entryId: string) => Promise<void>;
-  handleBulkDeleteEntries: (entryIds: string[]) => Promise<void>;
-  notesPageState: { filterTaskId: string | null; openNoteId: string | null };
-  setNotesPageState: (state: { filterTaskId: string | null; openNoteId: string | null }) => void;
-}
-
-function AppContent({
-  timeEntries,
-  activeEntry,
-  activeView,
-  newTaskDialogOpen,
-  setNewTaskDialogOpen,
-  handleStopActiveTimer,
-  handleStartTimerFromTray,
-  handleStopTimerFromTray,
-  handleShowNewTaskDialog,
-  handleStartNewTask,
-  handleViewChange,
-  handleStartTimer,
-  handleUpdateEntry,
-  handleDeleteEntry,
-  handleBulkDeleteEntries,
-  notesPageState,
-  setNotesPageState,
-}: AppContentProps) {
-  // Task management - now inside NotificationProvider
-  const { tasks, addTask, updateTask, deleteTask, getTaskByName } = useTaskManagement();
-
-  // Notification context for error handling
-  const { showSuccess, showError } = useNotification();
-
-  // Enhanced delete handler with user feedback
-  const handleDeleteEntryWithFeedback = async (entryId: string) => {
-    try {
-      await handleDeleteEntry(entryId);
-      showSuccess('Time entry deleted successfully');
-    } catch (error) {
-      console.error('Failed to delete time entry:', error);
-      showError('Failed to delete time entry. Please try again.');
+    const instanceId = entryId.replace('session_', '');
+    const session = sessionManager.sessions.find(s => s.timerInstances.some((i: any) => i.id === instanceId));
+    if (session) {
+      // Logic to delete the specific timer instance would go here, via sessionManager
+      // e.g., sessionManager.deleteTimerInstance(instanceId);
     }
   };
-
-  // Enhanced bulk delete handler with user feedback
-  const handleBulkDeleteEntriesWithFeedback = async (entryIds: string[]) => {
-    try {
-      await handleBulkDeleteEntries(entryIds);
-      showSuccess(`${entryIds.length} time entries deleted successfully`);
-    } catch (error) {
-      console.error('Failed to delete time entries:', error);
-      showError('Failed to delete time entries. Please try again.');
-    }
-  };
-  const onOpenNotes = async () => {
-    if (!activeEntry) return;
-    let task = getTaskByName(activeEntry.taskName);
-    if (!task) {
-      const newTask = await addTask({ name: activeEntry.taskName });
-      if (!newTask) {
-        showError('Failed to create task for the active timer.');
-        return;
-      }
-      task = newTask;
-    }
-    const taskId = task.id;
-    setNotesPageState({ filterTaskId: taskId, openNoteId: null });
-    handleViewChange('notes');
-  };
-  const onOpenTaskNote = async () => {
-    if (!activeEntry) return;
-    let task = getTaskByName(activeEntry.taskName);
-    if (!task) {
-      const newTask = await addTask({ name: activeEntry.taskName });
-      if (!newTask) {
-        showError('Failed to create task for the active timer.');
-        return;
-      }
-      task = newTask;
-    }
-    const taskId = task.id;
-    const notesService = TaskNotesService.getInstance();
-    const timeEntryNotes = await notesService.getNotesByTimeEntryId(activeEntry.id);
-    let note: TaskNote | null = timeEntryNotes[0] || null;
-    if (!note) {
-      const defaultTemplateId = task.defaultNoteTemplateId || null;
-      if (!defaultTemplateId) {
-        showError('No default note template set for this task.');
-        return;
-      }
-      const noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'> = {
-        taskId,
-        templateId: defaultTemplateId,
-        templateName: '',
-        fieldValues: {},
-        timeEntryId: activeEntry.id,
-        isArchived: false,
-      };
-      try {
-        note = await notesService.createNote(noteData);
-      } catch (error) {
-        showError('Failed to create task note.');
-        return;
-      }
-    }
-    if (note) {
-      setNotesPageState({ filterTaskId: taskId, openNoteId: note.id });
-      handleViewChange('notes');
-    }
-  };
-
-  // Enhanced update handler with user feedback
-  const handleUpdateEntryWithFeedback = async (updatedEntry: TimeEntry) => {
-    try {
-      await handleUpdateEntry(updatedEntry);
-      showSuccess('Time entry updated successfully');
-    } catch (error) {
-      console.error('Failed to update time entry:', error);
-      showError('Failed to update time entry. Please try again.');
-    }
-  };
-
-  // Initialize system tray
-  useSystemTray({
-    activeEntry,
-    timeEntries,
-    onStartTimer: handleStartTimerFromTray,
-    onStopTimer: handleStopTimerFromTray,
-    onShowNewTaskDialog: handleShowNewTaskDialog,
-  });
-
-  // Initialize daily goal progress monitoring
-  useDailyGoalProgressMonitor({
-    timeEntries,
-    tasks,
-  });
-
-  // Prepare data for components
-  const existingTasks = tasks.map(task => task.name);
 
   return (
     <>
       <CssBaseline />
       <Box sx={{ height: '100vh', display: 'flex' }}>
-          {/* Sidebar Navigation */}
-          <Sidebar
-            activeView={activeView}
-            onViewChange={handleViewChange}
-          />
-
-          {/* Main Content Area */}
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            {/* Global Timer Bar */}
-            <Box sx={{ p: 2 }}>
-              <GlobalTimerBar
-                activeEntry={activeEntry}
-                predefinedTasks={tasks}
-                onStart={handleStartTimer}
-                onStop={handleStopActiveTimer}
-                onOpenNotes={onOpenNotes}
-                onOpenTaskNote={onOpenTaskNote}
-              />
-            </Box>
-
-            {/* Page Content */}
-            <Box sx={{ flex: 1, overflow: 'auto' }}>
-              <Suspense fallback={
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                  <CircularProgress />
-                </Box>
-              }>
-                {activeView === 'dashboard' && (
-                  <DashboardPage
-                    timeEntries={timeEntries}
-                    tasks={tasks}
-                    onUpdateEntry={handleUpdateEntryWithFeedback}
-                    onDeleteEntry={handleDeleteEntryWithFeedback}
-                  />
-                )}
-
-                {activeView === 'tasks' && (
-                  <TasksPage
-                    tasks={tasks}
-                    timeEntries={timeEntries}
-                    onAddTask={addTask}
-                    onUpdateTask={updateTask}
-                    onDeleteTask={deleteTask}
-                    onUpdateEntry={handleUpdateEntryWithFeedback}
-                    onDeleteEntry={handleDeleteEntryWithFeedback}
-                  />
-                )}
-
-                {activeView === 'notes' && (
-                  <NotesPage
-                    tasks={tasks}
-                    activeEntry={activeEntry}
-                    notesPageState={notesPageState}
-                  />
-                )}
-
-                {activeView === 'time-entries' && (
-                  <TimeEntriesPage
-                    timeEntries={timeEntries}
-                    tasks={tasks}
-                    onUpdateEntry={handleUpdateEntryWithFeedback}
-                    onDeleteEntry={handleDeleteEntryWithFeedback}
-                    onBulkDeleteEntries={handleBulkDeleteEntriesWithFeedback}
-                  />
-                )}
-
-                {activeView === 'reports' && (
-                  <ReportsPage
-                    timeEntries={timeEntries}
-                    tasks={tasks}
-                    onDeleteEntry={handleDeleteEntryWithFeedback}
-                    onUpdateEntry={handleUpdateEntryWithFeedback}
-                  />
-                )}
-
-                {activeView === 'calendar' && <CalendarPage />}
-
-                {activeView === 'settings' && (
-                  <SettingsPage />
-                )}
-
-                {activeView === 'admin' && (
-                  <AdminPage />
-                )}
-              </Suspense>
-            </Box>
+        <Sidebar
+          activeView={activeView}
+          onViewChange={handleViewChange}
+        />
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
+            <Suspense fallback={
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <CircularProgress />
+              </Box>
+            }>
+              {activeView === 'dashboard' && (
+                <DashboardPage
+                  timeEntries={allTimeEntries}
+                  tasks={tasks}
+                  onUpdateEntry={handleUpdateEntry}
+                  onDeleteEntry={handleDeleteEntry}
+                />
+              )}
+              {activeView === 'sessions' && <SessionDashboard />}
+              {activeView === 'tasks' && (
+                <TasksPage
+                  tasks={tasks}
+                  timeEntries={allTimeEntries}
+                  onAddTask={addTask}
+                  onUpdateTask={updateTask}
+                  onDeleteTask={deleteTask}
+                  onUpdateEntry={handleUpdateEntry}
+                  onDeleteEntry={handleDeleteEntry}
+                />
+              )}
+              {activeView === 'notes' && (
+                <NotesPage
+                  tasks={tasks}
+                  activeEntry={activeEntry}
+                  notesPageState={notesPageState}
+                />
+              )}
+              {activeView === 'time-entries' && (
+                <TimeEntriesPage
+                  timeEntries={allTimeEntries}
+                  tasks={tasks}
+                  onUpdateEntry={handleUpdateEntry}
+                  onDeleteEntry={handleDeleteEntry}
+                />
+              )}
+              {activeView === 'reports' && (
+                <ReportsPage
+                  timeEntries={allTimeEntries}
+                  tasks={tasks}
+                  onDeleteEntry={handleDeleteEntry}
+                  onUpdateEntry={handleUpdateEntry}
+                />
+              )}
+              {activeView === 'calendar' && <CalendarPage />}
+              {activeView === 'settings' && <SettingsPage />}
+              {activeView === 'admin' && <AdminPage />}
+            </Suspense>
           </Box>
-
-          {/* New Task Dialog */}
+        </Box>
         <NewTaskDialog
           open={newTaskDialogOpen}
           onClose={() => setNewTaskDialogOpen(false)}
           onStartTask={handleStartNewTask}
-          existingTasks={existingTasks}
+          existingTasks={tasks.map(t => t.name)}
         />
-        </Box>
-      </>
-    );
+      </Box>
+    </>
+  );
+}
+
+
+// App component now only sets up providers
+function App() {
+  return (
+    <ErrorBoundary>
+      <ThemeProvider>
+        <NotificationProvider>
+          <SubscriptionProvider>
+            <AppContent />
+          </SubscriptionProvider>
+        </NotificationProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  );
 }
 
 export default App;

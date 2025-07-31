@@ -11,6 +11,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useDataBackup } from '../useDataBackup';
 import { StorageService } from '../../services/StorageService';
 import { invoke } from '@tauri-apps/api/core';
+import { safeInvoke } from '../../utils/tauri';
 
 // Mock the StorageService
 vi.mock('../../services/StorageService');
@@ -32,6 +33,12 @@ const mockStorageService = {
 // Mock the Tauri invoke function
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+}));
+
+// Mock the Tauri utilities
+vi.mock('../../utils/tauri', () => ({
+  safeInvoke: vi.fn(),
+  isTauriEnvironment: vi.fn(() => true), // Always return true in tests
 }));
 
 describe('useDataBackup', () => {
@@ -109,6 +116,9 @@ describe('useDataBackup', () => {
         createdAt: '2023-01-01T00:00:00Z',
       },
     ]);
+
+    // Mock safeInvoke to resolve successfully by default
+    (safeInvoke as any).mockResolvedValue('/mock/path/export.json');
   });
 
   afterEach(() => {
@@ -177,7 +187,7 @@ describe('useDataBackup', () => {
         await result.current.exportData();
       });
 
-      expect(invoke).toHaveBeenCalledWith('export_data_to_file', {
+      expect(safeInvoke).toHaveBeenCalledWith('export_data_to_file', {
         dataJson: expect.stringContaining('"version": "1.0"'),
         suggestedFilename: expect.stringMatching(/^taskmint_export_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.json$/),
       });
@@ -214,7 +224,7 @@ describe('useDataBackup', () => {
 
     it('should handle export errors and call error callback', async () => {
       const mockError = new Error('Export failed');
-      (invoke as any).mockRejectedValue(mockError);
+      (safeInvoke as any).mockRejectedValue(mockError);
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -228,7 +238,7 @@ describe('useDataBackup', () => {
     });
 
     it('should handle string errors', async () => {
-      (invoke as any).mockRejectedValue('String error');
+      (safeInvoke as any).mockRejectedValue('String error');
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -244,7 +254,7 @@ describe('useDataBackup', () => {
       const exportPromise = new Promise<string>((resolve) => {
         resolveExport = resolve;
       });
-      (invoke as any).mockReturnValue(exportPromise);
+      (safeInvoke as any).mockReturnValue(exportPromise);
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -261,7 +271,7 @@ describe('useDataBackup', () => {
       });
 
       // Should still only have one invoke call
-      expect(invoke).toHaveBeenCalledTimes(1);
+      expect(safeInvoke).toHaveBeenCalledTimes(1);
 
       // Resolve the export
       act(() => {
@@ -285,14 +295,14 @@ describe('useDataBackup', () => {
         await result.current.exportData();
       });
 
-      expect(invoke).toHaveBeenCalledWith('export_data_to_file', {
+      expect(safeInvoke).toHaveBeenCalledWith('export_data_to_file', {
         dataJson: expect.any(String),
         suggestedFilename: 'taskmint_export_2023-01-01T10-30-45.json',
       });
     });
 
     it('should include all data in export JSON', async () => {
-      (invoke as any).mockResolvedValue('/mock/path/export.json');
+      (safeInvoke as any).mockResolvedValue('/mock/path/export.json');
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -300,7 +310,7 @@ describe('useDataBackup', () => {
         await result.current.exportData();
       });
 
-      const exportCall = (invoke as any).mock.calls[0];
+      const exportCall = (safeInvoke as any).mock.calls[0];
       const dataJson = exportCall[1].dataJson;
       const parsedData = JSON.parse(dataJson);
 
@@ -331,7 +341,7 @@ describe('useDataBackup', () => {
         }
       });
       
-      (invoke as any).mockResolvedValue(validJsonData);
+      (safeInvoke as any).mockResolvedValue(validJsonData);
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -380,7 +390,7 @@ describe('useDataBackup', () => {
     });
 
     it('should handle Tauri command errors', async () => {
-      (invoke as any).mockRejectedValue(new Error('Tauri command failed'));
+      (safeInvoke as any).mockRejectedValue(new Error('Tauri command failed'));
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -395,7 +405,7 @@ describe('useDataBackup', () => {
 
   describe('callback handling', () => {
     it('should work without callbacks', async () => {
-      (invoke as any).mockResolvedValue('/mock/path/export.json');
+      (safeInvoke as any).mockResolvedValue('/mock/path/export.json');
 
       const { result } = renderHook(() => useDataBackup({}));
 
@@ -408,7 +418,7 @@ describe('useDataBackup', () => {
     });
 
     it('should handle partial callbacks', async () => {
-      (invoke as any).mockResolvedValue('/mock/path/export.json');
+      (safeInvoke as any).mockResolvedValue('/mock/path/export.json');
 
       const { result } = renderHook(() => useDataBackup({
         onExportSuccess: mockCallbacks.onExportSuccess,

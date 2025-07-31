@@ -7,6 +7,7 @@
 import { NoteTemplateService } from '../../services/NoteTemplateService';
 import { TaskNotesService } from '../../services/TaskNotesService';
 import { StorageService } from '../../services/StorageService';
+import { describe, it, beforeEach, expect } from 'vitest';
 
 describe('Notes Integration', () => {
   let templateService: NoteTemplateService;
@@ -259,6 +260,115 @@ describe('Notes Integration', () => {
       expect(notes).toHaveLength(1);
       expect(notes[0].id).toBe(note.id);
       expect(notes[0].fieldValues.test).toBe('value');
+    });
+  });
+
+  describe('Field Types Support', () => {
+    it('should support command field type', async () => {
+      const template = await templateService.createTemplate({
+        name: 'Command Template',
+        fields: [
+          {
+            id: 'command-field',
+            label: 'Command Output',
+            type: 'command' as const,
+            required: false,
+            order: 0,
+            command: 'echo "Hello World"',
+          },
+        ],
+        isActive: true,
+      });
+
+      const note = await notesService.createNote({
+        taskId: 'test-task',
+        templateId: template.id,
+        templateName: template.name,
+        fieldValues: {
+          'command-field': 'Hello World',
+        },
+      });
+
+      expect(note.fieldValues['command-field']).toBe('Hello World');
+      expect(template.fields[0].type).toBe('command');
+      expect(template.fields[0].command).toBe('echo "Hello World"');
+    });
+
+    it('should support all field types', async () => {
+      const template = await templateService.createTemplate({
+        name: 'All Types Template',
+        fields: [
+          {
+            id: 'text-field',
+            label: 'Text Field',
+            type: 'text' as const,
+            required: false,
+            order: 0,
+          },
+          {
+            id: 'number-field',
+            label: 'Number Field',
+            type: 'number' as const,
+            required: false,
+            order: 1,
+          },
+          {
+            id: 'date-field',
+            label: 'Date Field',
+            type: 'date' as const,
+            required: false,
+            order: 2,
+          },
+          {
+            id: 'command-field',
+            label: 'Command Field',
+            type: 'command' as const,
+            required: false,
+            order: 3,
+            command: 'date',
+          },
+          {
+            id: 'checkbox-field',
+            label: 'Checkbox Field',
+            type: 'checkbox' as const,
+            required: false,
+            order: 4,
+          },
+          {
+            id: 'select-field',
+            label: 'Select Field',
+            type: 'select' as const,
+            required: false,
+            order: 5,
+            options: [
+              { label: 'Option 1', value: 'opt1' },
+              { label: 'Option 2', value: 'opt2' },
+            ],
+          },
+        ],
+        isActive: true,
+      });
+
+      const note = await notesService.createNote({
+        taskId: 'test-task',
+        templateId: template.id,
+        templateName: template.name,
+        fieldValues: {
+          'text-field': 'Sample text',
+          'number-field': 42,
+          'date-field': '2024-01-01',
+          'command-field': 'Command output',
+          'checkbox-field': true,
+          'select-field': 'opt1',
+        },
+      });
+
+      expect(note.fieldValues['text-field']).toBe('Sample text');
+      expect(note.fieldValues['number-field']).toBe(42);
+      expect(note.fieldValues['date-field']).toBe('2024-01-01');
+      expect(note.fieldValues['command-field']).toBe('Command output');
+      expect(note.fieldValues['checkbox-field']).toBe(true);
+      expect(note.fieldValues['select-field']).toBe('opt1');
     });
   });
 

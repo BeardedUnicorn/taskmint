@@ -8,7 +8,6 @@
 import { useCallback, useState, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useDataBackup } from './useDataBackup';
-import { useNotification } from '../contexts/NotificationContext';
 import {
   BackupConfig,
   BackupStatus,
@@ -34,7 +33,15 @@ export function useBackupSettings() {
   });
 
   const { createBackupData } = useDataBackup({});
-  const { showError, showSuccess } = useNotification();
+
+  // Safe notification functions without NotificationProvider dependency
+  const showError = useCallback((message: string) => {
+    console.error('Backup Settings Error:', message);
+  }, []);
+
+  const showSuccess = useCallback((message: string) => {
+    console.log('Backup Settings Success:', message);
+  }, []);
 
   // Update status when config changes
   useEffect(() => {

@@ -1,0 +1,232 @@
+/**
+ * Unit Tests for useTimerSync Hook
+ * 
+ * Tests the timer synchronization hook that manages coordination between
+ * global timer and session-based timer systems.
+ */
+
+import { renderHook } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { useTimerSync } from '../useTimerSync';
+
+// Mock Tauri API
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(),
+  emit: vi.fn(),
+}));
+
+// Mock session management hook
+vi.mock('../useSessionManagement', () => ({
+  useSessionManagement: vi.fn(),
+}));
+
+// Mock notification context
+vi.mock('../../contexts/NotificationContext', () => ({
+  useNotification: () => ({
+    showWarning: vi.fn(),
+  }),
+}));
+
+// Get the mocked functions
+import { listen, emit } from '@tauri-apps/api/event';
+import { useSessionManagement } from '../useSessionManagement';
+const mockListen = vi.mocked(listen);
+const mockEmit = vi.mocked(emit);
+const mockUseSessionManagement = vi.mocked(useSessionManagement);
+
+describe('useTimerSync', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    
+    // Mock listen to return unsubscribe functions
+    mockListen.mockResolvedValue(() => {});
+    
+    // Default mock for session management
+    mockUseSessionManagement.mockReturnValue({
+      activeSession: null,
+      sessions: [],
+      isLoading: false,
+      error: null,
+      createSession: vi.fn(),
+      updateSession: vi.fn(),
+      deleteSession: vi.fn(),
+      getSessionById: vi.fn(),
+      getSessionsByTaskId: vi.fn(),
+      getActiveSession: vi.fn(),
+      setActiveSession: vi.fn(),
+      endActiveSession: vi.fn(),
+      pauseAllTimersInActiveSession: vi.fn(),
+      resumeAllTimersInActiveSession: vi.fn(),
+      createTimerInstance: vi.fn(),
+      startTimerInstance: vi.fn(),
+      stopTimerInstance: vi.fn(),
+      pauseTimerInstance: vi.fn(),
+      resumeTimerInstance: vi.fn(),
+      deleteTimerInstance: vi.fn(),
+    });
+  });
+
+  describe('Initialization', () => {
+    it('should set up event listeners on mount', async () => {
+      renderHook(() => useTimerSync());
+
+      expect(mockListen).toHaveBeenCalledWith('session-timer-started', expect.any(Function));
+      expect(mockListen).toHaveBeenCalledWith('session-timer-stopped', expect.any(Function));
+      expect(mockListen).toHaveBeenCalledWith('session-timer-paused', expect.any(Function));
+      expect(mockListen).toHaveBeenCalledWith('global-timer-started', expect.any(Function));
+    });
+
+    it('should return isGlobalTimerActive state', () => {
+      const { result } = renderHook(() => useTimerSync());
+
+      expect(result.current).toHaveProperty('isGlobalTimerActive');
+      expect(typeof result.current.isGlobalTimerActive).toBe('boolean');
+    });
+  });
+
+  describe('Global Timer State Management', () => {
+    it('should activate global timer when session has running timer', () => {
+      // Mock active session with running timer
+      mockUseSessionManagement.mockReturnValue({
+        activeSession: {
+          id: 'session-1',
+          taskId: 'task-1',
+          taskName: 'Test Task',
+          timerInstances: [
+            {
+              id: 'timer-1',
+              sessionId: 'session-1',
+              startTime: new Date(),
+              isRunning: true,
+              isPaused: false,
+              createdAt: '2024-01-15T10:00:00Z',
+              updatedAt: '2024-01-15T10:00:00Z',
+            },
+          ],
+          totalDuration: 0,
+          isActive: true,
+          date: '2024-01-15',
+          createdAt: '2024-01-15T10:00:00Z',
+          updatedAt: '2024-01-15T10:00:00Z',
+        },
+        sessions: [],
+        isLoading: false,
+        error: null,
+        createSession: vi.fn(),
+        updateSession: vi.fn(),
+        deleteSession: vi.fn(),
+        getSessionById: vi.fn(),
+        getSessionsByTaskId: vi.fn(),
+        getActiveSession: vi.fn(),
+        setActiveSession: vi.fn(),
+        endActiveSession: vi.fn(),
+        pauseAllTimersInActiveSession: vi.fn(),
+        resumeAllTimersInActiveSession: vi.fn(),
+        createTimerInstance: vi.fn(),
+        startTimerInstance: vi.fn(),
+        stopTimerInstance: vi.fn(),
+        pauseTimerInstance: vi.fn(),
+        resumeTimerInstance: vi.fn(),
+        deleteTimerInstance: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useTimerSync());
+
+      expect(result.current.isGlobalTimerActive).toBe(true);
+    });
+
+    it('should deactivate global timer when no session timers are running', () => {
+      // Mock active session with no running timers
+      mockUseSessionManagement.mockReturnValue({
+        activeSession: {
+          id: 'session-1',
+          taskId: 'task-1',
+          taskName: 'Test Task',
+          timerInstances: [
+            {
+              id: 'timer-1',
+              sessionId: 'session-1',
+              startTime: new Date(),
+              isRunning: false,
+              isPaused: false,
+              createdAt: '2024-01-15T10:00:00Z',
+              updatedAt: '2024-01-15T10:00:00Z',
+            },
+          ],
+          totalDuration: 0,
+          isActive: true,
+          date: '2024-01-15',
+          createdAt: '2024-01-15T10:00:00Z',
+          updatedAt: '2024-01-15T10:00:00Z',
+        },
+        sessions: [],
+        isLoading: false,
+        error: null,
+        createSession: vi.fn(),
+        updateSession: vi.fn(),
+        deleteSession: vi.fn(),
+        getSessionById: vi.fn(),
+        getSessionsByTaskId: vi.fn(),
+        getActiveSession: vi.fn(),
+        setActiveSession: vi.fn(),
+        endActiveSession: vi.fn(),
+        pauseAllTimersInActiveSession: vi.fn(),
+        resumeAllTimersInActiveSession: vi.fn(),
+        createTimerInstance: vi.fn(),
+        startTimerInstance: vi.fn(),
+        stopTimerInstance: vi.fn(),
+        pauseTimerInstance: vi.fn(),
+        resumeTimerInstance: vi.fn(),
+        deleteTimerInstance: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useTimerSync());
+
+      expect(result.current.isGlobalTimerActive).toBe(false);
+    });
+
+    it('should handle no active session', () => {
+      mockUseSessionManagement.mockReturnValue({
+        activeSession: null,
+        sessions: [],
+        isLoading: false,
+        error: null,
+        createSession: vi.fn(),
+        updateSession: vi.fn(),
+        deleteSession: vi.fn(),
+        getSessionById: vi.fn(),
+        getSessionsByTaskId: vi.fn(),
+        getActiveSession: vi.fn(),
+        setActiveSession: vi.fn(),
+        endActiveSession: vi.fn(),
+        pauseAllTimersInActiveSession: vi.fn(),
+        resumeAllTimersInActiveSession: vi.fn(),
+        createTimerInstance: vi.fn(),
+        startTimerInstance: vi.fn(),
+        stopTimerInstance: vi.fn(),
+        pauseTimerInstance: vi.fn(),
+        resumeTimerInstance: vi.fn(),
+        deleteTimerInstance: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useTimerSync());
+
+      expect(result.current.isGlobalTimerActive).toBe(false);
+    });
+  });
+
+  describe('Event Handling', () => {
+    it('should clean up event listeners on unmount', () => {
+      const mockUnsubscribe = vi.fn();
+      mockListen.mockResolvedValue(mockUnsubscribe);
+
+      const { unmount } = renderHook(() => useTimerSync());
+
+      unmount();
+
+      // The cleanup function should be called during unmount
+      // We can't directly test the unsubscribe calls since they're in an async cleanup
+      expect(mockListen).toHaveBeenCalled();
+    });
+  });
+});

@@ -5,7 +5,6 @@
  * Handles timer state management, system tray updates, and data persistence
  */
 
-import { invoke } from '@tauri-apps/api/core';
 import { TimeEntry, TimerRoundingOption } from '../types/timer';
 
 import { IStorageService } from './StorageService';
@@ -13,6 +12,7 @@ import { createTimerError, TimerErrorClass } from '../types/errors';
 import { formatDateString } from '../utils/dateHelpers';
 import { measurePerformance } from '../utils/performance';
 import { applyTimerRounding } from '../utils/formatters';
+import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
 
 export interface ITimerService {
   // Timer operations
@@ -229,33 +229,38 @@ export class TimerService implements ITimerService {
     return measurePerformance(
       'TimerService.updateSystemTray',
       async () => {
+        if (!isTauriEnvironment()) {
+          console.log('Skipping system tray update in web environment');
+          return;
+        }
+
         try {
-      // Update timer state in Tauri backend
-      if (activeEntry && activeEntry.isRunning) {
-        await invoke('update_timer_state', {
-          isRunning: true,
-          taskName: activeEntry.taskName,
-          startTime: activeEntry.startTime.toISOString(),
-          elapsedMs: Date.now() - activeEntry.startTime.getTime(),
-        });
-      } else {
-        await invoke('update_timer_state', {
-          isRunning: false,
-          taskName: '',
-          startTime: null,
-          elapsedMs: 0,
-        });
-      }
+          // Update timer state in Tauri backend
+          if (activeEntry && activeEntry.isRunning) {
+            await safeInvoke('update_timer_state', {
+              isRunning: true,
+              taskName: activeEntry.taskName,
+              startTime: activeEntry.startTime.toISOString(),
+              elapsedMs: Date.now() - activeEntry.startTime.getTime(),
+            });
+          } else {
+            await safeInvoke('update_timer_state', {
+              isRunning: false,
+              taskName: '',
+              startTime: null,
+              elapsedMs: 0,
+            });
+          }
 
-      // Update tray menu with daily totals
-      const timeEntriesData = allEntries.map(entry => ({
-        date: entry.date,
-        duration: entry.duration || 0,
-        isRunning: entry.isRunning,
-        taskName: entry.taskName,
-      }));
+          // Update tray menu with daily totals
+          const timeEntriesData = allEntries.map(entry => ({
+            date: entry.date,
+            duration: entry.duration || 0,
+            isRunning: entry.isRunning,
+            taskName: entry.taskName,
+          }));
 
-          await invoke('update_tray_menu_command', {
+          await safeInvoke('update_tray_menu_command', {
             timeEntries: timeEntriesData,
           });
         } catch (error) {
@@ -428,16 +433,21 @@ export class TimerService implements ITimerService {
    * Update Tauri backend timer state
    */
   private async updateTauriTimerState(entry: TimeEntry | null): Promise<void> {
+    if (!isTauriEnvironment()) {
+      console.log('Skipping Tauri timer state update in web environment');
+      return;
+    }
+
     try {
       if (entry && entry.isRunning) {
-        await invoke('update_timer_state', {
+        await safeInvoke('update_timer_state', {
           isRunning: true,
           taskName: entry.taskName,
           startTime: entry.startTime.toISOString(),
           elapsedMs: Date.now() - entry.startTime.getTime(),
         });
       } else {
-        await invoke('update_timer_state', {
+        await safeInvoke('update_timer_state', {
           isRunning: false,
           taskName: '',
           startTime: null,
