@@ -289,6 +289,9 @@ export function SessionList({
                     isSelected={session.id === selectedSessionId}
                     onSelect={() => onSelectSession(session)}
                     onMenuOpen={(e) => handleMenuOpen(e, session)}
+                    onStart={() => onStartSession(session)}
+                    onStop={() => onStopSession(session.id)}
+                    onOpenNotes={() => onOpenNotes(session.id)}
                   />
                 ))}
               </Stack>
@@ -345,6 +348,9 @@ interface SessionCardProps {
   isSelected: boolean;
   onSelect: () => void;
   onMenuOpen: (event: React.MouseEvent<HTMLElement>) => void;
+  onStart: () => void;
+  onStop: () => void;
+  onOpenNotes: () => void;
 }
 
 function SessionCard({
@@ -352,6 +358,9 @@ function SessionCard({
   isSelected,
   onSelect,
   onMenuOpen,
+  onStart,
+  onStop,
+  onOpenNotes,
 }: SessionCardProps) {
 
   const runningInstances = session.timerInstances?.filter(i => i.isRunning) || [];
@@ -426,13 +435,35 @@ function SessionCard({
             )}
           </Box>
           
-          <IconButton
-            onClick={onMenuOpen}
-            size="small"
-            sx={{ mt: -1, mr: -1 }}
-          >
-            <MoreIcon />
-          </IconButton>
+          <Stack direction="row" spacing={1} sx={{ mt: -1, mr: -1 }}>
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                session.isActive ? onStop() : onStart();
+              }}
+              size="small"
+              aria-label={session.isActive ? 'Stop session' : 'Start session'}
+            >
+              {session.isActive ? <StopIcon /> : <PlayIcon />}
+            </IconButton>
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenNotes();
+              }}
+              size="small"
+              aria-label="Open session notes"
+            >
+              <NotesIcon />
+            </IconButton>
+            <IconButton
+              onClick={onMenuOpen}
+              size="small"
+              aria-label="More options"
+            >
+              <MoreIcon />
+            </IconButton>
+          </Stack>
         </Box>
       </CardContent>
     </Card>
