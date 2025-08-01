@@ -31,7 +31,23 @@ export class NoteTemplateService {
   async getAllTemplates(): Promise<NoteTemplate[]> {
     try {
       const templates = await this.storageService.getNoteTemplates();
-      
+
+      // Ensure default free-form template exists
+      if (!templates.some(t => t.id === 'free-form')) {
+        const now = new Date().toISOString();
+        const freeFormTemplate: NoteTemplate = {
+          id: 'free-form',
+          name: 'Free-form Note',
+          description: 'Default template for free-form notes',
+          fields: [],
+          createdAt: now,
+          updatedAt: now,
+          isActive: false,
+        };
+        templates.push(freeFormTemplate);
+        await this.storageService.setNoteTemplates(templates);
+      }
+
       // Update cache
       this.templateCache.clear();
       templates.forEach(template => {

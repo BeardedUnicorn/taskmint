@@ -102,23 +102,27 @@ export class TaskNotesService {
    */
   async createNote(noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote> {
     return this.errorHandler.handleAsync(async () => {
-      // Validate template exists
-      const template = await this.templateService.getTemplateById(noteData.templateId);
-      if (!template) {
-        throw new Error(`Template with ID ${noteData.templateId} not found`);
-      }
+      let template: NoteTemplate | null = null;
 
-      // Validate field values against template
-      const validationResult = this.validateNoteFieldValues(noteData.fieldValues, template);
-      if (!validationResult.isValid) {
-        throw new Error(`Note validation failed: ${Object.values(validationResult.errors).join(', ')}`);
+      if (noteData.templateId !== 'free-form') {
+        // Validate template exists
+        template = await this.templateService.getTemplateById(noteData.templateId);
+        if (!template) {
+          throw new Error(`Template with ID ${noteData.templateId} not found`);
+        }
+
+        // Validate field values against template
+        const validationResult = this.validateNoteFieldValues(noteData.fieldValues, template);
+        if (!validationResult.isValid) {
+          throw new Error(`Note validation failed: ${Object.values(validationResult.errors).join(', ')}`);
+        }
       }
 
       const now = new Date().toISOString();
       const newNote: TaskNote = {
         ...noteData,
         id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        templateName: template.name, // Cache template name
+        templateName: template ? template.name : noteData.templateName,
         isArchived: false, // New notes are not archived by default
         archivedAt: null,
         createdAt: now,

@@ -66,6 +66,7 @@ export function NoteEditor({
     open: false,
     message: '',
   });
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Initialize field values from existing note or template defaults
   useEffect(() => {
@@ -267,6 +268,8 @@ export function NoteEditor({
       onCloseEditor?.(); // Close editor after successful save
     } catch (error) {
       console.error('Failed to save note:', error);
+      const message = error instanceof Error ? error.message : 'Failed to save note';
+      setSaveError(message);
     } finally {
       setIsSaving(false);
     }
@@ -710,6 +713,17 @@ export function NoteEditor({
         onClose={() => setCopySnackbar({ open: false, message: '' })}
         message={copySnackbar.message}
       />
+
+      {/* Save Error Snackbar */}
+      <Snackbar
+        open={!!saveError}
+        autoHideDuration={6000}
+        onClose={() => setSaveError(null)}
+      >
+        <Alert severity="error" onClose={() => setSaveError(null)}>
+          {saveError}
+        </Alert>
+      </Snackbar>
     </Paper>
   );
 }
