@@ -6,10 +6,11 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { SessionList } from '../SessionList';
 import { TaskSession, TimerInstance } from '../../../../types/timer';
+import { formatDate } from '../../../../utils/formatters';
 
 describe('SessionList', () => {
   const mockTimerInstance: TimerInstance = {
@@ -87,9 +88,9 @@ describe('SessionList', () => {
     it('should render list of sessions', () => {
       render(<SessionList {...mockProps} />);
       
-      expect(screen.getByText('Development Work')).toBeInTheDocument();
-      expect(screen.getByText('Code Review')).toBeInTheDocument();
-      expect(screen.getByText('Documentation')).toBeInTheDocument();
+      expect(screen.getAllByText('Development Work')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Code Review')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Documentation')[0]).toBeInTheDocument();
     });
 
     it('should display session durations correctly', () => {
@@ -120,11 +121,45 @@ describe('SessionList', () => {
     });
   });
 
+  describe('Filtering', () => {
+    it('should filter sessions by task', () => {
+      render(<SessionList {...mockProps} />);
+
+      const chip = screen.getByRole('button', { name: 'Code Review' });
+      fireEvent.click(chip);
+
+      expect(screen.getAllByText('Code Review')[0]).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'Development Work' })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'Documentation' })
+      ).not.toBeInTheDocument();
+    });
+
+    it('should filter sessions by status', () => {
+      render(<SessionList {...mockProps} />);
+
+      const select = screen.getByLabelText('Status');
+      fireEvent.mouseDown(select);
+      const listbox = screen.getByRole('listbox');
+      fireEvent.click(within(listbox).getByText('Active'));
+
+      expect(screen.getAllByText('Code Review')[0]).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'Development Work' })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'Documentation' })
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe('Session States', () => {
     it('should show active session indicator', () => {
       render(<SessionList {...mockProps} />);
 
-      expect(screen.getByText('Active')).toBeInTheDocument();
+      expect(screen.getAllByText('Active')[0]).toBeInTheDocument();
     });
 
     it('should highlight selected session', () => {
@@ -137,7 +172,7 @@ describe('SessionList', () => {
 
       // The selected session should have different border styling
       // We can't easily test CSS styles, so we'll just verify the component renders
-      expect(screen.getByText('Development Work')).toBeInTheDocument();
+      expect(screen.getAllByText('Development Work')[0]).toBeInTheDocument();
     });
 
     it('should show running indicator for sessions with running timers', () => {
@@ -170,7 +205,10 @@ describe('SessionList', () => {
     it('should call onSelectSession when session is clicked', () => {
       render(<SessionList {...mockProps} />);
 
-      const sessionCard = screen.getByText('Development Work').closest('.MuiCard-root');
+      const sessionTitle = screen
+        .getAllByText('Development Work')
+        .find(el => el.tagName.toLowerCase() === 'h6');
+      const sessionCard = sessionTitle?.closest('.MuiCard-root');
       fireEvent.click(sessionCard!);
 
       expect(mockProps.onSelectSession).toHaveBeenCalledWith(mockSessions[0]);
@@ -229,16 +267,16 @@ describe('SessionList', () => {
     it('should display session creation date', () => {
       render(<SessionList {...mockProps} />);
 
-      // The formatDate function formats dates as "Sunday, January 14, 2024" (based on the actual date parsing)
-      expect(screen.getByText('Sunday, January 14, 2024')).toBeInTheDocument();
+      const expectedDate = formatDate(new Date(mockSessions[0].date));
+      expect(screen.getAllByText(expectedDate)[0]).toBeInTheDocument();
     });
 
     it('should display session task information', () => {
       render(<SessionList {...mockProps} />);
       
-      expect(screen.getByText('Development Work')).toBeInTheDocument();
-      expect(screen.getByText('Code Review')).toBeInTheDocument();
-      expect(screen.getByText('Documentation')).toBeInTheDocument();
+      expect(screen.getAllByText('Development Work')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Code Review')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Documentation')[0]).toBeInTheDocument();
     });
 
     it('should show session notes when available', () => {

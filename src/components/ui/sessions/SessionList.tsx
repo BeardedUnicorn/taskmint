@@ -22,6 +22,10 @@ import {
   ListItemText,
   Divider,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  SelectChangeEvent,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -61,20 +65,42 @@ export function SessionList({
   onOpenNotes,
 }: SessionListProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [taskFilters, setTaskFilters] = useState<string[]>([]);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedSession, setSelectedSession] = useState<TaskSession | null>(null);
 
-  // Filter sessions based on search query
+  // Unique task names for task filter chips
+  const uniqueTaskNames = useMemo(
+    () => Array.from(new Set(sessions.map(s => s.taskName))).sort(),
+    [sessions]
+  );
+
+  // Filter sessions based on search query and filters
   const filteredSessions = useMemo(() => {
-    if (!searchQuery.trim()) return sessions;
-    
-    const query = searchQuery.toLowerCase();
-    return sessions.filter(session =>
-      session.taskName.toLowerCase().includes(query) ||
-      session.notes?.toLowerCase().includes(query) ||
-      session.date.includes(query)
-    );
-  }, [sessions, searchQuery]);
+    let result = sessions;
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(session =>
+        session.taskName.toLowerCase().includes(query) ||
+        session.notes?.toLowerCase().includes(query) ||
+        session.date.includes(query)
+      );
+    }
+
+    if (statusFilter !== 'all') {
+      result = result.filter(session =>
+        statusFilter === 'active' ? session.isActive : !session.isActive
+      );
+    }
+
+    if (taskFilters.length > 0) {
+      result = result.filter(session => taskFilters.includes(session.taskName));
+    }
+
+    return result;
+  }, [sessions, searchQuery, statusFilter, taskFilters]);
 
   // Group sessions by date
   const sessionsByDate = useMemo(() => {
@@ -161,21 +187,75 @@ export function SessionList({
 
   return (
     <Box sx={{ p: 2 }}>
-      {/* Search bar */}
-      <TextField
-        fullWidth
-        placeholder="Search sessions..."
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon />
-            </InputAdornment>
-          ),
+      {/* Search and filters */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 2,
+          mb: 2,
         }}
-        sx={{ mb: 3 }}
-      />
+      >
+        <TextField
+          fullWidth
+          placeholder="Search sessions..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+        />
+
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel id="session-status-label">Status</InputLabel>
+          <Select
+            labelId="session-status-label"
+            value={statusFilter}
+            label="Status"
+            onChange={(e: SelectChangeEvent) =>
+              setStatusFilter(e.target.value as 'all' | 'active' | 'completed')
+            }
+          >
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="completed">Completed</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
+      {uniqueTaskNames.length > 0 && (
+        <Stack direction="row" spacing={1} sx={{ mb: 3, flexWrap: 'wrap' }}>
+          {uniqueTaskNames.map(name => {
+            const selected = taskFilters.includes(name);
+            return (
+              <Chip
+                key={name}
+                label={name}
+                size="small"
+                clickable
+                color={selected ? 'primary' : 'default'}
+                variant={selected ? 'filled' : 'outlined'}
+                onClick={() =>
+                  setTaskFilters(prev =>
+                    selected ? prev.filter(t => t !== name) : [...prev, name]
+                  )
+                }
+              />
+            );
+          })}
+          {taskFilters.length > 0 && (
+            <Chip
+              label="Clear"
+              size="small"
+              onClick={() => setTaskFilters([])}
+            />
+          )}
+        </Stack>
+      )}
 
       {/* Sessions grouped by date */}
       {sessionsByDate.length === 0 ? (
