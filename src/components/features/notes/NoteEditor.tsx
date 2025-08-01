@@ -53,9 +53,15 @@ export function NoteEditor({
                              isCollapsed,
                              onToggleCollapse,
                              onCloseEditor,
+                             autoSaveDisabled = false,
                            }: NoteEditorProps) {
   const { templates } = useNoteTemplates();
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(initialTemplate);
+
+  // Track the current note so that auto-save can update existing notes and
+  // newly created notes without requiring the parent component to refresh the
+  // editor.
+  const [currentNote, setCurrentNote] = useState<TaskNote | null>(existingNote || null);
 
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -75,6 +81,7 @@ export function NoteEditor({
     if (existingNote) {
       setFieldValues(existingNote.fieldValues);
       setHasUnsavedChanges(false);
+      setCurrentNote(existingNote);
     } else if (selectedTemplate) {
       // Initialize with empty values based on field types
       const initialValues: Record<string, any> = {};
@@ -224,58 +231,72 @@ export function NoteEditor({
     return Object.keys(newErrors).length === 0;
   }, [selectedTemplate, fieldValues]);
 
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    try {
-      if (existingNote) {
-        await onUpdateNote(existingNote.id, { fieldValues });
-        setLastSaved(new Date());
-        setHasUnsavedChanges(false);
-        onCloseEditor?.();
-        return;
-      }
-
-      let noteToSave: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>;
-
-      if (selectedTemplate) {
-        // Validate fields only if a template is selected
-        if (!validateFields()) {
-          setIsSaving(false); // Reset saving state if validation fails
+  const handleSave = useCallback(
+    async (closeEditor = true) => {
+      setIsSaving(true);
+      try {
+        if (currentNote) {
+          await onUpdateNote(currentNote.id, { fieldValues });
+          setLastSaved(new Date());
+          setHasUnsavedChanges(false);
+          if (closeEditor) onCloseEditor?.();
           return;
         }
-        noteToSave = {
-          taskId,
-          templateId: selectedTemplate.id,
-          templateName: selectedTemplate.name,
-          fieldValues,
-          timeEntryId,
-          isArchived: false,
-        };
-      } else {
-        // Free-form note
-        noteToSave = {
-          taskId,
-          templateId: 'free-form',
-          templateName: 'Free-form Note',
-          fieldValues: { content: fieldValues.content || '' },
-          timeEntryId,
-          isArchived: false,
-        };
+
+        let noteToSave: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>;
+
+        if (selectedTemplate) {
+          // Validate fields only if a template is selected
+          if (!validateFields()) {
+            setIsSaving(false); // Reset saving state if validation fails
+            return;
+          }
+          noteToSave = {
+            taskId,
+            templateId: selectedTemplate.id,
+            templateName: selectedTemplate.name,
+            fieldValues,
+            timeEntryId,
+            isArchived: false,
+          };
+        } else {
+          // Free-form note
+          noteToSave = {
+            taskId,
+            templateId: 'free-form',
+            templateName: 'Free-form Note',
+            fieldValues: { content: fieldValues.content || '' },
+            timeEntryId,
+            isArchived: false,
+          };
+        }
+
+        const saved = await onSaveNote(noteToSave);
+
+        setCurrentNote(saved);
+        setLastSaved(new Date());
+        setHasUnsavedChanges(false);
+        if (closeEditor) onCloseEditor?.();
+      } catch (error) {
+        console.error('Failed to save note:', error);
+        const message = error instanceof Error ? error.message : 'Failed to save note';
+        setSaveError(message);
+      } finally {
+        setIsSaving(false);
       }
-
-      await onSaveNote(noteToSave);
-
-      setLastSaved(new Date());
-      setHasUnsavedChanges(false);
-      onCloseEditor?.(); // Close editor after successful save
-    } catch (error) {
-      console.error('Failed to save note:', error);
-      const message = error instanceof Error ? error.message : 'Failed to save note';
-      setSaveError(message);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selectedTemplate, validateFields, existingNote, onUpdateNote, onSaveNote, taskId, fieldValues, timeEntryId, onCloseEditor]);
+    },
+    [
+      selectedTemplate,
+      validateFields,
+      currentNote,
+      onUpdateNote,
+      onSaveNote,
+      taskId,
+      fieldValues,
+      timeEntryId,
+      onCloseEditor,
+    ]
+  );
 
   const handleClear = useCallback(() => {
     if (selectedTemplate) {
@@ -327,6 +348,21 @@ export function NoteEditor({
       });
     }
   }, [fieldValues]);
+
+  // Auto-save note changes after a short period of inactivity. This prevents
+  // data loss and keeps notes in sync without manual interaction.
+  useEffect(() => {
+    if (autoSaveDisabled) return;
+    if (!hasUnsavedChanges) return;
+    if (isSaving) return;
+
+    const timeout = setTimeout(() => {
+      // Persist changes but keep the editor open
+      handleSave(false);
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, [fieldValues, hasUnsavedChanges, isSaving, handleSave, autoSaveDisabled]);
 
   const renderField = useCallback((field: TemplateField) => {
     const value = fieldValues[field.id] || '';
@@ -509,7 +545,7 @@ export function NoteEditor({
   }, [onCloseEditor]);
 
   // If no template is selected and we are creating a new note, allow template selection
-  if (!selectedTemplate && !existingNote) {
+  if (!selectedTemplate && !currentNote) {
     return (
       <>
         <Paper sx={{ p: 2, mb: 2 }}>
@@ -566,7 +602,7 @@ export function NoteEditor({
                 onClick={handleSave}
                 disabled={isSaving || Object.keys(errors).length > 0}
               >
-                {existingNote ? 'Update Note' : 'Save Note'}
+                {currentNote ? 'Update Note' : 'Save Note'}
               </Button>
               <Button
                 variant="outlined"
@@ -696,7 +732,7 @@ export function NoteEditor({
                 onClick={handleSave}
                 disabled={isSaving || Object.keys(errors).length > 0}
               >
-                {existingNote ? 'Update Note' : 'Save Note'}
+                {currentNote ? 'Update Note' : 'Save Note'}
               </Button>
               <Button
                 variant="outlined"
@@ -706,11 +742,11 @@ export function NoteEditor({
               >
                 Clear
               </Button>
-              {existingNote && (
+              {currentNote && (
                 <Button
                   variant="outlined"
                   color="error"
-                  onClick={() => onDeleteNote(existingNote.id)}
+                  onClick={() => onDeleteNote(currentNote.id)}
                   disabled={isSaving}
                 >
                   Delete Note

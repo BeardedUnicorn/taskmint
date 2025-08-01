@@ -157,6 +157,11 @@ export interface NoteEditorProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onCloseEditor?: () => void; // New prop to signal editor closure
+  /**
+   * When true, automatic persistence of field changes is disabled. Defaults to
+   * auto‑save being enabled.
+   */
+  autoSaveDisabled?: boolean;
 }
 
 export interface NotesListProps {

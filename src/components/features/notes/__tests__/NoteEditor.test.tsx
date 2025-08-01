@@ -51,6 +51,7 @@ describe('NoteEditor', () => {
         onDeleteNote={mockOnDeleteNote}
         isCollapsed={false}
         onToggleCollapse={() => {}}
+        autoSaveDisabled
       />
     );
 
@@ -70,6 +71,7 @@ describe('NoteEditor', () => {
         onDeleteNote={mockOnDeleteNote}
         isCollapsed={false}
         onToggleCollapse={() => {}}
+        autoSaveDisabled
       />
     );
 
@@ -94,6 +96,7 @@ describe('NoteEditor', () => {
         isCollapsed={false}
         onToggleCollapse={() => {}}
         onCloseEditor={onCloseEditor}
+        autoSaveDisabled
       />
     );
 
@@ -117,6 +120,7 @@ describe('NoteEditor', () => {
         isCollapsed={false}
         onToggleCollapse={() => {}}
         onCloseEditor={onCloseEditor}
+        autoSaveDisabled
       />
     );
 
