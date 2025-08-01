@@ -46,14 +46,16 @@ export function QuickNotesInput({
   const [isEditing, setIsEditing] = useState(false);
   const [notes, setNotes] = useState(value);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
   const handleStartEdit = () => {
     setIsEditing(true);
     setNotes(value);
+    setHasChanges(false);
   };
 
   const handleSave = async () => {
-    if (notes.trim() === value.trim()) {
+    if (!hasChanges) {
       setIsEditing(false);
       return;
     }
@@ -62,6 +64,7 @@ export function QuickNotesInput({
     try {
       await onSave(notes.trim());
       setIsEditing(false);
+      setHasChanges(false);
     } catch (error) {
       console.error('Failed to save notes:', error);
     } finally {
@@ -70,8 +73,12 @@ export function QuickNotesInput({
   };
 
   const handleCancel = () => {
+    if (hasChanges && !window.confirm('Discard your changes?')) {
+      return;
+    }
     setNotes(value);
     setIsEditing(false);
+    setHasChanges(false);
     onCancel?.();
   };
 
@@ -160,7 +167,11 @@ export function QuickNotesInput({
           multiline={multiline}
           rows={multiline ? 3 : 1}
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            setNotes(newValue);
+            setHasChanges(newValue.trim() !== value.trim());
+          }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={isSaving}
