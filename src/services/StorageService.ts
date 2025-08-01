@@ -99,25 +99,40 @@ export class StorageService implements IStorageService {
 
       let parsedData = JSON.parse(item);
 
-      // Check if data needs migration
-      // Only attempt migration if parsedData is not null or if null is a valid state for this key
-      // For most cases, null should not be migrated unless it's explicitly a valid stored value
-      if (parsedData !== null && needsMigration(parsedData)) {
-        // Create backup before migration
-        await this.createBackup(key);
+      // Return early if no migration is required
+      if (parsedData === null || !needsMigration(parsedData)) {
+        if (parsedData !== null && parsedData.version) {
+          // Data is already versioned, extract the actual data
+          parsedData = parsedData.data;
+        }
 
-        // Migrate data
-        const migratedData = migrateData(key, parsedData);
+        // Validate data if schema provided
+        if (schema) {
+          const validationResult = validateWithSchema(schema, parsedData);
+          if (!validationResult.success) {
+            console.error(`Validation failed for key "${key}":`, validationResult.error);
+            throw createStorageError('STORAGE_VALIDATION_FAILED',
+              `Data validation failed for key "${key}": ${validationResult.error}`,
+              { key, validationError: validationResult.error }
+            );
+          }
+          return validationResult.data!;
+        }
 
-        // Save migrated data back to localStorage
-        localStorage.setItem(key, JSON.stringify(migratedData));
-
-        // Extract actual data from versioned structure
-        parsedData = migratedData.version ? migratedData.data : migratedData;
-      } else if (parsedData !== null && parsedData.version) {
-        // Data is already versioned, extract the actual data
-        parsedData = parsedData.data;
+        return parsedData;
       }
+
+      // Create backup before migration
+      await this.createBackup(key);
+
+      // Migrate data
+      const migratedData = migrateData(key, parsedData);
+
+      // Save migrated data back to localStorage
+      localStorage.setItem(key, JSON.stringify(migratedData));
+
+      // Extract actual data from versioned structure
+      parsedData = migratedData.version ? migratedData.data : migratedData;
 
       // Validate data if schema provided
       if (schema) {
@@ -279,20 +294,36 @@ export class StorageService implements IStorageService {
 
       let parsedData = JSON.parse(item);
 
-      // Use specific task notes migration
-      if (parsedData !== null) {
-        // Create backup before migration
-        await this.createBackup(STORAGE_KEYS.TASK_NOTES);
+      // Return early if no migration is required
+      if (parsedData === null || !needsMigration(parsedData)) {
+        if (parsedData !== null && parsedData.version) {
+          parsedData = parsedData.data;
+        }
 
-        // Migrate task notes with archive fields
-        const migratedData = migrateTaskNotes(parsedData);
+        // Validate data
+        const validationResult = validateWithSchema(z.array(TaskNoteSchema), parsedData);
+        if (!validationResult.success) {
+          console.error(`Validation failed for task notes:`, validationResult.error);
+          throw createStorageError('STORAGE_VALIDATION_FAILED',
+            `Data validation failed for key "${STORAGE_KEYS.TASK_NOTES}": ${validationResult.error}`,
+            { key: STORAGE_KEYS.TASK_NOTES, validationError: validationResult.error }
+          );
+        }
 
-        // Save migrated data back to localStorage
-        localStorage.setItem(STORAGE_KEYS.TASK_NOTES, JSON.stringify(migratedData));
-
-        // Extract actual data from versioned structure
-        parsedData = migratedData.version ? migratedData.data : migratedData;
+        return validationResult.data!;
       }
+
+      // Create backup before migration
+      await this.createBackup(STORAGE_KEYS.TASK_NOTES);
+
+      // Migrate task notes with archive fields
+      const migratedData = migrateTaskNotes(parsedData);
+
+      // Save migrated data back to localStorage
+      localStorage.setItem(STORAGE_KEYS.TASK_NOTES, JSON.stringify(migratedData));
+
+      // Extract actual data from versioned structure
+      parsedData = migratedData.version ? migratedData.data : migratedData;
 
       // Validate data
       const validationResult = validateWithSchema(z.array(TaskNoteSchema), parsedData);
