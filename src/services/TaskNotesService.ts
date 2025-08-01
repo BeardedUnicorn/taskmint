@@ -11,7 +11,31 @@ import { NoteTemplateService } from './NoteTemplateService';
 import { validateWithSchema } from '../utils/validation';
 import { createServiceErrorHandler } from '../utils/errorHandler';
 
-export class TaskNotesService {
+export interface ITaskNotesService {
+  getAllNotes(): Promise<TaskNote[]>;
+  getNotesByTaskId(taskId: string): Promise<TaskNote[]>;
+  getNotesByTimeEntryId(timeEntryId: string): Promise<TaskNote[]>;
+  getNotesBySessionId(sessionId: string): Promise<TaskNote[]>;
+  getNotesByTimerInstanceId(timerInstanceId: string): Promise<TaskNote[]>;
+  getNoteById(noteId: string): Promise<TaskNote | null>;
+  createNote(noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote>;
+  updateNote(noteId: string, updates: Partial<TaskNote>): Promise<TaskNote>;
+  deleteNote(noteId: string): Promise<void>;
+  deleteNotesByTaskId(taskId: string): Promise<void>;
+  archiveNote(noteId: string): Promise<TaskNote>;
+  unarchiveNote(noteId: string): Promise<TaskNote>;
+  getActiveNotesByTaskId(taskId: string): Promise<TaskNote[]>;
+  getArchivedNotesByTaskId(taskId: string): Promise<TaskNote[]>;
+  getTaskNotesStats(taskId: string): Promise<{
+    totalNotes: number;
+    activeNotes: number;
+    archivedNotes: number;
+    templatesUsed: string[];
+    lastNoteDate?: string;
+  }>;
+}
+
+export class TaskNotesService implements ITaskNotesService {
   private static instance: TaskNotesService;
   private storageService: StorageService;
   private templateService: NoteTemplateService;
@@ -70,6 +94,34 @@ export class TaskNotesService {
       this.errorHandler.logInfo(`Found ${filteredNotes.length} notes for time entry`, 'getNotesByTimeEntryId', { timeEntryId });
       return filteredNotes;
     }, 'getNotesByTimeEntryId', { entryId: timeEntryId });
+  }
+
+  /**
+   * Get notes by session ID
+   */
+  async getNotesBySessionId(sessionId: string): Promise<TaskNote[]> {
+    return this.errorHandler.handleAsync(async () => {
+      const notes = await this.getAllNotes();
+      const filteredNotes = notes.filter(note => note.sessionId === sessionId);
+      this.errorHandler.logInfo(`Found ${filteredNotes.length} notes for session`, 'getNotesBySessionId', { sessionId });
+      return filteredNotes;
+    }, 'getNotesBySessionId', { sessionId });
+  }
+
+  /**
+   * Get notes by timer instance ID
+   */
+  async getNotesByTimerInstanceId(timerInstanceId: string): Promise<TaskNote[]> {
+    return this.errorHandler.handleAsync(async () => {
+      const notes = await this.getAllNotes();
+      const filteredNotes = notes.filter(note => note.timerInstanceId === timerInstanceId);
+      this.errorHandler.logInfo(
+        `Found ${filteredNotes.length} notes for timer instance`,
+        'getNotesByTimerInstanceId',
+        { timerInstanceId }
+      );
+      return filteredNotes;
+    }, 'getNotesByTimerInstanceId', { timerInstanceId });
   }
 
   /**
