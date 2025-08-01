@@ -77,6 +77,7 @@ describe('NoteEditor Copy Functionality', () => {
           onDeleteNote={mockOnDeleteNote}
           isCollapsed={false}
           onToggleCollapse={() => {}}
+          autoSaveDisabled
         />
       );
     });
@@ -97,6 +98,7 @@ describe('NoteEditor Copy Functionality', () => {
         onDeleteNote={mockOnDeleteNote}
         isCollapsed={false}
         onToggleCollapse={() => {}}
+        autoSaveDisabled
       />
     );
 
