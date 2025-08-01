@@ -10,6 +10,7 @@ import {
   SUBSCRIPTION_TIERS,
   FEATURES,
 } from '../../types/subscription';
+import { TaskErrorClass, StorageErrorClass } from '../../types/errors';
 
 // Mock StorageService
 vi.mock('../StorageService');
@@ -56,6 +57,23 @@ describe('SubscriptionService', () => {
 
       expect(subscription).toEqual(existingSubscription);
     });
+
+    it('should throw TaskErrorClass when subscription data is missing', async () => {
+      mockStorageService.getItem.mockResolvedValue(null);
+
+      await expect(subscriptionService.getUserSubscription()).rejects.toBeInstanceOf(
+        TaskErrorClass
+      );
+    });
+
+    it('should propagate StorageService errors', async () => {
+      const storageError = new StorageErrorClass('STORAGE_READ_FAILED', 'fail');
+      mockStorageService.getItem.mockRejectedValue(storageError);
+
+      await expect(subscriptionService.getUserSubscription()).rejects.toBe(
+        storageError
+      );
+    });
   });
 
   describe('upgradeSubscription', () => {
@@ -78,6 +96,41 @@ describe('SubscriptionService', () => {
         },
         expect.any(Object)
       );
+    });
+
+    it('should throw TaskErrorClass for invalid SKU upgrade', async () => {
+      mockStorageService.getItem.mockResolvedValue({
+        sku: SUBSCRIPTION_SKUS.FREE,
+        activatedAt: '2023-01-01T00:00:00.000Z',
+      });
+
+      await expect(
+        subscriptionService.upgradeSubscription('invalid-sku' as any)
+      ).rejects.toBeInstanceOf(TaskErrorClass);
+      expect(mockStorageService.setItem).not.toHaveBeenCalled();
+    });
+
+    it('should throw TaskErrorClass when current subscription is missing', async () => {
+      mockStorageService.getItem.mockResolvedValue(null);
+
+      await expect(
+        subscriptionService.upgradeSubscription(SUBSCRIPTION_SKUS.PRO)
+      ).rejects.toBeInstanceOf(TaskErrorClass);
+      expect(mockStorageService.setItem).not.toHaveBeenCalled();
+    });
+
+    it('should propagate StorageService errors during upgrade', async () => {
+      const currentSubscription = {
+        sku: SUBSCRIPTION_SKUS.FREE,
+        activatedAt: '2023-01-01T00:00:00.000Z',
+      };
+      mockStorageService.getItem.mockResolvedValue(currentSubscription);
+      const storageError = new StorageErrorClass('STORAGE_WRITE_FAILED', 'fail');
+      mockStorageService.setItem.mockRejectedValue(storageError);
+
+      await expect(
+        subscriptionService.upgradeSubscription(SUBSCRIPTION_SKUS.PRO)
+      ).rejects.toBe(storageError);
     });
   });
 
