@@ -337,6 +337,24 @@ export class TaskNotesService {
               }
             }
             break;
+          case 'checkbox':
+            if (typeof value !== 'boolean') {
+              errors[field.id] = `${field.label} must be a boolean`;
+            }
+            break;
+          case 'select':
+            if (
+              typeof value !== 'string' ||
+              !field.options?.some(option => option.value === value)
+            ) {
+              errors[field.id] = `${field.label} must be one of the available options`;
+            }
+            break;
+          case 'command':
+            if (typeof value !== 'string') {
+              errors[field.id] = `${field.label} must be a string`;
+            }
+            break;
         }
       }
     });
