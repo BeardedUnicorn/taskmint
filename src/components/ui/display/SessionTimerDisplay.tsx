@@ -57,19 +57,6 @@ export function SessionTimerDisplay({
 }: SessionTimerDisplayProps) {
   const runningInstance = session.timerInstances?.find(i => i.isRunning);
 
-  // Calculate current elapsed time for running timer
-  // Ensure startTime is properly converted to Date object
-  const startTime = runningInstance?.startTime
-    ? (runningInstance.startTime instanceof Date
-        ? runningInstance.startTime
-        : new Date(runningInstance.startTime))
-    : undefined;
-
-  const currentElapsed = useTimer(
-    runningInstance?.isRunning || false,
-    startTime
-  );
-
 
   const getDisplaySize = () => {
     switch (size) {
@@ -185,24 +172,32 @@ export function SessionTimerDisplay({
           </Typography>
 
           <Stack spacing={1}>
-            {(session.timerInstances || []).map((instance, index) => (
-              <TimerInstanceRow
-                key={instance.id}
-                instance={instance}
-                index={index + 1}
-                currentElapsed={instance.isRunning ? currentElapsed : 0}
-                showControls={showControls}
-                showNotes={showNotes}
-                size={size}
-                onStart={() => onStartTimer?.(instance.id)}
-                onStop={() => onStopTimer?.(instance.id)}
-                onPause={() => onPauseTimer?.(instance.id)}
-                onResume={() => onResumeTimer?.(instance.id)}
-                onDelete={() => onDeleteTimer?.(instance.id)}
-                onOpenNotes={() => onOpenNotes?.(session.id, instance.id)}
-                isSessionActive={session.isActive}
-              />
-            ))}
+            {(session.timerInstances || []).map((instance, index) => {
+              const startTime = instance.startTime
+                ? (instance.startTime instanceof Date
+                    ? instance.startTime
+                    : new Date(instance.startTime))
+                : undefined;
+
+              return (
+                <TimerInstanceRow
+                  key={instance.id}
+                  instance={instance}
+                  index={index + 1}
+                  startTime={startTime}
+                  showControls={showControls}
+                  showNotes={showNotes}
+                  size={size}
+                  onStart={() => onStartTimer?.(instance.id)}
+                  onStop={() => onStopTimer?.(instance.id)}
+                  onPause={() => onPauseTimer?.(instance.id)}
+                  onResume={() => onResumeTimer?.(instance.id)}
+                  onDelete={() => onDeleteTimer?.(instance.id)}
+                  onOpenNotes={() => onOpenNotes?.(session.id, instance.id)}
+                  isSessionActive={session.isActive}
+                />
+              );
+            })}
           </Stack>
         </Box>
       )}
@@ -215,7 +210,7 @@ export function SessionTimerDisplay({
 interface TimerInstanceRowProps {
   instance: TimerInstance;
   index: number;
-  currentElapsed: number;
+  startTime?: Date;
   showControls: boolean;
   showNotes: boolean;
   size: 'small' | 'medium' | 'large';
@@ -231,7 +226,7 @@ interface TimerInstanceRowProps {
 function TimerInstanceRow({
   instance,
   index,
-  currentElapsed,
+  startTime,
   showControls,
   showNotes,
   size,
@@ -243,6 +238,7 @@ function TimerInstanceRow({
   onOpenNotes,
   isSessionActive,
 }: TimerInstanceRowProps) {
+  const currentElapsed = useTimer(instance.isRunning || false, startTime);
   const displayTime = instance.isRunning ? currentElapsed : (instance.duration || 0);
   const isSmall = size === 'small';
 
