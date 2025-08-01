@@ -74,12 +74,13 @@ describe('NoteEditor Copy Functionality', () => {
           existingNote={mockExistingNote}
           onSaveNote={mockOnSaveNote}
           onUpdateNote={mockOnUpdateNote}
-          onDeleteNote={mockOnDeleteNote}
-          isCollapsed={false}
-          onToggleCollapse={() => {}}
-          autoSaveDisabled
-        />
-      );
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        autoSaveDisabled
+        noteLevel="task"
+      />
+    );
     });
 
     // Check for copy buttons
@@ -99,6 +100,7 @@ describe('NoteEditor Copy Functionality', () => {
         isCollapsed={false}
         onToggleCollapse={() => {}}
         autoSaveDisabled
+        noteLevel="task"
       />
     );
 
@@ -130,6 +132,7 @@ describe('NoteEditor Copy Functionality', () => {
         onDeleteNote={mockOnDeleteNote}
         isCollapsed={false}
         onToggleCollapse={() => {}}
+        noteLevel="task"
       />
     );
 
@@ -158,6 +161,7 @@ describe('NoteEditor Copy Functionality', () => {
         onDeleteNote={mockOnDeleteNote}
         isCollapsed={false}
         onToggleCollapse={() => {}}
+        noteLevel="task"
       />
     );
 
@@ -182,6 +186,7 @@ describe('NoteEditor Copy Functionality', () => {
         onDeleteNote={mockOnDeleteNote}
         isCollapsed={false}
         onToggleCollapse={() => {}}
+        noteLevel="task"
       />
     );
 
@@ -205,6 +210,7 @@ describe('NoteEditor Copy Functionality', () => {
         onDeleteNote={mockOnDeleteNote}
         isCollapsed={false}
         onToggleCollapse={() => {}}
+        noteLevel="task"
       />
     );
 

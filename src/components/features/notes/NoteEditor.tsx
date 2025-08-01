@@ -47,6 +47,9 @@ export function NoteEditor({
                              template: initialTemplate,
                              existingNote,
                              timeEntryId,
+                             sessionId,
+                             timerInstanceId,
+                             noteLevel = 'task',
                              onSaveNote,
                              onUpdateNote,
                              onDeleteNote,
@@ -256,7 +259,12 @@ export function NoteEditor({
         }
 
         if (currentNote) {
-          await onUpdateNote(currentNote.id, { fieldValues: processedValues });
+          await onUpdateNote(currentNote.id, {
+            fieldValues: processedValues,
+            sessionId,
+            timerInstanceId,
+            noteLevel,
+          });
           setFieldValues(processedValues);
           setLastSaved(new Date());
           setHasUnsavedChanges(false);
@@ -278,6 +286,9 @@ export function NoteEditor({
             templateName: selectedTemplate.name,
             fieldValues: processedValues,
             timeEntryId,
+            sessionId,
+            timerInstanceId,
+            noteLevel,
             isArchived: false,
           };
         } else {
@@ -288,6 +299,9 @@ export function NoteEditor({
             templateName: 'Free-form Note',
             fieldValues: { content: processedValues.content || '' },
             timeEntryId,
+            sessionId,
+            timerInstanceId,
+            noteLevel,
             isArchived: false,
           };
         }
@@ -316,6 +330,9 @@ export function NoteEditor({
       taskId,
       fieldValues,
       timeEntryId,
+      sessionId,
+      timerInstanceId,
+      noteLevel,
       onCloseEditor,
     ]
   );

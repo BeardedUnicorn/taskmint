@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NoteEditor } from '../NoteEditor';
-import { NoteTemplate } from '../../../../types/notes';
+import { NoteTemplate, TaskNote } from '../../../../types/notes';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue('Command output'),
@@ -52,6 +52,7 @@ describe('NoteEditor', () => {
         isCollapsed={false}
         onToggleCollapse={() => {}}
         autoSaveDisabled
+        noteLevel="task"
       />
     );
 
@@ -72,6 +73,7 @@ describe('NoteEditor', () => {
         isCollapsed={false}
         onToggleCollapse={() => {}}
         autoSaveDisabled
+        noteLevel="task"
       />
     );
 
@@ -97,6 +99,7 @@ describe('NoteEditor', () => {
         onToggleCollapse={() => {}}
         onCloseEditor={onCloseEditor}
         autoSaveDisabled
+        noteLevel="task"
       />
     );
 
@@ -121,6 +124,7 @@ describe('NoteEditor', () => {
         onToggleCollapse={() => {}}
         onCloseEditor={onCloseEditor}
         autoSaveDisabled
+        noteLevel="task"
       />
     );
 
@@ -164,6 +168,7 @@ describe('NoteEditor', () => {
         isCollapsed={false}
         onToggleCollapse={() => {}}
         autoSaveDisabled
+        noteLevel="task"
       />
     );
 
@@ -174,6 +179,86 @@ describe('NoteEditor', () => {
     await waitFor(() => {
       expect(mockOnSaveNote).toHaveBeenCalledWith(
         expect.objectContaining({ fieldValues: { num: 123 } })
+      );
+    });
+  });
+
+  it('includes session and timer context when saving and updating', async () => {
+    mockOnSaveNote.mockClear();
+    mockOnUpdateNote.mockClear();
+
+    const existingNote: TaskNote = {
+      id: 'note1',
+      taskId: 'task1',
+      templateId: 'template1',
+      templateName: 'Test Template',
+      fieldValues: { field1: 'value1' },
+      sessionId: 'session1',
+      timerInstanceId: 'timer1',
+      noteLevel: 'session',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const { unmount } = render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        existingNote={existingNote}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={mockOnUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        autoSaveDisabled
+        sessionId="session1"
+        timerInstanceId="timer1"
+        noteLevel="session"
+      />
+    );
+
+    // Save existing note (triggers update)
+    fireEvent.click(await screen.findByText('Update Note'));
+
+    await waitFor(() => {
+      expect(mockOnUpdateNote).toHaveBeenCalledWith(
+        'note1',
+        expect.objectContaining({
+          sessionId: 'session1',
+          timerInstanceId: 'timer1',
+          noteLevel: 'session',
+        })
+      );
+    });
+
+    // Test create path with same context
+    unmount();
+
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={mockOnUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        autoSaveDisabled
+        sessionId="session1"
+        timerInstanceId="timer1"
+        noteLevel="session"
+      />
+    );
+
+    fireEvent.click(screen.getByText('Save Note'));
+
+    await waitFor(() => {
+      expect(mockOnSaveNote).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 'session1',
+          timerInstanceId: 'timer1',
+          noteLevel: 'session',
+        })
       );
     });
   });
