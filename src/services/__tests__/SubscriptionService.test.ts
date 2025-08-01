@@ -16,7 +16,7 @@ vi.mock('../StorageService');
 
 describe('SubscriptionService', () => {
   let subscriptionService: SubscriptionService;
-  let mockStorageService: any;
+  let mockStorageService: vi.Mocked<StorageService>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -25,7 +25,7 @@ describe('SubscriptionService', () => {
     mockStorageService = {
       getItem: vi.fn(),
       setItem: vi.fn(),
-    };
+    } as unknown as vi.Mocked<StorageService>;
 
     // Create subscription service with mocked storage
     subscriptionService = new SubscriptionService(mockStorageService);

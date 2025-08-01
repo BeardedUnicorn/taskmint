@@ -28,7 +28,7 @@ const mockStorageService = {
   setTaskNotes: vi.fn(),
   setDailyGoal: vi.fn(),
   setGoalAchievements: vi.fn(),
-};
+} as unknown as vi.Mocked<StorageService>;
 
 // Mock the Tauri invoke function
 vi.mock('@tauri-apps/api/core', () => ({
@@ -53,7 +53,7 @@ describe('useDataBackup', () => {
     vi.clearAllMocks();
     
     // Mock StorageService.getInstance to return our mock
-    (StorageService.getInstance as any).mockReturnValue(mockStorageService);
+    vi.mocked(StorageService.getInstance).mockReturnValue(mockStorageService);
     
     // Set up default mock data
     mockStorageService.getTimeEntries.mockResolvedValue([
