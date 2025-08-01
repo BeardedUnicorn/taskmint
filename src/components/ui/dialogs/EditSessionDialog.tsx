@@ -20,10 +20,14 @@ interface EditSessionDialogProps {
 
 export function EditSessionDialog({ open, session, onClose, onSave }: EditSessionDialogProps) {
   const [notes, setNotes] = useState('');
+  const [initialNotes, setInitialNotes] = useState('');
+  const hasChanges = notes !== initialNotes;
 
   useEffect(() => {
     if (session) {
-      setNotes(session.notes || '');
+      const currentNotes = session.notes || '';
+      setNotes(currentNotes);
+      setInitialNotes(currentNotes);
     }
   }, [session]);
 
@@ -37,8 +41,11 @@ export function EditSessionDialog({ open, session, onClose, onSave }: EditSessio
   };
 
   const handleClose = () => {
+    if (hasChanges && !window.confirm('Discard your changes?')) {
+      return;
+    }
     onClose();
-  }
+  };
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
