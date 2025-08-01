@@ -38,43 +38,59 @@ describe('Timezone Handling', () => {
       // Create a date in UTC
       const utcDate = new Date('2024-01-15T14:30:00.000Z'); // 2:30 PM UTC
       
-      // When displayed in Mountain Time (UTC-7), should show as 7:30 AM
+      // When displayed in the user's local timezone
       const localTime = formatLocalTime(utcDate);
-      
-      // In January, Mountain Standard Time is in effect (UTC-7)
-      expect(localTime).toBe('07:30');
+
+      // Compute expected value based on the current environment timezone
+      const expected = dayjs.utc(utcDate).tz(currentTimezone).format('HH:mm');
+      expect(localTime).toBe(expected);
     });
 
     it('should handle datetime-local format correctly', () => {
       const utcDate = new Date('2024-01-15T14:30:00.000Z'); // 2:30 PM UTC
-      
+
       // Should format for datetime-local input in local timezone
       const localDateTime = formatDateTimeLocal(utcDate);
-      
-      // In Mountain Time (UTC-7), should be 7:30 AM
-      expect(localDateTime).toBe('2024-01-15T07:30');
+
+      const expected = dayjs
+        .utc(utcDate)
+        .tz(currentTimezone)
+        .format('YYYY-MM-DDTHH:mm');
+      expect(localDateTime).toBe(expected);
     });
 
     it('should handle date strings correctly', () => {
       const utcDate = new Date('2024-01-15T14:30:00.000Z');
-      
+
       // Date should be formatted in local timezone
       const dateString = formatDateString(utcDate);
-      
-      // Should still be the same date in Mountain Time
-      expect(dateString).toBe('2024-01-15');
+
+      const expected = dayjs
+        .utc(utcDate)
+        .tz(currentTimezone)
+        .format('YYYY-MM-DD');
+      expect(dateString).toBe(expected);
     });
 
     it('should handle edge cases around midnight', () => {
       // UTC date that crosses midnight in local timezone
       const utcDate = new Date('2024-01-15T04:30:00.000Z'); // 4:30 AM UTC
-      
-      // In Mountain Time (UTC-7), this should be 9:30 PM on Jan 14
+
+      // In local timezone this may fall on the previous day
       const localTime = formatLocalTime(utcDate);
       const localDate = formatDateString(utcDate);
-      
-      expect(localTime).toBe('21:30');
-      expect(localDate).toBe('2024-01-14'); // Previous day in local timezone
+
+      const expectedTime = dayjs
+        .utc(utcDate)
+        .tz(currentTimezone)
+        .format('HH:mm');
+      const expectedDate = dayjs
+        .utc(utcDate)
+        .tz(currentTimezone)
+        .format('YYYY-MM-DD');
+
+      expect(localTime).toBe(expectedTime);
+      expect(localDate).toBe(expectedDate); // Previous day in some timezones
     });
   });
 
@@ -105,9 +121,17 @@ describe('Timezone Handling', () => {
       expect(deserializedEntry.startTime.toISOString()).toBe('2024-01-15T14:30:00.000Z');
       expect(deserializedEntry.endTime?.toISOString()).toBe('2024-01-15T16:45:00.000Z');
       
-      // Verify local display (Mountain Time UTC-7)
-      expect(formatLocalTime(deserializedEntry.startTime)).toBe('07:30');
-      expect(formatLocalTime(deserializedEntry.endTime!)).toBe('09:45');
+      // Verify local display matches current timezone
+      const expectedStart = dayjs
+        .utc(deserializedEntry.startTime)
+        .tz(currentTimezone)
+        .format('HH:mm');
+      const expectedEnd = dayjs
+        .utc(deserializedEntry.endTime!)
+        .tz(currentTimezone)
+        .format('HH:mm');
+      expect(formatLocalTime(deserializedEntry.startTime)).toBe(expectedStart);
+      expect(formatLocalTime(deserializedEntry.endTime!)).toBe(expectedEnd);
     });
 
     it('should handle running timers correctly', () => {
@@ -130,29 +154,43 @@ describe('Timezone Handling', () => {
 
       expect(deserializedEntry.isRunning).toBe(true);
       expect(deserializedEntry.endTime).toBeUndefined();
-      expect(formatLocalTime(deserializedEntry.startTime)).toBe('07:30');
+      const expected = dayjs
+        .utc(deserializedEntry.startTime)
+        .tz(currentTimezone)
+        .format('HH:mm');
+      expect(formatLocalTime(deserializedEntry.startTime)).toBe(expected);
     });
   });
 
   describe('Date Calculations in Local Timezone', () => {
     it('should calculate start of day in local timezone', () => {
       const date = new Date('2024-01-15T14:30:00.000Z'); // 2:30 PM UTC, 7:30 AM MST
-      
+
       const startOfDay = getStartOfDay(date);
-      
+
       // Start of day should be midnight in local timezone
-      // In MST, this would be 7:00 AM UTC (midnight MST + 7 hours)
-      expect(startOfDay.toISOString()).toBe('2024-01-15T07:00:00.000Z');
+      const expected = dayjs
+        .utc(date)
+        .tz(currentTimezone)
+        .startOf('day')
+        .utc()
+        .toISOString();
+      expect(startOfDay.toISOString()).toBe(expected);
     });
 
     it('should calculate end of day in local timezone', () => {
       const date = new Date('2024-01-15T14:30:00.000Z'); // 2:30 PM UTC, 7:30 AM MST
-      
+
       const endOfDay = getEndOfDay(date);
-      
+
       // End of day should be 23:59:59.999 in local timezone
-      // In MST, this would be 6:59:59.999 AM UTC the next day
-      expect(endOfDay.toISOString()).toBe('2024-01-16T06:59:59.999Z');
+      const expected = dayjs
+        .utc(date)
+        .tz(currentTimezone)
+        .endOf('day')
+        .utc()
+        .toISOString();
+      expect(endOfDay.toISOString()).toBe(expected);
     });
 
     it('should filter entries by date correctly in local timezone', () => {
@@ -189,9 +227,17 @@ describe('Timezone Handling', () => {
       const startTimeLocal = formatDateTimeLocal(utcStartTime);
       const endTimeLocal = formatDateTimeLocal(utcEndTime);
 
-      // Should be in local timezone for datetime-local input (Mountain Time UTC-7)
-      expect(startTimeLocal).toBe('2024-01-15T07:30');
-      expect(endTimeLocal).toBe('2024-01-15T09:45');
+      const expectedStart = dayjs
+        .utc(utcStartTime)
+        .tz(currentTimezone)
+        .format('YYYY-MM-DDTHH:mm');
+      const expectedEnd = dayjs
+        .utc(utcEndTime)
+        .tz(currentTimezone)
+        .format('YYYY-MM-DDTHH:mm');
+      // Should be in local timezone for datetime-local input
+      expect(startTimeLocal).toBe(expectedStart);
+      expect(endTimeLocal).toBe(expectedEnd);
     });
 
     it('should convert datetime-local input back to UTC correctly', () => {
@@ -204,9 +250,16 @@ describe('Timezone Handling', () => {
       const endTime = new Date(localEndTime.replace('T', ' ') + ':00');
 
       // These should be interpreted as local time and stored as UTC
-      // In Mountain Time (UTC-7), 7:30 AM local = 2:30 PM UTC
-      expect(startTime.toISOString()).toBe('2024-01-15T14:30:00.000Z');
-      expect(endTime.toISOString()).toBe('2024-01-15T16:45:00.000Z');
+      const expectedStart = dayjs
+        .tz(localStartTime, currentTimezone)
+        .utc()
+        .toISOString();
+      const expectedEnd = dayjs
+        .tz(localEndTime, currentTimezone)
+        .utc()
+        .toISOString();
+      expect(startTime.toISOString()).toBe(expectedStart);
+      expect(endTime.toISOString()).toBe(expectedEnd);
     });
   });
 
@@ -244,13 +297,21 @@ describe('Timezone Handling', () => {
         date: '2024-01-15',
       };
 
-      // System tray should show local time (Mountain Time UTC-7)
+      // System tray should show local time
       const displayTime = formatLocalTime(entry.startTime);
-      expect(displayTime).toBe('07:30');
+      const expectedTime = dayjs
+        .utc(entry.startTime)
+        .tz(currentTimezone)
+        .format('HH:mm');
+      expect(displayTime).toBe(expectedTime);
 
       // Date should also be in local timezone
       const displayDate = formatLocalDate(entry.startTime);
-      expect(displayDate).toBe('Jan 15, 2024');
+      const expectedDate = dayjs
+        .utc(entry.startTime)
+        .tz(currentTimezone)
+        .format('MMM DD, YYYY');
+      expect(displayDate).toBe(expectedDate);
     });
   });
 });
