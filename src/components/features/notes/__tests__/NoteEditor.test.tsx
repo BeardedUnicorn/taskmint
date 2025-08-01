@@ -133,4 +133,48 @@ describe('NoteEditor', () => {
       expect(onCloseEditor).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('parses number inputs as numbers before saving', async () => {
+    const numberTemplate: NoteTemplate = {
+      id: 'tmpl-number',
+      name: 'Number Template',
+      fields: [
+        {
+          id: 'num',
+          label: 'Number Field',
+          type: 'number',
+          required: false,
+          order: 0,
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isActive: true,
+    };
+
+    mockOnSaveNote.mockClear();
+
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={numberTemplate}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={mockOnUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        autoSaveDisabled
+      />
+    );
+
+    const numInput = await screen.findByLabelText('Number Field');
+    fireEvent.change(numInput, { target: { value: '123' } });
+    fireEvent.click(screen.getByText('Save Note'));
+
+    await waitFor(() => {
+      expect(mockOnSaveNote).toHaveBeenCalledWith(
+        expect.objectContaining({ fieldValues: { num: 123 } })
+      );
+    });
+  });
 });

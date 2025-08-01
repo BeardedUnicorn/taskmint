@@ -79,7 +79,16 @@ export function NoteEditor({
   // Initialize field values from existing note or template defaults
   useEffect(() => {
     if (existingNote) {
-      setFieldValues(existingNote.fieldValues);
+      const values = { ...existingNote.fieldValues };
+      if (selectedTemplate) {
+        selectedTemplate.fields.forEach(field => {
+          if (field.type === 'number') {
+            const val = values[field.id];
+            values[field.id] = val === undefined || val === null || val === '' ? null : Number(val);
+          }
+        });
+      }
+      setFieldValues(values);
       setHasUnsavedChanges(false);
       setCurrentNote(existingNote);
     } else if (selectedTemplate) {
@@ -92,7 +101,7 @@ export function NoteEditor({
             initialValues[field.id] = '';
             break;
           case 'number':
-            initialValues[field.id] = '';
+            initialValues[field.id] = null;
             break;
           case 'date':
             initialValues[field.id] = '';
@@ -175,11 +184,11 @@ export function NoteEditor({
 
       // Type-specific validation
       switch (field.type) {
-        case 'number':
-          if (isNaN(Number(value))) {
+        case 'number': {
+          const numValue = typeof value === 'number' ? value : Number(value);
+          if (isNaN(numValue)) {
             newErrors[field.id] = `${field.label} must be a valid number`;
           } else {
-            const numValue = Number(value);
             if (field.validation?.min !== undefined && numValue < field.validation.min) {
               newErrors[field.id] = `${field.label} must be at least ${field.validation.min}`;
             }
@@ -188,6 +197,7 @@ export function NoteEditor({
             }
           }
           break;
+        }
         case 'date':
           if (value && isNaN(Date.parse(value))) {
             newErrors[field.id] = `${field.label} must be a valid date`;
@@ -235,8 +245,19 @@ export function NoteEditor({
     async (closeEditor = true) => {
       setIsSaving(true);
       try {
+        let processedValues = { ...fieldValues };
+        if (selectedTemplate) {
+          selectedTemplate.fields.forEach(field => {
+            if (field.type === 'number') {
+              const val = processedValues[field.id];
+              processedValues[field.id] = val === undefined || val === null || val === '' ? null : Number(val);
+            }
+          });
+        }
+
         if (currentNote) {
-          await onUpdateNote(currentNote.id, { fieldValues });
+          await onUpdateNote(currentNote.id, { fieldValues: processedValues });
+          setFieldValues(processedValues);
           setLastSaved(new Date());
           setHasUnsavedChanges(false);
           if (closeEditor) onCloseEditor?.();
@@ -255,7 +276,7 @@ export function NoteEditor({
             taskId,
             templateId: selectedTemplate.id,
             templateName: selectedTemplate.name,
-            fieldValues,
+            fieldValues: processedValues,
             timeEntryId,
             isArchived: false,
           };
@@ -265,13 +286,14 @@ export function NoteEditor({
             taskId,
             templateId: 'free-form',
             templateName: 'Free-form Note',
-            fieldValues: { content: fieldValues.content || '' },
+            fieldValues: { content: processedValues.content || '' },
             timeEntryId,
             isArchived: false,
           };
         }
 
         const saved = await onSaveNote(noteToSave);
+        setFieldValues(processedValues);
 
         setCurrentNote(saved);
         setLastSaved(new Date());
@@ -308,7 +330,7 @@ export function NoteEditor({
             clearedValues[field.id] = '';
             break;
           case 'number':
-            clearedValues[field.id] = '';
+            clearedValues[field.id] = null;
             break;
           case 'date':
             clearedValues[field.id] = '';
@@ -365,12 +387,12 @@ export function NoteEditor({
   }, [fieldValues, hasUnsavedChanges, isSaving, handleSave, autoSaveDisabled]);
 
   const renderField = useCallback((field: TemplateField) => {
-    const value = fieldValues[field.id] || '';
+    const value = fieldValues[field.id];
     const error = errors[field.id];
 
     const commonProps = {
       label: field.label,
-      value,
+      value: value ?? '',
       onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
         handleFieldChange(field.id, e.target.value),
       error: !!error,
@@ -406,6 +428,13 @@ export function NoteEditor({
           <TextField
             {...commonProps}
             type="number"
+            value={value ?? ''}
+            onChange={(e) =>
+              handleFieldChange(
+                field.id,
+                e.target.value === '' ? null : Number(e.target.value)
+              )
+            }
             placeholder={field.placeholder}
             inputProps={{
               min: field.validation?.min,
@@ -477,7 +506,7 @@ export function NoteEditor({
           <FormControl fullWidth size="small" error={!!error} required={field.required}>
             <InputLabel>{field.label}</InputLabel>
             <Select
-              value={value || ''}
+              value={value ?? ''}
               onChange={(e) => handleSelectChange(field.id, e.target.value)}
               label={field.label}
             >
@@ -564,7 +593,7 @@ export function NoteEditor({
                   if (selected) {
                     const initialValues: Record<string, any> = {};
                     selected.fields.forEach((field: TemplateField) => {
-                      initialValues[field.id] = '';
+                      initialValues[field.id] = field.type === 'number' ? null : '';
                     });
                     setFieldValues(initialValues);
                   } else {
