@@ -21,6 +21,7 @@ export { TaskNotesService } from './TaskNotesService';
 export type { ITimerService } from './TimerService';
 export type { ITaskService } from './TaskService';
 export type { IStorageService } from './StorageService';
+export type { ITaskNotesService } from './TaskNotesService';
 
 // Service factory for getting singleton instances
 export class ServiceFactory {
