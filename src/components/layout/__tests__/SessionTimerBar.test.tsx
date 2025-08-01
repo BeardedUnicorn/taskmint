@@ -12,6 +12,7 @@ import '@testing-library/jest-dom/vitest';
 import { SessionTimerBar } from '../SessionTimerBar';
 import { TaskSession, TimerInstance } from '../../../types/timer';
 import { Task } from '../../../types/task';
+import { SESSION_CONSTANTS } from '../../../constants';
 
 // Mock dependencies
 const mockShowError = vi.fn();
@@ -169,11 +170,44 @@ describe('SessionTimerBar', () => {
 
     it('should call onCreateTimerInstance when Add Timer button is clicked', () => {
       render(<SessionTimerBar {...propsWithActiveSession} />);
-      
+
       const addTimerButton = screen.getByRole('button', { name: /add timer/i });
       fireEvent.click(addTimerButton);
-      
+
       expect(mockProps.onCreateTimerInstance).toHaveBeenCalledWith('session-1');
+    });
+
+    it('should disable Add Timer button when maximum instances reached', () => {
+      const maxedOutSession: TaskSession = {
+        ...mockActiveSession,
+        timerInstances: Array.from({ length: SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION }, (_, i) => ({
+          ...mockTimerInstance,
+          id: `instance-${i}`,
+        })),
+      };
+
+      render(
+        <SessionTimerBar {...mockProps} activeSession={maxedOutSession} />
+      );
+
+      const addTimerButton = screen.getByRole('button', { name: /add timer/i });
+      expect(addTimerButton).toBeDisabled();
+    });
+
+    it('should show error notification if adding timer fails', async () => {
+      mockProps.onCreateTimerInstance.mockRejectedValueOnce(
+        new Error('Add failed')
+      );
+
+      render(<SessionTimerBar {...propsWithActiveSession} />);
+
+      const addTimerButton = screen.getByRole('button', { name: /add timer/i });
+      fireEvent.click(addTimerButton);
+
+      await waitFor(() => {
+        expect(mockProps.onCreateTimerInstance).toHaveBeenCalledWith('session-1');
+        expect(mockShowError).toHaveBeenCalledWith('Add failed');
+      });
     });
   });
 
