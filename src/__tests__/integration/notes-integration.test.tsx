@@ -17,7 +17,12 @@ describe('Notes Integration', () => {
   beforeEach(() => {
     // Clear localStorage before each test
     localStorage.clear();
-    
+
+    // Reset singletons to avoid cross-test contamination
+    (NoteTemplateService as any).instance = undefined;
+    (TaskNotesService as any).instance = undefined;
+    (StorageService as any).instance = undefined;
+
     // Get fresh service instances
     templateService = NoteTemplateService.getInstance();
     notesService = TaskNotesService.getInstance();
@@ -58,8 +63,9 @@ describe('Notes Integration', () => {
       });
 
       const templates = await templateService.getAllTemplates();
-      expect(templates).toHaveLength(1);
-      expect(templates[0].name).toBe('Template 1');
+      // Includes default free-form template plus the created one
+      expect(templates.length).toBe(2);
+      expect(templates.some(t => t.name === 'Template 1')).toBe(true);
     });
 
     it('should update a template', async () => {
@@ -87,7 +93,8 @@ describe('Notes Integration', () => {
       await templateService.deleteTemplate(template.id);
 
       const templates = await templateService.getAllTemplates();
-      expect(templates).toHaveLength(0);
+      // Free-form template remains after deletion
+      expect(templates.length).toBe(1);
     });
   });
 
@@ -234,9 +241,11 @@ describe('Notes Integration', () => {
       const newTemplateService = NoteTemplateService.getInstance();
       const templates = await newTemplateService.getAllTemplates();
 
-      expect(templates).toHaveLength(1);
-      expect(templates[0].id).toBe(template.id);
-      expect(templates[0].name).toBe('Persistent Template');
+      // Should include default free-form template plus the persisted one
+      expect(templates.length).toBe(2);
+      const persisted = templates.find(t => t.id === template.id);
+      expect(persisted).toBeDefined();
+      expect(persisted?.name).toBe('Persistent Template');
     });
 
     it('should persist notes in localStorage', async () => {
