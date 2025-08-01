@@ -168,6 +168,16 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
   );
 
   /**
+   * Get notes by note level
+   */
+  const getNotesByLevel = useCallback(
+    (level: 'task' | 'session' | 'timer'): TaskNote[] => {
+      return notes.filter(note => (note.noteLevel ?? 'task') === level);
+    },
+    [notes]
+  );
+
+  /**
    * Get note by ID
    */
   const getNoteById = useCallback((noteId: string): TaskNote | undefined => {
@@ -363,6 +373,7 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
     getNotesByTimeEntryId,
     getNotesBySessionId,
     getNotesByTimerInstanceId,
+    getNotesByLevel,
     getNoteById,
     isLoading,
     error,
