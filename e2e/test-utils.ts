@@ -56,11 +56,11 @@ export class TimerHelper {
   async startGlobalTimer(taskName: string) {
     const taskInput = this.page.getByPlaceholder('Select or enter task name...');
     await taskInput.fill(taskName);
-    
+
     const startButton = this.page.getByRole('button', { name: /start/i });
     await startButton.click();
-    
-    await this.page.waitForTimeout(1000);
+
+    await expect(this.page.getByRole('button', { name: /pause|stop/i })).toBeVisible();
   }
 
   async stopGlobalTimer() {
@@ -107,8 +107,9 @@ export class SessionHelper {
     
     const startButton = this.page.getByRole('button', { name: /start.*session/i });
     await startButton.click();
-    
-    await this.page.waitForTimeout(1000);
+
+    await expect(this.page.getByText(taskName)).toBeVisible();
+    await expect(this.page.getByText('Active')).toBeVisible();
   }
 
   async endSession() {
@@ -186,8 +187,7 @@ export class NotesHelper {
     
     const saveButton = this.page.getByRole('button', { name: /save.*note/i });
     await saveButton.click();
-    
-    await this.page.waitForTimeout(500);
+    await expect(this.page.getByText(content)).toBeVisible();
   }
 
   async editNote(originalContent: string, newContent: string) {
@@ -354,16 +354,19 @@ export class E2ETestHelper {
 
 // Utility functions
 export async function waitForStableTimer(page: Page, minDuration = 2000) {
-  const startTime = await page.locator('[data-testid="timer-display"]').textContent();
-  await page.waitForTimeout(minDuration);
-  const endTime = await page.locator('[data-testid="timer-display"]').textContent();
-  
-  expect(endTime).not.toBe(startTime);
+  const start = parseDuration(
+    (await page.locator('[data-testid="timer-display"]').textContent()) || '00:00:00'
+  );
+  await expect.poll(async () => {
+    const current = parseDuration(
+      (await page.locator('[data-testid="timer-display"]').textContent()) || '00:00:00'
+    );
+    return current - start;
+  }).toBeGreaterThanOrEqual(minDuration / 1000);
 }
 
 export async function simulateUserActivity(page: Page) {
   await page.mouse.move(100, 100);
-  await page.waitForTimeout(100);
   await page.mouse.move(200, 200);
 }
 

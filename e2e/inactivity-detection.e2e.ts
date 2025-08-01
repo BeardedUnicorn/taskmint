@@ -39,11 +39,10 @@ async function setupInactivitySettings(page: Page) {
 async function startTimer(page: Page, taskName: string) {
   const taskInput = page.getByPlaceholder('Select or enter task name...');
   await taskInput.fill(taskName);
-  
+
   const startButton = page.getByRole('button', { name: /start/i });
   await startButton.click();
-  
-  await page.waitForTimeout(1000);
+  await expect(page.locator('[data-testid="timer-display"]')).toHaveText(/00:00:0[1-9]/);
 }
 
 async function simulateInactivity(page: Page, durationMs: number) {
@@ -65,7 +64,7 @@ async function simulateInactivity(page: Page, durationMs: number) {
 async function triggerActivity(page: Page) {
   // Simulate user activity
   await page.mouse.move(100, 100);
-  await page.waitForTimeout(100);
+  await page.mouse.move(200, 200);
 }
 
 test.describe('Inactivity Detection Setup', () => {
@@ -138,12 +137,11 @@ test.describe('Inactivity Warning Dialog', () => {
     await expect(page.getByText(/\d+s/)).toBeVisible();
     
     // Verify countdown decreases
-    const initialCountdown = await page.locator('[data-testid="countdown-display"]').textContent();
-    await page.waitForTimeout(1000);
-    const updatedCountdown = await page.locator('[data-testid="countdown-display"]').textContent();
-    
-    expect(parseInt(updatedCountdown || '0')).toBeLessThan(parseInt(initialCountdown || '0'));
-  });
+     const initialCountdown = await page.locator('[data-testid="countdown-display"]').textContent();
+     await expect.poll(async () =>
+       parseInt((await page.locator('[data-testid="countdown-display"]').textContent()) || '0')
+     ).toBeLessThan(parseInt(initialCountdown || '0'));
+     });
 
   test('should show progress bar in warning dialog', async ({ page }) => {
     await startTimer(page, 'Progress Test Task');
@@ -185,9 +183,7 @@ test.describe('Warning Dialog Actions', () => {
     // Verify timer is still running
     const timerDisplay = page.locator('[data-testid="timer-display"]');
     const initialTime = await timerDisplay.textContent();
-    await page.waitForTimeout(2000);
-    const updatedTime = await timerDisplay.textContent();
-    expect(updatedTime).not.toBe(initialTime);
+    await expect.poll(async () => await timerDisplay.textContent()).not.toBe(initialTime);
   });
 
   test('should pause timer when "Pause Timer" is clicked', async ({ page }) => {
@@ -209,11 +205,12 @@ test.describe('Warning Dialog Actions', () => {
     await simulateInactivity(page, SHORT_INACTIVITY_THRESHOLD * 1000);
     await expect(page.getByText(/inactivity detected/i)).toBeVisible({ timeout: 15000 });
     
-    // Wait for warning duration to expire
-    await page.waitForTimeout((WARNING_DURATION + 1) * 1000);
-    
+    // Wait for warning duration to expire and dialog to close
+    await expect(page.getByText(/inactivity detected/i)).not.toBeVisible({
+      timeout: (WARNING_DURATION + 1) * 1000,
+    });
+
     // Verify timer was auto-paused
-    await expect(page.getByText(/inactivity detected/i)).not.toBeVisible();
     await expect(page.getByRole('button', { name: /resume/i })).toBeVisible();
     await expect(page.getByText(/paused/i)).toBeVisible();
   });
@@ -360,10 +357,9 @@ test.describe('Inactivity Settings Integration', () => {
     await simulateInactivity(page, SHORT_INACTIVITY_THRESHOLD * 1000);
     await expect(page.getByText(/inactivity detected/i)).toBeVisible({ timeout: 15000 });
     
-    // Wait for custom warning duration
-    await page.waitForTimeout((customWarning + 1) * 1000);
-    
-    // Timer should be auto-paused
-    await expect(page.getByRole('button', { name: /resume/i })).toBeVisible();
+    // Wait for custom warning duration and verify auto-pause
+    await expect(page.getByRole('button', { name: /resume/i })).toBeVisible({
+      timeout: (customWarning + 1) * 1000,
+    });
   });
 });
