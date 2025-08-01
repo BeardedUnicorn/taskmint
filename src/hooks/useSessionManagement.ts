@@ -195,8 +195,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
   // Setup event listeners separately to avoid dependency issues
   useEffect(() => {
+    let unlisten: (() => void | Promise<void>) | null = null;
     const setupEventListeners = async () => {
-      await listen('timer-pause-inactivity', async () => {
+      unlisten = await listen('timer-pause-inactivity', async () => {
         let timersToPause: TimerInstance[] = [];
 
         // Get current active session from state without depending on it
@@ -226,6 +227,12 @@ export function useSessionManagement(): UseSessionManagementReturn {
       });
     };
     setupEventListeners();
+
+    return async () => {
+      if (unlisten) {
+        await unlisten();
+      }
+    };
   }, [pauseTimerInstance, loadSessions, showError]);
 
   const createSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession | null> => {
