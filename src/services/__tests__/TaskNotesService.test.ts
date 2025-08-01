@@ -24,8 +24,8 @@ vi.mock('../NoteTemplateService', () => ({
 
 describe('TaskNotesService', () => {
   let service: TaskNotesService;
-  let mockStorageService: any;
-  let mockTemplateService: any;
+  let mockStorageService: vi.Mocked<StorageService>;
+  let mockTemplateService: vi.Mocked<NoteTemplateService>;
 
   const mockTemplate: NoteTemplate = {
     id: 'template1',
@@ -62,14 +62,14 @@ describe('TaskNotesService', () => {
     // Reset mocks
     vi.clearAllMocks();
 
-    // Create mock instances
+    // Create mock instances with proper typings
     mockStorageService = {
       getTaskNotes: vi.fn().mockResolvedValue([mockNote]),
       setTaskNotes: vi.fn().mockResolvedValue(),
-    };
+    } as unknown as vi.Mocked<StorageService>;
     mockTemplateService = {
       getTemplateById: vi.fn().mockResolvedValue(mockTemplate),
-    };
+    } as unknown as vi.Mocked<NoteTemplateService>;
 
     // Mock the static getInstance methods
     vi.mocked(StorageService.getInstance).mockReturnValue(mockStorageService);
