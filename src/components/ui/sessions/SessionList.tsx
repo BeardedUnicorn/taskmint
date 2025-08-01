@@ -13,6 +13,7 @@ import {
   Typography,
   Chip,
   IconButton,
+  Button,
   Stack,
   TextField,
   InputAdornment,
@@ -342,6 +343,8 @@ export function SessionList({
   );
 }
 
+
+
 // Session Card Component
 interface SessionCardProps {
   session: TaskSession;
@@ -436,26 +439,28 @@ function SessionCard({
           </Box>
           
           <Stack direction="row" spacing={1} sx={{ mt: -1, mr: -1 }}>
-            <IconButton
+            <Button
               onClick={(e) => {
                 e.stopPropagation();
                 session.isActive ? onStop() : onStart();
               }}
               size="small"
+              startIcon={session.isActive ? <StopIcon /> : <PlayIcon />}
               aria-label={session.isActive ? 'Stop session' : 'Start session'}
             >
-              {session.isActive ? <StopIcon /> : <PlayIcon />}
-            </IconButton>
-            <IconButton
+              {session.isActive ? 'Stop' : 'Start'}
+            </Button>
+            <Button
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenNotes();
               }}
               size="small"
+              startIcon={<NotesIcon />}
               aria-label="Open session notes"
             >
-              <NotesIcon />
-            </IconButton>
+              Notes
+            </Button>
             <IconButton
               onClick={onMenuOpen}
               size="small"
