@@ -21,9 +21,11 @@ vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn(),
 }));
 
-// Import the mocked invoke function
+// Import the mocked functions
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 const mockInvoke = vi.mocked(invoke);
+const mockListen = vi.mocked(listen);
 
 // Mock notification context
 const mockShowError = vi.fn();
@@ -278,6 +280,46 @@ describe('useSessionManagement', () => {
       });
 
       expect(result.current.activeSession).toBeNull();
+    });
+  });
+
+  describe('event listeners', () => {
+    it('should remove existing listeners on unmount and avoid duplicates on remount', async () => {
+      const callbacks: Array<() => void> = [];
+      mockListen.mockImplementation((_event, cb) => {
+        callbacks.push(cb);
+        return Promise.resolve(async () => {
+          callbacks.splice(callbacks.indexOf(cb), 1);
+        });
+      });
+
+      mockInvoke.mockResolvedValueOnce([]);
+
+      const { unmount: unmount1 } = renderHook(() => useSessionManagement());
+      await waitFor(() => {
+        expect(callbacks).toHaveLength(1);
+      });
+
+      await act(async () => {
+        unmount1();
+      });
+      await waitFor(() => {
+        expect(callbacks).toHaveLength(0);
+      });
+
+      const { unmount: unmount2 } = renderHook(() => useSessionManagement());
+      await waitFor(() => {
+        expect(callbacks).toHaveLength(1);
+      });
+
+      expect(mockListen).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        unmount2();
+      });
+      await waitFor(() => {
+        expect(callbacks).toHaveLength(0);
+      });
     });
   });
 

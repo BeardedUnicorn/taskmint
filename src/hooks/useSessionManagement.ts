@@ -195,22 +195,32 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
   // Setup event listeners separately to avoid dependency issues
   useEffect(() => {
+    let unlisten: null | (() => void | Promise<void>) = null;
+
     const setupEventListeners = async () => {
-        await listen('timer-pause-inactivity', async () => {
-            // Get current active session from state instead of dependency
-            setSessions(currentSessions => {
-              const currentActiveSession = currentSessions.find(s => s.isActive);
-              if (currentActiveSession) {
-                const runningTimers = currentActiveSession.timerInstances.filter(t => t.isRunning);
-                runningTimers.forEach(timer => {
-                  pauseTimerInstance(timer.id);
-                });
-              }
-              return currentSessions;
+      unlisten = await listen('timer-pause-inactivity', async () => {
+        // Get current active session from state instead of dependency
+        setSessions(currentSessions => {
+          const currentActiveSession = currentSessions.find(s => s.isActive);
+          if (currentActiveSession) {
+            const runningTimers = currentActiveSession.timerInstances.filter(t => t.isRunning);
+            runningTimers.forEach(timer => {
+              pauseTimerInstance(timer.id);
             });
+          }
+          return currentSessions;
         });
+      });
     };
     setupEventListeners();
+
+    return () => {
+      if (unlisten) {
+        (async () => {
+          await unlisten();
+        })();
+      }
+    };
   }, [pauseTimerInstance]);
 
   const createSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession | null> => {
