@@ -30,8 +30,8 @@ async function createSessionWithTimer(page: Page, taskName: string) {
   
   const startButton = page.getByRole('button', { name: /start.*session/i });
   await startButton.click();
-  
-  await page.waitForTimeout(1000);
+  await expect(page.getByText(taskName)).toBeVisible();
+  await expect(page.getByText('Active')).toBeVisible();
 }
 
 async function openNotesDialog(page: Page) {
@@ -61,8 +61,7 @@ async function createNote(page: Page, content: string, useTemplate = false) {
   // Save note
   const saveButton = page.getByRole('button', { name: /save.*note/i });
   await saveButton.click();
-  
-  await page.waitForTimeout(500);
+  await expect(page.getByText(content)).toBeVisible();
 }
 
 test.describe('Notes Interface', () => {

@@ -35,9 +35,10 @@ async function createSession(page: Page, taskName: string) {
   // Start session
   const startButton = page.getByRole('button', { name: /start.*session/i });
   await startButton.click();
-  
+
   // Wait for session to be created
-  await page.waitForTimeout(1000);
+  await expect(page.getByText(taskName)).toBeVisible();
+  await expect(page.getByText('Active')).toBeVisible();
 }
 
 async function waitForTimerUpdate(page: Page, expectedPattern: RegExp) {

@@ -5,7 +5,16 @@
  * combining multiple features and realistic usage scenarios.
  */
 
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, Locator } from '@playwright/test';
+import { parseDuration } from './test-utils';
+
+async function waitForTimerIncrement(timer: Locator, seconds: number) {
+  const start = parseDuration((await timer.textContent()) || '00:00:00');
+  await expect.poll(async () => {
+    const current = parseDuration((await timer.textContent()) || '00:00:00');
+    return current - start;
+  }).toBeGreaterThanOrEqual(seconds);
+}
 
 // Test scenarios
 const WORK_SESSION_SCENARIO = {
@@ -40,10 +49,10 @@ async function completeWorkSession(page: Page, scenario: typeof WORK_SESSION_SCE
   const taskInput = page.getByPlaceholder('Select or enter task name...');
   await taskInput.fill(scenario.task);
   await page.getByRole('button', { name: /start.*session/i }).click();
-  
-  // Let timer run
-  await page.waitForTimeout(scenario.duration);
-  
+
+  const timerDisplay = page.locator('[data-testid="timer-display"]').first();
+  await waitForTimerIncrement(timerDisplay, scenario.duration / 1000);
+
   // Add notes during session
   for (const note of scenario.notes) {
     await page.getByRole('button', { name: /notes/i }).first().click();
@@ -51,9 +60,8 @@ async function completeWorkSession(page: Page, scenario: typeof WORK_SESSION_SCE
     await page.getByPlaceholder(/enter.*note/i).fill(note);
     await page.getByRole('button', { name: /save.*note/i }).click();
     await page.getByRole('button', { name: /close/i }).click();
-    
-    // Brief pause between notes
-    await page.waitForTimeout(1000);
+
+    await waitForTimerIncrement(timerDisplay, 1);
   }
   
   // End session
@@ -74,16 +82,14 @@ async function switchBetweenTasks(page: Page, tasks: typeof MULTI_TASK_SCENARIO.
     await taskInput.clear();
     await taskInput.fill(task.name);
     await page.getByRole('button', { name: /start/i }).click();
-    
-    // Work on task
-    await page.waitForTimeout(task.duration);
-    
+    const timerDisplay = page.locator('[data-testid="timer-display"]').first();
+    await waitForTimerIncrement(timerDisplay, task.duration / 1000);
+
     // Stop timer
     await page.getByRole('button', { name: /stop/i }).click();
-    
-    // Brief pause between tasks
+
     if (i < tasks.length - 1) {
-      await page.waitForTimeout(500);
+      await expect(page.getByRole('button', { name: /start/i })).toBeVisible();
     }
   }
 }
@@ -118,17 +124,20 @@ test.describe('Complete Work Session Workflow', () => {
     await page.getByRole('button', { name: /start.*session/i }).click();
     
     // Work with first timer
-    await page.waitForTimeout(2000);
+    let timers = page.locator('[data-testid="timer-display"]');
+    await waitForTimerIncrement(timers.first(), 2);
     await page.getByRole('button', { name: /stop/i }).click();
-    
+
     // Add second timer instance
     await page.getByRole('button', { name: /add timer/i }).click();
-    await page.waitForTimeout(3000);
+    timers = page.locator('[data-testid="timer-display"]');
+    await waitForTimerIncrement(timers.last(), 3);
     await page.getByRole('button', { name: /stop/i }).click();
-    
+
     // Add third timer instance
     await page.getByRole('button', { name: /add timer/i }).click();
-    await page.waitForTimeout(1500);
+    timers = page.locator('[data-testid="timer-display"]');
+    await waitForTimerIncrement(timers.last(), 1);
     
     // End session
     await page.getByRole('button', { name: /end session/i }).click();
@@ -151,20 +160,18 @@ test.describe('Complete Work Session Workflow', () => {
     await page.getByRole('button', { name: /start.*session/i }).click();
     
     // Work for a bit
-    await page.waitForTimeout(2000);
-    
+    const timerDisplay = page.locator('[data-testid="timer-display"]').first();
+    await waitForTimerIncrement(timerDisplay, 2);
+
     // Pause timer
     await page.getByRole('button', { name: /pause/i }).click();
     await expect(page.getByText(/paused/i)).toBeVisible();
-    
-    // Simulate break
-    await page.waitForTimeout(1000);
-    
+
     // Resume timer
     await page.getByRole('button', { name: /resume/i }).click();
-    
+
     // Continue working
-    await page.waitForTimeout(2000);
+    await waitForTimerIncrement(timerDisplay, 2);
     
     // End session
     await page.getByRole('button', { name: /end session/i }).click();
@@ -247,13 +254,11 @@ test.describe('Cross-Page Integration Workflow', () => {
     for (const pageName of pages) {
       await page.getByText(pageName).click();
       await page.waitForLoadState('networkidle');
-      
-      // Verify timer is still visible and running
+
       await expect(page.getByText('Navigation Test Task')).toBeVisible();
-      await expect(page.locator('[data-testid="timer-display"]')).toBeVisible();
-      
-      // Brief pause
-      await page.waitForTimeout(1000);
+      const timer = page.locator('[data-testid="timer-display"]');
+      await expect(timer).toBeVisible();
+      await waitForTimerIncrement(timer, 1);
     }
     
     // Stop timer from final page
@@ -313,7 +318,8 @@ test.describe('Data Persistence Workflow', () => {
     await page.getByRole('button', { name: /close/i }).click();
     
     // Work for a bit
-    await page.waitForTimeout(3000);
+    const timerDisplay = page.locator('[data-testid="timer-display"]').first();
+    await waitForTimerIncrement(timerDisplay, 3);
     
     // End session
     await page.getByRole('button', { name: /end session/i }).click();
