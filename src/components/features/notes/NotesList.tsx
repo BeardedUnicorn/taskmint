@@ -5,7 +5,7 @@
  * edit/delete actions, and note preview functionality.
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -22,6 +22,8 @@ import {
   Menu,
   MenuItem,
   Divider,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -38,6 +40,7 @@ import {
   FolderOpen as SessionIcon,
   Timer as TimerIcon,
   AccountTree as HierarchyIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { NotesListProps, TaskNote } from '../../../types/notes';
 import { ConfirmDialog } from '../../ui';
@@ -520,9 +523,15 @@ export function NotesList({
   onCreateNote,
   onArchiveNote,
   onUnarchiveNote,
+  searchQuery: searchQueryProp = '',
 }: NotesListProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'flat' | 'hierarchical'>('hierarchical');
+  const [searchQuery, setSearchQuery] = useState(searchQueryProp);
+
+  useEffect(() => {
+    setSearchQuery(searchQueryProp);
+  }, [searchQueryProp]);
 
   const handleDeleteNote = useCallback(async (noteId: string) => {
     try {
@@ -533,8 +542,21 @@ export function NotesList({
     setDeleteConfirm(null);
   }, [onDeleteNote]);
 
-  const sortedNotes = [...notes].sort((a, b) =>
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  const filteredNotes = useMemo(() => {
+    if (!searchQuery.trim()) return notes;
+    const query = searchQuery.toLowerCase();
+    return notes.filter(note => {
+      const content = formatMultilineText(note.fieldValues)?.toLowerCase() || '';
+      return note.templateName.toLowerCase().includes(query) || content.includes(query);
+    });
+  }, [notes, searchQuery]);
+
+  const sortedNotes = useMemo(
+    () =>
+      [...filteredNotes].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      ),
+    [filteredNotes]
   );
 
   if (sortedNotes.length === 0) {
@@ -558,47 +580,70 @@ export function NotesList({
     );
   }
 
-  return (
-    <Box>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="h6">
-            Notes ({sortedNotes.length})
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              View:
-            </Typography>
-            <Button
-              size="small"
-              variant={viewMode === 'hierarchical' ? 'contained' : 'outlined'}
-              startIcon={<HierarchyIcon />}
-              onClick={() => setViewMode('hierarchical')}
-              sx={{ minWidth: 'auto' }}
-            >
-              Hierarchical
-            </Button>
-            <Button
-              size="small"
-              variant={viewMode === 'flat' ? 'contained' : 'outlined'}
-              startIcon={<NotesIcon />}
-              onClick={() => setViewMode('flat')}
-              sx={{ minWidth: 'auto' }}
-            >
-              Flat
-            </Button>
-          </Box>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={onCreateNote}
-          size="small"
+    return (
+      <Box>
+        {/* Header */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 2,
+            flexWrap: 'wrap',
+            gap: 2,
+          }}
         >
-          Add Note
-        </Button>
-      </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+            <Typography variant="h6">
+              Notes ({sortedNotes.length})
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                View:
+              </Typography>
+              <Button
+                size="small"
+                variant={viewMode === 'hierarchical' ? 'contained' : 'outlined'}
+                startIcon={<HierarchyIcon />}
+                onClick={() => setViewMode('hierarchical')}
+                sx={{ minWidth: 'auto' }}
+              >
+                Hierarchical
+              </Button>
+              <Button
+                size="small"
+                variant={viewMode === 'flat' ? 'contained' : 'outlined'}
+                startIcon={<NotesIcon />}
+                onClick={() => setViewMode('flat')}
+                sx={{ minWidth: 'auto' }}
+              >
+                Flat
+              </Button>
+            </Box>
+          </Box>
+          <TextField
+            size="small"
+            placeholder="Search notes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ width: { xs: '100%', sm: 200 } }}
+          />
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={onCreateNote}
+            size="small"
+          >
+            Add Note
+          </Button>
+        </Box>
 
       {/* Notes Display */}
       {viewMode === 'hierarchical' ? (
