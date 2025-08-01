@@ -201,7 +201,8 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
   const getNotesStats = useCallback(() => {
     const relevantNotes = taskId ? getNotesByTaskId(taskId) : notes;
     const templatesUsed = [...new Set(relevantNotes.map(note => note.templateName))];
-    const lastNote = relevantNotes
+    // Sort a copy to avoid mutating the original array
+    const lastNote = [...relevantNotes]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
     return {

@@ -85,3 +85,58 @@ describe('useTaskNotes retrieval helpers', () => {
     expect(timerNotes.every(n => n.timerInstanceId === 'timer2')).toBe(true);
   });
 });
+
+describe('useTaskNotes stats', () => {
+  const notesForStats: TaskNote[] = [
+    {
+      id: '1',
+      taskId: 'task1',
+      templateId: 'template1',
+      templateName: 'Template',
+      fieldValues: {},
+      timeEntryId: 'entry1',
+      sessionId: 'session1',
+      timerInstanceId: 'timer1',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-02T00:00:00Z',
+    },
+    {
+      id: '2',
+      taskId: 'task1',
+      templateId: 'template1',
+      templateName: 'Template',
+      fieldValues: {},
+      timeEntryId: 'entry2',
+      sessionId: 'session1',
+      timerInstanceId: 'timer2',
+      createdAt: '2024-01-02T00:00:00Z',
+      updatedAt: '2024-01-03T00:00:00Z',
+    },
+    {
+      id: '3',
+      taskId: 'task1',
+      templateId: 'template1',
+      templateName: 'Template',
+      fieldValues: {},
+      timeEntryId: 'entry3',
+      sessionId: 'session1',
+      timerInstanceId: 'timer3',
+      createdAt: '2024-01-03T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+    },
+  ];
+
+  it('does not mutate notes state when computing stats', async () => {
+    mockNotesService.getAllNotes.mockResolvedValue(notesForStats);
+    const { result } = renderHook(() => useTaskNotes());
+
+    await waitFor(() => !result.current.isLoading);
+
+    const initialOrder = result.current.notes.map(n => n.id);
+
+    const stats = result.current.getNotesStats();
+
+    expect(result.current.notes.map(n => n.id)).toEqual(initialOrder);
+    expect(stats.lastNoteDate).toBe('2024-01-03T00:00:00Z');
+  });
+});
