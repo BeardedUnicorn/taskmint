@@ -10,6 +10,8 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useSessionManagement } from '../useSessionManagement';
 import { TaskSession, TimerInstance } from '../../types/timer';
+import { listen } from '@tauri-apps/api/event';
+const mockListen = vi.mocked(listen);
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -66,6 +68,7 @@ describe('useSessionManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockInvoke.mockResolvedValue([]);
+    mockListen.mockResolvedValue(async () => {});
   });
 
   afterEach(() => {
@@ -347,6 +350,27 @@ describe('useSessionManagement', () => {
         instanceId: 'instance-1',
       });
       expect(mockShowSuccess).toHaveBeenCalledWith('Timer stopped');
+    });
+  });
+
+  describe('event listener management', () => {
+    it('should have only one listener active after remounting', async () => {
+      let activeListeners = 0;
+      mockListen.mockImplementation(async () => {
+        activeListeners++;
+        return async () => {
+          activeListeners--;
+        };
+      });
+
+      const { unmount } = renderHook(() => useSessionManagement());
+      await waitFor(() => expect(activeListeners).toBe(1));
+
+      unmount();
+      await waitFor(() => expect(activeListeners).toBe(0));
+
+      renderHook(() => useSessionManagement());
+      await waitFor(() => expect(activeListeners).toBe(1));
     });
   });
 
