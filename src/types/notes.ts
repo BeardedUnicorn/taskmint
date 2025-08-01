@@ -172,6 +172,7 @@ export interface NotesListProps {
   onCreateNote: () => void;
   onArchiveNote?: (noteId: string) => void;
   onUnarchiveNote?: (noteId: string) => void;
+  searchQuery?: string;
 }
 
 export interface FieldEditorProps {
