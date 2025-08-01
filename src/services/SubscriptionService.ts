@@ -13,10 +13,12 @@ import {
   SUBSCRIPTION_SKUS,
   SUBSCRIPTION_TIERS,
   UserSubscriptionSchema,
+  SubscriptionSkuSchema,
 } from '../types/subscription';
 import { Task } from '../types/task';
 import { StorageService } from './StorageService';
 import { STORAGE_KEYS } from '../constants';
+import { TaskErrorClass } from '../types/errors';
 
 export interface ISubscriptionService {
   // Subscription management
@@ -56,12 +58,20 @@ export class SubscriptionService implements ISubscriptionService {
       sku: SUBSCRIPTION_SKUS.FREE,
       activatedAt: new Date().toISOString(),
     };
-
-    return await this.storageService.getItem(
+    const subscription = await this.storageService.getItem(
       STORAGE_KEYS.USER_SUBSCRIPTION,
       defaultSubscription,
       UserSubscriptionSchema
     );
+
+    if (!subscription || !subscription.sku) {
+      throw new TaskErrorClass(
+        'TASK_NOT_FOUND',
+        'User subscription data is missing or invalid'
+      );
+    }
+
+    return subscription;
   }
 
   /**
@@ -79,8 +89,22 @@ export class SubscriptionService implements ISubscriptionService {
    * Upgrade user subscription to a new SKU
    */
   async upgradeSubscription(newSku: SubscriptionSku): Promise<void> {
+    const skuValidation = SubscriptionSkuSchema.safeParse(newSku);
+    if (!skuValidation.success) {
+      throw new TaskErrorClass(
+        'TASK_VALIDATION_FAILED',
+        `Invalid subscription SKU: ${newSku}`
+      );
+    }
+
     const currentSubscription = await this.getUserSubscription();
-    
+    if (!currentSubscription || !currentSubscription.sku) {
+      throw new TaskErrorClass(
+        'TASK_NOT_FOUND',
+        'No existing subscription to upgrade'
+      );
+    }
+
     const upgradedSubscription: UserSubscription = {
       ...currentSubscription,
       sku: newSku,
