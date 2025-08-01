@@ -80,4 +80,53 @@ describe('NoteEditor', () => {
       expect(screen.getByLabelText('Command Field')).toHaveValue('Command output');
     });
   });
+
+  it('shows confirmation dialog when cancelling with unsaved changes', async () => {
+    const onCloseEditor = vi.fn();
+
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={null}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={mockOnUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        onCloseEditor={onCloseEditor}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Note Content'), { target: { value: 'changed' } });
+    fireEvent.click(screen.getByText('Cancel'));
+
+    expect(await screen.findByText('Discard changes?')).toBeInTheDocument();
+    expect(onCloseEditor).not.toHaveBeenCalled();
+  });
+
+  it('calls onCloseEditor only after confirming discard', async () => {
+    const onCloseEditor = vi.fn();
+
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={null}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={mockOnUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        onCloseEditor={onCloseEditor}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Note Content'), { target: { value: 'changed' } });
+    fireEvent.click(screen.getByText('Cancel'));
+    const discardButton = await screen.findByText('Discard');
+    fireEvent.click(discardButton);
+
+    await waitFor(() => {
+      expect(onCloseEditor).toHaveBeenCalledTimes(1);
+    });
+  });
 });

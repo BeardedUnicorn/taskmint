@@ -40,6 +40,7 @@ import { invoke } from '@tauri-apps/api/core';
 import {NoteEditorProps, TemplateField, NoteTemplate, TaskNote} from '../../../types';
 
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
+import { ConfirmDialog } from '../../ui';
 
 export function NoteEditor({
                              taskId,
@@ -67,6 +68,7 @@ export function NoteEditor({
     message: '',
   });
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   // Initialize field values from existing note or template defaults
   useEffect(() => {
@@ -495,91 +497,111 @@ export function NoteEditor({
   }, [lastSaved]);
 
   const handleCloseEditor = useCallback(() => {
+    if (hasUnsavedChanges) {
+      setShowDiscardDialog(true);
+      return;
+    }
+    onCloseEditor?.();
+  }, [hasUnsavedChanges, onCloseEditor]);
+
+  const handleConfirmDiscard = useCallback(() => {
     onCloseEditor?.();
   }, [onCloseEditor]);
 
   // If no template is selected and we are creating a new note, allow template selection
   if (!selectedTemplate && !existingNote) {
     return (
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack spacing={2}>
-          <Alert severity="info">
-            No template selected. You can choose a template below or create a free-form note.
-          </Alert>
-          <FormControl fullWidth size="small">
-            <InputLabel>Select Template</InputLabel>
-            <Select
-              value={''}
-              onChange={(e) => {
-                const selected = templates.find((t: NoteTemplate) => t.id === e.target.value);
-                setSelectedTemplate(selected || null);
-                // If a template is selected, initialize its fields. Otherwise, clear for free-form.
-                if (selected) {
-                  const initialValues: Record<string, any> = {};
-                  selected.fields.forEach((field: TemplateField) => {
-                    initialValues[field.id] = '';
-                  });
-                  setFieldValues(initialValues);
-                } else {
-                  setFieldValues({ content: fieldValues.content || '' }); // Keep existing content if switching to free-form
-                }
-              }}
-              label="Select Template"
-            >
-              <MenuItem value="">
-                <em>Free-form Note</em>
-              </MenuItem>
-              {templates.map((tmpl: NoteTemplate) => (
-                <MenuItem key={tmpl.id} value={tmpl.id}>
-                  {tmpl.name}
+      <>
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Stack spacing={2}>
+            <Alert severity="info">
+              No template selected. You can choose a template below or create a free-form note.
+            </Alert>
+            <FormControl fullWidth size="small">
+              <InputLabel>Select Template</InputLabel>
+              <Select
+                value={''}
+                onChange={(e) => {
+                  const selected = templates.find((t: NoteTemplate) => t.id === e.target.value);
+                  setSelectedTemplate(selected || null);
+                  // If a template is selected, initialize its fields. Otherwise, clear for free-form.
+                  if (selected) {
+                    const initialValues: Record<string, any> = {};
+                    selected.fields.forEach((field: TemplateField) => {
+                      initialValues[field.id] = '';
+                    });
+                    setFieldValues(initialValues);
+                  } else {
+                    setFieldValues({ content: fieldValues.content || '' }); // Keep existing content if switching to free-form
+                  }
+                }}
+                label="Select Template"
+              >
+                <MenuItem value="">
+                  <em>Free-form Note</em>
                 </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+                {templates.map((tmpl: NoteTemplate) => (
+                  <MenuItem key={tmpl.id} value={tmpl.id}>
+                    {tmpl.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-          <TextField
-            label="Note Content"
-            multiline
-            minRows={4}
-            maxRows={12}
-            fullWidth
-            value={fieldValues.content || ''}
-            onChange={(e) => handleFieldChange('content', e.target.value)}
-            placeholder="Start typing your note here..."
-          />
+            <TextField
+              label="Note Content"
+              multiline
+              minRows={4}
+              maxRows={12}
+              fullWidth
+              value={fieldValues.content || ''}
+              onChange={(e) => handleFieldChange('content', e.target.value)}
+              placeholder="Start typing your note here..."
+            />
 
-          <Box sx={{ display: 'flex', gap: 1, pt: 1 }}>
-            <Button
-              variant="contained"
-              startIcon={isSaving ? <CircularProgress size={16} /> : <SaveIcon />}
-              onClick={handleSave}
-              disabled={isSaving || Object.keys(errors).length > 0}
-            >
-              {existingNote ? 'Update Note' : 'Save Note'}
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<ClearIcon />}
-              onClick={handleClear}
-              disabled={isSaving}
-            >
-              Clear
-            </Button>
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={handleCloseEditor}
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
-          </Box>
-        </Stack>
-      </Paper>
+            <Box sx={{ display: 'flex', gap: 1, pt: 1 }}>
+              <Button
+                variant="contained"
+                startIcon={isSaving ? <CircularProgress size={16} /> : <SaveIcon />}
+                onClick={handleSave}
+                disabled={isSaving || Object.keys(errors).length > 0}
+              >
+                {existingNote ? 'Update Note' : 'Save Note'}
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<ClearIcon />}
+                onClick={handleClear}
+                disabled={isSaving}
+              >
+                Clear
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={handleCloseEditor}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+            </Box>
+          </Stack>
+        </Paper>
+        <ConfirmDialog
+          open={showDiscardDialog}
+          onClose={() => setShowDiscardDialog(false)}
+          onConfirm={handleConfirmDiscard}
+          title="Discard changes?"
+          message="You have unsaved changes. Are you sure you want to discard them?"
+          confirmLabel="Discard"
+          cancelLabel="Keep Editing"
+        />
+      </>
     );
   }
 
   return (
+    <>
     <Paper sx={{ mb: 2 }}>
       {/* Collapsed Header */}
       <Box
@@ -725,5 +747,15 @@ export function NoteEditor({
         </Alert>
       </Snackbar>
     </Paper>
+    <ConfirmDialog
+      open={showDiscardDialog}
+      onClose={() => setShowDiscardDialog(false)}
+      onConfirm={handleConfirmDiscard}
+      title="Discard changes?"
+      message="You have unsaved changes. Are you sure you want to discard them?"
+      confirmLabel="Discard"
+      cancelLabel="Keep Editing"
+    />
+    </>
   );
 }
