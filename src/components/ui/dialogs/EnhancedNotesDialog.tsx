@@ -813,7 +813,8 @@ export function EnhancedNotesDialog({
 
     } catch (error) {
       console.error('Failed to save note:', error);
-      showError('Failed to save note');
+      const message = error instanceof Error ? error.message : 'Failed to save note';
+      showError(message);
     }
   }, [editingNote, createNote, updateNote, showError, showSuccess]);
 
