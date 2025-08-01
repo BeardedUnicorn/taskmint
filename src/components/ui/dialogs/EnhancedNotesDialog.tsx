@@ -877,7 +877,13 @@ export function EnhancedNotesDialog({
     const types: Note['type'][] = [];
 
     if (activeTaskId) types.push('task');
-    if (activeSessionId) types.push('session');
+    if (activeSessionId) {
+      types.push('session');
+      const sessionNotes = getNotesBySessionId(activeSessionId);
+      if (sessionNotes.some(n => n.noteLevel === 'timer' || n.timerInstanceId)) {
+        types.push('timer');
+      }
+    }
     if (activeTimerInstanceId) types.push('timer');
 
     return types;
@@ -950,12 +956,16 @@ export function EnhancedNotesDialog({
                 variant="outlined"
                 startIcon={<AddIcon />}
                 onClick={handleAddNote}
-                disabled={showEditor}
+                disabled={
+                  showEditor || (activeTab === 'timer' && !activeTimerInstanceId)
+                }
               >
                 Add {noteTypeConfig[activeTab].label}
               </Button>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                {noteTypeConfig[activeTab].description}
+                {activeTab === 'timer' && !activeTimerInstanceId
+                  ? 'Timer notes can only be added from specific timer instances.'
+                  : noteTypeConfig[activeTab].description}
               </Typography>
             </Box>
 
