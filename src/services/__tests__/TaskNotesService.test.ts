@@ -79,6 +79,78 @@ describe('TaskNotesService', () => {
     service = new TaskNotesService();
   });
 
+  describe('validateNoteFieldValues', () => {
+    it('should validate checkbox fields', () => {
+      const template: NoteTemplate = {
+        ...mockTemplate,
+        fields: [
+          {
+            id: 'check',
+            label: 'Done',
+            type: 'checkbox',
+            required: true,
+            order: 0,
+          },
+        ],
+      };
+
+      const valid = (service as any).validateNoteFieldValues({ check: true }, template);
+      expect(valid.isValid).toBe(true);
+
+      const invalid = (service as any).validateNoteFieldValues({ check: 'yes' }, template);
+      expect(invalid.isValid).toBe(false);
+      expect(invalid.errors.check).toBe('Done must be a boolean');
+    });
+
+    it('should validate select fields', () => {
+      const template: NoteTemplate = {
+        ...mockTemplate,
+        fields: [
+          {
+            id: 'color',
+            label: 'Color',
+            type: 'select',
+            required: true,
+            order: 0,
+            options: [
+              { label: 'Red', value: 'red' },
+              { label: 'Blue', value: 'blue' },
+            ],
+          },
+        ],
+      };
+
+      const valid = (service as any).validateNoteFieldValues({ color: 'red' }, template);
+      expect(valid.isValid).toBe(true);
+
+      const invalid = (service as any).validateNoteFieldValues({ color: 'green' }, template);
+      expect(invalid.isValid).toBe(false);
+      expect(invalid.errors.color).toBe('Color must be one of the available options');
+    });
+
+    it('should validate command fields', () => {
+      const template: NoteTemplate = {
+        ...mockTemplate,
+        fields: [
+          {
+            id: 'cmd',
+            label: 'Command',
+            type: 'command',
+            required: false,
+            order: 0,
+          },
+        ],
+      };
+
+      const valid = (service as any).validateNoteFieldValues({ cmd: 'echo test' }, template);
+      expect(valid.isValid).toBe(true);
+
+      const invalid = (service as any).validateNoteFieldValues({ cmd: 123 }, template);
+      expect(invalid.isValid).toBe(false);
+      expect(invalid.errors.cmd).toBe('Command must be a string');
+    });
+  });
+
   describe('Archive functionality', () => {
     it('should archive a note successfully', async () => {
       const noteId = 'note1';
