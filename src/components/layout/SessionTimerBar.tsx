@@ -40,6 +40,8 @@ import { TaskSession, TimerInstance } from '../../types/timer';
 import { Task } from '../../types/task';
 import { useTimer } from '../../hooks/useTimer';
 import { formatTime } from '../../utils/formatters';
+import { useNotification } from '../../contexts/NotificationContext';
+import { SESSION_CONSTANTS } from '../../constants';
 
 // Status indicator component with animations
 interface TimerStatusIndicatorProps {
@@ -144,6 +146,7 @@ export const SessionTimerBar = memo(function SessionTimerBar({
   const [selectedTask, setSelectedTask] = useState<string>('');
   const [inputValue, setInputValue] = useState<string>('');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const { showError } = useNotification();
 
   // We don't need a single global elapsed timer anymore since each instance will calculate its own
   
@@ -154,6 +157,13 @@ export const SessionTimerBar = memo(function SessionTimerBar({
         paused: activeSession.timerInstances.filter(t => t.isPaused).length,
     };
   }, [activeSession?.timerInstances]);
+
+  const isAddTimerDisabled = useMemo(
+    () =>
+      activeSession?.timerInstances.length >=
+      SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION,
+    [activeSession?.timerInstances]
+  );
 
   // Remove the old getInstanceElapsedTime function since each TimerInstanceCard will handle its own timing
 
@@ -199,9 +209,11 @@ export const SessionTimerBar = memo(function SessionTimerBar({
       // Don't automatically start the new timer - let user start it manually
     } catch (error) {
       console.error('Failed to add timer instance:', error);
-      alert(`Failed to add timer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showError(
+        error instanceof Error ? error.message : 'Failed to add timer instance'
+      );
     }
-  }, [activeSession, onCreateTimerInstance]);
+  }, [activeSession, onCreateTimerInstance, showError]);
 
   const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
     setMenuAnchor(event.currentTarget);
@@ -340,6 +352,7 @@ export const SessionTimerBar = memo(function SessionTimerBar({
           variant="outlined"
           startIcon={<AddIcon />}
           onClick={handleAddTimerInstance}
+          disabled={isAddTimerDisabled}
           sx={{ color: 'secondary.contrastText', borderColor: 'secondary.contrastText', minWidth: 140 }}
         >
           Add Timer
