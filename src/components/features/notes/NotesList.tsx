@@ -533,11 +533,11 @@ export function NotesList({
     setDeleteConfirm(null);
   }, [onDeleteNote]);
 
-  const sortedNotes = notes.sort((a, b) => 
+  const sortedNotes = [...notes].sort((a, b) =>
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
 
-  if (notes.length === 0) {
+  if (sortedNotes.length === 0) {
     return (
       <Paper sx={{ p: 3, textAlign: 'center' }}>
         <NotesIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
@@ -564,7 +564,7 @@ export function NotesList({
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="h6">
-            Notes ({notes.length})
+            Notes ({sortedNotes.length})
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="body2" color="text.secondary">
