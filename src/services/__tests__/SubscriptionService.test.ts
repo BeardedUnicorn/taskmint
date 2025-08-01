@@ -44,6 +44,15 @@ describe('SubscriptionService', () => {
       expect(subscription.activatedAt).toBeDefined();
     });
 
+    it('should handle missing storage data by returning default subscription', async () => {
+      mockStorageService.getItem.mockImplementation(async (_key, defaultValue) => defaultValue);
+
+      const subscription = await subscriptionService.getUserSubscription();
+
+      expect(subscription.sku).toBe(SUBSCRIPTION_SKUS.FREE);
+      expect(subscription.activatedAt).toBeDefined();
+    });
+
     it('should return existing subscription from storage', async () => {
       const existingSubscription = {
         sku: SUBSCRIPTION_SKUS.PRO,
@@ -78,6 +87,21 @@ describe('SubscriptionService', () => {
         },
         expect.any(Object)
       );
+    });
+
+    it('should throw an error when upgrading to an invalid SKU', async () => {
+      const currentSubscription = {
+        sku: SUBSCRIPTION_SKUS.FREE,
+        activatedAt: '2023-01-01T00:00:00.000Z',
+      };
+
+      mockStorageService.getItem.mockResolvedValue(currentSubscription);
+      const invalidSkuError = new Error('Invalid SKU');
+      mockStorageService.setItem.mockRejectedValue(invalidSkuError);
+
+      await expect(
+        subscriptionService.upgradeSubscription('INVALID' as any)
+      ).rejects.toThrow('Invalid SKU');
     });
   });
 
