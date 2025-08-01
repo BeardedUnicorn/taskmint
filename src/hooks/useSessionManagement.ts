@@ -196,22 +196,37 @@ export function useSessionManagement(): UseSessionManagementReturn {
   // Setup event listeners separately to avoid dependency issues
   useEffect(() => {
     const setupEventListeners = async () => {
-        await listen('timer-pause-inactivity', async () => {
-            // Get current active session from state instead of dependency
-            setSessions(currentSessions => {
-              const currentActiveSession = currentSessions.find(s => s.isActive);
-              if (currentActiveSession) {
-                const runningTimers = currentActiveSession.timerInstances.filter(t => t.isRunning);
-                runningTimers.forEach(timer => {
-                  pauseTimerInstance(timer.id);
-                });
-              }
-              return currentSessions;
-            });
+      await listen('timer-pause-inactivity', async () => {
+        let timersToPause: TimerInstance[] = [];
+
+        // Get current active session from state without depending on it
+        setSessions(currentSessions => {
+          const currentActiveSession = currentSessions.find(s => s.isActive);
+          if (currentActiveSession) {
+            timersToPause = currentActiveSession.timerInstances.filter(t => t.isRunning);
+          }
+          return currentSessions; // no state update, just reading current state
         });
+
+        if (timersToPause.length === 0) return;
+
+        try {
+          // Pause timers sequentially
+          for (const timer of timersToPause) {
+            await pauseTimerInstance(timer.id);
+          }
+
+          // Reload sessions to reflect paused state
+          await loadSessions();
+        } catch (err) {
+          const errorMessage =
+            err instanceof Error ? err.message : 'Failed to pause inactive timers';
+          showError(errorMessage);
+        }
+      });
     };
     setupEventListeners();
-  }, [pauseTimerInstance]);
+  }, [pauseTimerInstance, loadSessions, showError]);
 
   const createSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession | null> => {
     console.log(`Attempting to create session for task ${taskId}...`);
