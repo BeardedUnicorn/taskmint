@@ -29,7 +29,7 @@ import { useSessionManagement } from '../../hooks/useSessionManagement';
 import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTasks } from '../../hooks/useTasks';
 import { useNotification } from '../../contexts/NotificationContext';
-import { TaskSession, TimerInstance } from '../../types/timer';
+import { TaskSession } from '../../types/timer';
 
 export function SessionDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -73,6 +73,11 @@ export function SessionDashboard() {
 
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { showError, showSuccess } = useNotification();
+
+  // Determine currently running timer instance for inactivity handling
+  const activeTimerInstance = activeSession?.timerInstances.find(
+    instance => instance.isRunning && !instance.isPaused
+  );
 
   // Handle inactivity warning - memoized to prevent re-renders
   const handleContinueWork = useCallback(() => {
@@ -236,12 +241,12 @@ export function SessionDashboard() {
       </Box>
 
       {/* Inactivity Warning Dialog */}
-      {isWarningShown && activeSession && (
+      {isWarningShown && activeSession && activeTimerInstance && (
         <InactivityWarningDialog
           remainingSeconds={warningTimeRemaining}
           onContinue={handleContinueWork}
           onPause={handlePauseFromInactivity}
-          timerInstance={{} as TimerInstance} // Placeholder - should be actual running instance
+          timerInstance={activeTimerInstance}
         />
       )}
 
