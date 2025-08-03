@@ -28,11 +28,13 @@ import { InactivityWarningDialog } from '../ui/dialogs/InactivityWarningDialog';
 import { EnhancedNotesDialog } from '../ui/dialogs/EnhancedNotesDialog';
 import { QuickSessionDialog } from '../ui/dialogs/QuickSessionDialog';
 import { EditSessionDialog } from '../ui/dialogs/EditSessionDialog';
+import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { useSessionManagement } from '../../hooks/useSessionManagement';
 import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTasks } from '../../hooks/useTasks';
 import { useNotification } from '../../contexts/NotificationContext';
-import { TaskSession } from '../../types/timer';
+import { TaskSession, TimerInstance } from '../../types/timer';
+import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatDuration } from '../../utils/formatters';
 import { formatDateString } from '../../utils/dateHelpers';
@@ -48,6 +50,8 @@ export function SessionDashboard() {
   }>({});
   const [quickSessionDialogOpen, setQuickSessionDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<TaskSession | null>(null);
+  const [editingTimerData, setEditingTimerData] = useState<EditTimeEntryData | null>(null);
+  const [editingTimerInstanceId, setEditingTimerInstanceId] = useState<string | null>(null);
 
 
   // Hooks
@@ -67,6 +71,7 @@ export function SessionDashboard() {
     pauseTimerInstance,
     resumeTimerInstance,
     deleteTimerInstance,
+    updateTimerInstance,
     isLoading: sessionsLoading,
     error: sessionsError,
   } = useSessionManagement();
@@ -140,6 +145,39 @@ export function SessionDashboard() {
     await updateSession(sessionId, updates);
     showSuccess("Session notes updated successfully.");
   }, [updateSession, showSuccess]);
+
+  const handleEditTimer = useCallback((instance: TimerInstance, session: TaskSession) => {
+    const start = instance.startTime instanceof Date ? instance.startTime : new Date(instance.startTime);
+    const end = instance.endTime instanceof Date
+      ? instance.endTime
+      : instance.endTime
+        ? new Date(instance.endTime)
+        : new Date();
+    setEditingTimerInstanceId(instance.id);
+    setEditingTimerData({
+      id: instance.id,
+      taskName: session.taskName,
+      startTime: start.toISOString().slice(0,16),
+      endTime: end.toISOString().slice(0,16),
+    });
+  }, []);
+
+  const handleCloseEditTimerDialog = useCallback(() => {
+    setEditingTimerData(null);
+    setEditingTimerInstanceId(null);
+  }, []);
+
+  const handleSaveTimerEdit = useCallback(async (data: EditTimeEntryData) => {
+    if (!editingTimerInstanceId) return;
+    await updateTimerInstance(editingTimerInstanceId, {
+      start_time: new Date(data.startTime).toISOString(),
+      end_time: new Date(data.endTime).toISOString(),
+      duration: data.duration,
+      is_running: false,
+      is_paused: false,
+    });
+    handleCloseEditTimerDialog();
+  }, [editingTimerInstanceId, updateTimerInstance, handleCloseEditTimerDialog]);
 
   // Notes handlers - memoized to prevent re-renders
   const handleOpenSessionNotes = useCallback((sessionId: string) => {
@@ -238,6 +276,8 @@ export function SessionDashboard() {
           onStopTimer={stopTimerInstance}
           onPauseTimer={pauseTimerInstance}
           onResumeTimer={resumeTimerInstance}
+          onDeleteTimer={deleteTimerInstance}
+          onEditTimer={(instance) => activeSession && handleEditTimer(instance, activeSession)}
           onOpenSessionNotes={handleOpenSessionNotes}
           onOpenTimerNotes={handleOpenTimerNotesForActiveSession}
         />
@@ -285,6 +325,7 @@ export function SessionDashboard() {
               onPauseTimer={pauseTimerInstance}
               onResumeTimer={resumeTimerInstance}
               onDeleteTimer={deleteTimerInstance}
+              onEditTimer={handleEditTimer}
               onOpenNotes={handleOpenTimerNotes}
             />
           </Box>
@@ -327,6 +368,14 @@ export function SessionDashboard() {
         activeSessionId={notesContext.activeSessionId}
         activeTimerInstanceId={notesContext.activeTimerInstanceId}
         taskName={notesContext.taskName}
+      />
+
+      <EditTimeEntryDialog
+        open={!!editingTimerData}
+        onClose={handleCloseEditTimerDialog}
+        onSave={handleSaveTimerEdit}
+        entry={editingTimerData}
+        tasks={tasks}
       />
 
       <QuickSessionDialog

@@ -876,15 +876,17 @@ export function EnhancedNotesDialog({
   function getAvailableTypes(): Note['type'][] {
     const types: Note['type'][] = [];
 
-    if (activeTaskId) types.push('task');
-    if (activeSessionId) {
-      types.push('session');
+    if (activeTimerInstanceId) {
+      types.push('timer');
+    } else if (activeSessionId) {
       const sessionNotes = getNotesBySessionId(activeSessionId);
       if (sessionNotes.some(n => n.noteLevel === 'timer' || n.timerInstanceId)) {
         types.push('timer');
       }
     }
-    if (activeTimerInstanceId) types.push('timer');
+
+    if (activeSessionId) types.push('session');
+    if (activeTaskId) types.push('task');
 
     return types;
   }

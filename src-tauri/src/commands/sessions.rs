@@ -3,7 +3,7 @@
 use crate::state::AppState;
 use crate::storage;
 use crate::types::{TaskSession, TimerInstance, EnhancedTimerState, InactivitySettings, TimerActivityState};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use tauri::{AppHandle, State, Emitter};
 
 #[tauri::command]
@@ -258,6 +258,16 @@ pub async fn update_timer_instance(
                 }
                 if let Some(duration) = updates.get("duration").and_then(|v| v.as_u64()) {
                     instance.duration = Some(duration);
+                }
+                if let Some(start_time) = updates.get("start_time").and_then(|v| v.as_str()) {
+                    let parsed = DateTime::parse_from_rfc3339(start_time)
+                        .map_err(|e| e.to_string())?;
+                    instance.start_time = parsed.with_timezone(&Utc);
+                }
+                if let Some(end_time) = updates.get("end_time").and_then(|v| v.as_str()) {
+                    let parsed = DateTime::parse_from_rfc3339(end_time)
+                        .map_err(|e| e.to_string())?;
+                    instance.end_time = Some(parsed.with_timezone(&Utc));
                 }
 
                 instance.updated_at = now.to_rfc3339();

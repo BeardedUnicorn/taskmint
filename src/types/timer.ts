@@ -268,6 +268,8 @@ export interface SessionTimerBarProps {
   onStopTimer: (instanceId: string) => Promise<void>;
   onPauseTimer: (instanceId: string) => Promise<void>;
   onResumeTimer: (instanceId: string) => Promise<void>;
+  onDeleteTimer?: (instanceId: string) => Promise<void>;
+  onEditTimer?: (instance: TimerInstance) => void;
   onOpenSessionNotes?: (sessionId: string) => void;
   onOpenTimerNotes?: (instanceId: string) => void;
 }
@@ -322,6 +324,7 @@ export interface UseSessionManagementReturn {
   pauseTimerInstance: (instanceId: string) => Promise<void>;
   resumeTimerInstance: (instanceId: string) => Promise<void>;
   deleteTimerInstance: (instanceId: string) => Promise<void>;
+  updateTimerInstance: (instanceId: string, updates: Record<string, any>) => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }

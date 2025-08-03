@@ -188,6 +188,25 @@ export function useSessionManagement(): UseSessionManagementReturn {
     });
   }, [updateLocalSession, showError, showSuccess]);
 
+  const updateTimerInstance = useCallback(async (instanceId: string, updates: Record<string, any>): Promise<void> => {
+    return measurePerformance('useSessionManagement.updateTimerInstance', async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        await invoke('update_timer_instance', { instanceId, updates });
+        await loadSessions();
+        showSuccess('Timer updated');
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to update timer';
+        setError(errorMessage);
+        showError(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    });
+  }, [loadSessions, showError, showSuccess]);
+
   // Initialize sessions on mount
   useEffect(() => {
     loadSessions();
@@ -415,6 +434,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     pauseTimerInstance,
     resumeTimerInstance,
     deleteTimerInstance,
+    updateTimerInstance,
     isLoading,
     error,
   };
