@@ -3,7 +3,6 @@
  */
 
 export { NewTaskDialog } from './NewTaskDialog';
-export { DashboardPage } from './DashboardPage';
 export { TasksPage } from './TasksPage';
 export { NotesPage } from './NotesPage';
 export { SettingsPage } from './SettingsPage';
