@@ -23,6 +23,7 @@ import {
   FolderOpen as SessionIcon,
   Notes as NotesIcon,
   Delete as DeleteIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { TaskSession, TimerInstance } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
@@ -38,6 +39,7 @@ interface SessionTimerDisplayProps {
   onPauseTimer?: (instanceId: string) => void;
   onResumeTimer?: (instanceId: string) => void;
   onDeleteTimer?: (instanceId: string) => void;
+  onEditTimer?: (instance: TimerInstance, session: TaskSession) => void;
   onOpenNotes?: (sessionId: string, instanceId?: string) => void;
   sx?: any;
 }
@@ -52,6 +54,7 @@ export function SessionTimerDisplay({
   onPauseTimer,
   onResumeTimer,
   onDeleteTimer,
+  onEditTimer,
   onOpenNotes,
   sx,
 }: SessionTimerDisplayProps) {
@@ -193,6 +196,7 @@ export function SessionTimerDisplay({
                   onPause={() => onPauseTimer?.(instance.id)}
                   onResume={() => onResumeTimer?.(instance.id)}
                   onDelete={() => onDeleteTimer?.(instance.id)}
+                  onEdit={() => onEditTimer?.(instance, session)}
                   onOpenNotes={() => onOpenNotes?.(session.id, instance.id)}
                   isSessionActive={session.isActive}
                 />
@@ -219,6 +223,7 @@ interface TimerInstanceRowProps {
   onPause: () => void;
   onResume: () => void;
   onDelete: () => void;
+  onEdit: () => void;
   onOpenNotes: () => void;
   isSessionActive: boolean;
 }
@@ -235,6 +240,7 @@ function TimerInstanceRow({
   onPause,
   onResume,
   onDelete,
+  onEdit,
   onOpenNotes,
   isSessionActive,
 }: TimerInstanceRowProps) {
@@ -328,14 +334,21 @@ function TimerInstanceRow({
             </Tooltip>
           )}
           
-          {/* Delete button - only show for stopped timers */}
-          {!instance.isRunning && !instance.isPaused && (
+        {/* Edit and Delete buttons - only show for stopped timers */}
+        {!instance.isRunning && !instance.isPaused && (
+          <>
+            <Tooltip title="Edit Timer">
+              <IconButton size="small" onClick={onEdit} sx={{ color: 'inherit' }}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Delete Timer">
               <IconButton size="small" onClick={onDelete} sx={{ color: 'inherit' }}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          )}
+          </>
+        )}
         </Box>
       )}
 

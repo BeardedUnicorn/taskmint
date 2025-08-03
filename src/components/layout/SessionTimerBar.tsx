@@ -35,6 +35,8 @@ import {
   PauseCircle as PausedIcon,
   StopCircle as StoppedIcon,
   Replay as ResumeIcon,
+  Delete as DeleteIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { TaskSession, TimerInstance } from '../../types/timer';
 import { Task } from '../../types/task';
@@ -124,6 +126,8 @@ interface SessionTimerBarProps {
   onStopTimer: (instanceId: string) => Promise<void>;
   onPauseTimer: (instanceId: string) => Promise<void>;
   onResumeTimer: (instanceId: string) => Promise<void>;
+  onDeleteTimer?: (instanceId: string) => Promise<void>;
+  onEditTimer?: (instance: TimerInstance) => void;
   onOpenSessionNotes?: (sessionId: string) => void;
   onOpenTimerNotes?: (instanceId: string) => void;
 }
@@ -140,6 +144,8 @@ export const SessionTimerBar = memo(function SessionTimerBar({
   onStopTimer,
   onPauseTimer,
   onResumeTimer,
+  onDeleteTimer,
+  onEditTimer,
   onOpenSessionNotes,
   onOpenTimerNotes,
 }: SessionTimerBarProps) {
@@ -336,6 +342,8 @@ export const SessionTimerBar = memo(function SessionTimerBar({
             onPause: () => onPauseTimer(instance.id),
             onResume: () => onResumeTimer(instance.id),
             onOpenNotes: () => onOpenTimerNotes?.(instance.id),
+            onDelete: () => onDeleteTimer?.(instance.id),
+            onEdit: () => onEditTimer?.(instance),
           };
 
           return (
@@ -382,6 +390,8 @@ interface TimerInstanceCardProps {
   onPause: () => void;
   onResume: () => void;
   onOpenNotes?: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 const TimerInstanceCard = memo(function TimerInstanceCard({
@@ -392,6 +402,8 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
   onPause,
   onResume,
   onOpenNotes,
+  onDelete,
+  onEdit,
 }: TimerInstanceCardProps) {
   // Determine timer state from instance properties
   const getTimerState = () => {
@@ -600,24 +612,57 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
             </IconButton>
           </>
         ) : (
-          <IconButton 
-            size="small" 
-            onClick={onStart} 
-            sx={{ 
+          <IconButton
+            size="small"
+            onClick={onStart}
+            sx={{
               color: '#ffffff',
               bgcolor: 'rgba(255, 255, 255, 0.1)',
               '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
-            }} 
+            }}
             aria-label={`Start timer ${index}`}
           >
             <PlayIcon fontSize="small" />
           </IconButton>
         )}
 
+        {timerState === 'stopped' && (
+          <>
+            {onEdit && (
+              <IconButton
+                size="small"
+                onClick={onEdit}
+                sx={{
+                  color: '#ffffff',
+                  bgcolor: 'rgba(255, 255, 255, 0.1)',
+                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+                }}
+                aria-label={`Edit timer ${index}`}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            )}
+            {onDelete && (
+              <IconButton
+                size="small"
+                onClick={onDelete}
+                sx={{
+                  color: '#ffffff',
+                  bgcolor: 'rgba(255, 255, 255, 0.1)',
+                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+                }}
+                aria-label={`Delete timer ${index}`}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            )}
+          </>
+        )}
+
         {onOpenNotes && (
-          <IconButton 
-            size="small" 
-            onClick={onOpenNotes} 
+          <IconButton
+            size="small"
+            onClick={onOpenNotes}
             sx={{ 
               color: '#ffffff',
               bgcolor: 'rgba(255, 255, 255, 0.1)',
