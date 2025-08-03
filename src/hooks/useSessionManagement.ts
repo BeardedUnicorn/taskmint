@@ -213,46 +213,46 @@ export function useSessionManagement(): UseSessionManagementReturn {
   }, [loadSessions]);
 
   // Setup event listeners separately to avoid dependency issues
-  useEffect(() => {
-    let unlisten: (() => void | Promise<void>) | null = null;
-    const setupEventListeners = async () => {
-      unlisten = await listen('timer-pause-inactivity', async () => {
-        let timersToPause: TimerInstance[] = [];
+    useEffect(() => {
+      let unlisten: (() => void | Promise<void>) | null = null;
+      const setupEventListeners = async () => {
+        unlisten = await listen('timer-pause-inactivity', async () => {
+          let timersToPause: TimerInstance[] = [];
 
-        // Get current active session from state without depending on it
-        setSessions(currentSessions => {
-          const currentActiveSession = currentSessions.find(s => s.isActive);
-          if (currentActiveSession) {
-            timersToPause = currentActiveSession.timerInstances.filter(t => t.isRunning);
+          // Get current active session from state without depending on it
+          setSessions(currentSessions => {
+            const currentActiveSession = currentSessions.find(s => s.isActive);
+            if (currentActiveSession) {
+              timersToPause = currentActiveSession.timerInstances.filter(t => t.isRunning);
+            }
+            return currentSessions; // no state update, just reading current state
+          });
+
+          if (timersToPause.length === 0) return;
+
+          try {
+            // Pause timers sequentially
+            for (const timer of timersToPause) {
+              await pauseTimerInstance(timer.id);
+            }
+
+            // Reload sessions to reflect paused state
+            await loadSessions();
+          } catch (err) {
+            const errorMessage =
+              err instanceof Error ? err.message : 'Failed to pause inactive timers';
+            showError(errorMessage);
           }
-          return currentSessions; // no state update, just reading current state
         });
+      };
+      setupEventListeners();
 
-        if (timersToPause.length === 0) return;
-
-        try {
-          // Pause timers sequentially
-          for (const timer of timersToPause) {
-            await pauseTimerInstance(timer.id);
-          }
-
-          // Reload sessions to reflect paused state
-          await loadSessions();
-        } catch (err) {
-          const errorMessage =
-            err instanceof Error ? err.message : 'Failed to pause inactive timers';
-          showError(errorMessage);
+      return () => {
+        if (unlisten) {
+          void unlisten();
         }
-      });
-    };
-    setupEventListeners();
-
-    return async () => {
-      if (unlisten) {
-        await unlisten();
-      }
-    };
-  }, [pauseTimerInstance, loadSessions, showError]);
+      };
+    }, [pauseTimerInstance, loadSessions, showError]);
 
   const createSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession | null> => {
     console.log(`Attempting to create session for task ${taskId}...`);
