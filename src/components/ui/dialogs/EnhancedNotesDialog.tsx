@@ -718,8 +718,9 @@ export function EnhancedNotesDialog({
         // Convert TaskNote to Note format for compatibility
         const convertedNotes: Note[] = contextNotes.map(note => ({
           id: note.id,
-          content: typeof note.fieldValues === 'object' && note.fieldValues !== null 
-            ? JSON.stringify(note.fieldValues) 
+          // Only stringify field values for templated notes
+          content: note.templateId && note.templateId !== 'free-form'
+            ? JSON.stringify(note.fieldValues)
             : String((note.fieldValues as any)?.content || ''),
           type: (note.noteLevel || 'task') as Note['type'],
           taskId: note.taskId,
@@ -783,8 +784,9 @@ export function EnhancedNotesDialog({
       // Convert back to Note format and update local state
       const convertedNote: Note = {
         id: savedNote.id,
-        content: typeof savedNote.fieldValues === 'object' && savedNote.fieldValues !== null 
-          ? JSON.stringify(savedNote.fieldValues) 
+        // Preserve plain text for free-form notes
+        content: savedNote.templateId && savedNote.templateId !== 'free-form'
+          ? JSON.stringify(savedNote.fieldValues)
           : String((savedNote.fieldValues as any)?.content || ''),
         type: (savedNote.noteLevel || 'task') as Note['type'],
         taskId: savedNote.taskId,
