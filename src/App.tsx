@@ -10,7 +10,6 @@ import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { NewTaskDialog } from './components/pages';
 import { Sidebar, type SidebarView } from './components/layout';
 
-const DashboardPage = lazy(() => import('./components/pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
 const NotesPage = lazy(() => import('./components/pages/NotesPage').then(module => ({ default: module.NotesPage })));
 const TimeEntriesPage = lazy(() => import('./components/pages/TimeEntriesPage').then(module => ({ default: module.TimeEntriesPage })));
@@ -32,7 +31,7 @@ import { listen } from '@tauri-apps/api/event';
 // AppContent component contains the main application logic and UI.
 // It is wrapped by all necessary context providers in the App component.
 function AppContent() {
-  const [activeView, setActiveView] = useState<SidebarView>('dashboard');
+  const [activeView, setActiveView] = useState<SidebarView>('sessions');
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
   const [notesPageState, setNotesPageState] = useState<{ filterTaskId: string | null; openNoteId: string | null }>({ filterTaskId: null, openNoteId: null });
 
@@ -168,14 +167,6 @@ function AppContent() {
                 <CircularProgress />
               </Box>
             }>
-              {activeView === 'dashboard' && (
-                <DashboardPage
-                  timeEntries={allTimeEntries}
-                  tasks={tasks}
-                  onUpdateEntry={handleUpdateEntry}
-                  onDeleteEntry={handleDeleteEntry}
-                />
-              )}
               {activeView === 'sessions' && <SessionDashboard />}
               {activeView === 'tasks' && (
                 <TasksPage

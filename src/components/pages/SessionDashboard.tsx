@@ -5,7 +5,7 @@
  * session management, timer instances, inactivity detection, and notes.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -17,6 +17,9 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
+  Timer as TimerIcon,
+  AttachMoney as MoneyIcon,
+  Assignment as TaskIcon,
 } from '@mui/icons-material';
 import { SessionTimerBar } from '../layout/SessionTimerBar';
 import { SessionList } from '../ui/sessions/SessionList';
@@ -30,6 +33,9 @@ import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTasks } from '../../hooks/useTasks';
 import { useNotification } from '../../contexts/NotificationContext';
 import { TaskSession } from '../../types/timer';
+import { StatsCard } from '../ui/display/StatsCard';
+import { formatDuration } from '../../utils/formatters';
+import { formatDateString } from '../../utils/dateHelpers';
 
 export function SessionDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -73,6 +79,44 @@ export function SessionDashboard() {
 
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { showError, showSuccess } = useNotification();
+
+  interface DashboardStats {
+    totalTimeToday: number;
+    earningsToday: number;
+    tasksWorkedOn: number;
+  }
+
+  const [stats, setStats] = useState<DashboardStats>({
+    totalTimeToday: 0,
+    earningsToday: 0,
+    tasksWorkedOn: 0,
+  });
+
+  useEffect(() => {
+    const today = formatDateString(new Date());
+
+    const todaysSessions = sessions.filter(
+      (s) => s.date === today && s.totalDuration > 0
+    );
+
+    const totalTimeToday = todaysSessions.reduce(
+      (total, session) => total + session.totalDuration,
+      0
+    );
+
+    const earningsToday = todaysSessions.reduce((total, session) => {
+      const task = tasks.find((t) => t.id === session.taskId);
+      if (!task?.hourlyRate || task.hourlyRate <= 0) return total;
+      const hours = session.totalDuration / (1000 * 60 * 60);
+      return total + hours * task.hourlyRate;
+    }, 0);
+
+    const tasksWorkedOn = new Set(
+      todaysSessions.map((s) => s.taskName)
+    ).size;
+
+    setStats({ totalTimeToday, earningsToday, tasksWorkedOn });
+  }, [sessions, tasks]);
 
   // Determine currently running timer instance for inactivity handling
   const activeTimerInstance = activeSession?.timerInstances.find(
@@ -196,6 +240,31 @@ export function SessionDashboard() {
           onResumeTimer={resumeTimerInstance}
           onOpenSessionNotes={handleOpenSessionNotes}
           onOpenTimerNotes={handleOpenTimerNotesForActiveSession}
+        />
+      </Box>
+
+      {/* Overview Stats */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
+        <StatsCard
+          title="Total Time Today"
+          value={formatDuration(stats.totalTimeToday)}
+          subtitle={stats.totalTimeToday > 0 ? 'Keep up the great work!' : 'Start tracking your time'}
+          icon={<TimerIcon sx={{ fontSize: 40 }} />}
+          color="primary"
+        />
+        <StatsCard
+          title="Earnings Today"
+          value={stats.earningsToday}
+          subtitle={stats.earningsToday > 0 ? 'Based on hourly rates' : 'Set hourly rates to track earnings'}
+          icon={<MoneyIcon sx={{ fontSize: 40 }} />}
+          color="success"
+        />
+        <StatsCard
+          title="Tasks Worked On"
+          value={stats.tasksWorkedOn}
+          subtitle={stats.tasksWorkedOn === 1 ? 'task today' : 'tasks today'}
+          icon={<TaskIcon sx={{ fontSize: 40 }} />}
+          color="info"
         />
       </Box>
 

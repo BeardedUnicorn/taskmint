@@ -13,7 +13,6 @@ import {
   Tooltip,
 } from '@mui/material';
 import {
-  Dashboard as DashboardIcon,
   Task as TaskIcon,
   Notes as NotesIcon,
   AccessTime as TimeEntriesIcon,
@@ -26,7 +25,7 @@ import {
   PlayCircleOutline as SessionsIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'dashboard' | 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';
+export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -37,11 +36,6 @@ const SIDEBAR_WIDTH = 240;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
 
 const navigationItems = [
-  {
-    id: 'dashboard' as SidebarView,
-    label: 'Dashboard',
-    icon: DashboardIcon,
-  },
   {
     id: 'sessions' as SidebarView,
     label: 'Sessions',
