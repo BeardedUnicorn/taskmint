@@ -165,11 +165,11 @@ export const SessionTimerBar = memo(function SessionTimerBar({
   }, [activeSession?.timerInstances]);
 
   const isAddTimerDisabled = useMemo(
-    () =>
-      activeSession?.timerInstances.length >=
-      SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION,
-    [activeSession?.timerInstances]
-  );
+      () =>
+        (activeSession?.timerInstances?.length ?? 0) >=
+        SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION,
+      [activeSession?.timerInstances]
+    );
 
   // Remove the old getInstanceElapsedTime function since each TimerInstanceCard will handle its own timing
 

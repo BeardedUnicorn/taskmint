@@ -645,7 +645,7 @@ export function NoteEditor({
               <Button
                 variant="contained"
                 startIcon={isSaving ? <CircularProgress size={16} /> : <SaveIcon />}
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={isSaving || Object.keys(errors).length > 0}
               >
                 {currentNote ? 'Update Note' : 'Save Note'}
@@ -775,7 +775,7 @@ export function NoteEditor({
               <Button
                 variant="contained"
                 startIcon={isSaving ? <CircularProgress size={16} /> : <SaveIcon />}
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={isSaving || Object.keys(errors).length > 0}
               >
                 {currentNote ? 'Update Note' : 'Save Note'}

@@ -546,7 +546,9 @@ export function NotesList({
     if (!searchQuery.trim()) return notes;
     const query = searchQuery.toLowerCase();
     return notes.filter(note => {
-      const content = formatMultilineText(note.fieldValues)?.toLowerCase() || '';
+      const content = formatMultilineText(
+        Object.values(note.fieldValues).join(' ')
+      )?.toLowerCase() || '';
       return note.templateName.toLowerCase().includes(query) || content.includes(query);
     });
   }, [notes, searchQuery]);

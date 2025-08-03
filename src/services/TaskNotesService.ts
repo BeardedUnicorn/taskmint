@@ -105,7 +105,7 @@ export class TaskNotesService implements ITaskNotesService {
       const filteredNotes = notes.filter(note => note.sessionId === sessionId);
       this.errorHandler.logInfo(`Found ${filteredNotes.length} notes for session`, 'getNotesBySessionId', { sessionId });
       return filteredNotes;
-    }, 'getNotesBySessionId', { sessionId });
+      }, 'getNotesBySessionId', { data: { sessionId } });
   }
 
   /**
@@ -121,7 +121,7 @@ export class TaskNotesService implements ITaskNotesService {
         { timerInstanceId }
       );
       return filteredNotes;
-    }, 'getNotesByTimerInstanceId', { timerInstanceId });
+      }, 'getNotesByTimerInstanceId', { data: { timerInstanceId } });
   }
 
   /**
