@@ -105,6 +105,35 @@ export function useSessionManagement(): UseSessionManagementReturn {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to start timer';
 
+        // If the session is inactive, activate it and retry
+        if (errorMessage.includes('inactive session')) {
+          const parentSession = sessions.find(s =>
+            s.timerInstances.some(t => t.id === instanceId)
+          );
+
+          if (parentSession) {
+            try {
+              const updatedSessions = await invoke<TaskSession[]>(
+                'set_active_session',
+                { sessionId: parentSession.id }
+              );
+              setSessions(updatedSessions);
+              setActiveSessionState(parentSession);
+
+              const startedSession = await invoke<TaskSession>('start_timer_instance', { instanceId });
+              updateLocalSession(startedSession);
+              showSuccess('Timer started');
+              return;
+            } catch (retryErr) {
+              const retryMessage =
+                retryErr instanceof Error ? retryErr.message : 'Failed to start timer';
+              setError(retryMessage);
+              showError(retryMessage);
+              return;
+            }
+          }
+        }
+
         // If another timer is already running, stop it and retry
         if (errorMessage.includes('Another timer instance is already running')) {
           const runningInstance = sessions

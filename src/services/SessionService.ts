@@ -357,6 +357,21 @@ export class SessionService implements ISessionService {
   async startTimer(instanceId: string): Promise<void> {
     // Ensure only one timer instance is running at a time
     const sessions = await this.getAllSessions();
+
+    // Find the parent session for this instance
+    const parentSession = sessions.find(s =>
+      s.timerInstances.some(i => i.id === instanceId)
+    );
+
+    if (!parentSession) {
+      throw new Error(`Timer instance with ID ${instanceId} not found`);
+    }
+
+    // Validate that the session is active before starting its timer
+    if (!parentSession.isActive) {
+      throw new Error('Cannot start timer for inactive session');
+    }
+
     const runningInstance = sessions
       .flatMap(s => s.timerInstances)
       .find(i => i.isRunning);
