@@ -34,6 +34,7 @@ import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTasks } from '../../hooks/useTasks';
 import { useNotification } from '../../contexts/NotificationContext';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
+import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatDuration } from '../../utils/formatters';
@@ -124,9 +125,7 @@ export function SessionDashboard() {
   }, [sessions, tasks]);
 
   // Determine currently running timer instance for inactivity handling
-  const activeTimerInstance = activeSession?.timerInstances.find(
-    instance => instance.state === TimerState.running
-  );
+  const { activeTimer: activeTimerInstance } = useActiveTimer();
 
   // Handle inactivity warning - memoized to prevent re-renders
   const handleContinueWork = useCallback(() => {

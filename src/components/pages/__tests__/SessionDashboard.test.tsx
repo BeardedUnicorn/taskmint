@@ -11,6 +11,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionDashboard } from '../SessionDashboard';
 import { TaskSession, TimerInstance } from '../../../types/timer';
 import { Task } from '../../../types/task';
+import { ActiveTimerProvider } from '../../../contexts/ActiveTimerContext';
 
 // Mock dependencies
 const mockInvoke = vi.fn();
@@ -131,6 +132,8 @@ vi.mock('../../layout/SessionTimerBar', () => ({
   ),
 }));
 
+const renderDashboard = () => render(<SessionDashboard />, { wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider> });
+
 vi.mock('../../ui/sessions/SessionList', () => ({
   SessionList: ({ sessions }: { sessions: TaskSession[] }) => (
     <div data-testid="session-list">
@@ -194,7 +197,7 @@ describe('SessionDashboard', () => {
 
   describe('Initial Rendering', () => {
     it('should render the dashboard with no sessions', () => {
-      render(<SessionDashboard />);
+      renderDashboard();
       
       expect(screen.getByText('All Sessions')).toBeInTheDocument();
       // The FAB button should be present for creating sessions
@@ -205,7 +208,7 @@ describe('SessionDashboard', () => {
       // Update the mock to return loading state
       mockSessionManagement.isLoading = true;
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       expect(screen.getByRole('progressbar', { hidden: true })).toBeInTheDocument();
 
@@ -218,7 +221,7 @@ describe('SessionDashboard', () => {
       // Update the mock to return error state
       (mockSessionManagement as any).error = errorMessage;
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // The error message may be rendered in a Snackbar or Alert, so use a flexible matcher
       const errorNodes = screen.queryAllByText((content) => content.includes(errorMessage));
@@ -245,7 +248,7 @@ describe('SessionDashboard', () => {
 
       mockCreateSession.mockResolvedValue(newSession);
 
-      render(<SessionDashboard />);
+      renderDashboard();
       
       // Click FAB to open dialog
       const fab = screen.getByLabelText('create session');
@@ -261,7 +264,7 @@ describe('SessionDashboard', () => {
     });
 
     it('should show FAB for session creation', () => {
-      render(<SessionDashboard />);
+      renderDashboard();
       
       const fab = screen.getByLabelText('create session');
       expect(fab).toBeInTheDocument();
@@ -313,7 +316,7 @@ describe('SessionDashboard', () => {
       mockSessionManagement.isLoading = false;
       mockSessionManagement.error = null;
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       expect(screen.getByText('Development Work')).toBeInTheDocument();
       expect(screen.getByText('Code Review')).toBeInTheDocument();
@@ -331,7 +334,7 @@ describe('SessionDashboard', () => {
       mockSessionManagement.isLoading = false;
       mockSessionManagement.error = null;
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       const activeSessionCard = screen.getByText('Code Review').closest('[data-testid="session-card"]');
       expect(activeSessionCard).toHaveClass('active');
@@ -391,7 +394,7 @@ describe('SessionDashboard', () => {
       mockCreateTimerInstance.mockResolvedValue(newTimerInstance);
       mockStartTimer.mockResolvedValue(undefined);
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Find and click the Add Timer button in SessionTimerBar
       const addTimerButton = screen.getByText('Add Timer');
@@ -406,7 +409,7 @@ describe('SessionDashboard', () => {
     it('should handle timer start operation', async () => {
       mockStartTimer.mockResolvedValue(undefined);
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Find and click start timer button
       const startButton = screen.getByText('Start Timer');
@@ -420,7 +423,7 @@ describe('SessionDashboard', () => {
     it('should handle timer stop operation', async () => {
       mockStopTimer.mockResolvedValue(undefined);
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Find and click stop timer button
       const stopButton = screen.getByText('Stop Timer');
@@ -434,7 +437,7 @@ describe('SessionDashboard', () => {
     it('should handle timer pause operation', async () => {
       mockPauseTimer.mockResolvedValue(undefined);
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Find and click pause timer button
       const pauseButton = screen.getByText('Pause Timer');
@@ -448,7 +451,7 @@ describe('SessionDashboard', () => {
     it('should handle timer resume operation', async () => {
       mockResumeTimer.mockResolvedValue(undefined);
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Find and click resume timer button
       const resumeButton = screen.getByText('Resume Timer');
@@ -462,7 +465,7 @@ describe('SessionDashboard', () => {
     it('should show error when timer operations fail', async () => {
       mockStartTimer.mockRejectedValue(new Error('Timer start failed'));
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       const startButton = screen.getByText('Start Timer');
       fireEvent.click(startButton);
@@ -512,7 +515,7 @@ describe('SessionDashboard', () => {
     });
 
     it('should handle session selection from session list', async () => {
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Find and click on a session in the list
       const sessionCard = screen.getByText('Development Work').closest('[data-testid="session-card"]');
@@ -526,14 +529,14 @@ describe('SessionDashboard', () => {
     });
 
     it('should show floating action button for quick session creation', () => {
-      render(<SessionDashboard />);
+      renderDashboard();
 
       const fab = screen.getByLabelText('create session');
       expect(fab).toBeInTheDocument();
     });
 
     it('should handle quick session creation from FAB', async () => {
-      render(<SessionDashboard />);
+      renderDashboard();
 
       const fab = screen.getByLabelText('create session');
       fireEvent.click(fab);
@@ -584,7 +587,7 @@ describe('SessionDashboard', () => {
     });
 
     it('should show inactivity warning dialog when warning is active', () => {
-      render(<SessionDashboard />);
+      renderDashboard();
 
       expect(screen.getByText('Inactivity Warning')).toBeInTheDocument();
       expect(screen.getByText('Continue Working')).toBeInTheDocument();
@@ -595,7 +598,7 @@ describe('SessionDashboard', () => {
     it('should handle continue work action from inactivity warning', async () => {
       const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       const continueButton = screen.getByText('Continue Working');
       fireEvent.click(continueButton);
@@ -613,7 +616,7 @@ describe('SessionDashboard', () => {
     it('should handle pause from inactivity action', async () => {
       const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Get the pause button specifically from the inactivity warning dialog
       const inactivityWarning = screen.getByTestId('inactivity-warning');
@@ -667,7 +670,7 @@ describe('SessionDashboard', () => {
     });
 
     it('should open notes dialog when notes button is clicked', async () => {
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Find and click notes button
       const notesButton = screen.getByText('Notes');
@@ -678,7 +681,7 @@ describe('SessionDashboard', () => {
     });
 
     it('should close notes dialog when close button is clicked', async () => {
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Open notes dialog first
       const notesButton = screen.getByText('Notes');

@@ -7,6 +7,7 @@ import {
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
+import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
 import { NewTaskDialog } from './components/pages';
 import { Sidebar, type SidebarView } from './components/layout';
 
@@ -43,21 +44,20 @@ function AppContent() {
   // Task management hook
   const { tasks, addTask, updateTask, deleteTask } = useTaskManagement();
 
+  const { activeTimer } = useActiveTimer();
   // Derived global active entry for backward compatibility with older pages
   const activeEntry: TimeEntry | null = useMemo(() => {
-    if (!sessionManager.activeSession) return null;
-    const runningInstance = sessionManager.activeSession.timerInstances.find(i => i.state === TimerState.running);
-    if (!runningInstance) return null;
+    if (!sessionManager.activeSession || !activeTimer) return null;
 
     return {
-      id: `session_${runningInstance.id}`,
+      id: `session_${activeTimer.id}`,
       taskName: sessionManager.activeSession.taskName,
       taskId: sessionManager.activeSession.taskId,
-      startTime: new Date(runningInstance.startTime),
+      startTime: new Date(activeTimer.startTime),
       isRunning: true,
       date: sessionManager.activeSession.date,
     };
-  }, [sessionManager.activeSession]);
+  }, [sessionManager.activeSession, activeTimer]);
 
   // All time entries derived from sessions
   const allTimeEntries = useMemo(() => 
@@ -227,7 +227,9 @@ function App() {
       <ThemeProvider>
         <NotificationProvider>
           <SubscriptionProvider>
-            <AppContent />
+            <ActiveTimerProvider>
+              <AppContent />
+            </ActiveTimerProvider>
           </SubscriptionProvider>
         </NotificationProvider>
       </ThemeProvider>

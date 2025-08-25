@@ -5,11 +5,12 @@
  * timer state. It listens for events from both systems and emits standardized
  * events to keep them synchronized, handling conflicts gracefully.
  */
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback } from 'react';
 import { listen, emit } from '@tauri-apps/api/event';
 import { useSessionManagement } from './useSessionManagement';
 import { useNotification } from '../contexts/NotificationContext';
 import { TaskSession, TimerInstance, TimerState } from '../types/timer';
+import { useActiveTimer } from '../contexts/ActiveTimerContext';
 
 // Define TimerSyncEvent type locally since it's not exported from types
 interface TimerSyncEvent<T = any> {
@@ -22,13 +23,13 @@ interface TimerSyncEvent<T = any> {
 export function useTimerSync() {
   const { activeSession, sessions } = useSessionManagement();
   const { showWarning } = useNotification();
-  const [isGlobalTimerActive, setIsGlobalTimerActive] = useState(false);
+  const { activeTimer, setActiveTimer } = useActiveTimer();
 
   // Effect to sync global timer state when active session changes
   useEffect(() => {
-    const isSessionTimerRunning = activeSession?.timerInstances.some(t => t.state === TimerState.running) ?? false;
-    setIsGlobalTimerActive(isSessionTimerRunning);
-  }, [activeSession]);
+    const runningInstance = activeSession?.timerInstances.find(t => t.state === TimerState.running) || null;
+    setActiveTimer(runningInstance);
+  }, [activeSession, setActiveTimer]);
 
   /**
    * Handles the start of a session timer.
@@ -36,25 +37,27 @@ export function useTimerSync() {
    * Otherwise, it ensures the global timer state is also set to active.
    */
   const handleSessionTimerStarted = useCallback((event: TimerSyncEvent<{ session: TaskSession; instance: TimerInstance }>) => {
-    if (isGlobalTimerActive) {
+    if (activeTimer) {
       showWarning('Conflict: A global timer is already running. Session timer will take priority.');
     }
     const { session, instance } = event.payload;
     console.log(`Sync: Session timer started for task "${session.taskName}" (Instance: ${instance.id})`);
-    setIsGlobalTimerActive(true);
-  }, [isGlobalTimerActive, showWarning]);
+    setActiveTimer(instance);
+  }, [activeTimer, showWarning, setActiveTimer]);
 
   /**
    * Handles the stopping or pausing of a session timer.
    * If no other session timers are running, it deactivates the global timer state.
    */
   const handleSessionTimerStopped = useCallback(() => {
-    const anyRunning = sessions.some(s => s.timerInstances.some(t => t.state === TimerState.running));
-    if (!anyRunning) {
+    const runningInstance = sessions
+      .flatMap(s => s.timerInstances)
+      .find(t => t.state === TimerState.running) || null;
+    if (!runningInstance) {
       console.log('Sync: All session timers stopped. Deactivating global timer.');
-      setIsGlobalTimerActive(false);
     }
-  }, [sessions]);
+    setActiveTimer(runningInstance);
+  }, [sessions, setActiveTimer]);
 
   /**
    * Handles the start of the global timer.
@@ -89,5 +92,5 @@ export function useTimerSync() {
     };
   }, [handleSessionTimerStarted, handleSessionTimerStopped, handleGlobalTimerStarted]);
 
-  return { isGlobalTimerActive };
+  return { isGlobalTimerActive: !!activeTimer };
 }

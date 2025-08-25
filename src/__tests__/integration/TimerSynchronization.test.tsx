@@ -34,6 +34,7 @@ vi.mock('../../hooks/useSessionManagement', () => ({
 // Get the mocked function
 import { useSessionManagement } from '../../hooks/useSessionManagement';
 const mockUseSessionManagement = vi.mocked(useSessionManagement);
+import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
 
 // Mock notification context
 const mockShowWarning = vi.fn();
@@ -74,7 +75,7 @@ describe('Timer Synchronization', () => {
   });
 
   it('should set up event listeners on mount', async () => {
-    renderHook(() => useTimerSync());
+    renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
     // Verify that the hook sets up event listeners
     expect(mockListen).toHaveBeenCalledWith('session-timer-started', expect.any(Function));
@@ -84,7 +85,7 @@ describe('Timer Synchronization', () => {
   });
 
   it('should return isGlobalTimerActive state', () => {
-    const { result } = renderHook(() => useTimerSync());
+    const { result } = renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
     expect(result.current).toHaveProperty('isGlobalTimerActive');
     expect(typeof result.current.isGlobalTimerActive).toBe('boolean');
@@ -135,7 +136,7 @@ describe('Timer Synchronization', () => {
       deleteTimerInstance: vi.fn(),
     });
 
-    const { result } = renderHook(() => useTimerSync());
+    const { result } = renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
     expect(result.current.isGlobalTimerActive).toBe(true);
   });
@@ -185,7 +186,7 @@ describe('Timer Synchronization', () => {
       deleteTimerInstance: vi.fn(),
     });
 
-    const { result } = renderHook(() => useTimerSync());
+    const { result } = renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
     expect(result.current.isGlobalTimerActive).toBe(false);
   });
