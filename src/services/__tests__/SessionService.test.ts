@@ -121,6 +121,19 @@ describe('SessionService', () => {
       expect(updated?.duration).toBe(2000);
       expect(updated?.endTime).toBeInstanceOf(Date);
     });
+
+    it('prevents starting multiple timers simultaneously', async () => {
+      const session1 = await sessionService.createSession('task-1', 'Task 1');
+      const session2 = await sessionService.createSession('task-2', 'Task 2');
+      const instance1 = await sessionService.createTimerInstance(session1.id);
+      const instance2 = await sessionService.createTimerInstance(session2.id);
+
+      await sessionService.startTimer(instance1.id);
+      await expect(sessionService.startTimer(instance2.id)).rejects.toThrow('Another timer instance is already running');
+
+      const runningInstance = await sessionService.getTimerInstanceById(instance1.id);
+      expect(runningInstance?.isRunning).toBe(true);
+    });
     });
 
   describe('error paths', () => {

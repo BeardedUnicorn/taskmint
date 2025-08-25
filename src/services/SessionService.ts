@@ -355,6 +355,16 @@ export class SessionService implements ISessionService {
   }
 
   async startTimer(instanceId: string): Promise<void> {
+    // Ensure only one timer instance is running at a time
+    const sessions = await this.getAllSessions();
+    const runningInstance = sessions
+      .flatMap(s => s.timerInstances)
+      .find(i => i.isRunning);
+
+    if (runningInstance && runningInstance.id !== instanceId) {
+      throw new Error('Another timer instance is already running');
+    }
+
     const now = new Date();
     await this.updateTimerInstance(instanceId, {
       isRunning: true,
