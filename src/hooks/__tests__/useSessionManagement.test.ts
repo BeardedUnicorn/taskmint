@@ -352,19 +352,17 @@ describe('useSessionManagement', () => {
       expect(mockShowSuccess).toHaveBeenCalledWith('Timer stopped');
     });
 
-    it('should create a new timer instance when restarting', async () => {
+    it('should append a new timer instance when restarting', async () => {
       const stoppedInstance = { ...mockTimerInstance, endTime: new Date(), duration: 1000 };
       const sessionWithStopped = { ...mockSession, timerInstances: [stoppedInstance] };
-      const newInstance = { ...mockTimerInstance, id: 'instance-2' };
       const sessionAfterStart = {
         ...mockSession,
-        timerInstances: [stoppedInstance, { ...newInstance, isRunning: true }],
+        timerInstances: [stoppedInstance, { ...mockTimerInstance, id: 'instance-2', isRunning: true }],
       };
 
       mockInvoke
         .mockResolvedValueOnce([sessionWithStopped]) // Initial load
-        .mockResolvedValueOnce(newInstance) // create_timer_instance
-        .mockResolvedValueOnce(sessionAfterStart); // start_timer_instance
+        .mockResolvedValueOnce(sessionAfterStart); // start_timer_instance creates new instance internally
 
       const { result } = renderHook(() => useSessionManagement());
 
@@ -376,8 +374,7 @@ describe('useSessionManagement', () => {
         await result.current.startTimerInstance('instance-1');
       });
 
-      expect(mockInvoke).toHaveBeenNthCalledWith(2, 'create_timer_instance', { sessionId: 'session-1' });
-      expect(mockInvoke).toHaveBeenNthCalledWith(3, 'start_timer_instance', { instanceId: 'instance-2' });
+      expect(mockInvoke).toHaveBeenNthCalledWith(2, 'start_timer_instance', { instanceId: 'instance-1' });
       expect(result.current.sessions[0].timerInstances).toHaveLength(2);
       expect(result.current.sessions[0].timerInstances[1].isRunning).toBe(true);
       expect(mockShowSuccess).toHaveBeenCalledWith('Timer started');

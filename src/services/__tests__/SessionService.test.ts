@@ -131,6 +131,26 @@ describe('SessionService', () => {
 
       updatedSession = await sessionService.getSessionById(session.id);
       expect(updatedSession?.timerInstances[1].duration).toBe(2000);
+
+      // Restart again to ensure a new instance is appended each time
+      vi.setSystemTime(new Date(base.getTime() + 9000));
+      if (newInstance) {
+        await sessionService.startTimerInstance(newInstance.id);
+      }
+
+      updatedSession = await sessionService.getSessionById(session.id);
+      expect(updatedSession?.timerInstances).toHaveLength(3);
+      const thirdInstance = updatedSession?.timerInstances[2];
+      expect(thirdInstance?.isRunning).toBe(true);
+      expect(thirdInstance?.id).not.toBe(newInstance?.id);
+
+      vi.setSystemTime(new Date(base.getTime() + 10000));
+      if (thirdInstance) {
+        await sessionService.stopTimerInstance(thirdInstance.id);
+      }
+
+      updatedSession = await sessionService.getSessionById(session.id);
+      expect(updatedSession?.timerInstances[2].duration).toBe(1000);
     });
 
     it('prevents starting multiple timers simultaneously', async () => {

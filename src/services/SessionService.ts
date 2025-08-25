@@ -397,12 +397,14 @@ export class SessionService implements ISessionService {
     let targetInstanceId = instanceId;
     let instance = parentSession.timerInstances.find(i => i.id === instanceId);
 
-    if (!runningInstance && instance && !instance.isRunning && (instance.endTime || instance.duration)) {
-      // Previous instance has completed – create a new one
-      const newInstance = await this.createTimerInstance(parentSession.id);
-      targetInstanceId = newInstance.id;
-      instance = newInstance;
-    } else if (runningInstance && runningInstance.id !== instanceId) {
+    if (!runningInstance) {
+      if (!instance || instance.isRunning || instance.endTime || instance.duration) {
+        // No active timer - create a fresh instance instead of reusing
+        const newInstance = await this.createTimerInstance(parentSession.id);
+        targetInstanceId = newInstance.id;
+        instance = newInstance;
+      }
+    } else if (runningInstance.id !== instanceId) {
       throw new Error('Another timer instance is already running');
     }
 
@@ -411,8 +413,6 @@ export class SessionService implements ISessionService {
       isRunning: true,
       isPaused: false,
       startTime: now,
-      endTime: undefined,
-      duration: undefined,
       pausedDuration: 0,
     });
   }
@@ -428,6 +428,8 @@ export class SessionService implements ISessionService {
 
     await this.updateTimerInstance(instanceId, {
       isRunning: false,
+      isPaused: false,
+      pausedAt: undefined,
       endTime: now,
       duration: Math.max(0, duration),
     });
