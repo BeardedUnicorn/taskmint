@@ -3,6 +3,7 @@ import { SessionService } from '../SessionService';
 import { SESSION_CONSTANTS } from '../../constants';
 import type { TaskSession } from '../../types/timer';
 import { TimerState } from '../../types/timer';
+import { sessionStore } from '../../store/sessionStore';
 
 // Mock StorageService
 const mockStorageService = {
@@ -27,6 +28,7 @@ describe('SessionService', () => {
     sessions = [];
     timeEntries = [];
     vi.clearAllMocks();
+    sessionStore.setSessions([]);
     mockStorageService.getTaskSessions.mockImplementation(() => Promise.resolve(sessions));
     mockStorageService.setTaskSessions.mockImplementation((newSessions: TaskSession[]) => {
       sessions = newSessions;
@@ -45,18 +47,18 @@ describe('SessionService', () => {
   });
 
   describe('session creation and activation', () => {
-    it('creates sessions and caches them', async () => {
+    it('creates sessions and stores them in memory', async () => {
       const session = await sessionService.createSession('task-1', 'Test Task');
       expect(session.taskId).toBe('task-1');
       expect(mockStorageService.setTaskSessions).toHaveBeenCalledWith([session]);
 
       mockStorageService.getTaskSessions.mockClear();
-      const cached = await sessionService.getSessionById(session.id);
-      expect(cached).toEqual(session);
+      const stored = await sessionService.getSessionById(session.id);
+      expect(stored).toEqual(session);
       expect(mockStorageService.getTaskSessions).not.toHaveBeenCalled();
     });
 
-    it('activates a session and retrieves it from cache', async () => {
+    it('activates a session and retrieves it from the store', async () => {
       const session = await sessionService.createSession('task-1', 'Test Task');
       await sessionService.setActiveSession(session);
 
@@ -68,7 +70,7 @@ describe('SessionService', () => {
   });
 
   describe('timer instance management', () => {
-    it('creates and caches timer instances', async () => {
+    it('creates timer instances and retrieves them from the store', async () => {
       const session = await sessionService.createSession('task-1', 'Test Task');
       const instance = await sessionService.createTimerInstance(session.id);
 
@@ -76,15 +78,15 @@ describe('SessionService', () => {
       expect(mockStorageService.setTaskSessions).toHaveBeenCalledTimes(2);
 
       mockStorageService.getTaskSessions.mockClear();
-      const cached = await sessionService.getTimerInstanceById(instance.id);
-      expect(cached?.id).toBe(instance.id);
+      const storedInstance = await sessionService.getTimerInstanceById(instance.id);
+      expect(storedInstance?.id).toBe(instance.id);
       expect(mockStorageService.getTaskSessions).not.toHaveBeenCalled();
 
       await sessionService.deleteTimerInstance(instance.id);
       mockStorageService.getTaskSessions.mockClear();
       const afterDelete = await sessionService.getTimerInstanceById(instance.id);
       expect(afterDelete).toBeNull();
-      expect(mockStorageService.getTaskSessions).toHaveBeenCalled();
+      expect(mockStorageService.getTaskSessions).not.toHaveBeenCalled();
     });
 
     it('enforces max timer instance limit', async () => {

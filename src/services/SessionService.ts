@@ -13,6 +13,7 @@ import { SESSION_CONSTANTS } from '../constants';
 import { createTimerError, TimerErrorClass } from '../types/errors';
 import { applyTimerRounding } from '../utils/formatters';
 import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
+import { sessionStore } from '../store/sessionStore';
 
 export interface ISessionService {
   // Session operations
@@ -60,8 +61,6 @@ export interface ISessionService {
 
 export class SessionService implements ISessionService {
   private storageService: StorageService;
-  private sessionCache = new Map<string, TaskSession>();
-  private instanceCache = new Map<string, TimerInstance>();
   private activeSessionId: string | null = null;
   private activeTimer: TimeEntry | null = null;
 
@@ -90,9 +89,7 @@ export class SessionService implements ISessionService {
       const sessions = await this.getAllSessions();
       sessions.push(newSession);
       await this.storageService.setTaskSessions(sessions);
-
-      // Update cache
-      this.sessionCache.set(sessionId, newSession);
+      sessionStore.setSessions(sessions);
 
       return newSession;
     });
@@ -120,9 +117,7 @@ export class SessionService implements ISessionService {
 
       sessions[sessionIndex] = updatedSession;
       await this.storageService.setTaskSessions(sessions);
-
-      // Update cache
-      this.sessionCache.set(sessionId, updatedSession);
+      sessionStore.setSessions(sessions);
 
       return updatedSession;
     });
@@ -138,9 +133,7 @@ export class SessionService implements ISessionService {
       }
 
       await this.storageService.setTaskSessions(filteredSessions);
-
-      // Remove from cache
-      this.sessionCache.delete(sessionId);
+      sessionStore.setSessions(filteredSessions);
 
       // Clear active session if it was deleted
       if (this.activeSessionId === sessionId) {
@@ -150,30 +143,25 @@ export class SessionService implements ISessionService {
   }
 
   async getSessionById(sessionId: string): Promise<TaskSession | null> {
-    // Check cache first
-    if (this.sessionCache.has(sessionId)) {
-      return this.sessionCache.get(sessionId)!;
+    // Check store first
+    const cached = sessionStore.getSession(sessionId);
+    if (cached) {
+      return cached;
     }
 
     const sessions = await this.getAllSessions();
-    const session = sessions.find(s => s.id === sessionId) || null;
-    
-    if (session) {
-      this.sessionCache.set(sessionId, session);
-    }
-    
-    return session;
+    return sessions.find(s => s.id === sessionId) || null;
   }
 
   async getAllSessions(): Promise<TaskSession[]> {
     return measurePerformance('SessionService.getAllSessions', async () => {
+      const cached = sessionStore.getSessions();
+      if (cached.length > 0) {
+        return cached;
+      }
+
       const sessions = await this.storageService.getTaskSessions();
-      
-      // Update cache
-      sessions.forEach(session => {
-        this.sessionCache.set(session.id, session);
-      });
-      
+      sessionStore.setSessions(sessions);
       return sessions;
     });
   }
@@ -214,11 +202,7 @@ export class SessionService implements ISessionService {
     }
 
     await this.storageService.setTaskSessions(updatedSessions);
-    
-    // Update cache
-    updatedSessions.forEach(s => {
-      this.sessionCache.set(s.id, s);
-    });
+    sessionStore.setSessions(updatedSessions);
   }
 
   async createTimerInstance(sessionId: string): Promise<TimerInstance> {
@@ -255,10 +239,6 @@ export class SessionService implements ISessionService {
       };
 
       await this.updateSession(sessionId, updatedSession);
-
-      // Update cache
-      this.instanceCache.set(instanceId, newInstance);
-
       return newInstance;
     });
   }
@@ -312,9 +292,6 @@ export class SessionService implements ISessionService {
         timerInstances: updatedInstances,
       });
 
-      // Update cache
-      this.instanceCache.set(instanceId, updatedInstance);
-
       return updatedInstance;
     });
   }
@@ -344,23 +321,22 @@ export class SessionService implements ISessionService {
       await this.updateSession(targetSession.id, {
         timerInstances: updatedInstances,
       });
-
-      // Remove from cache
-      this.instanceCache.delete(instanceId);
     });
   }
 
   async getTimerInstanceById(instanceId: string): Promise<TimerInstance | null> {
-    // Check cache first
-    if (this.instanceCache.has(instanceId)) {
-      return this.instanceCache.get(instanceId)!;
-    }
-
-    const sessions = await this.getAllSessions();
+    const sessions = sessionStore.getSessions();
     for (const session of sessions) {
       const instance = session.timerInstances.find(i => i.id === instanceId);
       if (instance) {
-        this.instanceCache.set(instanceId, instance);
+        return instance;
+      }
+    }
+
+    const fresh = await this.getAllSessions();
+    for (const session of fresh) {
+      const instance = session.timerInstances.find(i => i.id === instanceId);
+      if (instance) {
         return instance;
       }
     }
