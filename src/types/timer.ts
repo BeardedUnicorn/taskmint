@@ -137,6 +137,7 @@ export interface TimerInstance {
   isPaused?: boolean;
   pausedAt?: Date;
   pausedDuration?: number; // Total time paused in milliseconds
+  resumedAt?: Date; // Last time the timer was resumed
   notes?: string; // Timer-level notes
   createdAt: string;
   updatedAt: string;
@@ -205,6 +206,7 @@ export const TimerInstanceSchema = z.object({
   isPaused: z.boolean().optional(),
   pausedAt: z.coerce.date().optional(),
   pausedDuration: z.number().min(0).optional(),
+  resumedAt: z.coerce.date().optional(),
   notes: z.string().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()

@@ -227,6 +227,7 @@ export class SessionService implements ISessionService {
         state: TimerState.idle,
         isRunning: false,
         isPaused: false,
+        resumedAt: undefined,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
@@ -375,6 +376,9 @@ export class SessionService implements ISessionService {
     let instance = parentSession.timerInstances.find(i => i.id === instanceId);
 
     if (!runningInstance) {
+      if (instance && instance.state === TimerState.paused) {
+        throw new Error('Cannot start a paused timer instance. Use resumeTimerInstance instead.');
+      }
       if (!instance || instance.state !== TimerState.idle || instance.endTime || instance.duration) {
         const newInstance = await this.createTimerInstance(parentSession.id);
         targetInstanceId = newInstance.id;
@@ -394,7 +398,9 @@ export class SessionService implements ISessionService {
       isRunning: true,
       isPaused: false,
       startTime: now,
+      pausedAt: undefined,
       pausedDuration: 0,
+      resumedAt: now,
     });
   }
 
@@ -409,13 +415,19 @@ export class SessionService implements ISessionService {
     }
 
     const now = new Date();
-    const duration = now.getTime() - instance.startTime.getTime() - (instance.pausedDuration || 0);
+    let totalPausedDuration = instance.pausedDuration || 0;
+    if (instance.state === TimerState.paused && instance.pausedAt) {
+      totalPausedDuration += now.getTime() - instance.pausedAt.getTime();
+    }
+    const duration = now.getTime() - instance.startTime.getTime() - totalPausedDuration;
 
     await this.updateTimerInstance(instanceId, {
       state: TimerState.stopped,
       isRunning: false,
       isPaused: false,
       pausedAt: undefined,
+      pausedDuration: totalPausedDuration,
+      resumedAt: undefined,
       endTime: now,
       duration: Math.max(0, duration),
     });
@@ -460,6 +472,7 @@ export class SessionService implements ISessionService {
       isPaused: false,
       pausedAt: undefined,
       pausedDuration: totalPausedDuration,
+      resumedAt: now,
     });
   }
 
