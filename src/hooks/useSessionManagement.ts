@@ -104,13 +104,41 @@ export function useSessionManagement(): UseSessionManagementReturn {
         showSuccess('Timer started');
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to start timer';
+
+        // If another timer is already running, stop it and retry
+        if (errorMessage.includes('Another timer instance is already running')) {
+          const runningInstance = sessions
+            .flatMap(s => s.timerInstances)
+            .find(i => i.isRunning);
+
+          if (runningInstance) {
+            try {
+              const stoppedSession = await invoke<TaskSession>('stop_timer_instance', {
+                instanceId: runningInstance.id,
+              });
+              updateLocalSession(stoppedSession);
+
+              const startedSession = await invoke<TaskSession>('start_timer_instance', { instanceId });
+              updateLocalSession(startedSession);
+              showSuccess('Timer started');
+              return;
+            } catch (retryErr) {
+              const retryMessage =
+                retryErr instanceof Error ? retryErr.message : 'Failed to start timer';
+              setError(retryMessage);
+              showError(retryMessage);
+              return;
+            }
+          }
+        }
+
         setError(errorMessage);
         showError(errorMessage);
       } finally {
         setIsLoading(false);
       }
     });
-  }, [updateLocalSession, showError, showSuccess]);
+  }, [sessions, updateLocalSession, showError, showSuccess]);
 
   const stopTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
     return measurePerformance('useSessionManagement.stopTimerInstance', async () => {
