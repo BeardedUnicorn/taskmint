@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { SessionService } from '../SessionService';
 import { SESSION_CONSTANTS } from '../../constants';
-import type { TaskSession, TimerInstance } from '../../types/timer';
+import type { TaskSession } from '../../types/timer';
 
 // Mock StorageService
 const mockStorageService = {
@@ -28,6 +28,10 @@ describe('SessionService', () => {
       return Promise.resolve();
     });
     sessionService = new SessionService();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('session creation and activation', () => {
@@ -83,7 +87,41 @@ describe('SessionService', () => {
 
       (SESSION_CONSTANTS as any).MAX_TIMER_INSTANCES_PER_SESSION = originalLimit;
     });
-  });
+
+    it('resets timing fields when restarted', async () => {
+      vi.useFakeTimers();
+      const base = new Date('2023-01-01T00:00:00Z');
+      vi.setSystemTime(base);
+
+      const session = await sessionService.createSession('task-1', 'Test Task');
+      const instance = await sessionService.createTimerInstance(session.id);
+
+      await sessionService.startTimer(instance.id);
+
+      vi.setSystemTime(new Date(base.getTime() + 1000));
+      await sessionService.stopTimer(instance.id);
+
+      let updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.duration).toBe(1000);
+      expect(updated?.endTime).toBeInstanceOf(Date);
+
+      vi.setSystemTime(new Date(base.getTime() + 5000));
+      await sessionService.startTimer(instance.id);
+
+      updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.endTime).toBeUndefined();
+      expect(updated?.duration).toBeUndefined();
+      expect(updated?.pausedDuration).toBe(0);
+      expect(updated?.isRunning).toBe(true);
+
+      vi.setSystemTime(new Date(base.getTime() + 7000));
+      await sessionService.stopTimer(instance.id);
+
+      updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.duration).toBe(2000);
+      expect(updated?.endTime).toBeInstanceOf(Date);
+    });
+    });
 
   describe('error paths', () => {
     it('throws when creating instance for missing session', async () => {
