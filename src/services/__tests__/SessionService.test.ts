@@ -7,6 +7,8 @@ import type { TaskSession } from '../../types/timer';
 const mockStorageService = {
   getTaskSessions: vi.fn<[], Promise<TaskSession[]>>(),
   setTaskSessions: vi.fn<[TaskSession[]], Promise<void>>(),
+  getTimeEntries: vi.fn<[], Promise<any[]>>(),
+  setTimeEntries: vi.fn<[any[]], Promise<void>>(),
 };
 
 vi.mock('../StorageService', () => ({
@@ -18,13 +20,20 @@ vi.mock('../StorageService', () => ({
 describe('SessionService', () => {
   let sessionService: SessionService;
   let sessions: TaskSession[];
+  let timeEntries: any[];
 
   beforeEach(() => {
     sessions = [];
+    timeEntries = [];
     vi.clearAllMocks();
     mockStorageService.getTaskSessions.mockImplementation(() => Promise.resolve(sessions));
     mockStorageService.setTaskSessions.mockImplementation((newSessions: TaskSession[]) => {
       sessions = newSessions;
+      return Promise.resolve();
+    });
+    mockStorageService.getTimeEntries.mockImplementation(() => Promise.resolve(timeEntries));
+    mockStorageService.setTimeEntries.mockImplementation((newEntries: any[]) => {
+      timeEntries = newEntries;
       return Promise.resolve();
     });
     sessionService = new SessionService();
@@ -97,17 +106,17 @@ describe('SessionService', () => {
       const instance = await sessionService.createTimerInstance(session.id);
 
       await sessionService.setActiveSession(session);
-      await sessionService.startTimer(instance.id);
+      await sessionService.startTimerInstance(instance.id);
 
       vi.setSystemTime(new Date(base.getTime() + 1000));
-      await sessionService.stopTimer(instance.id);
+      await sessionService.stopTimerInstance(instance.id);
 
       let updated = await sessionService.getTimerInstanceById(instance.id);
       expect(updated?.duration).toBe(1000);
       expect(updated?.endTime).toBeInstanceOf(Date);
 
       vi.setSystemTime(new Date(base.getTime() + 5000));
-      await sessionService.startTimer(instance.id);
+      await sessionService.startTimerInstance(instance.id);
 
       updated = await sessionService.getTimerInstanceById(instance.id);
       expect(updated?.endTime).toBeUndefined();
@@ -116,7 +125,7 @@ describe('SessionService', () => {
       expect(updated?.isRunning).toBe(true);
 
       vi.setSystemTime(new Date(base.getTime() + 7000));
-      await sessionService.stopTimer(instance.id);
+      await sessionService.stopTimerInstance(instance.id);
 
       updated = await sessionService.getTimerInstanceById(instance.id);
       expect(updated?.duration).toBe(2000);
@@ -130,10 +139,10 @@ describe('SessionService', () => {
       const instance2 = await sessionService.createTimerInstance(session2.id);
 
       await sessionService.setActiveSession(session1);
-      await sessionService.startTimer(instance1.id);
+      await sessionService.startTimerInstance(instance1.id);
 
       await sessionService.setActiveSession(session2);
-      await expect(sessionService.startTimer(instance2.id)).rejects.toThrow('Another timer instance is already running');
+      await expect(sessionService.startTimerInstance(instance2.id)).rejects.toThrow('Another timer instance is already running');
 
       const runningInstance = await sessionService.getTimerInstanceById(instance1.id);
       expect(runningInstance?.isRunning).toBe(true);
@@ -143,10 +152,10 @@ describe('SessionService', () => {
       const session = await sessionService.createSession('task-1', 'Test Task');
       const instance = await sessionService.createTimerInstance(session.id);
 
-      await expect(sessionService.startTimer(instance.id)).rejects.toThrow('Cannot start timer for inactive session');
+      await expect(sessionService.startTimerInstance(instance.id)).rejects.toThrow('Cannot start timer for inactive session');
 
       await sessionService.setActiveSession(session);
-      await expect(sessionService.startTimer(instance.id)).resolves.toBeUndefined();
+      await expect(sessionService.startTimerInstance(instance.id)).resolves.toBeUndefined();
 
       const updated = await sessionService.getTimerInstanceById(instance.id);
       expect(updated?.isRunning).toBe(true);
@@ -159,7 +168,19 @@ describe('SessionService', () => {
     });
 
     it('throws when starting timer for missing instance', async () => {
-      await expect(sessionService.startTimer('bad-instance')).rejects.toThrow('Timer instance with ID bad-instance not found');
+      await expect(sessionService.startTimerInstance('bad-instance')).rejects.toThrow('Timer instance with ID bad-instance not found');
+    });
+  });
+
+  describe('legacy time entry operations', () => {
+    it('starts and stops a legacy timer entry', async () => {
+      const entry = await sessionService.startTimer('Legacy Task');
+      expect(entry.isRunning).toBe(true);
+      expect(timeEntries).toHaveLength(1);
+
+      const stopped = await sessionService.stopTimer(entry.id);
+      expect(stopped.isRunning).toBe(false);
+      expect(timeEntries[0].isRunning).toBe(false);
     });
   });
 });

@@ -5,7 +5,7 @@ import { format, subDays, addMonths, subMonths } from 'date-fns';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import CalendarPage from '../CalendarPage';
-import { TimerService } from '../../../services/TimerService';
+import { SessionService } from '../../../services/SessionService';
 import { TaskService } from '../../../services/TaskService';
 import { StorageService } from '../../../services/StorageService';
 import { useFundsReleaseSettings } from '../../../hooks/useFundsReleaseSettings';
@@ -13,7 +13,7 @@ import { TimeEntry, Task } from '../../../types';
 import { createLightTheme } from '../../../theme';
 
 // Mock the services and hooks
-vi.mock('../../../services/TimerService');
+vi.mock('../../../services/SessionService');
 vi.mock('../../../services/TaskService');
 vi.mock('../../../services/StorageService');
 vi.mock('../../../hooks/useFundsReleaseSettings');
@@ -46,7 +46,7 @@ vi.mock('moment', () => {
   return actualMoment;
 });
 
-const mockTimerService = TimerService as any;
+const mockSessionService = SessionService as any;
 const mockTaskService = TaskService as any;
 const mockStorageService = StorageService as any;
 const mockUseFundsReleaseSettings = useFundsReleaseSettings as any;
@@ -118,11 +118,11 @@ describe('CalendarPage', () => {
     };
     mockStorageService.getInstance.mockReturnValue(mockStorageInstance as any);
 
-    // Mock TimerService
+    // Mock SessionService
     const mockTimerInstance = {
       getTimeEntries: vi.fn().mockResolvedValue(mockTimeEntries),
     };
-    mockTimerService.mockImplementation(() => mockTimerInstance as any);
+    mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
     // Mock TaskService
     const mockTaskInstance = {
@@ -153,7 +153,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockReturnValue(new Promise(() => {})), // Never resolves
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
@@ -218,7 +218,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockResolvedValue(testEntries),
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
@@ -276,7 +276,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockResolvedValue(testEntries),
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
@@ -336,7 +336,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockResolvedValue(testEntries),
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
@@ -407,7 +407,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockResolvedValue([]),
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
@@ -438,7 +438,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockResolvedValue(entriesWithNoRateTask),
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
@@ -467,7 +467,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockResolvedValue(runningEntries),
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
@@ -483,7 +483,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockRejectedValue(new Error('Service error')),
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
@@ -540,7 +540,7 @@ describe('CalendarPage', () => {
       const mockTimerInstance = {
         getTimeEntries: vi.fn().mockResolvedValue(testEntries),
       };
-      mockTimerService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionService.mockImplementation(() => mockTimerInstance as any);
 
       renderCalendarPage();
       
