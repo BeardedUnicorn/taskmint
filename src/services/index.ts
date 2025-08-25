@@ -5,20 +5,20 @@
  * Provides singleton instances and service interfaces
  */
 
-import { TimerService } from './TimerService';
+import { SessionService } from './SessionService';
 import { TaskService } from './TaskService';
 import { StorageService } from './StorageService';
 import { NoteTemplateService } from './NoteTemplateService';
 import { TaskNotesService } from './TaskNotesService';
 
-export { TimerService } from './TimerService';
+export { SessionService } from './SessionService';
 export { TaskService } from './TaskService';
 export { StorageService } from './StorageService';
 export { NoteTemplateService } from './NoteTemplateService';
 export { TaskNotesService } from './TaskNotesService';
 
 // Service interfaces for dependency injection
-export type { ITimerService } from './TimerService';
+export type { ISessionService } from './SessionService';
 export type { ITaskService } from './TaskService';
 export type { IStorageService } from './StorageService';
 export type { ITaskNotesService } from './TaskNotesService';
@@ -26,7 +26,7 @@ export type { ITaskNotesService } from './TaskNotesService';
 // Service factory for getting singleton instances
 export class ServiceFactory {
   private static storageService: StorageService;
-  private static timerService: TimerService;
+  private static sessionService: SessionService;
   private static taskService: TaskService;
   private static noteTemplateService: NoteTemplateService;
   private static taskNotesService: TaskNotesService;
@@ -38,13 +38,11 @@ export class ServiceFactory {
     return ServiceFactory.storageService;
   }
 
-  static getTimerService(): TimerService {
-    if (!ServiceFactory.timerService) {
-      ServiceFactory.timerService = new TimerService(
-        ServiceFactory.getStorageService()
-      );
+  static getSessionService(): SessionService {
+    if (!ServiceFactory.sessionService) {
+      ServiceFactory.sessionService = new SessionService();
     }
-    return ServiceFactory.timerService;
+    return ServiceFactory.sessionService;
   }
 
   static getTaskService(): TaskService {
@@ -73,7 +71,7 @@ export class ServiceFactory {
   // Reset all services (useful for testing)
   static resetServices(): void {
     ServiceFactory.storageService = undefined as any;
-    ServiceFactory.timerService = undefined as any;
+    ServiceFactory.sessionService = undefined as any;
     ServiceFactory.taskService = undefined as any;
     ServiceFactory.noteTemplateService = undefined as any;
     ServiceFactory.taskNotesService = undefined as any;

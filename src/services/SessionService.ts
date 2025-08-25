@@ -5,11 +5,14 @@
  * error handling, and business logic enforcement.
  */
 
-import { TaskSession, TimerInstance, SessionStats } from '../types/timer';
+import { TaskSession, TimerInstance, SessionStats, TimeEntry, TimerRoundingOption } from '../types/timer';
 import { StorageService } from './StorageService';
 import { formatDateString } from '../utils/dateHelpers';
 import { measurePerformance } from '../utils/performance';
 import { SESSION_CONSTANTS } from '../constants';
+import { createTimerError, TimerErrorClass } from '../types/errors';
+import { applyTimerRounding } from '../utils/formatters';
+import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
 
 export interface ISessionService {
   // Session operations
@@ -29,11 +32,25 @@ export interface ISessionService {
   getTimerInstanceById(instanceId: string): Promise<TimerInstance | null>;
   getTimerInstancesBySessionId(sessionId: string): Promise<TimerInstance[]>;
 
-  // Timer control operations
-  startTimer(instanceId: string): Promise<void>;
-  stopTimer(instanceId: string): Promise<void>;
-  pauseTimer(instanceId: string): Promise<void>;
-  resumeTimer(instanceId: string): Promise<void>;
+  // Timer control operations for instances
+  startTimerInstance(instanceId: string): Promise<void>;
+  stopTimerInstance(instanceId: string): Promise<void>;
+  pauseTimerInstance(instanceId: string): Promise<void>;
+  resumeTimerInstance(instanceId: string): Promise<void>;
+
+  // Legacy time entry operations
+  startTimer(taskName: string, taskId?: string, startTime?: Date): Promise<TimeEntry>;
+  stopTimer(entryId: string, roundingOption?: TimerRoundingOption): Promise<TimeEntry>;
+  updateActiveTimer(entry: TimeEntry): Promise<void>;
+  getActiveTimer(): Promise<TimeEntry | null>;
+  setActiveTimer(entry: TimeEntry | null): Promise<void>;
+  updateSystemTray(activeEntry: TimeEntry | null, allEntries: TimeEntry[]): Promise<void>;
+  saveTimeEntry(entry: TimeEntry): Promise<void>;
+  updateTimeEntry(entryId: string, updates: Partial<TimeEntry>): Promise<TimeEntry>;
+  deleteTimeEntry(entryId: string): Promise<void>;
+  getTimeEntries(): Promise<TimeEntry[]>;
+  getTimeEntriesByDate(date: string): Promise<TimeEntry[]>;
+  getDailyTotal(date?: string): Promise<{ totalDuration: number; taskCount: number }>;
 
   // Statistics and utilities
   getSessionStats(): Promise<SessionStats>;
@@ -46,6 +63,7 @@ export class SessionService implements ISessionService {
   private sessionCache = new Map<string, TaskSession>();
   private instanceCache = new Map<string, TimerInstance>();
   private activeSessionId: string | null = null;
+  private activeTimer: TimeEntry | null = null;
 
   constructor() {
     this.storageService = StorageService.getInstance();
@@ -354,7 +372,7 @@ export class SessionService implements ISessionService {
     return session ? session.timerInstances : [];
   }
 
-  async startTimer(instanceId: string): Promise<void> {
+  async startTimerInstance(instanceId: string): Promise<void> {
     // Ensure only one timer instance is running at a time
     const sessions = await this.getAllSessions();
 
@@ -391,7 +409,7 @@ export class SessionService implements ISessionService {
     });
   }
 
-  async stopTimer(instanceId: string): Promise<void> {
+  async stopTimerInstance(instanceId: string): Promise<void> {
     const instance = await this.getTimerInstanceById(instanceId);
     if (!instance) {
       throw new Error(`Timer instance with ID ${instanceId} not found`);
@@ -408,7 +426,7 @@ export class SessionService implements ISessionService {
     });
   }
 
-  async pauseTimer(instanceId: string): Promise<void> {
+  async pauseTimerInstance(instanceId: string): Promise<void> {
     const now = new Date();
     await this.updateTimerInstance(instanceId, {
       isPaused: true,
@@ -416,7 +434,7 @@ export class SessionService implements ISessionService {
     });
   }
 
-  async resumeTimer(instanceId: string): Promise<void> {
+  async resumeTimerInstance(instanceId: string): Promise<void> {
     const instance = await this.getTimerInstanceById(instanceId);
     if (!instance || !instance.pausedAt) {
       throw new Error(`Timer instance with ID ${instanceId} not found or not paused`);
@@ -458,5 +476,356 @@ export class SessionService implements ISessionService {
 
   calculateTotalDuration(sessions: TaskSession[]): number {
     return sessions.reduce((total, session) => total + session.totalDuration, 0);
+  }
+
+  // ============================================================================
+  // Legacy TimerService functionality
+  // ============================================================================
+
+  /**
+   * Start a new legacy timer entry
+   */
+  async startTimer(
+    taskName: string,
+    taskId?: string,
+    startTime?: Date
+  ): Promise<TimeEntry> {
+    return measurePerformance(
+      'SessionService.startTimer',
+      async () => {
+        try {
+          if (!taskName.trim()) {
+            throw createTimerError(
+              'TIMER_TASK_NOT_FOUND',
+              'Task name cannot be empty',
+              { taskName },
+              'startTimer'
+            );
+          }
+
+          if (this.activeTimer && this.activeTimer.isRunning) {
+            throw createTimerError(
+              'TIMER_ALREADY_RUNNING',
+              'A timer is already running. Stop the current timer before starting a new one.',
+              { activeTimer: this.activeTimer },
+              'startTimer'
+            );
+          }
+
+          const now = startTime || new Date();
+          const newEntry: TimeEntry = {
+            id: `timer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            taskName: taskName.trim(),
+            taskId,
+            startTime: now,
+            isRunning: true,
+            date: formatDateString(now),
+          };
+
+          this.activeTimer = newEntry;
+          await this.saveTimeEntry(newEntry);
+          await this.updateTauriTimerState(newEntry);
+          return newEntry;
+        } catch (error) {
+          if (error instanceof TimerErrorClass) {
+            throw error;
+          }
+          console.error('Failed to start timer:', error);
+          throw createTimerError(
+            'TIMER_START_FAILED',
+            'Failed to start timer',
+            { originalError: error, taskName, taskId },
+            'startTimer'
+          );
+        }
+      },
+      'timer',
+      { taskName, taskId }
+    );
+  }
+
+  /**
+   * Stop an active legacy timer
+   */
+  async stopTimer(entryId: string, roundingOption: TimerRoundingOption = 'none'): Promise<TimeEntry> {
+    try {
+      const entries = await this.getTimeEntries();
+      const entry = entries.find(e => e.id === entryId);
+
+      if (!entry) {
+        throw createTimerError(
+          'TIMER_TASK_NOT_FOUND',
+          `Timer entry with ID ${entryId} not found`,
+          { entryId },
+          'stopTimer'
+        );
+      }
+
+      if (!entry.isRunning) {
+        throw createTimerError(
+          'TIMER_NOT_RUNNING',
+          'Timer is not currently running',
+          { entry },
+          'stopTimer'
+        );
+      }
+
+      const now = new Date();
+      const rawDuration = now.getTime() - entry.startTime.getTime();
+      const duration = applyTimerRounding(rawDuration, roundingOption);
+
+      const updatedEntry: TimeEntry = {
+        ...entry,
+        endTime: now,
+        duration,
+        isRunning: false,
+      };
+
+      await this.updateTauriTimerState(null);
+      this.activeTimer = null;
+
+      await this.updateTimeEntry(entryId, {
+        endTime: now,
+        duration,
+        isRunning: false,
+      });
+
+      return updatedEntry;
+    } catch (error) {
+      if (error instanceof TimerErrorClass) {
+        throw error;
+      }
+      console.error('Failed to stop timer:', error);
+      throw createTimerError(
+        'TIMER_STOP_FAILED',
+        'Failed to stop timer',
+        { originalError: error, entryId },
+        'stopTimer'
+      );
+    }
+  }
+
+  /**
+   * Update active timer state
+   */
+  async updateActiveTimer(entry: TimeEntry): Promise<void> {
+    try {
+      this.activeTimer = entry;
+      await this.updateTauriTimerState(entry);
+      await this.updateTimeEntry(entry.id, entry);
+    } catch (error) {
+      if (error instanceof TimerErrorClass) {
+        throw error;
+      }
+      console.error('Failed to update active timer:', error);
+      throw createTimerError(
+        'TIMER_SYNC_FAILED',
+        'Failed to update active timer',
+        { originalError: error, entry },
+        'updateActiveTimer'
+      );
+    }
+  }
+
+  async getActiveTimer(): Promise<TimeEntry | null> {
+    return this.activeTimer;
+  }
+
+  async setActiveTimer(entry: TimeEntry | null): Promise<void> {
+    this.activeTimer = entry;
+  }
+
+  async updateSystemTray(activeEntry: TimeEntry | null, allEntries: TimeEntry[]): Promise<void> {
+    return measurePerformance(
+      'SessionService.updateSystemTray',
+      async () => {
+        if (!isTauriEnvironment()) {
+          console.log('Skipping system tray update in web environment');
+          return;
+        }
+
+        try {
+          if (activeEntry && activeEntry.isRunning) {
+            await safeInvoke('update_timer_state', {
+              isRunning: true,
+              taskName: activeEntry.taskName,
+              startTime: activeEntry.startTime.toISOString(),
+              elapsedMs: Date.now() - activeEntry.startTime.getTime(),
+            });
+          } else {
+            await safeInvoke('update_timer_state', {
+              isRunning: false,
+              taskName: '',
+              startTime: null,
+              elapsedMs: 0,
+            });
+          }
+
+          const timeEntriesData = allEntries.map(entry => ({
+            date: entry.date,
+            duration: entry.duration || 0,
+            isRunning: entry.isRunning,
+            taskName: entry.taskName,
+          }));
+
+          await safeInvoke('update_tray_menu_command', {
+            timeEntries: timeEntriesData,
+          });
+        } catch (error) {
+          console.error('Failed to update system tray:', error);
+        }
+      },
+      'timer',
+      { hasActiveEntry: !!activeEntry, entriesCount: allEntries.length }
+    );
+  }
+
+  async saveTimeEntry(entry: TimeEntry): Promise<void> {
+    try {
+      const entries = await this.getTimeEntries();
+      const existingIndex = entries.findIndex(e => e.id === entry.id);
+      if (existingIndex >= 0) {
+        entries[existingIndex] = entry;
+      } else {
+        entries.push(entry);
+      }
+      await this.storageService.setTimeEntries(entries);
+    } catch (error) {
+      if (error instanceof TimerErrorClass) {
+        throw error;
+      }
+      throw createTimerError(
+        'TIMER_SYNC_FAILED',
+        'Failed to save time entry',
+        { originalError: error, entry },
+        'saveTimeEntry'
+      );
+    }
+  }
+
+  async updateTimeEntry(entryId: string, updates: Partial<TimeEntry>): Promise<TimeEntry> {
+    try {
+      const entries = await this.getTimeEntries();
+      const entryIndex = entries.findIndex(e => e.id === entryId);
+      if (entryIndex === -1) {
+        throw createTimerError(
+          'TIMER_TASK_NOT_FOUND',
+          `Time entry with ID ${entryId} not found`,
+          { entryId },
+          'updateTimeEntry'
+        );
+      }
+      const updatedEntry = { ...entries[entryIndex], ...updates };
+      entries[entryIndex] = updatedEntry;
+      await this.storageService.setTimeEntries(entries);
+      return updatedEntry;
+    } catch (error) {
+      if (error instanceof TimerErrorClass) {
+        throw error;
+      }
+      console.error('Failed to update time entry:', error);
+      throw createTimerError(
+        'TIMER_SYNC_FAILED',
+        'Failed to update time entry',
+        { originalError: error, entryId, updates },
+        'updateTimeEntry'
+      );
+    }
+  }
+
+  async deleteTimeEntry(entryId: string): Promise<void> {
+    try {
+      const entries = await this.getTimeEntries();
+      const filteredEntries = entries.filter(e => e.id !== entryId);
+      if (filteredEntries.length === entries.length) {
+        throw createTimerError(
+          'TIMER_TASK_NOT_FOUND',
+          `Time entry with ID ${entryId} not found`,
+          { entryId },
+          'deleteTimeEntry'
+        );
+      }
+      await this.storageService.setTimeEntries(filteredEntries);
+    } catch (error) {
+      console.error('Failed to delete time entry:', error);
+      throw createTimerError(
+        'TIMER_SYNC_FAILED',
+        'Failed to delete time entry',
+        { originalError: error, entryId },
+        'deleteTimeEntry'
+      );
+    }
+  }
+
+  async getTimeEntries(): Promise<TimeEntry[]> {
+    try {
+      return await this.storageService.getTimeEntries();
+    } catch (error) {
+      console.error('Failed to get time entries:', error);
+      throw createTimerError(
+        'TIMER_SYNC_FAILED',
+        'Failed to retrieve time entries',
+        { originalError: error },
+        'getTimeEntries'
+      );
+    }
+  }
+
+  async getTimeEntriesByDate(date: string): Promise<TimeEntry[]> {
+    try {
+      const entries = await this.getTimeEntries();
+      return entries.filter(entry => entry.date === date);
+    } catch (error) {
+      console.error('Failed to get time entries by date:', error);
+      throw createTimerError(
+        'TIMER_SYNC_FAILED',
+        'Failed to retrieve time entries for date',
+        { originalError: error, date },
+        'getTimeEntriesByDate'
+      );
+    }
+  }
+
+  async getDailyTotal(date?: string): Promise<{ totalDuration: number; taskCount: number }> {
+    try {
+      const targetDate = date || formatDateString(new Date());
+      const entries = await this.getTimeEntriesByDate(targetDate);
+      const totalDuration = entries.reduce((total, entry) => total + (entry.duration || 0), 0);
+      return { totalDuration, taskCount: entries.length };
+    } catch (error) {
+      console.error('Failed to get daily total:', error);
+      throw createTimerError(
+        'TIMER_SYNC_FAILED',
+        'Failed to calculate daily total',
+        { originalError: error, date },
+        'getDailyTotal'
+      );
+    }
+  }
+
+  private async updateTauriTimerState(entry: TimeEntry | null): Promise<void> {
+    if (!isTauriEnvironment()) {
+      console.log('Skipping Tauri timer state update in web environment');
+      return;
+    }
+    try {
+      if (entry && entry.isRunning) {
+        await safeInvoke('update_timer_state', {
+          isRunning: true,
+          taskName: entry.taskName,
+          startTime: entry.startTime.toISOString(),
+          elapsedMs: Date.now() - entry.startTime.getTime(),
+        });
+      } else {
+        await safeInvoke('update_timer_state', {
+          isRunning: false,
+          taskName: '',
+          startTime: null,
+          elapsedMs: 0,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to update Tauri timer state:', error);
+    }
   }
 }

@@ -6,7 +6,7 @@ import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
-import { TimerService } from '../../services/TimerService';
+import { SessionService } from '../../services/SessionService';
 import { TaskService } from '../../services/TaskService';
 import { StorageService } from '../../services/StorageService';
 import { TimeEntry, Task } from '../../types';
@@ -69,7 +69,7 @@ const CalendarPage: React.FC = () => {
   const theme = useTheme();
 
   const storageService = useMemo(() => StorageService.getInstance(), []);
-  const timerService = useMemo(() => new TimerService(storageService), [storageService]);
+  const sessionService = useMemo(() => new SessionService(), []);
   const taskService = useMemo(() => new TaskService(storageService), [storageService]);
 
   useEffect(() => {
@@ -77,7 +77,7 @@ const CalendarPage: React.FC = () => {
       setLoading(true);
       try {
         const [entries, allTasks] = await Promise.all([
-          timerService.getTimeEntries(),
+          sessionService.getTimeEntries(),
           taskService.getAllTasks(),
         ]);
         setTimeEntries(entries);
@@ -95,7 +95,7 @@ const CalendarPage: React.FC = () => {
       }
     };
     fetchData();
-  }, [timerService, taskService]);
+  }, [sessionService, taskService]);
 
   const dailyData = useMemo(() => {
     // Calculate earnings for all days that have time entries
