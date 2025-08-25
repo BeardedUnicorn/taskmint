@@ -39,7 +39,7 @@ import {
   Timer as TimerIcon,
   Today as DateIcon,
 } from '@mui/icons-material';
-import { TaskSession } from '../../../types/timer';
+import { TaskSession, TimerState } from '../../../types/timer';
 import { formatTime, formatDate } from '../../../utils/formatters';
 
 interface SessionListProps {
@@ -366,7 +366,7 @@ function SessionCard({
   onOpenNotes,
 }: SessionCardProps) {
 
-  const runningInstances = session.timerInstances?.filter(i => i.isRunning) || [];
+  const runningInstances = session.timerInstances?.filter(i => i.state === TimerState.running) || [];
   const totalInstances = session.timerInstances?.length || 0;
 
   return (

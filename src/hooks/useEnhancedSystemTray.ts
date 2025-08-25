@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useCallback, useRef } from 'react';
-import { TaskSession, TimerInstance } from '../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../types/timer';
 import { Task } from '../types/task';
 import { safeInvoke, safeListen } from '../utils/tauri';
 
@@ -56,7 +56,7 @@ export function useEnhancedSystemTray({
           return total + (instance.duration || 0);
         }, 0) || 0;
 
-        const isRunning = session.timerInstances?.some(instance => instance.isRunning) || false;
+        const isRunning = session.timerInstances?.some(instance => instance.state === TimerState.running) || false;
 
         return {
           date: new Date().toISOString().split('T')[0], // Today's date
@@ -85,7 +85,7 @@ export function useEnhancedSystemTray({
         return;
       }
 
-      const runningInstance = activeSession?.timerInstances?.find(i => i.isRunning);
+      const runningInstance = activeSession?.timerInstances?.find(i => i.state === TimerState.running);
 
       if (activeSession && runningInstance) {
         const startTime = runningInstance.startTime instanceof Date
@@ -149,7 +149,7 @@ export function useEnhancedSystemTray({
   // Handle timer stop from tray
   const handleStopTimerFromTray = useCallback(async () => {
     try {
-      const runningInstance = activeSession?.timerInstances?.find(i => i.isRunning);
+      const runningInstance = activeSession?.timerInstances?.find(i => i.state === TimerState.running);
       if (runningInstance) {
         await onStopTimer(runningInstance.id);
       }

@@ -19,7 +19,7 @@ const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(m
 const AdminPage = lazy(() => import('./components/pages/AdminPage').then(module => ({ default: module.AdminPage })));
 import { SessionDashboard } from './components/pages/SessionDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { TimeEntry } from './types/timer';
+import { TimeEntry, TimerState } from './types/timer';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { useSessionManagement } from './hooks/useSessionManagement';
 import { useTaskManagement } from './hooks/useTaskManagement';
@@ -46,7 +46,7 @@ function AppContent() {
   // Derived global active entry for backward compatibility with older pages
   const activeEntry: TimeEntry | null = useMemo(() => {
     if (!sessionManager.activeSession) return null;
-    const runningInstance = sessionManager.activeSession.timerInstances.find(i => i.isRunning);
+    const runningInstance = sessionManager.activeSession.timerInstances.find(i => i.state === TimerState.running);
     if (!runningInstance) return null;
 
     return {

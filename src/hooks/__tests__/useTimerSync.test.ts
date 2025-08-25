@@ -30,6 +30,7 @@ vi.mock('../../contexts/NotificationContext', () => ({
 // Get the mocked functions
 import { listen, emit } from '@tauri-apps/api/event';
 import { useSessionManagement } from '../useSessionManagement';
+import { TimerState } from '../../types/timer';
 const mockListen = vi.mocked(listen);
 const mockEmit = vi.mocked(emit);
 const mockUseSessionManagement = vi.mocked(useSessionManagement);
@@ -97,8 +98,7 @@ describe('useTimerSync', () => {
               id: 'timer-1',
               sessionId: 'session-1',
               startTime: new Date(),
-              isRunning: true,
-              isPaused: false,
+              state: TimerState.running,
               createdAt: '2024-01-15T10:00:00Z',
               updatedAt: '2024-01-15T10:00:00Z',
             },
@@ -147,8 +147,7 @@ describe('useTimerSync', () => {
               id: 'timer-1',
               sessionId: 'session-1',
               startTime: new Date(),
-              isRunning: false,
-              isPaused: false,
+              state: TimerState.idle,
               createdAt: '2024-01-15T10:00:00Z',
               updatedAt: '2024-01-15T10:00:00Z',
             },

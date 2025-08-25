@@ -9,7 +9,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { listen, emit } from '@tauri-apps/api/event';
 import { useSessionManagement } from './useSessionManagement';
 import { useNotification } from '../contexts/NotificationContext';
-import { TaskSession, TimerInstance } from '../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../types/timer';
 
 // Define TimerSyncEvent type locally since it's not exported from types
 interface TimerSyncEvent<T = any> {
@@ -26,7 +26,7 @@ export function useTimerSync() {
 
   // Effect to sync global timer state when active session changes
   useEffect(() => {
-    const isSessionTimerRunning = activeSession?.timerInstances.some(t => t.isRunning) ?? false;
+    const isSessionTimerRunning = activeSession?.timerInstances.some(t => t.state === TimerState.running) ?? false;
     setIsGlobalTimerActive(isSessionTimerRunning);
   }, [activeSession]);
 
@@ -49,7 +49,7 @@ export function useTimerSync() {
    * If no other session timers are running, it deactivates the global timer state.
    */
   const handleSessionTimerStopped = useCallback(() => {
-    const anyRunning = sessions.some(s => s.timerInstances.some(t => t.isRunning));
+    const anyRunning = sessions.some(s => s.timerInstances.some(t => t.state === TimerState.running));
     if (!anyRunning) {
       console.log('Sync: All session timers stopped. Deactivating global timer.');
       setIsGlobalTimerActive(false);

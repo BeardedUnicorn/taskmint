@@ -11,7 +11,8 @@ import { listen } from '@tauri-apps/api/event';
 import {
   TaskSession,
   TimerInstance,
-  UseSessionManagementReturn
+  UseSessionManagementReturn,
+  TimerState,
 } from '../types/timer';
 import { useNotification } from '../contexts/NotificationContext';
 import { measurePerformance } from '../utils/performance';
@@ -138,7 +139,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         if (errorMessage.includes('Another timer instance is already running')) {
           const runningInstance = sessions
             .flatMap(s => s.timerInstances)
-            .find(i => i.isRunning);
+            .find(i => i.state === TimerState.running);
 
           if (runningInstance) {
             try {
@@ -280,7 +281,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
           setSessions(currentSessions => {
             const currentActiveSession = currentSessions.find(s => s.isActive);
             if (currentActiveSession) {
-              timersToPause = currentActiveSession.timerInstances.filter(t => t.isRunning);
+              timersToPause = currentActiveSession.timerInstances.filter(t => t.state === TimerState.running);
             }
             return currentSessions; // no state update, just reading current state
           });
@@ -424,7 +425,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         setIsLoading(true);
         try {
             for (const instance of activeSession.timerInstances) {
-                if (instance.isRunning) {
+                if (instance.state === TimerState.running) {
                     await stopTimerInstance(instance.id);
                 }
             }
@@ -442,7 +443,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         if (!activeSession) return;
         setIsLoading(true);
         try {
-            const runningTimers = activeSession.timerInstances.filter(t => t.isRunning);
+            const runningTimers = activeSession.timerInstances.filter(t => t.state === TimerState.running);
             for (const timer of runningTimers) {
                 await pauseTimerInstance(timer.id);
             }
@@ -459,7 +460,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         if (!activeSession) return;
         setIsLoading(true);
         try {
-            const pausedTimers = activeSession.timerInstances.filter(t => t.isPaused);
+            const pausedTimers = activeSession.timerInstances.filter(t => t.state === TimerState.paused);
             for (const timer of pausedTimers) {
                 await resumeTimerInstance(timer.id);
             }

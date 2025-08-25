@@ -38,7 +38,7 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
 } from '@mui/icons-material';
-import { TaskSession, TimerInstance } from '../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { useTimer } from '../../hooks/useTimer';
 import { formatTime } from '../../utils/formatters';
@@ -159,8 +159,8 @@ export const SessionTimerBar = memo(function SessionTimerBar({
   const sessionStatus = useMemo(() => {
     if (!activeSession || !Array.isArray(activeSession.timerInstances)) return { running: 0, paused: 0 };
     return {
-        running: activeSession.timerInstances.filter(t => t.isRunning).length,
-        paused: activeSession.timerInstances.filter(t => t.isPaused).length,
+        running: activeSession.timerInstances.filter(t => t.state === TimerState.running).length,
+        paused: activeSession.timerInstances.filter(t => t.state === TimerState.paused).length,
     };
   }, [activeSession?.timerInstances]);
 
@@ -407,32 +407,33 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
 }: TimerInstanceCardProps) {
   // Determine timer state from instance properties
   const getTimerState = () => {
-    if (instance.isRunning === true) {
-      return 'running';
+    switch (instance.state) {
+      case TimerState.running:
+        return 'running';
+      case TimerState.paused:
+        return 'paused';
+      default:
+        return 'stopped';
     }
-    if (instance.isPaused === true) {
-      return 'paused';
-    }
-    return 'stopped';
   };
 
   const timerState = getTimerState();
 
   // Calculate elapsed time for this specific instance
   const startTime = useMemo(() => {
-    if (!instance.isRunning || !instance.startTime) return undefined;
+    if (instance.state !== TimerState.running || !instance.startTime) return undefined;
     return instance.startTime instanceof Date
       ? instance.startTime
       : new Date(instance.startTime);
-  }, [instance.isRunning, instance.startTime]);
+  }, [instance.state, instance.startTime]);
 
-  const liveElapsed = useTimer(instance.isRunning || false, startTime);
+  const liveElapsed = useTimer(instance.state === TimerState.running, startTime);
 
   const getInstanceElapsedTime = useCallback((): number => {
-    if (instance.isRunning) {
+    if (instance.state === TimerState.running) {
       // For running timers, use the live elapsed time from useTimer hook
       return liveElapsed;
-    } else if (instance.isPaused) {
+    } else if (instance.state === TimerState.paused) {
       // For paused timers, calculate elapsed time up to pause point
       const startTimeMs = instance.startTime instanceof Date ? instance.startTime.getTime() : new Date(instance.startTime).getTime();
       const pausedAtMs = instance.pausedAt instanceof Date ? instance.pausedAt.getTime() : new Date(instance.pausedAt || Date.now()).getTime();
