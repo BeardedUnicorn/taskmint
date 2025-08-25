@@ -16,14 +16,16 @@ import {
 } from '../types/timer';
 import { useNotification } from '../contexts/NotificationContext';
 import { measurePerformance } from '../utils/performance';
+import { useActiveTimer } from '../contexts/ActiveTimerContext';
 
 export function useSessionManagement(): UseSessionManagementReturn {
   const [sessions, setSessions] = useState<TaskSession[]>([]);
   const [activeSession, setActiveSessionState] = useState<TaskSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const { showError, showSuccess } = useNotification();
+  const { activeTimer, setActiveTimer } = useActiveTimer();
 
   // Load sessions from backend
   const loadSessions = useCallback(async () => {
@@ -41,6 +43,10 @@ export function useSessionManagement(): UseSessionManagementReturn {
       console.log('Active session found:', active);
       setActiveSessionState(active);
 
+      const runningInstance = (loadedSessions || [])
+        .flatMap(s => s.timerInstances)
+        .find(i => i.state === TimerState.running) || null;
+      setActiveTimer(runningInstance);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load sessions';
       setError(errorMessage);
@@ -49,18 +55,18 @@ export function useSessionManagement(): UseSessionManagementReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [showError]);
+  }, [showError, setActiveTimer]);
   
   const updateLocalSession = useCallback((updatedSession: TaskSession) => {
     console.log('Updating local session:', updatedSession.id);
-    
+
     // Update sessions array
     setSessions(prev => {
       const updated = prev.map(s => s.id === updatedSession.id ? updatedSession : s);
       console.log('Updated sessions array:', updated);
       return updated;
     });
-    
+
     // Update active session if it matches - use functional update to avoid dependency
     setActiveSessionState(currentActive => {
       if (currentActive && currentActive.id === updatedSession.id) {
@@ -69,7 +75,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
       }
       return currentActive;
     });
-  }, []);
+
+    const runningInstance = updatedSession.timerInstances.find(t => t.state === TimerState.running) || null;
+    if (runningInstance) {
+      setActiveTimer(runningInstance);
+    } else if (activeTimer && updatedSession.timerInstances.some(t => t.id === activeTimer.id)) {
+      setActiveTimer(null);
+    }
+  }, [activeTimer, setActiveTimer]);
   
   const createTimerInstance = useCallback(async (sessionId: string): Promise<TimerInstance | null> => {
     console.log(`Attempting to create timer instance for session ${sessionId}...`);

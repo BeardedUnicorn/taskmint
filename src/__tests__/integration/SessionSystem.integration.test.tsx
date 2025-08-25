@@ -13,6 +13,7 @@ import { SessionDashboard } from '../../components/pages/SessionDashboard';
 import { SessionTimerBar } from '../../components/layout/SessionTimerBar';
 import { TaskSession, TimerInstance } from '../../types/timer';
 import { Task } from '../../types/task';
+import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -89,6 +90,8 @@ const mockTasksHook = {
 vi.mock('../../hooks/useTasks', () => ({
   useTasks: () => mockTasksHook,
 }));
+
+const renderDashboard = () => render(<SessionDashboard />, { wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider> });
 
 describe('Session System Integration', () => {
   const mockTasks: Task[] = [
@@ -179,7 +182,7 @@ describe('Session System Integration', () => {
       // Mock the createSession function to simulate successful creation
       mockSessionManagement.createSession.mockResolvedValue(mockSession);
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Wait for initial load
       await waitFor(() => {
@@ -203,7 +206,7 @@ describe('Session System Integration', () => {
       // Mock the createSession function to simulate failure
       mockSessionManagement.createSession.mockRejectedValue(new Error('Creation failed'));
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       await waitFor(() => {
         expect(screen.getByText('Start New Session')).toBeInTheDocument();
@@ -237,7 +240,7 @@ describe('Session System Integration', () => {
         error: null,
       });
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       await waitFor(() => {
         expect(screen.getAllByText('Development Work').length).toBeGreaterThanOrEqual(3); // Timer bar, active session, session list
@@ -268,7 +271,7 @@ describe('Session System Integration', () => {
         error: null,
       });
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       await waitFor(() => {
         expect(screen.getAllByText('Development Work').length).toBeGreaterThanOrEqual(3); // Timer bar, active session, session list
@@ -307,7 +310,7 @@ describe('Session System Integration', () => {
         error: null,
       });
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       await waitFor(() => {
         expect(screen.getAllByText('Development Work').length).toBeGreaterThan(0);
@@ -326,7 +329,7 @@ describe('Session System Integration', () => {
         error: null,
       });
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       await waitFor(() => {
         expect(screen.getAllByText('Development Work').length).toBeGreaterThan(0);
@@ -345,7 +348,7 @@ describe('Session System Integration', () => {
         error: null,
       });
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       await waitFor(() => {
         expect(screen.getAllByText('Development Work').length).toBeGreaterThan(0);
@@ -455,7 +458,7 @@ describe('Session System Integration', () => {
         error: 'Backend unavailable',
       });
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Just verify the component renders without crashing and shows error
       await waitFor(() => {
@@ -472,7 +475,7 @@ describe('Session System Integration', () => {
         error: 'Request timeout',
       });
 
-      render(<SessionDashboard />);
+      renderDashboard();
 
       // Just verify the component renders without crashing and shows error
       await waitFor(() => {
@@ -494,7 +497,7 @@ describe('Session System Integration', () => {
         .mockResolvedValueOnce(mockTasks); // get_tasks
 
       const startTime = performance.now();
-      render(<SessionDashboard />);
+      renderDashboard();
 
       await waitFor(() => {
         expect(screen.getByText('All Sessions')).toBeInTheDocument();

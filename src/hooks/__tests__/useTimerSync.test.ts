@@ -31,6 +31,7 @@ vi.mock('../../contexts/NotificationContext', () => ({
 import { listen, emit } from '@tauri-apps/api/event';
 import { useSessionManagement } from '../useSessionManagement';
 import { TimerState } from '../../types/timer';
+import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
 const mockListen = vi.mocked(listen);
 const mockEmit = vi.mocked(emit);
 const mockUseSessionManagement = vi.mocked(useSessionManagement);
@@ -69,7 +70,7 @@ describe('useTimerSync', () => {
 
   describe('Initialization', () => {
     it('should set up event listeners on mount', async () => {
-      renderHook(() => useTimerSync());
+      renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
       expect(mockListen).toHaveBeenCalledWith('session-timer-started', expect.any(Function));
       expect(mockListen).toHaveBeenCalledWith('session-timer-stopped', expect.any(Function));
@@ -78,7 +79,7 @@ describe('useTimerSync', () => {
     });
 
     it('should return isGlobalTimerActive state', () => {
-      const { result } = renderHook(() => useTimerSync());
+      const { result } = renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
       expect(result.current).toHaveProperty('isGlobalTimerActive');
       expect(typeof result.current.isGlobalTimerActive).toBe('boolean');
@@ -130,7 +131,7 @@ describe('useTimerSync', () => {
         deleteTimerInstance: vi.fn(),
       });
 
-      const { result } = renderHook(() => useTimerSync());
+      const { result } = renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
       expect(result.current.isGlobalTimerActive).toBe(true);
     });
@@ -179,7 +180,7 @@ describe('useTimerSync', () => {
         deleteTimerInstance: vi.fn(),
       });
 
-      const { result } = renderHook(() => useTimerSync());
+      const { result } = renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
       expect(result.current.isGlobalTimerActive).toBe(false);
     });
@@ -208,7 +209,7 @@ describe('useTimerSync', () => {
         deleteTimerInstance: vi.fn(),
       });
 
-      const { result } = renderHook(() => useTimerSync());
+      const { result } = renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
       expect(result.current.isGlobalTimerActive).toBe(false);
     });
@@ -219,7 +220,7 @@ describe('useTimerSync', () => {
       const mockUnsubscribe = vi.fn();
       mockListen.mockResolvedValue(mockUnsubscribe);
 
-      const { unmount } = renderHook(() => useTimerSync());
+      const { unmount } = renderHook(() => useTimerSync(), { wrapper: ActiveTimerProvider });
 
       unmount();
 

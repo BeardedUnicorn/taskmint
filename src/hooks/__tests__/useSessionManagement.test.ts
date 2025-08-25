@@ -9,6 +9,7 @@ import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useSessionManagement } from '../useSessionManagement';
+import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { listen } from '@tauri-apps/api/event';
 const mockListen = vi.mocked(listen);
@@ -79,7 +80,7 @@ describe('useSessionManagement', () => {
       const sessions = [mockSession];
       mockInvoke.mockResolvedValueOnce(sessions);
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.sessions).toEqual(sessions);
@@ -94,7 +95,7 @@ describe('useSessionManagement', () => {
       const sessions = [mockSession, activeSession];
       mockInvoke.mockResolvedValueOnce(sessions);
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.activeSession).toEqual(activeSession);
@@ -105,7 +106,7 @@ describe('useSessionManagement', () => {
       const error = new Error('Failed to load sessions');
       mockInvoke.mockRejectedValueOnce(error);
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.error).toBe('Failed to load sessions');
@@ -125,7 +126,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce(newSession) // Create session
         .mockResolvedValueOnce([newSession]); // Reload sessions
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -149,7 +150,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce([]) // Initial load
         .mockRejectedValueOnce(error); // Create session fails
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -172,7 +173,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce(newSession) // Create session
         .mockResolvedValueOnce([newSession]); // Reload sessions
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -196,7 +197,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce([mockSession]) // Initial load
         .mockResolvedValueOnce(updatedSession); // Update session
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.sessions).toEqual([mockSession]);
@@ -224,7 +225,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce([activeSession]) // Initial load
         .mockResolvedValueOnce(updatedSession); // Update session
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.activeSession).toEqual(activeSession);
@@ -246,7 +247,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce([mockSession]) // Initial load
         .mockResolvedValueOnce(undefined); // Delete session
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.sessions).toEqual([mockSession]);
@@ -269,7 +270,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce([activeSession]) // Initial load
         .mockResolvedValueOnce(undefined); // Delete session
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.activeSession).toEqual(activeSession);
@@ -290,7 +291,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce(mockTimerInstance) // Create instance
         .mockResolvedValueOnce([mockSession]); // Reload sessions
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -313,7 +314,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce([mockSession]) // Initial load
         .mockResolvedValueOnce(updatedSession); // Start timer
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -335,7 +336,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce([mockSession]) // Initial load
         .mockResolvedValueOnce(updatedSession); // Stop timer
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -363,7 +364,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce([sessionWithStopped]) // Initial load
         .mockResolvedValueOnce(sessionAfterStart); // start_timer_instance creates new instance internally
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -395,7 +396,7 @@ describe('useSessionManagement', () => {
         .mockResolvedValueOnce(afterStop) // Stop running timer
         .mockResolvedValueOnce(afterStart); // Retry start
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -422,13 +423,13 @@ describe('useSessionManagement', () => {
         };
       });
 
-      const { unmount } = renderHook(() => useSessionManagement());
+      const { unmount } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
       await waitFor(() => expect(activeListeners).toBe(1));
 
       unmount();
       await waitFor(() => expect(activeListeners).toBe(0));
 
-      renderHook(() => useSessionManagement());
+      renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
       await waitFor(() => expect(activeListeners).toBe(1));
     });
   });
@@ -437,7 +438,7 @@ describe('useSessionManagement', () => {
     it('should get session by ID', async () => {
       mockInvoke.mockResolvedValueOnce([mockSession]);
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.sessions).toEqual([mockSession]);
@@ -455,7 +456,7 @@ describe('useSessionManagement', () => {
       const sessions = [mockSession, session2];
       mockInvoke.mockResolvedValueOnce(sessions);
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.sessions).toEqual(sessions);
@@ -469,7 +470,7 @@ describe('useSessionManagement', () => {
       const activeSession = { ...mockSession, isActive: true };
       mockInvoke.mockResolvedValueOnce([activeSession]);
 
-      const { result } = renderHook(() => useSessionManagement());
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
         expect(result.current.activeSession).toEqual(activeSession);
@@ -488,7 +489,7 @@ describe('useSessionManagement', () => {
           .mockResolvedValueOnce([mockSession]) // Initial load
           .mockResolvedValueOnce(updatedSession); // pause_timer_instance
 
-        const { result } = renderHook(() => useSessionManagement());
+        const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
         await waitFor(() => {
           expect(result.current.isLoading).toBe(false);
@@ -510,7 +511,7 @@ describe('useSessionManagement', () => {
           .mockResolvedValueOnce([mockSession]) // Initial load
           .mockRejectedValueOnce(new Error(errorMessage)); // pause_timer_instance fails
 
-        const { result } = renderHook(() => useSessionManagement());
+        const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
         await waitFor(() => {
           expect(result.current.isLoading).toBe(false);
@@ -543,7 +544,7 @@ describe('useSessionManagement', () => {
           .mockResolvedValueOnce([mockSession]) // Initial load
           .mockResolvedValueOnce(sessionWithRunningTimer); // resume_timer_instance
 
-        const { result } = renderHook(() => useSessionManagement());
+        const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
         await waitFor(() => {
           expect(result.current.isLoading).toBe(false);
@@ -565,7 +566,7 @@ describe('useSessionManagement', () => {
           .mockResolvedValueOnce([mockSession]) // Initial load
           .mockRejectedValueOnce(new Error(errorMessage)); // resume_timer_instance fails
 
-        const { result } = renderHook(() => useSessionManagement());
+        const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
         await waitFor(() => {
           expect(result.current.isLoading).toBe(false);
@@ -591,7 +592,7 @@ describe('useSessionManagement', () => {
           .mockResolvedValueOnce([mockSession]) // Initial load
           .mockResolvedValue(updatedSession); // All timer operations return updated session
 
-        const { result } = renderHook(() => useSessionManagement());
+        const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
         await waitFor(() => {
           expect(result.current.isLoading).toBe(false);
