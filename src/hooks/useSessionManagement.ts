@@ -99,6 +99,25 @@ export function useSessionManagement(): UseSessionManagementReturn {
       setError(null);
 
       try {
+        const parentSession = sessions.find(s =>
+          s.timerInstances.some(t => t.id === instanceId)
+        );
+
+        if (parentSession) {
+          const runningInstance = parentSession.timerInstances.find(i => i.isRunning);
+          if (!runningInstance) {
+            const newInstance = await invoke<TimerInstance>('create_timer_instance', {
+              sessionId: parentSession.id,
+            });
+            const startedSession = await invoke<TaskSession>('start_timer_instance', {
+              instanceId: newInstance.id,
+            });
+            updateLocalSession(startedSession);
+            showSuccess('Timer started');
+            return;
+          }
+        }
+
         const updatedSession = await invoke<TaskSession>('start_timer_instance', { instanceId });
         updateLocalSession(updatedSession);
         showSuccess('Timer started');

@@ -97,39 +97,40 @@ describe('SessionService', () => {
       (SESSION_CONSTANTS as any).MAX_TIMER_INSTANCES_PER_SESSION = originalLimit;
     });
 
-    it('resets timing fields when restarted', async () => {
+    it('creates a new timer instance on each restart', async () => {
       vi.useFakeTimers();
       const base = new Date('2023-01-01T00:00:00Z');
       vi.setSystemTime(base);
 
       const session = await sessionService.createSession('task-1', 'Test Task');
+      await sessionService.setActiveSession(session);
       const instance = await sessionService.createTimerInstance(session.id);
 
-      await sessionService.setActiveSession(session);
       await sessionService.startTimerInstance(instance.id);
 
       vi.setSystemTime(new Date(base.getTime() + 1000));
       await sessionService.stopTimerInstance(instance.id);
 
-      let updated = await sessionService.getTimerInstanceById(instance.id);
-      expect(updated?.duration).toBe(1000);
-      expect(updated?.endTime).toBeInstanceOf(Date);
+      let updatedSession = await sessionService.getSessionById(session.id);
+      expect(updatedSession?.timerInstances).toHaveLength(1);
+      expect(updatedSession?.timerInstances[0].duration).toBe(1000);
 
       vi.setSystemTime(new Date(base.getTime() + 5000));
       await sessionService.startTimerInstance(instance.id);
 
-      updated = await sessionService.getTimerInstanceById(instance.id);
-      expect(updated?.endTime).toBeUndefined();
-      expect(updated?.duration).toBeUndefined();
-      expect(updated?.pausedDuration).toBe(0);
-      expect(updated?.isRunning).toBe(true);
+      updatedSession = await sessionService.getSessionById(session.id);
+      expect(updatedSession?.timerInstances).toHaveLength(2);
+      const newInstance = updatedSession?.timerInstances[1];
+      expect(newInstance?.isRunning).toBe(true);
+      expect(newInstance?.id).not.toBe(instance.id);
 
       vi.setSystemTime(new Date(base.getTime() + 7000));
-      await sessionService.stopTimerInstance(instance.id);
+      if (newInstance) {
+        await sessionService.stopTimerInstance(newInstance.id);
+      }
 
-      updated = await sessionService.getTimerInstanceById(instance.id);
-      expect(updated?.duration).toBe(2000);
-      expect(updated?.endTime).toBeInstanceOf(Date);
+      updatedSession = await sessionService.getSessionById(session.id);
+      expect(updatedSession?.timerInstances[1].duration).toBe(2000);
     });
 
     it('prevents starting multiple timers simultaneously', async () => {
