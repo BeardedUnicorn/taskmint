@@ -96,6 +96,7 @@ describe('SessionService', () => {
       const session = await sessionService.createSession('task-1', 'Test Task');
       const instance = await sessionService.createTimerInstance(session.id);
 
+      await sessionService.setActiveSession(session);
       await sessionService.startTimer(instance.id);
 
       vi.setSystemTime(new Date(base.getTime() + 1000));
@@ -128,13 +129,29 @@ describe('SessionService', () => {
       const instance1 = await sessionService.createTimerInstance(session1.id);
       const instance2 = await sessionService.createTimerInstance(session2.id);
 
+      await sessionService.setActiveSession(session1);
       await sessionService.startTimer(instance1.id);
+
+      await sessionService.setActiveSession(session2);
       await expect(sessionService.startTimer(instance2.id)).rejects.toThrow('Another timer instance is already running');
 
       const runningInstance = await sessionService.getTimerInstanceById(instance1.id);
       expect(runningInstance?.isRunning).toBe(true);
     });
+
+    it('prevents starting timer when session is inactive', async () => {
+      const session = await sessionService.createSession('task-1', 'Test Task');
+      const instance = await sessionService.createTimerInstance(session.id);
+
+      await expect(sessionService.startTimer(instance.id)).rejects.toThrow('Cannot start timer for inactive session');
+
+      await sessionService.setActiveSession(session);
+      await expect(sessionService.startTimer(instance.id)).resolves.toBeUndefined();
+
+      const updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.isRunning).toBe(true);
     });
+  });
 
   describe('error paths', () => {
     it('throws when creating instance for missing session', async () => {
