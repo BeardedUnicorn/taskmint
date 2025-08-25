@@ -394,12 +394,20 @@ export class SessionService implements ISessionService {
       .flatMap(s => s.timerInstances)
       .find(i => i.isRunning);
 
-    if (runningInstance && runningInstance.id !== instanceId) {
+    let targetInstanceId = instanceId;
+    let instance = parentSession.timerInstances.find(i => i.id === instanceId);
+
+    if (!runningInstance && instance && !instance.isRunning && (instance.endTime || instance.duration)) {
+      // Previous instance has completed – create a new one
+      const newInstance = await this.createTimerInstance(parentSession.id);
+      targetInstanceId = newInstance.id;
+      instance = newInstance;
+    } else if (runningInstance && runningInstance.id !== instanceId) {
       throw new Error('Another timer instance is already running');
     }
 
     const now = new Date();
-    await this.updateTimerInstance(instanceId, {
+    await this.updateTimerInstance(targetInstanceId, {
       isRunning: true,
       isPaused: false,
       startTime: now,
@@ -420,7 +428,6 @@ export class SessionService implements ISessionService {
 
     await this.updateTimerInstance(instanceId, {
       isRunning: false,
-      isPaused: false,
       endTime: now,
       duration: Math.max(0, duration),
     });
