@@ -207,6 +207,52 @@ describe('SessionService', () => {
       expect(updated?.state).toBe(TimerState.stopped);
     });
 
+    it('excludes paused time from duration when resumed', async () => {
+      vi.useFakeTimers();
+      const base = new Date('2023-01-01T00:00:00Z');
+      vi.setSystemTime(base);
+
+      const session = await sessionService.createSession('task-1', 'Task');
+      await sessionService.setActiveSession(session);
+      const instance = await sessionService.createTimerInstance(session.id);
+
+      await sessionService.startTimerInstance(instance.id);
+
+      vi.setSystemTime(new Date(base.getTime() + 1000));
+      await sessionService.pauseTimerInstance(instance.id);
+
+      vi.setSystemTime(new Date(base.getTime() + 3000));
+      await sessionService.resumeTimerInstance(instance.id);
+
+      vi.setSystemTime(new Date(base.getTime() + 4000));
+      await sessionService.stopTimerInstance(instance.id);
+
+      const updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.duration).toBe(2000);
+    });
+
+    it('stopping a paused timer finalizes and prevents resumption', async () => {
+      vi.useFakeTimers();
+      const base = new Date('2023-01-01T00:00:00Z');
+      vi.setSystemTime(base);
+
+      const session = await sessionService.createSession('task-1', 'Task');
+      await sessionService.setActiveSession(session);
+      const instance = await sessionService.createTimerInstance(session.id);
+
+      await sessionService.startTimerInstance(instance.id);
+
+      vi.setSystemTime(new Date(base.getTime() + 1000));
+      await sessionService.pauseTimerInstance(instance.id);
+
+      vi.setSystemTime(new Date(base.getTime() + 3000));
+      await sessionService.stopTimerInstance(instance.id);
+
+      const updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.duration).toBe(1000);
+      await expect(sessionService.resumeTimerInstance(instance.id)).rejects.toThrow();
+    });
+
     it('blocks invalid state transitions', async () => {
       const session = await sessionService.createSession('task-1', 'Task');
       const instance = await sessionService.createTimerInstance(session.id);

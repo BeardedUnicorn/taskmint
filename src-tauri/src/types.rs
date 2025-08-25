@@ -102,6 +102,8 @@ pub struct TimerInstance {
     pub paused_at: Option<DateTime<Utc>>,
     #[serde(rename = "pausedDuration")]
     pub paused_duration: Option<u64>, // Total time paused in milliseconds
+    #[serde(rename = "resumedAt")]
+    pub resumed_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: String,
