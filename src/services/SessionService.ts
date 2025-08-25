@@ -360,6 +360,9 @@ export class SessionService implements ISessionService {
       isRunning: true,
       isPaused: false,
       startTime: now,
+      endTime: undefined,
+      duration: undefined,
+      pausedDuration: 0,
     });
   }
 
