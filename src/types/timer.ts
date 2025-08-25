@@ -8,6 +8,14 @@
 import { z } from 'zod';
 import { Task } from './task';
 
+// Timer state machine
+export enum TimerState {
+  idle = 'idle',
+  running = 'running',
+  paused = 'paused',
+  stopped = 'stopped',
+}
+
 export interface TimeEntry {
   id: string;
   taskName: string;
@@ -122,8 +130,11 @@ export interface TimerInstance {
   startTime: Date;
   endTime?: Date;
   duration?: number; // in milliseconds
-  isRunning: boolean;
-  isPaused: boolean;
+  state: TimerState;
+  /** @deprecated use state instead */
+  isRunning?: boolean;
+  /** @deprecated use state instead */
+  isPaused?: boolean;
   pausedAt?: Date;
   pausedDuration?: number; // Total time paused in milliseconds
   notes?: string; // Timer-level notes
@@ -189,8 +200,9 @@ export const TimerInstanceSchema = z.object({
   startTime: z.coerce.date(),
   endTime: z.coerce.date().optional(),
   duration: z.number().min(0).optional(),
-  isRunning: z.boolean(),
-  isPaused: z.boolean(),
+  state: z.enum(['idle', 'running', 'paused', 'stopped']),
+  isRunning: z.boolean().optional(),
+  isPaused: z.boolean().optional(),
   pausedAt: z.coerce.date().optional(),
   pausedDuration: z.number().min(0).optional(),
   notes: z.string().optional(),

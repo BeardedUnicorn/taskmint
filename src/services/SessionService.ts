@@ -5,7 +5,7 @@
  * error handling, and business logic enforcement.
  */
 
-import { TaskSession, TimerInstance, SessionStats, TimeEntry, TimerRoundingOption } from '../types/timer';
+import { TaskSession, TimerInstance, SessionStats, TimeEntry, TimerRoundingOption, TimerState } from '../types/timer';
 import { StorageService } from './StorageService';
 import { formatDateString } from '../utils/dateHelpers';
 import { measurePerformance } from '../utils/performance';
@@ -240,6 +240,7 @@ export class SessionService implements ISessionService {
         id: instanceId,
         sessionId,
         startTime: now,
+        state: TimerState.idle,
         isRunning: false,
         isPaused: false,
         createdAt: now.toISOString(),
@@ -392,14 +393,13 @@ export class SessionService implements ISessionService {
 
     const runningInstance = sessions
       .flatMap(s => s.timerInstances)
-      .find(i => i.isRunning);
+      .find(i => i.state === TimerState.running);
 
     let targetInstanceId = instanceId;
     let instance = parentSession.timerInstances.find(i => i.id === instanceId);
 
     if (!runningInstance) {
-      if (!instance || instance.isRunning || instance.endTime || instance.duration) {
-        // No active timer - create a fresh instance instead of reusing
+      if (!instance || instance.state !== TimerState.idle || instance.endTime || instance.duration) {
         const newInstance = await this.createTimerInstance(parentSession.id);
         targetInstanceId = newInstance.id;
         instance = newInstance;
@@ -408,8 +408,13 @@ export class SessionService implements ISessionService {
       throw new Error('Another timer instance is already running');
     }
 
+    if (!instance || instance.state !== TimerState.idle) {
+      throw new Error('Timer instance is not idle');
+    }
+
     const now = new Date();
     await this.updateTimerInstance(targetInstanceId, {
+      state: TimerState.running,
       isRunning: true,
       isPaused: false,
       startTime: now,
@@ -423,10 +428,15 @@ export class SessionService implements ISessionService {
       throw new Error(`Timer instance with ID ${instanceId} not found`);
     }
 
+    if (instance.state !== TimerState.running && instance.state !== TimerState.paused) {
+      throw new Error('Cannot stop timer that is not running or paused');
+    }
+
     const now = new Date();
     const duration = now.getTime() - instance.startTime.getTime() - (instance.pausedDuration || 0);
 
     await this.updateTimerInstance(instanceId, {
+      state: TimerState.stopped,
       isRunning: false,
       isPaused: false,
       pausedAt: undefined,
@@ -436,8 +446,19 @@ export class SessionService implements ISessionService {
   }
 
   async pauseTimerInstance(instanceId: string): Promise<void> {
+    const instance = await this.getTimerInstanceById(instanceId);
+    if (!instance) {
+      throw new Error(`Timer instance with ID ${instanceId} not found`);
+    }
+
+    if (instance.state !== TimerState.running) {
+      throw new Error('Only running timers can be paused');
+    }
+
     const now = new Date();
     await this.updateTimerInstance(instanceId, {
+      state: TimerState.paused,
+      isRunning: false,
       isPaused: true,
       pausedAt: now,
     });
@@ -449,11 +470,17 @@ export class SessionService implements ISessionService {
       throw new Error(`Timer instance with ID ${instanceId} not found or not paused`);
     }
 
+    if (instance.state !== TimerState.paused) {
+      throw new Error('Only paused timers can be resumed');
+    }
+
     const now = new Date();
     const additionalPausedTime = now.getTime() - instance.pausedAt.getTime();
     const totalPausedDuration = (instance.pausedDuration || 0) + additionalPausedTime;
 
     await this.updateTimerInstance(instanceId, {
+      state: TimerState.running,
+      isRunning: true,
       isPaused: false,
       pausedAt: undefined,
       pausedDuration: totalPausedDuration,

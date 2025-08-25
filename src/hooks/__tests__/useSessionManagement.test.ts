@@ -9,7 +9,7 @@ import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useSessionManagement } from '../useSessionManagement';
-import { TaskSession, TimerInstance } from '../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { listen } from '@tauri-apps/api/event';
 const mockListen = vi.mocked(listen);
 
@@ -59,8 +59,7 @@ describe('useSessionManagement', () => {
     id: 'instance-1',
     sessionId: 'session-1',
     startTime: new Date('2024-01-15T10:00:00Z'),
-    isRunning: false,
-    isPaused: false,
+    state: TimerState.idle,
     createdAt: '2024-01-15T10:00:00Z',
     updatedAt: '2024-01-15T10:00:00Z',
   };
@@ -309,7 +308,7 @@ describe('useSessionManagement', () => {
     });
 
     it('should start a timer instance', async () => {
-      const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, isRunning: true }] };
+      const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, state: TimerState.running }] };
       mockInvoke
         .mockResolvedValueOnce([mockSession]) // Initial load
         .mockResolvedValueOnce(updatedSession); // Start timer
@@ -331,7 +330,7 @@ describe('useSessionManagement', () => {
     });
 
     it('should stop a timer instance', async () => {
-      const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, isRunning: false }] };
+      const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, state: TimerState.stopped }] };
       mockInvoke
         .mockResolvedValueOnce([mockSession]) // Initial load
         .mockResolvedValueOnce(updatedSession); // Stop timer
@@ -353,11 +352,11 @@ describe('useSessionManagement', () => {
     });
 
     it('should append a new timer instance when restarting', async () => {
-      const stoppedInstance = { ...mockTimerInstance, endTime: new Date(), duration: 1000 };
+      const stoppedInstance = { ...mockTimerInstance, endTime: new Date(), duration: 1000, state: TimerState.stopped };
       const sessionWithStopped = { ...mockSession, timerInstances: [stoppedInstance] };
       const sessionAfterStart = {
         ...mockSession,
-        timerInstances: [stoppedInstance, { ...mockTimerInstance, id: 'instance-2', isRunning: true }],
+        timerInstances: [stoppedInstance, { ...mockTimerInstance, id: 'instance-2', state: TimerState.running }],
       };
 
       mockInvoke
@@ -376,18 +375,18 @@ describe('useSessionManagement', () => {
 
       expect(mockInvoke).toHaveBeenNthCalledWith(2, 'start_timer_instance', { instanceId: 'instance-1' });
       expect(result.current.sessions[0].timerInstances).toHaveLength(2);
-      expect(result.current.sessions[0].timerInstances[1].isRunning).toBe(true);
+      expect(result.current.sessions[0].timerInstances[1].state).toBe(TimerState.running);
       expect(mockShowSuccess).toHaveBeenCalledWith('Timer started');
     });
 
     it('should stop an existing timer before starting another', async () => {
-      const runningInstance = { ...mockTimerInstance, id: 'instance-1', isRunning: true };
-      const newInstance = { ...mockTimerInstance, id: 'instance-2', isRunning: false };
+      const runningInstance = { ...mockTimerInstance, id: 'instance-1', state: TimerState.running };
+      const newInstance = { ...mockTimerInstance, id: 'instance-2', state: TimerState.idle };
       const initialSession = { ...mockSession, timerInstances: [runningInstance, newInstance] };
-      const afterStop = { ...mockSession, timerInstances: [{ ...runningInstance, isRunning: false }, newInstance] };
+      const afterStop = { ...mockSession, timerInstances: [{ ...runningInstance, state: TimerState.stopped }, newInstance] };
       const afterStart = {
         ...mockSession,
-        timerInstances: [{ ...runningInstance, isRunning: false }, { ...newInstance, isRunning: true }],
+        timerInstances: [{ ...runningInstance, state: TimerState.stopped }, { ...newInstance, state: TimerState.running }],
       };
 
       mockInvoke
@@ -484,7 +483,7 @@ describe('useSessionManagement', () => {
   describe('Pause/Resume Functionality', () => {
     describe('pauseTimerInstance', () => {
       it('should pause a timer instance successfully', async () => {
-        const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, isPaused: true }] };
+        const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, state: TimerState.paused }] };
         mockInvoke
           .mockResolvedValueOnce([mockSession]) // Initial load
           .mockResolvedValueOnce(updatedSession); // pause_timer_instance
@@ -536,7 +535,7 @@ describe('useSessionManagement', () => {
           ...mockSession,
           timerInstances: [{
             ...mockTimerInstance,
-            isRunning: true,
+            state: TimerState.running,
           }],
         };
 

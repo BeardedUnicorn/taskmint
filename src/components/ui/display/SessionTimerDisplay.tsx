@@ -25,7 +25,7 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
 } from '@mui/icons-material';
-import { TaskSession, TimerInstance } from '../../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
 import { useTimer } from '../../../hooks/useTimer';
 
@@ -58,7 +58,7 @@ export function SessionTimerDisplay({
   onOpenNotes,
   sx,
 }: SessionTimerDisplayProps) {
-  const runningInstance = session.timerInstances?.find(i => i.isRunning);
+  const runningInstance = session.timerInstances?.find(i => i.state === TimerState.running);
 
 
   const getDisplaySize = () => {
@@ -244,8 +244,8 @@ function TimerInstanceRow({
   onOpenNotes,
   isSessionActive,
 }: TimerInstanceRowProps) {
-  const currentElapsed = useTimer(instance.isRunning || false, startTime);
-  const displayTime = instance.isRunning ? currentElapsed : (instance.duration || 0);
+  const currentElapsed = useTimer(instance.state === TimerState.running, startTime);
+  const displayTime = instance.state === TimerState.running ? currentElapsed : (instance.duration || 0);
   const isSmall = size === 'small';
 
   return (
@@ -256,14 +256,14 @@ function TimerInstanceRow({
         gap: 1,
         p: 1,
         borderRadius: 1,
-        bgcolor: instance.isRunning 
-          ? 'success.light' 
-          : instance.isPaused 
-            ? 'warning.light' 
-            : isSessionActive 
-              ? 'primary.dark' 
+        bgcolor: instance.state === TimerState.running
+          ? 'success.light'
+          : instance.state === TimerState.paused
+            ? 'warning.light'
+            : isSessionActive
+              ? 'primary.dark'
               : 'grey.100',
-        color: instance.isRunning || instance.isPaused || isSessionActive ? 'white' : 'text.primary',
+        color: instance.state === TimerState.running || instance.state === TimerState.paused || isSessionActive ? 'white' : 'text.primary',
       }}
     >
       <TimerIcon fontSize={isSmall ? 'small' : 'medium'} />
@@ -283,7 +283,7 @@ function TimerInstanceRow({
         {formatTime(displayTime)}
       </Typography>
 
-      {instance.isRunning && (
+      {instance.state === TimerState.running && (
         <Chip
           size="small"
           label="Running"
@@ -292,7 +292,7 @@ function TimerInstanceRow({
         />
       )}
 
-      {instance.isPaused && (
+      {instance.state === TimerState.paused && (
         <Chip
           size="small"
           label="Paused"
@@ -303,7 +303,7 @@ function TimerInstanceRow({
 
       {showControls && (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {!instance.isRunning && !instance.isPaused && (
+          {instance.state !== TimerState.running && instance.state !== TimerState.paused && (
             <Tooltip title="Start Timer">
               <IconButton size="small" onClick={onStart} sx={{ color: 'inherit' }}>
                 <PlayIcon fontSize="small" />
@@ -311,7 +311,7 @@ function TimerInstanceRow({
             </Tooltip>
           )}
           
-          {instance.isRunning && (
+          {instance.state === TimerState.running && (
             <>
               <Tooltip title="Pause Timer">
                 <IconButton size="small" onClick={onPause} sx={{ color: 'inherit' }}>
@@ -326,7 +326,7 @@ function TimerInstanceRow({
             </>
           )}
           
-          {instance.isPaused && (
+          {instance.state === TimerState.paused && (
             <Tooltip title="Resume Timer">
               <IconButton size="small" onClick={onResume} sx={{ color: 'inherit' }}>
                 <PlayIcon fontSize="small" />
@@ -335,7 +335,7 @@ function TimerInstanceRow({
           )}
           
         {/* Edit and Delete buttons - only show for stopped timers */}
-        {!instance.isRunning && !instance.isPaused && (
+        {instance.state !== TimerState.running && instance.state !== TimerState.paused && (
           <>
             <Tooltip title="Edit Timer">
               <IconButton size="small" onClick={onEdit} sx={{ color: 'inherit' }}>

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { SessionService } from '../SessionService';
 import { SESSION_CONSTANTS } from '../../constants';
 import type { TaskSession } from '../../types/timer';
+import { TimerState } from '../../types/timer';
 
 // Mock StorageService
 const mockStorageService = {
@@ -121,7 +122,7 @@ describe('SessionService', () => {
       updatedSession = await sessionService.getSessionById(session.id);
       expect(updatedSession?.timerInstances).toHaveLength(2);
       const newInstance = updatedSession?.timerInstances[1];
-      expect(newInstance?.isRunning).toBe(true);
+      expect(newInstance?.state).toBe(TimerState.running);
       expect(newInstance?.id).not.toBe(instance.id);
 
       vi.setSystemTime(new Date(base.getTime() + 7000));
@@ -141,7 +142,7 @@ describe('SessionService', () => {
       updatedSession = await sessionService.getSessionById(session.id);
       expect(updatedSession?.timerInstances).toHaveLength(3);
       const thirdInstance = updatedSession?.timerInstances[2];
-      expect(thirdInstance?.isRunning).toBe(true);
+      expect(thirdInstance?.state).toBe(TimerState.running);
       expect(thirdInstance?.id).not.toBe(newInstance?.id);
 
       vi.setSystemTime(new Date(base.getTime() + 10000));
@@ -166,7 +167,7 @@ describe('SessionService', () => {
       await expect(sessionService.startTimerInstance(instance2.id)).rejects.toThrow('Another timer instance is already running');
 
       const runningInstance = await sessionService.getTimerInstanceById(instance1.id);
-      expect(runningInstance?.isRunning).toBe(true);
+      expect(runningInstance?.state).toBe(TimerState.running);
     });
 
     it('prevents starting timer when session is inactive', async () => {
@@ -179,7 +180,38 @@ describe('SessionService', () => {
       await expect(sessionService.startTimerInstance(instance.id)).resolves.toBeUndefined();
 
       const updated = await sessionService.getTimerInstanceById(instance.id);
-      expect(updated?.isRunning).toBe(true);
+      expect(updated?.state).toBe(TimerState.running);
+    });
+
+    it('handles valid state transitions', async () => {
+      const session = await sessionService.createSession('task-1', 'Task');
+      await sessionService.setActiveSession(session);
+      const instance = await sessionService.createTimerInstance(session.id);
+
+      await sessionService.startTimerInstance(instance.id);
+      let updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.state).toBe(TimerState.running);
+
+      await sessionService.pauseTimerInstance(instance.id);
+      updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.state).toBe(TimerState.paused);
+
+      await sessionService.resumeTimerInstance(instance.id);
+      updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.state).toBe(TimerState.running);
+
+      await sessionService.stopTimerInstance(instance.id);
+      updated = await sessionService.getTimerInstanceById(instance.id);
+      expect(updated?.state).toBe(TimerState.stopped);
+    });
+
+    it('blocks invalid state transitions', async () => {
+      const session = await sessionService.createSession('task-1', 'Task');
+      const instance = await sessionService.createTimerInstance(session.id);
+
+      await expect(sessionService.pauseTimerInstance(instance.id)).rejects.toThrow();
+      await expect(sessionService.resumeTimerInstance(instance.id)).rejects.toThrow();
+      await expect(sessionService.stopTimerInstance(instance.id)).rejects.toThrow();
     });
   });
 
