@@ -116,6 +116,8 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
           onClick={() => setIsCollapsed(!isCollapsed)}
           size="small"
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!isCollapsed}
+          aria-controls="sidebar-navigation"
           sx={{
             ml: isCollapsed ? 0 : 1,
           }}
@@ -126,7 +128,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
 
       <Divider />
 
-      <List sx={{ pt: 1 }}>
+      <List id="sidebar-navigation" sx={{ pt: 1 }}>
         {navigationItems.map((item) => {
           const IconComponent = item.icon;
           const isSelected = activeView === item.id;
