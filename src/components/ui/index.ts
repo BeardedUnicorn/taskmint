@@ -24,3 +24,6 @@ export { UpgradeDialog } from './UpgradeDialog';
 
 // Loading Components
 export * from './loading';
+
+// Headers
+export { SearchListHeader } from './SearchListHeader';
