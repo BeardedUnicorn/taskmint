@@ -99,6 +99,11 @@ vi.mock('../../../hooks/useTasks', () => ({
   useTasks: () => mockTasksHook,
 }));
 
+// Mock useDailyGoals hook
+vi.mock('../../../hooks/useDailyGoals', () => ({
+  useDailyGoals: () => ({ currentGoal: null }),
+}));
+
 // Mock useInactivityDetection hook
 const mockResetActivity = vi.fn();
 const mockPauseDetection = vi.fn();
@@ -208,10 +213,15 @@ describe('SessionDashboard', () => {
   describe('Initial Rendering', () => {
     it('should render the dashboard with no sessions', () => {
       renderDashboard();
-      
+
       expect(screen.getByText('All Sessions')).toBeInTheDocument();
       // The FAB button should be present for creating sessions
       expect(screen.getByLabelText('create session')).toBeInTheDocument();
+    });
+
+    it('renders daily goal progress widget', () => {
+      renderDashboard();
+      expect(screen.getByText('Daily goal not active')).toBeInTheDocument();
     });
 
     it('should show loading state when sessions are loading', () => {

@@ -33,10 +33,12 @@ import { useSessionManagement } from '../../hooks/useSessionManagement';
 import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTasks } from '../../hooks/useTasks';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useDailyGoals } from '../../hooks/useDailyGoals';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
+import { DailyGoalProgressWidget } from '../ui/display/DailyGoalProgressWidget';
 import { formatDuration } from '../../utils/formatters';
 import { formatDateString } from '../../utils/dateHelpers';
 
@@ -84,6 +86,7 @@ export function SessionDashboard() {
   } = useInactivityDetection();
 
   const { tasks, isLoading: tasksLoading } = useTasks();
+  const { currentGoal } = useDailyGoals();
   const { showError, showSuccess } = useNotification();
 
   interface DashboardStats {
@@ -305,6 +308,10 @@ export function SessionDashboard() {
           icon={<TaskIcon sx={{ fontSize: 40 }} />}
           color="info"
         />
+      </Box>
+
+      <Box sx={{ mb: 4 }}>
+        <DailyGoalProgressWidget currentEarnings={stats.earningsToday} dailyGoal={currentGoal} />
       </Box>
 
       <Box sx={{ display: 'flex', gap: 4, flexDirection: { xs: 'column', md: 'row' } }}>
