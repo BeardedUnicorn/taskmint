@@ -270,7 +270,7 @@ export const DEFAULT_ENHANCED_TIMER_SETTINGS: EnhancedTimerSettings = {
 // COMPONENT PROPS INTERFACES FOR SESSION SYSTEM
 // ============================================================================
 
-export interface SessionTimerBarProps {
+export interface SessionTimerToolbarProps {
   activeSession: TaskSession | null;
   predefinedTasks: Task[];
   onStartSession: (taskId: string, taskName: string) => Promise<TaskSession | null>;

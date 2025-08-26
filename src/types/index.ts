@@ -23,7 +23,7 @@ export type {
   EnhancedTimerSettings,
   TimerActivityState,
   SessionStats,
-  SessionTimerBarProps,
+  SessionTimerToolbarProps,
   SessionListProps,
   TimerInstanceListProps,
   InactivityWarningProps,

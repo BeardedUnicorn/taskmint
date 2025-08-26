@@ -10,7 +10,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionDashboard } from '../../components/pages/SessionDashboard';
-import { SessionTimerBar } from '../../components/layout/SessionTimerBar';
+import { SessionTimerToolbar } from '../../components/layout/SessionTimerToolbar';
 import { TaskSession, TimerInstance } from '../../types/timer';
 import { Task } from '../../types/task';
 import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
@@ -362,7 +362,7 @@ describe('Session System Integration', () => {
   describe('Session Timer Bar Integration', () => {
     it('should render timer bar with no active session', () => {
       render(
-        <SessionTimerBar
+        <SessionTimerToolbar
           activeSession={null}
           predefinedTasks={mockTasks}
           onStartSession={vi.fn()}
@@ -390,7 +390,7 @@ describe('Session System Integration', () => {
       };
 
       render(
-        <SessionTimerBar
+        <SessionTimerToolbar
           activeSession={activeSession}
           predefinedTasks={mockTasks}
           onStartSession={vi.fn()}
@@ -422,7 +422,7 @@ describe('Session System Integration', () => {
       };
 
       render(
-        <SessionTimerBar
+        <SessionTimerToolbar
           activeSession={activeSession}
           predefinedTasks={mockTasks}
           onStartSession={vi.fn()}

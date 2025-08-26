@@ -1,5 +1,5 @@
 /**
- * Enhanced SessionTimerBar Component
+ * Enhanced SessionTimerToolbar Component
  * 
  * Improved version with pause/resume functionality, multiple timer instances,
  * better visual feedback, and proper error handling.
@@ -30,7 +30,7 @@ import { Task } from '../../types/task';
 import { useNotification } from '../../contexts/NotificationContext';
 import { invoke } from '@tauri-apps/api/tauri';
 
-interface EnhancedSessionTimerBarProps {
+interface EnhancedSessionTimerToolbarProps {
   activeSession: TaskSession | null;
   predefinedTasks: Task[];
   onStartSession: (taskId: string | null, taskName: string) => Promise<void>;
@@ -201,7 +201,7 @@ const TimerInstanceCard: React.FC<{
 };
 
 // Main enhanced session timer bar component
-export const EnhancedSessionTimerBar: React.FC<EnhancedSessionTimerBarProps> = ({
+export const EnhancedSessionTimerToolbar: React.FC<EnhancedSessionTimerToolbarProps> = ({
   activeSession,
   predefinedTasks,
   onStartSession,
