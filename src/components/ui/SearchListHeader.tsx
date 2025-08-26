@@ -25,7 +25,12 @@ export function SearchListHeader({
   searchPlaceholder = 'Search...',
   searchFieldProps,
 }: SearchListHeaderProps) {
-  const { InputProps: inputProps, fullWidth, ...rest } = searchFieldProps || {};
+  const {
+    InputProps: inputProps,
+    inputProps: inputElementProps,
+    fullWidth,
+    ...rest
+  } = searchFieldProps || {};
 
   return (
     <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -47,6 +52,12 @@ export function SearchListHeader({
             </InputAdornment>
           ),
           ...inputProps,
+        }}
+        inputProps={{
+          'aria-label':
+            inputElementProps?.['aria-label'] ??
+            searchPlaceholder.replace(/\.\.\.$/, ''),
+          ...inputElementProps,
         }}
         fullWidth={fullWidth ?? true}
         {...rest}

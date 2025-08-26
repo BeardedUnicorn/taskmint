@@ -258,6 +258,7 @@ export function NotesPage({ tasks, activeEntry, notesPageState }: NotesPageProps
           {/* Search */}
           <TextField
             size="small"
+            label="Search notes"
             placeholder="Search notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
