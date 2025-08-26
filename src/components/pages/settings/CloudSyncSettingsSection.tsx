@@ -1,7 +1,6 @@
 import {
   Box,
   Typography,
-  Paper,
   Button,
   Stack,
   Alert,
@@ -17,6 +16,7 @@ import {
   CloudOff as CloudOffIcon,
   Sync as SyncIcon,
 } from '@mui/icons-material';
+import { SettingsSection } from './SettingsSection';
 import { useCloudSync } from '../../../hooks/useCloudSync';
 
 interface CloudSyncSettingsSectionProps {
@@ -80,13 +80,7 @@ export function CloudSyncSettingsSection({ onSuccess, onError }: CloudSyncSettin
   };
 
   return (
-    <Paper sx={{ p: 3, mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <CloudIcon color="primary" />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Cloud Sync (Google Drive)
-        </Typography>
-      </Box>
+      <SettingsSection title="Cloud Sync (Google Drive)" icon={<CloudIcon color="primary" />}>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Synchronize your data with Google Drive for backup and access across devices.
@@ -184,6 +178,6 @@ export function CloudSyncSettingsSection({ onSuccess, onError }: CloudSyncSettin
           Your data is encrypted and only accessible by you.
         </Typography>
       </Alert>
-    </Paper>
+    </SettingsSection>
   );
 }

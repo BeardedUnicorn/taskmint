@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
   Button,
   Stack,
   Alert,
@@ -14,6 +13,7 @@ import {
   FormControlLabel,
 } from '@mui/material';
 import { TrendingUp as GoalIcon } from '@mui/icons-material';
+import { SettingsSection } from './SettingsSection';
 import { CurrencyInput } from '../../ui/forms/CurrencyInput';
 import { useDailyGoals } from '../../../hooks/useDailyGoals';
 
@@ -83,13 +83,7 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
   };
 
   return (
-    <Paper sx={{ p: 3, mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <GoalIcon color="primary" />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Daily Earnings Goal
-        </Typography>
-      </Box>
+      <SettingsSection title="Daily Earnings Goal" icon={<GoalIcon color="primary" />}>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Set a daily earnings target to track your progress and receive notifications when you reach milestones.
@@ -173,6 +167,6 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
           The goal resets automatically each day.
         </Typography>
       </Alert>
-    </Paper>
+    </SettingsSection>
   );
 }

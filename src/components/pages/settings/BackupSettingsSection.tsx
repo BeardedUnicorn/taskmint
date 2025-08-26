@@ -1,7 +1,6 @@
 import {
   Box,
   Typography,
-  Paper,
   Button,
   Stack,
   Alert,
@@ -19,6 +18,7 @@ import {
   Backup as BackupIcon,
   Folder as FolderIcon,
 } from '@mui/icons-material';
+import { SettingsSection } from './SettingsSection';
 import { useBackupSettings } from '../../../hooks/useBackupSettings';
 import { BackupFrequency, getBackupFrequencyLabel } from '../../../types/backup';
 
@@ -72,13 +72,7 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
   };
 
   return (
-    <Paper sx={{ p: 3, mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <BackupIcon color="primary" />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Automatic Backups
-        </Typography>
-      </Box>
+      <SettingsSection title="Automatic Backups" icon={<BackupIcon color="primary" />}>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Configure automatic periodic backups to protect your data. Backups are saved locally to your chosen directory.
@@ -195,6 +189,6 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
           Manual backups can be created at any time using the "Backup Now" button.
         </Typography>
       </Alert>
-    </Paper>
+    </SettingsSection>
   );
 }

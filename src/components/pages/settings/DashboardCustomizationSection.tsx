@@ -1,7 +1,6 @@
 import {
   Box,
   Typography,
-  Paper,
   Button,
   Alert,
   Switch,
@@ -12,6 +11,7 @@ import {
   ListItemSecondaryAction,
 } from '@mui/material';
 import { Dashboard as DashboardIcon } from '@mui/icons-material';
+import { SettingsSection } from './SettingsSection';
 import { useDashboardSettings } from '../../../hooks/useDashboardSettings';
 import { DashboardWidgetId } from '../../../types/ui';
 
@@ -53,13 +53,7 @@ export function DashboardCustomizationSection({ onSuccess, onError }: DashboardC
   };
 
   return (
-    <Paper sx={{ p: 3, mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <DashboardIcon color="primary" />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Dashboard Customization
-        </Typography>
-      </Box>
+    <SettingsSection title="Dashboard Customization" icon={<DashboardIcon color="primary" />}>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Customize which widgets are displayed on your dashboard and their visibility.
@@ -108,6 +102,6 @@ export function DashboardCustomizationSection({ onSuccess, onError }: DashboardC
           Set up a goal above to start tracking your progress!
         </Typography>
       </Alert>
-    </Paper>
+    </SettingsSection>
   );
 }
