@@ -2,8 +2,6 @@ import { useState } from 'react';
 import {
   Box,
   Typography,
-  TextField,
-  InputAdornment,
   List,
   ListItemButton,
   ListItemText,
@@ -13,15 +11,11 @@ import {
   Chip,
   Alert,
 } from '@mui/material';
-import {
-  Search as SearchIcon,
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-} from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { Task } from '../../../types/task';
 import { AddTaskDialog } from './AddTaskDialog';
 import { formatCurrency } from '../../../utils/formatters';
+import { SearchListHeader } from '../../ui';
 
 interface TaskListPaneProps {
   tasks: Task[];
@@ -61,11 +55,12 @@ export function TaskListPane({
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Task List
-          </Typography>
+      <SearchListHeader
+        title="Task List"
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search tasks..."
+        actions={
           <Button
             variant="contained"
             size="small"
@@ -74,24 +69,8 @@ export function TaskListPane({
           >
             Add Task
           </Button>
-        </Box>
-
-        {/* Search */}
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="Search tasks..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-        />
-      </Box>
+        }
+      />
 
       {/* Task List */}
       <Box sx={{ flex: 1, overflow: 'auto' }}>

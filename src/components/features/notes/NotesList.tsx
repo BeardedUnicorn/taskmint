@@ -22,8 +22,6 @@ import {
   Menu,
   MenuItem,
   Divider,
-  TextField,
-  InputAdornment,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -40,10 +38,9 @@ import {
   FolderOpen as SessionIcon,
   Timer as TimerIcon,
   AccountTree as HierarchyIcon,
-  Search as SearchIcon,
 } from '@mui/icons-material';
 import { NotesListProps, TaskNote } from '../../../types/notes';
-import { ConfirmDialog } from '../../ui';
+import { ConfirmDialog, SearchListHeader } from '../../ui';
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 import { createTextPreview, formatMultilineText } from '../../../utils/formatters';
 import { formatRelativeDate } from '../../../utils/dateHelpers';
@@ -585,20 +582,13 @@ export function NotesList({
     return (
       <Box>
         {/* Header */}
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 2,
-            flexWrap: 'wrap',
-            gap: 2,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
-            <Typography variant="h6">
-              Notes ({sortedNotes.length})
-            </Typography>
+        <SearchListHeader
+          title={`Notes (${sortedNotes.length})`}
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Search notes..."
+          searchFieldProps={{ sx: { width: { xs: '100%', sm: 200 } } }}
+          actions={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="body2" color="text.secondary">
                 View:
@@ -621,31 +611,17 @@ export function NotesList({
               >
                 Flat
               </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={onCreateNote}
+                size="small"
+              >
+                Add Note
+              </Button>
             </Box>
-          </Box>
-          <TextField
-            size="small"
-            placeholder="Search notes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ width: { xs: '100%', sm: 200 } }}
-          />
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={onCreateNote}
-            size="small"
-          >
-            Add Note
-          </Button>
-        </Box>
+          }
+        />
 
       {/* Notes Display */}
       {viewMode === 'hierarchical' ? (
