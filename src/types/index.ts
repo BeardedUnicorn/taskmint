@@ -98,7 +98,6 @@ export type {
   DataTableProps,
   TableColumn,
   TableRow,
-  TimeEntryRowProps,
   TaskRowProps,
 } from './table';
 

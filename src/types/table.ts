@@ -52,15 +52,6 @@ export interface DataTableProps<T = any> {
 }
 
 // Specific Row Component Types
-export interface TimeEntryRowProps {
-  entry: TimeEntry;
-  tasks: Task[];
-  onEdit: (entry: TimeEntry) => void;
-  onDelete: (entryId: string) => void;
-  showEarnings?: boolean;
-  sx?: SxProps<Theme>;
-}
-
 export interface TaskRowProps {
   task: Task;
   onEdit: (task: Task) => void;
