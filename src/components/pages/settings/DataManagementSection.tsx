@@ -1,7 +1,6 @@
 import {
   Box,
   Typography,
-  Paper,
   Button,
   Stack,
   Alert,
@@ -11,6 +10,7 @@ import {
   Upload as UploadIcon,
   Storage as DataIcon,
 } from '@mui/icons-material';
+import { SettingsSection } from './SettingsSection';
 import { useDataBackup } from '../../../hooks/useDataBackup';
 
 interface DataManagementSectionProps {
@@ -58,13 +58,7 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
   };
 
   return (
-    <Paper sx={{ p: 3, mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <DataIcon color="primary" />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Data Management
-        </Typography>
-      </Box>
+      <SettingsSection title="Data Management" icon={<DataIcon color="primary" />}>
       
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Export your time tracking data for backup or import data from a previous backup.
@@ -99,6 +93,6 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
           <strong>Import:</strong> Restores data from a previously exported JSON file.
         </Typography>
       </Alert>
-    </Paper>
+    </SettingsSection>
   );
 }

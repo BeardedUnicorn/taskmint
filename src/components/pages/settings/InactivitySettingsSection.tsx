@@ -9,7 +9,6 @@ import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
   FormControlLabel,
   Switch,
   Slider,
@@ -25,6 +24,7 @@ import {
   Save as SaveIcon,
   RestartAlt as ResetIcon,
 } from '@mui/icons-material';
+import { SettingsSection } from './SettingsSection';
 import { useEnhancedTimerSettings } from '../../../hooks/useEnhancedTimerSettings';
 import { INACTIVITY_CONSTANTS } from '../../../constants';
 import { InactivitySettings } from '../../../types/timer';
@@ -99,20 +99,20 @@ export function InactivitySettingsSection({
   };
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <TimerIcon color="primary" />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Inactivity Detection
-        </Typography>
-        {localSettings.enabled && (
-          <Chip 
-            label="Enabled" 
-            color="success" 
-            size="small" 
-          />
-        )}
-      </Box>
+      <SettingsSection
+        title="Inactivity Detection"
+        icon={<TimerIcon color="primary" />}
+        headerChildren={
+          localSettings.enabled && (
+            <Chip
+              label="Enabled"
+              color="success"
+              size="small"
+            />
+          )
+        }
+        paperProps={{ sx: { mb: 0 } }}
+      >
       
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Automatically pause timers when no user activity is detected to ensure accurate time tracking.
@@ -328,6 +328,6 @@ export function InactivitySettingsSection({
           </Button>
         </Box>
       </Stack>
-    </Paper>
+    </SettingsSection>
   );
 }
