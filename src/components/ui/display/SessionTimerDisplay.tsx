@@ -21,7 +21,7 @@ import {
   Notes as NotesIcon,
 } from '@mui/icons-material';
 import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
-import { TimerInstanceRow } from './TimerInstanceRow';
+import { TimerRow } from './TimerRow';
 
 interface SessionTimerDisplayProps {
   session: TaskSession;
@@ -177,7 +177,7 @@ export function SessionTimerDisplay({
                 : undefined;
 
               return (
-                <TimerInstanceRow
+                <TimerRow
                   key={instance.id}
                   instance={instance}
                   index={index + 1}

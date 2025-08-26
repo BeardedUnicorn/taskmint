@@ -12,7 +12,7 @@ import { TimerInstance, TimerState } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
 import { useTimer } from '../../../hooks/useTimer';
 
-export interface TimerInstanceRowProps {
+export interface TimerRowProps {
   instance: TimerInstance;
   index: number;
   startTime?: Date;
@@ -29,7 +29,7 @@ export interface TimerInstanceRowProps {
   isSessionActive: boolean;
 }
 
-export function TimerInstanceRow({
+export function TimerRow({
   instance,
   index,
   startTime,
@@ -44,7 +44,7 @@ export function TimerInstanceRow({
   onEdit,
   onOpenNotes,
   isSessionActive,
-}: TimerInstanceRowProps) {
+}: TimerRowProps) {
   const currentElapsed = useTimer(instance.state === TimerState.running, startTime);
   const displayTime = instance.state === TimerState.running ? currentElapsed : instance.duration || 0;
   const isSmall = size === 'small';
