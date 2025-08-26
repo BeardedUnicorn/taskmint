@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { Task } from '../../../types/task';
-import { AddTaskDialog } from './AddTaskDialog';
+import { TaskFormDialog } from './TaskFormDialog';
 import { formatCurrency } from '../../../utils/formatters';
 import { SearchListHeader } from '../../ui';
 
@@ -185,10 +185,12 @@ export function TaskListPane({
       </Box>
 
       {/* Add Task Dialog */}
-      <AddTaskDialog
+      <TaskFormDialog
         open={showNewTaskDialog}
         onClose={() => setShowNewTaskDialog(false)}
-        onSave={handleAddTask}
+        mode="add"
+        initialTask={null}
+        onSubmit={handleAddTask}
       />
     </Box>
   );
