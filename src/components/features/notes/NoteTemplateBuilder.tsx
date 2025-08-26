@@ -1,5 +1,5 @@
 /**
- * Template Builder Component
+ * Note Template Builder Component
  * 
  * Split-pane interface for managing note templates with template list on the left
  * and template builder/editor on the right.
@@ -31,18 +31,18 @@ import {
   Visibility as ActiveIcon,
   VisibilityOff as InactiveIcon,
 } from '@mui/icons-material';
-import { TemplateBuilderProps, NoteTemplate, TemplateField } from '../../../types/notes';
+import { NoteTemplateBuilderProps, NoteTemplate, TemplateField } from '../../../types/notes';
 import { FieldEditor } from './FieldEditor';
 import { ConfirmDialog } from '../../ui';
 
-export function TemplateBuilder({
+export function NoteTemplateBuilder({
   templates,
   onCreateTemplate,
   onUpdateTemplate,
   onDeleteTemplate,
   onSelectTemplate,
   selectedTemplate,
-}: TemplateBuilderProps) {
+}: NoteTemplateBuilderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [templateDescription, setTemplateDescription] = useState('');

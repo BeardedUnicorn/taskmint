@@ -51,7 +51,7 @@ export type {
   FieldValue,
   TemplateFormData,
   FieldFormData,
-  TemplateBuilderProps,
+  NoteTemplateBuilderProps,
   NoteEditorProps,
   NotesListProps,
   FieldEditorProps,

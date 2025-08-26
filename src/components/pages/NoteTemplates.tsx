@@ -15,7 +15,7 @@ import {
   Button,
 } from '@mui/material';
 import { NoteTemplate } from '../../types/notes';
-import { TemplateBuilder } from '../features/notes/TemplateBuilder';
+import { NoteTemplateBuilder } from '../features/notes/NoteTemplateBuilder';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
 import { useSubscription, useFeatureAccess } from '../../contexts/SubscriptionContext';
 import { FEATURES } from '../../types/subscription';
@@ -143,7 +143,7 @@ export function NoteTemplates() {
       {/* Main Content */}
       <Box sx={{ flex: 1, minHeight: 0 }}>
         {hasNoteTemplates ? (
-          <TemplateBuilder
+          <NoteTemplateBuilder
             templates={templates}
             onCreateTemplate={handleCreateTemplate}
             onUpdateTemplate={handleUpdateTemplate}

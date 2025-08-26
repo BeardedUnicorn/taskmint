@@ -134,7 +134,7 @@ export interface FieldFormData {
 }
 
 // Component Props Interfaces
-export interface TemplateBuilderProps {
+export interface NoteTemplateBuilderProps {
   templates: NoteTemplate[];
   onCreateTemplate: (template: Omit<NoteTemplate, 'id' | 'createdAt' | 'updatedAt'>) => Promise<NoteTemplate>;
   onUpdateTemplate: (templateId: string, updates: Partial<NoteTemplate>) => Promise<NoteTemplate>;
