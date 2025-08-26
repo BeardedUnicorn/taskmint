@@ -12,7 +12,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.runOnlyPendingTimers();
+  // Flush any pending timers within React's act to avoid warnings
+  act(() => {
+    vi.runOnlyPendingTimers();
+  });
   vi.useRealTimers();
 });
 
@@ -80,7 +83,9 @@ describe('useTimer', () => {
     expect(result.current).toBeGreaterThan(2900);
     
     // Stop the timer
-    rerender({ isRunning: false, startTime });
+    act(() => {
+      rerender({ isRunning: false, startTime });
+    });
     
     // Should reset to 0
     expect(result.current).toBe(0);
@@ -120,14 +125,40 @@ describe('useTimer', () => {
     expect(result.current).toBeGreaterThan(1900);
     
     // Stop timer
-    rerender({ isRunning: false, startTime: initialStartTime });
+    act(() => {
+      rerender({ isRunning: false, startTime: initialStartTime });
+    });
     expect(result.current).toBe(0);
-    
+
     // Start with new start time
     const newStartTime = new Date();
-    rerender({ isRunning: true, startTime: newStartTime });
-    
+    act(() => {
+      rerender({ isRunning: true, startTime: newStartTime });
+    });
+
     // Should start from 0 again
+    expect(result.current).toBeLessThan(100);
+  });
+
+  it('should reset when startTime changes while running', () => {
+    const initialStart = new Date();
+    const { result, rerender } = renderHook(
+      ({ isRunning, startTime }) => useTimer(isRunning, startTime),
+      { initialProps: { isRunning: true, startTime: initialStart } }
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(result.current).toBeGreaterThan(1900);
+
+    const newStart = new Date();
+    act(() => {
+      rerender({ isRunning: true, startTime: newStart });
+    });
+
+    // After changing the start time while running, elapsed should reset
     expect(result.current).toBeLessThan(100);
   });
 });
