@@ -38,7 +38,7 @@ export type {
   Task,
   TaskFormData,
   TaskManagementProps,
-  NewTaskDialogProps,
+  StartTaskDialogProps,
   UseTaskManagementReturn,
 } from './task';
 

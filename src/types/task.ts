@@ -45,7 +45,7 @@ export interface TaskManagementProps {
   onDeleteTask: (taskId: string) => Promise<void>;
 }
 
-export interface NewTaskDialogProps {
+export interface StartTaskDialogProps {
   open: boolean;
   onClose: () => void;
   onStartTask: (taskName: string) => void;

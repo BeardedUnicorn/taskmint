@@ -8,14 +8,14 @@ import {
   Button,
   Box,
 } from '@mui/material';
-import { NewTaskDialogProps } from '../../types/task';
+import { StartTaskDialogProps } from '../../types/task';
 
-export function NewTaskDialog({
+export function StartTaskDialog({
   open,
   onClose,
   onStartTask,
   existingTasks: _existingTasks,
-}: NewTaskDialogProps) {
+}: StartTaskDialogProps) {
   const [taskName, setTaskName] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
