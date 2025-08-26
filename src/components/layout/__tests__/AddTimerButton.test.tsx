@@ -1,11 +1,11 @@
 /**
- * Tests for Add Timer button functionality in SessionTimerBar component
+* Tests for Add Timer button functionality in SessionTimerToolbar component
  */
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi } from 'vitest';
-import { SessionTimerBar } from '../SessionTimerBar';
+import { SessionTimerToolbar } from '../SessionTimerToolbar';
 import type { TaskSession, TimerInstance } from '../../../types/timer';
 
 vi.mock('../../../contexts/NotificationContext', () => ({
@@ -47,7 +47,7 @@ describe('Add Timer button', () => {
     const onCreateTimerInstance = vi.fn();
 
     render(
-      <SessionTimerBar
+      <SessionTimerToolbar
         activeSession={session}
         predefinedTasks={[]}
         onStartSession={vi.fn()}

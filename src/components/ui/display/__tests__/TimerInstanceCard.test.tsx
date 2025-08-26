@@ -4,7 +4,7 @@
  * Tests the timer instance card component including timer display,
  * controls, and state management.
  * 
- * Note: TimerInstanceCard is defined within SessionTimerBar.tsx
+ * Note: TimerInstanceCard is defined within SessionTimerToolbar.tsx
  * These tests verify the component's behavior when used in isolation.
  */
 
@@ -13,7 +13,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { TimerInstance } from '../../../../types/timer';
 
-// Mock the TimerInstanceCard component since it's defined within SessionTimerBar
+// Mock the TimerInstanceCard component since it's defined within SessionTimerToolbar
 // We'll create a test version that matches the interface
 interface TimerInstanceCardProps {
   instance: TimerInstance;

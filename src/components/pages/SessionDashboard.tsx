@@ -21,7 +21,7 @@ import {
   AttachMoney as MoneyIcon,
   Assignment as TaskIcon,
 } from '@mui/icons-material';
-import { SessionTimerBar } from '../layout/SessionTimerBar';
+import { SessionTimerToolbar } from '../layout/SessionTimerToolbar';
 import { SessionList } from '../ui/sessions/SessionList';
 import { SessionTimerDisplay } from '../ui/display/SessionTimerDisplay';
 import { InactivityWarningDialog } from '../ui/dialogs/InactivityWarningDialog';
@@ -263,7 +263,7 @@ export function SessionDashboard() {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Session Timer Bar */}
       <Box sx={{ mb: 4 }}>
-        <SessionTimerBar
+        <SessionTimerToolbar
           activeSession={activeSession}
           predefinedTasks={tasks}
           onStartSession={createSession}

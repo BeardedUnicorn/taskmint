@@ -126,8 +126,8 @@ vi.mock('../../../contexts/ActiveTimerContext', () => ({
 }));
 
 // Mock child components to isolate SessionDashboard testing
-vi.mock('../../layout/SessionTimerBar', () => ({
-  SessionTimerBar: ({ onCreateTimerInstance, onStartTimer }: any) => (
+vi.mock('../../layout/SessionTimerToolbar', () => ({
+  SessionTimerToolbar: ({ onCreateTimerInstance, onStartTimer }: any) => (
     <div data-testid="session-timer-bar">
       <button
         onClick={() => {
@@ -406,7 +406,7 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      // Find and click the Add Timer button in SessionTimerBar
+      // Find and click the Add Timer button in SessionTimerToolbar
       const addTimerButton = screen.getByText('Add Timer');
       fireEvent.click(addTimerButton);
 

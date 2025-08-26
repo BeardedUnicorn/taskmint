@@ -3,4 +3,4 @@
  */
 
 export { Sidebar, type SidebarView } from './Sidebar';
-export { SessionTimerBar } from './SessionTimerBar';
+export { SessionTimerToolbar } from './SessionTimerToolbar';

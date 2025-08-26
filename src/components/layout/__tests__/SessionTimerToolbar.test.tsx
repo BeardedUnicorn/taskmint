@@ -1,5 +1,5 @@
 /**
- * Unit Tests for SessionTimerBar Component
+ * Unit Tests for SessionTimerToolbar Component
  * 
  * Tests the session timer bar component including timer controls,
  * session management, and timer instance operations.
@@ -9,7 +9,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { SessionTimerBar } from '../SessionTimerBar';
+import { SessionTimerToolbar } from '../SessionTimerToolbar';
 import { TaskSession, TimerInstance } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { SESSION_CONSTANTS } from '../../../constants';
@@ -24,7 +24,7 @@ vi.mock('../../../contexts/NotificationContext', () => ({
   }),
 }));
 
-describe('SessionTimerBar', () => {
+describe('SessionTimerToolbar', () => {
   const mockTasks: Task[] = [
     {
       id: 'task-1',
@@ -84,7 +84,7 @@ describe('SessionTimerBar', () => {
 
   describe('No Active Session State', () => {
     it('should render start session controls when no active session', () => {
-      render(<SessionTimerBar {...mockProps} />);
+      render(<SessionTimerToolbar {...mockProps} />);
       
       expect(screen.getByText('Start New Session')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Select or enter task name...')).toBeInTheDocument();
@@ -92,14 +92,14 @@ describe('SessionTimerBar', () => {
     });
 
     it('should disable start button when no task is selected', () => {
-      render(<SessionTimerBar {...mockProps} />);
+      render(<SessionTimerToolbar {...mockProps} />);
       
       const startButton = screen.getByRole('button', { name: /start session/i });
       expect(startButton).toBeDisabled();
     });
 
     it('should enable start button when task is selected', () => {
-      render(<SessionTimerBar {...mockProps} />);
+      render(<SessionTimerToolbar {...mockProps} />);
       
       const taskInput = screen.getByPlaceholderText('Select or enter task name...');
       fireEvent.change(taskInput, { target: { value: 'Development Work' } });
@@ -109,7 +109,7 @@ describe('SessionTimerBar', () => {
     });
 
     it('should call onStartSession when start button is clicked with selected task', () => {
-      render(<SessionTimerBar {...mockProps} />);
+      render(<SessionTimerToolbar {...mockProps} />);
       
       const taskInput = screen.getByPlaceholderText('Select or enter task name...');
       fireEvent.change(taskInput, { target: { value: 'Development Work' } });
@@ -121,7 +121,7 @@ describe('SessionTimerBar', () => {
     });
 
     it('should handle custom task name input', () => {
-      render(<SessionTimerBar {...mockProps} />);
+      render(<SessionTimerToolbar {...mockProps} />);
       
       const taskInput = screen.getByPlaceholderText('Select or enter task name...');
       fireEvent.change(taskInput, { target: { value: 'Custom Task Name' } });
@@ -140,7 +140,7 @@ describe('SessionTimerBar', () => {
     };
 
     it('should render active session information', () => {
-      render(<SessionTimerBar {...propsWithActiveSession} />);
+      render(<SessionTimerToolbar {...propsWithActiveSession} />);
       
       expect(screen.getByText('Development Work')).toBeInTheDocument();
       expect(screen.getByText('1 timer')).toBeInTheDocument();
@@ -148,13 +148,13 @@ describe('SessionTimerBar', () => {
     });
 
     it('should show End Session button when session is active', () => {
-      render(<SessionTimerBar {...propsWithActiveSession} />);
+      render(<SessionTimerToolbar {...propsWithActiveSession} />);
       
       expect(screen.getByRole('button', { name: /end session/i })).toBeInTheDocument();
     });
 
     it('should call onEndSession when End Session button is clicked', () => {
-      render(<SessionTimerBar {...propsWithActiveSession} />);
+      render(<SessionTimerToolbar {...propsWithActiveSession} />);
       
       const endButton = screen.getByRole('button', { name: /end session/i });
       fireEvent.click(endButton);
@@ -163,13 +163,13 @@ describe('SessionTimerBar', () => {
     });
 
     it('should show Add Timer button when session is active', () => {
-      render(<SessionTimerBar {...propsWithActiveSession} />);
+      render(<SessionTimerToolbar {...propsWithActiveSession} />);
       
       expect(screen.getByRole('button', { name: /add timer/i })).toBeInTheDocument();
     });
 
     it('should call onCreateTimerInstance when Add Timer button is clicked', () => {
-      render(<SessionTimerBar {...propsWithActiveSession} />);
+      render(<SessionTimerToolbar {...propsWithActiveSession} />);
 
       const addTimerButton = screen.getByRole('button', { name: /add timer/i });
       fireEvent.click(addTimerButton);
@@ -187,7 +187,7 @@ describe('SessionTimerBar', () => {
       };
 
       render(
-        <SessionTimerBar {...mockProps} activeSession={maxedOutSession} />
+        <SessionTimerToolbar {...mockProps} activeSession={maxedOutSession} />
       );
 
       const addTimerButton = screen.getByRole('button', { name: /add timer/i });
@@ -199,7 +199,7 @@ describe('SessionTimerBar', () => {
         new Error('Add failed')
       );
 
-      render(<SessionTimerBar {...propsWithActiveSession} />);
+      render(<SessionTimerToolbar {...propsWithActiveSession} />);
 
       const addTimerButton = screen.getByRole('button', { name: /add timer/i });
       fireEvent.click(addTimerButton);
@@ -247,25 +247,25 @@ describe('SessionTimerBar', () => {
     };
 
     it('should show pause button for running timer', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={runningSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={runningSession} />);
       
       expect(screen.getByRole('button', { name: /pause timer 1/i })).toBeInTheDocument();
     });
 
     it('should show resume button for paused timer', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={pausedSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={pausedSession} />);
       
       expect(screen.getByRole('button', { name: /resume timer 1/i })).toBeInTheDocument();
     });
 
     it('should show start button for stopped timer', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={stoppedSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={stoppedSession} />);
       
       expect(screen.getByRole('button', { name: /start timer 1/i })).toBeInTheDocument();
     });
 
     it('should call onPauseTimer when pause button is clicked', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={runningSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={runningSession} />);
       
       const pauseButton = screen.getByRole('button', { name: /pause timer 1/i });
       fireEvent.click(pauseButton);
@@ -274,7 +274,7 @@ describe('SessionTimerBar', () => {
     });
 
     it('should call onResumeTimer when resume button is clicked', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={pausedSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={pausedSession} />);
       
       const resumeButton = screen.getByRole('button', { name: /resume timer 1/i });
       fireEvent.click(resumeButton);
@@ -283,7 +283,7 @@ describe('SessionTimerBar', () => {
     });
 
     it('should call onStartTimer when start button is clicked', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={stoppedSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={stoppedSession} />);
       
       const startButton = screen.getByRole('button', { name: /start timer 1/i });
       fireEvent.click(startButton);
@@ -292,7 +292,7 @@ describe('SessionTimerBar', () => {
     });
 
     it('should call onStopTimer when stop button is clicked', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={runningSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={runningSession} />);
       
       const stopButton = screen.getByRole('button', { name: /stop timer 1/i });
       fireEvent.click(stopButton);
@@ -312,13 +312,13 @@ describe('SessionTimerBar', () => {
     };
 
     it('should display correct timer count for multiple timers', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={multiTimerSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={multiTimerSession} />);
       
       expect(screen.getByText('3 timers')).toBeInTheDocument();
     });
 
     it('should show controls for each timer instance', () => {
-      render(<SessionTimerBar {...mockProps} activeSession={multiTimerSession} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={multiTimerSession} />);
       
       // Should have controls for each timer instance plus session-level controls
       // Timer 1: pause + stop (running)
@@ -338,7 +338,7 @@ describe('SessionTimerBar', () => {
         taskId: 'non-existent',
       };
 
-      render(<SessionTimerBar {...mockProps} activeSession={sessionWithMissingTask} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={sessionWithMissingTask} />);
       
       expect(screen.getByText('Non-existent Task')).toBeInTheDocument();
     });
@@ -349,7 +349,7 @@ describe('SessionTimerBar', () => {
         timerInstances: [],
       };
 
-      render(<SessionTimerBar {...mockProps} activeSession={sessionWithNoTimers} />);
+      render(<SessionTimerToolbar {...mockProps} activeSession={sessionWithNoTimers} />);
       
       expect(screen.getByText('0 timers')).toBeInTheDocument();
     });

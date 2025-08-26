@@ -114,7 +114,7 @@ function TimerStatusIndicator({ status, size = 'medium' }: TimerStatusIndicatorP
   );
 }
 
-interface SessionTimerBarProps {
+interface SessionTimerToolbarProps {
   activeSession: TaskSession | null;
   predefinedTasks: Task[];
   onStartSession: (taskId: string, taskName: string) => Promise<TaskSession | null>;
@@ -132,7 +132,7 @@ interface SessionTimerBarProps {
   onOpenTimerNotes?: (instanceId: string) => void;
 }
 
-export const SessionTimerBar = memo(function SessionTimerBar({
+export const SessionTimerToolbar = memo(function SessionTimerToolbar({
   activeSession,
   predefinedTasks,
   onStartSession,
@@ -148,7 +148,7 @@ export const SessionTimerBar = memo(function SessionTimerBar({
   onEditTimer,
   onOpenSessionNotes,
   onOpenTimerNotes,
-}: SessionTimerBarProps) {
+}: SessionTimerToolbarProps) {
   const [selectedTask, setSelectedTask] = useState<string>('');
   const [inputValue, setInputValue] = useState<string>('');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
