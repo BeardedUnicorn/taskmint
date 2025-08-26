@@ -8,7 +8,7 @@ import '../../setupTests';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useTimerSync } from '../../hooks/useTimerSync';
-import { TaskSession, TimerInstance } from '../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/event', () => ({
@@ -103,8 +103,7 @@ describe('Timer Synchronization', () => {
             id: 'timer-1',
             sessionId: 'session-1',
             startTime: new Date(),
-            isRunning: true,
-            isPaused: false,
+            state: TimerState.running,
             createdAt: '2024-01-15T10:00:00Z',
             updatedAt: '2024-01-15T10:00:00Z',
           },
@@ -153,8 +152,7 @@ describe('Timer Synchronization', () => {
             id: 'timer-1',
             sessionId: 'session-1',
             startTime: new Date(),
-            isRunning: false,
-            isPaused: false,
+            state: TimerState.stopped,
             createdAt: '2024-01-15T10:00:00Z',
             updatedAt: '2024-01-15T10:00:00Z',
           },
