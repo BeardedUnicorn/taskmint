@@ -116,6 +116,15 @@ vi.mock('../../../hooks/useInactivityDetection', () => ({
   useInactivityDetection: () => mockInactivityDetection,
 }));
 
+// Mock active timer context
+let mockActiveTimer: TimerInstance | null = null;
+const mockSetActiveTimer = vi.fn();
+
+vi.mock('../../../contexts/ActiveTimerContext', () => ({
+  ActiveTimerProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useActiveTimer: () => ({ activeTimer: mockActiveTimer, setActiveTimer: mockSetActiveTimer }),
+}));
+
 // Mock child components to isolate SessionDashboard testing
 vi.mock('../../layout/SessionTimerBar', () => ({
   SessionTimerBar: ({ onCreateTimerInstance, onStartTimer }: any) => (
@@ -182,6 +191,7 @@ vi.mock('../../ui/dialogs/EnhancedNotesDialog', () => ({
 describe('SessionDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockActiveTimer = null;
     // Reset mock state
     Object.assign(mockSessionManagement, {
       sessions: [],
@@ -584,6 +594,8 @@ describe('SessionDashboard', () => {
         isLoading: false,
         error: null,
       });
+
+      mockActiveTimer = mockSessionManagement.activeSession.timerInstances[0] as TimerInstance;
     });
 
     it('should show inactivity warning dialog when warning is active', () => {
