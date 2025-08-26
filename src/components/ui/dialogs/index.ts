@@ -10,3 +10,4 @@ export { InactivityWarningDialog } from './InactivityWarningDialog';
 export { MigrationDialog } from './MigrationDialog';
 export { QuickSessionDialog } from './QuickSessionDialog';
 export { EditSessionDialog } from './EditSessionDialog';
+export { StartTaskDialog } from './StartTaskDialog';

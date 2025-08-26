@@ -1,15 +1,8 @@
 import { useState } from 'react';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Box,
-} from '@mui/material';
 import { TaskSelector } from '../forms/TaskSelector';
 import { Task } from '../../../types/task';
 import { TaskSession } from '../../../types/timer';
+import { FormDialog } from './FormDialog';
 
 interface QuickSessionDialogProps {
   open: boolean;
@@ -27,10 +20,11 @@ export function QuickSessionDialog({
   const [selectedTaskName, setSelectedTaskName] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  const handleStart = async () => {
+  const handleStart = () => {
     if (selectedTaskName.trim()) {
-      await onStartSession(selectedTask?.id || '', selectedTaskName.trim());
-      onClose();
+      onStartSession(selectedTask?.id || '', selectedTaskName.trim()).then(() => {
+        onClose();
+      });
     }
   };
 
@@ -46,30 +40,20 @@ export function QuickSessionDialog({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Start a Quick Session</DialogTitle>
-      <DialogContent>
-        <Box sx={{ pt: 2 }}>
-          <TaskSelector
-            value={selectedTaskName}
-            onChange={handleTaskChange}
-            predefinedTasks={tasks}
-            placeholder="Select a task to start"
-          />
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} color="secondary">
-          Cancel
-        </Button>
-        <Button
-          onClick={handleStart}
-          variant="contained"
-          disabled={!selectedTaskName.trim()}
-        >
-          Start Session
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onClose={handleClose}
+      title="Start a Quick Session"
+      onSubmit={handleStart}
+      submitLabel="Start Session"
+      submitDisabled={!selectedTaskName.trim()}
+    >
+      <TaskSelector
+        value={selectedTaskName}
+        onChange={handleTaskChange}
+        predefinedTasks={tasks}
+        placeholder="Select a task to start"
+      />
+    </FormDialog>
   );
 }
