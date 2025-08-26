@@ -18,8 +18,7 @@ import {
 import { Task } from '../../types/task';
 import { TimeEntry } from '../../types/timer';
 import { TaskDetailPane } from './tasks/TaskDetailPane';
-import { AddTaskDialog } from './tasks/AddTaskDialog';
-import { EditTaskDialog } from './tasks/EditTaskDialog';
+import { TaskFormDialog } from './tasks/TaskFormDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog, UpgradeDialog } from '../ui';
 import { EditTimeEntryData } from '../../types/form';
@@ -289,21 +288,23 @@ export function TasksPage({
         </Paper>
       </Box>
 
-      {/* Add Task Dialog */}
-      <AddTaskDialog
+      {/* Task Form Dialogs */}
+      <TaskFormDialog
         open={showNewTaskDialog}
         onClose={() => setShowNewTaskDialog(false)}
-        onSave={handleAddTaskDialog}
+        mode="add"
+        initialTask={null}
         availableTasks={tasks}
+        onSubmit={handleAddTaskDialog}
       />
 
-      {/* Edit Task Dialog */}
-      <EditTaskDialog
+      <TaskFormDialog
         open={editingTask !== null}
-        task={editingTask}
         onClose={() => setEditingTask(null)}
-        onSave={handleSaveEdit}
+        mode="edit"
+        initialTask={editingTask}
         availableTasks={tasks}
+        onSubmit={(data) => (editingTask ? handleSaveEdit(editingTask.id, data) : Promise.resolve(null))}
       />
 
       {/* Delete Confirmation Dialog */}

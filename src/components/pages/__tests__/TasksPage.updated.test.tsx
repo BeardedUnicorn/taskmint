@@ -35,23 +35,22 @@ vi.mock('../tasks/TaskDetailPane', () => ({
   )),
 }));
 
-// Mock the dialogs
-vi.mock('../tasks/AddTaskDialog', () => ({
-  AddTaskDialog: vi.fn(({ open, onSave, onClose }) => 
+// Mock the task form dialog used for both add and edit modes
+vi.mock('../tasks/TaskFormDialog', () => ({
+  TaskFormDialog: vi.fn(({ open, mode, onSubmit, onClose }) =>
     open ? (
-      <div data-testid="add-task-dialog">
-        <button onClick={() => onSave({ name: 'New Task', hourlyRate: 50 }).then(() => onClose())}>Save Task</button>
-        <button onClick={onClose}>Close</button>
-      </div>
-    ) : null
-  ),
-}));
-
-vi.mock('../tasks/EditTaskDialog', () => ({
-  EditTaskDialog: vi.fn(({ open, task, onSave, onClose }) => 
-    open && task ? (
-      <div data-testid="edit-task-dialog">
-        <button onClick={() => onSave(task.id, { name: 'Updated Task', hourlyRate: 60 })}>Save Changes</button>
+      <div data-testid={mode === 'add' ? 'add-task-dialog' : 'edit-task-dialog'}>
+        <button
+          onClick={() =>
+            onSubmit(
+              mode === 'add'
+                ? { name: 'New Task', hourlyRate: 50 }
+                : { name: 'Updated Task', hourlyRate: 60 }
+            )
+          }
+        >
+          {mode === 'add' ? 'Save Task' : 'Save Changes'}
+        </button>
         <button onClick={onClose}>Close</button>
       </div>
     ) : null
