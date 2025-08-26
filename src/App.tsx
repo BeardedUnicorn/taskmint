@@ -8,7 +8,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
-import { NewTaskDialog } from './components/pages';
+import { StartTaskDialog } from './components/pages';
 import { Sidebar, type SidebarView } from './components/layout';
 
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
@@ -208,7 +208,7 @@ function AppContent() {
             </Suspense>
           </Box>
         </Box>
-        <NewTaskDialog
+        <StartTaskDialog
           open={newTaskDialogOpen}
           onClose={() => setNewTaskDialogOpen(false)}
           onStartTask={handleStartNewTask}

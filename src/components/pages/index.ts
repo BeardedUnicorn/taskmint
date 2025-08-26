@@ -2,7 +2,7 @@
  * Page Components Exports
  */
 
-export { NewTaskDialog } from './NewTaskDialog';
+export { StartTaskDialog } from './StartTaskDialog';
 export { TasksPage } from './TasksPage';
 export { NotesPage } from './NotesPage';
 export { SettingsPage } from './SettingsPage';
