@@ -199,6 +199,7 @@ export function SessionList({
       >
         <TextField
           fullWidth
+          label="Search sessions"
           placeholder="Search sessions..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
