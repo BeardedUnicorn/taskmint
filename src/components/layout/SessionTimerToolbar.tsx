@@ -312,6 +312,7 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
         
         <IconButton
           onClick={handleMenuOpen}
+          aria-label="Session options"
           sx={{ color: 'secondary.contrastText' }}
         >
           <MoreIcon />
