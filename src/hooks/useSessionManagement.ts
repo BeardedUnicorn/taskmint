@@ -18,6 +18,22 @@ import { useNotification } from '../contexts/NotificationContext';
 import { measurePerformance } from '../utils/performance';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
 
+// Helper to ensure timer instances always have a state value
+function normalizeTimerInstance(instance: TimerInstance): TimerInstance {
+  if (instance.state) return instance;
+  let state = TimerState.stopped;
+  if (instance.isRunning) state = TimerState.running;
+  else if (instance.isPaused) state = TimerState.paused;
+  return { ...instance, state };
+}
+
+function normalizeSession(session: TaskSession): TaskSession {
+  return {
+    ...session,
+    timerInstances: (session.timerInstances || []).map(normalizeTimerInstance),
+  };
+}
+
 export function useSessionManagement(): UseSessionManagementReturn {
   const [sessions, setSessions] = useState<TaskSession[]>([]);
   const [activeSession, setActiveSessionState] = useState<TaskSession | null>(null);
@@ -36,14 +52,15 @@ export function useSessionManagement(): UseSessionManagementReturn {
     try {
       const loadedSessions = await invoke<TaskSession[]>('get_sessions');
       console.log('Raw sessions from backend:', loadedSessions);
-      setSessions(loadedSessions || []);
+      const normalizedSessions = (loadedSessions || []).map(normalizeSession);
+      setSessions(normalizedSessions);
 
       // Find active session
-      const active = (loadedSessions || []).find((s: TaskSession) => s.isActive) || null;
+      const active = normalizedSessions.find((s: TaskSession) => s.isActive) || null;
       console.log('Active session found:', active);
       setActiveSessionState(active);
 
-      const runningInstance = (loadedSessions || [])
+      const runningInstance = normalizedSessions
         .flatMap(s => s.timerInstances)
         .find(i => i.state === TimerState.running) || null;
       setActiveTimer(runningInstance);
@@ -57,29 +74,30 @@ export function useSessionManagement(): UseSessionManagementReturn {
     }
   }, [showError, setActiveTimer]);
   
-  const updateLocalSession = useCallback((updatedSession: TaskSession) => {
-    console.log('Updating local session:', updatedSession.id);
+  const updateLocalSession = useCallback((session: TaskSession) => {
+    const normalized = normalizeSession(session);
+    console.log('Updating local session:', normalized.id);
 
     // Update sessions array
     setSessions(prev => {
-      const updated = prev.map(s => s.id === updatedSession.id ? updatedSession : s);
+      const updated = prev.map(s => (s.id === normalized.id ? normalized : s));
       console.log('Updated sessions array:', updated);
       return updated;
     });
 
     // Update active session if it matches - use functional update to avoid dependency
     setActiveSessionState(currentActive => {
-      if (currentActive && currentActive.id === updatedSession.id) {
+      if (currentActive && currentActive.id === normalized.id) {
         console.log('Updating active session state');
-        return updatedSession;
+        return normalized;
       }
       return currentActive;
     });
 
-    const runningInstance = updatedSession.timerInstances.find(t => t.state === TimerState.running) || null;
+    const runningInstance = normalized.timerInstances.find(t => t.state === TimerState.running) || null;
     if (runningInstance) {
       setActiveTimer(runningInstance);
-    } else if (activeTimer && updatedSession.timerInstances.some(t => t.id === activeTimer.id)) {
+    } else if (activeTimer && normalized.timerInstances.some(t => t.id === activeTimer.id)) {
       setActiveTimer(null);
     }
   }, [activeTimer, setActiveTimer]);
