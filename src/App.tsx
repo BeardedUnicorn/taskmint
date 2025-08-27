@@ -23,11 +23,11 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry, TimerState } from './types/timer';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { useSessionManagement } from './hooks/useSessionManagement';
-import { useTaskManagement } from './hooks/useTaskManagement';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
 import { useTimerSync } from './hooks/useTimerSync';
 import { createServiceErrorHandler } from './utils/errorHandler';
 import { listen } from '@tauri-apps/api/event';
+import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
 
 // AppContent component contains the main application logic and UI.
 // It is wrapped by all necessary context providers in the App component.
@@ -41,8 +41,8 @@ function AppContent() {
   // Centralized session management
   const sessionManager = useSessionManagement();
   
-  // Task management hook
-  const { tasks, addTask, updateTask, deleteTask } = useTaskManagement();
+  // Task management context
+  const { tasks, addTask, updateTask, deleteTask } = useTaskManagementContext();
 
   const { activeTimer } = useActiveTimer();
   // Derived global active entry for backward compatibility with older pages
@@ -227,9 +227,11 @@ function App() {
       <ThemeProvider>
         <NotificationProvider>
           <SubscriptionProvider>
-            <ActiveTimerProvider>
-              <AppContent />
-            </ActiveTimerProvider>
+            <TaskManagementProvider>
+              <ActiveTimerProvider>
+                <AppContent />
+              </ActiveTimerProvider>
+            </TaskManagementProvider>
           </SubscriptionProvider>
         </NotificationProvider>
       </ThemeProvider>

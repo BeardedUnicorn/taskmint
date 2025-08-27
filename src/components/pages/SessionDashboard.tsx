@@ -31,7 +31,7 @@ import { EditSessionDialog } from '../ui/dialogs/EditSessionDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { useSessionManagement } from '../../hooks/useSessionManagement';
 import { useInactivityDetection } from '../../hooks/useInactivityDetection';
-import { useTasks } from '../../hooks/useTasks';
+import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { useActiveTimer } from '../../contexts/ActiveTimerContext';
@@ -83,7 +83,7 @@ export function SessionDashboard() {
 
   } = useInactivityDetection();
 
-  const { tasks, isLoading: tasksLoading } = useTasks();
+  const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
   const { showError, showSuccess } = useNotification();
 
   interface DashboardStats {

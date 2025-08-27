@@ -87,16 +87,26 @@ const mockTasks: Task[] = [
   },
 ];
 
-// Mock useTasks hook
-const mockTasksHook = {
+// Mock task management context
+const mockTaskManagement = {
   tasks: mockTasks,
+  addTask: vi.fn(),
+  updateTask: vi.fn(),
+  deleteTask: vi.fn(),
+  getTaskById: vi.fn(),
+  getTaskByName: vi.fn(),
+  getTaskNames: vi.fn(),
+  calculateEarnings: vi.fn(),
+  getTaskHierarchy: vi.fn(),
+  getChildTasks: vi.fn(),
+  getParentTask: vi.fn(),
+  getTaskPath: vi.fn(),
   isLoading: false,
-  error: null,
-  loading: false, // Add this for compatibility
 };
 
-vi.mock('../../../hooks/useTasks', () => ({
-  useTasks: () => mockTasksHook,
+vi.mock('../../../contexts/TaskManagementContext', () => ({
+  useTaskManagementContext: () => mockTaskManagement,
+  TaskManagementProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 // Mock useInactivityDetection hook
@@ -198,6 +208,10 @@ describe('SessionDashboard', () => {
       activeSession: null,
       isLoading: false,
       error: null,
+    });
+    Object.assign(mockTaskManagement, {
+      tasks: mockTasks,
+      isLoading: false,
     });
   });
 

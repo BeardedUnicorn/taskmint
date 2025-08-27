@@ -80,15 +80,26 @@ vi.mock('../../hooks/useSessionManagement', () => ({
   useSessionManagement: () => mockSessionManagement,
 }));
 
-// Mock tasks hook
-const mockTasksHook = {
+// Mock task management context
+const mockTaskManagement = {
   tasks: [],
+  addTask: vi.fn(),
+  updateTask: vi.fn(),
+  deleteTask: vi.fn(),
+  getTaskById: vi.fn(),
+  getTaskByName: vi.fn(),
+  getTaskNames: vi.fn(),
+  calculateEarnings: vi.fn(),
+  getTaskHierarchy: vi.fn(),
+  getChildTasks: vi.fn(),
+  getParentTask: vi.fn(),
+  getTaskPath: vi.fn(),
   isLoading: false,
-  error: null,
 };
 
-vi.mock('../../hooks/useTasks', () => ({
-  useTasks: () => mockTasksHook,
+vi.mock('../../contexts/TaskManagementContext', () => ({
+  useTaskManagementContext: () => mockTaskManagement,
+  TaskManagementProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 const renderDashboard = () => render(<SessionDashboard />, { wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider> });
@@ -142,10 +153,9 @@ describe('Session System Integration', () => {
       error: null,
     });
     
-    Object.assign(mockTasksHook, {
+    Object.assign(mockTaskManagement, {
       tasks: mockTasks,
       isLoading: false,
-      error: null,
     });
     
     // Default mock responses
