@@ -47,7 +47,7 @@ interface SessionListProps {
   onSelectSession: (session: TaskSession) => void;
   onDeleteSession: (sessionId: string) => void;
   onStartSession: (session: TaskSession) => void;
-  onStopSession: (sessionId: string) => void;
+  onStopSession: () => void;
   selectedSessionId?: string;
   isLoading?: boolean;
   onEditSession: (session: TaskSession) => void;
@@ -146,7 +146,7 @@ export function SessionList({
   const handleToggleActive = () => {
     if (selectedSession) {
       if (selectedSession.isActive) {
-        onStopSession(selectedSession.id);
+        onStopSession();
       } else {
         onStartSession(selectedSession);
       }
@@ -292,7 +292,7 @@ export function SessionList({
                     onSelect={() => onSelectSession(session)}
                     onMenuOpen={(e) => handleMenuOpen(e, session)}
                     onStart={() => onStartSession(session)}
-                    onStop={() => onStopSession(session.id)}
+                    onStop={() => onStopSession()}
                     onOpenNotes={() => onOpenNotes(session.id)}
                   />
                 ))}

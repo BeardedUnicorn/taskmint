@@ -34,7 +34,7 @@ interface EnhancedSessionTimerToolbarProps {
   activeSession: TaskSession | null;
   predefinedTasks: Task[];
   onStartSession: (taskId: string | null, taskName: string) => Promise<void>;
-  onStopSession: (sessionId: string) => Promise<void>;
+  onStopSession: () => Promise<void>;
   onCreateTimerInstance: (sessionId: string) => Promise<void>;
   onStartTimer: (instanceId: string) => Promise<void>;
   onStopTimer: (instanceId: string) => Promise<void>;
@@ -261,7 +261,7 @@ export const EnhancedSessionTimerToolbar: React.FC<EnhancedSessionTimerToolbarPr
 
     setIsLoading(true);
     try {
-      await onStopSession(activeSession.id);
+      await onStopSession();
       showSuccess('Session ended successfully');
     } catch (error) {
       showError('Failed to end session');
