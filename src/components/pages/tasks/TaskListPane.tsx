@@ -151,6 +151,7 @@ export function TaskListPane({
                           {onEditTask && (
                             <IconButton
                               size="small"
+                              aria-label="Edit task"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onEditTask(task);
@@ -163,6 +164,7 @@ export function TaskListPane({
                             <IconButton
                               size="small"
                               color="error"
+                              aria-label="Delete task"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onDeleteTask(task.id);
