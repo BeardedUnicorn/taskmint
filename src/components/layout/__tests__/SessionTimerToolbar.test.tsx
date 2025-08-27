@@ -10,7 +10,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { SessionTimerToolbar } from '../SessionTimerToolbar';
-import { TaskSession, TimerInstance } from '../../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { SESSION_CONSTANTS } from '../../../constants';
 
@@ -46,6 +46,7 @@ describe('SessionTimerToolbar', () => {
     startTime: new Date('2024-01-15T10:00:00Z'),
     endTime: undefined,
     duration: 0,
+    state: TimerState.running,
     isRunning: true,
     isPaused: false,
     createdAt: '2024-01-15T10:00:00Z',
@@ -217,6 +218,7 @@ describe('SessionTimerToolbar', () => {
       timerInstances: [
         {
           ...mockTimerInstance,
+          state: TimerState.running,
           isRunning: true,
           isPaused: false,
         },
@@ -228,6 +230,7 @@ describe('SessionTimerToolbar', () => {
       timerInstances: [
         {
           ...mockTimerInstance,
+          state: TimerState.paused,
           isRunning: false,
           isPaused: true,
         },
@@ -239,6 +242,7 @@ describe('SessionTimerToolbar', () => {
       timerInstances: [
         {
           ...mockTimerInstance,
+          state: TimerState.stopped,
           isRunning: false,
           isPaused: false,
           endTime: new Date('2024-01-15T11:00:00Z'),
@@ -305,9 +309,9 @@ describe('SessionTimerToolbar', () => {
     const multiTimerSession = {
       ...mockActiveSession,
       timerInstances: [
-        { ...mockTimerInstance, id: 'instance-1', isRunning: true },
-        { ...mockTimerInstance, id: 'instance-2', isRunning: false, isPaused: true },
-        { ...mockTimerInstance, id: 'instance-3', isRunning: false, isPaused: false },
+        { ...mockTimerInstance, id: 'instance-1', state: TimerState.running, isRunning: true },
+        { ...mockTimerInstance, id: 'instance-2', state: TimerState.paused, isRunning: false, isPaused: true },
+        { ...mockTimerInstance, id: 'instance-3', state: TimerState.stopped, isRunning: false, isPaused: false },
       ],
     };
 
