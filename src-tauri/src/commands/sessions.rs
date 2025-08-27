@@ -57,6 +57,7 @@ pub async fn create_session_with_timer(
         is_paused: false,
         paused_at: None,
         paused_duration: None,
+        resumed_at: None,
         notes: None,
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
@@ -209,6 +210,7 @@ pub async fn create_timer_instance(
         is_paused: false,
         paused_at: None,
         paused_duration: None,
+        resumed_at: None,
         notes: None,
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
@@ -258,6 +260,11 @@ pub async fn update_timer_instance(
                 }
                 if let Some(duration) = updates.get("duration").and_then(|v| v.as_u64()) {
                     instance.duration = Some(duration);
+                }
+                if let Some(resumed_at) = updates.get("resumed_at").and_then(|v| v.as_str()) {
+                    let parsed = DateTime::parse_from_rfc3339(resumed_at)
+                        .map_err(|e| e.to_string())?;
+                    instance.resumed_at = Some(parsed.with_timezone(&Utc));
                 }
                 if let Some(start_time) = updates.get("start_time").and_then(|v| v.as_str()) {
                     let parsed = DateTime::parse_from_rfc3339(start_time)
@@ -312,6 +319,8 @@ pub async fn start_timer_instance(
                 instance.is_running = true;
                 instance.is_paused = false;
                 instance.start_time = now;
+                instance.resumed_at = Some(now);
+                instance.paused_duration = Some(0);
                 instance.updated_at = now.to_rfc3339();
                 session.updated_at = now.to_rfc3339();
                 
@@ -365,9 +374,11 @@ pub async fn stop_timer_instance(
                 // Store the current pause state before modifying it
                 let was_paused = instance.is_paused;
                 let paused_at = instance.paused_at;
-                
+
                 instance.is_running = false;
                 instance.is_paused = false;
+                instance.resumed_at = None;
+                instance.paused_at = None;
                 instance.end_time = Some(now);
 
                 // Calculate duration, accounting for current pause state
@@ -383,6 +394,7 @@ pub async fn stop_timer_instance(
                 }
 
                 instance.duration = Some((total_elapsed - total_paused_duration).max(0) as u64);
+                instance.paused_duration = Some(total_paused_duration as u64);
 
                 instance.updated_at = now.to_rfc3339();
                 session.updated_at = now.to_rfc3339();
@@ -566,6 +578,7 @@ pub async fn resume_timer_instance(
                 instance.is_running = true;
                 instance.is_paused = false;
                 instance.paused_at = None;
+                instance.resumed_at = Some(now);
                 instance.updated_at = now.to_rfc3339();
                 session.updated_at = now.to_rfc3339();
 
