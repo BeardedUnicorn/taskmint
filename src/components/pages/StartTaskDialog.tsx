@@ -7,6 +7,7 @@ import {
   TextField,
   Button,
   Box,
+  Autocomplete,
 } from '@mui/material';
 import { StartTaskDialogProps } from '../../types/task';
 
@@ -14,21 +15,28 @@ export function StartTaskDialog({
   open,
   onClose,
   onStartTask,
-  existingTasks: _existingTasks,
+  existingTasks,
 }: StartTaskDialogProps) {
   const [taskName, setTaskName] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (taskName.trim()) {
-      onStartTask(taskName.trim());
-      setTaskName('');
-      onClose();
+      try {
+        await onStartTask(taskName.trim());
+        setTaskName('');
+        setError(null);
+        onClose();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to start task');
+      }
     }
   };
 
   const handleClose = () => {
     setTaskName('');
+    setError(null);
     onClose();
   };
 
@@ -38,14 +46,23 @@ export function StartTaskDialog({
       <form onSubmit={handleSubmit}>
         <DialogContent>
           <Box sx={{ pt: 1 }}>
-            <TextField
-              autoFocus
-              fullWidth
-              label="Task Name"
-              value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
-              placeholder="Enter task name..."
-              variant="outlined"
+            <Autocomplete
+              freeSolo
+              options={existingTasks}
+              inputValue={taskName}
+              onInputChange={(_, newValue) => setTaskName(newValue)}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  autoFocus
+                  fullWidth
+                  label="Task Name"
+                  placeholder="Enter task name..."
+                  variant="outlined"
+                  error={!!error}
+                  helperText={error}
+                />
+              )}
             />
           </Box>
         </DialogContent>
