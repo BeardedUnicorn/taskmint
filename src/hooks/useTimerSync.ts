@@ -7,7 +7,6 @@
  */
 import { useEffect, useCallback } from 'react';
 import { listen, emit } from '@tauri-apps/api/event';
-import { useSessionManagement } from './useSessionManagement';
 import { useNotification } from '../contexts/NotificationContext';
 import { TaskSession, TimerInstance, TimerState } from '../types/timer';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
@@ -17,11 +16,15 @@ interface TimerSyncEvent<T = any> {
   payload: T;
 }
 
+interface UseTimerSyncParams {
+  activeSession: TaskSession | null;
+  sessions: TaskSession[];
+}
+
 /**
  * Custom hook to synchronize session timers with a global timer state.
  */
-export function useTimerSync() {
-  const { activeSession, sessions } = useSessionManagement();
+export function useTimerSync({ activeSession, sessions }: UseTimerSyncParams) {
   const { showWarning } = useNotification();
   const { activeTimer, setActiveTimer } = useActiveTimer();
 
