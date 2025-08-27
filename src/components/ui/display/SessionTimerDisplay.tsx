@@ -169,33 +169,24 @@ export function SessionTimerDisplay({
           </Typography>
 
           <Stack spacing={1}>
-            {(session.timerInstances || []).map((instance, index) => {
-              const startTime = instance.startTime
-                ? (instance.startTime instanceof Date
-                    ? instance.startTime
-                    : new Date(instance.startTime))
-                : undefined;
-
-              return (
-                <TimerRow
-                  key={instance.id}
-                  instance={instance}
-                  index={index + 1}
-                  startTime={startTime}
-                  showControls={showControls}
-                  showNotes={showNotes}
-                  size={size}
-                  onStart={() => onStartTimer?.(instance.id)}
-                  onStop={() => onStopTimer?.(instance.id)}
-                  onPause={() => onPauseTimer?.(instance.id)}
-                  onResume={() => onResumeTimer?.(instance.id)}
-                  onDelete={() => onDeleteTimer?.(instance.id)}
-                  onEdit={() => onEditTimer?.(instance, session)}
-                  onOpenNotes={() => onOpenNotes?.(session.id, instance.id)}
-                  isSessionActive={session.isActive}
-                />
-              );
-            })}
+            {(session.timerInstances || []).map((instance, index) => (
+              <TimerRow
+                key={instance.id}
+                instance={instance}
+                index={index + 1}
+                showControls={showControls}
+                showNotes={showNotes}
+                size={size}
+                onStart={() => onStartTimer?.(instance.id)}
+                onStop={() => onStopTimer?.(instance.id)}
+                onPause={() => onPauseTimer?.(instance.id)}
+                onResume={() => onResumeTimer?.(instance.id)}
+                onDelete={() => onDeleteTimer?.(instance.id)}
+                onEdit={() => onEditTimer?.(instance, session)}
+                onOpenNotes={() => onOpenNotes?.(session.id, instance.id)}
+                isSessionActive={session.isActive}
+              />
+            ))}
           </Stack>
         </Box>
       )}

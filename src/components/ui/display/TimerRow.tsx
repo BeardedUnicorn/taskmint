@@ -8,6 +8,7 @@ import {
   Delete as DeleteIcon,
   Notes as NotesIcon,
 } from '@mui/icons-material';
+import { useMemo } from 'react';
 import { TimerInstance, TimerState } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
 import { useTimer } from '../../../hooks/useTimer';
@@ -15,7 +16,6 @@ import { useTimer } from '../../../hooks/useTimer';
 export interface TimerRowProps {
   instance: TimerInstance;
   index: number;
-  startTime?: Date;
   showControls: boolean;
   showNotes: boolean;
   size: 'small' | 'medium' | 'large';
@@ -32,7 +32,6 @@ export interface TimerRowProps {
 export function TimerRow({
   instance,
   index,
-  startTime,
   showControls,
   showNotes,
   size,
@@ -45,6 +44,13 @@ export function TimerRow({
   onOpenNotes,
   isSessionActive,
 }: TimerRowProps) {
+  const startTime = useMemo(() => {
+    if (instance.state !== TimerState.running || !instance.startTime) return undefined;
+    return instance.startTime instanceof Date
+      ? instance.startTime
+      : new Date(instance.startTime);
+  }, [instance.state, instance.startTime]);
+
   const currentElapsed = useTimer(instance.state === TimerState.running, startTime);
   const displayTime = instance.state === TimerState.running ? currentElapsed : instance.duration || 0;
   const isSmall = size === 'small';
