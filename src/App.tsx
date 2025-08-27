@@ -73,7 +73,10 @@ function AppContent() {
       ), [sessionManager.sessions]);
 
   // Timer sync hook
-  useTimerSync();
+  useTimerSync({
+    activeSession: sessionManager.activeSession,
+    sessions: sessionManager.sessions,
+  });
 
   // Setup listeners for global events
   useEffect(() => {
