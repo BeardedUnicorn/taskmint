@@ -48,7 +48,7 @@ export interface TaskManagementProps {
 export interface StartTaskDialogProps {
   open: boolean;
   onClose: () => void;
-  onStartTask: (taskName: string) => void;
+  onStartTask: (taskName: string) => Promise<void>;
   existingTasks: string[];
 }
 
