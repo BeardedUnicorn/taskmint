@@ -193,14 +193,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         >
           <Card sx={{ maxWidth: 600, width: '100%' }}>
             <CardContent>
-              <Stack spacing={3} alignItems="center">
+              <Stack spacing={3} sx={{ alignItems: 'center' }}>
                 <BugReportIcon sx={{ fontSize: 64, color: 'error.main' }} />
                 
-                <Typography variant="h4" component="h1" textAlign="center" color="error">
+                <Typography variant="h4" component="h1" color="error" sx={{ textAlign: 'center' }}>
                   Oops! Something went wrong
                 </Typography>
                 
-                <Typography variant="body1" textAlign="center" color="text.secondary">
+                <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>
                   We're sorry, but something unexpected happened. The application has encountered an error.
                 </Typography>
 
@@ -319,7 +319,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   </Collapse>
                 </Box>
 
-                <Typography variant="caption" color="text.secondary" textAlign="center">
+                <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
                   If this problem persists, please contact support with the technical details above.
                 </Typography>
               </Stack>

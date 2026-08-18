@@ -22,7 +22,7 @@ import {
   ChevronLeft as ChevronLeftIcon,
   CalendarToday as CalendarIcon,
   AdminPanelSettings as AdminIcon,
-  PlayCircleOutline as SessionsIcon,
+  PlayCircleOutlined as SessionsIcon,
 } from '@mui/icons-material';
 
 export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';

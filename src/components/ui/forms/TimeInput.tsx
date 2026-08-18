@@ -79,9 +79,11 @@ export function TimeInput({
       fullWidth={fullWidth}
       size={size}
       sx={sx}
-      inputProps={{
-        maxLength: 8, // HH:MM:SS
-        pattern: '[0-9]{2}:[0-9]{2}:[0-9]{2}',
+      slotProps={{
+        htmlInput: {
+          maxLength: 8, // HH:MM:SS
+          pattern: '[0-9]{2}:[0-9]{2}:[0-9]{2}',
+        }
       }}
     />
   );

@@ -259,9 +259,11 @@ const NoteEditor: React.FC<{
             required={field.required}
             fullWidth
             size="small"
-            inputProps={{
-              min: field.validation?.min,
-              max: field.validation?.max,
+            slotProps={{
+              htmlInput: {
+                min: field.validation?.min,
+                max: field.validation?.max,
+              }
             }}
           />
         );
@@ -276,7 +278,9 @@ const NoteEditor: React.FC<{
             required={field.required}
             fullWidth
             size="small"
-            InputLabelProps={{ shrink: true }}
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         );
       case 'checkbox':
@@ -475,13 +479,13 @@ const NoteEditor: React.FC<{
             size="small"
           />
         )}
-        renderTags={(value, getTagProps) =>
+        renderValue={(value, getItemProps) =>
           value.map((option, index) => (
             <Chip
               variant="outlined"
               label={option}
               size="small"
-              {...getTagProps({ index })}
+              {...getItemProps({ index })}
             />
           ))
         }
@@ -908,8 +912,10 @@ export function EnhancedNotesDialog({
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      PaperProps={{
-        sx: { height: '80vh' }
+      slotProps={{
+        paper: {
+          sx: { height: '80vh' }
+        }
       }}
     >
       <DialogTitle>

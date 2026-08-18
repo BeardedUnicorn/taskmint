@@ -207,32 +207,32 @@ export function GoalAchievementsTable({
         <TableHead>
           <TableRow>
             <TableCell>
-              <Typography variant="subtitle2" fontWeight={600}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Date
               </Typography>
             </TableCell>
             <TableCell align="right">
-              <Typography variant="subtitle2" fontWeight={600}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Goal Set
               </Typography>
             </TableCell>
             <TableCell align="right">
-              <Typography variant="subtitle2" fontWeight={600}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Earned
               </Typography>
             </TableCell>
             <TableCell align="center">
-              <Typography variant="subtitle2" fontWeight={600}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Progress
               </Typography>
             </TableCell>
             <TableCell align="center">
-              <Typography variant="subtitle2" fontWeight={600}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Status
               </Typography>
             </TableCell>
             <TableCell align="center">
-              <Typography variant="subtitle2" fontWeight={600}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Difference
               </Typography>
             </TableCell>
@@ -251,7 +251,7 @@ export function GoalAchievementsTable({
             >
               <TableCell>
                 <Box>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
                     {formatLocalDate(achievement.date)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">

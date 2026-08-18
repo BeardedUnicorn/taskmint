@@ -81,8 +81,8 @@ export function TimeEntriesFilters({
     <Paper variant="outlined" sx={{ mb: 2 }}>
       {/* Filter Header */}
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Stack direction="row" alignItems="center" spacing={1}>
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <FilterIcon color="action" />
             <Typography variant="h6">
               Filters
@@ -97,7 +97,7 @@ export function TimeEntriesFilters({
             )}
           </Stack>
 
-          <Stack direction="row" alignItems="center" spacing={1}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             {hasActiveFilters && (
               <IconButton
                 size="small"
@@ -163,13 +163,13 @@ export function TimeEntriesFilters({
               getOptionLabel={(task) => task.name}
               value={filters.selectedTasks}
               onChange={(_, newValue) => updateFilters({ selectedTasks: newValue })}
-              renderTags={(value, getTagProps) =>
+              renderValue={(value, getItemProps) =>
                 value.map((option, index) => (
                   <Chip
                     variant="outlined"
                     label={option.name}
                     size="small"
-                    {...getTagProps({ index })}
+                    {...getItemProps({ index })}
                     key={option.id}
                   />
                 ))
@@ -242,7 +242,9 @@ export function TimeEntriesFilters({
                     const value = e.target.value ? parseInt(e.target.value) : null;
                     updateFilters({ minDuration: value });
                   }}
-                  inputProps={{ min: 0 }}
+                  slotProps={{
+                    htmlInput: { min: 0 }
+                  }}
                 />
               </Box>
 
@@ -257,7 +259,9 @@ export function TimeEntriesFilters({
                     const value = e.target.value ? parseInt(e.target.value) : null;
                     updateFilters({ maxDuration: value });
                   }}
-                  inputProps={{ min: filters.minDuration || 0 }}
+                  slotProps={{
+                    htmlInput: { min: filters.minDuration || 0 }
+                  }}
                 />
               </Box>
             </Box>

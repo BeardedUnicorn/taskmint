@@ -98,7 +98,7 @@ export function DailyGoalProgressWidget({
       }}
     >
       {/* Header with status */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
           <TrendingUp color="primary" />
           Daily Goal Progress
@@ -140,7 +140,7 @@ export function DailyGoalProgressWidget({
       </Box>
 
       {/* Progress details */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="body2" color="text.secondary">
           {Math.round(percentageAchieved)}% Complete
         </Typography>

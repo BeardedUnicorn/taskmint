@@ -27,7 +27,7 @@ export function DateNavigator({
 
   return (
     <Box sx={sx}>
-      <Stack direction="row" alignItems="center" spacing={1}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         <NavigationButton
           direction="prev"
           onClick={onPrevious}

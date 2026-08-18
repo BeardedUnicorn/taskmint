@@ -152,7 +152,7 @@ function HierarchicalNotesView({
                 <Box sx={{ color: `${config?.color}.main`, mr: 1 }}>
                   {config?.icon}
                 </Box>
-                <Typography variant="subtitle2" fontWeight="medium">
+                <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
                   {config?.label} Notes ({levelNotes.length})
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>

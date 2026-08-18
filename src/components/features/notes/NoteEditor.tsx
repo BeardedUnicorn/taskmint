@@ -453,9 +453,11 @@ export function NoteEditor({
               )
             }
             placeholder={field.placeholder}
-            inputProps={{
-              min: field.validation?.min,
-              max: field.validation?.max,
+            slotProps={{
+              htmlInput: {
+                min: field.validation?.min,
+                max: field.validation?.max,
+              }
             }}
           />
         );
@@ -464,7 +466,9 @@ export function NoteEditor({
           <TextField
             {...commonProps}
             type="date"
-            InputLabelProps={{ shrink: true }}
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         );
       case 'command':
@@ -698,7 +702,7 @@ export function NoteEditor({
       >
         <NotesIcon sx={{ mr: 1, color: 'primary.main' }} />
         <Box sx={{ flex: 1 }}>
-          <Typography variant="subtitle1" fontWeight="medium">
+          <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
             Notes - {selectedTemplate?.name || 'Free-form Note'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
