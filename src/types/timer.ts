@@ -208,8 +208,8 @@ export const TimerInstanceSchema = z.object({
   pausedDuration: z.number().min(0).optional(),
   resumedAt: z.coerce.date().optional(),
   notes: z.string().optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 });
 
 export const TaskSessionSchema = z.object({
@@ -221,8 +221,8 @@ export const TaskSessionSchema = z.object({
   notes: z.string().optional(),
   isActive: z.boolean(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 });
 
 export const InactivitySettingsSchema = z.object({

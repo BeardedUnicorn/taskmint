@@ -168,8 +168,10 @@ export function FieldEditor({
           variant="standard"
           placeholder="Field Label"
           sx={{ flex: 1 }}
-          InputProps={{
-            sx: { fontSize: '1rem', fontWeight: 'medium' }
+          slotProps={{
+            input: {
+              sx: { fontSize: '1rem', fontWeight: 'medium' }
+            }
           }}
         />
 
@@ -282,7 +284,9 @@ export function FieldEditor({
                     min: e.target.value ? parseInt(e.target.value) : undefined 
                   })}
                   size="small"
-                  inputProps={{ min: 0 }}
+                  slotProps={{
+                    htmlInput: { min: 0 }
+                  }}
                 />
                 <TextField
                   label="Max Length"
@@ -292,7 +296,9 @@ export function FieldEditor({
                     max: e.target.value ? parseInt(e.target.value) : undefined 
                   })}
                   size="small"
-                  inputProps={{ min: 0 }}
+                  slotProps={{
+                    htmlInput: { min: 0 }
+                  }}
                 />
               </Box>
               <TextField
@@ -448,7 +454,9 @@ export function FieldEditor({
                   fullWidth
                   disabled
                   size="small"
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{
+                    inputLabel: { shrink: true }
+                  }}
                 />
               )}
               {localField.type === 'command' && (

@@ -16,8 +16,8 @@ export function useDebouncedSave<T extends any[]>(
   options: DebouncedSaveOptions = {}
 ) {
   const { delay = 1000, immediate = false } = options;
-  const timeoutRef = useRef<NodeJS.Timeout>();
-  const lastCallRef = useRef<T>();
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const lastCallRef = useRef<T | undefined>(undefined);
 
   const debouncedSave = useCallback(
     (...args: T) => {

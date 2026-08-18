@@ -245,7 +245,7 @@ export function ThemeSelector({
 
   if (variant === 'buttons') {
     return (
-      <Box display="flex" gap={1}>
+      <Box sx={{ display: 'flex', gap: 1 }}>
         {options.map((option) => (
           <Button
             key={option.value}
@@ -295,8 +295,10 @@ export function ThemeSelector({
           anchorEl={anchorEl}
           open={Boolean(anchorEl)}
           onClose={handleClose}
-          MenuListProps={{
-            'aria-labelledby': 'theme-button',
+          slotProps={{
+            list: {
+              'aria-labelledby': 'theme-button',
+            }
           }}
         >
           {options.map((option) => (

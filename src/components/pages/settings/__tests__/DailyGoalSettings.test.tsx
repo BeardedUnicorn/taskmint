@@ -59,7 +59,7 @@ describe('DailyGoalSettings', () => {
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('100');
     expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('USD ($)');
-    expect(screen.getByRole('checkbox', { name: /enable daily earnings goal/i })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).not.toBeChecked();
   });
 
   it('should handle enabled goal state', () => {
@@ -67,7 +67,7 @@ describe('DailyGoalSettings', () => {
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('150');
     expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('EUR (€)');
-    expect(screen.getByRole('checkbox', { name: /enable daily earnings goal/i })).toBeChecked();
+    expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).toBeChecked();
   });
 
   it('should handle null currentGoal', () => {
@@ -75,7 +75,7 @@ describe('DailyGoalSettings', () => {
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('');
     expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('USD ($)');
-    expect(screen.getByRole('checkbox', { name: /enable daily earnings goal/i })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).not.toBeChecked();
   });
 
   it('should call updateDailyGoal when save button is clicked', async () => {
@@ -83,7 +83,7 @@ describe('DailyGoalSettings', () => {
     mockUpdateDailyGoal.mockResolvedValue(undefined);
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
 
-    const toggle = await screen.findByRole('checkbox', { name: /enable daily earnings goal/i });
+    const toggle = await screen.findByRole('switch', { name: /enable daily earnings goal/i });
     await user.click(toggle);
 
     const saveButton = screen.getByRole('button', { name: 'Save Goal' });
@@ -108,7 +108,7 @@ describe('DailyGoalSettings', () => {
     
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
 
-    await user.click(await screen.findByRole('checkbox', { name: /enable daily earnings goal/i }));
+    await user.click(await screen.findByRole('switch', { name: /enable daily earnings goal/i }));
     await user.click(screen.getByRole('button', { name: 'Save Goal' }));
 
     await waitFor(() => {

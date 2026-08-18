@@ -27,8 +27,8 @@ import { StorageErrorClass, createStorageError } from '../types/errors';
 
 export interface IStorageService {
   // Generic storage operations
-  getItem<T>(key: string, defaultValue: T, schema?: z.ZodSchema<T>): Promise<T>;
-  setItem<T>(key: string, value: T, schema?: z.ZodSchema<T>): Promise<void>;
+  getItem<T>(key: string, defaultValue: T, schema?: z.ZodType<T>): Promise<T>;
+  setItem<T>(key: string, value: T, schema?: z.ZodType<T>): Promise<void>;
   removeItem(key: string): Promise<void>;
   clear(): Promise<void>;
   
@@ -79,7 +79,7 @@ export class StorageService implements IStorageService {
   async getItem<T>(
     key: string,
     defaultValue: T,
-    schema?: z.ZodSchema<T>
+    schema?: z.ZodType<T>
   ): Promise<T> {
     try {
       const item = localStorage.getItem(key);
@@ -159,7 +159,7 @@ export class StorageService implements IStorageService {
   async setItem<T>(
     key: string, 
     value: T, 
-    schema?: z.ZodSchema<T>
+    schema?: z.ZodType<T>
   ): Promise<void> {
     try {
       // Validate data if schema provided

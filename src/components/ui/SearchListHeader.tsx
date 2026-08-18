@@ -26,11 +26,12 @@ export function SearchListHeader({
   searchFieldProps,
 }: SearchListHeaderProps) {
   const {
-    InputProps: inputProps,
-    inputProps: inputElementProps,
+    slotProps: slotPropsOverride,
     fullWidth,
     ...rest
   } = searchFieldProps || {};
+  const inputOverride = (slotPropsOverride?.input ?? {}) as object;
+  const htmlInputOverride = (slotPropsOverride?.htmlInput ?? {}) as Record<string, unknown>;
 
   return (
     <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -45,23 +46,25 @@ export function SearchListHeader({
         placeholder={searchPlaceholder}
         value={searchValue}
         onChange={(e) => onSearchChange(e.target.value)}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon fontSize="small" />
-            </InputAdornment>
-          ),
-          ...inputProps,
-        }}
-        inputProps={{
-          'aria-label':
-            inputElementProps?.['aria-label'] ??
-            searchPlaceholder.replace(/\.\.\.$/, ''),
-          ...inputElementProps,
-        }}
         fullWidth={fullWidth ?? true}
         {...rest}
-      />
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+            ...inputOverride,
+          },
+
+          htmlInput: {
+            'aria-label':
+              (htmlInputOverride['aria-label'] as string | undefined) ??
+              searchPlaceholder.replace(/\.\.\.$/, ''),
+            ...htmlInputOverride,
+          }
+        }} />
     </Box>
   );
 }

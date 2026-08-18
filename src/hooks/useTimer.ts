@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  */
 export function useTimer(isRunning: boolean, startTime?: Date, pausedOffsetMs: number = 0) {
   const [elapsed, setElapsed] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout>();
+  const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const startTimeRef = useRef<number | null>(null);
   const offsetRef = useRef(pausedOffsetMs);
   offsetRef.current = pausedOffsetMs;

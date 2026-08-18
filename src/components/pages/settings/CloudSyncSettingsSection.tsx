@@ -80,7 +80,7 @@ export function CloudSyncSettingsSection({ onSuccess, onError }: CloudSyncSettin
   };
 
   return (
-      <SettingsSection title="Cloud Sync (Google Drive)" icon={<CloudIcon color="primary" />}>
+    <SettingsSection title="Cloud Sync (Google Drive)" icon={<CloudIcon color="primary" />}>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Synchronize your data with Google Drive for backup and access across devices.
@@ -163,10 +163,12 @@ export function CloudSyncSettingsSection({ onSuccess, onError }: CloudSyncSettin
               type="number"
               value={cloudSyncConfig.syncInterval}
               onChange={(e) => updateCloudSyncConfig({ syncInterval: parseInt(e.target.value) || 30 })}
-              inputProps={{ min: 5, max: 1440 }}
               size="small"
               sx={{ maxWidth: 250 }}
               helperText="How often to automatically sync (5 minutes to 24 hours)"
+              slotProps={{
+                htmlInput: { min: 5, max: 1440 }
+              }}
             />
           )}
         </Stack>

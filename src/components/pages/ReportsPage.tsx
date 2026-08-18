@@ -273,13 +273,13 @@ export function ReportsPage({
                   size="small"
                 />
               )}
-              renderTags={(value, getTagProps) =>
+              renderValue={(value, getItemProps) =>
                 value.map((option, index) => (
                   <Chip
                     variant="outlined"
                     label={option.name}
                     size="small"
-                    {...getTagProps({ index })}
+                    {...getItemProps({ index })}
                     key={option.id}
                   />
                 ))
@@ -340,7 +340,7 @@ export function ReportsPage({
             {hasAdvancedReports ? (
               /* Chart Controls */
               <Paper sx={{ p: 3, mb: 3 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     Visual Analytics
                   </Typography>
@@ -443,32 +443,32 @@ export function ReportsPage({
                 <TableHead>
                   <TableRow>
                     <TableCell>
-                      <Typography variant="subtitle2" fontWeight={600}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         Task
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="subtitle2" fontWeight={600}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         Start Time
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="subtitle2" fontWeight={600}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         End Time
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="subtitle2" fontWeight={600}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         Duration
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="subtitle2" fontWeight={600}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         Earnings
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
-                      <Typography variant="subtitle2" fontWeight={600}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         Actions
                       </Typography>
                     </TableCell>

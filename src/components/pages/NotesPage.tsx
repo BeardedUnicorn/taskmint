@@ -254,7 +254,7 @@ export function NotesPage({ tasks, activeEntry, notesPageState }: NotesPageProps
 
       {/* Controls */}
       <Box sx={{ px: 3, pb: 2 }}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Search */}
           <TextField
             size="small"
@@ -262,14 +262,16 @@ export function NotesPage({ tasks, activeEntry, notesPageState }: NotesPageProps
             placeholder="Search notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
             sx={{ minWidth: 250 }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }
+            }}
           />
 
           {/* Task Filter */}

@@ -68,20 +68,22 @@ export function CurrencyInput({
       fullWidth={fullWidth}
       type="text"
       sx={sx}
-      InputProps={{
-        startAdornment: (
-          <InputAdornment position="start">
-            {currency}
-          </InputAdornment>
-        ),
-      }}
-      inputProps={{
-        inputMode: 'decimal',
-        pattern: '[0-9]*[.]?[0-9]*',
-        min,
-        max,
-        step,
-      }}
-    />
+      slotProps={{
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              {currency}
+            </InputAdornment>
+          ),
+        },
+
+        htmlInput: {
+          inputMode: 'decimal',
+          pattern: '[0-9]*[.]?[0-9]*',
+          min,
+          max,
+          step,
+        }
+      }} />
   );
 }

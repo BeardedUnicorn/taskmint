@@ -37,13 +37,14 @@ export function InactivityWarningDialog({
   return (
     <Dialog
       open={remainingSeconds > 0}
-      disableEscapeKeyDown
       maxWidth="sm"
       fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 2,
-          boxShadow: 3,
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 2,
+            boxShadow: 3,
+          }
         }
       }}
     >

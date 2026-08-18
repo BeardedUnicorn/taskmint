@@ -67,7 +67,8 @@ describe('useTaskNotes retrieval helpers', () => {
     mockNotesService.getAllNotes.mockResolvedValue(notes);
     const { result } = renderHook(() => useTaskNotes());
 
-    await waitFor(() => !result.current.isLoading);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.notes).toHaveLength(notes.length));
 
     const sessionNotes = result.current.getNotesBySessionId('session1');
     expect(sessionNotes).toHaveLength(2);
@@ -78,7 +79,8 @@ describe('useTaskNotes retrieval helpers', () => {
     mockNotesService.getAllNotes.mockResolvedValue(notes);
     const { result } = renderHook(() => useTaskNotes());
 
-    await waitFor(() => !result.current.isLoading);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.notes).toHaveLength(notes.length));
 
     const timerNotes = result.current.getNotesByTimerInstanceId('timer2');
     expect(timerNotes).toHaveLength(2);
@@ -130,7 +132,8 @@ describe('useTaskNotes stats', () => {
     mockNotesService.getAllNotes.mockResolvedValue(notesForStats);
     const { result } = renderHook(() => useTaskNotes());
 
-    await waitFor(() => !result.current.isLoading);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.notes).toHaveLength(notesForStats.length));
 
     const initialOrder = result.current.notes.map(n => n.id);
 

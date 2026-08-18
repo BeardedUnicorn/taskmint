@@ -156,34 +156,34 @@ export function TaskDetailPane({
               <TableHead>
                 <TableRow>
                   <TableCell>
-                    <Typography variant="subtitle2" fontWeight={600}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                       Date
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="subtitle2" fontWeight={600}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                       Start Time
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="subtitle2" fontWeight={600}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                       End Time
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="subtitle2" fontWeight={600}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                       Duration
                     </Typography>
                   </TableCell>
                   {task.hourlyRate && (
                     <TableCell>
-                      <Typography variant="subtitle2" fontWeight={600}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         Earnings
                       </Typography>
                     </TableCell>
                   )}
                   <TableCell align="right">
-                    <Typography variant="subtitle2" fontWeight={600}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                       Actions
                     </Typography>
                   </TableCell>

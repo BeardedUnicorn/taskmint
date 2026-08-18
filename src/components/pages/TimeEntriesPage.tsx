@@ -192,7 +192,7 @@ export function TimeEntriesPage({
   return (
     <Box sx={{ p: 3 }}>
       {/* Page Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
             Time Entries
@@ -229,9 +229,7 @@ export function TimeEntriesPage({
       {/* Results Summary */}
       <Stack
         direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{ mb: 2 }}
+        sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}
       >
         <Typography variant="body2" color="text.secondary">
           Showing {startIndex + 1}-{Math.min(endIndex, filteredEntries.length)} of {filteredEntries.length} entries

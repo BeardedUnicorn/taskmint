@@ -26,8 +26,8 @@ export const TaskSchema = z.object({
   defaultNoteTemplateId: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
   childOrder: z.number().min(0).optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 });
 
 export interface TaskFormData {

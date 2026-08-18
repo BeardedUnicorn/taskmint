@@ -285,7 +285,9 @@ describe('useDataBackup', () => {
 
     it('should generate correct filename format', async () => {
       const mockDate = new Date('2023-01-01T10:30:45.123Z');
-      vi.spyOn(global, 'Date').mockImplementation(() => mockDate);
+      vi.spyOn(global, 'Date').mockImplementation(function () {
+        return mockDate;
+      } as any);
 
       (invoke as any).mockResolvedValue('/mock/path/export.json');
 

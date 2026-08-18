@@ -72,7 +72,7 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
   };
 
   return (
-      <SettingsSection title="Automatic Backups" icon={<BackupIcon color="primary" />}>
+    <SettingsSection title="Automatic Backups" icon={<BackupIcon color="primary" />}>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Configure automatic periodic backups to protect your data. Backups are saved locally to your chosen directory.
@@ -105,10 +105,12 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
                 fullWidth
                 value={backupConfig.backupPath}
                 placeholder="Select a directory for backups..."
-                InputProps={{
-                  readOnly: true,
-                }}
                 size="small"
+                slotProps={{
+                  input: {
+                    readOnly: true,
+                  }
+                }}
               />
               <Button
                 variant="outlined"
@@ -145,10 +147,12 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
             type="number"
             value={backupConfig.maxBackups}
             onChange={(e) => updateMaxBackups(parseInt(e.target.value) || 10)}
-            inputProps={{ min: 1, max: 100 }}
             size="small"
             sx={{ maxWidth: 250 }}
             helperText="Older backups will be automatically deleted"
+            slotProps={{
+              htmlInput: { min: 1, max: 100 }
+            }}
           />
 
           {/* Manual Backup Button */}

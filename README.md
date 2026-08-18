@@ -44,10 +44,10 @@ A fresh, modern time tracking and earnings management application built with Tau
 
 ## 🛠 Technology Stack
 
-- **Frontend**: React 18, TypeScript, Material-UI v7
+- **Frontend**: React 19, TypeScript, Material-UI v9
 - **Backend**: Rust with Tauri v2 framework
 - **Build Tool**: Vite with React plugin
-- **Testing**: Jest with React Testing Library
+- **Testing**: Vitest with React Testing Library
 - **State Management**: React hooks with local storage persistence
 - **UI Components**: Material-UI with dark theme support
 - **System Integration**: Native system tray, IPC communication
@@ -55,12 +55,12 @@ A fresh, modern time tracking and earnings management application built with Tau
 
 ## 📋 Prerequisites
 
-- **Node.js**: Version 18.0 or higher
+- **Node.js**: Version 20.19 or higher (22.12+ recommended)
 - **Rust**: Latest stable version (1.70+)
 - **Platform Requirements**:
   - **macOS**: macOS 10.15 or later
   - **Windows**: Windows 10 or later
-- **Development Tools**: Git, npm/yarn/pnpm
+- **Development Tools**: Git, pnpm (the repository pins `pnpm` via the `packageManager` field; enable with `corepack enable` or `npm i -g pnpm`)
 
 ## 🔧 Installation
 
@@ -73,7 +73,7 @@ cd taskmint
 ### 2. Install Dependencies
 ```bash
 # Install Node.js dependencies
-npm install
+pnpm install
 
 # Install Rust dependencies (handled automatically by Tauri)
 ```
@@ -90,7 +90,7 @@ cp .env.example .env
 ### 4. Development Setup
 ```bash
 # Start development server
-npm run dev
+pnpm dev
 
 # This will:
 # - Start Vite dev server on http://localhost:1420
@@ -104,20 +104,20 @@ npm run dev
 
 ```bash
 # Development
-npm run dev          # Start development server with hot reload
-npm run build        # Build for production
-npm run preview      # Preview production build
+pnpm dev          # Start development server with hot reload
+pnpm build        # Build for production
+pnpm preview      # Preview production build
 
 # Tauri Commands
-npm run tauri dev    # Start Tauri development mode
-npm run tauri build  # Build production executable
+pnpm tauri dev    # Start Tauri development mode
+pnpm tauri build  # Build production executable
 
 # Testing
-npm run test         # Run all tests
-npm run test:watch   # Run tests in watch mode
-npm run test:coverage # Run tests with coverage report
-npm run test:unit    # Run unit tests only
-npm run test:integration # Run integration tests only
+pnpm test         # Run all tests
+pnpm test:watch   # Run tests in watch mode
+pnpm test:coverage # Run tests with coverage report
+pnpm test:unit    # Run unit tests only
+pnpm test:integration # Run integration tests only
 ```
 
 ### Project Structure
@@ -172,18 +172,18 @@ The project includes comprehensive testing setup:
 ### Running Tests
 ```bash
 # Run all tests with coverage
-npm run test:coverage
+pnpm test:coverage
 
 # Run specific test suites
-npm run test:unit
-npm run test:integration
+pnpm test:unit
+pnpm test:integration
 
 # Watch mode for development
-npm run test:watch
+pnpm test:watch
 ```
 
 ### Test Configuration
-- **Jest**: Primary testing framework
+- **Vitest**: Primary testing framework
 - **React Testing Library**: Component testing utilities
 - **jsdom**: Browser environment simulation
 - **Mocked APIs**: Tauri API mocks for isolated testing
@@ -268,7 +268,6 @@ npm run test:watch
 
 ### Optimization Features
 - **Memoization**: Expensive calculations cached with React.memo
-- **Virtual Scrolling**: Large lists handled with react-window
 - **Lazy Loading**: Components loaded on demand
 - **Efficient Updates**: Minimal re-renders with proper dependency arrays
 
@@ -303,7 +302,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [React Documentation](https://react.dev/)
 - [Material-UI Documentation](https://mui.com/)
 - [TypeScript Documentation](https://www.typescriptlang.org/)
-- [Jest Testing Framework](https://jestjs.io/)
+- [Vitest Testing Framework](https://vitest.dev/)
 - [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
 
 ## 🆘 Troubleshooting
@@ -313,8 +312,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 #### Development Server Won't Start
 ```bash
 # Clear node modules and reinstall
-rm -rf node_modules package-lock.json
-npm install
+rm -rf node_modules
+pnpm install
 
 # Clear Tauri cache
 rm -rf src-tauri/target
@@ -331,16 +330,13 @@ rm -rf src-tauri/target
 rustup update
 
 # Clean build cache
-npm run tauri build -- --clean
+pnpm tauri build -- --clean
 ```
 
 #### Test Failures
 ```bash
-# Clear Jest cache
-npm test -- --clearCache
-
 # Run tests with verbose output
-npm test -- --verbose
+pnpm test -- --reporter=verbose
 ```
 
 #### Google Drive API Setup (Optional)

@@ -168,7 +168,7 @@ export function TimeEntriesTable({
       {/* Bulk Actions Bar */}
       {showBulkActions && selectedEntries.size > 0 && (
         <Box sx={{ p: 2, bgcolor: 'action.selected' }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
             <Typography variant="subtitle2">
               {selectedEntries.size} entries selected
             </Typography>
@@ -203,7 +203,7 @@ export function TimeEntriesTable({
                   direction={sortField === 'taskName' ? sortDirection : 'asc'}
                   onClick={() => handleSort('taskName')}
                 >
-                  <Typography variant="subtitle2" fontWeight={600}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                     Task
                   </Typography>
                 </TableSortLabel>
@@ -215,7 +215,7 @@ export function TimeEntriesTable({
                   direction={sortField === 'date' ? sortDirection : 'asc'}
                   onClick={() => handleSort('date')}
                 >
-                  <Typography variant="subtitle2" fontWeight={600}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                     Date
                   </Typography>
                 </TableSortLabel>
@@ -227,7 +227,7 @@ export function TimeEntriesTable({
                   direction={sortField === 'startTime' ? sortDirection : 'asc'}
                   onClick={() => handleSort('startTime')}
                 >
-                  <Typography variant="subtitle2" fontWeight={600}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                     Start Time
                   </Typography>
                 </TableSortLabel>
@@ -239,7 +239,7 @@ export function TimeEntriesTable({
                   direction={sortField === 'endTime' ? sortDirection : 'asc'}
                   onClick={() => handleSort('endTime')}
                 >
-                  <Typography variant="subtitle2" fontWeight={600}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                     End Time
                   </Typography>
                 </TableSortLabel>
@@ -251,7 +251,7 @@ export function TimeEntriesTable({
                   direction={sortField === 'duration' ? sortDirection : 'asc'}
                   onClick={() => handleSort('duration')}
                 >
-                  <Typography variant="subtitle2" fontWeight={600}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                     Duration
                   </Typography>
                 </TableSortLabel>
@@ -264,7 +264,7 @@ export function TimeEntriesTable({
                     direction={sortField === 'earnings' ? sortDirection : 'asc'}
                     onClick={() => handleSort('earnings')}
                   >
-                    <Typography variant="subtitle2" fontWeight={600}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                       Earnings
                     </Typography>
                   </TableSortLabel>
@@ -272,7 +272,7 @@ export function TimeEntriesTable({
               )}
 
               <TableCell align="right">
-                <Typography variant="subtitle2" fontWeight={600}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                   Actions
                 </Typography>
               </TableCell>

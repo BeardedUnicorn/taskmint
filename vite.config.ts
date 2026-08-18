@@ -17,14 +17,17 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Separate vendor chunks for better caching
-          'react-vendor': ['react', 'react-dom'],
-          'mui-vendor': ['@mui/material', '@mui/icons-material', '@mui/x-date-pickers'],
-          'chart-vendor': ['recharts', 'd3-interpolate'],
-          'date-vendor': ['dayjs', 'date-fns'],
-          'tauri-vendor': ['@tauri-apps/api'],
-          'sentry-vendor': ['@sentry/react', '@sentry/core'],
+        // Separate vendor chunks for better caching. Rolldown (vite 8)
+        // only accepts the function form.
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react-vendor';
+          if (id.includes('/node_modules/@mui/')) return 'mui-vendor';
+          if (/\/node_modules\/(recharts|victory-vendor|d3-[^/]+)\//.test(id)) return 'chart-vendor';
+          if (/\/node_modules\/(dayjs|date-fns)\//.test(id)) return 'date-vendor';
+          if (id.includes('/node_modules/@tauri-apps/')) return 'tauri-vendor';
+          if (id.includes('/node_modules/@sentry/')) return 'sentry-vendor';
+          return undefined;
         },
       },
     },

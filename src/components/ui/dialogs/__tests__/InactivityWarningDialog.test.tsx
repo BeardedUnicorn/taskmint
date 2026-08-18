@@ -118,8 +118,8 @@ expect(screen.getAllByText(/1s/).length).toBeGreaterThan(0);
       
       const progressBar = screen.getByRole('progressbar');
       // Accept either rounded or precise value for progress bar
-const progressValue = progressBar.getAttribute('aria-valuenow');
-expect(['3', '3.33']).toContain(progressValue);
+const progressValue = parseFloat(progressBar.getAttribute('aria-valuenow') || '0');
+expect(progressValue).toBeCloseTo(100 / 30, 1); // 1/30 remaining ≈ 3.33%
     });
   });
 
@@ -285,7 +285,7 @@ expect(['3', '3.33']).toContain(progressValue);
       render(<InactivityWarningDialog {...mockProps} />);
       
       const warningAlert = screen.getByRole('alert');
-      expect(warningAlert).toHaveClass('MuiAlert-standardWarning');
+      expect(warningAlert).toHaveClass('MuiAlert-colorWarning');
     });
 
     it('should have proper button styling', () => {
@@ -294,7 +294,7 @@ expect(['3', '3.33']).toContain(progressValue);
       const continueButton = screen.getByRole('button', { name: /continue working/i });
       const pauseButton = screen.getByRole('button', { name: /pause timer/i });
       
-      expect(continueButton).toHaveClass('MuiButton-containedPrimary');
+      expect(continueButton).toHaveClass('MuiButton-contained', 'MuiButton-colorPrimary');
       expect(pauseButton).toHaveClass('MuiButton-outlined');
     });
   });

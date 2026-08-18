@@ -36,8 +36,8 @@ export const DailyGoalSchema = z.object({
   isEnabled: z.boolean(),
   lastNotifiedPercent: z.number().min(0).max(200), // Allow up to 200% for exceeded goals
   lastNotificationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 export const DailyGoalAchievementSchema = z.object({
@@ -49,7 +49,7 @@ export const DailyGoalAchievementSchema = z.object({
   percentageAchieved: z.number().min(0),
   status: z.enum(['hit', 'missed', 'exceeded']),
   difference: z.number(),
-  recordedAt: z.string().datetime(),
+  recordedAt: z.iso.datetime(),
 });
 
 // Form data types for goal configuration

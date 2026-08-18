@@ -125,7 +125,9 @@ export function EditTimeEntryDialog({
           onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
           error={!!errors.startTime}
           helperText={errors.startTime}
-          InputLabelProps={{ shrink: true }}
+          slotProps={{
+            inputLabel: { shrink: true }
+          }}
         />
         
         <TextField
@@ -136,7 +138,9 @@ export function EditTimeEntryDialog({
           onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
           error={!!errors.endTime}
           helperText={errors.endTime}
-          InputLabelProps={{ shrink: true }}
+          slotProps={{
+            inputLabel: { shrink: true }
+          }}
         />
         
         {duration > 0 && (
