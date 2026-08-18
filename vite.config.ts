@@ -21,10 +21,10 @@ export default defineConfig({
           // Separate vendor chunks for better caching
           'react-vendor': ['react', 'react-dom'],
           'mui-vendor': ['@mui/material', '@mui/icons-material', '@mui/x-date-pickers'],
-          'chart-vendor': ['recharts', 'd3-interpolate'],
+          'chart-vendor': ['recharts'],
           'date-vendor': ['dayjs', 'date-fns'],
           'tauri-vendor': ['@tauri-apps/api'],
-          'sentry-vendor': ['@sentry/react', '@sentry/core'],
+          'sentry-vendor': ['@sentry/react'],
         },
       },
     },
