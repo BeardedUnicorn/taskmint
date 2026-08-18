@@ -237,6 +237,20 @@ describe('SessionTimerToolbar', () => {
       ],
     };
 
+    const idleSession = {
+      ...mockActiveSession,
+      timerInstances: [
+        {
+          ...mockTimerInstance,
+          state: TimerState.idle,
+          isRunning: false,
+          isPaused: false,
+          endTime: undefined,
+          duration: undefined,
+        },
+      ],
+    };
+
     const stoppedSession = {
       ...mockActiveSession,
       timerInstances: [
@@ -262,10 +276,19 @@ describe('SessionTimerToolbar', () => {
       expect(screen.getByRole('button', { name: /resume timer 1/i })).toBeInTheDocument();
     });
 
-    it('should show start button for stopped timer', () => {
-      render(<SessionTimerToolbar {...mockProps} activeSession={stoppedSession} />);
-      
+    it('should show start button for a fresh (idle) timer', () => {
+      render(<SessionTimerToolbar {...mockProps} activeSession={idleSession} />);
+
       expect(screen.getByRole('button', { name: /start timer 1/i })).toBeInTheDocument();
+    });
+
+    it('should not show a start button for a completed (stopped) timer', () => {
+      // A stopped timer is final; continuing work means adding a new timer.
+      render(<SessionTimerToolbar {...mockProps} activeSession={stoppedSession} />);
+
+      expect(screen.queryByRole('button', { name: /start timer 1/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /edit timer 1/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /delete timer 1/i })).toBeInTheDocument();
     });
 
     it('should call onPauseTimer when pause button is clicked', () => {
@@ -287,11 +310,11 @@ describe('SessionTimerToolbar', () => {
     });
 
     it('should call onStartTimer when start button is clicked', () => {
-      render(<SessionTimerToolbar {...mockProps} activeSession={stoppedSession} />);
-      
+      render(<SessionTimerToolbar {...mockProps} activeSession={idleSession} />);
+
       const startButton = screen.getByRole('button', { name: /start timer 1/i });
       fireEvent.click(startButton);
-      
+
       expect(mockProps.onStartTimer).toHaveBeenCalledWith('instance-1');
     });
 

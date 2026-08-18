@@ -11,7 +11,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionDashboard } from '../../components/pages/SessionDashboard';
 import { SessionTimerToolbar } from '../../components/layout/SessionTimerToolbar';
-import { TaskSession, TimerInstance } from '../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
 
@@ -80,6 +80,13 @@ vi.mock('../../hooks/useSessionManagement', () => ({
   useSessionManagement: () => mockSessionManagement,
 }));
 
+// The dashboard consumes the shared session context (single hook instance
+// provided at the app root), so mock the context module the same way.
+vi.mock('../../contexts/SessionManagementContext', () => ({
+  useSessionManagementContext: () => mockSessionManagement,
+  SessionManagementProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 // Mock task management context
 const mockTaskManagement = {
   tasks: [],
@@ -136,6 +143,7 @@ describe('Session System Integration', () => {
     id: 'instance-1',
     sessionId: 'session-1',
     startTime: new Date('2024-01-15T10:00:00Z'),
+    state: TimerState.idle,
     isRunning: false,
     isPaused: false,
     createdAt: '2024-01-15T10:00:00Z',
@@ -266,7 +274,7 @@ describe('Session System Integration', () => {
     });
 
     it('should stop individual timer instances', async () => {
-      const runningInstance = { ...mockTimerInstance, isRunning: true };
+      const runningInstance = { ...mockTimerInstance, isRunning: true, state: TimerState.running };
       const activeSession = {
         ...mockSession,
         isActive: true,
@@ -307,7 +315,7 @@ describe('Session System Integration', () => {
           taskName: 'Code Review',
           totalDuration: 7200000, // 2 hours
           timerInstances: [
-            { ...mockTimerInstance, id: 'instance-2', duration: 7200000 },
+            { ...mockTimerInstance, id: 'instance-2', duration: 7200000, state: TimerState.stopped },
           ],
         },
       ];
@@ -395,7 +403,7 @@ describe('Session System Integration', () => {
       const activeSession = {
         ...mockSession,
         isActive: true,
-        timerInstances: [{ ...mockTimerInstance, isRunning: true }],
+        timerInstances: [{ ...mockTimerInstance, isRunning: true, state: TimerState.running }],
         totalDuration: 3600000, // 1 hour
       };
 
@@ -428,7 +436,7 @@ describe('Session System Integration', () => {
       const activeSession = {
         ...mockSession,
         isActive: true,
-        timerInstances: [{ ...mockTimerInstance, isRunning: true }],
+        timerInstances: [{ ...mockTimerInstance, isRunning: true, state: TimerState.running }],
       };
 
       render(

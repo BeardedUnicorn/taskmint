@@ -1,11 +1,15 @@
 /**
  * Session Management Hook
- * 
+ *
  * Manages task sessions and timer instances with proper state management,
  * error handling, and integration with the backend.
+ *
+ * This hook owns client-side session state and is intended to be instantiated
+ * exactly once, via SessionManagementProvider — multiple instances would each
+ * hold their own diverging copy of the session list.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
@@ -18,12 +22,25 @@ import { useNotification } from '../contexts/NotificationContext';
 import { measurePerformance } from '../utils/performance';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
 
-// Helper to ensure timer instances always have a state value
+// Backend events that signal session data changed outside this hook's own calls
+const TIMER_INSTANCE_EVENTS = [
+  'timer-instance-started',
+  'timer-instance-stopped',
+  'timer-instance-paused',
+  'timer-instance-resumed',
+  'timer-instance-deleted',
+] as const;
+
+// Helper to ensure timer instances always have a state value. The Rust
+// backend only sends isRunning/isPaused; a fresh instance (never run, no
+// recorded duration) is `idle` and is the only state Start is valid for —
+// a completed instance is final.
 function normalizeTimerInstance(instance: TimerInstance): TimerInstance {
   if (instance.state) return instance;
-  let state = TimerState.stopped;
+  let state = TimerState.idle;
   if (instance.isRunning) state = TimerState.running;
   else if (instance.isPaused) state = TimerState.paused;
+  else if (instance.duration != null || instance.endTime != null) state = TimerState.stopped;
   return { ...instance, state };
 }
 
@@ -43,21 +60,20 @@ export function useSessionManagement(): UseSessionManagementReturn {
   const { showError, showSuccess } = useNotification();
   const { activeTimer, setActiveTimer } = useActiveTimer();
 
-  // Load sessions from backend
-  const loadSessions = useCallback(async () => {
-    console.log('Attempting to load sessions...');
-    setIsLoading(true);
+  // Load sessions from backend. `silent` skips the loading flag so
+  // event-driven refreshes don't flash loading UI.
+  const loadSessions = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) setIsLoading(true);
     setError(null);
-    
+
     try {
       const loadedSessions = await invoke<TaskSession[]>('get_sessions');
-      console.log('Raw sessions from backend:', loadedSessions);
       const normalizedSessions = (loadedSessions || []).map(normalizeSession);
       setSessions(normalizedSessions);
 
       // Find active session
       const active = normalizedSessions.find((s: TaskSession) => s.isActive) || null;
-      console.log('Active session found:', active);
       setActiveSessionState(active);
 
       const runningInstance = normalizedSessions
@@ -70,25 +86,19 @@ export function useSessionManagement(): UseSessionManagementReturn {
       showError(errorMessage);
       setSessions([]); // Ensure sessions is always an array
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [showError, setActiveTimer]);
-  
+
   const updateLocalSession = useCallback((session: TaskSession) => {
     const normalized = normalizeSession(session);
-    console.log('Updating local session:', normalized.id);
 
     // Update sessions array
-    setSessions(prev => {
-      const updated = prev.map(s => (s.id === normalized.id ? normalized : s));
-      console.log('Updated sessions array:', updated);
-      return updated;
-    });
+    setSessions(prev => prev.map(s => (s.id === normalized.id ? normalized : s)));
 
     // Update active session if it matches - use functional update to avoid dependency
     setActiveSessionState(currentActive => {
       if (currentActive && currentActive.id === normalized.id) {
-        console.log('Updating active session state');
         return normalized;
       }
       return currentActive;
@@ -101,9 +111,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
       setActiveTimer(null);
     }
   }, [activeTimer, setActiveTimer]);
-  
+
   const createTimerInstance = useCallback(async (sessionId: string): Promise<TimerInstance | null> => {
-    console.log(`Attempting to create timer instance for session ${sessionId}...`);
     return measurePerformance('useSessionManagement.createTimerInstance', async () => {
       setIsLoading(true);
       setError(null);
@@ -125,74 +134,59 @@ export function useSessionManagement(): UseSessionManagementReturn {
   }, [loadSessions, showError, showSuccess]);
 
   const startTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
-    console.log(`Attempting to start timer instance ${instanceId}...`);
     return measurePerformance('useSessionManagement.startTimerInstance', async () => {
       setIsLoading(true);
       setError(null);
 
       try {
-        const updatedSession = await invoke<TaskSession>('start_timer_instance', { instanceId });
-        updateLocalSession(updatedSession);
-        showSuccess('Timer started');
+        // The backend refuses to start a timer in an inactive session or
+        // while another timer runs. Recover automatically from each case
+        // (activate the session / stop the other timer) and retry, at most
+        // once per recovery type.
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const updatedSession = await invoke<TaskSession>('start_timer_instance', { instanceId });
+            updateLocalSession(updatedSession);
+            showSuccess('Timer started');
+            return;
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err ?? '');
+
+            if (attempt < maxAttempts && errorMessage.includes('inactive session')) {
+              const parentSession = sessions.find(s =>
+                s.timerInstances.some(t => t.id === instanceId)
+              );
+              if (parentSession) {
+                const updatedSessions = await invoke<TaskSession[]>(
+                  'set_active_session',
+                  { sessionId: parentSession.id }
+                );
+                const normalized = updatedSessions.map(normalizeSession);
+                setSessions(normalized);
+                setActiveSessionState(normalized.find(s => s.isActive) || null);
+                continue;
+              }
+            }
+
+            if (attempt < maxAttempts && errorMessage.includes('Another timer instance is already running')) {
+              const runningInstance = sessions
+                .flatMap(s => s.timerInstances)
+                .find(i => i.state === TimerState.running && i.id !== instanceId);
+              if (runningInstance) {
+                const stoppedSession = await invoke<TaskSession>('stop_timer_instance', {
+                  instanceId: runningInstance.id,
+                });
+                updateLocalSession(stoppedSession);
+                continue;
+              }
+            }
+
+            throw err;
+          }
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to start timer';
-
-        // If the session is inactive, activate it and retry
-        if (errorMessage.includes('inactive session')) {
-          const parentSession = sessions.find(s =>
-            s.timerInstances.some(t => t.id === instanceId)
-          );
-
-          if (parentSession) {
-            try {
-              const updatedSessions = await invoke<TaskSession[]>(
-                'set_active_session',
-                { sessionId: parentSession.id }
-              );
-              setSessions(updatedSessions);
-              setActiveSessionState(parentSession);
-
-              const startedSession = await invoke<TaskSession>('start_timer_instance', { instanceId });
-              updateLocalSession(startedSession);
-              showSuccess('Timer started');
-              return;
-            } catch (retryErr) {
-              const retryMessage =
-                retryErr instanceof Error ? retryErr.message : 'Failed to start timer';
-              setError(retryMessage);
-              showError(retryMessage);
-              return;
-            }
-          }
-        }
-
-        // If another timer is already running, stop it and retry
-        if (errorMessage.includes('Another timer instance is already running')) {
-          const runningInstance = sessions
-            .flatMap(s => s.timerInstances)
-            .find(i => i.state === TimerState.running);
-
-          if (runningInstance) {
-            try {
-              const stoppedSession = await invoke<TaskSession>('stop_timer_instance', {
-                instanceId: runningInstance.id,
-              });
-              updateLocalSession(stoppedSession);
-
-              const startedSession = await invoke<TaskSession>('start_timer_instance', { instanceId });
-              updateLocalSession(startedSession);
-              showSuccess('Timer started');
-              return;
-            } catch (retryErr) {
-              const retryMessage =
-                retryErr instanceof Error ? retryErr.message : 'Failed to start timer';
-              setError(retryMessage);
-              showError(retryMessage);
-              return;
-            }
-          }
-        }
-
         setError(errorMessage);
         showError(errorMessage);
       } finally {
@@ -296,55 +290,135 @@ export function useSessionManagement(): UseSessionManagementReturn {
     });
   }, [loadSessions, showError, showSuccess]);
 
-  // Initialize sessions on mount
+  // Initialize sessions on mount, and surface any startup load problems the
+  // backend recorded (skipped/unreadable records in sessions.json).
+  const loadWarningShownRef = useRef(false);
   useEffect(() => {
     loadSessions();
+
+    if (!loadWarningShownRef.current) {
+      loadWarningShownRef.current = true;
+      invoke<string | null>('get_session_load_warning')
+        .then(warning => {
+          if (warning) showError(warning);
+        })
+        .catch(() => {
+          // Older backends without this command: nothing to surface
+        });
+    }
+  }, [loadSessions, showError]);
+
+  // Refresh whenever the backend reports a timer-instance change. This keeps
+  // any surface that mutates outside this hook (e.g. the system tray) in
+  // sync. Listeners register once; the latest loadSessions is kept in a ref.
+  const loadSessionsRef = useRef(loadSessions);
+  useEffect(() => {
+    loadSessionsRef.current = loadSessions;
   }, [loadSessions]);
 
-  // Setup event listeners separately to avoid dependency issues
-    useEffect(() => {
-      let unlisten: (() => void | Promise<void>) | null = null;
-      const setupEventListeners = async () => {
-        unlisten = await listen('timer-pause-inactivity', async () => {
-          let timersToPause: TimerInstance[] = [];
+  // Current sessions for event handlers that must read state synchronously
+  // (a setState updater would only run at the next render).
+  const sessionsRef = useRef<TaskSession[]>(sessions);
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
-          // Get current active session from state without depending on it
-          setSessions(currentSessions => {
-            const currentActiveSession = currentSessions.find(s => s.isActive);
-            if (currentActiveSession) {
-              timersToPause = currentActiveSession.timerInstances.filter(t => t.state === TimerState.running);
-            }
-            return currentSessions; // no state update, just reading current state
-          });
+  useEffect(() => {
+    let reloadTimeout: ReturnType<typeof setTimeout> | null = null;
+    const scheduleReload = () => {
+      if (reloadTimeout) clearTimeout(reloadTimeout);
+      reloadTimeout = setTimeout(() => {
+        void loadSessionsRef.current({ silent: true });
+      }, 300);
+    };
 
-          if (timersToPause.length === 0) return;
+    const unlistenPromises = TIMER_INSTANCE_EVENTS.map(eventName =>
+      listen(eventName, scheduleReload)
+    );
 
-          try {
-            // Pause timers sequentially
-            for (const timer of timersToPause) {
-              await pauseTimerInstance(timer.id);
-            }
+    return () => {
+      if (reloadTimeout) clearTimeout(reloadTimeout);
+      unlistenPromises.forEach(promise => {
+        promise.then(unlisten => unlisten()).catch(() => {});
+      });
+    };
+  }, []);
 
-            // Reload sessions to reflect paused state
-            await loadSessions();
-          } catch (err) {
-            const errorMessage =
-              err instanceof Error ? err.message : 'Failed to pause inactive timers';
-            showError(errorMessage);
-          }
-        });
-      };
-      setupEventListeners();
+  // Auto-pause on inactivity. The producers (useInactivityDetection and the
+  // warning dialog) dispatch a DOM CustomEvent on window, so listen on the
+  // same bus — a Tauri listen() would never receive it.
+  //
+  // Timers paused by the automatic path (reason 'inactivity') are remembered
+  // so resumeOnActivity can resume exactly those — a pause the user chose
+  // (reason 'user-action') must stay paused.
+  const inactivityPausedIdsRef = useRef<string[]>([]);
+  useEffect(() => {
+    const handlePauseInactivity = async (event: Event) => {
+      const reason = (event as CustomEvent).detail?.reason;
+      const currentActiveSession = sessionsRef.current.find(s => s.isActive);
+      const timersToPause: TimerInstance[] = currentActiveSession
+        ? currentActiveSession.timerInstances.filter(t => t.state === TimerState.running)
+        : [];
 
-      return () => {
-        if (unlisten) {
-          void unlisten();
+      inactivityPausedIdsRef.current =
+        reason === 'inactivity' ? timersToPause.map(t => t.id) : [];
+
+      if (timersToPause.length === 0) return;
+
+      try {
+        for (const timer of timersToPause) {
+          await pauseTimerInstance(timer.id);
         }
-      };
-    }, [pauseTimerInstance, loadSessions, showError]);
+        await loadSessions({ silent: true });
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Failed to pause inactive timers';
+        showError(errorMessage);
+      }
+    };
+
+    window.addEventListener('timer-pause-inactivity', handlePauseInactivity);
+    return () => {
+      window.removeEventListener('timer-pause-inactivity', handlePauseInactivity);
+    };
+  }, [pauseTimerInstance, loadSessions, showError]);
+
+  // resumeOnActivity: when activity returns after an automatic inactivity
+  // pause, useInactivityDetection dispatches this event (only when the
+  // setting is enabled) and we resume the timers that pause suspended.
+  useEffect(() => {
+    const handleResumeActivity = async () => {
+      const pausedIds = inactivityPausedIdsRef.current;
+      if (pausedIds.length === 0) return;
+      inactivityPausedIdsRef.current = [];
+
+      const currentActiveSession = sessionsRef.current.find(s => s.isActive);
+      const timersToResume: TimerInstance[] = currentActiveSession
+        ? currentActiveSession.timerInstances.filter(
+            t => pausedIds.includes(t.id) && t.state === TimerState.paused
+          )
+        : [];
+
+      if (timersToResume.length === 0) return;
+
+      try {
+        for (const timer of timersToResume) {
+          await resumeTimerInstance(timer.id);
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Failed to resume timers after activity';
+        showError(errorMessage);
+      }
+    };
+
+    window.addEventListener('timer-resume-activity', handleResumeActivity);
+    return () => {
+      window.removeEventListener('timer-resume-activity', handleResumeActivity);
+    };
+  }, [resumeTimerInstance, showError]);
 
   const createSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession | null> => {
-    console.log(`Attempting to create session for task ${taskId}...`);
     return measurePerformance('useSessionManagement.createSession', async () => {
       setIsLoading(true);
       setError(null);
@@ -354,7 +428,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         if (!trimmedTaskName) throw new Error('Task name cannot be empty');
 
         const newSession = await invoke<TaskSession>('create_session', { taskId, taskName: trimmedTaskName });
-        
+
         await loadSessions(); // Reload all sessions to reflect the new active one
         showSuccess(`Session started for "${trimmedTaskName}"`);
 
@@ -374,7 +448,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     return measurePerformance('useSessionManagement.updateSession', async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         const updatedSession = await invoke<TaskSession>('update_session', { sessionId, updates });
         updateLocalSession(updatedSession);
@@ -394,16 +468,16 @@ export function useSessionManagement(): UseSessionManagementReturn {
     return measurePerformance('useSessionManagement.deleteSession', async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         await invoke('delete_session', { sessionId });
-        
+
         setSessions(prev => prev.filter(s => s.id !== sessionId));
-        
+
         if (activeSession?.id === sessionId) {
           setActiveSessionState(null);
         }
-        
+
         showSuccess('Session deleted successfully');
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to delete session';
@@ -431,11 +505,12 @@ export function useSessionManagement(): UseSessionManagementReturn {
     return measurePerformance('useSessionManagement.setActiveSession', async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         const updatedSessions = await invoke<TaskSession[]>('set_active_session', { sessionId: session?.id });
-        setSessions(updatedSessions);
-        setActiveSessionState(session);
+        const normalized = (updatedSessions || []).map(normalizeSession);
+        setSessions(normalized);
+        setActiveSessionState(session ? normalized.find(s => s.id === session.id) || null : null);
 
         if (session) {
           const taskName = session.taskName || 'Unknown Task';
@@ -455,8 +530,10 @@ export function useSessionManagement(): UseSessionManagementReturn {
         if (!activeSession) return;
         setIsLoading(true);
         try {
+            // Paused timers must be stopped too, or their tracked time is
+            // never recorded and they stay paused in an inactive session.
             for (const instance of activeSession.timerInstances) {
-                if (instance.state === TimerState.running) {
+                if (instance.state === TimerState.running || instance.state === TimerState.paused) {
                     await stopTimerInstance(instance.id);
                 }
             }

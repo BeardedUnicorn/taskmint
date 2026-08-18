@@ -9,10 +9,6 @@ import { z } from 'zod';
 import {
   TimeEntry,
   TimeEntrySchema,
-  TaskSession,
-  TaskSessionSchema,
-  TimerInstance,
-  TimerInstanceSchema,
   EnhancedTimerSettings,
   EnhancedTimerSettingsSchema,
   InactivitySettings,
@@ -51,10 +47,6 @@ export interface IStorageService {
   setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void>;
 
   // Session-based storage operations
-  getTaskSessions(): Promise<TaskSession[]>;
-  setTaskSessions(sessions: TaskSession[]): Promise<void>;
-  getTimerInstances(): Promise<TimerInstance[]>;
-  setTimerInstances(instances: TimerInstance[]): Promise<void>;
   getEnhancedTimerSettings(): Promise<EnhancedTimerSettings>;
   setEnhancedTimerSettings(settings: EnhancedTimerSettings): Promise<void>;
   getInactivitySettings(): Promise<InactivitySettings>;
@@ -389,58 +381,9 @@ export class StorageService implements IStorageService {
     );
   }
 
-  // Session-based storage operations
-
-  async getTaskSessions(): Promise<TaskSession[]> {
-    const sessions = await this.getItem(
-      STORAGE_KEYS.TASK_SESSIONS,
-      [],
-      z.array(TaskSessionSchema)
-    );
-
-    // Convert stored sessions back to proper Date objects
-    return sessions.map(session => ({
-      ...session,
-      timerInstances: session.timerInstances.map(instance => ({
-        ...instance,
-        startTime: new Date(instance.startTime),
-        endTime: instance.endTime ? new Date(instance.endTime) : undefined,
-        pausedAt: instance.pausedAt ? new Date(instance.pausedAt) : undefined,
-      }))
-    }));
-  }
-
-  async setTaskSessions(sessions: TaskSession[]): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.TASK_SESSIONS,
-      sessions,
-      z.array(TaskSessionSchema)
-    );
-  }
-
-  async getTimerInstances(): Promise<TimerInstance[]> {
-    const instances = await this.getItem(
-      STORAGE_KEYS.TIMER_INSTANCES,
-      [],
-      z.array(TimerInstanceSchema)
-    );
-
-    // Convert stored instances back to proper Date objects
-    return instances.map(instance => ({
-      ...instance,
-      startTime: new Date(instance.startTime),
-      endTime: instance.endTime ? new Date(instance.endTime) : undefined,
-      pausedAt: instance.pausedAt ? new Date(instance.pausedAt) : undefined,
-    }));
-  }
-
-  async setTimerInstances(instances: TimerInstance[]): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.TIMER_INSTANCES,
-      instances,
-      z.array(TimerInstanceSchema)
-    );
-  }
+  // Session data lives in the Rust backend (sessions.json); the legacy
+  // localStorage copies of sessions/timer instances were removed with
+  // SessionService.
 
   async getEnhancedTimerSettings(): Promise<EnhancedTimerSettings> {
     return await this.getItem(

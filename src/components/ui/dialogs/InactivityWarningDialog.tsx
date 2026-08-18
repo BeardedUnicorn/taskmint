@@ -5,7 +5,6 @@
  * continue working or pause the timer.
  */
 
-import React from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -128,75 +127,4 @@ export function InactivityWarningDialog({
       </DialogActions>
     </Dialog>
   );
-}
-
-/**
- * Hook to manage inactivity warning dialog state
- */
-export function useInactivityWarning() {
-  const [isWarningShown, setIsWarningShown] = React.useState(false);
-  const [remainingSeconds, setRemainingSeconds] = React.useState(0);
-  const [currentTimerInstance, setCurrentTimerInstance] = React.useState<any>(null);
-
-  // Listen for inactivity events
-  React.useEffect(() => {
-    const handleInactivityWarning = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { timerInstance, warningDuration } = customEvent.detail;
-      setCurrentTimerInstance(timerInstance);
-      setRemainingSeconds(warningDuration);
-      setIsWarningShown(true);
-
-      // Start countdown
-      const interval = setInterval(() => {
-        setRemainingSeconds(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setIsWarningShown(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(interval);
-    };
-
-    const handleActivityResume = () => {
-      setIsWarningShown(false);
-      setRemainingSeconds(0);
-    };
-
-    window.addEventListener('timer-inactivity-warning', handleInactivityWarning);
-    window.addEventListener('timer-continue-activity', handleActivityResume);
-
-    return () => {
-      window.removeEventListener('timer-inactivity-warning', handleInactivityWarning);
-      window.removeEventListener('timer-continue-activity', handleActivityResume);
-    };
-  }, []);
-
-  const handleContinue = () => {
-    setIsWarningShown(false);
-    setRemainingSeconds(0);
-    window.dispatchEvent(new CustomEvent('timer-continue-activity', {
-      detail: { reason: 'user-action', timestamp: new Date() }
-    }));
-  };
-
-  const handlePause = () => {
-    setIsWarningShown(false);
-    setRemainingSeconds(0);
-    window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
-      detail: { reason: 'user-action', timestamp: new Date() }
-    }));
-  };
-
-  return {
-    isWarningShown,
-    remainingSeconds,
-    currentTimerInstance,
-    handleContinue,
-    handlePause,
-  };
 }

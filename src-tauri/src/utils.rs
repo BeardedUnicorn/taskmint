@@ -5,7 +5,9 @@ use chrono::{DateTime, Utc};
 
 // Time formatting utilities
 pub fn get_current_elapsed_ms(start_time: &DateTime<Utc>) -> u64 {
-    (Utc::now() - *start_time).num_milliseconds() as u64
+    // A start_time in the future (clock skew, user-edited timestamps) must
+    // clamp to zero instead of wrapping to a huge unsigned value.
+    (Utc::now() - *start_time).num_milliseconds().max(0) as u64
 }
 
 pub fn format_duration(ms: u64) -> String {

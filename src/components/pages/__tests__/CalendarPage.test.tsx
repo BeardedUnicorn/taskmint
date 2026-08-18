@@ -5,18 +5,29 @@ import { format, subDays, addMonths, subMonths } from 'date-fns';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import CalendarPage from '../CalendarPage';
-import { SessionService } from '../../../services/SessionService';
-import { TaskService } from '../../../services/TaskService';
-import { StorageService } from '../../../services/StorageService';
 import { useFundsReleaseSettings } from '../../../hooks/useFundsReleaseSettings';
 import { TimeEntry, Task } from '../../../types';
+import { TaskSession, TimerState } from '../../../types/timer';
 import { createLightTheme } from '../../../theme';
 
-// Mock the services and hooks
-vi.mock('../../../services/SessionService');
-vi.mock('../../../services/TaskService');
-vi.mock('../../../services/StorageService');
+// The page reads sessions and tasks from the shared contexts
 vi.mock('../../../hooks/useFundsReleaseSettings');
+
+const mockSessionContext = {
+  sessions: [] as TaskSession[],
+  isLoading: false,
+};
+vi.mock('../../../contexts/SessionManagementContext', () => ({
+  useSessionManagementContext: () => mockSessionContext,
+}));
+
+const mockTaskContext = {
+  tasks: [] as Task[],
+  isLoading: false,
+};
+vi.mock('../../../contexts/TaskManagementContext', () => ({
+  useTaskManagementContext: () => mockTaskContext,
+}));
 
 // Mock react-big-calendar
 vi.mock('react-big-calendar', () => ({
@@ -46,10 +57,38 @@ vi.mock('moment', () => {
   return actualMoment;
 });
 
-const mockSessionService = SessionService as any;
-const mockTaskService = TaskService as any;
-const mockStorageService = StorageService as any;
 const mockUseFundsReleaseSettings = useFundsReleaseSettings as any;
+
+// Build backend-shaped sessions whose flattening yields the given entries
+function entriesToSessions(entries: TimeEntry[]): TaskSession[] {
+  const now = '2024-01-01T00:00:00.000Z';
+  return entries.map((entry, index) => ({
+    id: `session-${index}`,
+    taskId: entry.taskId ?? '',
+    taskName: entry.taskName,
+    timerInstances: [
+      {
+        id: entry.id,
+        sessionId: `session-${index}`,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        duration: entry.duration,
+        state: entry.isRunning
+          ? TimerState.running
+          : entry.duration != null
+            ? TimerState.stopped
+            : TimerState.idle,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    totalDuration: entry.duration ?? 0,
+    isActive: false,
+    date: entry.date,
+    createdAt: now,
+    updatedAt: now,
+  }));
+}
 
 describe('CalendarPage', () => {
   const mockTimeEntries: TimeEntry[] = [
@@ -111,24 +150,11 @@ describe('CalendarPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Mock StorageService
-    const mockStorageInstance = {
-      getInstance: vi.fn(),
-    };
-    mockStorageService.getInstance.mockReturnValue(mockStorageInstance as any);
 
-    // Mock SessionService
-    const mockTimerInstance = {
-      getTimeEntries: vi.fn().mockResolvedValue(mockTimeEntries),
-    };
-    mockSessionService.mockImplementation(() => mockTimerInstance as any);
-
-    // Mock TaskService
-    const mockTaskInstance = {
-      getAllTasks: vi.fn().mockResolvedValue(mockTasks),
-    };
-    mockTaskService.mockImplementation(() => mockTaskInstance as any);
+    mockSessionContext.sessions = entriesToSessions(mockTimeEntries);
+    mockSessionContext.isLoading = false;
+    mockTaskContext.tasks = mockTasks;
+    mockTaskContext.isLoading = false;
 
     // Mock useFundsReleaseSettings
     mockUseFundsReleaseSettings.mockReturnValue({
@@ -148,15 +174,12 @@ describe('CalendarPage', () => {
   };
 
   describe('Loading State', () => {
-    it('should show loading spinner while fetching data', () => {
-      // Make the services return pending promises
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockReturnValue(new Promise(() => {})), // Never resolves
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
+    it('should show loading spinner while sessions are loading', () => {
+      mockSessionContext.sessions = [];
+      mockSessionContext.isLoading = true;
 
       renderCalendarPage();
-      
+
       expect(screen.getByRole('progressbar')).toBeInTheDocument();
     });
   });
@@ -164,7 +187,7 @@ describe('CalendarPage', () => {
   describe('Calendar Display', () => {
     it('should render calendar with current month and year', async () => {
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -176,7 +199,7 @@ describe('CalendarPage', () => {
 
     it('should render calendar navigation controls', async () => {
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -188,7 +211,7 @@ describe('CalendarPage', () => {
 
     it('should render calendar component', async () => {
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -202,7 +225,7 @@ describe('CalendarPage', () => {
       // Use current month data for testing
       const currentDate = new Date();
       const currentMonth = format(currentDate, 'yyyy-MM');
-      const testEntries = [
+      const testEntries: TimeEntry[] = [
         {
           id: '1',
           taskName: 'Task 1',
@@ -215,13 +238,10 @@ describe('CalendarPage', () => {
         },
       ];
 
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockResolvedValue(testEntries),
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionContext.sessions = entriesToSessions(testEntries);
 
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -232,7 +252,7 @@ describe('CalendarPage', () => {
 
     it('should display $0.00 earnings for days without time entries', async () => {
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -240,7 +260,7 @@ describe('CalendarPage', () => {
       // Should have events for all days in the calendar view, including days with $0
       const calendarEvents = screen.getAllByTestId(/calendar-event-/);
       expect(calendarEvents.length).toBeGreaterThan(3); // More than just the days with actual entries
-      
+
       // Check that $0.00 is displayed for days without entries
       const zeroEarnings = screen.getAllByText('$0.00');
       expect(zeroEarnings.length).toBeGreaterThan(0);
@@ -250,7 +270,7 @@ describe('CalendarPage', () => {
       // Use current month data for testing
       const currentDate = new Date();
       const currentMonth = format(currentDate, 'yyyy-MM');
-      const testEntries = [
+      const testEntries: TimeEntry[] = [
         {
           id: '1',
           taskName: 'Task 1',
@@ -273,27 +293,24 @@ describe('CalendarPage', () => {
         },
       ];
 
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockResolvedValue(testEntries),
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionContext.sessions = entriesToSessions(testEntries);
 
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
       // Task 1: 1 hour at $50/hour = $50.00
       expect(screen.getByText('$50.00')).toBeInTheDocument();
-      
+
       // Task 2: 2 hours at $75/hour = $150.00
       expect(screen.getByText('$150.00')).toBeInTheDocument();
     });
 
     it('should calculate transferable amounts based on funds release days', async () => {
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -309,8 +326,8 @@ describe('CalendarPage', () => {
       const currentMonth = format(currentDate, 'yyyy-MM');
       const sevenDaysAgo = subDays(new Date(`${currentMonth}-08`), 7);
       const sevenDaysAgoStr = format(sevenDaysAgo, 'yyyy-MM-dd');
-      
-      const testEntries = [
+
+      const testEntries: TimeEntry[] = [
         {
           id: '1',
           taskName: 'Task 1',
@@ -333,13 +350,10 @@ describe('CalendarPage', () => {
         },
       ];
 
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockResolvedValue(testEntries),
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionContext.sessions = entriesToSessions(testEntries);
 
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -352,39 +366,39 @@ describe('CalendarPage', () => {
   describe('Navigation', () => {
     it('should navigate to previous month when clicking previous button', async () => {
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
       const currentDate = new Date();
       const prevButton = screen.getByLabelText('previous month');
-      
+
       fireEvent.click(prevButton);
-      
+
       const expectedTitle = format(subMonths(currentDate, 1), 'MMMM yyyy');
       expect(screen.getByText(expectedTitle)).toBeInTheDocument();
     });
 
     it('should navigate to next month when clicking next button', async () => {
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
       const currentDate = new Date();
       const nextButton = screen.getByLabelText('next month');
-      
+
       fireEvent.click(nextButton);
-      
+
       const expectedTitle = format(addMonths(currentDate, 1), 'MMMM yyyy');
       expect(screen.getByText(expectedTitle)).toBeInTheDocument();
     });
 
     it('should navigate to current month when clicking Today button', async () => {
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -392,25 +406,22 @@ describe('CalendarPage', () => {
       // First navigate to a different month
       const nextButton = screen.getByLabelText('next month');
       fireEvent.click(nextButton);
-      
+
       // Then click Today
       const todayButton = screen.getByText('Today');
       fireEvent.click(todayButton);
-      
+
       const expectedTitle = format(new Date(), 'MMMM yyyy');
       expect(screen.getByText(expectedTitle)).toBeInTheDocument();
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle empty time entries', async () => {
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockResolvedValue([]),
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
+    it('should handle empty sessions', async () => {
+      mockSessionContext.sessions = [];
 
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -435,13 +446,10 @@ describe('CalendarPage', () => {
         },
       ];
 
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockResolvedValue(entriesWithNoRateTask),
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionContext.sessions = entriesToSessions(entriesWithNoRateTask);
 
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -464,13 +472,10 @@ describe('CalendarPage', () => {
         },
       ];
 
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockResolvedValue(runningEntries),
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionContext.sessions = entriesToSessions(runningEntries);
 
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -478,26 +483,12 @@ describe('CalendarPage', () => {
       // Running entries should not contribute to earnings
       expect(screen.getAllByText('$0.00').length).toBeGreaterThan(0);
     });
-
-    it('should handle service errors gracefully', async () => {
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockRejectedValue(new Error('Service error')),
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
-
-      renderCalendarPage();
-      
-      // Should eventually stop loading even if there's an error
-      await waitFor(() => {
-        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-      }, { timeout: 5000 });
-    });
   });
 
   describe('Funds Release Settings Integration', () => {
     it('should update transferable amounts when funds release days change', async () => {
       const { rerender } = renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
@@ -524,7 +515,7 @@ describe('CalendarPage', () => {
       // Use current month data for testing
       const currentDate = new Date();
       const currentMonth = format(currentDate, 'yyyy-MM');
-      const testEntries = [
+      const testEntries: TimeEntry[] = [
         {
           id: '1',
           taskName: 'Task 1',
@@ -537,13 +528,10 @@ describe('CalendarPage', () => {
         },
       ];
 
-      const mockTimerInstance = {
-        getTimeEntries: vi.fn().mockResolvedValue(testEntries),
-      };
-      mockSessionService.mockImplementation(() => mockTimerInstance as any);
+      mockSessionContext.sessions = entriesToSessions(testEntries);
 
       renderCalendarPage();
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });

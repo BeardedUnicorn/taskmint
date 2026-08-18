@@ -8,7 +8,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { StorageService } from '../StorageService';
 import { STORAGE_KEYS } from '../../constants';
 import { Task } from '../../types/task';
-import { TaskSession, TimerInstance } from '../../types/timer';
 import { TaskNote } from '../../types/notes';
 import { SUBSCRIPTION_SKUS, UserSubscriptionSchema } from '../../types/subscription';
 import { StorageErrorClass } from '../../types/errors';
@@ -49,46 +48,8 @@ describe('StorageService', () => {
     });
   });
 
-  describe('session persistence', () => {
-    it('should persist and retrieve sessions with proper Date objects', async () => {
-      const now = new Date().toISOString();
-      const instance: TimerInstance = {
-        id: 'inst1',
-        sessionId: 'sess1',
-        startTime: now,
-        endTime: now,
-        duration: 1000,
-        isRunning: false,
-        isPaused: false,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const sessions: TaskSession[] = [
-        {
-          id: 'sess1',
-          taskId: 'task1',
-          taskName: 'Task',
-          timerInstances: [instance],
-          totalDuration: 1000,
-          isActive: false,
-          date: '2023-01-01',
-          createdAt: now,
-          updatedAt: now,
-        },
-      ];
-
-      await service.setTaskSessions(sessions);
-      const result = await service.getTaskSessions();
-      expect(result[0].timerInstances[0].startTime).toBeInstanceOf(Date);
-      expect(result[0].timerInstances[0].startTime.toISOString()).toBe(now);
-    });
-
-    it('should return empty array when key is missing', async () => {
-      const result = await service.getTaskSessions();
-      expect(result).toEqual([]);
-    });
-  });
+  // Session persistence moved to the Rust backend (sessions.json); the
+  // localStorage task-session methods were removed with SessionService.
 
   describe('notes persistence', () => {
     it('should persist and retrieve task notes', async () => {

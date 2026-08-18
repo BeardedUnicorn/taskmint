@@ -2,129 +2,124 @@
 
 use crate::state::AppState;
 use crate::storage;
-use crate::types::{TaskSession, TimerInstance, EnhancedTimerState, InactivitySettings, TimerActivityState};
+use crate::types::{TaskSession, TimerInstance};
 use chrono::{DateTime, Utc};
-use tauri::{AppHandle, State, Emitter};
+use serde::Deserialize;
+use tauri::{AppHandle, Emitter, State};
+use uuid::Uuid;
+
+const MAX_TIMER_INSTANCES_PER_SESSION: usize = 50;
+
+fn new_session_id() -> String {
+    format!("session_{}", Uuid::new_v4())
+}
+
+fn new_instance_id() -> String {
+    format!("instance_{}", Uuid::new_v4())
+}
+
+/// Net tracked duration for a run that ends at `now`, together with the final
+/// accumulated pause total. `active_pause_started_at` covers a stop issued
+/// while the timer is still paused.
+fn compute_final_duration(
+    start_time: DateTime<Utc>,
+    accumulated_paused_ms: u64,
+    active_pause_started_at: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+) -> (u64, u64) {
+    let total_elapsed = now.timestamp_millis() - start_time.timestamp_millis();
+    let mut total_paused = accumulated_paused_ms as i64;
+    if let Some(paused_at) = active_pause_started_at {
+        total_paused += now.timestamp_millis() - paused_at.timestamp_millis();
+    }
+    let total_paused = total_paused.max(0);
+    ((total_elapsed - total_paused).max(0) as u64, total_paused as u64)
+}
+
+/// A timer instance may only be started when it has never run: a completed
+/// instance is final (create a new instance to keep working). The error
+/// strings for the inactive-session and concurrent-run cases are matched by
+/// the frontend's automatic recovery in useSessionManagement.
+fn validate_start(
+    instance: &TimerInstance,
+    session_is_active: bool,
+    another_running: bool,
+) -> Result<(), String> {
+    if instance.is_running {
+        return Err("Timer instance is already running".to_string());
+    }
+    if instance.is_paused {
+        return Err("Cannot start a paused timer; resume it instead".to_string());
+    }
+    if instance.duration.is_some() || instance.end_time.is_some() {
+        return Err("Timer instance has already completed; create a new timer instead".to_string());
+    }
+    if !session_is_active {
+        return Err("Cannot start timer for inactive session".to_string());
+    }
+    if another_running {
+        return Err("Another timer instance is already running".to_string());
+    }
+    Ok(())
+}
+
+fn recalculate_total_duration(session: &mut TaskSession) {
+    session.total_duration = session
+        .timer_instances
+        .iter()
+        .filter_map(|i| i.duration)
+        .sum();
+}
 
 #[tauri::command]
 pub fn create_session(
+    app: AppHandle,
     app_state: State<'_, AppState>,
     task_id: String,
     task_name: String,
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
-    let session_id = format!("session_{}_{}", now.timestamp_millis(), now.timestamp_micros() % 1000000);
 
     let new_session = TaskSession {
-        id: session_id,
+        id: new_session_id(),
         task_id,
         task_name,
         timer_instances: Vec::new(),
         total_duration: 0,
         notes: None,
-        is_active: false,
+        is_active: true,
         date: now.format("%Y-%m-%d").to_string(),
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
     };
 
-    app_state.with_task_sessions_mut(|sessions| {
-        sessions.push(new_session.clone());
-    })?;
-
-    Ok(new_session)
-}
-
-#[tauri::command]
-pub async fn create_session_with_timer(
-    app: AppHandle,
-    app_state: State<'_, AppState>,
-    task_id: String,
-    task_name: String,
-) -> Result<(TaskSession, TimerInstance), String> {
-    println!("Attempting to create session with timer for task: {}", task_name);
-    let now = Utc::now();
-    let session_id = format!("session_{}_{}", now.timestamp_millis(), now.timestamp_micros() % 1000000);
-    let instance_id = format!("instance_{}_{}", now.timestamp_millis(), now.timestamp_micros() % 1000000);
-
-    let new_instance = TimerInstance {
-        id: instance_id.clone(),
-        session_id: session_id.clone(),
-        start_time: now,
-        end_time: None,
-        duration: None,
-        is_running: false,  // Don't auto-start the timer
-        is_paused: false,
-        paused_at: None,
-        paused_duration: None,
-        resumed_at: None,
-        notes: None,
-        created_at: now.to_rfc3339(),
-        updated_at: now.to_rfc3339(),
-    };
-
-    let mut new_session = TaskSession {
-        id: session_id.clone(),
-        task_id,
-        task_name: task_name.clone(),
-        timer_instances: vec![new_instance.clone()],
-        total_duration: 0,
-        notes: None,
-        is_active: false, // Start as inactive, will activate explicitly below
-        date: now.format("%Y-%m-%d").to_string(),
-        created_at: now.to_rfc3339(),
-        updated_at: now.to_rfc3339(),
-    };
-
-    // Add session to state and explicitly set it as the only active session
-    app_state.with_task_sessions_mut(|sessions| {
-        // Deactivate all other sessions
+    app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
         for session in sessions.iter_mut() {
             session.is_active = false;
         }
-        
-        // Set the new session to active and push it
-        new_session.is_active = true;
         sessions.push(new_session.clone());
-        
-        println!("Session {} explicitly set to active.", new_session.id);
-    })?;
+        storage::save_sessions(&app, sessions)
+    })??;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
-
-    // Update enhanced timer state - but don't start running
-    app_state.with_enhanced_timer_state_mut(|enhanced_state| {
-        enhanced_state.is_running = false;
-        enhanced_state.task_name = task_name.clone();
-        enhanced_state.session_id = Some(session_id.clone());
-        enhanced_state.instance_id = Some(instance_id.clone());
-        enhanced_state.start_time = None;
-        enhanced_state.elapsed_ms = 0;
-        enhanced_state.is_paused = false;
-        enhanced_state.paused_due_to_inactivity = false;
-    })?;
-
-    // Don't emit timer-instance-started event since we're not starting it
-
-    Ok((new_session, new_instance))
+    Ok(new_session)
 }
-
 
 #[tauri::command]
 pub fn get_sessions(app_state: State<'_, AppState>) -> Result<Vec<TaskSession>, String> {
     app_state.with_task_sessions(|sessions| sessions.clone())
 }
 
-#[tauri::command]
-pub fn get_session_by_id(
-    app_state: State<'_, AppState>,
-    session_id: String,
-) -> Result<Option<TaskSession>, String> {
-    app_state.with_task_sessions(|sessions| {
-        sessions.iter().find(|s| s.id == session_id).cloned()
-    })
+/// Session fields the frontend may patch. camelCase to match the TS
+/// `Partial<TaskSession>` shape; snake_case aliases keep old callers working.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUpdates {
+    #[serde(default, alias = "task_name")]
+    pub task_name: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default, alias = "is_active")]
+    pub is_active: Option<bool>,
 }
 
 #[tauri::command]
@@ -132,39 +127,33 @@ pub async fn update_session(
     app: AppHandle,
     app_state: State<'_, AppState>,
     session_id: String,
-    updates: serde_json::Value,
+    updates: SessionUpdates,
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
-    
-    let updated_session = app_state.with_task_sessions_mut(|sessions| {
-        let session_index = sessions
-            .iter()
-            .position(|s| s.id == session_id)
-            .ok_or_else(|| format!("Session with ID {} not found", session_id))?;
 
-        let session = &mut sessions[session_index];
-        
-        // Update fields based on the updates object
-        if let Some(task_name) = updates.get("task_name").and_then(|v| v.as_str()) {
-            session.task_name = task_name.to_string();
-        }
-        if let Some(notes) = updates.get("notes").and_then(|v| v.as_str()) {
-            session.notes = Some(notes.to_string());
-        }
-        if let Some(is_active) = updates.get("is_active").and_then(|v| v.as_bool()) {
-            session.is_active = is_active;
-        }
-        
-        session.updated_at = now.to_rfc3339();
-        
-        Ok(session.clone())
-    })?;
+    app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+        let updated_session = {
+            let session = sessions
+                .iter_mut()
+                .find(|s| s.id == session_id)
+                .ok_or_else(|| format!("Session with ID {} not found", session_id))?;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+            if let Some(task_name) = updates.task_name.as_ref() {
+                session.task_name = task_name.clone();
+            }
+            if let Some(notes) = updates.notes.as_ref() {
+                session.notes = Some(notes.clone());
+            }
+            if let Some(is_active) = updates.is_active {
+                session.is_active = is_active;
+            }
+            session.updated_at = now.to_rfc3339();
+            session.clone()
+        };
 
-    updated_session
+        storage::save_sessions(&app, sessions)?;
+        Ok(updated_session)
+    })?
 }
 
 #[tauri::command]
@@ -173,20 +162,16 @@ pub async fn delete_session(
     app_state: State<'_, AppState>,
     session_id: String,
 ) -> Result<(), String> {
-    let _ = app_state.with_task_sessions_mut(|sessions| {
+    app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
         let initial_len = sessions.len();
         sessions.retain(|s| s.id != session_id);
-        
+
         if sessions.len() == initial_len {
             return Err(format!("Session with ID {} not found", session_id));
         }
-        
-        Ok(())
-    })?;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+        storage::save_sessions(&app, sessions)
+    })??;
 
     Ok(())
 }
@@ -198,10 +183,9 @@ pub async fn create_timer_instance(
     session_id: String,
 ) -> Result<TimerInstance, String> {
     let now = Utc::now();
-    let instance_id = format!("instance_{}_{}", now.timestamp_millis(), now.timestamp_micros() % 1000000);
 
     let new_instance = TimerInstance {
-        id: instance_id,
+        id: new_instance_id(),
         session_id: session_id.clone(),
         start_time: now,
         end_time: None,
@@ -216,24 +200,55 @@ pub async fn create_timer_instance(
         updated_at: now.to_rfc3339(),
     };
 
-    // Add instance to the session
     app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
-        let session = sessions
-            .iter_mut()
-            .find(|s| s.id == session_id)
-            .ok_or_else(|| format!("Session with ID {} not found", session_id))?;
+        {
+            let session = sessions
+                .iter_mut()
+                .find(|s| s.id == session_id)
+                .ok_or_else(|| format!("Session with ID {} not found", session_id))?;
 
-        session.timer_instances.push(new_instance.clone());
-        session.updated_at = now.to_rfc3339();
+            if session.timer_instances.len() >= MAX_TIMER_INSTANCES_PER_SESSION {
+                return Err(format!(
+                    "Maximum number of timers ({}) reached for this session",
+                    MAX_TIMER_INSTANCES_PER_SESSION
+                ));
+            }
 
-        Ok(())
+            session.timer_instances.push(new_instance.clone());
+            session.updated_at = now.to_rfc3339();
+        }
+
+        storage::save_sessions(&app, sessions)
     })??;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
-
     Ok(new_instance)
+}
+
+/// Timer-instance fields the frontend may patch. camelCase with snake_case
+/// aliases, same as `SessionUpdates`.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimerInstanceUpdates {
+    #[serde(default, alias = "is_running")]
+    pub is_running: Option<bool>,
+    #[serde(default, alias = "is_paused")]
+    pub is_paused: Option<bool>,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default)]
+    pub duration: Option<u64>,
+    #[serde(default, alias = "resumed_at")]
+    pub resumed_at: Option<String>,
+    #[serde(default, alias = "start_time")]
+    pub start_time: Option<String>,
+    #[serde(default, alias = "end_time")]
+    pub end_time: Option<String>,
+}
+
+fn parse_rfc3339(value: &str) -> Result<DateTime<Utc>, String> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|e| format!("Invalid timestamp '{}': {}", value, e))
 }
 
 #[tauri::command]
@@ -241,65 +256,67 @@ pub async fn update_timer_instance(
     app: AppHandle,
     app_state: State<'_, AppState>,
     instance_id: String,
-    updates: serde_json::Value,
+    updates: TimerInstanceUpdates,
 ) -> Result<TimerInstance, String> {
     let now = Utc::now();
-    
-    let updated_instance = app_state.with_task_sessions_mut(|sessions| {
-        for session in sessions.iter_mut() {
-            if let Some(instance) = session.timer_instances.iter_mut().find(|i| i.id == instance_id) {
-                // Update fields based on the updates object
-                if let Some(is_running) = updates.get("is_running").and_then(|v| v.as_bool()) {
+
+    // Parse timestamps up front so a bad payload fails before any mutation.
+    let resumed_at = updates.resumed_at.as_deref().map(parse_rfc3339).transpose()?;
+    let start_time = updates.start_time.as_deref().map(parse_rfc3339).transpose()?;
+    let end_time = updates.end_time.as_deref().map(parse_rfc3339).transpose()?;
+
+    app_state.with_task_sessions_mut(|sessions| -> Result<TimerInstance, String> {
+        let updated_instance = {
+            let session = sessions
+                .iter_mut()
+                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
+                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
+            {
+                let instance = session
+                    .timer_instances
+                    .iter_mut()
+                    .find(|i| i.id == instance_id)
+                    .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
+                if let Some(is_running) = updates.is_running {
                     instance.is_running = is_running;
                 }
-                if let Some(is_paused) = updates.get("is_paused").and_then(|v| v.as_bool()) {
+                if let Some(is_paused) = updates.is_paused {
                     instance.is_paused = is_paused;
                 }
-                if let Some(notes) = updates.get("notes").and_then(|v| v.as_str()) {
-                    instance.notes = Some(notes.to_string());
+                if let Some(notes) = updates.notes.as_ref() {
+                    instance.notes = Some(notes.clone());
                 }
-                if let Some(duration) = updates.get("duration").and_then(|v| v.as_u64()) {
+                if let Some(duration) = updates.duration {
                     instance.duration = Some(duration);
                 }
-                if let Some(resumed_at) = updates.get("resumed_at").and_then(|v| v.as_str()) {
-                    let parsed = DateTime::parse_from_rfc3339(resumed_at)
-                        .map_err(|e| e.to_string())?;
-                    instance.resumed_at = Some(parsed.with_timezone(&Utc));
+                if let Some(resumed_at) = resumed_at {
+                    instance.resumed_at = Some(resumed_at);
                 }
-                if let Some(start_time) = updates.get("start_time").and_then(|v| v.as_str()) {
-                    let parsed = DateTime::parse_from_rfc3339(start_time)
-                        .map_err(|e| e.to_string())?;
-                    instance.start_time = parsed.with_timezone(&Utc);
+                if let Some(start_time) = start_time {
+                    instance.start_time = start_time;
                 }
-                if let Some(end_time) = updates.get("end_time").and_then(|v| v.as_str()) {
-                    let parsed = DateTime::parse_from_rfc3339(end_time)
-                        .map_err(|e| e.to_string())?;
-                    instance.end_time = Some(parsed.with_timezone(&Utc));
+                if let Some(end_time) = end_time {
+                    instance.end_time = Some(end_time);
                 }
-
                 instance.updated_at = now.to_rfc3339();
-                session.updated_at = now.to_rfc3339();
-
-                let result = instance.clone();
-
-                // Recalculate session total duration after we're done with the mutable borrow
-                session.total_duration = session.timer_instances
-                    .iter()
-                    .filter_map(|i| i.duration)
-                    .sum();
-
-                return Ok(result);
             }
-        }
-        
-        Err(format!("Timer instance with ID {} not found", instance_id))
-    })?;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+            session.updated_at = now.to_rfc3339();
+            recalculate_total_duration(session);
 
-    Ok(updated_instance?)
+            session
+                .timer_instances
+                .iter()
+                .find(|i| i.id == instance_id)
+                .cloned()
+                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?
+        };
+
+        storage::save_sessions(&app, sessions)?;
+        Ok(updated_instance)
+    })?
 }
 
 #[tauri::command]
@@ -308,53 +325,56 @@ pub async fn start_timer_instance(
     app_state: State<'_, AppState>,
     instance_id: String,
 ) -> Result<TaskSession, String> {
-    println!("Attempting to start timer instance: {}", instance_id);
     let now = Utc::now();
-    let mut updated_session: Option<TaskSession> = None;
-    
-    // Update the timer instance
-    app_state.with_task_sessions_mut(|sessions| {
-        for session in sessions.iter_mut() {
-            if let Some(instance) = session.timer_instances.iter_mut().find(|i| i.id == instance_id) {
+
+    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+        let another_running = sessions
+            .iter()
+            .flat_map(|s| s.timer_instances.iter())
+            .any(|i| i.is_running && i.id != instance_id);
+
+        let result = {
+            let session = sessions
+                .iter_mut()
+                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
+                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+            let session_is_active = session.is_active;
+
+            {
+                let instance = session
+                    .timer_instances
+                    .iter_mut()
+                    .find(|i| i.id == instance_id)
+                    .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
+                validate_start(instance, session_is_active, another_running)?;
+
                 instance.is_running = true;
                 instance.is_paused = false;
                 instance.start_time = now;
                 instance.resumed_at = Some(now);
                 instance.paused_duration = Some(0);
                 instance.updated_at = now.to_rfc3339();
-                session.updated_at = now.to_rfc3339();
-                
-                // Update enhanced timer state
-                app_state.with_enhanced_timer_state_mut(|enhanced_state| {
-                    enhanced_state.is_running = true;
-                    enhanced_state.task_name = session.task_name.clone();
-                    enhanced_state.session_id = Some(session.id.clone());
-                    enhanced_state.instance_id = Some(instance_id.clone());
-                    enhanced_state.start_time = Some(now);
-                    enhanced_state.elapsed_ms = 0;
-                    enhanced_state.is_paused = false;
-                    enhanced_state.paused_due_to_inactivity = false;
-                })?;
-
-                updated_session = Some(session.clone());
-                return Ok(());
             }
-        }
-        
-        Err(format!("Timer instance with ID {} not found", instance_id))
+
+            session.updated_at = now.to_rfc3339();
+            session.clone()
+        };
+
+        storage::save_sessions(&app, sessions)?;
+        Ok(result)
     })??;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+    app.emit(
+        "timer-instance-started",
+        serde_json::json!({
+            "instanceId": instance_id,
+            "startTime": now.to_rfc3339()
+        }),
+    )
+    .map_err(|e| format!("Failed to emit timer instance started event: {}", e))?;
 
-    // Emit event to frontend
-    app.emit("timer-instance-started", serde_json::json!({
-        "instanceId": instance_id,
-        "startTime": now.to_rfc3339()
-    })).map_err(|e| format!("Failed to emit timer instance started event: {}", e))?;
-
-    updated_session.ok_or_else(|| "Failed to retrieve updated session".to_string())
+    Ok(updated_session)
 }
 
 #[tauri::command]
@@ -363,15 +383,26 @@ pub async fn stop_timer_instance(
     app_state: State<'_, AppState>,
     instance_id: String,
 ) -> Result<TaskSession, String> {
-    println!("Attempting to stop timer instance: {}", instance_id);
     let now = Utc::now();
-    let mut updated_session: Option<TaskSession> = None;
-    
-    // Update the timer instance
-    app_state.with_task_sessions_mut(|sessions| {
-        for session in sessions.iter_mut() {
-            if let Some(instance) = session.timer_instances.iter_mut().find(|i| i.id == instance_id) {
-                // Store the current pause state before modifying it
+
+    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+        let result = {
+            let session = sessions
+                .iter_mut()
+                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
+                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
+            {
+                let instance = session
+                    .timer_instances
+                    .iter_mut()
+                    .find(|i| i.id == instance_id)
+                    .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
+                if !instance.is_running && !instance.is_paused {
+                    return Err("Cannot stop timer: timer is not running".to_string());
+                }
+
                 let was_paused = instance.is_paused;
                 let paused_at = instance.paused_at;
 
@@ -381,115 +412,36 @@ pub async fn stop_timer_instance(
                 instance.paused_at = None;
                 instance.end_time = Some(now);
 
-                // Calculate duration, accounting for current pause state
-                let total_elapsed = now.timestamp_millis() - instance.start_time.timestamp_millis();
-                let mut total_paused_duration = instance.paused_duration.unwrap_or(0) as i64;
-
-                // If was currently paused, add the current pause duration
-                if was_paused {
-                    if let Some(paused_at) = paused_at {
-                        let current_pause_duration = now.timestamp_millis() - paused_at.timestamp_millis();
-                        total_paused_duration += current_pause_duration;
-                    }
-                }
-
-                instance.duration = Some((total_elapsed - total_paused_duration).max(0) as u64);
-                instance.paused_duration = Some(total_paused_duration as u64);
-
+                let (duration, total_paused) = compute_final_duration(
+                    instance.start_time,
+                    instance.paused_duration.unwrap_or(0),
+                    if was_paused { paused_at } else { None },
+                    now,
+                );
+                instance.duration = Some(duration);
+                instance.paused_duration = Some(total_paused);
                 instance.updated_at = now.to_rfc3339();
-                session.updated_at = now.to_rfc3339();
-
-                // Store the duration value before ending the mutable borrow
-                let final_duration = instance.duration.unwrap_or(0);
-
-                // Recalculate session total duration
-                session.total_duration = session.timer_instances
-                    .iter()
-                    .filter_map(|i| i.duration)
-                    .sum();
-
-                // Update enhanced timer state
-                app_state.with_enhanced_timer_state_mut(|enhanced_state| {
-                    enhanced_state.is_running = false;
-                    enhanced_state.is_paused = false;
-                    enhanced_state.paused_due_to_inactivity = false;
-                    enhanced_state.elapsed_ms = final_duration;
-                })?;
-                
-                updated_session = Some(session.clone());
-                return Ok(());
             }
-        }
-        
-        Err(format!("Timer instance with ID {} not found", instance_id))
+
+            session.updated_at = now.to_rfc3339();
+            recalculate_total_duration(session);
+            session.clone()
+        };
+
+        storage::save_sessions(&app, sessions)?;
+        Ok(result)
     })??;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+    app.emit(
+        "timer-instance-stopped",
+        serde_json::json!({
+            "instanceId": instance_id,
+            "endTime": now.to_rfc3339()
+        }),
+    )
+    .map_err(|e| format!("Failed to emit timer instance stopped event: {}", e))?;
 
-    // Emit event to frontend
-    app.emit("timer-instance-stopped", serde_json::json!({
-        "instanceId": instance_id,
-        "endTime": now.to_rfc3339()
-    })).map_err(|e| format!("Failed to emit timer instance stopped event: {}", e))?;
-
-    updated_session.ok_or_else(|| "Failed to retrieve updated session".to_string())
-}
-
-#[tauri::command]
-pub fn get_enhanced_timer_state(app_state: State<'_, AppState>) -> Result<EnhancedTimerState, String> {
-    app_state.with_enhanced_timer_state(|state| state.clone())
-}
-
-#[tauri::command]
-pub fn update_inactivity_settings(
-    app_state: State<'_, AppState>,
-    settings: InactivitySettings,
-) -> Result<(), String> {
-    app_state.with_inactivity_settings_mut(|current_settings| {
-        *current_settings = settings;
-    })?;
-    
-    Ok(())
-}
-
-#[tauri::command]
-pub fn get_inactivity_settings(app_state: State<'_, AppState>) -> Result<InactivitySettings, String> {
-    app_state.with_inactivity_settings(|settings| settings.clone())
-}
-
-#[tauri::command]
-pub fn update_timer_activity_state(
-    app_state: State<'_, AppState>,
-    activity_state: TimerActivityState,
-) -> Result<(), String> {
-    app_state.with_timer_activity_state_mut(|current_state| {
-        *current_state = activity_state;
-    })?;
-    
-    Ok(())
-}
-
-#[tauri::command]
-pub fn get_timer_activity_state(app_state: State<'_, AppState>) -> Result<TimerActivityState, String> {
-    app_state.with_timer_activity_state(|state| state.clone())
-}
-
-#[tauri::command]
-pub async fn clear_all_sessions(
-    app: AppHandle,
-    app_state: State<'_, AppState>,
-) -> Result<(), String> {
-    // Clear sessions from memory
-    app_state.with_task_sessions_mut(|sessions| {
-        sessions.clear();
-    })?;
-
-    // Clear sessions from storage
-    storage::clear_all_sessions(&app)?;
-
-    Ok(())
+    Ok(updated_session)
 }
 
 #[tauri::command]
@@ -499,53 +451,49 @@ pub async fn pause_timer_instance(
     instance_id: String,
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
-    let mut updated_session: Option<TaskSession> = None;
 
-    // Update the timer instance to paused state
-    app_state.with_task_sessions_mut(|sessions| {
-        for session in sessions.iter_mut() {
-            if let Some(instance) = session.timer_instances.iter_mut().find(|i| i.id == instance_id) {
-                // Can only pause a running timer
+    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+        let result = {
+            let session = sessions
+                .iter_mut()
+                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
+                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
+            {
+                let instance = session
+                    .timer_instances
+                    .iter_mut()
+                    .find(|i| i.id == instance_id)
+                    .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
                 if !instance.is_running {
                     return Err("Cannot pause timer: timer is not running".to_string());
                 }
 
-                // Update instance state
                 instance.is_running = false;
                 instance.is_paused = true;
                 instance.paused_at = Some(now);
                 instance.updated_at = now.to_rfc3339();
-                session.updated_at = now.to_rfc3339();
-
-                // Update enhanced timer state
-                app_state.with_enhanced_timer_state_mut(|enhanced_state| {
-                    enhanced_state.is_running = false;
-                    enhanced_state.is_paused = true;
-                    // Calculate elapsed time up to pause point
-                    if let Some(start_time) = enhanced_state.start_time {
-                        enhanced_state.elapsed_ms = (now.timestamp_millis() - start_time.timestamp_millis()) as u64;
-                    }
-                })?;
-
-                updated_session = Some(session.clone());
-                return Ok(());
             }
-        }
 
-        Err(format!("Timer instance with ID {} not found", instance_id))
+            session.updated_at = now.to_rfc3339();
+            session.clone()
+        };
+
+        storage::save_sessions(&app, sessions)?;
+        Ok(result)
     })??;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+    app.emit(
+        "timer-instance-paused",
+        serde_json::json!({
+            "instanceId": instance_id,
+            "pausedAt": now.to_rfc3339()
+        }),
+    )
+    .map_err(|e| format!("Failed to emit timer instance paused event: {}", e))?;
 
-    // Emit event to frontend
-    app.emit("timer-instance-paused", serde_json::json!({
-        "instanceId": instance_id,
-        "pausedAt": now.to_rfc3339()
-    })).map_err(|e| format!("Failed to emit timer instance paused event: {}", e))?;
-
-    updated_session.ok_or_else(|| "Failed to retrieve updated session".to_string())
+    Ok(updated_session)
 }
 
 #[tauri::command]
@@ -555,59 +503,57 @@ pub async fn resume_timer_instance(
     instance_id: String,
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
-    let mut updated_session: Option<TaskSession> = None;
 
-    // Update the timer instance to resume from paused state
-    app_state.with_task_sessions_mut(|sessions| {
-        for session in sessions.iter_mut() {
-            if let Some(instance) = session.timer_instances.iter_mut().find(|i| i.id == instance_id) {
-                // Can only resume a paused timer
+    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+        let result = {
+            let session = sessions
+                .iter_mut()
+                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
+                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
+            {
+                let instance = session
+                    .timer_instances
+                    .iter_mut()
+                    .find(|i| i.id == instance_id)
+                    .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
                 if !instance.is_paused {
                     return Err("Cannot resume timer: timer is not paused".to_string());
                 }
 
-                // Calculate paused duration and add to total
                 if let Some(paused_at) = instance.paused_at {
-                    let pause_duration = (now.timestamp_millis() - paused_at.timestamp_millis()) as u64;
-                    instance.paused_duration = Some(
-                        instance.paused_duration.unwrap_or(0) + pause_duration
-                    );
+                    let pause_duration =
+                        (now.timestamp_millis() - paused_at.timestamp_millis()).max(0) as u64;
+                    instance.paused_duration =
+                        Some(instance.paused_duration.unwrap_or(0) + pause_duration);
                 }
 
-                // Update instance state
                 instance.is_running = true;
                 instance.is_paused = false;
                 instance.paused_at = None;
                 instance.resumed_at = Some(now);
                 instance.updated_at = now.to_rfc3339();
-                session.updated_at = now.to_rfc3339();
-
-                // Update enhanced timer state
-                app_state.with_enhanced_timer_state_mut(|enhanced_state| {
-                    enhanced_state.is_running = true;
-                    enhanced_state.is_paused = false;
-                    enhanced_state.start_time = Some(now); // Reset start time for resumed timer
-                })?;
-
-                updated_session = Some(session.clone());
-                return Ok(());
             }
-        }
 
-        Err(format!("Timer instance with ID {} not found", instance_id))
+            session.updated_at = now.to_rfc3339();
+            session.clone()
+        };
+
+        storage::save_sessions(&app, sessions)?;
+        Ok(result)
     })??;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+    app.emit(
+        "timer-instance-resumed",
+        serde_json::json!({
+            "instanceId": instance_id,
+            "resumedAt": now.to_rfc3339()
+        }),
+    )
+    .map_err(|e| format!("Failed to emit timer instance resumed event: {}", e))?;
 
-    // Emit event to frontend
-    app.emit("timer-instance-resumed", serde_json::json!({
-        "instanceId": instance_id,
-        "resumedAt": now.to_rfc3339()
-    })).map_err(|e| format!("Failed to emit timer instance resumed event: {}", e))?;
-
-    updated_session.ok_or_else(|| "Failed to retrieve updated session".to_string())
+    Ok(updated_session)
 }
 
 #[tauri::command]
@@ -616,45 +562,35 @@ pub async fn delete_timer_instance(
     app_state: State<'_, AppState>,
     instance_id: String,
 ) -> Result<TaskSession, String> {
-    println!("Attempting to delete timer instance: {}", instance_id);
     let now = Utc::now();
-    let mut updated_session: Option<TaskSession> = None;
-    
-    // Remove the timer instance from the session
-    app_state.with_task_sessions_mut(|sessions| {
-        for session in sessions.iter_mut() {
-            let initial_len = session.timer_instances.len();
+
+    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+        let result = {
+            let session = sessions
+                .iter_mut()
+                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
+                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+
             session.timer_instances.retain(|i| i.id != instance_id);
-            
-            if session.timer_instances.len() < initial_len {
-                // Instance was found and removed
-                session.updated_at = now.to_rfc3339();
-                
-                // Recalculate session total duration
-                session.total_duration = session.timer_instances
-                    .iter()
-                    .filter_map(|i| i.duration)
-                    .sum();
-                
-                updated_session = Some(session.clone());
-                return Ok(());
-            }
-        }
-        
-        Err(format!("Timer instance with ID {} not found", instance_id))
+            session.updated_at = now.to_rfc3339();
+            recalculate_total_duration(session);
+            session.clone()
+        };
+
+        storage::save_sessions(&app, sessions)?;
+        Ok(result)
     })??;
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+    app.emit(
+        "timer-instance-deleted",
+        serde_json::json!({
+            "instanceId": instance_id,
+            "deletedAt": now.to_rfc3339()
+        }),
+    )
+    .map_err(|e| format!("Failed to emit timer instance deleted event: {}", e))?;
 
-    // Emit event to frontend
-    app.emit("timer-instance-deleted", serde_json::json!({
-        "instanceId": instance_id,
-        "deletedAt": now.to_rfc3339()
-    })).map_err(|e| format!("Failed to emit timer instance deleted event: {}", e))?;
-
-    updated_session.ok_or_else(|| "Failed to retrieve updated session".to_string())
+    Ok(updated_session)
 }
 
 #[tauri::command]
@@ -663,45 +599,126 @@ pub async fn set_active_session(
     app_state: State<'_, AppState>,
     session_id: Option<String>,
 ) -> Result<Vec<TaskSession>, String> {
-    let sessions: Result<Vec<TaskSession>, String> = app_state.with_task_sessions_mut(|sessions| {
+    app_state.with_task_sessions_mut(|sessions| -> Result<Vec<TaskSession>, String> {
         for session in sessions.iter_mut() {
             session.is_active = match &session_id {
                 Some(id) => &session.id == id,
                 None => false,
             };
         }
+
+        storage::save_sessions(&app, sessions)?;
         Ok(sessions.clone())
+    })?
+}
+
+#[tauri::command]
+pub async fn clear_all_sessions(
+    app: AppHandle,
+    app_state: State<'_, AppState>,
+) -> Result<(), String> {
+    app_state.with_task_sessions_mut(|sessions| {
+        sessions.clear();
     })?;
 
-    // Update enhanced timer state to reflect the newly active session
-    if let Some(id) = session_id {
-        let active_session = app_state.with_task_sessions(|sessions| {
-            sessions.iter().find(|s| s.id == id).cloned()
-        })?;
+    storage::clear_all_sessions(&app)?;
 
-        if let Some(session) = active_session {
-            app_state.with_enhanced_timer_state_mut(|enhanced_state| {
-                // Reset enhanced timer state when switching sessions
-                enhanced_state.is_running = false;
-                enhanced_state.task_name = session.task_name.clone();
-                enhanced_state.session_id = Some(session.id.clone());
-                enhanced_state.instance_id = None;
-                enhanced_state.start_time = None;
-                enhanced_state.elapsed_ms = 0;
-                enhanced_state.is_paused = false;
-                enhanced_state.paused_due_to_inactivity = false;
-            })?;
-        }
-    } else {
-        // No active session, clear enhanced timer state
-        app_state.with_enhanced_timer_state_mut(|enhanced_state| {
-            *enhanced_state = EnhancedTimerState::default();
-        })?;
+    Ok(())
+}
+
+/// Non-fatal problems from the startup sessions load (skipped records or a
+/// full load failure). The frontend fetches this once and shows it to the
+/// user instead of the data silently vanishing.
+#[tauri::command]
+pub fn get_session_load_warning(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
+    app_state.with_session_load_warning(|warning| warning.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn ts(secs: i64) -> DateTime<Utc> {
+        Utc.timestamp_opt(secs, 0).unwrap()
     }
 
-    // Save sessions to store
-    let sessions_clone = app_state.with_task_sessions(|sessions| sessions.clone())?;
-    storage::save_sessions(&app, &sessions_clone)?;
+    fn fresh_instance() -> TimerInstance {
+        TimerInstance {
+            id: "instance_test".to_string(),
+            session_id: "session_test".to_string(),
+            start_time: ts(0),
+            end_time: None,
+            duration: None,
+            is_running: false,
+            is_paused: false,
+            paused_at: None,
+            paused_duration: None,
+            resumed_at: None,
+            notes: None,
+            created_at: ts(0).to_rfc3339(),
+            updated_at: ts(0).to_rfc3339(),
+        }
+    }
 
-    Ok(sessions?)
+    #[test]
+    fn duration_subtracts_accumulated_pauses() {
+        // 100s wall clock, 30s previously paused -> 70s tracked
+        let (duration, paused) = compute_final_duration(ts(0), 30_000, None, ts(100));
+        assert_eq!(duration, 70_000);
+        assert_eq!(paused, 30_000);
+    }
+
+    #[test]
+    fn duration_includes_active_pause_at_stop() {
+        // paused at t=80 and stopped at t=100 while still paused:
+        // 20s of live pause joins the 30s already accumulated
+        let (duration, paused) = compute_final_duration(ts(0), 30_000, Some(ts(80)), ts(100));
+        assert_eq!(duration, 50_000);
+        assert_eq!(paused, 50_000);
+    }
+
+    #[test]
+    fn duration_clamps_negative_to_zero() {
+        let (duration, _) = compute_final_duration(ts(100), 0, None, ts(50));
+        assert_eq!(duration, 0);
+    }
+
+    #[test]
+    fn start_allows_only_fresh_instances() {
+        let instance = fresh_instance();
+        assert!(validate_start(&instance, true, false).is_ok());
+    }
+
+    #[test]
+    fn start_rejects_running_paused_and_completed() {
+        let mut running = fresh_instance();
+        running.is_running = true;
+        assert!(validate_start(&running, true, false).is_err());
+
+        let mut paused = fresh_instance();
+        paused.is_paused = true;
+        assert!(validate_start(&paused, true, false)
+            .unwrap_err()
+            .contains("resume"));
+
+        let mut completed = fresh_instance();
+        completed.duration = Some(1_000);
+        completed.end_time = Some(ts(10));
+        assert!(validate_start(&completed, true, false)
+            .unwrap_err()
+            .contains("already completed"));
+    }
+
+    #[test]
+    fn start_rejects_inactive_session_and_concurrent_run() {
+        let instance = fresh_instance();
+        // These exact substrings drive the frontend's automatic recovery.
+        assert!(validate_start(&instance, false, false)
+            .unwrap_err()
+            .contains("inactive session"));
+        assert!(validate_start(&instance, true, true)
+            .unwrap_err()
+            .contains("Another timer instance is already running"));
+    }
 }

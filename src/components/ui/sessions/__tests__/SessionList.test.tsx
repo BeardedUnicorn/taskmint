@@ -9,7 +9,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { SessionList } from '../SessionList';
-import { TaskSession, TimerInstance } from '../../../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../../../types/timer';
 import { formatDate } from '../../../../utils/formatters';
 
 describe('SessionList', () => {
@@ -19,6 +19,7 @@ describe('SessionList', () => {
     startTime: new Date('2024-01-15T10:00:00Z'),
     endTime: new Date('2024-01-15T11:00:00Z'),
     duration: 3600000, // 1 hour
+    state: TimerState.stopped,
     isRunning: false,
     isPaused: false,
     createdAt: '2024-01-15T10:00:00Z',
@@ -46,6 +47,7 @@ describe('SessionList', () => {
           ...mockTimerInstance,
           id: 'instance-2',
           sessionId: 'session-2',
+          state: TimerState.running,
           isRunning: true,
           endTime: undefined,
         },

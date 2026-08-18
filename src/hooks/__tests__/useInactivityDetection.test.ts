@@ -4,7 +4,9 @@
  * Tests inactivity monitoring, warning system, and automatic timer pausing.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useInactivityDetection } from '../useInactivityDetection';
 import { DEFAULT_INACTIVITY_SETTINGS } from '../../types/timer';
 
 describe('useInactivityDetection', () => {
@@ -60,6 +62,110 @@ describe('useInactivityDetection', () => {
 
       expect(edgeCaseSettings.thresholdMinutes).toBe(1);
       expect(edgeCaseSettings.warningDurationSeconds).toBe(60);
+    });
+  });
+
+  describe('auto-pause and resumeOnActivity', () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+      vi.useRealTimers();
+      window.localStorage.clear();
+    });
+
+    // Threshold 1 minute, no warning dialog: the periodic check auto-pauses
+    // directly once 60s pass without activity.
+    function setupDetector(resumeOnActivity: boolean) {
+      const { result } = renderHook(() => useInactivityDetection());
+      act(() => {
+        result.current.updateSettings({
+          enabled: true,
+          thresholdMinutes: 1,
+          showWarningBeforePause: false,
+          resumeOnActivity,
+          testingMode: false,
+        });
+      });
+      return result;
+    }
+
+    it('dispatches the pause event after the inactivity threshold', () => {
+      setupDetector(false);
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      act(() => {
+        vi.advanceTimersByTime(61_000);
+      });
+
+      const pauseEvents = dispatchSpy.mock.calls
+        .map(([event]) => event as CustomEvent)
+        .filter(event => event.type === 'timer-pause-inactivity');
+      expect(pauseEvents).toHaveLength(1);
+      expect(pauseEvents[0].detail.reason).toBe('inactivity');
+    });
+
+    it('dispatches timer-resume-activity when activity returns and the setting is on', () => {
+      setupDetector(true);
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      act(() => {
+        vi.advanceTimersByTime(61_000); // auto-pause fires
+      });
+
+      act(() => {
+        document.dispatchEvent(new Event('mousedown')); // user is back
+      });
+
+      const resumeEvents = dispatchSpy.mock.calls
+        .map(([event]) => event as CustomEvent)
+        .filter(event => event.type === 'timer-resume-activity');
+      expect(resumeEvents).toHaveLength(1);
+      expect(resumeEvents[0].detail.reason).toBe('activity-detected');
+    });
+
+    it('does not dispatch timer-resume-activity when the setting is off', () => {
+      setupDetector(false);
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      act(() => {
+        vi.advanceTimersByTime(61_000);
+      });
+
+      act(() => {
+        document.dispatchEvent(new Event('mousedown'));
+      });
+
+      const resumeEvents = dispatchSpy.mock.calls
+        .map(([event]) => event as CustomEvent)
+        .filter(event => event.type === 'timer-resume-activity');
+      expect(resumeEvents).toHaveLength(0);
+    });
+
+    it('does not re-dispatch resume on further activity after the first return', () => {
+      setupDetector(true);
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      act(() => {
+        vi.advanceTimersByTime(61_000);
+      });
+      act(() => {
+        document.dispatchEvent(new Event('mousedown'));
+      });
+      act(() => {
+        document.dispatchEvent(new Event('mousedown'));
+        document.dispatchEvent(new Event('keypress'));
+      });
+
+      const resumeEvents = dispatchSpy.mock.calls
+        .map(([event]) => event as CustomEvent)
+        .filter(event => event.type === 'timer-resume-activity');
+      expect(resumeEvents).toHaveLength(1);
     });
   });
 });

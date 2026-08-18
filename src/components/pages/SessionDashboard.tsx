@@ -29,16 +29,16 @@ import { EnhancedNotesDialog } from '../ui/dialogs/EnhancedNotesDialog';
 import { QuickSessionDialog } from '../ui/dialogs/QuickSessionDialog';
 import { EditSessionDialog } from '../ui/dialogs/EditSessionDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
-import { useSessionManagement } from '../../hooks/useSessionManagement';
+import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useNotification } from '../../contexts/NotificationContext';
-import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
+import { TaskSession, TimerInstance } from '../../types/timer';
 import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatDuration } from '../../utils/formatters';
-import { formatDateString } from '../../utils/dateHelpers';
+import { formatDateString, formatDateTimeLocal } from '../../utils/dateHelpers';
 
 export function SessionDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -75,12 +75,12 @@ export function SessionDashboard() {
     updateTimerInstance,
     isLoading: sessionsLoading,
     error: sessionsError,
-  } = useSessionManagement();
+  } = useSessionManagementContext();
 
   const {
     isWarningShown,
     warningTimeRemaining,
-
+    resetActivity,
   } = useInactivityDetection();
 
   const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
@@ -129,12 +129,11 @@ export function SessionDashboard() {
 
   // Handle inactivity warning - memoized to prevent re-renders
   const handleContinueWork = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('timer-continue-activity', {
-      detail: { reason: 'user-action', timestamp: new Date() }
-    }));
-  }, []);
+    resetActivity();
+  }, [resetActivity]);
 
   const handlePauseFromInactivity = useCallback(() => {
+    // The session layer listens for this on the window event bus
     window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
       detail: { reason: 'user-action', timestamp: new Date() }
     }));
@@ -153,11 +152,14 @@ export function SessionDashboard() {
         ? new Date(instance.endTime)
         : new Date();
     setEditingTimerInstanceId(instance.id);
+    // datetime-local inputs are interpreted in local time, so format in local
+    // time — toISOString() (UTC) would shift the times by the timezone offset
+    // on every edit round-trip.
     setEditingTimerData({
       id: instance.id,
       taskName: session.taskName,
-      startTime: start.toISOString().slice(0,16),
-      endTime: end.toISOString().slice(0,16),
+      startTime: formatDateTimeLocal(start),
+      endTime: formatDateTimeLocal(end),
     });
   }, []);
 
@@ -169,11 +171,11 @@ export function SessionDashboard() {
   const handleSaveTimerEdit = useCallback(async (data: EditTimeEntryData) => {
     if (!editingTimerInstanceId) return;
     await updateTimerInstance(editingTimerInstanceId, {
-      start_time: new Date(data.startTime).toISOString(),
-      end_time: new Date(data.endTime).toISOString(),
+      startTime: new Date(data.startTime).toISOString(),
+      endTime: new Date(data.endTime).toISOString(),
       duration: data.duration,
-      is_running: false,
-      is_paused: false,
+      isRunning: false,
+      isPaused: false,
     });
     handleCloseEditTimerDialog();
   }, [editingTimerInstanceId, updateTimerInstance, handleCloseEditTimerDialog]);
@@ -239,8 +241,10 @@ export function SessionDashboard() {
   const handleCloseEditSessionDialog = useCallback(() => setEditingSession(null), []);
   const handleOpenQuickSessionDialog = useCallback(() => setQuickSessionDialogOpen(true), []);
 
-  // Show loading state
-  if (sessionsLoading || tasksLoading) {
+  // Show the blocking loader only for the initial load — every timer action
+  // toggles isLoading briefly, and a full-screen backdrop on each start/stop
+  // would flash and unmount the ticking timers.
+  if ((sessionsLoading && sessions.length === 0) || tasksLoading) {
     return (
       <Backdrop open sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <CircularProgress color="inherit" />

@@ -9,6 +9,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { TaskSession, TimerInstance, TimerState } from '../types/timer';
 import { Task } from '../types/task';
 import { safeInvoke, safeListen } from '../utils/tauri';
+import { getInstanceElapsedMs } from '../utils/timerHelpers';
 
 export interface UseEnhancedSystemTrayProps {
   activeSession: TaskSession | null;
@@ -92,11 +93,17 @@ export function useEnhancedSystemTray({
           ? runningInstance.startTime
           : new Date(runningInstance.startTime);
 
+        // The Rust tray thread recomputes elapsed each tick as
+        // (now - startTime), so shift the reported start forward by the
+        // accumulated pause time to keep the tray clock pause-aware.
+        const pausedMs = runningInstance.pausedDuration || 0;
+        const effectiveStart = new Date(startTime.getTime() + pausedMs);
+
         await safeInvoke('update_timer_state', {
           isRunning: true,
           taskName: activeSession.taskName,
-          startTime: startTime.toISOString(),
-          elapsedMs: Date.now() - startTime.getTime(),
+          startTime: effectiveStart.toISOString(),
+          elapsedMs: getInstanceElapsedMs(runningInstance),
         });
       } else {
         await safeInvoke('update_timer_state', {

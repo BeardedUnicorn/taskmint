@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import { useState, useMemo, Suspense, lazy } from 'react';
 import {
   CssBaseline,
   Box,
@@ -20,13 +20,12 @@ const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(m
 const AdminPage = lazy(() => import('./components/pages/AdminPage').then(module => ({ default: module.AdminPage })));
 import { SessionDashboard } from './components/pages/SessionDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { TimeEntry, TimerState } from './types/timer';
+import { TimeEntry } from './types/timer';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
-import { useSessionManagement } from './hooks/useSessionManagement';
+import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
-import { useTimerSync } from './hooks/useTimerSync';
+import { sessionsToTimeEntries } from './utils/timerHelpers';
 import { createServiceErrorHandler } from './utils/errorHandler';
-import { listen } from '@tauri-apps/api/event';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
 
 // AppContent component contains the main application logic and UI.
@@ -38,9 +37,9 @@ function AppContent() {
 
   const appErrorHandler = useMemo(() => createServiceErrorHandler('AppContent'), []);
 
-  // Centralized session management
-  const sessionManager = useSessionManagement();
-  
+  // Centralized session management (single shared instance via provider)
+  const sessionManager = useSessionManagementContext();
+
   // Task management context
   const { tasks, addTask, updateTask, deleteTask } = useTaskManagementContext();
 
@@ -60,37 +59,10 @@ function AppContent() {
   }, [sessionManager.activeSession, activeTimer]);
 
   // All time entries derived from sessions
-  const allTimeEntries = useMemo(() => 
-    sessionManager.sessions
-      .filter(s => s && Array.isArray(s.timerInstances)) // Add this line to filter out invalid session objects
-      .flatMap(s => 
-        s.timerInstances.map((i: any) => ({
-          ...i, 
-          taskName: s.taskName, 
-          taskId: s.taskId, 
-          date: s.date
-        }))
-      ), [sessionManager.sessions]);
-
-  // Timer sync hook
-  useTimerSync({
-    activeSession: sessionManager.activeSession,
-    sessions: sessionManager.sessions,
-  });
-
-  // Setup listeners for global events
-  useEffect(() => {
-    const setupListeners = async () => {
-      await listen('create-session-from-global', async (event: any) => {
-        const { taskName } = event.payload;
-        await appErrorHandler.handleAsync(async () => {
-          const task = tasks.find(t => t.name === taskName);
-          await sessionManager.createSession(task?.id ?? 'new-task', taskName);
-        }, 'createSessionFromGlobal', { taskName });
-      });
-    };
-    setupListeners();
-  }, [appErrorHandler, sessionManager, tasks]);
+  const allTimeEntries = useMemo(
+    () => sessionsToTimeEntries(sessionManager.sessions),
+    [sessionManager.sessions]
+  );
 
   // System Tray integration
   useEnhancedSystemTray({
@@ -137,21 +109,28 @@ function AppContent() {
   };
 
   const handleUpdateEntry = async (entry: TimeEntry) => {
-    const session = sessionManager.sessions.find(s => s.timerInstances.some((i: any) => `session_${i.id}` === entry.id));
+    // Entry ids are raw timer-instance ids (the "session_" prefix is only
+    // used by the derived activeEntry).
+    const instanceId = entry.id.replace(/^session_/, '');
+    const session = sessionManager.sessions.find(s =>
+      s.timerInstances.some(i => i.id === instanceId)
+    );
     if (session) {
       await sessionManager.updateSession(session.id, {
         taskName: entry.taskName,
-        // Other fields can be updated here
       });
     }
   };
 
   const handleDeleteEntry = async (entryId: string) => {
-    const instanceId = entryId.replace('session_', '');
-    const session = sessionManager.sessions.find(s => s.timerInstances.some((i: any) => i.id === instanceId));
+    const instanceId = entryId.replace(/^session_/, '');
+    const session = sessionManager.sessions.find(s =>
+      s.timerInstances.some(i => i.id === instanceId)
+    );
     if (session) {
-      // Logic to delete the specific timer instance would go here, via sessionManager
-      // e.g., sessionManager.deleteTimerInstance(instanceId);
+      await appErrorHandler.handleAsync(async () => {
+        await sessionManager.deleteTimerInstance(instanceId);
+      }, 'deleteTimeEntry', { entryId });
     }
   };
 
@@ -232,7 +211,9 @@ function App() {
           <SubscriptionProvider>
             <TaskManagementProvider>
               <ActiveTimerProvider>
-                <AppContent />
+                <SessionManagementProvider>
+                  <AppContent />
+                </SessionManagementProvider>
               </ActiveTimerProvider>
             </TaskManagementProvider>
           </SubscriptionProvider>

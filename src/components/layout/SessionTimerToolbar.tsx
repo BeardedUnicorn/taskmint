@@ -42,12 +42,13 @@ import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { useTimer } from '../../hooks/useTimer';
 import { formatTime } from '../../utils/formatters';
+import { getInstanceElapsedMs } from '../../utils/timerHelpers';
 import { useNotification } from '../../contexts/NotificationContext';
 import { SESSION_CONSTANTS } from '../../constants';
 
 // Status indicator component with animations
 interface TimerStatusIndicatorProps {
-  status: 'running' | 'paused' | 'stopped';
+  status: 'idle' | 'running' | 'paused' | 'stopped';
   size?: 'small' | 'medium';
 }
 
@@ -66,6 +67,13 @@ function TimerStatusIndicator({ status, size = 'medium' }: TimerStatusIndicatorP
           color: 'warning.main',
           icon: <PausedIcon />,
           label: 'Paused',
+          animation: 'none'
+        };
+      case 'idle':
+        return {
+          color: 'info.main',
+          icon: <PlayIcon />,
+          label: 'Ready',
           animation: 'none'
         };
       case 'stopped':
@@ -413,6 +421,8 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
         return 'running';
       case TimerState.paused:
         return 'paused';
+      case TimerState.idle:
+        return 'idle';
       default:
         return 'stopped';
     }
@@ -428,26 +438,14 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
       : new Date(instance.startTime);
   }, [instance.state, instance.startTime]);
 
-  const liveElapsed = useTimer(instance.state === TimerState.running, startTime);
+  const liveElapsed = useTimer(
+    instance.state === TimerState.running,
+    startTime,
+    instance.pausedDuration || 0
+  );
 
-  const getInstanceElapsedTime = useCallback((): number => {
-    if (instance.state === TimerState.running) {
-      // For running timers, use the live elapsed time from useTimer hook
-      return liveElapsed;
-    } else if (instance.state === TimerState.paused) {
-      // For paused timers, calculate elapsed time up to pause point
-      const startTimeMs = instance.startTime instanceof Date ? instance.startTime.getTime() : new Date(instance.startTime).getTime();
-      const pausedAtMs = instance.pausedAt instanceof Date ? instance.pausedAt.getTime() : new Date(instance.pausedAt || Date.now()).getTime();
-      const elapsedToPause = pausedAtMs - startTimeMs;
-      const previousPausedDuration = instance.pausedDuration || 0;
-      return Math.max(0, elapsedToPause - previousPausedDuration);
-    } else {
-      // For stopped timers, show their stored duration (preserves previous values)
-      return instance.duration || 0;
-    }
-  }, [instance, liveElapsed]);
-
-  const elapsed = getInstanceElapsedTime();
+  // Live value while running; frozen pause/stored duration otherwise.
+  const elapsed = instance.state === TimerState.running ? liveElapsed : getInstanceElapsedMs(instance);
 
   // Determine background color and text color based on timer state
   const getTimerStyles = () => {
@@ -465,6 +463,13 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
           color: '#ffffff',
           boxShadow: '0 0 12px rgba(255, 152, 0, 0.4)',
           border: '1px solid rgba(255, 152, 0, 0.3)',
+        };
+      case 'idle':
+        return {
+          bgcolor: '#1565c0', // info-ish blue for a fresh, startable timer
+          color: '#ffffff',
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
         };
       case 'stopped':
       default:
@@ -518,7 +523,8 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
           e.preventDefault();
           if (timerState === 'running') onPause();
           else if (timerState === 'paused') onResume();
-          else onStart();
+          else if (timerState === 'idle') onStart();
+          // A stopped timer is final: no keyboard action
         }
       }}
     >
@@ -613,7 +619,7 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
               <StopIcon fontSize="small" />
             </IconButton>
           </>
-        ) : (
+        ) : timerState === 'idle' ? (
           <IconButton
             size="small"
             onClick={onStart}
@@ -626,39 +632,36 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
           >
             <PlayIcon fontSize="small" />
           </IconButton>
+        ) : null}
+
+        {timerState === 'stopped' && onEdit && (
+          <IconButton
+            size="small"
+            onClick={onEdit}
+            sx={{
+              color: '#ffffff',
+              bgcolor: 'rgba(255, 255, 255, 0.1)',
+              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+            }}
+            aria-label={`Edit timer ${index}`}
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
         )}
 
-        {timerState === 'stopped' && (
-          <>
-            {onEdit && (
-              <IconButton
-                size="small"
-                onClick={onEdit}
-                sx={{
-                  color: '#ffffff',
-                  bgcolor: 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
-                }}
-                aria-label={`Edit timer ${index}`}
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            )}
-            {onDelete && (
-              <IconButton
-                size="small"
-                onClick={onDelete}
-                sx={{
-                  color: '#ffffff',
-                  bgcolor: 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
-                }}
-                aria-label={`Delete timer ${index}`}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-          </>
+        {(timerState === 'stopped' || timerState === 'idle') && onDelete && (
+          <IconButton
+            size="small"
+            onClick={onDelete}
+            sx={{
+              color: '#ffffff',
+              bgcolor: 'rgba(255, 255, 255, 0.1)',
+              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+            }}
+            aria-label={`Delete timer ${index}`}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
         )}
 
         {onOpenNotes && (

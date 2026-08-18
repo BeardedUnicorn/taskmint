@@ -161,4 +161,45 @@ describe('useTimer', () => {
     // After changing the start time while running, elapsed should reset
     expect(result.current).toBeLessThan(100);
   });
+
+  it('should subtract the paused offset from the elapsed time', () => {
+    // Started 60s ago, but 20s of that was spent paused
+    const startTime = new Date(Date.now() - 60_000);
+    const { result } = renderHook(() => useTimer(true, startTime, 20_000));
+
+    expect(result.current).toBeGreaterThan(39_900);
+    expect(result.current).toBeLessThan(40_100);
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(result.current).toBeGreaterThan(44_900);
+    expect(result.current).toBeLessThan(45_100);
+  });
+
+  it('should recompute immediately when the paused offset grows (resume)', () => {
+    const startTime = new Date(Date.now() - 60_000);
+    const { result, rerender } = renderHook(
+      ({ offset }) => useTimer(true, startTime, offset),
+      { initialProps: { offset: 0 } }
+    );
+
+    expect(result.current).toBeGreaterThan(59_900);
+
+    // A resume lands: accumulated pause becomes 30s
+    act(() => {
+      rerender({ offset: 30_000 });
+    });
+
+    expect(result.current).toBeGreaterThan(29_900);
+    expect(result.current).toBeLessThan(30_100);
+  });
+
+  it('should clamp to zero when the offset exceeds wall-clock elapsed', () => {
+    const startTime = new Date(Date.now() - 1_000);
+    const { result } = renderHook(() => useTimer(true, startTime, 10_000));
+
+    expect(result.current).toBe(0);
+  });
 });
