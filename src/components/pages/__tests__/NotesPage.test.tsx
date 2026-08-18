@@ -4,7 +4,7 @@
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 import { NotesPage } from '../NotesPage';
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';

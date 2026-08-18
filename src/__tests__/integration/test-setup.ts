@@ -4,7 +4,7 @@
  * Common setup and utilities for integration tests
  */
 
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 
 // Mock Tauri APIs globally
 // Note: Tauri APIs are now mocked via Jest moduleNameMapper configuration

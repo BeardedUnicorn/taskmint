@@ -17,10 +17,6 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('@tauri-apps/api/tauri', () => ({
-  invoke: vi.fn(() => Promise.resolve()),
-}));
-
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn(() => Promise.resolve(null)),
   save: vi.fn(() => Promise.resolve(null)),

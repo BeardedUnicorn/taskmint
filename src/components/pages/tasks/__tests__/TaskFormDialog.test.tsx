@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { TaskFormDialog } from '../TaskFormDialog';
 import { Task } from '../../../../types/task';

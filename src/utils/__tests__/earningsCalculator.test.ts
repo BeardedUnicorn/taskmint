@@ -409,7 +409,9 @@ describe('earningsCalculator', () => {
   describe('getTodayDateString', () => {
     it('should return today\'s date in YYYY-MM-DD format', () => {
       const mockDate = new Date('2024-01-15T14:30:00.000Z');
-      vi.spyOn(global, 'Date').mockImplementation(() => mockDate as any);
+      vi.spyOn(global, 'Date').mockImplementation(function () {
+        return mockDate;
+      } as any);
 
       const dateString = getTodayDateString();
       expect(dateString).toBe('2024-01-15');
@@ -420,7 +422,9 @@ describe('earningsCalculator', () => {
     it('should handle different timezones consistently', () => {
       // Test with a date that might have timezone issues
       const mockDate = new Date('2024-12-31T23:59:59.999Z');
-      vi.spyOn(global, 'Date').mockImplementation(() => mockDate as any);
+      vi.spyOn(global, 'Date').mockImplementation(function () {
+        return mockDate;
+      } as any);
 
       const dateString = getTodayDateString();
       expect(dateString).toBe('2024-12-31');
