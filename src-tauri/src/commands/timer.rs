@@ -13,24 +13,35 @@ pub fn update_timer_state(
     start_time: Option<String>,
     elapsed_ms: u64,
 ) -> Result<(), String> {
-    app_state.with_timer_state_mut(|timer_state| {
+    let start_time = start_time.and_then(|time_str| {
+        DateTime::parse_from_rfc3339(&time_str)
+            .map(|dt| dt.with_timezone(&Utc))
+            .ok()
+    });
+
+    // Rebuild the tray menu only when a field it displays actually changed.
+    // This command is re-invoked from frontend render effects, and a rebuild
+    // tears down the open menu, so no-op calls must not reach the tray.
+    // elapsed_ms only feeds the menu when running without a start time;
+    // otherwise the menu derives elapsed from start_time on its own.
+    let menu_changed = app_state.with_timer_state_mut(|timer_state| {
+        let changed = timer_state.is_running != is_running
+            || timer_state.task_name != task_name
+            || timer_state.start_time != start_time
+            || (is_running && start_time.is_none() && timer_state.elapsed_ms != elapsed_ms);
         timer_state.is_running = is_running;
         timer_state.task_name = task_name;
-        timer_state.start_time = if let Some(time_str) = start_time {
-            DateTime::parse_from_rfc3339(&time_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .ok()
-        } else {
-            None
-        };
+        timer_state.start_time = start_time;
         timer_state.elapsed_ms = elapsed_ms;
+        changed
     })?;
-    
-    // Immediately update the tray menu to reflect the new timer state
-    if let Err(e) = crate::tray::update_tray_menu(&app, &*app_state) {
-        eprintln!("Failed to update tray menu after timer state change: {:?}", e);
-        // Don't fail the command if tray update fails, just log the error
+
+    if menu_changed {
+        if let Err(e) = crate::tray::update_tray_menu(&app, &*app_state) {
+            eprintln!("Failed to update tray menu after timer state change: {:?}", e);
+            // Don't fail the command if tray update fails, just log the error
+        }
     }
-    
+
     Ok(())
 }

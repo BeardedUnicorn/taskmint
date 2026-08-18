@@ -35,7 +35,7 @@ export function useEnhancedSystemTray({
 }: UseEnhancedSystemTrayProps) {
   const prevActiveSessionRef = useRef(activeSession);
   const prevSessionsLengthRef = useRef(sessions.length);
-  const lastUpdateRef = useRef(0);
+  const hasSyncedTimerStateRef = useRef(false);
 
   // Safe notification function that doesn't require NotificationProvider
   const showError = useCallback((message: string) => {
@@ -43,44 +43,6 @@ export function useEnhancedSystemTray({
     // In a real app, you might want to use a different notification system
     // or make this hook accept an optional error handler
   }, []);
-
-  // Update tray menu with session data
-  const updateTrayMenuWithSessions = useCallback(async () => {
-    try {
-      // Skip if running in browser (development mode). Checked via
-      // isTauriEnvironment(): Tauri v2 defines __TAURI_INTERNALS__, and
-      // window.__TAURI__ exists only with app.withGlobalTauri — gating on it
-      // made all tray wiring dead code in real builds.
-      if (!isTauriEnvironment()) {
-        return;
-      }
-
-      // Convert sessions to the format expected by the backend
-      const sessionData = sessions.map(session => {
-        const totalDuration = session.timerInstances?.reduce((total, instance) => {
-          return total + (instance.duration || 0);
-        }, 0) || 0;
-
-        const isRunning = session.timerInstances?.some(instance => instance.state === TimerState.running) || false;
-
-        return {
-          date: new Date().toISOString().split('T')[0], // Today's date
-          duration: totalDuration,
-          isRunning,
-          taskName: session.taskName,
-        };
-      });
-
-      await safeInvoke('update_tray_menu_command', {
-        timeEntries: sessionData,
-      });
-    } catch (error) {
-      // Only log errors in Tauri environment
-      if (isTauriEnvironment()) {
-        console.error('Failed to update tray menu with session data:', error);
-      }
-    }
-  }, [sessions]);
 
   // Update timer state in backend when active session changes
   const updateTimerState = useCallback(async () => {
@@ -120,9 +82,6 @@ export function useEnhancedSystemTray({
           elapsedMs: 0,
         });
       }
-
-      // Update tray menu to reflect new state
-      await updateTrayMenuWithSessions();
     } catch (error) {
       // Only log errors in Tauri environment
       if (isTauriEnvironment()) {
@@ -131,7 +90,7 @@ export function useEnhancedSystemTray({
         showError(`System tray update failed: ${errorMessage}`);
       }
     }
-  }, [activeSession, updateTrayMenuWithSessions, showError]);
+  }, [activeSession, showError]);
 
   // Handle timer start from tray
   const handleStartTimerFromTray = useCallback(async (taskName: string, _startTime: Date) => {
@@ -173,21 +132,33 @@ export function useEnhancedSystemTray({
     }
   }, [activeSession, onStopTimer, showError]);
 
-  // Update timer state when active session changes
+  // Update timer state when active session changes. Sync once on mount and
+  // then only on real changes: a time-based fallback here used to re-sync on
+  // every render once 5s had passed, which rebuilt the tray menu forever even
+  // while idle. The backend skips no-op rebuilds, and its own update thread
+  // keeps the elapsed display fresh while a timer runs, so nothing needs a
+  // periodic push from here.
   useEffect(() => {
-    const now = Date.now();
     const hasActiveSessionChanged = prevActiveSessionRef.current !== activeSession;
     const hasSessionsChanged = prevSessionsLengthRef.current !== sessions.length;
-    const timeSinceLastUpdate = now - lastUpdateRef.current;
 
-    // Update if active session changed, sessions changed, or enough time has passed
-    if (hasActiveSessionChanged || hasSessionsChanged || timeSinceLastUpdate > 5000) {
+    if (!hasSyncedTimerStateRef.current || hasActiveSessionChanged || hasSessionsChanged) {
+      hasSyncedTimerStateRef.current = true;
       updateTimerState();
       prevActiveSessionRef.current = activeSession;
       prevSessionsLengthRef.current = sessions.length;
-      lastUpdateRef.current = now;
     }
   }, [activeSession, sessions, updateTimerState]);
+
+  // Keep the backend's task list current so the tray's task submenu is
+  // correct at startup and after task edits; the backend rebuilds the menu
+  // only when the list actually changed.
+  useEffect(() => {
+    if (!isTauriEnvironment()) {
+      return;
+    }
+    safeInvoke('update_tasks', { tasks });
+  }, [tasks]);
 
   // Listen for tray events
   useEffect(() => {
@@ -252,13 +223,7 @@ export function useEnhancedSystemTray({
     };
   }, [handleStartTimerFromTray, handleStopTimerFromTray, onShowNewTaskDialog, showError]);
 
-  // Initial tray menu update
-  useEffect(() => {
-    updateTrayMenuWithSessions();
-  }, [updateTrayMenuWithSessions]);
-
   return {
-    updateTrayMenuWithSessions,
     updateTimerState,
   };
 }
