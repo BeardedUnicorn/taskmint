@@ -31,6 +31,12 @@ pub fn update_timer_state(
         eprintln!("Failed to update tray menu after timer state change: {:?}", e);
         // Don't fail the command if tray update fails, just log the error
     }
-    
+
+    // Also refresh the tooltip/title so a stopped timer doesn't leave stale
+    // elapsed-time text in the menu bar
+    if let Err(e) = crate::tray::update_tray_tooltip_only(&*app_state) {
+        eprintln!("Failed to update tray tooltip after timer state change: {:?}", e);
+    }
+
     Ok(())
 }
