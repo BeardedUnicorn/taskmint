@@ -62,7 +62,7 @@ export function useInactivityDetection(): UseInactivityDetectionReturn {
   const warningShownRef = useRef(false);
   const pausedDueToInactivityRef = useRef(false);
   const isDetectionActive = useRef(true);
-  const warningCountdown = useRef<NodeJS.Timeout>();
+  const warningCountdown = useRef<NodeJS.Timeout | undefined>(undefined);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 

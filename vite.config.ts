@@ -19,7 +19,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           // Separate vendor chunks for better caching
-          'react-vendor': ['react', 'react-dom'],
+          'react-vendor': ['react', 'react-dom', 'react-dom/client'],
           'mui-vendor': ['@mui/material', '@mui/icons-material', '@mui/x-date-pickers'],
           'chart-vendor': ['recharts'],
           'date-vendor': ['dayjs', 'date-fns'],
