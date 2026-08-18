@@ -31,7 +31,7 @@ export function useValidatedLocalStorage<T>(
   key: string,
   initialValue: T,
   validator: (value: unknown) => value is T,
-  schema?: z.ZodSchema<T>,
+  schema?: z.ZodType<T>,
   options: UseValidatedLocalStorageOptions = {}
 ) {
   const {
@@ -312,7 +312,7 @@ export function useValidatedArrayStorage<T>(
   key: string,
   initialValue: T[],
   itemValidator: (item: unknown) => item is T,
-  itemSchema?: z.ZodSchema<T>,
+  itemSchema?: z.ZodType<T>,
   options?: UseValidatedLocalStorageOptions
 ) {
   const arrayValidator = createTypeGuards.array(itemValidator);

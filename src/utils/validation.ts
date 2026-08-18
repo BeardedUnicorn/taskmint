@@ -151,7 +151,7 @@ export function validateTasks(data: unknown): ValidationResult<Task[]> {
 /**
  * Generic validation function that can be used with any Zod schema
  */
-export function validateWithSchema<T>(schema: z.ZodSchema<T>, data: unknown): ValidationResult<T> {
+export function validateWithSchema<T>(schema: z.ZodType<T>, data: unknown): ValidationResult<T> {
   try {
     const result = schema.safeParse(data);
     if (result.success) {

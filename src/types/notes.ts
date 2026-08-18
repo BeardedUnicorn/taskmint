@@ -93,8 +93,8 @@ export const NoteTemplateSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   fields: z.array(TemplateFieldSchema),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
   isActive: z.boolean(),
 });
 
@@ -103,15 +103,15 @@ export const TaskNoteSchema = z.object({
   taskId: z.string().min(1),
   templateId: z.string().min(1),
   templateName: z.string().min(1),
-  fieldValues: z.record(z.any()),
+  fieldValues: z.record(z.string(), z.any()),
   timeEntryId: z.string().nullable().optional(),
   sessionId: z.string().nullable().optional(),
   timerInstanceId: z.string().nullable().optional(),
   noteLevel: z.enum(['task', 'session', 'timer']).default('task'),
   isArchived: z.boolean().default(false),
-  archivedAt: z.string().datetime().nullable().optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  archivedAt: z.iso.datetime().nullable().optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 // Form Data Types
