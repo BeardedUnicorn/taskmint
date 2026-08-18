@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { TimerInstance, TimerState } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
 import { useTimer } from '../../../hooks/useTimer';
+import { getInstanceElapsedMs } from '../../../utils/timerHelpers';
 
 export interface TimerRowProps {
   instance: TimerInstance;
@@ -51,8 +52,10 @@ export function TimerRow({
       : new Date(instance.startTime);
   }, [instance.state, instance.startTime]);
 
-  const currentElapsed = useTimer(instance.state === TimerState.running, startTime);
-  const displayTime = instance.state === TimerState.running ? currentElapsed : instance.duration || 0;
+  const isRunning = instance.state === TimerState.running;
+  const currentElapsed = useTimer(isRunning, startTime, instance.pausedDuration || 0);
+  // Paused timers show their frozen elapsed; stopped ones their recorded duration.
+  const displayTime = isRunning ? currentElapsed : getInstanceElapsedMs(instance);
   const isSmall = size === 'small';
 
   return (
@@ -112,7 +115,8 @@ export function TimerRow({
 
       {showControls && (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {instance.state !== TimerState.running && instance.state !== TimerState.paused && (
+          {/* A completed (stopped) timer is final: Start only appears on fresh timers */}
+          {instance.state === TimerState.idle && (
             <Tooltip title="Start Timer">
               <IconButton size="small" onClick={onStart} sx={{ color: 'inherit' }}>
                 <PlayIcon fontSize="small" />
@@ -136,27 +140,34 @@ export function TimerRow({
           )}
 
           {instance.state === TimerState.paused && (
-            <Tooltip title="Resume Timer">
-              <IconButton size="small" onClick={onResume} sx={{ color: 'inherit' }}>
-                <PlayIcon fontSize="small" />
+            <>
+              <Tooltip title="Resume Timer">
+                <IconButton size="small" onClick={onResume} sx={{ color: 'inherit' }}>
+                  <PlayIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Stop Timer">
+                <IconButton size="small" onClick={onStop} sx={{ color: 'inherit' }}>
+                  <StopIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+
+          {instance.state === TimerState.stopped && (
+            <Tooltip title="Edit Timer">
+              <IconButton size="small" onClick={onEdit} sx={{ color: 'inherit' }}>
+                <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
 
-          {/* Edit and Delete buttons - only show for stopped timers */}
-          {instance.state !== TimerState.running && instance.state !== TimerState.paused && (
-            <>
-              <Tooltip title="Edit Timer">
-                <IconButton size="small" onClick={onEdit} sx={{ color: 'inherit' }}>
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Delete Timer">
-                <IconButton size="small" onClick={onDelete} sx={{ color: 'inherit' }}>
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </>
+          {(instance.state === TimerState.idle || instance.state === TimerState.stopped) && (
+            <Tooltip title="Delete Timer">
+              <IconButton size="small" onClick={onDelete} sx={{ color: 'inherit' }}>
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           )}
         </Box>
       )}

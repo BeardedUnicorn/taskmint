@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Box, Typography, Paper, CircularProgress, IconButton, useTheme, Button } from '@mui/material';
 import { format, addMonths, subMonths, subDays } from 'date-fns';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
@@ -6,11 +6,11 @@ import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
-import { SessionService } from '../../services/SessionService';
-import { TaskService } from '../../services/TaskService';
-import { StorageService } from '../../services/StorageService';
-import { TimeEntry, Task } from '../../types';
+import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
+import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
+import { sessionsToTimeEntries } from '../../utils/timerHelpers';
 import { calculateEntryEarnings } from '../../utils/earningsCalculator';
+import { parseDateStringLocal } from '../../utils/dateHelpers';
 
 const localizer = momentLocalizer(moment);
 
@@ -61,47 +61,26 @@ const CalendarControls: React.FC<{
 
 const CalendarPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>(Views.MONTH);
   const { days: fundsReleaseDays } = useFundsReleaseSettings();
   const theme = useTheme();
 
-  const storageService = useMemo(() => StorageService.getInstance(), []);
-  const sessionService = useMemo(() => new SessionService(), []);
-  const taskService = useMemo(() => new TaskService(storageService), [storageService]);
+  // Same source of truth as the rest of the app: backend sessions flattened
+  // into time entries (the legacy localStorage SessionService silently
+  // diverged from the session data every other page showed).
+  const { sessions, isLoading: sessionsLoading } = useSessionManagementContext();
+  const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [entries, allTasks] = await Promise.all([
-          sessionService.getTimeEntries(),
-          taskService.getAllTasks(),
-        ]);
-        setTimeEntries(entries);
-        setTasks(allTasks);
-      } catch (error) {
-        // Only log in non-test environments
-        if (process.env.NODE_ENV !== 'test') {
-          console.error('Error fetching calendar data:', error);
-        }
-        // Set empty arrays as fallback
-        setTimeEntries([]);
-        setTasks([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [sessionService, taskService]);
+  const timeEntries = useMemo(() => sessionsToTimeEntries(sessions), [sessions]);
+  const loading = (sessionsLoading && sessions.length === 0) || tasksLoading;
 
   const dailyData = useMemo(() => {
     // Calculate earnings for all days that have time entries
     const dailyEarned: Record<string, number> = {};
     timeEntries.forEach(entry => {
-      const dateKey = format(new Date(entry.date), 'yyyy-MM-dd');
+      // entry.date is a local YYYY-MM-DD string — parse it as local time, or
+      // every entry shifts to the previous day for users west of UTC.
+      const dateKey = format(parseDateStringLocal(String(entry.date)), 'yyyy-MM-dd');
       dailyEarned[dateKey] = (dailyEarned[dateKey] || 0) + calculateEntryEarnings(entry, tasks);
     });
 
@@ -128,7 +107,7 @@ const CalendarPage: React.FC = () => {
     // Create data for all dates in the calendar view
     return allDates.map(dateStr => {
       const earned = dailyEarned[dateStr] || 0;
-      const transferableDate = subDays(new Date(dateStr), fundsReleaseDays);
+      const transferableDate = subDays(parseDateStringLocal(dateStr), fundsReleaseDays);
       const transferableKey = format(transferableDate, 'yyyy-MM-dd');
       const transferable = dailyEarned[transferableKey] || 0;
 
@@ -142,7 +121,7 @@ const CalendarPage: React.FC = () => {
 
   const events = useMemo((): CalendarEvent[] => {
     return dailyData.map(dayData => {
-      const date = new Date(dayData.date);
+      const date = parseDateStringLocal(dayData.date);
       return {
         id: dayData.date,
         title: `Earned: $${dayData.earned.toFixed(2)}`,

@@ -310,7 +310,11 @@ describe('useDataBackup', () => {
         await result.current.exportData();
       });
 
-      const exportCall = (safeInvoke as any).mock.calls[0];
+      // createBackupData also invokes get_sessions, so find the export call
+      // by command name rather than by position.
+      const exportCall = (safeInvoke as any).mock.calls.find(
+        (call: any[]) => call[0] === 'export_data_to_file'
+      );
       const dataJson = exportCall[1].dataJson;
       const parsedData = JSON.parse(dataJson);
 
@@ -322,6 +326,7 @@ describe('useDataBackup', () => {
       expect(parsedData.data.taskNotes).toHaveLength(1);
       expect(parsedData.data.dailyGoal).toBeDefined();
       expect(parsedData.data.goalAchievements).toHaveLength(1);
+      expect(parsedData.data.sessions).toBeDefined();
     });
   });
 

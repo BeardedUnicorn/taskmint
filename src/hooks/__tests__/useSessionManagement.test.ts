@@ -1,11 +1,14 @@
 /**
  * Tests for useSessionManagement hook
- * 
+ *
  * Comprehensive tests covering session creation, management, timer instances,
  * and integration with the backend.
+ *
+ * Invoke mocking is keyed by command name (not positional), because the hook
+ * issues auxiliary invokes on mount (get_sessions, get_session_load_warning)
+ * whose ordering is an implementation detail.
  */
 
-import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useSessionManagement } from '../useSessionManagement';
@@ -43,6 +46,28 @@ vi.mock('../../utils/performance', () => ({
   measurePerformance: vi.fn((name, fn) => fn()),
 }));
 
+// Command-keyed invoke queues: prime per-command results; unprimed commands
+// fall back to sensible defaults.
+let commandQueues: Record<string, unknown[]>;
+
+function primeCommand(command: string, ...results: unknown[]) {
+  commandQueues[command] = [...(commandQueues[command] ?? []), ...results];
+}
+
+function installInvokeMock() {
+  mockInvoke.mockImplementation(async (command: string) => {
+    const queue = commandQueues[command];
+    if (queue && queue.length > 0) {
+      const next = queue.shift();
+      if (next instanceof Error) throw next;
+      return next;
+    }
+    if (command === 'get_sessions') return [];
+    if (command === 'get_session_load_warning') return null;
+    return undefined;
+  });
+}
+
 describe('useSessionManagement', () => {
   const mockSession: TaskSession = {
     id: 'session-1',
@@ -67,7 +92,8 @@ describe('useSessionManagement', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockInvoke.mockResolvedValue([]);
+    commandQueues = {};
+    installInvokeMock();
     mockListen.mockResolvedValue(async () => {});
   });
 
@@ -78,7 +104,7 @@ describe('useSessionManagement', () => {
   describe('initialization', () => {
     it('should load sessions on mount', async () => {
       const sessions = [mockSession];
-      mockInvoke.mockResolvedValueOnce(sessions);
+      primeCommand('get_sessions', sessions);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -93,7 +119,7 @@ describe('useSessionManagement', () => {
     it('should identify active session on load', async () => {
       const activeSession = { ...mockSession, isActive: true };
       const sessions = [mockSession, activeSession];
-      mockInvoke.mockResolvedValueOnce(sessions);
+      primeCommand('get_sessions', sessions);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -103,8 +129,7 @@ describe('useSessionManagement', () => {
     });
 
     it('should handle loading errors', async () => {
-      const error = new Error('Failed to load sessions');
-      mockInvoke.mockRejectedValueOnce(error);
+      primeCommand('get_sessions', new Error('Failed to load sessions'));
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -115,16 +140,58 @@ describe('useSessionManagement', () => {
 
       expect(mockShowError).toHaveBeenCalledWith('Failed to load sessions');
     });
+
+    it('should surface a session load warning recorded by the backend', async () => {
+      primeCommand('get_session_load_warning', '2 saved session record(s) could not be read and were skipped.');
+
+      renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+
+      await waitFor(() => {
+        expect(mockShowError).toHaveBeenCalledWith(
+          '2 saved session record(s) could not be read and were skipped.'
+        );
+      });
+    });
+  });
+
+  describe('normalization', () => {
+    it('should derive idle state for a fresh instance and stopped for a completed one', async () => {
+      const freshFromBackend = {
+        ...mockTimerInstance,
+        id: 'fresh',
+        state: undefined,
+        isRunning: false,
+        isPaused: false,
+      } as unknown as TimerInstance;
+      const completedFromBackend = {
+        ...mockTimerInstance,
+        id: 'completed',
+        state: undefined,
+        isRunning: false,
+        isPaused: false,
+        duration: 60_000,
+        endTime: new Date('2024-01-15T11:00:00Z'),
+      } as unknown as TimerInstance;
+      const session = { ...mockSession, timerInstances: [freshFromBackend, completedFromBackend] };
+      primeCommand('get_sessions', [session]);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toHaveLength(1);
+      });
+
+      const [fresh, completed] = result.current.sessions[0].timerInstances;
+      expect(fresh.state).toBe(TimerState.idle);
+      expect(completed.state).toBe(TimerState.stopped);
+    });
   });
 
   describe('session creation', () => {
     it('should create a new session', async () => {
       const newSession = { ...mockSession, id: 'new-session' };
-      const newTimerInstance = { ...mockTimerInstance, sessionId: 'new-session' };
-      mockInvoke
-        .mockResolvedValueOnce([]) // Initial load
-        .mockResolvedValueOnce(newSession) // Create session
-        .mockResolvedValueOnce([newSession]); // Reload sessions
+      primeCommand('get_sessions', [], [newSession]); // initial load, reload after create
+      primeCommand('create_session', newSession);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -145,10 +212,7 @@ describe('useSessionManagement', () => {
     });
 
     it('should handle session creation errors', async () => {
-      const error = new Error('Creation failed');
-      mockInvoke
-        .mockResolvedValueOnce([]) // Initial load
-        .mockRejectedValueOnce(error); // Create session fails
+      primeCommand('create_session', new Error('Creation failed'));
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -167,11 +231,7 @@ describe('useSessionManagement', () => {
 
     it('should trim task names when creating sessions', async () => {
       const newSession = { ...mockSession, taskName: 'Trimmed Task' };
-      const newTimerInstance = { ...mockTimerInstance, sessionId: 'session-1' };
-      mockInvoke
-        .mockResolvedValueOnce([]) // Initial load
-        .mockResolvedValueOnce(newSession) // Create session
-        .mockResolvedValueOnce([newSession]); // Reload sessions
+      primeCommand('create_session', newSession);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -193,9 +253,8 @@ describe('useSessionManagement', () => {
   describe('session updates', () => {
     it('should update a session', async () => {
       const updatedSession = { ...mockSession, taskName: 'Updated Task' };
-      mockInvoke
-        .mockResolvedValueOnce([mockSession]) // Initial load
-        .mockResolvedValueOnce(updatedSession); // Update session
+      primeCommand('get_sessions', [mockSession]);
+      primeCommand('update_session', updatedSession);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -220,10 +279,9 @@ describe('useSessionManagement', () => {
     it('should update active session when it is modified', async () => {
       const activeSession = { ...mockSession, isActive: true };
       const updatedSession = { ...activeSession, taskName: 'Updated Active Task' };
-      
-      mockInvoke
-        .mockResolvedValueOnce([activeSession]) // Initial load
-        .mockResolvedValueOnce(updatedSession); // Update session
+
+      primeCommand('get_sessions', [activeSession]);
+      primeCommand('update_session', updatedSession);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -243,9 +301,7 @@ describe('useSessionManagement', () => {
 
   describe('session deletion', () => {
     it('should delete a session', async () => {
-      mockInvoke
-        .mockResolvedValueOnce([mockSession]) // Initial load
-        .mockResolvedValueOnce(undefined); // Delete session
+      primeCommand('get_sessions', [mockSession]);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -266,9 +322,7 @@ describe('useSessionManagement', () => {
 
     it('should clear active session when deleted', async () => {
       const activeSession = { ...mockSession, isActive: true };
-      mockInvoke
-        .mockResolvedValueOnce([activeSession]) // Initial load
-        .mockResolvedValueOnce(undefined); // Delete session
+      primeCommand('get_sessions', [activeSession]);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -286,10 +340,8 @@ describe('useSessionManagement', () => {
 
   describe('timer instance management', () => {
     it('should create a timer instance', async () => {
-      mockInvoke
-        .mockResolvedValueOnce([mockSession]) // Initial load
-        .mockResolvedValueOnce(mockTimerInstance) // Create instance
-        .mockResolvedValueOnce([mockSession]); // Reload sessions
+      primeCommand('get_sessions', [mockSession], [mockSession]);
+      primeCommand('create_timer_instance', mockTimerInstance);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -310,9 +362,8 @@ describe('useSessionManagement', () => {
 
     it('should start a timer instance', async () => {
       const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, state: TimerState.running }] };
-      mockInvoke
-        .mockResolvedValueOnce([mockSession]) // Initial load
-        .mockResolvedValueOnce(updatedSession); // Start timer
+      primeCommand('get_sessions', [mockSession]);
+      primeCommand('start_timer_instance', updatedSession);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -332,9 +383,8 @@ describe('useSessionManagement', () => {
 
     it('should stop a timer instance', async () => {
       const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, state: TimerState.stopped }] };
-      mockInvoke
-        .mockResolvedValueOnce([mockSession]) // Initial load
-        .mockResolvedValueOnce(updatedSession); // Stop timer
+      primeCommand('get_sessions', [mockSession]);
+      primeCommand('stop_timer_instance', updatedSession);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -352,17 +402,15 @@ describe('useSessionManagement', () => {
       expect(mockShowSuccess).toHaveBeenCalledWith('Timer stopped');
     });
 
-    it('should append a new timer instance when restarting', async () => {
+    it('should surface an error when starting a completed timer', async () => {
+      // A stopped timer is final: the backend refuses to restart it and the
+      // hook must not attempt any automatic recovery for this error.
       const stoppedInstance = { ...mockTimerInstance, endTime: new Date(), duration: 1000, state: TimerState.stopped };
       const sessionWithStopped = { ...mockSession, timerInstances: [stoppedInstance] };
-      const sessionAfterStart = {
-        ...mockSession,
-        timerInstances: [stoppedInstance, { ...mockTimerInstance, id: 'instance-2', state: TimerState.running }],
-      };
+      const errorMessage = 'Timer instance has already completed; create a new timer instead';
 
-      mockInvoke
-        .mockResolvedValueOnce([sessionWithStopped]) // Initial load
-        .mockResolvedValueOnce(sessionAfterStart); // start_timer_instance creates new instance internally
+      primeCommand('get_sessions', [sessionWithStopped]);
+      primeCommand('start_timer_instance', new Error(errorMessage));
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -374,27 +422,53 @@ describe('useSessionManagement', () => {
         await result.current.startTimerInstance('instance-1');
       });
 
-      expect(mockInvoke).toHaveBeenNthCalledWith(2, 'start_timer_instance', { instanceId: 'instance-1' });
-      expect(result.current.sessions[0].timerInstances).toHaveLength(2);
-      expect(result.current.sessions[0].timerInstances[1].state).toBe(TimerState.running);
+      expect(mockShowError).toHaveBeenCalledWith(errorMessage);
+      const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
+      expect(startCalls).toHaveLength(1);
+    });
+
+    it('should activate an inactive session and retry the start', async () => {
+      const idleInstance = { ...mockTimerInstance, state: TimerState.idle };
+      const inactiveSession = { ...mockSession, timerInstances: [idleInstance] };
+      const activatedSession = { ...inactiveSession, isActive: true };
+      const startedSession = {
+        ...activatedSession,
+        timerInstances: [{ ...idleInstance, state: TimerState.running }],
+      };
+
+      primeCommand('get_sessions', [inactiveSession]);
+      primeCommand('start_timer_instance', new Error('Cannot start timer for inactive session'), startedSession);
+      primeCommand('set_active_session', [activatedSession]);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      await act(async () => {
+        await result.current.startTimerInstance('instance-1');
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith('set_active_session', { sessionId: 'session-1' });
+      const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
+      expect(startCalls).toHaveLength(2);
       expect(mockShowSuccess).toHaveBeenCalledWith('Timer started');
     });
 
     it('should stop an existing timer before starting another', async () => {
       const runningInstance = { ...mockTimerInstance, id: 'instance-1', state: TimerState.running };
       const newInstance = { ...mockTimerInstance, id: 'instance-2', state: TimerState.idle };
-      const initialSession = { ...mockSession, timerInstances: [runningInstance, newInstance] };
-      const afterStop = { ...mockSession, timerInstances: [{ ...runningInstance, state: TimerState.stopped }, newInstance] };
+      const initialSession = { ...mockSession, isActive: true, timerInstances: [runningInstance, newInstance] };
+      const afterStop = { ...initialSession, timerInstances: [{ ...runningInstance, state: TimerState.stopped }, newInstance] };
       const afterStart = {
-        ...mockSession,
+        ...initialSession,
         timerInstances: [{ ...runningInstance, state: TimerState.stopped }, { ...newInstance, state: TimerState.running }],
       };
 
-      mockInvoke
-        .mockResolvedValueOnce([initialSession]) // Initial load
-        .mockRejectedValueOnce(new Error('Another timer instance is already running')) // First start attempt
-        .mockResolvedValueOnce(afterStop) // Stop running timer
-        .mockResolvedValueOnce(afterStart); // Retry start
+      primeCommand('get_sessions', [initialSession]);
+      primeCommand('start_timer_instance', new Error('Another timer instance is already running'), afterStart);
+      primeCommand('stop_timer_instance', afterStop);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -406,15 +480,15 @@ describe('useSessionManagement', () => {
         await result.current.startTimerInstance('instance-2');
       });
 
-      expect(mockInvoke).toHaveBeenNthCalledWith(2, 'start_timer_instance', { instanceId: 'instance-2' });
-      expect(mockInvoke).toHaveBeenNthCalledWith(3, 'stop_timer_instance', { instanceId: 'instance-1' });
-      expect(mockInvoke).toHaveBeenNthCalledWith(4, 'start_timer_instance', { instanceId: 'instance-2' });
+      expect(mockInvoke).toHaveBeenCalledWith('stop_timer_instance', { instanceId: 'instance-1' });
+      const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
+      expect(startCalls).toHaveLength(2);
       expect(mockShowSuccess).toHaveBeenCalledWith('Timer started');
     });
   });
 
   describe('event listener management', () => {
-    it('should have only one listener active after remounting', async () => {
+    it('registers the backend timer-instance listeners once and cleans them up', async () => {
       let activeListeners = 0;
       mockListen.mockImplementation(async () => {
         activeListeners++;
@@ -423,20 +497,131 @@ describe('useSessionManagement', () => {
         };
       });
 
+      const expectedListenerCount = 5; // timer-instance started/stopped/paused/resumed/deleted
+
       const { unmount } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-      await waitFor(() => expect(activeListeners).toBe(1));
+      await waitFor(() => expect(activeListeners).toBe(expectedListenerCount));
 
       unmount();
       await waitFor(() => expect(activeListeners).toBe(0));
 
       renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-      await waitFor(() => expect(activeListeners).toBe(1));
+      await waitFor(() => expect(activeListeners).toBe(expectedListenerCount));
+    });
+
+    it('pauses running timers of the active session on the window inactivity event', async () => {
+      const runningInstance = { ...mockTimerInstance, state: TimerState.running };
+      const activeSession = { ...mockSession, isActive: true, timerInstances: [runningInstance] };
+      const pausedSession = {
+        ...activeSession,
+        timerInstances: [{ ...runningInstance, state: TimerState.paused }],
+      };
+
+      primeCommand('get_sessions', [activeSession], [pausedSession]);
+      primeCommand('pause_timer_instance', pausedSession);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+
+      await waitFor(() => {
+        expect(result.current.activeSession).toEqual(activeSession);
+      });
+
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
+          detail: { reason: 'inactivity', timestamp: new Date() },
+        }));
+      });
+
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith('pause_timer_instance', {
+          instanceId: 'instance-1',
+        });
+      });
+    });
+
+    it('resumes timers paused by inactivity when activity returns', async () => {
+      const runningInstance = { ...mockTimerInstance, state: TimerState.running };
+      const activeSession = { ...mockSession, isActive: true, timerInstances: [runningInstance] };
+      const pausedSession = {
+        ...activeSession,
+        timerInstances: [{ ...runningInstance, state: TimerState.paused }],
+      };
+
+      primeCommand('get_sessions', [activeSession], [pausedSession]);
+      primeCommand('pause_timer_instance', pausedSession);
+      primeCommand('resume_timer_instance', activeSession);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+
+      await waitFor(() => {
+        expect(result.current.activeSession).toEqual(activeSession);
+      });
+
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
+          detail: { reason: 'inactivity', timestamp: new Date() },
+        }));
+      });
+
+      await waitFor(() => {
+        expect(result.current.activeSession?.timerInstances[0].state).toBe(TimerState.paused);
+      });
+
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent('timer-resume-activity', {
+          detail: { reason: 'activity-detected', timestamp: new Date() },
+        }));
+      });
+
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith('resume_timer_instance', {
+          instanceId: 'instance-1',
+        });
+      });
+    });
+
+    it('does not auto-resume a timer the user paused from the warning dialog', async () => {
+      const runningInstance = { ...mockTimerInstance, state: TimerState.running };
+      const activeSession = { ...mockSession, isActive: true, timerInstances: [runningInstance] };
+      const pausedSession = {
+        ...activeSession,
+        timerInstances: [{ ...runningInstance, state: TimerState.paused }],
+      };
+
+      primeCommand('get_sessions', [activeSession], [pausedSession]);
+      primeCommand('pause_timer_instance', pausedSession);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+
+      await waitFor(() => {
+        expect(result.current.activeSession).toEqual(activeSession);
+      });
+
+      // The user explicitly chose to pause via the warning dialog
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
+          detail: { reason: 'user-action', timestamp: new Date() },
+        }));
+      });
+
+      await waitFor(() => {
+        expect(result.current.activeSession?.timerInstances[0].state).toBe(TimerState.paused);
+      });
+
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent('timer-resume-activity', {
+          detail: { reason: 'activity-detected', timestamp: new Date() },
+        }));
+      });
+
+      const resumeCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'resume_timer_instance');
+      expect(resumeCalls).toHaveLength(0);
     });
   });
 
   describe('utility methods', () => {
     it('should get session by ID', async () => {
-      mockInvoke.mockResolvedValueOnce([mockSession]);
+      primeCommand('get_sessions', [mockSession]);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -454,7 +639,7 @@ describe('useSessionManagement', () => {
     it('should get sessions by task ID', async () => {
       const session2 = { ...mockSession, id: 'session-2', taskId: 'task-2' };
       const sessions = [mockSession, session2];
-      mockInvoke.mockResolvedValueOnce(sessions);
+      primeCommand('get_sessions', sessions);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -468,7 +653,7 @@ describe('useSessionManagement', () => {
 
     it('should get active session', async () => {
       const activeSession = { ...mockSession, isActive: true };
-      mockInvoke.mockResolvedValueOnce([activeSession]);
+      primeCommand('get_sessions', [activeSession]);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -485,9 +670,8 @@ describe('useSessionManagement', () => {
     describe('pauseTimerInstance', () => {
       it('should pause a timer instance successfully', async () => {
         const updatedSession = { ...mockSession, timerInstances: [{ ...mockTimerInstance, state: TimerState.paused }] };
-        mockInvoke
-          .mockResolvedValueOnce([mockSession]) // Initial load
-          .mockResolvedValueOnce(updatedSession); // pause_timer_instance
+        primeCommand('get_sessions', [mockSession]);
+        primeCommand('pause_timer_instance', updatedSession);
 
         const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -507,9 +691,8 @@ describe('useSessionManagement', () => {
 
       it('should handle pause errors gracefully', async () => {
         const errorMessage = 'Cannot pause timer: timer is not running';
-        mockInvoke
-          .mockResolvedValueOnce([mockSession]) // Initial load
-          .mockRejectedValueOnce(new Error(errorMessage)); // pause_timer_instance fails
+        primeCommand('get_sessions', [mockSession]);
+        primeCommand('pause_timer_instance', new Error(errorMessage));
 
         const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -518,12 +701,7 @@ describe('useSessionManagement', () => {
         });
 
         await act(async () => {
-          try {
-            await result.current.pauseTimerInstance('instance-1');
-          } catch (error) {
-            expect(error).toBeInstanceOf(Error);
-            expect((error as Error).message).toBe(errorMessage);
-          }
+          await result.current.pauseTimerInstance('instance-1');
         });
 
         expect(mockShowError).toHaveBeenCalledWith(errorMessage);
@@ -540,9 +718,8 @@ describe('useSessionManagement', () => {
           }],
         };
 
-        mockInvoke
-          .mockResolvedValueOnce([mockSession]) // Initial load
-          .mockResolvedValueOnce(sessionWithRunningTimer); // resume_timer_instance
+        primeCommand('get_sessions', [mockSession]);
+        primeCommand('resume_timer_instance', sessionWithRunningTimer);
 
         const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -562,9 +739,8 @@ describe('useSessionManagement', () => {
 
       it('should handle resume errors gracefully', async () => {
         const errorMessage = 'Cannot resume timer: timer is not paused';
-        mockInvoke
-          .mockResolvedValueOnce([mockSession]) // Initial load
-          .mockRejectedValueOnce(new Error(errorMessage)); // resume_timer_instance fails
+        primeCommand('get_sessions', [mockSession]);
+        primeCommand('resume_timer_instance', new Error(errorMessage));
 
         const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -573,12 +749,7 @@ describe('useSessionManagement', () => {
         });
 
         await act(async () => {
-          try {
-            await result.current.resumeTimerInstance('instance-1');
-          } catch (error) {
-            expect(error).toBeInstanceOf(Error);
-            expect((error as Error).message).toBe(errorMessage);
-          }
+          await result.current.resumeTimerInstance('instance-1');
         });
 
         expect(mockShowError).toHaveBeenCalledWith(errorMessage);
@@ -588,9 +759,11 @@ describe('useSessionManagement', () => {
     describe('Integration with existing timer operations', () => {
       it('should maintain consistency between start, pause, resume, and stop operations', async () => {
         const updatedSession = { ...mockSession, timerInstances: [mockTimerInstance] };
-        mockInvoke
-          .mockResolvedValueOnce([mockSession]) // Initial load
-          .mockResolvedValue(updatedSession); // All timer operations return updated session
+        primeCommand('get_sessions', [mockSession]);
+        primeCommand('start_timer_instance', updatedSession);
+        primeCommand('pause_timer_instance', updatedSession);
+        primeCommand('resume_timer_instance', updatedSession);
+        primeCommand('stop_timer_instance', updatedSession);
 
         const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 

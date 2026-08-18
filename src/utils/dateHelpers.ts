@@ -32,6 +32,15 @@ export function formatDateString(date: Date | string): string {
 }
 
 /**
+ * Parse a YYYY-MM-DD date string as local time. `new Date('YYYY-MM-DD')`
+ * parses as UTC midnight, which shifts to the previous day for users west of
+ * UTC; dayjs parses date-only strings in local time.
+ */
+export function parseDateStringLocal(dateStr: string): Date {
+  return dayjs(dateStr).toDate();
+}
+
+/**
  * Format a date/time for datetime-local input in local timezone
  */
 export function formatDateTimeLocal(date: Date | string): string {

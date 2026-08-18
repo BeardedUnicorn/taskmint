@@ -29,16 +29,16 @@ import { EnhancedNotesDialog } from '../ui/dialogs/EnhancedNotesDialog';
 import { QuickSessionDialog } from '../ui/dialogs/QuickSessionDialog';
 import { EditSessionDialog } from '../ui/dialogs/EditSessionDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
-import { useSessionManagement } from '../../hooks/useSessionManagement';
+import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useNotification } from '../../contexts/NotificationContext';
-import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
+import { TaskSession, TimerInstance } from '../../types/timer';
 import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatDuration } from '../../utils/formatters';
-import { formatDateString } from '../../utils/dateHelpers';
+import { formatDateString, formatDateTimeLocal } from '../../utils/dateHelpers';
 
 export function SessionDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -75,12 +75,13 @@ export function SessionDashboard() {
     updateTimerInstance,
     isLoading: sessionsLoading,
     error: sessionsError,
-  } = useSessionManagement();
+    clearError: clearSessionsError,
+  } = useSessionManagementContext();
 
   const {
     isWarningShown,
     warningTimeRemaining,
-
+    resetActivity,
   } = useInactivityDetection();
 
   const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
@@ -129,16 +130,18 @@ export function SessionDashboard() {
 
   // Handle inactivity warning - memoized to prevent re-renders
   const handleContinueWork = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('timer-continue-activity', {
-      detail: { reason: 'user-action', timestamp: new Date() }
-    }));
-  }, []);
+    resetActivity();
+  }, [resetActivity]);
 
   const handlePauseFromInactivity = useCallback(() => {
+    // The session layer listens for this on the window event bus
     window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
       detail: { reason: 'user-action', timestamp: new Date() }
     }));
-  }, []);
+    // Dismiss the warning — activity over the dialog no longer auto-clears
+    // it, so the button must close it explicitly.
+    resetActivity();
+  }, [resetActivity]);
 
   const handleSaveSessionUpdate = useCallback(async (sessionId: string, updates: { notes?: string }) => {
     await updateSession(sessionId, updates);
@@ -153,11 +156,14 @@ export function SessionDashboard() {
         ? new Date(instance.endTime)
         : new Date();
     setEditingTimerInstanceId(instance.id);
+    // datetime-local inputs are interpreted in local time, so format in local
+    // time — toISOString() (UTC) would shift the times by the timezone offset
+    // on every edit round-trip.
     setEditingTimerData({
       id: instance.id,
       taskName: session.taskName,
-      startTime: start.toISOString().slice(0,16),
-      endTime: end.toISOString().slice(0,16),
+      startTime: formatDateTimeLocal(start),
+      endTime: formatDateTimeLocal(end),
     });
   }, []);
 
@@ -168,15 +174,35 @@ export function SessionDashboard() {
 
   const handleSaveTimerEdit = useCallback(async (data: EditTimeEntryData) => {
     if (!editingTimerInstanceId) return;
+    const parentSession = sessions.find(s =>
+      s.timerInstances.some(i => i.id === editingTimerInstanceId)
+    );
+    const instance = parentSession?.timerInstances.find(i => i.id === editingTimerInstanceId);
+
+    // The dialog's duration is the raw wall-clock span; recorded duration is
+    // net of pauses, so subtract the instance's accumulated pause time or a
+    // no-op save would inflate the session total by the paused time.
+    const startMs = new Date(data.startTime).getTime();
+    const endMs = new Date(data.endTime).getTime();
+    const pausedMs = instance?.pausedDuration || 0;
+
     await updateTimerInstance(editingTimerInstanceId, {
-      start_time: new Date(data.startTime).toISOString(),
-      end_time: new Date(data.endTime).toISOString(),
-      duration: data.duration,
-      is_running: false,
-      is_paused: false,
+      startTime: new Date(startMs).toISOString(),
+      endTime: new Date(endMs).toISOString(),
+      duration: Math.max(0, Math.round(endMs - startMs - pausedMs)),
+      isRunning: false,
+      isPaused: false,
     });
+
+    // The dialog renders Task Name as editable (and requires it) — the name
+    // lives on the session, so persist a change there.
+    const editedName = data.taskName.trim();
+    if (parentSession && editedName && editedName !== parentSession.taskName) {
+      await updateSession(parentSession.id, { taskName: editedName });
+    }
+
     handleCloseEditTimerDialog();
-  }, [editingTimerInstanceId, updateTimerInstance, handleCloseEditTimerDialog]);
+  }, [editingTimerInstanceId, sessions, updateTimerInstance, updateSession, handleCloseEditTimerDialog]);
 
   // Notes handlers - memoized to prevent re-renders
   const handleOpenSessionNotes = useCallback((sessionId: string) => {
@@ -239,8 +265,10 @@ export function SessionDashboard() {
   const handleCloseEditSessionDialog = useCallback(() => setEditingSession(null), []);
   const handleOpenQuickSessionDialog = useCallback(() => setQuickSessionDialogOpen(true), []);
 
-  // Show loading state
-  if (sessionsLoading || tasksLoading) {
+  // Show the blocking loader only for the initial load — every timer action
+  // toggles isLoading briefly, and a full-screen backdrop on each start/stop
+  // would flash and unmount the ticking timers.
+  if ((sessionsLoading && sessions.length === 0) || tasksLoading) {
     return (
       <Backdrop open sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <CircularProgress color="inherit" />
@@ -248,19 +276,17 @@ export function SessionDashboard() {
     );
   }
 
-  // Show error state
-  if (sessionsError) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {sessionsError}
-        </Alert>
-      </Container>
-    );
-  }
-
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* A failed operation must not replace the whole dashboard (the shared
+          provider outlives navigation, so the error would persist with the
+          timers running invisibly) — surface it inline and dismissible. */}
+      {sessionsError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={clearSessionsError}>
+          {sessionsError}
+        </Alert>
+      )}
+
       {/* Session Timer Bar */}
       <Box sx={{ mb: 4 }}>
         <SessionTimerToolbar

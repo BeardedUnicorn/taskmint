@@ -35,14 +35,48 @@ pub fn run() {
         .setup({
             let app_state = app_state.clone();
             move |app| {
-                // Load sessions from store
-                let sessions_result = storage::load_sessions(app.handle());
-                match sessions_result {
-                    Ok(sessions) => {
-                        *app_state.task_sessions.lock().unwrap() = sessions;
+                // Load sessions from store. A partial or failed load must not
+                // silently discard the user's data: back up the store file
+                // before any later save can overwrite it, and record a warning
+                // the frontend surfaces via get_session_load_warning.
+                match storage::load_sessions(app.handle()) {
+                    Ok(loaded) => {
+                        let warning = if loaded.skipped > 0 {
+                            let backup_note = match storage::backup_store_file(app.handle()) {
+                                Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
+                                Ok(None) => String::new(),
+                                Err(e) => format!(" Backing up the previous data also failed: {}.", e),
+                            };
+                            Some(format!(
+                                "{} saved session record(s) could not be read and were skipped.{}",
+                                loaded.skipped, backup_note
+                            ))
+                        } else {
+                            None
+                        };
+
+                        if let Ok(mut sessions) = app_state.task_sessions.lock() {
+                            *sessions = loaded.sessions;
+                        }
+                        if let Some(warning) = warning {
+                            eprintln!("{}", warning);
+                            if let Ok(mut slot) = app_state.session_load_warning.lock() {
+                                *slot = Some(warning);
+                            }
+                        }
                     }
                     Err(e) => {
                         eprintln!("Failed to load sessions: {}", e);
+                        let backup_note = match storage::backup_store_file(app.handle()) {
+                            Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
+                            Ok(None) => String::new(),
+                            Err(backup_err) => {
+                                format!(" Backing up the previous data also failed: {}.", backup_err)
+                            }
+                        };
+                        if let Ok(mut slot) = app_state.session_load_warning.lock() {
+                            *slot = Some(format!("Failed to load saved sessions: {}.{}", e, backup_note));
+                        }
                     }
                 }
 
@@ -77,10 +111,7 @@ pub fn run() {
             
             // Timer commands
             commands::timer::update_timer_state,
-            commands::timer::get_timer_state,
-            commands::timer::start_timer_from_tray,
-            commands::timer::stop_timer_from_tray,
-            
+
             // Task commands
             commands::tasks::update_tasks,
             commands::tasks::get_tasks,
@@ -88,9 +119,7 @@ pub fn run() {
 
             // Session commands
             commands::sessions::create_session,
-            commands::sessions::create_session_with_timer,
             commands::sessions::get_sessions,
-            commands::sessions::get_session_by_id,
             commands::sessions::update_session,
             commands::sessions::delete_session,
             commands::sessions::create_timer_instance,
@@ -100,13 +129,9 @@ pub fn run() {
             commands::sessions::pause_timer_instance,
             commands::sessions::resume_timer_instance,
             commands::sessions::delete_timer_instance,
-            commands::sessions::get_enhanced_timer_state,
-            commands::sessions::update_inactivity_settings,
-            commands::sessions::get_inactivity_settings,
-            commands::sessions::update_timer_activity_state,
-            commands::sessions::get_timer_activity_state,
             commands::sessions::set_active_session,
             commands::sessions::clear_all_sessions,
+            commands::sessions::get_session_load_warning,
 
             // Tray commands
             commands::tray::update_tray_menu_command,

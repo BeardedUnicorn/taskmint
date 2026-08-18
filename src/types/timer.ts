@@ -327,20 +327,21 @@ export interface UseSessionManagementReturn {
   getSessionById: (sessionId: string) => TaskSession | undefined;
   getSessionsByTaskId: (taskId: string) => TaskSession[];
   getActiveSession: () => TaskSession | null;
-  setActiveSession: (session: TaskSession | null) => Promise<void>;
+  setActiveSession: (session: TaskSession | null) => Promise<boolean>;
   endActiveSession: () => Promise<void>;
   pauseAllTimersInActiveSession: () => Promise<void>;
   resumeAllTimersInActiveSession: () => Promise<void>;
   // Timer instance methods
   createTimerInstance: (sessionId: string) => Promise<TimerInstance | null>;
   startTimerInstance: (instanceId: string) => Promise<void>;
-  stopTimerInstance: (instanceId: string) => Promise<void>;
-  pauseTimerInstance: (instanceId: string) => Promise<void>;
-  resumeTimerInstance: (instanceId: string) => Promise<void>;
+  stopTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
+  pauseTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
+  resumeTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
   deleteTimerInstance: (instanceId: string) => Promise<void>;
   updateTimerInstance: (instanceId: string, updates: Record<string, any>) => Promise<void>;
   isLoading: boolean;
   error: string | null;
+  clearError: () => void;
 }
 
 export interface UseTimerInstanceReturn {

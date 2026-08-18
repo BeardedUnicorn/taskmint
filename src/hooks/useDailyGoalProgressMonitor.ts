@@ -10,14 +10,17 @@ import { useDailyGoals } from './useDailyGoals';
 import { TimeEntry } from '../types/timer';
 import { Task } from '../types/task';
 import { calculateTotalEarningsForDate, getTodayDateString } from '../utils/earningsCalculator';
+import { isTauriEnvironment } from '../utils/tauri';
 
 // Desktop notification functions - only available in Tauri environment
 let sendNotification: ((options: { title: string; body: string }) => Promise<void>) | null = null;
 let isPermissionGranted: (() => Promise<boolean>) | null = null;
 let requestPermission: (() => Promise<boolean>) | null = null;
 
-// Dynamically import Tauri notification API if available
-if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+// Dynamically import Tauri notification API if available.
+// isTauriEnvironment() also accepts __TAURI_INTERNALS__ — window.__TAURI__
+// alone is only defined with app.withGlobalTauri, which this app doesn't set.
+if (isTauriEnvironment()) {
   // Try to import notification API - handle both v1 and v2 API paths
   Promise.resolve().then(async () => {
     try {

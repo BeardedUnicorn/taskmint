@@ -1,18 +1,24 @@
 /**
  * Inactivity Detection Hook
- * 
- * Monitors user activity and automatically pauses timers when inactivity is detected.
- * Provides configurable thresholds and warning systems.
+ *
+ * Monitors user activity and automatically pauses timers when inactivity is
+ * detected. Provides configurable thresholds and warning systems.
+ *
+ * Activity tracking lives in refs: DOM activity events (mousemove etc.) fire
+ * constantly, and pushing each one through React state would re-render the
+ * consumer and re-register every listener on each mouse move. State is only
+ * touched on real transitions (warning shown/cleared, paused, user returns).
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocalStorage } from './useLocalStorage';
+import { seedInactivitySettingsFromLegacyEnhanced } from './useEnhancedTimerSettings';
 import { STORAGE_KEYS, INACTIVITY_CONSTANTS } from '../constants';
-import { 
-  InactivitySettings, 
-  TimerActivityState, 
+import {
+  InactivitySettings,
+  TimerActivityState,
   DEFAULT_INACTIVITY_SETTINGS,
-  UseInactivityDetectionReturn 
+  UseInactivityDetectionReturn
 } from '../types/timer';
 
 // Helper function to get effective threshold in testing mode
@@ -31,13 +37,15 @@ function getEffectiveWarningDuration(normalDuration: number): number {
 }
 
 export function useInactivityDetection(): UseInactivityDetectionReturn {
-  // Settings stored in localStorage
+  // Settings stored in localStorage (seed once from the legacy nested blob
+  // so values configured through the old Settings path are honored)
+  seedInactivitySettingsFromLegacyEnhanced();
   const [settings, setSettings] = useLocalStorage<InactivitySettings>(
     STORAGE_KEYS.INACTIVITY_SETTINGS,
     DEFAULT_INACTIVITY_SETTINGS
   );
 
-  // Activity state
+  // Activity state (UI-visible transitions only)
   const [activityState, setActivityState] = useState<TimerActivityState>({
     lastActivityTime: new Date(),
     isUserActive: true,
@@ -49,113 +57,136 @@ export function useInactivityDetection(): UseInactivityDetectionReturn {
   const [isWarningShown, setIsWarningShown] = useState(false);
   const [warningTimeRemaining, setWarningTimeRemaining] = useState(0);
 
-  // Refs for intervals and timeouts
-  const activityCheckInterval = useRef<NodeJS.Timeout>();
-  const warningTimeout = useRef<NodeJS.Timeout>();
-  const warningCountdown = useRef<NodeJS.Timeout>();
+  // Refs: high-frequency tracking that must not trigger renders
+  const lastActivityRef = useRef<number>(Date.now());
+  const warningShownRef = useRef(false);
+  const pausedDueToInactivityRef = useRef(false);
   const isDetectionActive = useRef(true);
+  const warningCountdown = useRef<NodeJS.Timeout>();
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
-  // Activity event handlers
-  const handleActivity = useCallback(() => {
-    if (!isDetectionActive.current) return;
-
-    const now = new Date();
-    setActivityState(prev => ({
-      ...prev,
-      lastActivityTime: now,
-      isUserActive: true,
-      inactivityWarningShown: false,
-      pausedDueToInactivity: false,
-    }));
-
-    // Clear warning if shown
-    if (isWarningShown) {
+  const clearWarning = useCallback(() => {
+    if (warningCountdown.current) {
+      clearInterval(warningCountdown.current);
+      warningCountdown.current = undefined;
+    }
+    if (warningShownRef.current) {
+      warningShownRef.current = false;
       setIsWarningShown(false);
       setWarningTimeRemaining(0);
-      if (warningTimeout.current) {
-        clearTimeout(warningTimeout.current);
-      }
-      if (warningCountdown.current) {
-        clearInterval(warningCountdown.current);
+    }
+  }, []);
+
+  // Activity event handler: cheap ref update on every event; state updates
+  // only when the user returns from a warning/paused state.
+  const handleActivity = useCallback((event?: Event) => {
+    if (!isDetectionActive.current) return;
+
+    // While the warning dialog is up, activity over the dialog (moving the
+    // mouse toward its buttons, pressing them) must not dismiss the warning —
+    // this document-level listener fires before the button's click, which
+    // would unmount the dialog and make "Pause Timer" unclickable. The
+    // dialog's own buttons decide what happens; activity elsewhere still
+    // counts as the user being back.
+    if (warningShownRef.current) {
+      const target = event?.target;
+      if (target instanceof Element && target.closest('.MuiDialog-root, [role="dialog"]')) {
+        return;
       }
     }
-  }, [isWarningShown]);
 
-  // Check for inactivity
-  const checkInactivity = useCallback(() => {
-    if (!settings.enabled || !isDetectionActive.current) return;
+    lastActivityRef.current = Date.now();
 
-    const now = new Date();
-    const timeSinceLastActivity = now.getTime() - activityState.lastActivityTime.getTime();
+    const wasWarning = warningShownRef.current;
+    const wasPaused = pausedDueToInactivityRef.current;
+    if (wasWarning) clearWarning();
 
-    // Use effective threshold based on testing mode
-    const effectiveThresholdMinutes = settings.testingMode
-      ? getEffectiveThresholdMinutes(settings.thresholdMinutes)
-      : settings.thresholdMinutes;
-    const inactivityThreshold = effectiveThresholdMinutes * 60 * 1000; // Convert to milliseconds
-
-    if (timeSinceLastActivity >= inactivityThreshold) {
-      // User is inactive
-      if (!activityState.inactivityWarningShown && settings.showWarningBeforePause) {
-        // Show warning
-        setActivityState(prev => ({
-          ...prev,
-          isUserActive: false,
-          inactivityWarningShown: true,
-        }));
-        setIsWarningShown(true);
-
-        // Use effective warning duration based on testing mode
-        const effectiveWarningDuration = settings.testingMode
-          ? getEffectiveWarningDuration(settings.warningDurationSeconds)
-          : settings.warningDurationSeconds;
-        setWarningTimeRemaining(effectiveWarningDuration);
-
-        // Start warning countdown
-        let remainingTime = effectiveWarningDuration;
-        warningCountdown.current = setInterval(() => {
-          remainingTime -= 1;
-          setWarningTimeRemaining(remainingTime);
-          
-          if (remainingTime <= 0) {
-            if (warningCountdown.current) {
-              clearInterval(warningCountdown.current);
-            }
-            // Auto-pause after warning period
-            pauseTimerDueToInactivity();
-          }
-        }, 1000);
-
-      } else if (!settings.showWarningBeforePause || activityState.inactivityWarningShown) {
-        // Pause immediately or after warning period
-        pauseTimerDueToInactivity();
-      }
+    if (wasWarning || wasPaused) {
+      pausedDueToInactivityRef.current = false;
+      setActivityState(prev => ({
+        ...prev,
+        lastActivityTime: new Date(),
+        isUserActive: true,
+        inactivityWarningShown: false,
+        pausedDueToInactivity: false,
+      }));
     }
-  }, [settings, activityState]);
+
+    // resumeOnActivity: the user is back after an automatic pause — tell the
+    // session layer to resume the timers that pause suspended.
+    if (wasPaused && settingsRef.current.resumeOnActivity) {
+      window.dispatchEvent(new CustomEvent('timer-resume-activity', {
+        detail: { reason: 'activity-detected', timestamp: new Date() }
+      }));
+    }
+  }, [clearWarning]);
 
   // Pause timer due to inactivity
   const pauseTimerDueToInactivity = useCallback(() => {
+    pausedDueToInactivityRef.current = true;
+    clearWarning();
     setActivityState(prev => ({
       ...prev,
       isUserActive: false,
       pausedDueToInactivity: true,
     }));
-    setIsWarningShown(false);
-    setWarningTimeRemaining(0);
 
-    // Emit custom event for timer components to listen to
+    // The session layer listens for this on the window event bus
     window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
       detail: { reason: 'inactivity', timestamp: new Date() }
     }));
-  }, []);
+  }, [clearWarning]);
 
+  // Periodic inactivity check. Once the warning is up, its countdown owns the
+  // auto-pause; once paused, nothing re-fires until activity resets the flag.
+  const checkInactivity = useCallback(() => {
+    const currentSettings = settingsRef.current;
+    if (!currentSettings.enabled || !isDetectionActive.current) return;
+    if (pausedDueToInactivityRef.current || warningShownRef.current) return;
 
+    const timeSinceLastActivity = Date.now() - lastActivityRef.current;
+    const effectiveThresholdMinutes = currentSettings.testingMode
+      ? getEffectiveThresholdMinutes(currentSettings.thresholdMinutes)
+      : currentSettings.thresholdMinutes;
+    const inactivityThreshold = effectiveThresholdMinutes * 60 * 1000;
+
+    if (timeSinceLastActivity < inactivityThreshold) return;
+
+    if (!currentSettings.showWarningBeforePause) {
+      pauseTimerDueToInactivity();
+      return;
+    }
+
+    // Show the warning and start its countdown
+    warningShownRef.current = true;
+    setActivityState(prev => ({
+      ...prev,
+      isUserActive: false,
+      inactivityWarningShown: true,
+    }));
+    setIsWarningShown(true);
+
+    const effectiveWarningDuration = currentSettings.testingMode
+      ? getEffectiveWarningDuration(currentSettings.warningDurationSeconds)
+      : currentSettings.warningDurationSeconds;
+    setWarningTimeRemaining(effectiveWarningDuration);
+
+    let remainingTime = effectiveWarningDuration;
+    warningCountdown.current = setInterval(() => {
+      remainingTime -= 1;
+      setWarningTimeRemaining(remainingTime);
+
+      if (remainingTime <= 0) {
+        pauseTimerDueToInactivity();
+      }
+    }, 1000);
+  }, [pauseTimerDueToInactivity]);
 
   // Update settings
   const updateSettings = useCallback(async (newSettings: Partial<InactivitySettings>) => {
-    const updatedSettings = { ...settings, ...newSettings };
-    setSettings(updatedSettings);
-  }, [settings, setSettings]);
+    setSettings({ ...settingsRef.current, ...newSettings });
+  }, [setSettings]);
 
   // Reset activity (for manual calls)
   const resetActivity = useCallback(() => {
@@ -165,60 +196,39 @@ export function useInactivityDetection(): UseInactivityDetectionReturn {
   // Pause detection
   const pauseDetection = useCallback(() => {
     isDetectionActive.current = false;
-    if (activityCheckInterval.current) {
-      clearInterval(activityCheckInterval.current);
-    }
-  }, []);
+    clearWarning();
+  }, [clearWarning]);
 
   // Resume detection
   const resumeDetection = useCallback(() => {
     isDetectionActive.current = true;
-    startActivityMonitoring();
+    lastActivityRef.current = Date.now();
   }, []);
 
-  // Start activity monitoring
-  const startActivityMonitoring = useCallback(() => {
+  // Attach listeners and the periodic check once (per enabled toggle).
+  useEffect(() => {
     if (!settings.enabled) return;
 
-    // Clear existing intervals
-    if (activityCheckInterval.current) {
-      clearInterval(activityCheckInterval.current);
-    }
-
-    // Set up activity event listeners
     INACTIVITY_CONSTANTS.ACTIVITY_EVENTS.forEach(eventType => {
       document.addEventListener(eventType, handleActivity, { passive: true });
     });
 
-    // Set up periodic inactivity check
-    activityCheckInterval.current = setInterval(
+    const checkInterval = setInterval(
       checkInactivity,
       INACTIVITY_CONSTANTS.ACTIVITY_CHECK_INTERVAL_MS
     );
-  }, [settings.enabled, handleActivity, checkInactivity]);
-
-  // Initialize activity monitoring
-  useEffect(() => {
-    startActivityMonitoring();
 
     return () => {
-      // Cleanup
-      if (activityCheckInterval.current) {
-        clearInterval(activityCheckInterval.current);
-      }
-      if (warningTimeout.current) {
-        clearTimeout(warningTimeout.current);
-      }
-      if (warningCountdown.current) {
-        clearInterval(warningCountdown.current);
-      }
-
-      // Remove event listeners
       INACTIVITY_CONSTANTS.ACTIVITY_EVENTS.forEach(eventType => {
         document.removeEventListener(eventType, handleActivity);
       });
+      clearInterval(checkInterval);
+      if (warningCountdown.current) {
+        clearInterval(warningCountdown.current);
+        warningCountdown.current = undefined;
+      }
     };
-  }, [startActivityMonitoring, handleActivity]);
+  }, [settings.enabled, handleActivity, checkInactivity]);
 
   return {
     isActive: isDetectionActive.current,

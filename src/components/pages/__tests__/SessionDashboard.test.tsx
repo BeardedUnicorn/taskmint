@@ -63,12 +63,20 @@ const mockSessionManagement = {
   stopTimerInstance: mockStopTimerInstance,
   pauseTimerInstance: mockPauseTimerInstance,
   resumeTimerInstance: mockResumeTimerInstance,
+  deleteTimerInstance: vi.fn(),
+  updateTimerInstance: vi.fn(),
   setActiveSession: mockSetActiveSession,
+  endActiveSession: vi.fn(),
+  pauseAllTimersInActiveSession: vi.fn(),
+  resumeAllTimersInActiveSession: vi.fn(),
   refreshSessions: mockRefreshSessions,
 };
 
-vi.mock('../../../hooks/useSessionManagement', () => ({
-  useSessionManagement: () => mockSessionManagement,
+// The dashboard consumes the shared session context (single hook instance
+// provided at the app root), so mock the context module.
+vi.mock('../../../contexts/SessionManagementContext', () => ({
+  useSessionManagementContext: () => mockSessionManagement,
+  SessionManagementProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 // Mock task management
@@ -622,21 +630,13 @@ describe('SessionDashboard', () => {
     });
 
     it('should handle continue work action from inactivity warning', async () => {
-      const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
-
       renderDashboard();
 
       const continueButton = screen.getByText('Continue Working');
       fireEvent.click(continueButton);
 
-      expect(dispatchEventSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'timer-continue-activity',
-          detail: expect.objectContaining({
-            reason: 'user-action',
-          }),
-        })
-      );
+      // Continue resets the inactivity clock directly
+      expect(mockResetActivity).toHaveBeenCalled();
     });
 
     it('should handle pause from inactivity action', async () => {

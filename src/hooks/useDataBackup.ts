@@ -31,14 +31,20 @@ export const useDataBackup = ({
         noteTemplates,
         taskNotes,
         dailyGoal,
-        goalAchievements
+        goalAchievements,
+        sessions
       ] = await Promise.all([
         storageService.getTimeEntries(),
         storageService.getTasks(),
         storageService.getNoteTemplates(),
         storageService.getTaskNotes(),
         storageService.getDailyGoal(),
-        storageService.getGoalAchievements()
+        storageService.getGoalAchievements(),
+        // The session/time-tracking data lives in the Rust sessions store —
+        // the localStorage keys above hold only legacy/auxiliary data, so a
+        // backup without this contains no tracked time at all. safeInvoke
+        // resolves null (never rejects) outside Tauri or on command failure.
+        safeInvoke('get_sessions').catch(() => null)
       ]);
 
       return {
@@ -50,7 +56,8 @@ export const useDataBackup = ({
           noteTemplates,
           taskNotes,
           dailyGoal,
-          goalAchievements
+          goalAchievements,
+          sessions: sessions ?? []
         }
       };
     } catch (error) {
