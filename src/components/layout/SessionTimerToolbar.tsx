@@ -131,9 +131,11 @@ interface SessionTimerToolbarProps {
   onResumeAll: () => Promise<void>;
   onCreateTimerInstance: (sessionId: string) => Promise<TimerInstance | null>;
   onStartTimer: (instanceId: string) => Promise<void>;
-  onStopTimer: (instanceId: string) => Promise<void>;
-  onPauseTimer: (instanceId: string) => Promise<void>;
-  onResumeTimer: (instanceId: string) => Promise<void>;
+  // stop/pause/resume resolve with the updated session (or null on failure);
+  // the toolbar ignores the value, so accept any resolution.
+  onStopTimer: (instanceId: string) => Promise<unknown>;
+  onPauseTimer: (instanceId: string) => Promise<unknown>;
+  onResumeTimer: (instanceId: string) => Promise<unknown>;
   onDeleteTimer?: (instanceId: string) => Promise<void>;
   onEditTimer?: (instance: TimerInstance) => void;
   onOpenSessionNotes?: (sessionId: string) => void;

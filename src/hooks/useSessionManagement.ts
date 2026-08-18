@@ -51,6 +51,15 @@ function normalizeSession(session: TaskSession): TaskSession {
   };
 }
 
+// Tauri rejects Result<_, String> command errors with the plain string, not
+// an Error instance — `err instanceof Error` alone would hide every backend
+// message behind the generic fallback.
+function errorText(err: unknown, fallback: string): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string' && err.trim()) return err;
+  return fallback;
+}
+
 export function useSessionManagement(): UseSessionManagementReturn {
   const [sessions, setSessions] = useState<TaskSession[]>([]);
   const [activeSession, setActiveSessionState] = useState<TaskSession | null>(null);
@@ -81,10 +90,13 @@ export function useSessionManagement(): UseSessionManagementReturn {
         .find(i => i.state === TimerState.running) || null;
       setActiveTimer(runningInstance);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load sessions';
+      const errorMessage = errorText(err, 'Failed to load sessions');
       setError(errorMessage);
-      showError(errorMessage);
-      setSessions([]); // Ensure sessions is always an array
+      // Keep the last-known-good sessions/activeSession/activeTimer: blanking
+      // the list while the toolbar still shows an active session leaves the
+      // UI inconsistent (and would disable inactivity auto-pause). Background
+      // refreshes also should not toast out of nowhere.
+      if (!silent) showError(errorMessage);
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -123,7 +135,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         showSuccess('New timer instance created');
         return newInstance;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to create timer instance';
+        const errorMessage = errorText(err, 'Failed to create timer instance');
         setError(errorMessage);
         showError(errorMessage);
         return null;
@@ -186,7 +198,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
           }
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to start timer';
+        const errorMessage = errorText(err, 'Failed to start timer');
         setError(errorMessage);
         showError(errorMessage);
       } finally {
@@ -195,7 +207,10 @@ export function useSessionManagement(): UseSessionManagementReturn {
     });
   }, [sessions, updateLocalSession, showError, showSuccess]);
 
-  const stopTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
+  // stop/pause/resume return the updated session (or null on failure) so
+  // orchestrating callers — endActiveSession, the inactivity auto-pause —
+  // can tell whether the command actually succeeded.
+  const stopTimerInstance = useCallback(async (instanceId: string): Promise<TaskSession | null> => {
     return measurePerformance('useSessionManagement.stopTimerInstance', async () => {
       setIsLoading(true);
       setError(null);
@@ -204,17 +219,19 @@ export function useSessionManagement(): UseSessionManagementReturn {
         const updatedSession = await invoke<TaskSession>('stop_timer_instance', { instanceId });
         updateLocalSession(updatedSession);
         showSuccess('Timer stopped');
+        return updatedSession;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to stop timer';
+        const errorMessage = errorText(err, 'Failed to stop timer');
         setError(errorMessage);
         showError(errorMessage);
+        return null;
       } finally {
         setIsLoading(false);
       }
     });
   }, [updateLocalSession, showError, showSuccess]);
 
-  const pauseTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
+  const pauseTimerInstance = useCallback(async (instanceId: string): Promise<TaskSession | null> => {
     return measurePerformance('useSessionManagement.pauseTimerInstance', async () => {
       setIsLoading(true);
       setError(null);
@@ -223,17 +240,19 @@ export function useSessionManagement(): UseSessionManagementReturn {
         const updatedSession = await invoke<TaskSession>('pause_timer_instance', { instanceId });
         updateLocalSession(updatedSession);
         showSuccess('Timer paused');
+        return updatedSession;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to pause timer';
+        const errorMessage = errorText(err, 'Failed to pause timer');
         setError(errorMessage);
         showError(errorMessage);
+        return null;
       } finally {
         setIsLoading(false);
       }
     });
   }, [updateLocalSession, showError, showSuccess]);
 
-  const resumeTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
+  const resumeTimerInstance = useCallback(async (instanceId: string): Promise<TaskSession | null> => {
     return measurePerformance('useSessionManagement.resumeTimerInstance', async () => {
       setIsLoading(true);
       setError(null);
@@ -242,10 +261,12 @@ export function useSessionManagement(): UseSessionManagementReturn {
         const updatedSession = await invoke<TaskSession>('resume_timer_instance', { instanceId });
         updateLocalSession(updatedSession);
         showSuccess('Timer resumed');
+        return updatedSession;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to resume timer';
+        const errorMessage = errorText(err, 'Failed to resume timer');
         setError(errorMessage);
         showError(errorMessage);
+        return null;
       } finally {
         setIsLoading(false);
       }
@@ -262,7 +283,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         updateLocalSession(updatedSession);
         showSuccess('Timer deleted');
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to delete timer';
+        const errorMessage = errorText(err, 'Failed to delete timer');
         setError(errorMessage);
         showError(errorMessage);
       } finally {
@@ -281,7 +302,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         await loadSessions();
         showSuccess('Timer updated');
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to update timer';
+        const errorMessage = errorText(err, 'Failed to update timer');
         setError(errorMessage);
         showError(errorMessage);
       } finally {
@@ -352,6 +373,10 @@ export function useSessionManagement(): UseSessionManagementReturn {
   // so resumeOnActivity can resume exactly those — a pause the user chose
   // (reason 'user-action') must stay paused.
   const inactivityPausedIdsRef = useRef<string[]>([]);
+  // Set when a resume event arrives while the auto-pause IPC is still in
+  // flight (the timers aren't paused yet, so the resume handler can't act);
+  // the pause handler checks it once the pauses land and resumes immediately.
+  const pendingResumeRef = useRef(false);
   useEffect(() => {
     const handlePauseInactivity = async (event: Event) => {
       const reason = (event as CustomEvent).detail?.reason;
@@ -360,19 +385,39 @@ export function useSessionManagement(): UseSessionManagementReturn {
         ? currentActiveSession.timerInstances.filter(t => t.state === TimerState.running)
         : [];
 
-      inactivityPausedIdsRef.current =
-        reason === 'inactivity' ? timersToPause.map(t => t.id) : [];
+      const remember = reason === 'inactivity';
+      inactivityPausedIdsRef.current = remember ? timersToPause.map(t => t.id) : [];
+      pendingResumeRef.current = false;
 
       if (timersToPause.length === 0) return;
 
       try {
+        const pausedIds: string[] = [];
         for (const timer of timersToPause) {
-          await pauseTimerInstance(timer.id);
+          const paused = await pauseTimerInstance(timer.id);
+          if (paused) pausedIds.push(timer.id);
+        }
+        if (remember) {
+          // Keep only ids whose pause succeeded, preserving any pruning the
+          // resume handler did while the pauses were in flight.
+          inactivityPausedIdsRef.current = inactivityPausedIdsRef.current.filter(id =>
+            pausedIds.includes(id)
+          );
+          // Activity returned while the pause IPC was in flight: resume the
+          // timers we just paused instead of leaving them stranded.
+          if (pendingResumeRef.current) {
+            pendingResumeRef.current = false;
+            const idsToResume = inactivityPausedIdsRef.current;
+            inactivityPausedIdsRef.current = [];
+            for (const id of idsToResume) {
+              await resumeTimerInstance(id);
+            }
+          }
         }
         await loadSessions({ silent: true });
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : 'Failed to pause inactive timers';
+          errorText(err, 'Failed to pause inactive timers');
         showError(errorMessage);
       }
     };
@@ -381,7 +426,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     return () => {
       window.removeEventListener('timer-pause-inactivity', handlePauseInactivity);
     };
-  }, [pauseTimerInstance, loadSessions, showError]);
+  }, [pauseTimerInstance, resumeTimerInstance, loadSessions, showError]);
 
   // resumeOnActivity: when activity returns after an automatic inactivity
   // pause, useInactivityDetection dispatches this event (only when the
@@ -390,7 +435,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
     const handleResumeActivity = async () => {
       const pausedIds = inactivityPausedIdsRef.current;
       if (pausedIds.length === 0) return;
-      inactivityPausedIdsRef.current = [];
 
       const currentActiveSession = sessionsRef.current.find(s => s.isActive);
       const timersToResume: TimerInstance[] = currentActiveSession
@@ -398,6 +442,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
             t => pausedIds.includes(t.id) && t.state === TimerState.paused
           )
         : [];
+
+      // Ids not paused yet are an auto-pause still in flight (sessionsRef
+      // updates post-commit, after the pause IPC lands). Keep them remembered
+      // and flag the pause handler to resume them the moment it finishes —
+      // clearing the list here would strand those timers paused forever.
+      const stillPausing = pausedIds.filter(id => !timersToResume.some(t => t.id === id));
+      inactivityPausedIdsRef.current = stillPausing;
+      pendingResumeRef.current = stillPausing.length > 0;
 
       if (timersToResume.length === 0) return;
 
@@ -407,7 +459,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         }
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : 'Failed to resume timers after activity';
+          errorText(err, 'Failed to resume timers after activity');
         showError(errorMessage);
       }
     };
@@ -434,7 +486,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
         return newSession;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to create session';
+        const errorMessage = errorText(err, 'Failed to create session');
         setError(errorMessage);
         showError(errorMessage);
         throw err; // Re-throw the error so tests can catch it
@@ -454,7 +506,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         updateLocalSession(updatedSession);
         return updatedSession;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to update session';
+        const errorMessage = errorText(err, 'Failed to update session');
         setError(errorMessage);
         showError(errorMessage);
         return null;
@@ -480,7 +532,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
         showSuccess('Session deleted successfully');
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to delete session';
+        const errorMessage = errorText(err, 'Failed to delete session');
         setError(errorMessage);
         showError(errorMessage);
       } finally {
@@ -501,7 +553,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
     return activeSession;
   }, [activeSession]);
 
-  const setActiveSession = useCallback(async (session: TaskSession | null): Promise<void> => {
+  // Returns whether the backend accepted the change, so callers like
+  // endActiveSession don't report success after a failed deactivation.
+  const setActiveSession = useCallback(async (session: TaskSession | null): Promise<boolean> => {
     return measurePerformance('useSessionManagement.setActiveSession', async () => {
       setIsLoading(true);
       setError(null);
@@ -516,10 +570,12 @@ export function useSessionManagement(): UseSessionManagementReturn {
           const taskName = session.taskName || 'Unknown Task';
           showSuccess(`Activated session for "${taskName}"`);
         }
+        return true;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to set active session';
+        const errorMessage = errorText(err, 'Failed to set active session');
         setError(errorMessage);
         showError(errorMessage);
+        return false;
       } finally {
         setIsLoading(false);
       }
@@ -527,20 +583,33 @@ export function useSessionManagement(): UseSessionManagementReturn {
   }, [showError, showSuccess]);
 
     const endActiveSession = useCallback(async (): Promise<void> => {
-        if (!activeSession) return;
+        // Read through the ref so a stale closure can't miss a timer that
+        // started after this callback was created.
+        const sessionToEnd = sessionsRef.current.find(s => s.isActive) ?? activeSession;
+        if (!sessionToEnd) return;
         setIsLoading(true);
         try {
             // Paused timers must be stopped too, or their tracked time is
             // never recorded and they stay paused in an inactive session.
-            for (const instance of activeSession.timerInstances) {
+            let failedStops = 0;
+            for (const instance of sessionToEnd.timerInstances) {
                 if (instance.state === TimerState.running || instance.state === TimerState.paused) {
-                    await stopTimerInstance(instance.id);
+                    const stopped = await stopTimerInstance(instance.id);
+                    if (!stopped) failedStops++;
                 }
             }
-            await setActiveSession(null);
-            showSuccess('Session ended successfully.');
+            if (failedStops > 0) {
+                // Leave the session active so the timers stay reachable and
+                // the user can retry — deactivating around them would strand
+                // running timers where no control can reach them.
+                showError('Session not ended: a timer could not be stopped.');
+                return;
+            }
+            if (await setActiveSession(null)) {
+                showSuccess('Session ended successfully.');
+            }
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to end session';
+            const errorMessage = errorText(err, 'Failed to end session');
             showError(errorMessage);
         } finally {
             setIsLoading(false);
@@ -557,7 +626,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
             }
             if (runningTimers.length > 0) showSuccess(`Paused ${runningTimers.length} timer(s).`);
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to pause all timers';
+            const errorMessage = errorText(err, 'Failed to pause all timers');
             showError(errorMessage);
         } finally {
             setIsLoading(false);
@@ -568,18 +637,26 @@ export function useSessionManagement(): UseSessionManagementReturn {
         if (!activeSession) return;
         setIsLoading(true);
         try {
+            // Only one timer may run at a time (the backend enforces the same
+            // invariant on resume as on start), so resume the most recently
+            // paused timer rather than looping over all of them.
             const pausedTimers = activeSession.timerInstances.filter(t => t.state === TimerState.paused);
-            for (const timer of pausedTimers) {
-                await resumeTimerInstance(timer.id);
-            }
-            if (pausedTimers.length > 0) showSuccess(`Resumed ${pausedTimers.length} timer(s).`);
+            const pausedAtMs = (t: TimerInstance) => (t.pausedAt ? new Date(t.pausedAt).getTime() : 0);
+            const mostRecent = pausedTimers
+                .slice()
+                .sort((a, b) => pausedAtMs(b) - pausedAtMs(a))[0];
+            if (mostRecent) await resumeTimerInstance(mostRecent.id);
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to resume all timers';
+            const errorMessage = errorText(err, 'Failed to resume all timers');
             showError(errorMessage);
         } finally {
             setIsLoading(false);
         }
-    }, [activeSession, resumeTimerInstance, showError, showSuccess]);
+    }, [activeSession, resumeTimerInstance, showError]);
+
+  // Let consumers dismiss a surfaced error (the provider outlives page
+  // navigation, so errors no longer clear on remount).
+  const clearError = useCallback(() => setError(null), []);
 
   return {
     sessions,
@@ -603,5 +680,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
     updateTimerInstance,
     isLoading,
     error,
+    clearError,
   };
 }

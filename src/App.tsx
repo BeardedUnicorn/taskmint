@@ -115,7 +115,26 @@ function AppContent() {
     const session = sessionManager.sessions.find(s =>
       s.timerInstances.some(i => i.id === instanceId)
     );
-    if (session) {
+    if (!session) return;
+
+    // Persist the edited times on the instance itself. Recorded duration is
+    // net of pauses, so subtract the accumulated pause time from the edited
+    // wall-clock span.
+    if (entry.startTime && entry.endTime) {
+      const instance = session.timerInstances.find(i => i.id === instanceId);
+      const startMs = new Date(entry.startTime).getTime();
+      const endMs = new Date(entry.endTime).getTime();
+      const pausedMs = instance?.pausedDuration || 0;
+      await sessionManager.updateTimerInstance(instanceId, {
+        startTime: new Date(startMs).toISOString(),
+        endTime: new Date(endMs).toISOString(),
+        duration: Math.max(0, Math.round(endMs - startMs - pausedMs)),
+      });
+    }
+
+    // Task name lives on the session, so renaming applies to every entry of
+    // the session — only send it when it actually changed.
+    if (entry.taskName && entry.taskName !== session.taskName) {
       await sessionManager.updateSession(session.id, {
         taskName: entry.taskName,
       });

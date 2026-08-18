@@ -10,6 +10,7 @@ import { useSessionManagementContext } from '../../contexts/SessionManagementCon
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { sessionsToTimeEntries } from '../../utils/timerHelpers';
 import { calculateEntryEarnings } from '../../utils/earningsCalculator';
+import { parseDateStringLocal } from '../../utils/dateHelpers';
 
 const localizer = momentLocalizer(moment);
 
@@ -77,7 +78,9 @@ const CalendarPage: React.FC = () => {
     // Calculate earnings for all days that have time entries
     const dailyEarned: Record<string, number> = {};
     timeEntries.forEach(entry => {
-      const dateKey = format(new Date(entry.date), 'yyyy-MM-dd');
+      // entry.date is a local YYYY-MM-DD string — parse it as local time, or
+      // every entry shifts to the previous day for users west of UTC.
+      const dateKey = format(parseDateStringLocal(String(entry.date)), 'yyyy-MM-dd');
       dailyEarned[dateKey] = (dailyEarned[dateKey] || 0) + calculateEntryEarnings(entry, tasks);
     });
 
@@ -104,7 +107,7 @@ const CalendarPage: React.FC = () => {
     // Create data for all dates in the calendar view
     return allDates.map(dateStr => {
       const earned = dailyEarned[dateStr] || 0;
-      const transferableDate = subDays(new Date(dateStr), fundsReleaseDays);
+      const transferableDate = subDays(parseDateStringLocal(dateStr), fundsReleaseDays);
       const transferableKey = format(transferableDate, 'yyyy-MM-dd');
       const transferable = dailyEarned[transferableKey] || 0;
 
@@ -118,7 +121,7 @@ const CalendarPage: React.FC = () => {
 
   const events = useMemo((): CalendarEvent[] => {
     return dailyData.map(dayData => {
-      const date = new Date(dayData.date);
+      const date = parseDateStringLocal(dayData.date);
       return {
         id: dayData.date,
         title: `Earned: $${dayData.earned.toFixed(2)}`,

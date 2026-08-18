@@ -3,7 +3,7 @@
 use crate::state::AppState;
 use crate::storage;
 use crate::types::{TaskSession, TimerInstance};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
@@ -71,6 +71,56 @@ fn recalculate_total_duration(session: &mut TaskSession) {
         .sum();
 }
 
+/// Deactivating a session must not leave a running timer accruing time where
+/// no UI surface can reach it (every control operates on the active session
+/// only), so finalize running instances with the same math as
+/// `stop_timer_instance`. Paused instances stay paused — they accrue nothing
+/// and can be resumed after reactivating. Returns the stopped instance ids so
+/// the caller can emit `timer-instance-stopped` after the lock is released.
+fn stop_running_instances(session: &mut TaskSession, now: DateTime<Utc>) -> Vec<String> {
+    let mut stopped = Vec::new();
+    for instance in session.timer_instances.iter_mut() {
+        if instance.is_running {
+            instance.is_running = false;
+            instance.is_paused = false;
+            instance.resumed_at = None;
+            instance.paused_at = None;
+            instance.end_time = Some(now);
+
+            let (duration, total_paused) = compute_final_duration(
+                instance.start_time,
+                instance.paused_duration.unwrap_or(0),
+                None,
+                now,
+            );
+            instance.duration = Some(duration);
+            instance.paused_duration = Some(total_paused);
+            instance.updated_at = now.to_rfc3339();
+            stopped.push(instance.id.clone());
+        }
+    }
+    if !stopped.is_empty() {
+        session.updated_at = now.to_rfc3339();
+        recalculate_total_duration(session);
+    }
+    stopped
+}
+
+/// Emit `timer-instance-stopped` for instances stopped as a side effect of a
+/// deactivation. The stop is already persisted, so an emit failure must not
+/// fail the command.
+fn emit_stopped_events(app: &AppHandle, instance_ids: &[String], now: DateTime<Utc>) {
+    for instance_id in instance_ids {
+        let _ = app.emit(
+            "timer-instance-stopped",
+            serde_json::json!({
+                "instanceId": instance_id,
+                "endTime": now.to_rfc3339()
+            }),
+        );
+    }
+}
+
 #[tauri::command]
 pub fn create_session(
     app: AppHandle,
@@ -88,18 +138,27 @@ pub fn create_session(
         total_duration: 0,
         notes: None,
         is_active: true,
-        date: now.format("%Y-%m-%d").to_string(),
+        // Local day, not UTC: the dashboard's today-filter and the calendar
+        // compare this string against the user's local date.
+        date: Local::now().format("%Y-%m-%d").to_string(),
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
     };
 
-    app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
+    let stopped_instance_ids = app_state.with_task_sessions_mut(|sessions| -> Result<Vec<String>, String> {
+        let mut stopped = Vec::new();
         for session in sessions.iter_mut() {
+            if session.is_active {
+                stopped.extend(stop_running_instances(session, now));
+            }
             session.is_active = false;
         }
         sessions.push(new_session.clone());
-        storage::save_sessions(&app, sessions)
+        storage::save_sessions(&app, sessions)?;
+        Ok(stopped)
     })??;
+
+    emit_stopped_events(&app, &stopped_instance_ids, now);
 
     Ok(new_session)
 }
@@ -505,11 +564,21 @@ pub async fn resume_timer_instance(
     let now = Utc::now();
 
     let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+        // Resume re-enters the running state, so it must uphold the same
+        // invariants as start: one running timer at a time, active session
+        // only ("Resume All" would otherwise set several timers running and
+        // double-count the same wall-clock time).
+        let another_running = sessions
+            .iter()
+            .flat_map(|s| s.timer_instances.iter())
+            .any(|i| i.is_running && i.id != instance_id);
+
         let result = {
             let session = sessions
                 .iter_mut()
                 .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                 .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+            let session_is_active = session.is_active;
 
             {
                 let instance = session
@@ -520,6 +589,12 @@ pub async fn resume_timer_instance(
 
                 if !instance.is_paused {
                     return Err("Cannot resume timer: timer is not paused".to_string());
+                }
+                if !session_is_active {
+                    return Err("Cannot resume timer for inactive session".to_string());
+                }
+                if another_running {
+                    return Err("Another timer instance is already running".to_string());
                 }
 
                 if let Some(paused_at) = instance.paused_at {
@@ -599,17 +674,30 @@ pub async fn set_active_session(
     app_state: State<'_, AppState>,
     session_id: Option<String>,
 ) -> Result<Vec<TaskSession>, String> {
-    app_state.with_task_sessions_mut(|sessions| -> Result<Vec<TaskSession>, String> {
-        for session in sessions.iter_mut() {
-            session.is_active = match &session_id {
-                Some(id) => &session.id == id,
-                None => false,
-            };
-        }
+    let now = Utc::now();
 
-        storage::save_sessions(&app, sessions)?;
-        Ok(sessions.clone())
-    })?
+    let (updated_sessions, stopped_instance_ids) = app_state.with_task_sessions_mut(
+        |sessions| -> Result<(Vec<TaskSession>, Vec<String>), String> {
+            let mut stopped = Vec::new();
+            for session in sessions.iter_mut() {
+                let should_be_active = match &session_id {
+                    Some(id) => &session.id == id,
+                    None => false,
+                };
+                if session.is_active && !should_be_active {
+                    stopped.extend(stop_running_instances(session, now));
+                }
+                session.is_active = should_be_active;
+            }
+
+            storage::save_sessions(&app, sessions)?;
+            Ok((sessions.clone(), stopped))
+        },
+    )??;
+
+    emit_stopped_events(&app, &stopped_instance_ids, now);
+
+    Ok(updated_sessions)
 }
 
 #[tauri::command]
@@ -617,11 +705,12 @@ pub async fn clear_all_sessions(
     app: AppHandle,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    app_state.with_task_sessions_mut(|sessions| {
+    // Persist inside the lock like every other mutation — clearing the store
+    // after releasing it could wipe a save another command made in between.
+    app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
         sessions.clear();
-    })?;
-
-    storage::clear_all_sessions(&app)?;
+        storage::clear_all_sessions(&app)
+    })??;
 
     Ok(())
 }

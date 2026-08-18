@@ -75,6 +75,7 @@ export function SessionDashboard() {
     updateTimerInstance,
     isLoading: sessionsLoading,
     error: sessionsError,
+    clearError: clearSessionsError,
   } = useSessionManagementContext();
 
   const {
@@ -137,7 +138,10 @@ export function SessionDashboard() {
     window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
       detail: { reason: 'user-action', timestamp: new Date() }
     }));
-  }, []);
+    // Dismiss the warning — activity over the dialog no longer auto-clears
+    // it, so the button must close it explicitly.
+    resetActivity();
+  }, [resetActivity]);
 
   const handleSaveSessionUpdate = useCallback(async (sessionId: string, updates: { notes?: string }) => {
     await updateSession(sessionId, updates);
@@ -170,15 +174,35 @@ export function SessionDashboard() {
 
   const handleSaveTimerEdit = useCallback(async (data: EditTimeEntryData) => {
     if (!editingTimerInstanceId) return;
+    const parentSession = sessions.find(s =>
+      s.timerInstances.some(i => i.id === editingTimerInstanceId)
+    );
+    const instance = parentSession?.timerInstances.find(i => i.id === editingTimerInstanceId);
+
+    // The dialog's duration is the raw wall-clock span; recorded duration is
+    // net of pauses, so subtract the instance's accumulated pause time or a
+    // no-op save would inflate the session total by the paused time.
+    const startMs = new Date(data.startTime).getTime();
+    const endMs = new Date(data.endTime).getTime();
+    const pausedMs = instance?.pausedDuration || 0;
+
     await updateTimerInstance(editingTimerInstanceId, {
-      startTime: new Date(data.startTime).toISOString(),
-      endTime: new Date(data.endTime).toISOString(),
-      duration: data.duration,
+      startTime: new Date(startMs).toISOString(),
+      endTime: new Date(endMs).toISOString(),
+      duration: Math.max(0, Math.round(endMs - startMs - pausedMs)),
       isRunning: false,
       isPaused: false,
     });
+
+    // The dialog renders Task Name as editable (and requires it) — the name
+    // lives on the session, so persist a change there.
+    const editedName = data.taskName.trim();
+    if (parentSession && editedName && editedName !== parentSession.taskName) {
+      await updateSession(parentSession.id, { taskName: editedName });
+    }
+
     handleCloseEditTimerDialog();
-  }, [editingTimerInstanceId, updateTimerInstance, handleCloseEditTimerDialog]);
+  }, [editingTimerInstanceId, sessions, updateTimerInstance, updateSession, handleCloseEditTimerDialog]);
 
   // Notes handlers - memoized to prevent re-renders
   const handleOpenSessionNotes = useCallback((sessionId: string) => {
@@ -252,19 +276,17 @@ export function SessionDashboard() {
     );
   }
 
-  // Show error state
-  if (sessionsError) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {sessionsError}
-        </Alert>
-      </Container>
-    );
-  }
-
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* A failed operation must not replace the whole dashboard (the shared
+          provider outlives navigation, so the error would persist with the
+          timers running invisibly) — surface it inline and dismissible. */}
+      {sessionsError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={clearSessionsError}>
+          {sessionsError}
+        </Alert>
+      )}
+
       {/* Session Timer Bar */}
       <Box sx={{ mb: 4 }}>
         <SessionTimerToolbar

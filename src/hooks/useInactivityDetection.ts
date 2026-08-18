@@ -80,8 +80,21 @@ export function useInactivityDetection(): UseInactivityDetectionReturn {
 
   // Activity event handler: cheap ref update on every event; state updates
   // only when the user returns from a warning/paused state.
-  const handleActivity = useCallback(() => {
+  const handleActivity = useCallback((event?: Event) => {
     if (!isDetectionActive.current) return;
+
+    // While the warning dialog is up, activity over the dialog (moving the
+    // mouse toward its buttons, pressing them) must not dismiss the warning —
+    // this document-level listener fires before the button's click, which
+    // would unmount the dialog and make "Pause Timer" unclickable. The
+    // dialog's own buttons decide what happens; activity elsewhere still
+    // counts as the user being back.
+    if (warningShownRef.current) {
+      const target = event?.target;
+      if (target instanceof Element && target.closest('.MuiDialog-root, [role="dialog"]')) {
+        return;
+      }
+    }
 
     lastActivityRef.current = Date.now();
 

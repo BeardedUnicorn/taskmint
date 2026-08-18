@@ -145,8 +145,9 @@ export function useBackupSettings() {
     setStatus(prev => ({ ...prev, isRunning: true }));
 
     try {
-      // Create backup data
-      const backupData = createBackupData();
+      // Create backup data (async — stringifying the pending promise would
+      // write "{}" as the backup file)
+      const backupData = await createBackupData();
       const backupJson = JSON.stringify(backupData, null, 2);
 
       // Call Tauri command to perform backup
