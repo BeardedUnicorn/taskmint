@@ -39,7 +39,7 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
         menu.append(&status_item)?;
         println!("✅ Added timer status item: '{}'", status_text);
 
-        let stop_item = MenuItem::new(app, "⏹️ Stop Timer", true, Some("stop_timer"))?;
+        let stop_item = MenuItem::with_id(app, "stop_timer", "⏹️ Stop Timer", true, None::<&str>)?;
         menu.append(&stop_item)?;
         println!("✅ Added stop timer item with ID: 'stop_timer'");
     } else {
@@ -62,7 +62,7 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
             .with_tasks(|tasks| {
                 for task in tasks.iter().take(config.tray_max_recent_tasks) {
                     let menu_id = format!("start_task_{}", task.id);
-                    let task_item = MenuItem::new(app, &task.name, true, Some(&menu_id))?;
+                    let task_item = MenuItem::with_id(app, &menu_id, &task.name, true, None::<&str>)?;
                     start_submenu.append(&task_item)?;
                     println!("✅ Added task item: '{}' with ID: '{}'", task.name, menu_id);
                 }
@@ -71,14 +71,14 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
             .unwrap_or(Ok(()))?;
 
         start_submenu.append(&PredefinedMenuItem::separator(app)?)?;
-        let new_task_item = MenuItem::new(app, "➕ New Task...", true, Some("new_task"))?;
+        let new_task_item = MenuItem::with_id(app, "new_task", "➕ New Task...", true, None::<&str>)?;
         start_submenu.append(&new_task_item)?;
         println!("✅ Added new task item to submenu with ID: 'new_task'");
 
         menu.append(&start_submenu)?;
         println!("✅ Added start timer submenu to main menu");
     } else {
-        let start_item = MenuItem::new(app, "▶️ Start New Task...", true, Some("new_task"))?;
+        let start_item = MenuItem::with_id(app, "new_task", "▶️ Start New Task...", true, None::<&str>)?;
         menu.append(&start_item)?;
         println!("✅ Added start new task item with ID: 'new_task' (no existing tasks)");
     }
@@ -86,7 +86,7 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
     // App controls
-    let show_item = MenuItem::new(app, "📊 Show App", true, Some("show_app"))?;
+    let show_item = MenuItem::with_id(app, "show_app", "📊 Show App", true, None::<&str>)?;
     menu.append(&show_item)?;
     println!("✅ Added show app item with ID: 'show_app'");
 
@@ -141,6 +141,9 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
             } else {
                 println!("✅ Timer stopped successfully from tray");
                 let _ = update_tray_menu(app, state);
+                if let Err(e) = update_tray_tooltip_only(state) {
+                    eprintln!("❌ Failed to update tray tooltip after stop: {:?}", e);
+                }
             }
         }
         "new_task" => {
@@ -187,6 +190,9 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
                         task_name
                     );
                     let _ = update_tray_menu(app, state);
+                    if let Err(e) = update_tray_tooltip_only(state) {
+                        eprintln!("❌ Failed to update tray tooltip after start: {:?}", e);
+                    }
                 }
             } else {
                 eprintln!("❌ Task not found for id: '{}'", task_id);
@@ -319,7 +325,7 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
     }
 }
 
-fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
+pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
     let config = get_config();
     
     state.with_tray_icon(|tray_option| {
@@ -358,7 +364,9 @@ fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
                     tray.set_title(Some(&title_text))
                         .map_err(|e| AppError::new(format!("Failed to set title: {}", e)))?;
                 } else {
-                    tray.set_title(None::<&str>)
+                    // tray-icon 0.24.2's macOS set_title(None) is a no-op (it only
+                    // calls setTitle for Some), so pass an empty string to clear
+                    tray.set_title(Some(""))
                         .map_err(|e| AppError::new(format!("Failed to clear title: {}", e)))?;
                 }
             }
@@ -376,6 +384,7 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
 
     std::thread::spawn(move || {
         let mut last_menu_update = std::time::Instant::now();
+        let mut was_running = false;
 
         loop {
             std::thread::sleep(config.tray_status_update_duration());
@@ -398,7 +407,19 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
                     }
                     last_menu_update = std::time::Instant::now();
                 }
+            } else if was_running {
+                // Timer just stopped: clear the stale title/tooltip and menu once,
+                // since no further updates happen while the timer is idle
+                if let Err(e) = update_tray_tooltip_only(&state_clone) {
+                    eprintln!("Failed to update tray tooltip: {:?}", e);
+                }
+                if let Err(e) = update_tray_menu(&app_clone, &state_clone) {
+                    eprintln!("Failed to update tray menu: {:?}", e);
+                }
+                last_menu_update = std::time::Instant::now();
             }
+
+            was_running = is_running;
         }
     });
 }
