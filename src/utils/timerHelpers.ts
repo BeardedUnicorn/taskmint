@@ -41,6 +41,39 @@ export function getInstanceElapsedMs(instance: TimerInstance, nowMs: number = Da
 }
 
 /**
+ * Net tracked milliseconds for a TimeEntry row. Entries produced by
+ * sessionsToTimeEntries spread the raw instance, so the instance state and
+ * pause fields are present at runtime; fall back to the stored duration for
+ * plain entries.
+ */
+export function getEntryElapsedMs(entry: TimeEntry, nowMs: number = Date.now()): number {
+  const instance = entry as unknown as TimerInstance;
+  if (instance.state) return getInstanceElapsedMs(instance, nowMs);
+  return entry.duration || 0;
+}
+
+/**
+ * update_timer_instance payload for an edit that sets a new net duration.
+ * endTime = startTime + pausedDuration + duration — the inverse of the
+ * backend's stop math — so the stored invariant
+ * (duration = endTime - startTime - pausedDuration) holds exactly.
+ * The edit always finalizes the instance, so the running/paused flags are
+ * cleared regardless of which page it came from.
+ */
+export function buildTimerEditUpdates(instance: TimerInstance, durationMs: number) {
+  const startMs = toMs(instance.startTime) ?? 0;
+  const pausedMs = instance.pausedDuration || 0;
+  // Backend duration is a u64: must be a non-negative integer.
+  const duration = Math.max(0, Math.round(durationMs));
+  return {
+    duration,
+    endTime: new Date(startMs + pausedMs + duration).toISOString(),
+    isRunning: false,
+    isPaused: false,
+  };
+}
+
+/**
  * Flatten backend sessions into the TimeEntry shape the Tasks, Time Entries,
  * Reports, and Calendar pages consume. Keeps the raw instance fields and
  * overlays the session-level ones, matching the shape those pages have always

@@ -29,12 +29,12 @@ import {
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
-import { formatDateTimeLocal, formatDateString } from '../../utils/dateHelpers';
+import { getEntryElapsedMs } from '../../utils/timerHelpers';
 
 interface TimeEntriesPageProps {
   timeEntries: TimeEntry[];
   tasks: Task[];
-  onUpdateEntry: (entry: TimeEntry) => void;
+  onUpdateEntry: (data: EditTimeEntryData) => void;
   onDeleteEntry: (entryId: string) => void;
   onBulkDeleteEntries?: (entryIds: string[]) => void;
   onExportEntries?: (entries: TimeEntry[]) => void;
@@ -114,21 +114,7 @@ export function TimeEntriesPage({
   const handleSaveEdit = (data: EditTimeEntryData) => {
     if (!editingEntry) return;
 
-    // Parse datetime-local values as local time and convert to UTC for storage
-    // The datetime-local input provides time in the user's local timezone
-    const startTime = new Date(data.startTime);
-    const endTime = new Date(data.endTime);
-
-    const updatedEntry: TimeEntry = {
-      ...editingEntry,
-      taskName: data.taskName,
-      startTime,
-      endTime,
-      duration: endTime.getTime() - startTime.getTime(),
-      date: formatDateString(startTime), // Use local timezone for date calculation
-    };
-
-    onUpdateEntry(updatedEntry);
+    onUpdateEntry(data);
     setEditingEntry(null);
     setNotification({
       open: true,
@@ -291,10 +277,11 @@ export function TimeEntriesPage({
           entry={{
             id: editingEntry.id,
             taskName: editingEntry.taskName,
-            startTime: formatDateTimeLocal(editingEntry.startTime),
-            endTime: editingEntry.endTime ? formatDateTimeLocal(editingEntry.endTime) : '',
+            durationMs: getEntryElapsedMs(editingEntry),
+            startTime: editingEntry.startTime
+              ? new Date(editingEntry.startTime).toISOString()
+              : undefined,
           }}
-          tasks={tasks}
           onSave={handleSaveEdit}
           onClose={() => setEditingEntry(null)}
         />

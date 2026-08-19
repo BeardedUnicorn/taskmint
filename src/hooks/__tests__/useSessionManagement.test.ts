@@ -299,6 +299,63 @@ describe('useSessionManagement', () => {
     });
   });
 
+  describe('timer instance updates', () => {
+    it('should update a timer instance and reload sessions', async () => {
+      const sessionWithInstance = {
+        ...mockSession,
+        timerInstances: [mockTimerInstance],
+      };
+      primeCommand('get_sessions', [sessionWithInstance], [sessionWithInstance]);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toHaveLength(1);
+      });
+      const getSessionsCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'get_sessions').length;
+
+      // The edit-save payload every page sends: net duration + derived
+      // endTime, and the stop flags cleared.
+      const updates = {
+        duration: 90_000,
+        endTime: '2024-01-15T10:01:30.000Z',
+        isRunning: false,
+        isPaused: false,
+      };
+      await act(async () => {
+        await result.current.updateTimerInstance('instance-1', updates);
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith('update_timer_instance', {
+        instanceId: 'instance-1',
+        updates,
+      });
+      // The command emits no event, so the hook must reload sessions itself.
+      expect(
+        mockInvoke.mock.calls.filter(([cmd]) => cmd === 'get_sessions').length
+      ).toBeGreaterThan(getSessionsCalls);
+      expect(mockShowSuccess).toHaveBeenCalledWith('Timer updated');
+    });
+
+    it('should surface backend errors without throwing', async () => {
+      primeCommand('get_sessions', [mockSession]);
+      primeCommand('update_timer_instance', new Error('Timer instance with ID missing not found'));
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual([mockSession]);
+      });
+
+      await act(async () => {
+        await result.current.updateTimerInstance('missing', { duration: 1_000 });
+      });
+
+      expect(mockShowError).toHaveBeenCalledWith('Timer instance with ID missing not found');
+      expect(result.current.error).toBe('Timer instance with ID missing not found');
+    });
+  });
+
   describe('session deletion', () => {
     it('should delete a session', async () => {
       primeCommand('get_sessions', [mockSession]);

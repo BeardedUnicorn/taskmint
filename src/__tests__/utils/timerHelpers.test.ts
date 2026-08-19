@@ -7,8 +7,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getInstanceElapsedMs, sessionsToTimeEntries } from '../../utils/timerHelpers';
-import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
+import {
+  getInstanceElapsedMs,
+  getEntryElapsedMs,
+  buildTimerEditUpdates,
+  sessionsToTimeEntries,
+} from '../../utils/timerHelpers';
+import { TaskSession, TimeEntry, TimerInstance, TimerState } from '../../types/timer';
 
 const T0 = new Date('2026-08-18T10:00:00.000Z').getTime();
 const sec = (n: number) => n * 1000;
@@ -126,5 +131,74 @@ describe('sessionsToTimeEntries', () => {
   it('skips malformed sessions without timerInstances arrays', () => {
     const malformed = { id: 'x' } as unknown as TaskSession;
     expect(sessionsToTimeEntries([malformed])).toEqual([]);
+  });
+});
+
+describe('buildTimerEditUpdates', () => {
+  it('derives endTime from start + pausedDuration + duration and stops the timer', () => {
+    // The backend invariant: duration = endTime - startTime - pausedDuration.
+    const i = instance({ pausedDuration: sec(30) });
+    const updates = buildTimerEditUpdates(i, sec(90));
+
+    expect(updates).toEqual({
+      duration: sec(90),
+      endTime: new Date(T0 + sec(30) + sec(90)).toISOString(),
+      isRunning: false,
+      isPaused: false,
+    });
+  });
+
+  it('treats a missing pausedDuration as zero', () => {
+    const i = instance({});
+    const updates = buildTimerEditUpdates(i, sec(60));
+    expect(updates.endTime).toBe(new Date(T0 + sec(60)).toISOString());
+  });
+
+  it('rounds and clamps the duration for the backend u64 field', () => {
+    const i = instance({});
+    expect(buildTimerEditUpdates(i, 1000.6).duration).toBe(1001);
+    expect(buildTimerEditUpdates(i, -5000).duration).toBe(0);
+  });
+
+  it('accepts string startTime values off the IPC boundary', () => {
+    const i = instance({ startTime: new Date(T0).toISOString() as unknown as Date });
+    const updates = buildTimerEditUpdates(i, sec(45));
+    expect(updates.endTime).toBe(new Date(T0 + sec(45)).toISOString());
+  });
+});
+
+describe('getEntryElapsedMs', () => {
+  it('uses live instance math for entries that carry a timer state', () => {
+    // sessionsToTimeEntries spreads the raw instance, so running entries
+    // carry state/pausedDuration.
+    const running = {
+      ...instance({ state: TimerState.running, pausedDuration: sec(30) }),
+      taskName: 'Deep work',
+      date: '2026-08-18',
+    } as unknown as TimeEntry;
+    expect(getEntryElapsedMs(running, T0 + sec(100))).toBe(sec(70));
+  });
+
+  it('falls back to the stored duration for plain stopped entries', () => {
+    const entry = {
+      id: 'e1',
+      taskName: 'Deep work',
+      startTime: new Date(T0),
+      duration: sec(60),
+      isRunning: false,
+      date: '2026-08-18',
+    } as unknown as TimeEntry;
+    expect(getEntryElapsedMs(entry)).toBe(sec(60));
+  });
+
+  it('returns 0 for entries with no state and no duration', () => {
+    const entry = {
+      id: 'e2',
+      taskName: 'Deep work',
+      startTime: new Date(T0),
+      isRunning: false,
+      date: '2026-08-18',
+    } as unknown as TimeEntry;
+    expect(getEntryElapsedMs(entry)).toBe(0);
   });
 });

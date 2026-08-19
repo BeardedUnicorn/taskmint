@@ -61,7 +61,7 @@ vi.mock('../../ui/dialogs/EditTimeEntryDialog', () => ({
   EditTimeEntryDialog: vi.fn(({ open, onSave, onClose }) => 
     open ? (
       <div data-testid="edit-time-entry-dialog">
-        <button onClick={() => onSave({ taskName: 'Updated Task', startTime: '2024-01-01T10:00', endTime: '2024-01-01T11:00' })}>Save Entry</button>
+        <button onClick={() => onSave({ id: 'entry1', taskName: 'Updated Task', durationMs: 3600000 })}>Save Entry</button>
         <button onClick={onClose}>Close</button>
       </div>
     ) : null
@@ -317,7 +317,12 @@ describe('TasksPage - Updated without Notes Section', () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(mockOnUpdateEntry).toHaveBeenCalled();
+      // The page passes the dialog payload through unchanged.
+      expect(mockOnUpdateEntry).toHaveBeenCalledWith({
+        id: 'entry1',
+        taskName: 'Updated Task',
+        durationMs: 3600000,
+      });
     });
   });
 

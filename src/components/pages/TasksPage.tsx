@@ -23,7 +23,7 @@ import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog, UpgradeDialog } from '../ui';
 import { EditTimeEntryData } from '../../types/form';
 import { useSubscription, useTaskLimit } from '../../contexts/SubscriptionContext';
-import { formatDateTimeLocal } from '../../utils/dateHelpers';
+import { getEntryElapsedMs } from '../../utils/timerHelpers';
 
 interface TasksPageProps {
   tasks: Task[];
@@ -31,7 +31,7 @@ interface TasksPageProps {
   onAddTask: (taskData: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
   onUpdateTask?: (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
   onDeleteTask?: (taskId: string) => Promise<void>;
-  onUpdateEntry?: (entry: TimeEntry) => void;
+  onUpdateEntry?: (data: EditTimeEntryData) => void;
   onDeleteEntry?: (entryId: string) => void;
 }
 
@@ -122,25 +122,7 @@ export function TasksPage({
   const handleSaveEntryEdit = (data: EditTimeEntryData) => {
     if (!editingEntry || !onUpdateEntry) return;
 
-    const startTime = new Date(data.startTime);
-    const endTime = new Date(data.endTime);
-
-    // Validate dates
-    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-      console.error('Invalid date values provided');
-      return;
-    }
-
-    const updatedEntry: TimeEntry = {
-      ...editingEntry,
-      taskName: data.taskName,
-      startTime,
-      endTime,
-      duration: endTime.getTime() - startTime.getTime(),
-      date: startTime.toISOString().split('T')[0],
-    };
-
-    onUpdateEntry(updatedEntry);
+    onUpdateEntry(data);
     setEditingEntry(null);
   };
 
@@ -325,12 +307,11 @@ export function TasksPage({
           entry={{
             id: editingEntry.id,
             taskName: editingEntry.taskName,
-            startTime: formatDateTimeLocal(editingEntry.startTime),
-            endTime: editingEntry.endTime
-              ? formatDateTimeLocal(editingEntry.endTime)
-              : '',
+            durationMs: getEntryElapsedMs(editingEntry),
+            startTime: editingEntry.startTime
+              ? new Date(editingEntry.startTime).toISOString()
+              : undefined,
           }}
-          tasks={tasks}
           onSave={handleSaveEntryEdit}
           onClose={() => setEditingEntry(null)}
         />

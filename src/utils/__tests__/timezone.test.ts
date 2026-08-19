@@ -15,7 +15,6 @@ import { TimeEntry } from '../../types/timer';
 import {
   formatLocalTime,
   formatDateString,
-  formatDateTimeLocal,
   formatLocalDate,
   getStartOfDay,
   getEndOfDay,
@@ -44,19 +43,6 @@ describe('Timezone Handling', () => {
       // Compute expected value based on the current environment timezone
       const expected = dayjs.utc(utcDate).tz(currentTimezone).format('HH:mm');
       expect(localTime).toBe(expected);
-    });
-
-    it('should handle datetime-local format correctly', () => {
-      const utcDate = new Date('2024-01-15T14:30:00.000Z'); // 2:30 PM UTC
-
-      // Should format for datetime-local input in local timezone
-      const localDateTime = formatDateTimeLocal(utcDate);
-
-      const expected = dayjs
-        .utc(utcDate)
-        .tz(currentTimezone)
-        .format('YYYY-MM-DDTHH:mm');
-      expect(localDateTime).toBe(expected);
     });
 
     it('should handle date strings correctly', () => {
@@ -216,50 +202,6 @@ describe('Timezone Handling', () => {
       
       expect(jan15Entries).toHaveLength(1);
       expect(jan15Entries[0].id).toBe('2');
-    });
-  });
-
-  describe('Edit Dialog Time Handling', () => {
-    it('should convert UTC times to datetime-local format correctly', () => {
-      const utcStartTime = new Date('2024-01-15T14:30:00.000Z');
-      const utcEndTime = new Date('2024-01-15T16:45:00.000Z');
-
-      const startTimeLocal = formatDateTimeLocal(utcStartTime);
-      const endTimeLocal = formatDateTimeLocal(utcEndTime);
-
-      const expectedStart = dayjs
-        .utc(utcStartTime)
-        .tz(currentTimezone)
-        .format('YYYY-MM-DDTHH:mm');
-      const expectedEnd = dayjs
-        .utc(utcEndTime)
-        .tz(currentTimezone)
-        .format('YYYY-MM-DDTHH:mm');
-      // Should be in local timezone for datetime-local input
-      expect(startTimeLocal).toBe(expectedStart);
-      expect(endTimeLocal).toBe(expectedEnd);
-    });
-
-    it('should convert datetime-local input back to UTC correctly', () => {
-      // Simulate user input in datetime-local format (local timezone)
-      const localStartTime = '2024-01-15T07:30';
-      const localEndTime = '2024-01-15T09:45';
-
-      // Convert to Date objects (this is what the edit dialog does)
-      const startTime = new Date(localStartTime.replace('T', ' ') + ':00');
-      const endTime = new Date(localEndTime.replace('T', ' ') + ':00');
-
-      // These should be interpreted as local time and stored as UTC
-      const expectedStart = dayjs
-        .tz(localStartTime, currentTimezone)
-        .utc()
-        .toISOString();
-      const expectedEnd = dayjs
-        .tz(localEndTime, currentTimezone)
-        .utc()
-        .toISOString();
-      expect(startTime.toISOString()).toBe(expectedStart);
-      expect(endTime.toISOString()).toBe(expectedEnd);
     });
   });
 
