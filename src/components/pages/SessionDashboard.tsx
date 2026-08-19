@@ -38,7 +38,8 @@ import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatDuration } from '../../utils/formatters';
-import { formatDateString, formatDateTimeLocal } from '../../utils/dateHelpers';
+import { formatDateString } from '../../utils/dateHelpers';
+import { getInstanceElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
 
 export function SessionDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -149,21 +150,12 @@ export function SessionDashboard() {
   }, [updateSession, showSuccess]);
 
   const handleEditTimer = useCallback((instance: TimerInstance, session: TaskSession) => {
-    const start = instance.startTime instanceof Date ? instance.startTime : new Date(instance.startTime);
-    const end = instance.endTime instanceof Date
-      ? instance.endTime
-      : instance.endTime
-        ? new Date(instance.endTime)
-        : new Date();
     setEditingTimerInstanceId(instance.id);
-    // datetime-local inputs are interpreted in local time, so format in local
-    // time — toISOString() (UTC) would shift the times by the timezone offset
-    // on every edit round-trip.
     setEditingTimerData({
       id: instance.id,
       taskName: session.taskName,
-      startTime: formatDateTimeLocal(start),
-      endTime: formatDateTimeLocal(end),
+      durationMs: getInstanceElapsedMs(instance),
+      startTime: new Date(instance.startTime).toISOString(),
     });
   }, []);
 
@@ -178,21 +170,12 @@ export function SessionDashboard() {
       s.timerInstances.some(i => i.id === editingTimerInstanceId)
     );
     const instance = parentSession?.timerInstances.find(i => i.id === editingTimerInstanceId);
+    if (!instance) return;
 
-    // The dialog's duration is the raw wall-clock span; recorded duration is
-    // net of pauses, so subtract the instance's accumulated pause time or a
-    // no-op save would inflate the session total by the paused time.
-    const startMs = new Date(data.startTime).getTime();
-    const endMs = new Date(data.endTime).getTime();
-    const pausedMs = instance?.pausedDuration || 0;
-
-    await updateTimerInstance(editingTimerInstanceId, {
-      startTime: new Date(startMs).toISOString(),
-      endTime: new Date(endMs).toISOString(),
-      duration: Math.max(0, Math.round(endMs - startMs - pausedMs)),
-      isRunning: false,
-      isPaused: false,
-    });
+    await updateTimerInstance(
+      editingTimerInstanceId,
+      buildTimerEditUpdates(instance, data.durationMs)
+    );
 
     // The dialog renders Task Name as editable (and requires it) — the name
     // lives on the session, so persist a change there.
@@ -400,7 +383,6 @@ export function SessionDashboard() {
         onClose={handleCloseEditTimerDialog}
         onSave={handleSaveTimerEdit}
         entry={editingTimerData}
-        tasks={tasks}
       />
 
       <QuickSessionDialog

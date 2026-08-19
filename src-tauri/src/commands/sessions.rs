@@ -310,6 +310,46 @@ fn parse_rfc3339(value: &str) -> Result<DateTime<Utc>, String> {
         .map_err(|e| format!("Invalid timestamp '{}': {}", value, e))
 }
 
+/// Apply pre-parsed patch fields to a timer instance. A patch that clears
+/// both flags finalizes the instance (the shape every edit save sends), so
+/// stale pause bookkeeping is cleared too — the same finalization contract as
+/// `stop_timer_instance` and `stop_running_instances`.
+fn apply_timer_instance_updates(
+    instance: &mut TimerInstance,
+    updates: &TimerInstanceUpdates,
+    resumed_at: Option<DateTime<Utc>>,
+    start_time: Option<DateTime<Utc>>,
+    end_time: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+) {
+    if let Some(is_running) = updates.is_running {
+        instance.is_running = is_running;
+    }
+    if let Some(is_paused) = updates.is_paused {
+        instance.is_paused = is_paused;
+    }
+    if let Some(notes) = updates.notes.as_ref() {
+        instance.notes = Some(notes.clone());
+    }
+    if let Some(duration) = updates.duration {
+        instance.duration = Some(duration);
+    }
+    if let Some(resumed_at) = resumed_at {
+        instance.resumed_at = Some(resumed_at);
+    }
+    if let Some(start_time) = start_time {
+        instance.start_time = start_time;
+    }
+    if let Some(end_time) = end_time {
+        instance.end_time = Some(end_time);
+    }
+    if updates.is_running == Some(false) && updates.is_paused == Some(false) {
+        instance.paused_at = None;
+        instance.resumed_at = None;
+    }
+    instance.updated_at = now.to_rfc3339();
+}
+
 #[tauri::command]
 pub async fn update_timer_instance(
     app: AppHandle,
@@ -338,28 +378,9 @@ pub async fn update_timer_instance(
                     .find(|i| i.id == instance_id)
                     .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
 
-                if let Some(is_running) = updates.is_running {
-                    instance.is_running = is_running;
-                }
-                if let Some(is_paused) = updates.is_paused {
-                    instance.is_paused = is_paused;
-                }
-                if let Some(notes) = updates.notes.as_ref() {
-                    instance.notes = Some(notes.clone());
-                }
-                if let Some(duration) = updates.duration {
-                    instance.duration = Some(duration);
-                }
-                if let Some(resumed_at) = resumed_at {
-                    instance.resumed_at = Some(resumed_at);
-                }
-                if let Some(start_time) = start_time {
-                    instance.start_time = start_time;
-                }
-                if let Some(end_time) = end_time {
-                    instance.end_time = Some(end_time);
-                }
-                instance.updated_at = now.to_rfc3339();
+                apply_timer_instance_updates(
+                    instance, &updates, resumed_at, start_time, end_time, now,
+                );
             }
 
             session.updated_at = now.to_rfc3339();
@@ -809,5 +830,100 @@ mod tests {
         assert!(validate_start(&instance, true, true)
             .unwrap_err()
             .contains("Another timer instance is already running"));
+    }
+
+    fn fresh_session() -> TaskSession {
+        TaskSession {
+            id: "session_test".to_string(),
+            task_id: "task_test".to_string(),
+            task_name: "Test Task".to_string(),
+            timer_instances: Vec::new(),
+            total_duration: 0,
+            notes: None,
+            is_active: true,
+            date: "2026-08-19".to_string(),
+            created_at: ts(0).to_rfc3339(),
+            updated_at: ts(0).to_rfc3339(),
+        }
+    }
+
+    #[test]
+    fn edit_applies_duration_end_time_and_stops_instance() {
+        // The shape every edit save sends: duration + endTime + both flags
+        // cleared. Applied to a running instance it must finalize it.
+        let mut instance = fresh_instance();
+        instance.is_running = true;
+
+        let updates = TimerInstanceUpdates {
+            is_running: Some(false),
+            is_paused: Some(false),
+            duration: Some(90_000),
+            ..Default::default()
+        };
+        apply_timer_instance_updates(&mut instance, &updates, None, None, Some(ts(90)), ts(100));
+
+        assert!(!instance.is_running);
+        assert!(!instance.is_paused);
+        assert_eq!(instance.duration, Some(90_000));
+        assert_eq!(instance.end_time, Some(ts(90)));
+        assert_eq!(instance.updated_at, ts(100).to_rfc3339());
+    }
+
+    #[test]
+    fn edit_finalization_clears_stale_pause_state() {
+        // Editing an actively-paused timer must not leave pause bookkeeping
+        // on a stopped instance — same contract as stop_timer_instance.
+        let mut instance = fresh_instance();
+        instance.is_paused = true;
+        instance.paused_at = Some(ts(50));
+        instance.resumed_at = Some(ts(40));
+
+        let updates = TimerInstanceUpdates {
+            is_running: Some(false),
+            is_paused: Some(false),
+            duration: Some(60_000),
+            ..Default::default()
+        };
+        apply_timer_instance_updates(&mut instance, &updates, None, None, Some(ts(60)), ts(100));
+
+        assert_eq!(instance.paused_at, None);
+        assert_eq!(instance.resumed_at, None);
+    }
+
+    #[test]
+    fn partial_update_preserves_pause_state() {
+        // A patch that doesn't clear both flags (e.g. notes-only) must leave
+        // pause bookkeeping untouched.
+        let mut instance = fresh_instance();
+        instance.is_paused = true;
+        instance.paused_at = Some(ts(50));
+
+        let updates = TimerInstanceUpdates {
+            notes: Some("edited".to_string()),
+            ..Default::default()
+        };
+        apply_timer_instance_updates(&mut instance, &updates, None, None, None, ts(100));
+
+        assert!(instance.is_paused);
+        assert_eq!(instance.paused_at, Some(ts(50)));
+        assert_eq!(instance.notes.as_deref(), Some("edited"));
+    }
+
+    #[test]
+    fn total_duration_sums_completed_instance_durations() {
+        let mut session = fresh_session();
+        let mut a = fresh_instance();
+        a.duration = Some(30_000);
+        let mut b = fresh_instance();
+        b.id = "instance_b".to_string();
+        b.duration = Some(45_000);
+        let mut running = fresh_instance();
+        running.id = "instance_c".to_string();
+        running.is_running = true; // no duration yet
+
+        session.timer_instances = vec![a, b, running];
+        recalculate_total_duration(&mut session);
+
+        assert_eq!(session.total_duration, 75_000);
     }
 }

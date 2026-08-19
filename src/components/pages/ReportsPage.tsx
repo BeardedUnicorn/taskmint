@@ -30,7 +30,8 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { TimeEntry } from '../../types/timer';
 import { Task } from '../../types/task';
 import { DailyGoalAchievement } from '../../types/goal';
-import { formatLocalTime, formatDateTimeLocal } from '../../utils/dateHelpers';
+import { formatLocalTime } from '../../utils/dateHelpers';
+import { getEntryElapsedMs } from '../../utils/timerHelpers';
 import { formatDuration } from '../../utils/formatters';
 import { EarningsDisplay } from '../ui/display/EarningsDisplay';
 import { GoalAchievementsTable } from '../ui/tables/GoalAchievementsTable';
@@ -61,7 +62,7 @@ interface ReportsPageProps {
   timeEntries: TimeEntry[];
   tasks: Task[];
   onDeleteEntry: (entryId: string) => void;
-  onUpdateEntry: (entry: TimeEntry) => void;
+  onUpdateEntry: (data: EditTimeEntryData) => void;
 }
 
 export function ReportsPage({
@@ -195,19 +196,7 @@ export function ReportsPage({
   const handleSaveEdit = (data: EditTimeEntryData) => {
     if (!editingEntry) return;
 
-    const startTime = new Date(data.startTime);
-    const endTime = new Date(data.endTime);
-
-    const updatedEntry: TimeEntry = {
-      ...editingEntry,
-      taskName: data.taskName,
-      startTime,
-      endTime,
-      duration: endTime.getTime() - startTime.getTime(),
-      date: startTime.toISOString().split('T')[0],
-    };
-
-    onUpdateEntry(updatedEntry);
+    onUpdateEntry(data);
     setEditingEntry(null);
   };
 
@@ -562,12 +551,11 @@ export function ReportsPage({
             entry={{
               id: editingEntry.id,
               taskName: editingEntry.taskName,
-              startTime: formatDateTimeLocal(editingEntry.startTime),
-              endTime: editingEntry.endTime
-                ? formatDateTimeLocal(editingEntry.endTime)
-                : '',
+              durationMs: getEntryElapsedMs(editingEntry),
+              startTime: editingEntry.startTime
+                ? new Date(editingEntry.startTime).toISOString()
+                : undefined,
             }}
-            tasks={tasks}
             onSave={handleSaveEdit}
             onClose={() => setEditingEntry(null)}
           />

@@ -1,11 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Stack, TextField, Alert } from '@mui/material';
+import { Stack, TextField, Alert, Typography } from '@mui/material';
 import { FormDialog } from './FormDialog';
-import { EditTimeEntryDialogProps, EditTimeEntryData } from '../../../types/form';
+import { EditTimeEntryDialogProps } from '../../../types/form';
 import { formatDuration } from '../../../utils/formatters';
 
+const MS_PER_HOUR = 3_600_000;
+const MS_PER_MINUTE = 60_000;
+
+function splitDuration(durationMs: number): { hours: number; minutes: number } {
+  const safe = Math.max(0, durationMs);
+  return {
+    hours: Math.floor(safe / MS_PER_HOUR),
+    minutes: Math.floor((safe % MS_PER_HOUR) / MS_PER_MINUTE),
+  };
+}
+
 /**
- * Dialog for editing time entries with validation and duration calculation
+ * Dialog for editing a time entry's task name and tracked duration.
+ * Duration is edited as hours + minutes; the entry's start time stays as
+ * recorded and is shown for reference only.
  */
 export function EditTimeEntryDialog({
   open,
@@ -13,49 +26,49 @@ export function EditTimeEntryDialog({
   onSave,
   entry,
 }: EditTimeEntryDialogProps) {
-  const [formData, setFormData] = useState<EditTimeEntryData>({
-    id: '',
-    taskName: '',
-    startTime: '',
-    endTime: '',
-  });
-
+  const [taskName, setTaskName] = useState('');
+  // Strings so the fields can be transiently empty while typing.
+  const [hours, setHours] = useState('0');
+  const [minutes, setMinutes] = useState('0');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (entry) {
-      setFormData({
-        id: entry.id,
-        taskName: entry.taskName,
-        startTime: entry.startTime,
-        endTime: entry.endTime,
-      });
+      const { hours: h, minutes: m } = splitDuration(entry.durationMs);
+      setTaskName(entry.taskName);
+      setHours(String(h));
+      setMinutes(String(m));
       setErrors({});
     }
   }, [entry]);
 
+  const clearError = (field: string) => {
+    setErrors(prev => {
+      if (!prev[field] && !prev.duration) return prev;
+      const next = { ...prev };
+      delete next[field];
+      delete next.duration;
+      return next;
+    });
+  };
+
+  const parsedHours = hours.trim() === '' ? 0 : Number(hours);
+  const parsedMinutes = minutes.trim() === '' ? 0 : Number(minutes);
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.taskName.trim()) {
+    if (!taskName.trim()) {
       newErrors.taskName = 'Task name is required';
     }
-
-    if (!formData.startTime) {
-      newErrors.startTime = 'Start time is required';
+    if (!Number.isInteger(parsedHours) || parsedHours < 0) {
+      newErrors.hours = 'Hours must be a whole number of 0 or more';
     }
-
-    if (!formData.endTime) {
-      newErrors.endTime = 'End time is required';
+    if (!Number.isInteger(parsedMinutes) || parsedMinutes < 0 || parsedMinutes > 59) {
+      newErrors.minutes = 'Minutes must be a whole number between 0 and 59';
     }
-
-    if (formData.startTime && formData.endTime) {
-    const startTime = new Date(formData.startTime.replace('T', ' ') + ':00');
-    const endTime = new Date(formData.endTime.replace('T', ' ') + ':00');
-      
-      if (endTime <= startTime) {
-        newErrors.endTime = 'End time must be after start time';
-      }
+    if (!newErrors.hours && !newErrors.minutes && parsedHours === 0 && parsedMinutes === 0) {
+      newErrors.duration = 'Duration must be greater than zero';
     }
 
     setErrors(newErrors);
@@ -63,39 +76,32 @@ export function EditTimeEntryDialog({
   };
 
   const handleSubmit = () => {
-    if (validateForm()) {
-      const startTime = new Date(formData.startTime.replace('T', ' ') + ':00');
-      const endTime = new Date(formData.endTime.replace('T', ' ') + ':00');
-      const duration = endTime.getTime() - startTime.getTime();
+    if (!entry || !validateForm()) return;
 
-      onSave({
-        ...formData,
-        duration,
-      });
-    }
+    // A name-only edit keeps the original duration so the sub-minute
+    // remainder isn't truncated; typed values mean exact whole minutes.
+    const initial = splitDuration(entry.durationMs);
+    const unchanged = parsedHours === initial.hours && parsedMinutes === initial.minutes;
+    const durationMs = unchanged
+      ? entry.durationMs
+      : parsedHours * MS_PER_HOUR + parsedMinutes * MS_PER_MINUTE;
+
+    onSave({
+      id: entry.id,
+      taskName: taskName.trim(),
+      durationMs,
+    });
   };
 
   const handleClose = () => {
-    setFormData({
-      id: '',
-      taskName: '',
-      startTime: '',
-      endTime: '',
-    });
     setErrors({});
     onClose();
   };
 
-  const calculateDuration = (): number => {
-    if (formData.startTime && formData.endTime) {
-      const startTime = new Date(formData.startTime);
-      const endTime = new Date(formData.endTime);
-      return endTime.getTime() - startTime.getTime();
-    }
-    return 0;
-  };
-
-  const duration = calculateDuration();
+  const previewMs =
+    Number.isFinite(parsedHours) && Number.isFinite(parsedMinutes)
+      ? Math.max(0, parsedHours) * MS_PER_HOUR + Math.max(0, parsedMinutes) * MS_PER_MINUTE
+      : 0;
 
   return (
     <FormDialog
@@ -105,48 +111,62 @@ export function EditTimeEntryDialog({
       title="Edit Time Entry"
       submitLabel="Save"
       cancelLabel="Cancel"
-      submitDisabled={Object.keys(errors).length > 0}
     >
       <Stack spacing={2}>
         <TextField
           label="Task Name"
           fullWidth
-          value={formData.taskName}
-          onChange={(e) => setFormData(prev => ({ ...prev, taskName: e.target.value }))}
+          value={taskName}
+          onChange={(e) => {
+            setTaskName(e.target.value);
+            clearError('taskName');
+          }}
           error={!!errors.taskName}
           helperText={errors.taskName}
         />
-        
-        <TextField
-          label="Start Time"
-          type="datetime-local"
-          fullWidth
-          value={formData.startTime}
-          onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-          error={!!errors.startTime}
-          helperText={errors.startTime}
-          slotProps={{
-            inputLabel: { shrink: true }
-          }}
-        />
-        
-        <TextField
-          label="End Time"
-          type="datetime-local"
-          fullWidth
-          value={formData.endTime}
-          onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
-          error={!!errors.endTime}
-          helperText={errors.endTime}
-          slotProps={{
-            inputLabel: { shrink: true }
-          }}
-        />
-        
-        {duration > 0 && (
-          <Alert severity="info">
-            Duration: {formatDuration(duration)}
-          </Alert>
+
+        <Stack direction="row" spacing={2}>
+          <TextField
+            label="Hours"
+            type="number"
+            fullWidth
+            value={hours}
+            onChange={(e) => {
+              setHours(e.target.value);
+              clearError('hours');
+            }}
+            error={!!errors.hours}
+            helperText={errors.hours}
+            slotProps={{
+              htmlInput: { min: 0, step: 1 },
+            }}
+          />
+          <TextField
+            label="Minutes"
+            type="number"
+            fullWidth
+            value={minutes}
+            onChange={(e) => {
+              setMinutes(e.target.value);
+              clearError('minutes');
+            }}
+            error={!!errors.minutes}
+            helperText={errors.minutes}
+            slotProps={{
+              htmlInput: { min: 0, max: 59, step: 1 },
+            }}
+          />
+        </Stack>
+
+        {errors.duration && <Alert severity="error">{errors.duration}</Alert>}
+
+        <Alert severity="info">Duration: {formatDuration(previewMs)}</Alert>
+
+        {entry?.startTime && (
+          <Typography variant="caption" color="text.secondary">
+            Started {new Date(entry.startTime).toLocaleString()} — the start
+            time stays as recorded.
+          </Typography>
         )}
       </Stack>
     </FormDialog>

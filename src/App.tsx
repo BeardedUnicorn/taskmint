@@ -21,10 +21,11 @@ const AdminPage = lazy(() => import('./components/pages/AdminPage').then(module 
 import { SessionDashboard } from './components/pages/SessionDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
+import { EditTimeEntryData } from './types/form';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
-import { sessionsToTimeEntries } from './utils/timerHelpers';
+import { sessionsToTimeEntries, buildTimerEditUpdates } from './utils/timerHelpers';
 import { createServiceErrorHandler } from './utils/errorHandler';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
 
@@ -108,36 +109,27 @@ function AppContent() {
     }
   };
 
-  const handleUpdateEntry = async (entry: TimeEntry) => {
+  const handleUpdateEntry = async (data: EditTimeEntryData) => {
     // Entry ids are raw timer-instance ids (the "session_" prefix is only
     // used by the derived activeEntry).
-    const instanceId = entry.id.replace(/^session_/, '');
+    const instanceId = data.id.replace(/^session_/, '');
     const session = sessionManager.sessions.find(s =>
       s.timerInstances.some(i => i.id === instanceId)
     );
     if (!session) return;
+    const instance = session.timerInstances.find(i => i.id === instanceId);
+    if (!instance) return;
 
-    // Persist the edited times on the instance itself. Recorded duration is
-    // net of pauses, so subtract the accumulated pause time from the edited
-    // wall-clock span.
-    if (entry.startTime && entry.endTime) {
-      const instance = session.timerInstances.find(i => i.id === instanceId);
-      const startMs = new Date(entry.startTime).getTime();
-      const endMs = new Date(entry.endTime).getTime();
-      const pausedMs = instance?.pausedDuration || 0;
-      await sessionManager.updateTimerInstance(instanceId, {
-        startTime: new Date(startMs).toISOString(),
-        endTime: new Date(endMs).toISOString(),
-        duration: Math.max(0, Math.round(endMs - startMs - pausedMs)),
-      });
-    }
+    await sessionManager.updateTimerInstance(
+      instanceId,
+      buildTimerEditUpdates(instance, data.durationMs)
+    );
 
     // Task name lives on the session, so renaming applies to every entry of
     // the session — only send it when it actually changed.
-    if (entry.taskName && entry.taskName !== session.taskName) {
-      await sessionManager.updateSession(session.id, {
-        taskName: entry.taskName,
-      });
+    const name = data.taskName.trim();
+    if (name && name !== session.taskName) {
+      await sessionManager.updateSession(session.id, { taskName: name });
     }
   };
 

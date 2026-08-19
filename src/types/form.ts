@@ -88,16 +88,14 @@ export interface EditTimeEntryDialogProps {
   onClose: () => void;
   onSave: (data: EditTimeEntryData) => void;
   entry: EditTimeEntryData | null;
-  tasks: Task[];
 }
 
 // Form Data Types
 export interface EditTimeEntryData {
-  id: string;
+  id: string;          // timer-instance id (may carry "session_" prefix)
   taskName: string;
-  startTime: string;
-  endTime: string;
-  duration?: number;
+  durationMs: number;  // net tracked duration: prefill in, edited value out
+  startTime?: string;  // ISO, display-only caption; never written back
 }
 
 export interface FormValidation {

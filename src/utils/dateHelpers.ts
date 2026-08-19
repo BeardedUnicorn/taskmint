@@ -41,13 +41,6 @@ export function parseDateStringLocal(dateStr: string): Date {
 }
 
 /**
- * Format a date/time for datetime-local input in local timezone
- */
-export function formatDateTimeLocal(date: Date | string): string {
-  return dayjs(date).local().format('YYYY-MM-DDTHH:mm');
-}
-
-/**
  * Format a date to local date string (MMM DD, YYYY format)
  */
 export function formatLocalDate(date: Date | string): string {

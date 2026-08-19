@@ -50,7 +50,9 @@ export function FormDialog({
       fullWidth={fullWidth}
       sx={sx}
     >
-      <form onSubmit={handleSubmit}>
+      {/* noValidate: dialogs do their own validation and render MUI helper
+          text; native constraint bubbles would block submit before it runs. */}
+      <form onSubmit={handleSubmit} noValidate>
         <DialogTitle>{title}</DialogTitle>
         
         <DialogContent>
