@@ -19,7 +19,6 @@ import {
   Add as AddIcon,
   Timer as TimerIcon,
   AttachMoney as MoneyIcon,
-  Assignment as TaskIcon,
 } from '@mui/icons-material';
 import { SessionTimerToolbar } from '../layout/SessionTimerToolbar';
 import { SessionList } from '../ui/sessions/SessionList';
@@ -33,13 +32,13 @@ import { useSessionManagementContext } from '../../contexts/SessionManagementCon
 import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useNotification } from '../../contexts/NotificationContext';
-import { TaskSession, TimerInstance } from '../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatDuration } from '../../utils/formatters';
 import { formatDateString } from '../../utils/dateHelpers';
-import { getInstanceElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
+import { getInstanceElapsedMs, getSessionElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
 
 export function SessionDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -92,43 +91,44 @@ export function SessionDashboard() {
   // hidden from the session list's task filter chips
   const archivedTaskNames = useMemo(() => archivedTasks.map(t => t.name), [archivedTasks]);
 
-  interface DashboardStats {
-    totalTimeToday: number;
-    earningsToday: number;
-    tasksWorkedOn: number;
-  }
+  // Live stats: the backend's session.totalDuration only sums finalized
+  // instances (running/paused contribute 0) and sessions state only changes
+  // on discrete timer events, so derive totals from instance state via
+  // getSessionElapsedMs and tick once a second while any timer is running.
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const [stats, setStats] = useState<DashboardStats>({
-    totalTimeToday: 0,
-    earningsToday: 0,
-    tasksWorkedOn: 0,
-  });
+  const hasRunningTimer = sessions.some((session) =>
+    session.timerInstances.some((instance) => instance.state === TimerState.running)
+  );
 
   useEffect(() => {
-    const today = formatDateString(new Date());
+    if (!hasRunningTimer) return;
+    setNowMs(Date.now()); // catch up immediately when a timer starts
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [hasRunningTimer]);
 
-    const todaysSessions = sessions.filter(
-      (s) => s.date === today && s.totalDuration > 0
-    );
+  const stats = useMemo(() => {
+    const today = formatDateString(new Date(nowMs));
 
-    const totalTimeToday = todaysSessions.reduce(
-      (total, session) => total + session.totalDuration,
-      0
-    );
+    // No totalDuration > 0 filter: a session whose only timer is still
+    // running has totalDuration 0 but must count toward today's totals.
+    const todaysSessions = sessions.filter((s) => s.date === today);
 
-    const earningsToday = todaysSessions.reduce((total, session) => {
+    let totalTimeToday = 0;
+    let earningsToday = 0;
+    for (const session of todaysSessions) {
+      const elapsed = getSessionElapsedMs(session, nowMs);
+      totalTimeToday += elapsed;
+
       const task = tasks.find((t) => t.id === session.taskId);
-      if (!task?.hourlyRate || task.hourlyRate <= 0) return total;
-      const hours = session.totalDuration / (1000 * 60 * 60);
-      return total + hours * task.hourlyRate;
-    }, 0);
+      if (task?.hourlyRate && task.hourlyRate > 0) {
+        earningsToday += (elapsed / (1000 * 60 * 60)) * task.hourlyRate;
+      }
+    }
 
-    const tasksWorkedOn = new Set(
-      todaysSessions.map((s) => s.taskName)
-    ).size;
-
-    setStats({ totalTimeToday, earningsToday, tasksWorkedOn });
-  }, [sessions, tasks]);
+    return { totalTimeToday, earningsToday };
+  }, [sessions, tasks, nowMs]);
 
   // Determine currently running timer instance for inactivity handling
   const { activeTimer: activeTimerInstance } = useActiveTimer();
@@ -310,13 +310,6 @@ export function SessionDashboard() {
           subtitle={stats.earningsToday > 0 ? 'Based on hourly rates' : 'Set hourly rates to track earnings'}
           icon={<MoneyIcon sx={{ fontSize: 40 }} />}
           color="success"
-        />
-        <StatsCard
-          title="Tasks Worked On"
-          value={stats.tasksWorkedOn}
-          subtitle={stats.tasksWorkedOn === 1 ? 'task today' : 'tasks today'}
-          icon={<TaskIcon sx={{ fontSize: 40 }} />}
-          color="info"
         />
       </Box>
 

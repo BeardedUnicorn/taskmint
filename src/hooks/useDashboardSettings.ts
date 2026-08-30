@@ -31,13 +31,6 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
     defaultOrder: 2,
   },
   {
-    id: 'tasks-worked-on',
-    title: 'Tasks Worked On',
-    description: 'Shows the number of unique tasks worked on today',
-    defaultEnabled: true,
-    defaultOrder: 3,
-  },
-  {
     id: 'todays-entries',
     title: "Today's Time Entries",
     description: 'Shows a detailed list of all time entries for today',

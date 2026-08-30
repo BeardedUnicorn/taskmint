@@ -41,6 +41,20 @@ export function getInstanceElapsedMs(instance: TimerInstance, nowMs: number = Da
 }
 
 /**
+ * Net tracked milliseconds for a whole session at `nowMs`: the sum of
+ * getInstanceElapsedMs over its timer instances. Unlike the backend's
+ * session.totalDuration (finalized instances only), this includes live
+ * running and frozen paused time.
+ */
+export function getSessionElapsedMs(session: TaskSession, nowMs: number = Date.now()): number {
+  if (!session || !Array.isArray(session.timerInstances)) return 0;
+  return session.timerInstances.reduce(
+    (total, instance) => total + getInstanceElapsedMs(instance, nowMs),
+    0
+  );
+}
+
+/**
  * Net tracked milliseconds for a TimeEntry row. Entries produced by
  * sessionsToTimeEntries spread the raw instance, so the instance state and
  * pause fields are present at runtime; fall back to the stored duration for

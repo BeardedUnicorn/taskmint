@@ -9,7 +9,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionDashboard } from '../SessionDashboard';
-import { TaskSession, TimerInstance } from '../../../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { ActiveTimerProvider } from '../../../contexts/ActiveTimerContext';
 
@@ -750,6 +750,114 @@ describe('SessionDashboard', () => {
 
       // Verify dialog is closed
       expect(screen.queryByTestId('notes-dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Overview Stats', () => {
+    // Local noon (no Z suffix): formatDateString buckets by local date.
+    const NOW = new Date('2024-01-15T12:00:00');
+
+    const statsSessions: TaskSession[] = [
+      {
+        id: 'session-running',
+        taskId: 'task-1',
+        taskName: 'Development Work',
+        timerInstances: [
+          {
+            id: 'instance-running',
+            sessionId: 'session-running',
+            startTime: new Date(NOW.getTime() - 10 * 60_000), // started 10 min ago
+            state: TimerState.running,
+            isRunning: true,
+            isPaused: false,
+            createdAt: '2024-01-15T10:00:00Z',
+            updatedAt: '2024-01-15T10:00:00Z',
+          },
+        ],
+        // The backend only counts finalized instances, so a session whose only
+        // timer is still running reports totalDuration 0.
+        totalDuration: 0,
+        isActive: true,
+        date: '2024-01-15',
+        createdAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-15T10:00:00Z',
+      },
+      {
+        id: 'session-stopped',
+        taskId: 'task-1',
+        taskName: 'Development Work',
+        timerInstances: [
+          {
+            id: 'instance-stopped',
+            sessionId: 'session-stopped',
+            startTime: new Date('2024-01-15T09:00:00Z'),
+            endTime: new Date('2024-01-15T09:30:00Z'),
+            duration: 30 * 60_000,
+            state: TimerState.stopped,
+            isRunning: false,
+            isPaused: false,
+            createdAt: '2024-01-15T09:00:00Z',
+            updatedAt: '2024-01-15T09:30:00Z',
+          },
+        ],
+        totalDuration: 30 * 60_000,
+        isActive: false,
+        date: '2024-01-15',
+        createdAt: '2024-01-15T09:00:00Z',
+        updatedAt: '2024-01-15T09:30:00Z',
+      },
+    ];
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+      Object.assign(mockSessionManagement, {
+        sessions: statsSessions,
+        activeSession: null,
+        isLoading: false,
+        error: null,
+      });
+      Object.assign(mockTaskManagement, {
+        tasks: mockTasks.map((task) =>
+          task.id === 'task-1' ? { ...task, hourlyRate: 60 } : task
+        ),
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('includes running timers in Total Time Today and Earnings Today', () => {
+      renderDashboard();
+
+      // 10 min running + 30 min stopped. The running-only session was
+      // previously excluded entirely (totalDuration > 0 filter), so the old
+      // code showed 0h 30m here.
+      expect(screen.getByText('0h 40m')).toBeInTheDocument();
+      // 40 min at $60/h
+      expect(screen.getByText('40')).toBeInTheDocument();
+    });
+
+    it('ticks the totals forward while a timer is running', () => {
+      renderDashboard();
+
+      expect(screen.getByText('0h 40m')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+
+      expect(screen.getByText('0h 41m')).toBeInTheDocument();
+      expect(screen.getByText('41')).toBeInTheDocument();
+    });
+
+    it('does not render the removed Tasks Worked On card', () => {
+      renderDashboard();
+
+      expect(screen.getByText('Total Time Today')).toBeInTheDocument();
+      expect(screen.getByText('Earnings Today')).toBeInTheDocument();
+      expect(screen.queryByText('Tasks Worked On')).not.toBeInTheDocument();
     });
   });
 });

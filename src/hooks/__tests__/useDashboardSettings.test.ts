@@ -36,6 +36,8 @@ describe('useDashboardSettings', () => {
     widgets: [
       { id: 'total-time-today', enabled: true, order: 1 },
       { id: 'earnings-today', enabled: true, order: 2 },
+      // 'tasks-worked-on' was removed from DEFAULT_WIDGETS; keeping it here
+      // models older persisted localStorage, whose stale entries stay inert.
       { id: 'tasks-worked-on', enabled: true, order: 3 },
       { id: 'todays-entries', enabled: true, order: 5 },
       { id: 'daily-goal-progress', enabled: true, order: 4 },
@@ -78,11 +80,10 @@ describe('useDashboardSettings', () => {
       const { result } = renderHook(() => useDashboardSettings());
       const availableWidgets = result.current.getAvailableWidgets();
 
-      expect(availableWidgets).toHaveLength(5);
+      expect(availableWidgets).toHaveLength(4);
       expect(availableWidgets.map(w => w.id)).toEqual([
         'total-time-today',
         'earnings-today',
-        'tasks-worked-on',
         'todays-entries',
         'daily-goal-progress',
       ]);
@@ -360,8 +361,8 @@ describe('useDashboardSettings', () => {
       const updateFunction = mockSetPreferences.mock.calls[0][0];
       const newPreferences = updateFunction(preferencesWithMissingWidgets);
 
-      // Should have all 5 default widgets
-      expect(newPreferences.widgets).toHaveLength(5);
+      // Should have all 4 default widgets
+      expect(newPreferences.widgets).toHaveLength(4);
 
       // Should preserve existing widget
       const existingWidget = newPreferences.widgets.find((w: any) => w.id === 'total-time-today');
