@@ -4,12 +4,20 @@ use crate::config::{Config, get_config};
 use crate::error::{AppError};
 use crate::state::AppState;
 use crate::timer;
+use crate::types::Task;
 use crate::utils::{format_duration_hm, get_current_elapsed_ms, is_macos};
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
+
+/// Tasks eligible for the tray's quick-start submenu. Archived tasks are
+/// hidden, and truncation happens only after filtering so archived entries
+/// never consume visible slots.
+pub(crate) fn visible_tasks(tasks: &[Task], max: usize) -> Vec<&Task> {
+    tasks.iter().filter(|t| !t.is_archived).take(max).collect()
+}
 
 pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri::Wry>, tauri::Error> {
     let config = get_config();
@@ -50,8 +58,10 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
-    // Quick start tasks section
-    let has_tasks = state.with_tasks(|tasks| !tasks.is_empty()).unwrap_or(false);
+    // Quick start tasks section (archived tasks are not listed)
+    let has_tasks = state
+        .with_tasks(|tasks| !visible_tasks(tasks, config.tray_max_recent_tasks).is_empty())
+        .unwrap_or(false);
 
     if has_tasks {
         let start_submenu = Submenu::new(app, "▶️ Start Timer", true)?;
@@ -60,7 +70,7 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
         // Add recent/favorite tasks (limit to configured max)
         state
             .with_tasks(|tasks| {
-                for task in tasks.iter().take(config.tray_max_recent_tasks) {
+                for task in visible_tasks(tasks, config.tray_max_recent_tasks) {
                     let menu_id = format!("start_task_{}", task.id);
                     let task_item = MenuItem::with_id(app, &menu_id, &task.name, true, None::<&str>)?;
                     start_submenu.append(&task_item)?;
@@ -422,4 +432,48 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
             was_running = is_running;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn task(id: &str, archived: bool) -> Task {
+        Task {
+            id: id.to_string(),
+            name: format!("Task {}", id),
+            hourly_rate: None,
+            default_note_template_id: None,
+            is_archived: archived,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn visible_tasks_filters_archived() {
+        let tasks = vec![task("a", false), task("b", true), task("c", false)];
+        let ids: Vec<&str> = visible_tasks(&tasks, 5).iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "c"]);
+    }
+
+    #[test]
+    fn visible_tasks_truncates_after_filtering() {
+        // Archived tasks at the front of the list must not consume slots
+        let tasks = vec![
+            task("x", true),
+            task("y", true),
+            task("a", false),
+            task("b", false),
+            task("c", false),
+        ];
+        let ids: Vec<&str> = visible_tasks(&tasks, 2).iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn visible_tasks_empty_when_all_archived() {
+        let tasks = vec![task("a", true), task("b", true)];
+        assert!(visible_tasks(&tasks, 5).is_empty());
+    }
 }

@@ -202,6 +202,42 @@ describe('SubscriptionService', () => {
       expect(limitCheck.limit).toBe(10);
       expect(limitCheck.currentCount).toBe(5);
     });
+
+    it('should not count archived tasks toward the limit', async () => {
+      mockStorageService.getItem.mockResolvedValue({
+        sku: SUBSCRIPTION_SKUS.FREE,
+        activatedAt: '2023-01-01T00:00:00.000Z',
+      });
+
+      // 12 tasks total, 5 archived -> only 7 occupy limit slots
+      const mockTasks = Array(12).fill(null).map((_, i) => ({
+        id: `task-${i}`,
+        name: `Task ${i}`,
+        isArchived: i < 5,
+      }));
+      const limitCheck = await subscriptionService.checkTaskLimit(mockTasks as any);
+
+      expect(limitCheck.canAddTask).toBe(true);
+      expect(limitCheck.currentCount).toBe(7);
+      expect(limitCheck.limit).toBe(10);
+    });
+
+    it('should still enforce the limit against active tasks only', async () => {
+      mockStorageService.getItem.mockResolvedValue({
+        sku: SUBSCRIPTION_SKUS.FREE,
+        activatedAt: '2023-01-01T00:00:00.000Z',
+      });
+
+      // 10 active tasks hit the Free limit regardless of archived extras
+      const mockTasks = [
+        ...Array(10).fill(null).map((_, i) => ({ id: `active-${i}`, name: `Active ${i}` })),
+        ...Array(3).fill(null).map((_, i) => ({ id: `archived-${i}`, name: `Archived ${i}`, isArchived: true })),
+      ];
+      const limitCheck = await subscriptionService.checkTaskLimit(mockTasks as any);
+
+      expect(limitCheck.canAddTask).toBe(false);
+      expect(limitCheck.currentCount).toBe(10);
+    });
   });
 
   describe('getCurrentTier', () => {

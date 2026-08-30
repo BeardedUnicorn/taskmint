@@ -98,9 +98,13 @@ const mockTasks: Task[] = [
 // Mock task management context
 const mockTaskManagement = {
   tasks: mockTasks,
+  activeTasks: mockTasks,
+  archivedTasks: [],
   addTask: vi.fn(),
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
+  archiveTask: vi.fn(),
+  unarchiveTask: vi.fn(),
   getTaskById: vi.fn(),
   getTaskByName: vi.fn(),
   getTaskNames: vi.fn(),

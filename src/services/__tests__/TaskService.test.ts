@@ -92,6 +92,55 @@ describe('TaskService', () => {
     });
   });
 
+  describe('archiving', () => {
+    it('should archive a task, stamping archivedAt and bumping updatedAt', async () => {
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }]);
+
+      const archived = await service.archiveTask('task1');
+
+      expect(archived.isArchived).toBe(true);
+      expect(archived.archivedAt).toEqual(expect.any(String));
+      expect(new Date(archived.archivedAt as string).getTime()).not.toBeNaN();
+      expect(new Date(archived.updatedAt).getTime()).toBeGreaterThan(
+        new Date(baseTask.updatedAt).getTime()
+      );
+
+      const savedTasks = vi.mocked(mockStorageService.setTasks).mock.calls[0][0];
+      expect(savedTasks).toHaveLength(1);
+      expect(savedTasks[0]).toMatchObject({ id: 'task1', isArchived: true });
+    });
+
+    it('should unarchive a task, clearing archivedAt', async () => {
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([
+        { ...baseTask, isArchived: true, archivedAt: '2023-02-01T00:00:00.000Z' },
+      ]);
+
+      const unarchived = await service.unarchiveTask('task1');
+
+      expect(unarchived.isArchived).toBe(false);
+      expect(unarchived.archivedAt).toBeNull();
+    });
+
+    it('should keep an archived task retrievable via getAllTasks', async () => {
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }]);
+      await service.archiveTask('task1');
+
+      const savedTasks = vi.mocked(mockStorageService.setTasks).mock.calls[0][0];
+      mockStorageService.getTasks = vi.fn().mockResolvedValue(savedTasks);
+
+      const allTasks = await service.getAllTasks();
+      expect(allTasks).toHaveLength(1);
+      expect(allTasks[0]).toMatchObject({ id: 'task1', isArchived: true });
+    });
+
+    it('should reject archiving a non-existent task', async () => {
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([]);
+      await expect(service.archiveTask('missing')).rejects.toMatchObject({
+        code: 'TASK_UPDATE_FAILED',
+      });
+    });
+  });
+
   describe('CRUD error handling', () => {
     it('should reject creating task when validation fails', async () => {
       await expect(service.createTask({ name: '' } as any)).rejects.toMatchObject({

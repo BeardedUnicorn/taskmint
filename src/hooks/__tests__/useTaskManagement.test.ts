@@ -14,6 +14,8 @@ const mockTaskService = {
   createTask: vi.fn(),
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
+  archiveTask: vi.fn(),
+  unarchiveTask: vi.fn(),
   getTask: vi.fn(),
   getTaskByName: vi.fn(),
   getTaskHierarchy: vi.fn(),
@@ -268,6 +270,89 @@ describe('useTaskManagement', () => {
     });
   });
 
+  describe('archiving', () => {
+    it('should partition tasks into activeTasks and archivedTasks', async () => {
+      const archivedTask = {
+        ...sampleTasks[2],
+        isArchived: true,
+        archivedAt: '2024-02-01T00:00:00.000Z',
+      };
+      mockTaskService.getAllTasks.mockResolvedValue([...sampleTasks.slice(0, 2), archivedTask]);
+
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.tasks).toHaveLength(3);
+      expect(result.current.activeTasks.map(t => t.id)).toEqual(['task-1', 'task-2']);
+      expect(result.current.archivedTasks.map(t => t.id)).toEqual(['task-3']);
+    });
+
+    it('should archive a task in place and show a success toast', async () => {
+      const archivedTask = {
+        ...sampleTasks[0],
+        isArchived: true,
+        archivedAt: '2024-02-01T00:00:00.000Z',
+        updatedAt: '2024-02-01T00:00:00.000Z',
+      };
+      mockTaskService.archiveTask.mockResolvedValue(archivedTask);
+
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await act(async () => {
+        await result.current.archiveTask('task-1');
+      });
+
+      expect(mockTaskService.archiveTask).toHaveBeenCalledWith('task-1');
+      // In-place update: no reload from the service beyond the mount load
+      expect(mockTaskService.getAllTasks).toHaveBeenCalledTimes(1);
+      expect(result.current.tasks.find(t => t.id === 'task-1')?.isArchived).toBe(true);
+      expect(result.current.activeTasks.map(t => t.id)).toEqual(['task-2', 'task-3']);
+      expect(result.current.archivedTasks.map(t => t.id)).toEqual(['task-1']);
+      expect(mockShowSuccess).toHaveBeenCalledWith('Task "Development" archived successfully!');
+    });
+
+    it('should unarchive a task, restoring activeTasks membership', async () => {
+      const archived = {
+        ...sampleTasks[0],
+        isArchived: true,
+        archivedAt: '2024-02-01T00:00:00.000Z',
+      };
+      mockTaskService.getAllTasks.mockResolvedValue([archived, ...sampleTasks.slice(1)]);
+      const unarchivedTask = {
+        ...sampleTasks[0],
+        isArchived: false,
+        archivedAt: null,
+        updatedAt: '2024-03-01T00:00:00.000Z',
+      };
+      mockTaskService.unarchiveTask.mockResolvedValue(unarchivedTask);
+
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.archivedTasks.map(t => t.id)).toEqual(['task-1']);
+
+      await act(async () => {
+        await result.current.unarchiveTask('task-1');
+      });
+
+      expect(mockTaskService.unarchiveTask).toHaveBeenCalledWith('task-1');
+      expect(result.current.activeTasks.map(t => t.id)).toEqual(['task-1', 'task-2', 'task-3']);
+      expect(result.current.archivedTasks).toHaveLength(0);
+      expect(mockShowSuccess).toHaveBeenCalledWith('Task "Development" unarchived successfully!');
+    });
+
+    it('should handle archive task error', async () => {
+      const error = new Error('Failed to archive task');
+      mockTaskService.archiveTask.mockRejectedValue(error);
+
+      const { result } = renderHook(() => useTaskManagement(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await expect(result.current.archiveTask('task-1')).rejects.toThrow('Failed to archive task');
+      expect(mockShowError).toHaveBeenCalledWith('Failed to archive task. Please try again.');
+    });
+  });
+
   describe('deleteTask', () => {
     it('should delete task with default strategy', async () => {
       mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
@@ -485,12 +570,18 @@ describe('useTaskManagement', () => {
 
       // State properties
       expect(result.current).toHaveProperty('tasks');
+      expect(result.current).toHaveProperty('activeTasks');
+      expect(result.current).toHaveProperty('archivedTasks');
       expect(result.current).toHaveProperty('isLoading');
 
       // CRUD methods
       expect(result.current).toHaveProperty('addTask');
       expect(result.current).toHaveProperty('updateTask');
       expect(result.current).toHaveProperty('deleteTask');
+      expect(result.current).toHaveProperty('archiveTask');
+      expect(result.current).toHaveProperty('unarchiveTask');
+      expect(typeof result.current.archiveTask).toBe('function');
+      expect(typeof result.current.unarchiveTask).toBe('function');
 
       // Lookup methods
       expect(result.current).toHaveProperty('getTaskById');

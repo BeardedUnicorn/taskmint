@@ -14,6 +14,8 @@ export interface Task {
   defaultNoteTemplateId?: string | null; // Optional default note template
   parentId?: string | null; // Optional parent task for hierarchy
   childOrder?: number; // Order within parent's children
+  isArchived?: boolean; // Archive status (defaults to false)
+  archivedAt?: string | null; // ISO string when archived
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
 }
@@ -26,6 +28,8 @@ export const TaskSchema = z.object({
   defaultNoteTemplateId: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
   childOrder: z.number().min(0).optional(),
+  isArchived: z.boolean().default(false),
+  archivedAt: z.iso.datetime().nullable().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 });
@@ -72,9 +76,13 @@ export type TaskDeletionStrategy = 'orphan' | 'cascade' | 'prevent';
 // Task management hook return type
 export interface UseTaskManagementReturn {
   tasks: Task[];
+  activeTasks: Task[];
+  archivedTasks: Task[];
   addTask: (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Task | null>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<Task | null>;
   deleteTask: (taskId: string, strategy?: TaskDeletionStrategy) => Promise<void>;
+  archiveTask: (taskId: string) => Promise<Task | null>;
+  unarchiveTask: (taskId: string) => Promise<Task | null>;
   getTaskById: (taskId: string) => Task | undefined;
   getTaskByName: (taskName: string) => Task | undefined;
   getTaskNames: () => string[];

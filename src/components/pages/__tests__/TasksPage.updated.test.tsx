@@ -1,5 +1,9 @@
 /**
- * TasksPage Component Tests - Updated for Notes Section Removal
+ * TasksPage Component Tests - Task List Layout with Archiving
+ *
+ * Renders the real TaskListPane (master list) with mocked detail pane and
+ * dialogs. Covers row selection, add/edit/delete flows, archiving, and the
+ * selection fallback preferring active tasks.
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -29,6 +33,7 @@ vi.mock('../tasks/TaskDetailPane', () => ({
   TaskDetailPane: vi.fn(({ task, onEditEntry, onDeleteEntry }) => (
     <div data-testid="task-detail-pane">
       <h3>{task.name} Details</h3>
+      {task.isArchived && <span data-testid="detail-archived-flag">Archived Detail</span>}
       <button onClick={() => onEditEntry({ id: 'entry1', taskName: task.name })}>Edit Entry</button>
       <button onClick={() => onDeleteEntry('entry1')}>Delete Entry</button>
     </div>
@@ -58,7 +63,7 @@ vi.mock('../tasks/TaskFormDialog', () => ({
 }));
 
 vi.mock('../../ui/dialogs/EditTimeEntryDialog', () => ({
-  EditTimeEntryDialog: vi.fn(({ open, onSave, onClose }) => 
+  EditTimeEntryDialog: vi.fn(({ open, onSave, onClose }) =>
     open ? (
       <div data-testid="edit-time-entry-dialog">
         <button onClick={() => onSave({ id: 'entry1', taskName: 'Updated Task', durationMs: 3600000 })}>Save Entry</button>
@@ -69,7 +74,7 @@ vi.mock('../../ui/dialogs/EditTimeEntryDialog', () => ({
 }));
 
 vi.mock('../../ui', () => ({
-  ConfirmDialog: vi.fn(({ open, onConfirm, onClose }) => 
+  ConfirmDialog: vi.fn(({ open, onConfirm, onClose }) =>
     open ? (
       <div data-testid="confirm-dialog">
         <button onClick={onConfirm}>Confirm</button>
@@ -77,7 +82,7 @@ vi.mock('../../ui', () => ({
       </div>
     ) : null
   ),
-  UpgradeDialog: vi.fn(({ open, onUpgrade, onClose }) => 
+  UpgradeDialog: vi.fn(({ open, onUpgrade, onClose }) =>
     open ? (
       <div data-testid="upgrade-dialog">
         <button onClick={() => onUpgrade('pro-lifetime')}>Upgrade</button>
@@ -85,9 +90,21 @@ vi.mock('../../ui', () => ({
       </div>
     ) : null
   ),
+  // The real TaskListPane renders this header
+  SearchListHeader: vi.fn(({ title, searchValue, onSearchChange, actions }) => (
+    <div data-testid="search-list-header">
+      <span>{title}</span>
+      <input
+        aria-label="Search tasks"
+        value={searchValue}
+        onChange={(e) => onSearchChange(e.target.value)}
+      />
+      {actions}
+    </div>
+  )),
 }));
 
-describe('TasksPage - Updated without Notes Section', () => {
+describe('TasksPage - Task List Layout', () => {
   const mockTasks: Task[] = [
     {
       id: 'task1',
@@ -107,6 +124,16 @@ describe('TasksPage - Updated without Notes Section', () => {
     },
   ];
 
+  const archivedTask: Task = {
+    id: 'task3',
+    name: 'Old Task',
+    hourlyRate: 40,
+    isArchived: true,
+    archivedAt: '2024-02-01T00:00:00Z',
+    createdAt: '2024-01-01T09:00:00Z',
+    updatedAt: '2024-02-01T00:00:00Z',
+  };
+
   const mockTimeEntries: TimeEntry[] = [
     {
       id: 'entry1',
@@ -125,72 +152,57 @@ describe('TasksPage - Updated without Notes Section', () => {
     onAddTask: vi.fn(),
     onUpdateTask: vi.fn(),
     onDeleteTask: vi.fn(),
+    onArchiveTask: vi.fn(),
+    onUnarchiveTask: vi.fn(),
     onUpdateEntry: vi.fn(),
     onDeleteEntry: vi.fn(),
   };
 
-  let mockUseSubscription: any;
   let mockUseTaskLimit: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    
+
     // Import the mocked functions
     const subscriptionModule = await import('../../../contexts/SubscriptionContext');
-    mockUseSubscription = vi.mocked(subscriptionModule.useSubscription);
     mockUseTaskLimit = vi.mocked(subscriptionModule.useTaskLimit);
   });
 
-  it('renders the tasks page with header and controls', () => {
+  it('renders the tasks page with header, task list, and controls', () => {
     render(<TasksPage {...mockProps} />);
 
     expect(screen.getByText('Tasks')).toBeInTheDocument();
     expect(screen.getByText('Manage your tasks and view detailed time tracking information')).toBeInTheDocument();
-    expect(screen.getByLabelText('Select Task')).toBeInTheDocument();
+    expect(screen.getByText('Task List')).toBeInTheDocument();
+    expect(screen.getByText('Task 1')).toBeInTheDocument();
+    expect(screen.getByText('Task 2')).toBeInTheDocument();
     expect(screen.getByText('Add Task')).toBeInTheDocument();
   });
 
   it('does not render notes section', () => {
     render(<TasksPage {...mockProps} />);
 
-    // Should not find any notes-related elements
     expect(screen.queryByText('Task Notes')).not.toBeInTheDocument();
     expect(screen.queryByText('Notes')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-notes-integration')).not.toBeInTheDocument();
   });
 
-  it('shows single pane layout for time worked only', () => {
+  it('selects the first task by default and shows its details', () => {
     render(<TasksPage {...mockProps} />);
 
-    // Should show the task detail pane
     expect(screen.getByTestId('task-detail-pane')).toBeInTheDocument();
     expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
   });
 
-  it('mentions Notes page in the empty state message', () => {
-    render(<TasksPage {...mockProps} tasks={[]} />);
+  it('prefers the first active task for the initial selection', () => {
+    render(<TasksPage {...mockProps} tasks={[archivedTask, ...mockTasks]} />);
 
-    expect(screen.getByText(/For notes management, visit the Notes page/)).toBeInTheDocument();
-  });
-
-  it('selects first task by default when tasks are available', () => {
-    render(<TasksPage {...mockProps} />);
-
-    // Check that the first task is selected by looking at the hidden input value
-    const hiddenInput = screen.getByDisplayValue('task1');
-    expect(hiddenInput).toBeInTheDocument();
+    // task3 is archived and first in the list, but selection lands on Task 1
     expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
   });
 
-  it('allows task selection from dropdown', async () => {
+  it('allows selecting a task by clicking its row', async () => {
     render(<TasksPage {...mockProps} />);
-
-    const taskSelector = screen.getByLabelText('Select Task');
-    fireEvent.mouseDown(taskSelector);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Task 2')).toBeInTheDocument();
-    });
 
     fireEvent.click(screen.getByText('Task 2'));
 
@@ -199,11 +211,78 @@ describe('TasksPage - Updated without Notes Section', () => {
     });
   });
 
+  it('lists archived tasks in a labeled section and keeps them selectable', async () => {
+    render(<TasksPage {...mockProps} tasks={[...mockTasks, archivedTask]} />);
+
+    expect(screen.getByText('Archived (1)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Old Task'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Old Task Details')).toBeInTheDocument();
+      expect(screen.getByTestId('detail-archived-flag')).toBeInTheDocument();
+    });
+  });
+
+  it('calls onArchiveTask with the task id when the row archive button is clicked', () => {
+    render(<TasksPage {...mockProps} />);
+
+    // Task 2 is not selected; archiving must not require selecting it first
+    const archiveButtons = screen.getAllByLabelText('Archive task');
+    expect(archiveButtons).toHaveLength(2);
+    fireEvent.click(archiveButtons[1]);
+
+    expect(mockProps.onArchiveTask).toHaveBeenCalledWith('task2');
+    // Row action does not change the selection
+    expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
+  });
+
+  it('calls onUnarchiveTask for archived rows', () => {
+    render(<TasksPage {...mockProps} tasks={[...mockTasks, archivedTask]} />);
+
+    fireEvent.click(screen.getByLabelText('Unarchive task'));
+
+    expect(mockProps.onUnarchiveTask).toHaveBeenCalledWith('task3');
+  });
+
+  it('keeps the archived task selected and refreshes its detail after archiving', async () => {
+    const { rerender } = render(<TasksPage {...mockProps} />);
+    expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
+
+    // Parent state updates after onArchiveTask resolves
+    const updatedTasks = [
+      { ...mockTasks[0], isArchived: true, archivedAt: '2024-02-01T00:00:00Z' },
+      mockTasks[1],
+    ];
+    rerender(<TasksPage {...mockProps} tasks={updatedTasks} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
+      expect(screen.getByTestId('detail-archived-flag')).toBeInTheDocument();
+    });
+  });
+
+  it('opens the delete confirmation from a row and calls onDeleteTask on confirm', async () => {
+    render(<TasksPage {...mockProps} />);
+
+    const deleteButtons = screen.getAllByLabelText('Delete task');
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Confirm'));
+
+    await waitFor(() => {
+      expect(mockProps.onDeleteTask).toHaveBeenCalledWith('task1');
+    });
+  });
+
   it('opens add task dialog when add button is clicked', async () => {
     render(<TasksPage {...mockProps} />);
 
-    const addButton = screen.getByText('Add Task');
-    fireEvent.click(addButton);
+    fireEvent.click(screen.getByText('Add Task'));
 
     await waitFor(() => {
       expect(screen.getByTestId('add-task-dialog')).toBeInTheDocument();
@@ -214,15 +293,13 @@ describe('TasksPage - Updated without Notes Section', () => {
     const mockOnAddTask = vi.fn().mockResolvedValue(null); // Return null to avoid auto-selection
     render(<TasksPage {...mockProps} onAddTask={mockOnAddTask} />);
 
-    const addButton = screen.getByText('Add Task');
-    fireEvent.click(addButton);
+    fireEvent.click(screen.getByText('Add Task'));
 
     await waitFor(() => {
       expect(screen.getByTestId('add-task-dialog')).toBeInTheDocument();
     });
 
-    const saveButton = screen.getByText('Save Task');
-    fireEvent.click(saveButton);
+    fireEvent.click(screen.getByText('Save Task'));
 
     await waitFor(() => {
       expect(mockOnAddTask).toHaveBeenCalledWith({
@@ -232,11 +309,11 @@ describe('TasksPage - Updated without Notes Section', () => {
     });
   });
 
-  it('opens edit task dialog when edit button is clicked', async () => {
+  it('opens edit task dialog from the row edit button', async () => {
     render(<TasksPage {...mockProps} />);
 
-    const editButton = screen.getByTitle('Edit Selected Task');
-    fireEvent.click(editButton);
+    const editButtons = screen.getAllByLabelText('Edit task');
+    fireEvent.click(editButtons[0]);
 
     await waitFor(() => {
       expect(screen.getByTestId('edit-task-dialog')).toBeInTheDocument();
@@ -247,15 +324,14 @@ describe('TasksPage - Updated without Notes Section', () => {
     const mockOnUpdateTask = vi.fn().mockResolvedValue({ id: 'task1', name: 'Updated Task' });
     render(<TasksPage {...mockProps} onUpdateTask={mockOnUpdateTask} />);
 
-    const editButton = screen.getByTitle('Edit Selected Task');
-    fireEvent.click(editButton);
+    const editButtons = screen.getAllByLabelText('Edit task');
+    fireEvent.click(editButtons[0]);
 
     await waitFor(() => {
       expect(screen.getByTestId('edit-task-dialog')).toBeInTheDocument();
     });
 
-    const saveButton = screen.getByText('Save Changes');
-    fireEvent.click(saveButton);
+    fireEvent.click(screen.getByText('Save Changes'));
 
     await waitFor(() => {
       expect(mockOnUpdateTask).toHaveBeenCalledWith('task1', {
@@ -266,23 +342,9 @@ describe('TasksPage - Updated without Notes Section', () => {
   });
 
   it('opens edit time entry dialog when edit entry is clicked', async () => {
-    // Mock a valid time entry with proper date format
-    const validTimeEntries: TimeEntry[] = [
-      {
-        id: 'entry1',
-        taskName: 'Task 1',
-        startTime: new Date('2024-01-01T10:00:00Z'),
-        endTime: new Date('2024-01-01T11:00:00Z'),
-        duration: 3600000,
-        isRunning: false,
-        date: '2024-01-01',
-      },
-    ];
+    render(<TasksPage {...mockProps} />);
 
-    render(<TasksPage {...mockProps} timeEntries={validTimeEntries} />);
-
-    const editEntryButton = screen.getByText('Edit Entry');
-    fireEvent.click(editEntryButton);
+    fireEvent.click(screen.getByText('Edit Entry'));
 
     await waitFor(() => {
       expect(screen.getByTestId('edit-time-entry-dialog')).toBeInTheDocument();
@@ -291,30 +353,15 @@ describe('TasksPage - Updated without Notes Section', () => {
 
   it('calls onUpdateEntry when saving time entry changes', async () => {
     const mockOnUpdateEntry = vi.fn();
-    // Mock a valid time entry with proper date format
-    const validTimeEntries: TimeEntry[] = [
-      {
-        id: 'entry1',
-        taskName: 'Task 1',
-        startTime: new Date('2024-01-01T10:00:00Z'),
-        endTime: new Date('2024-01-01T11:00:00Z'),
-        duration: 3600000,
-        isRunning: false,
-        date: '2024-01-01',
-      },
-    ];
+    render(<TasksPage {...mockProps} onUpdateEntry={mockOnUpdateEntry} />);
 
-    render(<TasksPage {...mockProps} timeEntries={validTimeEntries} onUpdateEntry={mockOnUpdateEntry} />);
-
-    const editEntryButton = screen.getByText('Edit Entry');
-    fireEvent.click(editEntryButton);
+    fireEvent.click(screen.getByText('Edit Entry'));
 
     await waitFor(() => {
       expect(screen.getByTestId('edit-time-entry-dialog')).toBeInTheDocument();
     });
 
-    const saveButton = screen.getByText('Save Entry');
-    fireEvent.click(saveButton);
+    fireEvent.click(screen.getByText('Save Entry'));
 
     await waitFor(() => {
       // The page passes the dialog payload through unchanged.
@@ -329,8 +376,7 @@ describe('TasksPage - Updated without Notes Section', () => {
   it('opens delete confirmation when delete entry is clicked', async () => {
     render(<TasksPage {...mockProps} />);
 
-    const deleteEntryButton = screen.getByText('Delete Entry');
-    fireEvent.click(deleteEntryButton);
+    fireEvent.click(screen.getByText('Delete Entry'));
 
     await waitFor(() => {
       expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
@@ -341,15 +387,13 @@ describe('TasksPage - Updated without Notes Section', () => {
     const mockOnDeleteEntry = vi.fn();
     render(<TasksPage {...mockProps} onDeleteEntry={mockOnDeleteEntry} />);
 
-    const deleteEntryButton = screen.getByText('Delete Entry');
-    fireEvent.click(deleteEntryButton);
+    fireEvent.click(screen.getByText('Delete Entry'));
 
     await waitFor(() => {
       expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
     });
 
-    const confirmButton = screen.getByText('Confirm');
-    fireEvent.click(confirmButton);
+    fireEvent.click(screen.getByText('Confirm'));
 
     await waitFor(() => {
       expect(mockOnDeleteEntry).toHaveBeenCalledWith('entry1');
@@ -367,8 +411,7 @@ describe('TasksPage - Updated without Notes Section', () => {
 
     render(<TasksPage {...mockProps} />);
 
-    const addButton = screen.getByText('Add Task');
-    fireEvent.click(addButton);
+    fireEvent.click(screen.getByText('Add Task'));
 
     await waitFor(() => {
       expect(screen.getByTestId('upgrade-dialog')).toBeInTheDocument();
@@ -392,41 +435,42 @@ describe('TasksPage - Updated without Notes Section', () => {
   it('shows empty state when no tasks are available', () => {
     render(<TasksPage {...mockProps} tasks={[]} />);
 
+    expect(screen.getByText(/No tasks created yet/)).toBeInTheDocument();
     expect(screen.getByText('Select a Task')).toBeInTheDocument();
     expect(screen.getByText(/Select a task to view details and time entries/)).toBeInTheDocument();
     expect(screen.getByText(/For notes management, visit the Notes page/)).toBeInTheDocument();
   });
 
   it('auto-selects newly created task', async () => {
-    const newTask = { 
-      id: 'task3', 
-      name: 'New Task', 
-      hourlyRate: 50, 
+    const newTask = {
+      id: 'task4',
+      name: 'New Task',
+      hourlyRate: 50,
       defaultNoteTemplateId: null,
-      createdAt: '2024-01-01T12:00:00Z', 
-      updatedAt: '2024-01-01T12:00:00Z' 
+      createdAt: '2024-01-01T12:00:00Z',
+      updatedAt: '2024-01-01T12:00:00Z'
     };
     const mockOnAddTask = vi.fn().mockResolvedValue(newTask);
-    
+
     // Start with the original tasks, then add the new one
     const updatedTasks = [...mockTasks, newTask];
-    
+
     render(<TasksPage {...mockProps} tasks={updatedTasks} onAddTask={mockOnAddTask} />);
 
-    const addButton = screen.getByText('Add Task');
-    fireEvent.click(addButton);
+    fireEvent.click(screen.getByText('Add Task'));
 
     await waitFor(() => {
       expect(screen.getByTestId('add-task-dialog')).toBeInTheDocument();
     });
 
-    const saveButton = screen.getByText('Save Task');
-    fireEvent.click(saveButton);
+    fireEvent.click(screen.getByText('Save Task'));
 
     await waitFor(() => {
       expect(mockOnAddTask).toHaveBeenCalled();
     });
 
-    // The component should auto-select the new task (this would be tested through integration)
+    await waitFor(() => {
+      expect(screen.getByText('New Task Details')).toBeInTheDocument();
+    });
   });
 });
