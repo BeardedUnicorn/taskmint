@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getInstanceElapsedMs,
+  getSessionElapsedMs,
   getEntryElapsedMs,
   buildTimerEditUpdates,
   sessionsToTimeEntries,
@@ -96,6 +97,46 @@ describe('getInstanceElapsedMs', () => {
       pausedDuration: sec(10),
     });
     expect(getInstanceElapsedMs(i)).toBe(sec(40));
+  });
+});
+
+describe('getSessionElapsedMs', () => {
+  function session(timerInstances: TimerInstance[]): TaskSession {
+    return {
+      id: 'session_1',
+      taskId: 'task_1',
+      taskName: 'Deep work',
+      timerInstances,
+      totalDuration: 0, // backend field: finalized instances only, ignored here
+      isActive: true,
+      date: '2026-08-18',
+      createdAt: new Date(T0).toISOString(),
+      updatedAt: new Date(T0).toISOString(),
+    };
+  }
+
+  it('sums stopped, paused, and running instances at nowMs', () => {
+    const s = session([
+      instance({ id: 'a', state: TimerState.stopped, duration: sec(60) }),
+      // frozen at (50 - 10) = 40s regardless of nowMs
+      instance({
+        id: 'b',
+        state: TimerState.paused,
+        pausedAt: new Date(T0 + sec(50)),
+        pausedDuration: sec(10),
+      }),
+      // live: (100 - 30) = 70s at nowMs
+      instance({ id: 'c', state: TimerState.running, pausedDuration: sec(30) }),
+    ]);
+    expect(getSessionElapsedMs(s, T0 + sec(100))).toBe(sec(170));
+  });
+
+  it('returns 0 for a session with no timer instances', () => {
+    expect(getSessionElapsedMs(session([]))).toBe(0);
+  });
+
+  it('returns 0 for malformed sessions without a timerInstances array', () => {
+    expect(getSessionElapsedMs({ id: 'x' } as unknown as TaskSession)).toBe(0);
   });
 });
 
