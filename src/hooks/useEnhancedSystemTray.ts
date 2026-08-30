@@ -95,10 +95,10 @@ export function useEnhancedSystemTray({
   // Handle timer start from tray
   const handleStartTimerFromTray = useCallback(async (taskName: string, _startTime: Date) => {
     try {
-      // Find existing task or use the first one as fallback
+      // Find existing task or use the first active one as fallback
       let task = tasks.find(t => t.name === taskName);
-      if (!task && tasks.length > 0) {
-        task = tasks[0];
+      if (!task) {
+        task = tasks.find(t => !t.isArchived);
       }
 
       const taskId = task?.id || 'default';

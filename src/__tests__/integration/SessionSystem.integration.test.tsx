@@ -90,9 +90,13 @@ vi.mock('../../contexts/SessionManagementContext', () => ({
 // Mock task management context
 const mockTaskManagement = {
   tasks: [],
+  activeTasks: [],
+  archivedTasks: [],
   addTask: vi.fn(),
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
+  archiveTask: vi.fn(),
+  unarchiveTask: vi.fn(),
   getTaskById: vi.fn(),
   getTaskByName: vi.fn(),
   getTaskNames: vi.fn(),
@@ -163,6 +167,8 @@ describe('Session System Integration', () => {
     
     Object.assign(mockTaskManagement, {
       tasks: mockTasks,
+      activeTasks: mockTasks,
+      archivedTasks: [],
       isLoading: false,
     });
     

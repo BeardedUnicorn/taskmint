@@ -42,7 +42,7 @@ function AppContent() {
   const sessionManager = useSessionManagementContext();
 
   // Task management context
-  const { tasks, addTask, updateTask, deleteTask } = useTaskManagementContext();
+  const { tasks, activeTasks, addTask, updateTask, deleteTask, archiveTask, unarchiveTask } = useTaskManagementContext();
 
   const { activeTimer } = useActiveTimer();
   // Derived global active entry for backward compatibility with older pages
@@ -168,6 +168,8 @@ function AppContent() {
                   onAddTask={addTask}
                   onUpdateTask={updateTask}
                   onDeleteTask={deleteTask}
+                  onArchiveTask={archiveTask}
+                  onUnarchiveTask={unarchiveTask}
                   onUpdateEntry={handleUpdateEntry}
                   onDeleteEntry={handleDeleteEntry}
                 />
@@ -205,7 +207,7 @@ function AppContent() {
           open={newTaskDialogOpen}
           onClose={() => setNewTaskDialogOpen(false)}
           onStartTask={handleStartNewTask}
-          existingTasks={tasks.map(t => t.name)}
+          existingTasks={activeTasks.map(t => t.name)}
         />
       </Box>
     </>

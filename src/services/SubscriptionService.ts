@@ -144,7 +144,8 @@ export class SubscriptionService implements ISubscriptionService {
     const subscription = await this.getUserSubscription();
     const tier = SUBSCRIPTION_TIERS[subscription.sku];
 
-    const currentCount = currentTasks.length;
+    // Archived tasks don't occupy limit slots
+    const currentCount = currentTasks.filter(task => !task.isArchived).length;
 
     // If no task limit is set, unlimited tasks are allowed
     if (!tier.taskLimit) {

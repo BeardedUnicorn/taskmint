@@ -26,6 +26,8 @@ export interface ITaskService {
   createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task>;
   updateTask(taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task>;
   deleteTask(taskId: string, strategy?: TaskDeletionStrategy): Promise<void>;
+  archiveTask(taskId: string): Promise<Task>;
+  unarchiveTask(taskId: string): Promise<Task>;
   getTask(taskId: string): Promise<Task | null>;
   getAllTasks(): Promise<Task[]>;
 
@@ -204,6 +206,27 @@ export class TaskService implements ITaskService {
         'updateTask'
       );
     }
+  }
+
+  /**
+   * Archive a task: hidden from task pickers and the tray menu,
+   * but kept in storage with all history intact
+   */
+  async archiveTask(taskId: string): Promise<Task> {
+    return this.updateTask(taskId, {
+      isArchived: true,
+      archivedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Unarchive a task, restoring it to all active-task surfaces
+   */
+  async unarchiveTask(taskId: string): Promise<Task> {
+    return this.updateTask(taskId, {
+      isArchived: false,
+      archivedAt: null,
+    });
   }
 
   /**

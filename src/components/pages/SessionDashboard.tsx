@@ -85,7 +85,7 @@ export function SessionDashboard() {
     resetActivity,
   } = useInactivityDetection();
 
-  const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
+  const { tasks, activeTasks, isLoading: tasksLoading } = useTaskManagementContext();
   const { showError, showSuccess } = useNotification();
 
   interface DashboardStats {
@@ -274,7 +274,7 @@ export function SessionDashboard() {
       <Box sx={{ mb: 4 }}>
         <SessionTimerToolbar
           activeSession={activeSession}
-          predefinedTasks={tasks}
+          predefinedTasks={activeTasks}
           onStartSession={createSession}
           onEndSession={endActiveSession}
           onPauseAll={pauseAllTimersInActiveSession}
@@ -389,7 +389,7 @@ export function SessionDashboard() {
         open={quickSessionDialogOpen}
         onClose={handleCloseQuickSessionDialog}
         onStartSession={handleStartQuickSession}
-        tasks={tasks}
+        tasks={activeTasks}
       />
 
       <EditSessionDialog

@@ -207,8 +207,8 @@ export function NotesPage({ tasks, activeEntry, notesPageState }: NotesPageProps
         return activeTask.id;
       }
     }
-    // Fallback to first task if no active timer
-    return tasks.length > 0 ? tasks[0].id : '';
+    // Fallback to the first active task (then any task) if no active timer
+    return tasks.find(task => !task.isArchived)?.id ?? tasks[0]?.id ?? '';
   };
 
   return (

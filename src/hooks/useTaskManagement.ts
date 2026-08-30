@@ -73,6 +73,11 @@ export function useTaskManagement(): UseTaskManagementReturn {
     return tasks.map(task => task.name).sort();
   }, [tasks]);
 
+  // Archived tasks stay in `tasks` (history/rate lookups need them);
+  // start-new-work surfaces consume `activeTasks` instead
+  const activeTasks = useMemo(() => tasks.filter(task => !task.isArchived), [tasks]);
+  const archivedTasks = useMemo(() => tasks.filter(task => task.isArchived === true), [tasks]);
+
   const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
     return executeAsync(
       async () => {
@@ -86,6 +91,40 @@ export function useTaskManagement(): UseTaskManagementReturn {
       {
         operation: 'updateTask',
         errorHandler: () => showError('Failed to update task. Please try again.')
+      }
+    );
+  }, [taskService, executeAsync, showSuccess, showError]);
+
+  const archiveTask = useCallback(async (taskId: string) => {
+    return executeAsync(
+      async () => {
+        const archivedTask = await taskService.archiveTask(taskId);
+        setTasks(prev => prev.map(task =>
+          task.id === taskId ? archivedTask : task
+        ));
+        showSuccess(`Task "${archivedTask.name}" archived successfully!`);
+        return archivedTask;
+      },
+      {
+        operation: 'archiveTask',
+        errorHandler: () => showError('Failed to archive task. Please try again.')
+      }
+    );
+  }, [taskService, executeAsync, showSuccess, showError]);
+
+  const unarchiveTask = useCallback(async (taskId: string) => {
+    return executeAsync(
+      async () => {
+        const unarchivedTask = await taskService.unarchiveTask(taskId);
+        setTasks(prev => prev.map(task =>
+          task.id === taskId ? unarchivedTask : task
+        ));
+        showSuccess(`Task "${unarchivedTask.name}" unarchived successfully!`);
+        return unarchivedTask;
+      },
+      {
+        operation: 'unarchiveTask',
+        errorHandler: () => showError('Failed to unarchive task. Please try again.')
       }
     );
   }, [taskService, executeAsync, showSuccess, showError]);
@@ -178,9 +217,13 @@ export function useTaskManagement(): UseTaskManagementReturn {
 
   return {
     tasks,
+    activeTasks,
+    archivedTasks,
     addTask,
     updateTask,
     deleteTask,
+    archiveTask,
+    unarchiveTask,
     getTaskById,
     getTaskByName,
     getTaskNames,

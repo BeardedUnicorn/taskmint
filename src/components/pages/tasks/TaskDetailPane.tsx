@@ -82,9 +82,14 @@ export function TaskDetailPane({
       {/* Header */}
       <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600, flex: 1 }}>
-            {task.name}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+              {task.name}
+            </Typography>
+            {task.isArchived && (
+              <Chip label="Archived" size="small" color="warning" variant="outlined" />
+            )}
+          </Box>
           <Tooltip title={isFavorite(task.id) ? 'Remove from favorites' : 'Add to favorites'}>
             <IconButton
               onClick={() => toggleFavorite(task.id)}

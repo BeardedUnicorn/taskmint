@@ -31,6 +31,10 @@ pub struct Task {
     pub name: String,
     pub hourly_rate: Option<f64>,
     pub default_note_template_id: Option<String>,
+    // Older frontends omit this field, so it must default or update_tasks
+    // rejects their payloads wholesale.
+    #[serde(default)]
+    pub is_archived: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -138,4 +142,45 @@ pub struct TaskSession {
     pub created_at: String,
     #[serde(rename = "updatedAt", default)]
     pub updated_at: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn task_without_is_archived_defaults_to_false() {
+        // Payloads from pre-archiving frontends omit the field entirely
+        let task: Task = serde_json::from_value(json!({
+            "id": "task-1",
+            "name": "Legacy Task",
+            "hourlyRate": 50.0,
+            "defaultNoteTemplateId": null,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+        }))
+        .expect("legacy task payload should deserialize");
+
+        assert!(!task.is_archived);
+    }
+
+    #[test]
+    fn task_with_is_archived_true_round_trips_camel_case() {
+        let task: Task = serde_json::from_value(json!({
+            "id": "task-2",
+            "name": "Archived Task",
+            "hourlyRate": null,
+            "defaultNoteTemplateId": null,
+            "isArchived": true,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-02T00:00:00Z"
+        }))
+        .expect("archived task payload should deserialize");
+
+        assert!(task.is_archived);
+
+        let value = serde_json::to_value(&task).expect("task should serialize");
+        assert_eq!(value.get("isArchived"), Some(&json!(true)));
+    }
 }

@@ -4,20 +4,11 @@ import {
   Typography,
   Paper,
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Button,
-  IconButton,
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Edit as EditIcon,
-} from '@mui/icons-material';
 import { Task } from '../../types/task';
 import { TimeEntry } from '../../types/timer';
 import { TaskDetailPane } from './tasks/TaskDetailPane';
+import { TaskListPane } from './tasks/TaskListPane';
 import { TaskFormDialog } from './tasks/TaskFormDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog, UpgradeDialog } from '../ui';
@@ -31,6 +22,8 @@ interface TasksPageProps {
   onAddTask: (taskData: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
   onUpdateTask?: (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
   onDeleteTask?: (taskId: string) => Promise<void>;
+  onArchiveTask?: (taskId: string) => Promise<Task | null>;
+  onUnarchiveTask?: (taskId: string) => Promise<Task | null>;
   onUpdateEntry?: (data: EditTimeEntryData) => void;
   onDeleteEntry?: (entryId: string) => void;
 }
@@ -41,10 +34,14 @@ export function TasksPage({
   onAddTask,
   onUpdateTask,
   onDeleteTask,
+  onArchiveTask,
+  onUnarchiveTask,
   onUpdateEntry,
   onDeleteEntry,
 }: TasksPageProps) {
-  const [selectedTask, setSelectedTask] = useState<Task | null>(tasks.length > 0 ? tasks[0] : null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(
+    () => tasks.find(t => !t.isArchived) ?? tasks[0] ?? null
+  );
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
@@ -56,19 +53,24 @@ export function TasksPage({
   const { subscription, upgradeSubscription } = useSubscription();
   const { canAddTask, currentCount, limit, reason, isLoading: limitLoading } = useTaskLimit(tasks);
 
-  // Update selected task when tasks change
+  // Keep the selection in sync with the task list
   useEffect(() => {
     if (tasks.length === 0) {
       setSelectedTask(null);
-    } else if (!selectedTask || !tasks.find(t => t.id === selectedTask.id)) {
-      // If no task is selected or the selected task no longer exists, select the first one
-      setSelectedTask(tasks[0]);
+      return;
+    }
+    const current = selectedTask ? tasks.find(t => t.id === selectedTask.id) : undefined;
+    if (!current) {
+      // No selection, or the selected task no longer exists: prefer the first active task
+      setSelectedTask(tasks.find(t => !t.isArchived) ?? tasks[0]);
+    } else if (current !== selectedTask) {
+      // Refresh the selected object after edits/archiving so the detail pane stays current
+      setSelectedTask(current);
     }
   }, [tasks, selectedTask]);
 
-  const handleSelectTask = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    setSelectedTask(task || null);
+  const handleSelectTask = (task: Task) => {
+    setSelectedTask(task);
   };
 
   const handleAddTaskDialog = async (taskData: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => {
@@ -134,6 +136,7 @@ export function TasksPage({
   };
 
   const handleAddTaskClick = () => {
+    if (limitLoading) return;
     if (!canAddTask) {
       setShowUpgradeDialog(true);
       return;
@@ -183,90 +186,68 @@ export function TasksPage({
         </Box>
       )}
 
-      {/* Task Selector */}
-      <Box sx={{ px: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <FormControl sx={{ minWidth: 300, flex: 1 }}>
-          <InputLabel id="task-selector-label">Select Task</InputLabel>
-          <Select
-            labelId="task-selector-label"
-            value={selectedTask ? selectedTask.id : ''}
-            label="Select Task"
-            onChange={(e) => handleSelectTask(e.target.value)}
-            disabled={tasks.length === 0}
-          >
-            {tasks.length === 0 ? (
-              <MenuItem value="" disabled>
-                <em>No tasks available</em>
-              </MenuItem>
-            ) : (
-              tasks.map((task) => (
-                <MenuItem key={task.id} value={task.id}>
-                  {task.name}
-                </MenuItem>
-              ))
-            )}
-          </Select>
-        </FormControl>
-
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddTaskClick}
-          disabled={limitLoading}
-        >
-          Add Task
-        </Button>
-
-        {selectedTask && onUpdateTask && (
-          <IconButton
-            onClick={() => setEditingTask(selectedTask)}
-            color="primary"
-            title="Edit Selected Task"
-          >
-            <EditIcon />
-          </IconButton>
-        )}
-      </Box>
-
-      {/* Main Content - Time Worked */}
+      {/* Main Content - Task List + Details */}
       <Box sx={{ flex: 1, overflow: 'hidden', px: 3, pb: 3 }}>
         <Paper
           elevation={1}
           sx={{
             height: '100%',
             display: 'flex',
-            flexDirection: 'column',
+            flexDirection: 'row',
             overflow: 'hidden',
           }}
         >
-          {selectedTask ? (
-            <TaskDetailPane
-              task={selectedTask}
-              timeEntries={timeEntries}
-              allTasks={tasks}
-              onEditEntry={onUpdateEntry ? handleEditEntry : () => {}}
-              onDeleteEntry={onDeleteEntry ? handleDeleteEntry : () => {}}
+          <Box
+            sx={{
+              width: 340,
+              flexShrink: 0,
+              height: '100%',
+              borderRight: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <TaskListPane
+              tasks={tasks}
+              selectedTask={selectedTask}
+              onSelectTask={handleSelectTask}
+              onAddClick={handleAddTaskClick}
+              onEditTask={onUpdateTask ? setEditingTask : undefined}
+              onDeleteTask={onDeleteTask ? setDeletingTaskId : undefined}
+              onArchiveTask={onArchiveTask ? (task) => { void onArchiveTask(task.id); } : undefined}
+              onUnarchiveTask={onUnarchiveTask ? (task) => { void onUnarchiveTask(task.id); } : undefined}
             />
-          ) : (
-            <Box
-              sx={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                p: 4,
-              }}
-            >
-              <Alert severity="info" sx={{ maxWidth: 400 }}>
-                <Typography variant="h6" gutterBottom>
-                  Select a Task
-                </Typography>
-                <Typography variant="body2">
-                  Select a task to view details and time entries. For notes management, visit the Notes page.
-                </Typography>
-              </Alert>
-            </Box>
-          )}
+          </Box>
+
+          <Box sx={{ flex: 1, minWidth: 0, height: '100%' }}>
+            {selectedTask ? (
+              <TaskDetailPane
+                task={selectedTask}
+                timeEntries={timeEntries}
+                allTasks={tasks}
+                onEditEntry={onUpdateEntry ? handleEditEntry : () => {}}
+                onDeleteEntry={onDeleteEntry ? handleDeleteEntry : () => {}}
+              />
+            ) : (
+              <Box
+                sx={{
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  p: 4,
+                }}
+              >
+                <Alert severity="info" sx={{ maxWidth: 400 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Select a Task
+                  </Typography>
+                  <Typography variant="body2">
+                    Select a task to view details and time entries. For notes management, visit the Notes page.
+                  </Typography>
+                </Alert>
+              </Box>
+            )}
+          </Box>
         </Paper>
       </Box>
 
