@@ -139,6 +139,35 @@ describe('SessionList', () => {
       ).not.toBeInTheDocument();
     });
 
+    it('should hide archived task names from the filter chips but keep their sessions', () => {
+      render(<SessionList {...mockProps} archivedTaskNames={['Documentation']} />);
+
+      // No chip for the archived task, chips for active tasks remain
+      expect(screen.queryByRole('button', { name: 'Documentation' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Development Work' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Code Review' })).toBeInTheDocument();
+
+      // The archived task's session history still renders
+      expect(screen.getByRole('heading', { name: 'Documentation' })).toBeInTheDocument();
+    });
+
+    it('should keep an archived task chip visible while it is selected', () => {
+      const { rerender } = render(<SessionList {...mockProps} />);
+
+      // Select the chip while the task is still active
+      fireEvent.click(screen.getByRole('button', { name: 'Documentation' }));
+
+      // The task gets archived while its filter is applied
+      rerender(<SessionList {...mockProps} archivedTaskNames={['Documentation']} />);
+
+      // The chip stays so the filter can be cleared...
+      const chip = screen.getByRole('button', { name: 'Documentation' });
+      fireEvent.click(chip);
+
+      // ...and disappears once deselected
+      expect(screen.queryByRole('button', { name: 'Documentation' })).not.toBeInTheDocument();
+    });
+
     it('should filter sessions by status', () => {
       render(<SessionList {...mockProps} />);
 

@@ -166,8 +166,8 @@ vi.mock('../../layout/SessionTimerToolbar', () => ({
 const renderDashboard = () => render(<SessionDashboard />, { wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider> });
 
 vi.mock('../../ui/sessions/SessionList', () => ({
-  SessionList: ({ sessions }: { sessions: TaskSession[] }) => (
-    <div data-testid="session-list">
+  SessionList: ({ sessions, archivedTaskNames }: { sessions: TaskSession[]; archivedTaskNames?: string[] }) => (
+    <div data-testid="session-list" data-archived-task-names={(archivedTaskNames ?? []).join(',')}>
       {sessions.map((session) => (
         <div key={session.id} data-testid="session-card" className={session.isActive ? 'active' : ''}>
           <span>{session.taskName}</span>
@@ -223,6 +223,8 @@ describe('SessionDashboard', () => {
     });
     Object.assign(mockTaskManagement, {
       tasks: mockTasks,
+      activeTasks: mockTasks,
+      archivedTasks: [],
       isLoading: false,
     });
   });
@@ -361,6 +363,29 @@ describe('SessionDashboard', () => {
       // Reset for other tests
       (mockSessionManagement as any).sessions = [];
       (mockSessionManagement as any).activeSession = null;
+    });
+
+    it('should pass archived task names to the session list for chip filtering', () => {
+      const archivedDevTask = { ...mockTasks[0], isArchived: true, archivedAt: '2024-02-01T00:00:00Z' };
+      (mockSessionManagement as any).sessions = mockSessions;
+      Object.assign(mockTaskManagement, {
+        tasks: [archivedDevTask, mockTasks[1]],
+        activeTasks: [mockTasks[1]],
+        archivedTasks: [archivedDevTask],
+      });
+
+      renderDashboard();
+
+      // The list receives the archived names for chip filtering...
+      expect(screen.getByTestId('session-list')).toHaveAttribute(
+        'data-archived-task-names',
+        'Development Work'
+      );
+      // ...while the archived task's session history still reaches it
+      expect(screen.getByText('Development Work')).toBeInTheDocument();
+
+      // Reset for other tests
+      (mockSessionManagement as any).sessions = [];
     });
 
     it('should highlight active session', () => {

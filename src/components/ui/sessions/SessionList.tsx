@@ -52,6 +52,8 @@ interface SessionListProps {
   isLoading?: boolean;
   onEditSession: (session: TaskSession) => void;
   onOpenNotes: (sessionId: string) => void;
+  /** Task names hidden from the filter chips (their sessions still render) */
+  archivedTaskNames?: string[];
 }
 
 export function SessionList({
@@ -64,6 +66,7 @@ export function SessionList({
   isLoading = false,
   onEditSession,
   onOpenNotes,
+  archivedTaskNames = [],
 }: SessionListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
@@ -71,11 +74,15 @@ export function SessionList({
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedSession, setSelectedSession] = useState<TaskSession | null>(null);
 
-  // Unique task names for task filter chips
-  const uniqueTaskNames = useMemo(
-    () => Array.from(new Set(sessions.map(s => s.taskName))).sort(),
-    [sessions]
-  );
+  // Unique task names for task filter chips. Archived tasks' names are
+  // hidden to keep the chip row manageable, but a chip stays visible while
+  // it is selected so an active filter can always be cleared.
+  const uniqueTaskNames = useMemo(() => {
+    const archived = new Set(archivedTaskNames);
+    return Array.from(new Set(sessions.map(s => s.taskName)))
+      .filter(name => !archived.has(name) || taskFilters.includes(name))
+      .sort();
+  }, [sessions, archivedTaskNames, taskFilters]);
 
   // Filter sessions based on search query and filters
   const filteredSessions = useMemo(() => {

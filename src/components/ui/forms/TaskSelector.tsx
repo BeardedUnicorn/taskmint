@@ -23,10 +23,11 @@ export function TaskSelector({
   const [showNewTaskInput, setShowNewTaskInput] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
 
-  // Sort tasks by last time entry date
+  // Sort tasks by last time entry date. Sort a copy - sorting the prop
+  // array in place mutates the caller's (memoized) task list.
   const sortedTasks = useMemo(() => {
     if (!timeEntries || timeEntries.length === 0) {
-      return predefinedTasks.sort((a, b) => a.name.localeCompare(b.name));
+      return [...predefinedTasks].sort((a, b) => a.name.localeCompare(b.name));
     }
 
     // Create a map of task names to their most recent time entry
@@ -41,7 +42,7 @@ export function TaskSelector({
       }
     });
 
-    return predefinedTasks.sort((a, b) => {
+    return [...predefinedTasks].sort((a, b) => {
       const aLastUsed = taskLastUsed.get(a.name);
       const bLastUsed = taskLastUsed.get(b.name);
       

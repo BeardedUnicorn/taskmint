@@ -5,7 +5,7 @@
  * session management, timer instances, inactivity detection, and notes.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   Container,
@@ -85,8 +85,12 @@ export function SessionDashboard() {
     resetActivity,
   } = useInactivityDetection();
 
-  const { tasks, activeTasks, isLoading: tasksLoading } = useTaskManagementContext();
+  const { tasks, activeTasks, archivedTasks, isLoading: tasksLoading } = useTaskManagementContext();
   const { showError, showSuccess } = useNotification();
+
+  // Archived tasks keep their session history visible, but their names are
+  // hidden from the session list's task filter chips
+  const archivedTaskNames = useMemo(() => archivedTasks.map(t => t.name), [archivedTasks]);
 
   interface DashboardStats {
     totalTimeToday: number;
@@ -354,6 +358,7 @@ export function SessionDashboard() {
             isLoading={sessionsLoading}
             onEditSession={handleEditSession}
             onOpenNotes={handleOpenSessionNotes}
+            archivedTaskNames={archivedTaskNames}
           />
         </Box>
       </Box>
