@@ -55,8 +55,36 @@ pub fn run() {
                             None
                         };
 
+                        // Repair data stranded by older builds: paused (or
+                        // running) timers left in inactive sessions can never
+                        // be reached or resumed there, so finalize them.
+                        // Idempotent — later launches find nothing to repair.
+                        let mut loaded_sessions = loaded.sessions;
+                        let migrated = commands::sessions::finalize_stranded_instances(
+                            &mut loaded_sessions,
+                            chrono::Utc::now(),
+                        );
+                        if migrated > 0 {
+                            eprintln!(
+                                "Finalized {} stranded timer instance(s) in inactive sessions",
+                                migrated
+                            );
+                            // Keep a pre-migration copy unless the skipped-record
+                            // path above already backed the file up.
+                            if loaded.skipped == 0 {
+                                if let Err(e) = storage::backup_store_file(app.handle()) {
+                                    eprintln!("Failed to back up sessions before migration: {}", e);
+                                }
+                            }
+                        }
+
                         if let Ok(mut sessions) = app_state.task_sessions.lock() {
-                            *sessions = loaded.sessions;
+                            *sessions = loaded_sessions;
+                            if migrated > 0 {
+                                if let Err(e) = storage::save_sessions(app.handle(), &sessions) {
+                                    eprintln!("Failed to persist migrated sessions: {}", e);
+                                }
+                            }
                         }
                         if let Some(warning) = warning {
                             eprintln!("{}", warning);
