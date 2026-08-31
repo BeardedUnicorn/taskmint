@@ -6,8 +6,8 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionList } from '../SessionList';
 import { TaskSession, TimerInstance, TimerState } from '../../../../types/timer';
 import { formatDate } from '../../../../utils/formatters';
@@ -95,12 +95,14 @@ describe('SessionList', () => {
       expect(screen.getAllByText('Documentation')[0]).toBeInTheDocument();
     });
 
-    it('should display session durations correctly', () => {
+    it('should display finalized session durations correctly', () => {
       render(<SessionList {...mockProps} />);
 
-      expect(screen.getByText('01:00:00')).toBeInTheDocument(); // 1 hour
-      expect(screen.getByText('00:30:00')).toBeInTheDocument(); // 30 minutes
-      expect(screen.getByText('00:00:00')).toBeInTheDocument(); // 0 minutes
+      // Only the stopped and empty sessions are deterministic under real
+      // timers; the running session's live duration is covered by the
+      // fake-timer tests in the Live Durations describe below.
+      expect(screen.getByText('01:00:00')).toBeInTheDocument(); // 1 hour, stopped
+      expect(screen.getByText('00:00:00')).toBeInTheDocument(); // no instances
     });
 
     it('should display timer instance counts', () => {
@@ -341,7 +343,87 @@ describe('SessionList', () => {
     });
   });
 
+  describe('Live Durations', () => {
+    // One hour after the running fixture's 10:00Z start. Duration math is
+    // timezone-independent, so an absolute UTC instant keeps this exact.
+    const NOW = new Date('2024-01-15T11:00:00Z');
 
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+    });
 
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
+    it('derives durations from timer instances instead of stale totalDuration', () => {
+      render(<SessionList {...mockProps} />);
+
+      // Code Review's timer has run for 1h, but the backend only counts
+      // finalized instances, so its totalDuration still says 30m. The old
+      // code rendered that stale 00:30:00.
+      expect(screen.queryByText('00:30:00')).not.toBeInTheDocument();
+      // Live 1h for Code Review plus the stored 1h for stopped Development Work
+      expect(screen.getAllByText('01:00:00')).toHaveLength(2);
+    });
+
+    it('ticks running session durations forward once a second', () => {
+      render(<SessionList {...mockProps} />);
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // Only the running session moves; the stopped one stays frozen
+      expect(screen.getByText('01:00:01')).toBeInTheDocument();
+      expect(screen.getByText('01:00:00')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(59_000);
+      });
+
+      expect(screen.getByText('01:01:00')).toBeInTheDocument();
+      expect(screen.getByText('01:00:00')).toBeInTheDocument();
+    });
+
+    it('freezes paused sessions and registers no tick without running timers', () => {
+      const pausedSession: TaskSession = {
+        id: 'session-paused',
+        taskId: 'task-4',
+        taskName: 'Paused Work',
+        timerInstances: [
+          {
+            id: 'instance-paused',
+            sessionId: 'session-paused',
+            startTime: new Date('2024-01-15T10:00:00Z'),
+            state: TimerState.paused,
+            isRunning: false,
+            isPaused: true,
+            pausedAt: new Date('2024-01-15T10:15:00Z'), // ran 15 min, then paused
+            createdAt: '2024-01-15T10:00:00Z',
+            updatedAt: '2024-01-15T10:15:00Z',
+          },
+        ],
+        // Paused instances are not finalized either, so the backend total is 0
+        totalDuration: 0,
+        isActive: false,
+        date: '2024-01-15',
+        createdAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-15T10:15:00Z',
+      };
+
+      render(<SessionList {...mockProps} sessions={[pausedSession]} />);
+
+      expect(screen.getByText('00:15:00')).toBeInTheDocument();
+      // The 1s interval is gated on a running timer existing
+      expect(vi.getTimerCount()).toBe(0);
+
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+
+      expect(screen.getByText('00:15:00')).toBeInTheDocument();
+    });
+  });
 });

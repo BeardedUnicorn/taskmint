@@ -5,7 +5,7 @@
  * filtering, and detailed session information.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -41,6 +41,7 @@ import {
 } from '@mui/icons-material';
 import { TaskSession, TimerState } from '../../../types/timer';
 import { formatTime, formatDate } from '../../../utils/formatters';
+import { getSessionElapsedMs } from '../../../utils/timerHelpers';
 
 interface SessionListProps {
   sessions: TaskSession[];
@@ -73,6 +74,23 @@ export function SessionList({
   const [taskFilters, setTaskFilters] = useState<string[]>([]);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedSession, setSelectedSession] = useState<TaskSession | null>(null);
+
+  // Live durations: the backend's session.totalDuration only sums finalized
+  // instances (running/paused contribute 0), so derive each card's duration
+  // from instance state via getSessionElapsedMs and tick once a second while
+  // any timer is running.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  const hasRunningTimer = sessions.some((session) =>
+    session.timerInstances?.some((instance) => instance.state === TimerState.running)
+  );
+
+  useEffect(() => {
+    if (!hasRunningTimer) return;
+    setNowMs(Date.now()); // catch up immediately when a timer starts
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [hasRunningTimer]);
 
   // Unique task names for task filter chips. Archived tasks' names are
   // hidden to keep the chip row manageable, but a chip stays visible while
@@ -297,6 +315,7 @@ export function SessionList({
                   <SessionCard
                     key={session.id}
                     session={session}
+                    nowMs={nowMs}
                     isSelected={session.id === selectedSessionId}
                     onSelect={() => onSelectSession(session)}
                     onMenuOpen={(e) => handleMenuOpen(e, session)}
@@ -358,6 +377,8 @@ export function SessionList({
 // Session Card Component
 interface SessionCardProps {
   session: TaskSession;
+  /** Timestamp the duration is rendered at, ticked by the list while timers run */
+  nowMs: number;
   isSelected: boolean;
   onSelect: () => void;
   onMenuOpen: (event: React.MouseEvent<HTMLElement>) => void;
@@ -368,6 +389,7 @@ interface SessionCardProps {
 
 function SessionCard({
   session,
+  nowMs,
   isSelected,
   onSelect,
   onMenuOpen,
@@ -402,7 +424,7 @@ function SessionCard({
             <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
               <Chip
                 icon={<TimerIcon />}
-                label={formatTime(session.totalDuration)}
+                label={formatTime(getSessionElapsedMs(session, nowMs))}
                 size="small"
                 color={session.isActive ? 'primary' : 'default'}
                 variant={session.isActive ? 'filled' : 'outlined'}
