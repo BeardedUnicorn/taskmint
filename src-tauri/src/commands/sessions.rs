@@ -71,31 +71,44 @@ fn recalculate_total_duration(session: &mut TaskSession) {
         .sum();
 }
 
+/// Finalize one running or paused instance with the same math as
+/// `stop_timer_instance`: clear the state flags, stamp `end_time`, and store
+/// the net duration. A live pause stretch is folded into `paused_duration`,
+/// preserving the invariant duration = endTime - startTime - pausedDuration
+/// that the frontend's edit math inverts.
+fn finalize_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+    let was_paused = instance.is_paused;
+    let paused_at = instance.paused_at;
+
+    instance.is_running = false;
+    instance.is_paused = false;
+    instance.resumed_at = None;
+    instance.paused_at = None;
+    instance.end_time = Some(now);
+
+    let (duration, total_paused) = compute_final_duration(
+        instance.start_time,
+        instance.paused_duration.unwrap_or(0),
+        if was_paused { paused_at } else { None },
+        now,
+    );
+    instance.duration = Some(duration);
+    instance.paused_duration = Some(total_paused);
+    instance.updated_at = now.to_rfc3339();
+}
+
 /// Deactivating a session must not leave a running timer accruing time where
 /// no UI surface can reach it (every control operates on the active session
-/// only), so finalize running instances with the same math as
-/// `stop_timer_instance`. Paused instances stay paused — they accrue nothing
-/// and can be resumed after reactivating. Returns the stopped instance ids so
-/// the caller can emit `timer-instance-stopped` after the lock is released.
-fn stop_running_instances(session: &mut TaskSession, now: DateTime<Utc>) -> Vec<String> {
+/// only), nor a paused timer stranded (resume is rejected in inactive
+/// sessions, so its tracked time would never be recorded). Finalize both, a
+/// paused instance freezing at its pause point. Returns the finalized
+/// instance ids so the caller can emit `timer-instance-stopped` after the
+/// lock is released.
+fn stop_active_instances(session: &mut TaskSession, now: DateTime<Utc>) -> Vec<String> {
     let mut stopped = Vec::new();
     for instance in session.timer_instances.iter_mut() {
-        if instance.is_running {
-            instance.is_running = false;
-            instance.is_paused = false;
-            instance.resumed_at = None;
-            instance.paused_at = None;
-            instance.end_time = Some(now);
-
-            let (duration, total_paused) = compute_final_duration(
-                instance.start_time,
-                instance.paused_duration.unwrap_or(0),
-                None,
-                now,
-            );
-            instance.duration = Some(duration);
-            instance.paused_duration = Some(total_paused);
-            instance.updated_at = now.to_rfc3339();
+        if instance.is_running || instance.is_paused {
+            finalize_instance(instance, now);
             stopped.push(instance.id.clone());
         }
     }
@@ -104,6 +117,21 @@ fn stop_running_instances(session: &mut TaskSession, now: DateTime<Utc>) -> Vec<
         recalculate_total_duration(session);
     }
     stopped
+}
+
+/// Startup repair for data written by older builds, which left paused timers
+/// stranded in deactivated sessions (unreachable and unresumable there).
+/// Finalizes running/paused instances in every inactive session. Idempotent:
+/// a second run finds nothing to repair. Returns the number of instances
+/// finalized.
+pub fn finalize_stranded_instances(sessions: &mut [TaskSession], now: DateTime<Utc>) -> usize {
+    let mut finalized = 0;
+    for session in sessions.iter_mut() {
+        if !session.is_active {
+            finalized += stop_active_instances(session, now).len();
+        }
+    }
+    finalized
 }
 
 /// Emit `timer-instance-stopped` for instances stopped as a side effect of a
@@ -149,7 +177,7 @@ pub fn create_session(
         let mut stopped = Vec::new();
         for session in sessions.iter_mut() {
             if session.is_active {
-                stopped.extend(stop_running_instances(session, now));
+                stopped.extend(stop_active_instances(session, now));
             }
             session.is_active = false;
         }
@@ -304,6 +332,33 @@ pub struct TimerInstanceUpdates {
     pub end_time: Option<String>,
 }
 
+/// Patches may only clear the running/paused flags (the finalization shape
+/// every edit save sends). Raising them here would bypass the start/pause
+/// commands' invariants — the single-running-timer check, the start-time and
+/// pause-bookkeeping resets, and the event emission every listener syncs on.
+fn validate_timer_instance_updates(updates: &TimerInstanceUpdates) -> Result<(), String> {
+    if updates.is_running == Some(true) {
+        return Err("Cannot set a timer running via update; use start_timer_instance".to_string());
+    }
+    if updates.is_paused == Some(true) {
+        return Err("Cannot pause a timer via update; use pause_timer_instance".to_string());
+    }
+    Ok(())
+}
+
+/// Deletion is only valid for instances with no live state: deleting a
+/// running timer would leave the global running slot untracked, and deleting
+/// a paused one silently discards its tracked-but-unrecorded time.
+fn ensure_deletable(instance: &TimerInstance) -> Result<(), String> {
+    if instance.is_running {
+        return Err("Cannot delete a running timer; stop it first".to_string());
+    }
+    if instance.is_paused {
+        return Err("Cannot delete a paused timer; stop it first".to_string());
+    }
+    Ok(())
+}
+
 fn parse_rfc3339(value: &str) -> Result<DateTime<Utc>, String> {
     DateTime::parse_from_rfc3339(value)
         .map(|dt| dt.with_timezone(&Utc))
@@ -359,7 +414,8 @@ pub async fn update_timer_instance(
 ) -> Result<TimerInstance, String> {
     let now = Utc::now();
 
-    // Parse timestamps up front so a bad payload fails before any mutation.
+    // Validate and parse up front so a bad payload fails before any mutation.
+    validate_timer_instance_updates(&updates)?;
     let resumed_at = updates.resumed_at.as_deref().map(parse_rfc3339).transpose()?;
     let start_time = updates.start_time.as_deref().map(parse_rfc3339).transpose()?;
     let end_time = updates.end_time.as_deref().map(parse_rfc3339).transpose()?;
@@ -483,24 +539,7 @@ pub async fn stop_timer_instance(
                     return Err("Cannot stop timer: timer is not running".to_string());
                 }
 
-                let was_paused = instance.is_paused;
-                let paused_at = instance.paused_at;
-
-                instance.is_running = false;
-                instance.is_paused = false;
-                instance.resumed_at = None;
-                instance.paused_at = None;
-                instance.end_time = Some(now);
-
-                let (duration, total_paused) = compute_final_duration(
-                    instance.start_time,
-                    instance.paused_duration.unwrap_or(0),
-                    if was_paused { paused_at } else { None },
-                    now,
-                );
-                instance.duration = Some(duration);
-                instance.paused_duration = Some(total_paused);
-                instance.updated_at = now.to_rfc3339();
+                finalize_instance(instance, now);
             }
 
             session.updated_at = now.to_rfc3339();
@@ -667,6 +706,15 @@ pub async fn delete_timer_instance(
                 .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                 .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
 
+            {
+                let instance = session
+                    .timer_instances
+                    .iter()
+                    .find(|i| i.id == instance_id)
+                    .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+                ensure_deletable(instance)?;
+            }
+
             session.timer_instances.retain(|i| i.id != instance_id);
             session.updated_at = now.to_rfc3339();
             recalculate_total_duration(session);
@@ -706,7 +754,7 @@ pub async fn set_active_session(
                     None => false,
                 };
                 if session.is_active && !should_be_active {
-                    stopped.extend(stop_running_instances(session, now));
+                    stopped.extend(stop_active_instances(session, now));
                 }
                 session.is_active = should_be_active;
             }
@@ -907,6 +955,130 @@ mod tests {
         assert!(instance.is_paused);
         assert_eq!(instance.paused_at, Some(ts(50)));
         assert_eq!(instance.notes.as_deref(), Some("edited"));
+    }
+
+    #[test]
+    fn update_rejects_raising_running_or_paused_flags() {
+        let running = TimerInstanceUpdates {
+            is_running: Some(true),
+            ..Default::default()
+        };
+        assert!(validate_timer_instance_updates(&running)
+            .unwrap_err()
+            .contains("start_timer_instance"));
+
+        let paused = TimerInstanceUpdates {
+            is_paused: Some(true),
+            ..Default::default()
+        };
+        assert!(validate_timer_instance_updates(&paused)
+            .unwrap_err()
+            .contains("pause_timer_instance"));
+
+        // The finalization shape every edit save sends, and notes-only
+        // patches, stay valid.
+        let finalize = TimerInstanceUpdates {
+            is_running: Some(false),
+            is_paused: Some(false),
+            duration: Some(1_000),
+            ..Default::default()
+        };
+        assert!(validate_timer_instance_updates(&finalize).is_ok());
+
+        let notes_only = TimerInstanceUpdates {
+            notes: Some("n".to_string()),
+            ..Default::default()
+        };
+        assert!(validate_timer_instance_updates(&notes_only).is_ok());
+    }
+
+    #[test]
+    fn delete_rejects_running_and_paused_instances() {
+        let mut running = fresh_instance();
+        running.is_running = true;
+        assert!(ensure_deletable(&running).unwrap_err().contains("running"));
+
+        let mut paused = fresh_instance();
+        paused.is_paused = true;
+        assert!(ensure_deletable(&paused).unwrap_err().contains("paused"));
+
+        // Idle and completed instances may be deleted.
+        assert!(ensure_deletable(&fresh_instance()).is_ok());
+        let mut stopped = fresh_instance();
+        stopped.duration = Some(1_000);
+        stopped.end_time = Some(ts(10));
+        assert!(ensure_deletable(&stopped).is_ok());
+    }
+
+    #[test]
+    fn deactivation_finalizes_paused_instances() {
+        // Paused at t=80 with 30s already accumulated, deactivated at t=100:
+        // frozen at the pause point (50s tracked), the live pause stretch
+        // folded into paused_duration — exactly like stopping while paused.
+        let mut session = fresh_session();
+        let mut paused = fresh_instance();
+        paused.is_paused = true;
+        paused.paused_at = Some(ts(80));
+        paused.paused_duration = Some(30_000);
+        session.timer_instances = vec![paused];
+
+        let stopped = stop_active_instances(&mut session, ts(100));
+
+        assert_eq!(stopped, vec!["instance_test".to_string()]);
+        let instance = &session.timer_instances[0];
+        assert!(!instance.is_running);
+        assert!(!instance.is_paused);
+        assert_eq!(instance.paused_at, None);
+        assert_eq!(instance.end_time, Some(ts(100)));
+        assert_eq!(instance.duration, Some(50_000));
+        assert_eq!(instance.paused_duration, Some(50_000));
+        assert_eq!(session.total_duration, 50_000);
+    }
+
+    #[test]
+    fn migration_finalizes_only_inactive_sessions() {
+        let mut inactive = fresh_session();
+        inactive.id = "session_inactive".to_string();
+        inactive.is_active = false;
+        let mut stranded = fresh_instance();
+        stranded.is_paused = true;
+        stranded.paused_at = Some(ts(80));
+        inactive.timer_instances = vec![stranded];
+
+        let mut active = fresh_session();
+        active.id = "session_active".to_string();
+        let mut live_paused = fresh_instance();
+        live_paused.id = "instance_live".to_string();
+        live_paused.is_paused = true;
+        live_paused.paused_at = Some(ts(90));
+        active.timer_instances = vec![live_paused];
+
+        let mut sessions = vec![inactive, active];
+        assert_eq!(finalize_stranded_instances(&mut sessions, ts(100)), 1);
+        assert_eq!(sessions[0].timer_instances[0].duration, Some(80_000));
+        assert!(sessions[1].timer_instances[0].is_paused);
+
+        // Idempotent: a second run finds nothing to repair.
+        assert_eq!(finalize_stranded_instances(&mut sessions, ts(200)), 0);
+        assert_eq!(sessions[0].timer_instances[0].duration, Some(80_000));
+    }
+
+    #[test]
+    fn migration_finalizes_stranded_running_instances() {
+        // Defensive: no current code path leaves a runner in an inactive
+        // session, but repair one if found in stored data.
+        let mut session = fresh_session();
+        session.is_active = false;
+        let mut runner = fresh_instance();
+        runner.is_running = true;
+        session.timer_instances = vec![runner];
+
+        let mut sessions = vec![session];
+        assert_eq!(finalize_stranded_instances(&mut sessions, ts(60)), 1);
+        let instance = &sessions[0].timer_instances[0];
+        assert!(!instance.is_running);
+        assert_eq!(instance.duration, Some(60_000));
+        assert_eq!(instance.end_time, Some(ts(60)));
     }
 
     #[test]

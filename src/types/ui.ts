@@ -106,9 +106,7 @@ export interface DashboardWidgetPreferences {
 
 export type DashboardWidgetId =
   | 'total-time-today'
-  | 'earnings-today'
-  | 'todays-entries'
-  | 'daily-goal-progress';
+  | 'earnings-today';
 
 export interface DashboardWidget {
   id: DashboardWidgetId;

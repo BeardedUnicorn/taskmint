@@ -9,7 +9,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   getInstanceElapsedMs,
+  getInstanceDateString,
   getSessionElapsedMs,
+  getSessionElapsedMsOnDate,
   getEntryElapsedMs,
   buildTimerEditUpdates,
   sessionsToTimeEntries,
@@ -140,15 +142,86 @@ describe('getSessionElapsedMs', () => {
   });
 });
 
+describe('getInstanceDateString', () => {
+  // Local-noon constructors keep the local calendar date identical in every
+  // timezone the suite might run in.
+  const localNoon = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0);
+
+  it('returns the local date the instance started on', () => {
+    const i = instance({ startTime: localNoon(2026, 8, 18) });
+    expect(getInstanceDateString(i)).toBe('2026-08-18');
+  });
+
+  it('accepts ISO-string timestamps as delivered over IPC', () => {
+    const i = instance({
+      startTime: localNoon(2026, 8, 17).toISOString() as unknown as Date,
+    });
+    expect(getInstanceDateString(i)).toBe('2026-08-17');
+  });
+
+  it('falls back to the provided date for missing or invalid startTime', () => {
+    const missing = instance({ startTime: undefined as unknown as Date });
+    expect(getInstanceDateString(missing, '2026-08-01')).toBe('2026-08-01');
+
+    const invalid = instance({ startTime: 'garbage' as unknown as Date });
+    expect(getInstanceDateString(invalid, '2026-08-01')).toBe('2026-08-01');
+    expect(getInstanceDateString(invalid)).toBe('');
+  });
+});
+
+describe('getSessionElapsedMsOnDate', () => {
+  const localNoon = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0);
+
+  function session(timerInstances: TimerInstance[]): TaskSession {
+    return {
+      id: 'session_1',
+      taskId: 'task_1',
+      taskName: 'Deep work',
+      timerInstances,
+      totalDuration: 0,
+      isActive: true,
+      // Frozen at session creation — deliberately NOT the date the timers ran.
+      date: '2026-08-17',
+      createdAt: new Date(T0).toISOString(),
+      updatedAt: new Date(T0).toISOString(),
+    };
+  }
+
+  it('buckets each instance by its own start date, not session.date', () => {
+    const yesterdayStart = localNoon(2026, 8, 17);
+    const todayStart = localNoon(2026, 8, 18);
+    const nowMs = todayStart.getTime() + sec(600); // 10 min into today's run
+
+    const s = session([
+      instance({ id: 'a', state: TimerState.stopped, startTime: yesterdayStart, duration: sec(1800) }),
+      instance({ id: 'b', state: TimerState.running, startTime: todayStart }),
+    ]);
+
+    // The user's live repro: a session dated yesterday whose timer runs today
+    // must contribute today's elapsed to today's bucket.
+    expect(getSessionElapsedMsOnDate(s, '2026-08-18', nowMs)).toBe(sec(600));
+    expect(getSessionElapsedMsOnDate(s, '2026-08-17', nowMs)).toBe(sec(1800));
+    expect(getSessionElapsedMsOnDate(s, '2026-08-16', nowMs)).toBe(0);
+  });
+
+  it('returns 0 for malformed sessions without a timerInstances array', () => {
+    expect(getSessionElapsedMsOnDate({ id: 'x' } as unknown as TaskSession, '2026-08-18')).toBe(0);
+  });
+});
+
 describe('sessionsToTimeEntries', () => {
+  // Local-noon constructor keeps the local calendar date identical in every
+  // timezone the suite might run in.
+  const localNoon = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0);
+
   it('flattens instances with session task info and derives isRunning from state', () => {
     const session: TaskSession = {
       id: 'session_1',
       taskId: 'task_1',
       taskName: 'Deep work',
       timerInstances: [
-        instance({ id: 'a', state: TimerState.running }),
-        instance({ id: 'b', state: TimerState.stopped, duration: sec(60) }),
+        instance({ id: 'a', state: TimerState.running, startTime: localNoon(2026, 8, 18) }),
+        instance({ id: 'b', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 18) }),
       ],
       totalDuration: sec(60),
       isActive: true,
@@ -167,6 +240,31 @@ describe('sessionsToTimeEntries', () => {
       isRunning: true,
     });
     expect(entries[1]).toMatchObject({ id: 'b', isRunning: false, duration: sec(60) });
+  });
+
+  it('dates each entry by its own local start date, not session.date', () => {
+    // Sessions are reactivated across days with their date frozen at
+    // creation; entries must land on the day the timer actually ran so
+    // Calendar and daily-goal bucketing agree with the Sessions dashboard.
+    const session: TaskSession = {
+      id: 'session_1',
+      taskId: 'task_1',
+      taskName: 'Deep work',
+      timerInstances: [
+        instance({ id: 'old', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 17) }),
+        instance({ id: 'new', state: TimerState.running, startTime: localNoon(2026, 8, 18) }),
+        // Invalid startTime falls back to the session date.
+        instance({ id: 'bad', state: TimerState.idle, startTime: 'garbage' as unknown as Date }),
+      ],
+      totalDuration: sec(60),
+      isActive: true,
+      date: '2026-08-18',
+      createdAt: new Date(T0).toISOString(),
+      updatedAt: new Date(T0).toISOString(),
+    };
+
+    const entries = sessionsToTimeEntries([session]);
+    expect(entries.map(e => e.date)).toEqual(['2026-08-17', '2026-08-18', '2026-08-18']);
   });
 
   it('skips malformed sessions without timerInstances arrays', () => {

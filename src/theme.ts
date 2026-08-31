@@ -109,10 +109,8 @@ export const darkTheme = createTheme({
       },
     },
     MuiButton: {
-      defaultProps: {
-        // Default ARIA attributes for better accessibility
-        'aria-label': 'Button',
-      },
+      // No aria-label default: it OVERRIDES the visible text as the
+      // accessible name, so every unlabeled button was announced as "Button".
       styleOverrides: {
         root: ({ theme }) => ({
           textTransform: 'none',
@@ -138,9 +136,8 @@ export const darkTheme = createTheme({
       },
     },
     MuiIconButton: {
-      defaultProps: {
-        'aria-label': 'Icon button',
-      },
+      // No aria-label default: a generic "Icon button" name suppresses the
+      // Tooltip-derived name and hides which control this actually is.
       styleOverrides: {
         root: {
           minWidth: 44, // Minimum touch target size

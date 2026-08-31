@@ -8,6 +8,7 @@
  */
 
 import { TaskSession, TimeEntry, TimerInstance, TimerState } from '../types/timer';
+import { formatDateString } from './dateHelpers';
 
 function toMs(value: Date | string | undefined): number | null {
   if (!value) return null;
@@ -55,6 +56,41 @@ export function getSessionElapsedMs(session: TaskSession, nowMs: number = Date.n
 }
 
 /**
+ * Local calendar date (YYYY-MM-DD) a timer instance's time belongs to: the
+ * day it actually started running. session.date is frozen at session
+ * creation, so bucketing by it hides timers run today inside an older,
+ * reactivated session. start_timer_instance resets startTime to the actual
+ * run start, making it the honest bucket. Accepted limitation: a timer
+ * started before local midnight and still running lands entirely in
+ * yesterday's bucket.
+ */
+export function getInstanceDateString(instance: TimerInstance, fallbackDate?: string): string {
+  const startMs = toMs(instance.startTime);
+  if (startMs == null) return fallbackDate ?? '';
+  return formatDateString(new Date(startMs));
+}
+
+/**
+ * Net tracked milliseconds a session contributes to one local calendar date:
+ * the sum of getInstanceElapsedMs over the instances that started on that
+ * date (idle instances contribute 0 regardless of their bucket).
+ */
+export function getSessionElapsedMsOnDate(
+  session: TaskSession,
+  dateStr: string,
+  nowMs: number = Date.now()
+): number {
+  if (!session || !Array.isArray(session.timerInstances)) return 0;
+  return session.timerInstances.reduce(
+    (total, instance) =>
+      getInstanceDateString(instance, session.date) === dateStr
+        ? total + getInstanceElapsedMs(instance, nowMs)
+        : total,
+    0
+  );
+}
+
+/**
  * Net tracked milliseconds for a TimeEntry row. Entries produced by
  * sessionsToTimeEntries spread the raw instance, so the instance state and
  * pause fields are present at runtime; fall back to the stored duration for
@@ -90,8 +126,11 @@ export function buildTimerEditUpdates(instance: TimerInstance, durationMs: numbe
 /**
  * Flatten backend sessions into the TimeEntry shape the Tasks, Time Entries,
  * Reports, and Calendar pages consume. Keeps the raw instance fields and
- * overlays the session-level ones, matching the shape those pages have always
- * received.
+ * overlays the session-level ones. Each entry's `date` is the instance's own
+ * local start date (not session.date, which is frozen at session creation
+ * while sessions get reactivated across days) — the same per-instance
+ * bucketing the Sessions-page scorecards use, and the same day the pages
+ * that key off startTime already display.
  */
 export function sessionsToTimeEntries(sessions: TaskSession[]): TimeEntry[] {
   return sessions
@@ -102,7 +141,7 @@ export function sessionsToTimeEntries(sessions: TaskSession[]): TimeEntry[] {
         taskName: s.taskName,
         taskId: s.taskId,
         isRunning: i.state === TimerState.running,
-        date: s.date,
+        date: getInstanceDateString(i, s.date),
       }))
     ) as unknown as TimeEntry[];
 }

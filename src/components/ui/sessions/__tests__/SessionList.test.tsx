@@ -11,6 +11,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionList } from '../SessionList';
 import { TaskSession, TimerInstance, TimerState } from '../../../../types/timer';
 import { formatDate } from '../../../../utils/formatters';
+import { parseDateStringLocal } from '../../../../utils/dateHelpers';
 
 describe('SessionList', () => {
   const mockTimerInstance: TimerInstance = {
@@ -257,11 +258,11 @@ describe('SessionList', () => {
 
       fireEvent.click(moreButton!);
 
-      expect(screen.getByText('Start Session')).toBeInTheDocument();
+      expect(screen.getByText('Activate Session')).toBeInTheDocument();
       expect(screen.getByText('Delete Session')).toBeInTheDocument();
     });
 
-    it('should call onStartSession when start session menu item is clicked', () => {
+    it('should call onStartSession when the activate menu item is clicked', () => {
       render(<SessionList {...mockProps} />);
 
       // Open context menu
@@ -271,8 +272,8 @@ describe('SessionList', () => {
       );
       fireEvent.click(moreButton!);
 
-      // Click start session
-      const startMenuItem = screen.getByText('Start Session');
+      // Click activate session
+      const startMenuItem = screen.getByText('Activate Session');
       fireEvent.click(startMenuItem);
 
       expect(mockProps.onStartSession).toHaveBeenCalled();
@@ -297,11 +298,14 @@ describe('SessionList', () => {
   });
 
   describe('Session Details', () => {
-    it('should display session creation date', () => {
+    it('should display session creation date as the local calendar day', () => {
       render(<SessionList {...mockProps} />);
 
-      const expectedDate = formatDate(new Date(mockSessions[0].date));
+      // Parsed as a LOCAL date: new Date('YYYY-MM-DD') would be UTC midnight
+      // and render the previous day west of UTC.
+      const expectedDate = formatDate(parseDateStringLocal(mockSessions[0].date));
       expect(screen.getAllByText(expectedDate)[0]).toBeInTheDocument();
+      expect(screen.getAllByText(/January 15, 2024/)[0]).toBeInTheDocument();
     });
 
     it('should display session task information', () => {

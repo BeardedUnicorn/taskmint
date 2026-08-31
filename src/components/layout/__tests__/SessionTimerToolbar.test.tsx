@@ -357,6 +357,113 @@ describe('SessionTimerToolbar', () => {
     });
   });
 
+  describe('Timer Card Presentation', () => {
+    const sessionWith = (overrides: Partial<TimerInstance>): TaskSession => ({
+      ...mockActiveSession,
+      timerInstances: [{ ...mockTimerInstance, ...overrides }],
+    });
+
+    it.each([
+      [TimerState.running, 'Running'],
+      [TimerState.paused, 'Paused'],
+      [TimerState.idle, 'Ready'],
+      [TimerState.stopped, 'Stopped'],
+    ])('shows a text status badge for a %s timer', (state, label) => {
+      render(
+        <SessionTimerToolbar {...mockProps} activeSession={sessionWith({ state })} />
+      );
+
+      expect(screen.getByText(label)).toBeInTheDocument();
+    });
+
+    it('renders the idle status as text so only the Start control shows a play glyph', () => {
+      // The old icon-only indicator rendered a PlayArrow next to the label,
+      // mimicking the real Start button (and reading as a dead control).
+      render(
+        <SessionTimerToolbar
+          {...mockProps}
+          activeSession={sessionWith({
+            state: TimerState.idle,
+            endTime: undefined,
+            duration: undefined,
+          })}
+        />
+      );
+
+      expect(document.querySelectorAll('[data-testid="PlayArrowIcon"]')).toHaveLength(1);
+    });
+
+    it('keeps the card body non-interactive: no tab stop, no key or click actions', () => {
+      render(
+        <SessionTimerToolbar
+          {...mockProps}
+          activeSession={sessionWith({ state: TimerState.running })}
+        />
+      );
+
+      const region = screen.getByRole('region', { name: /timer 1: running/i });
+      expect(region).not.toHaveAttribute('tabindex');
+
+      fireEvent.keyDown(region, { key: 'Enter' });
+      fireEvent.keyDown(region, { key: ' ' });
+      fireEvent.click(region);
+
+      expect(mockProps.onPauseTimer).not.toHaveBeenCalled();
+      expect(mockProps.onResumeTimer).not.toHaveBeenCalled();
+      expect(mockProps.onStartTimer).not.toHaveBeenCalled();
+      expect(mockProps.onStopTimer).not.toHaveBeenCalled();
+    });
+
+    it('renders the stored duration for a stopped timer', () => {
+      render(
+        <SessionTimerToolbar
+          {...mockProps}
+          activeSession={sessionWith({
+            state: TimerState.stopped,
+            duration: 90_000,
+            endTime: new Date('2024-01-15T10:01:30Z'),
+          })}
+        />
+      );
+
+      expect(screen.getByText('00:01:30')).toBeInTheDocument();
+    });
+
+    it('renders the frozen elapsed for a paused timer', () => {
+      // Paused 50s after start with 10s of earlier pauses → 40s tracked.
+      render(
+        <SessionTimerToolbar
+          {...mockProps}
+          activeSession={sessionWith({
+            state: TimerState.paused,
+            pausedAt: new Date(new Date('2024-01-15T10:00:00Z').getTime() + 50_000),
+            pausedDuration: 10_000,
+          })}
+        />
+      );
+
+      expect(screen.getByText('00:00:40')).toBeInTheDocument();
+    });
+
+    it('wires the delete control on a stopped timer to onDeleteTimer', () => {
+      const onDeleteTimer = vi.fn();
+      render(
+        <SessionTimerToolbar
+          {...mockProps}
+          onDeleteTimer={onDeleteTimer}
+          activeSession={sessionWith({
+            state: TimerState.stopped,
+            endTime: new Date('2024-01-15T11:00:00Z'),
+          })}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /delete timer 1/i }));
+
+      expect(onDeleteTimer).toHaveBeenCalledWith('instance-1');
+    });
+  });
+
   describe('Error Handling', () => {
     it('should handle missing task gracefully', () => {
       const sessionWithMissingTask = {

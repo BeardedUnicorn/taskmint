@@ -5,7 +5,7 @@
  * filtering, and detailed session information.
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, memo } from 'react';
 import {
   Box,
   Card,
@@ -41,6 +41,7 @@ import {
 } from '@mui/icons-material';
 import { TaskSession, TimerState } from '../../../types/timer';
 import { formatTime, formatDate } from '../../../utils/formatters';
+import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { getSessionElapsedMs } from '../../../utils/timerHelpers';
 
 interface SessionListProps {
@@ -57,7 +58,10 @@ interface SessionListProps {
   archivedTaskNames?: string[];
 }
 
-export function SessionList({
+// Memoized so the dashboard's 1s stats tick doesn't re-render the whole list
+// on top of the list's own tick — every prop is referentially stable across
+// ticks (context state + useCallback handlers).
+export const SessionList = memo(function SessionList({
   sessions,
   onSelectSession,
   onDeleteSession,
@@ -307,7 +311,9 @@ export function SessionList({
                 }}
               >
                 <DateIcon />
-                {formatDate(new Date(date))}
+                {/* new Date('YYYY-MM-DD') parses as UTC midnight, which is
+                    the previous local day west of UTC — parse as local. */}
+                {formatDate(parseDateStringLocal(date))}
               </Typography>
 
               <Stack spacing={2}>
@@ -341,7 +347,9 @@ export function SessionList({
             {selectedSession?.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}
           </ListItemIcon>
           <ListItemText>
-            {selectedSession?.isActive ? 'Stop Session' : 'Start Session'}
+            {/* "Activate" is honest: it makes the session current (finalizing
+                any timer running elsewhere) without starting a timer. */}
+            {selectedSession?.isActive ? 'End Session' : 'Activate Session'}
           </ListItemText>
         </MenuItem>
         
@@ -370,7 +378,7 @@ export function SessionList({
       </Menu>
     </Box>
   );
-}
+});
 
 
 
@@ -478,9 +486,9 @@ function SessionCard({
               }}
               size="small"
               startIcon={session.isActive ? <StopIcon /> : <PlayIcon />}
-              aria-label={session.isActive ? 'Stop session' : 'Start session'}
+              aria-label={session.isActive ? 'End session' : 'Activate session'}
             >
-              {session.isActive ? 'Stop' : 'Start'}
+              {session.isActive ? 'End' : 'Activate'}
             </Button>
             <Button
               onClick={(e) => {

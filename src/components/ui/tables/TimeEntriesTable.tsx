@@ -176,6 +176,7 @@ export function TimeEntriesTable({
               color="error"
               onClick={handleBulkDelete}
               disabled={!onBulkDelete}
+              aria-label="Delete selected entries"
             >
               <DeleteIcon />
             </IconButton>

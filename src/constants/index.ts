@@ -26,9 +26,8 @@ export const STORAGE_KEYS = {
   USER_SUBSCRIPTION: 'userSubscription',
   FEATURE_OVERRIDES: 'featureOverrides',
   TASK_LIMIT_OVERRIDE: 'taskLimitOverride',
-  // New session-based storage keys
-  TASK_SESSIONS: 'taskSessions',
-  TIMER_INSTANCES: 'timerInstances',
+  // Session-based storage keys (session data itself lives in the Rust
+  // sessions.json store, not localStorage)
   ENHANCED_TIMER_SETTINGS: 'enhancedTimerSettings',
   INACTIVITY_SETTINGS: 'inactivitySettings',
   TIMER_ACTIVITY_STATE: 'timerActivityState',

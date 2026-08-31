@@ -12,7 +12,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useSessionManagement } from '../useSessionManagement';
-import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
+import { ActiveTimerProvider, useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { listen } from '@tauri-apps/api/event';
 const mockListen = vi.mocked(listen);
@@ -540,7 +540,159 @@ describe('useSessionManagement', () => {
       expect(mockInvoke).toHaveBeenCalledWith('stop_timer_instance', { instanceId: 'instance-1' });
       const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
       expect(startCalls).toHaveLength(2);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Timer started');
+      // The hand-off is explicit: the toast names the timer that was stopped.
+      expect(mockShowSuccess).toHaveBeenCalledWith(
+        'Timer started — stopped the running timer for "Test Task"'
+      );
+    });
+
+    it('recovery targets the currently running timer, not a stale closure', async () => {
+      // Two hand-offs driven through the SAME captured callback (as rapid
+      // successive clicks would): the second recovery must stop instance-2
+      // (running now), not instance-1 (running when the closure was created).
+      const i1 = { ...mockTimerInstance, id: 'instance-1', state: TimerState.running };
+      const i2 = { ...mockTimerInstance, id: 'instance-2', state: TimerState.idle };
+      const i3 = { ...mockTimerInstance, id: 'instance-3', state: TimerState.idle };
+      const initialSession = { ...mockSession, isActive: true, timerInstances: [i1, i2, i3] };
+      const afterStop1 = {
+        ...initialSession,
+        timerInstances: [{ ...i1, state: TimerState.stopped }, i2, i3],
+      };
+      const afterStart1 = {
+        ...initialSession,
+        timerInstances: [{ ...i1, state: TimerState.stopped }, { ...i2, state: TimerState.running }, i3],
+      };
+      const afterStop2 = {
+        ...initialSession,
+        timerInstances: [
+          { ...i1, state: TimerState.stopped },
+          { ...i2, state: TimerState.stopped },
+          i3,
+        ],
+      };
+      const afterStart2 = {
+        ...initialSession,
+        timerInstances: [
+          { ...i1, state: TimerState.stopped },
+          { ...i2, state: TimerState.stopped },
+          { ...i3, state: TimerState.running },
+        ],
+      };
+
+      primeCommand(
+        'start_timer_instance',
+        new Error('Another timer instance is already running'),
+        afterStart1,
+        new Error('Another timer instance is already running'),
+        afterStart2
+      );
+      primeCommand('stop_timer_instance', afterStop1, afterStop2);
+      primeCommand('get_sessions', [initialSession]);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => {
+        expect(result.current.sessions).toHaveLength(1);
+      });
+
+      const start = result.current.startTimerInstance;
+
+      await act(async () => {
+        await start('instance-2');
+      });
+      await act(async () => {
+        await start('instance-3');
+      });
+
+      const stopCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'stop_timer_instance');
+      expect(stopCalls.map(([, args]) => args)).toEqual([
+        { instanceId: 'instance-1' },
+        { instanceId: 'instance-2' },
+      ]);
+    });
+
+    it('tolerates the other timer being already stopped during recovery', async () => {
+      // A same-tick double start can race the recovery stop; the obstacle is
+      // already gone, so the start must still succeed without an error toast.
+      const runningInstance = { ...mockTimerInstance, id: 'instance-1', state: TimerState.running };
+      const newInstance = { ...mockTimerInstance, id: 'instance-2', state: TimerState.idle };
+      const initialSession = { ...mockSession, isActive: true, timerInstances: [runningInstance, newInstance] };
+      const afterStart = {
+        ...initialSession,
+        timerInstances: [{ ...runningInstance, state: TimerState.stopped }, { ...newInstance, state: TimerState.running }],
+      };
+
+      primeCommand('get_sessions', [initialSession]);
+      primeCommand('start_timer_instance', new Error('Another timer instance is already running'), afterStart);
+      primeCommand('stop_timer_instance', new Error('Cannot stop timer: timer is not running'));
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      await act(async () => {
+        await result.current.startTimerInstance('instance-2');
+      });
+
+      expect(mockShowError).not.toHaveBeenCalled();
+      expect(mockShowSuccess).toHaveBeenCalledWith(expect.stringContaining('Timer started'));
+      const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
+      expect(startCalls).toHaveLength(2);
+    });
+
+    it('setActiveSession re-derives the shared active timer', async () => {
+      const runningInstance = { ...mockTimerInstance, id: 'instance-1', state: TimerState.running };
+      const sessionA = { ...mockSession, id: 'session-1', isActive: true, timerInstances: [runningInstance] };
+      const sessionB = { ...mockSession, id: 'session-2', taskName: 'Task B', isActive: false, timerInstances: [] };
+      const afterSwitch = [
+        { ...sessionA, isActive: false, timerInstances: [{ ...runningInstance, state: TimerState.stopped }] },
+        { ...sessionB, isActive: true },
+      ];
+
+      primeCommand('get_sessions', [sessionA, sessionB]);
+      primeCommand('set_active_session', afterSwitch);
+
+      const { result } = renderHook(
+        () => ({ mgmt: useSessionManagement(), timer: useActiveTimer() }),
+        { wrapper: ActiveTimerProvider }
+      );
+
+      await waitFor(() => {
+        expect(result.current.timer.activeTimer?.id).toBe('instance-1');
+      });
+
+      await act(async () => {
+        await result.current.mgmt.setActiveSession(sessionB);
+      });
+
+      // The backend finalized session A's runner; the shared slot must not
+      // keep pointing at it until the debounced reload.
+      expect(result.current.timer.activeTimer).toBeNull();
+      expect(mockShowSuccess).toHaveBeenCalledWith(
+        'Activated session for "Task B" — stopped the running timer for "Test Task"'
+      );
+    });
+
+    it('deleteSession clears the shared active timer it contained', async () => {
+      const runningInstance = { ...mockTimerInstance, id: 'instance-1', state: TimerState.running };
+      const sessionA = { ...mockSession, isActive: true, timerInstances: [runningInstance] };
+
+      primeCommand('get_sessions', [sessionA]);
+
+      const { result } = renderHook(
+        () => ({ mgmt: useSessionManagement(), timer: useActiveTimer() }),
+        { wrapper: ActiveTimerProvider }
+      );
+
+      await waitFor(() => {
+        expect(result.current.timer.activeTimer?.id).toBe('instance-1');
+      });
+
+      await act(async () => {
+        await result.current.mgmt.deleteSession('session-1');
+      });
+
+      expect(result.current.timer.activeTimer).toBeNull();
     });
   });
 

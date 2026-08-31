@@ -14,7 +14,9 @@ import {
   DashboardWidgetConfig 
 } from '../types/ui';
 
-// Default dashboard widgets configuration
+// Default dashboard widgets configuration. Only widgets the Sessions page
+// actually renders belong here — the old todays-entries and
+// daily-goal-progress entries never had a renderer, so their toggles lied.
 const DEFAULT_WIDGETS: DashboardWidget[] = [
   {
     id: 'total-time-today',
@@ -30,24 +32,10 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
     defaultEnabled: true,
     defaultOrder: 2,
   },
-  {
-    id: 'todays-entries',
-    title: "Today's Time Entries",
-    description: 'Shows a detailed list of all time entries for today',
-    defaultEnabled: true,
-    defaultOrder: 5,
-  },
-  {
-    id: 'daily-goal-progress',
-    title: 'Daily Goal Progress',
-    description: 'Shows progress towards your daily earnings goal with notifications',
-    defaultEnabled: true,
-    defaultOrder: 4,
-  },
 ];
 
 // Current migration version - increment when adding new widgets or changing structure
-const CURRENT_MIGRATION_VERSION = 1;
+const CURRENT_MIGRATION_VERSION = 2;
 
 // Default preferences
 const DEFAULT_PREFERENCES: DashboardWidgetPreferences = {
@@ -76,35 +64,29 @@ export function useDashboardSettings() {
 
     console.log(`Running dashboard widget migration from version ${currentVersion} to ${CURRENT_MIGRATION_VERSION}`);
 
-    // Migration logic for version 1: Add any missing widgets
-    if (currentVersion < 1) {
-      const existingWidgetIds = new Set(preferences.widgets.map(w => w.id));
-      const newWidgets = DEFAULT_WIDGETS.filter(widget => !existingWidgetIds.has(widget.id));
-
-      if (newWidgets.length > 0) {
-        console.log('Adding new dashboard widgets:', newWidgets.map(w => w.id));
-        const newWidgetConfigs = newWidgets.map(widget => ({
+    // v1 added missing defaults; v2 prunes stored ids that no longer exist
+    // (todays-entries / daily-goal-progress never had renderers). Both steps
+    // are idempotent, so reconcile stored widgets against the defaults in one
+    // pass regardless of the starting version.
+    setPreferences(prev => {
+      // Set<string>: stored configs may carry legacy ids outside the union.
+      const knownIds = new Set<string>(DEFAULT_WIDGETS.map(w => w.id));
+      const kept = prev.widgets.filter(w => knownIds.has(w.id));
+      const existingIds = new Set(kept.map(w => w.id));
+      const added = DEFAULT_WIDGETS
+        .filter(widget => !existingIds.has(widget.id))
+        .map(widget => ({
           id: widget.id,
           enabled: widget.defaultEnabled,
           order: widget.defaultOrder,
         }));
 
-        setPreferences(prev => ({
-          ...prev,
-          widgets: [...prev.widgets, ...newWidgetConfigs],
-          migrationVersion: CURRENT_MIGRATION_VERSION,
-        }));
-        return; // Exit early since setPreferences will trigger a re-render
-      }
-    }
-
-    // If no widgets were added but version is still behind, just update the version
-    if (currentVersion < CURRENT_MIGRATION_VERSION) {
-      setPreferences(prev => ({
+      return {
         ...prev,
+        widgets: [...kept, ...added],
         migrationVersion: CURRENT_MIGRATION_VERSION,
-      }));
-    }
+      };
+    });
   }, [preferences, setPreferences]);
 
   // Get all available widgets

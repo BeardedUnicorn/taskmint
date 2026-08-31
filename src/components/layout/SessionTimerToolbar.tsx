@@ -87,7 +87,37 @@ function TimerStatusIndicator({ status, size = 'medium' }: TimerStatusIndicatorP
   };
 
   const config = getStatusConfig();
-  const iconSize = size === 'small' ? 16 : 20;
+
+  // Small: a plain text badge. The old 16px icon-only rendering read as a
+  // clickable control (a paused/stopped circle glyph looks like a close
+  // button) even though the indicator is purely informative.
+  if (size === 'small') {
+    return (
+      <Typography
+        component="span"
+        sx={{
+          fontSize: '0.6rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+          lineHeight: 1.7,
+          px: 0.75,
+          borderRadius: 10,
+          border: '1px solid rgba(255, 255, 255, 0.6)',
+          bgcolor: 'rgba(255, 255, 255, 0.12)',
+          color: '#ffffff',
+          animation: config.animation,
+          '@keyframes pulse': {
+            '0%': { opacity: 1 },
+            '50%': { opacity: 0.6 },
+            '100%': { opacity: 1 },
+          },
+        }}
+      >
+        {config.label}
+      </Typography>
+    );
+  }
 
   return (
     <Box
@@ -108,16 +138,14 @@ function TimerStatusIndicator({ status, size = 'medium' }: TimerStatusIndicatorP
           animation: config.animation,
           display: 'flex',
           alignItems: 'center',
-          '& svg': { fontSize: iconSize },
+          '& svg': { fontSize: 20 },
         }}
       >
         {config.icon}
       </Box>
-      {size === 'medium' && (
-        <Typography variant="caption" sx={{ color: config.color, fontWeight: 600 }}>
-          {config.label}
-        </Typography>
-      )}
+      <Typography variant="caption" sx={{ color: config.color, fontWeight: 600 }}>
+        {config.label}
+      </Typography>
     </Box>
   );
 }
@@ -486,10 +514,12 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
 
   const timerStyles = getTimerStyles();
 
+  // The card body is display-only — the IconButtons below are the controls
+  // (each focusable and labeled). No pointer cursor, hover lift, or tabIndex:
+  // those advertised a clickability the card never had.
   return (
     <Box
       component="section"
-      tabIndex={0}
       role="region"
       aria-label={`Timer ${index}: ${timerState}`}
       sx={{
@@ -502,32 +532,10 @@ const TimerInstanceCard = memo(function TimerInstanceCard({
         minWidth: 140,
         minHeight: 120,
         transition: 'all 0.3s ease',
-        cursor: 'pointer',
         backgroundColor: timerStyles.bgcolor,
         color: timerStyles.color,
         boxShadow: timerStyles.boxShadow,
         border: timerStyles.border,
-        '&:hover': {
-          transform: 'translateY(-3px)',
-          boxShadow: timerState === 'running' 
-            ? '0 0 16px rgba(76, 175, 80, 0.6)' 
-            : timerState === 'paused'
-            ? '0 0 16px rgba(255, 152, 0, 0.6)'
-            : '0 4px 8px rgba(0, 0, 0, 0.3)',
-        },
-        '&:focus': {
-          outline: '2px solid #ffffff',
-          outlineOffset: '2px',
-        },
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          if (timerState === 'running') onPause();
-          else if (timerState === 'paused') onResume();
-          else if (timerState === 'idle') onStart();
-          // A stopped timer is final: no keyboard action
-        }
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
