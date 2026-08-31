@@ -19,6 +19,7 @@ import {
   FolderOpen as SessionIcon,
   Notes as NotesIcon,
 } from '@mui/icons-material';
+import { memo } from 'react';
 import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
 import { TimerRow } from './TimerRow';
 
@@ -37,7 +38,9 @@ interface SessionTimerDisplayProps {
   sx?: any;
 }
 
-export function SessionTimerDisplay({
+// Memoized so the dashboard's 1s stats tick doesn't re-render every TimerRow
+// — the rows own their live ticking via useTimer.
+export const SessionTimerDisplay = memo(function SessionTimerDisplay({
   session,
   showControls = false,
   showNotes = false,
@@ -143,8 +146,9 @@ export function SessionTimerDisplay({
           <IconButton
             size="small"
             onClick={() => onOpenNotes?.(session.id)}
-            sx={{ 
-              color: session.isActive ? 'primary.contrastText' : 'text.secondary' 
+            aria-label="Session notes"
+            sx={{
+              color: session.isActive ? 'primary.contrastText' : 'text.secondary'
             }}
           >
             <NotesIcon />
@@ -193,4 +197,4 @@ export function SessionTimerDisplay({
     </Paper>
   );
 
-}
+});

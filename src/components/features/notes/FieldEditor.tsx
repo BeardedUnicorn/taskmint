@@ -154,7 +154,7 @@ export function FieldEditor({
       {/* Field Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: expanded ? 2 : 0 }}>
         {/* Drag Handle */}
-        <IconButton size="small" sx={{ cursor: 'grab' }}>
+        <IconButton size="small" sx={{ cursor: 'grab' }} aria-label="Drag to reorder field">
           <DragIcon />
         </IconButton>
 
@@ -388,6 +388,7 @@ export function FieldEditor({
                       disabled={(localField.options || []).length <= 1}
                       size="small"
                       color="error"
+                      aria-label="Remove option"
                     >
                       <RemoveIcon />
                     </IconButton>

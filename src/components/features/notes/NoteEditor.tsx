@@ -711,7 +711,7 @@ export function NoteEditor({
             {lastSavedText && ` • ${lastSavedText}`}
           </Typography>
         </Box>
-        <IconButton size="small">
+        <IconButton size="small" aria-label={isCollapsed ? 'Expand notes' : 'Collapse notes'}>
           {isCollapsed ? <ExpandIcon /> : <CollapseIcon />}
         </IconButton>
       </Box>

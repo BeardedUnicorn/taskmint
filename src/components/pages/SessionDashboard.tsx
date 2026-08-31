@@ -29,6 +29,7 @@ import { QuickSessionDialog } from '../ui/dialogs/QuickSessionDialog';
 import { EditSessionDialog } from '../ui/dialogs/EditSessionDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
+import { useDashboardSettings } from '../../hooks/useDashboardSettings';
 import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -36,9 +37,9 @@ import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
-import { formatDuration } from '../../utils/formatters';
+import { formatCurrency, formatDuration } from '../../utils/formatters';
 import { formatDateString } from '../../utils/dateHelpers';
-import { getInstanceElapsedMs, getSessionElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
+import { getInstanceElapsedMs, getSessionElapsedMsOnDate, buildTimerEditUpdates } from '../../utils/timerHelpers';
 
 export function SessionDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -86,6 +87,7 @@ export function SessionDashboard() {
 
   const { tasks, activeTasks, archivedTasks, isLoading: tasksLoading } = useTaskManagementContext();
   const { showError, showSuccess } = useNotification();
+  const { isWidgetEnabled } = useDashboardSettings();
 
   // Archived tasks keep their session history visible, but their names are
   // hidden from the session list's task filter chips
@@ -101,24 +103,30 @@ export function SessionDashboard() {
     session.timerInstances.some((instance) => instance.state === TimerState.running)
   );
 
+  // The clock always ticks — `today` is derived from it, so a gated interval
+  // would freeze the date bucket overnight whenever no timer runs. Tick every
+  // second while a timer accrues time, once a minute otherwise (enough to
+  // roll the date over at midnight).
   useEffect(() => {
-    if (!hasRunningTimer) return;
-    setNowMs(Date.now()); // catch up immediately when a timer starts
-    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    setNowMs(Date.now()); // catch up immediately when the rate changes
+    const interval = setInterval(
+      () => setNowMs(Date.now()),
+      hasRunningTimer ? 1000 : 60_000
+    );
     return () => clearInterval(interval);
   }, [hasRunningTimer]);
 
   const stats = useMemo(() => {
     const today = formatDateString(new Date(nowMs));
 
-    // No totalDuration > 0 filter: a session whose only timer is still
-    // running has totalDuration 0 but must count toward today's totals.
-    const todaysSessions = sessions.filter((s) => s.date === today);
-
+    // Bucket by each instance's own start date, not session.date: sessions
+    // are reactivated across days, so a timer run today inside a session
+    // created yesterday must still count toward today's totals.
     let totalTimeToday = 0;
     let earningsToday = 0;
-    for (const session of todaysSessions) {
-      const elapsed = getSessionElapsedMs(session, nowMs);
+    for (const session of sessions) {
+      const elapsed = getSessionElapsedMsOnDate(session, today, nowMs);
+      if (elapsed === 0) continue;
       totalTimeToday += elapsed;
 
       const task = tasks.find((t) => t.id === session.taskId);
@@ -162,6 +170,12 @@ export function SessionDashboard() {
       startTime: new Date(instance.startTime).toISOString(),
     });
   }, []);
+
+  // Stable identity: an inline arrow here would defeat the toolbar's memo()
+  // on every 1s stats tick.
+  const handleEditActiveSessionTimer = useCallback((instance: TimerInstance) => {
+    if (activeSession) handleEditTimer(instance, activeSession);
+  }, [activeSession, handleEditTimer]);
 
   const handleCloseEditTimerDialog = useCallback(() => {
     setEditingTimerData(null);
@@ -289,29 +303,35 @@ export function SessionDashboard() {
           onPauseTimer={pauseTimerInstance}
           onResumeTimer={resumeTimerInstance}
           onDeleteTimer={deleteTimerInstance}
-          onEditTimer={(instance) => activeSession && handleEditTimer(instance, activeSession)}
+          onEditTimer={handleEditActiveSessionTimer}
           onOpenSessionNotes={handleOpenSessionNotes}
           onOpenTimerNotes={handleOpenTimerNotesForActiveSession}
         />
       </Box>
 
-      {/* Overview Stats */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
-        <StatsCard
-          title="Total Time Today"
-          value={formatDuration(stats.totalTimeToday)}
-          subtitle={stats.totalTimeToday > 0 ? 'Keep up the great work!' : 'Start tracking your time'}
-          icon={<TimerIcon sx={{ fontSize: 40 }} />}
-          color="primary"
-        />
-        <StatsCard
-          title="Earnings Today"
-          value={stats.earningsToday}
-          subtitle={stats.earningsToday > 0 ? 'Based on hourly rates' : 'Set hourly rates to track earnings'}
-          icon={<MoneyIcon sx={{ fontSize: 40 }} />}
-          color="success"
-        />
-      </Box>
+      {/* Overview Stats — visibility follows the dashboard widget settings */}
+      {(isWidgetEnabled('total-time-today') || isWidgetEnabled('earnings-today')) && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
+          {isWidgetEnabled('total-time-today') && (
+            <StatsCard
+              title="Total Time Today"
+              value={formatDuration(stats.totalTimeToday)}
+              subtitle={stats.totalTimeToday > 0 ? 'Keep up the great work!' : 'Start tracking your time'}
+              icon={<TimerIcon sx={{ fontSize: 40 }} />}
+              color="primary"
+            />
+          )}
+          {isWidgetEnabled('earnings-today') && (
+            <StatsCard
+              title="Earnings Today"
+              value={formatCurrency(stats.earningsToday)}
+              subtitle={stats.earningsToday > 0 ? 'Based on hourly rates' : 'Set hourly rates to track earnings'}
+              icon={<MoneyIcon sx={{ fontSize: 40 }} />}
+              color="success"
+            />
+          )}
+        </Box>
+      )}
 
       <Box sx={{ display: 'flex', gap: 4, flexDirection: { xs: 'column', md: 'row' } }}>
         {/* Active Session Display */}
@@ -348,7 +368,9 @@ export function SessionDashboard() {
             onStartSession={handleStartSelectedSession}
             onStopSession={endActiveSession}
             selectedSessionId={selectedSessionId || undefined}
-            isLoading={sessionsLoading}
+            // Initial load only: every timer action toggles isLoading, and an
+            // unguarded pass-through blanked the whole list on each of them.
+            isLoading={sessionsLoading && sessions.length === 0}
             onEditSession={handleEditSession}
             onOpenNotes={handleOpenSessionNotes}
             archivedTaskNames={archivedTaskNames}

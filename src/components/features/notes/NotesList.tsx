@@ -159,7 +159,7 @@ function HierarchicalNotesView({
                   {config?.description}
                 </Typography>
               </Box>
-              <IconButton size="small">
+              <IconButton size="small" aria-label={isExpanded ? 'Collapse notes' : 'Expand notes'}>
                 {isExpanded ? <CollapseIcon /> : <ExpandIcon />}
               </IconButton>
             </Box>

@@ -32,17 +32,13 @@ afterAll(() => {
 });
 
 describe('useDashboardSettings', () => {
+  // A fully-migrated (v2) store: only the widgets the Sessions page renders.
   const defaultPreferences = {
     widgets: [
       { id: 'total-time-today', enabled: true, order: 1 },
       { id: 'earnings-today', enabled: true, order: 2 },
-      // 'tasks-worked-on' was removed from DEFAULT_WIDGETS; keeping it here
-      // models older persisted localStorage, whose stale entries stay inert.
-      { id: 'tasks-worked-on', enabled: true, order: 3 },
-      { id: 'todays-entries', enabled: true, order: 5 },
-      { id: 'daily-goal-progress', enabled: true, order: 4 },
     ],
-    migrationVersion: 1,
+    migrationVersion: 2,
   };
 
   beforeEach(async () => {
@@ -69,7 +65,7 @@ describe('useDashboardSettings', () => {
         'dashboardWidgetPrefs',
         expect.objectContaining({
           widgets: expect.any(Array),
-          migrationVersion: 1,
+          migrationVersion: 2,
         })
       );
     });
@@ -80,12 +76,10 @@ describe('useDashboardSettings', () => {
       const { result } = renderHook(() => useDashboardSettings());
       const availableWidgets = result.current.getAvailableWidgets();
 
-      expect(availableWidgets).toHaveLength(4);
+      expect(availableWidgets).toHaveLength(2);
       expect(availableWidgets.map(w => w.id)).toEqual([
         'total-time-today',
         'earnings-today',
-        'todays-entries',
-        'daily-goal-progress',
       ]);
     });
 
@@ -93,13 +87,10 @@ describe('useDashboardSettings', () => {
       const { result } = renderHook(() => useDashboardSettings());
       const enabledWidgets = result.current.getEnabledWidgets();
 
-      expect(enabledWidgets).toHaveLength(5);
+      expect(enabledWidgets).toHaveLength(2);
       expect(enabledWidgets.map(w => w.id)).toEqual([
         'total-time-today',
         'earnings-today',
-        'tasks-worked-on',
-        'daily-goal-progress',
-        'todays-entries',
       ]);
     });
 
@@ -109,7 +100,6 @@ describe('useDashboardSettings', () => {
         widgets: [
           { id: 'total-time-today', enabled: true, order: 1 },
           { id: 'earnings-today', enabled: false, order: 2 },
-          { id: 'tasks-worked-on', enabled: true, order: 3 },
         ],
       };
 
@@ -121,10 +111,9 @@ describe('useDashboardSettings', () => {
       const { result } = renderHook(() => useDashboardSettings());
       const enabledWidgets = result.current.getEnabledWidgets();
 
-      expect(enabledWidgets).toHaveLength(2);
+      expect(enabledWidgets).toHaveLength(1);
       expect(enabledWidgets.map(w => w.id)).toEqual([
         'total-time-today',
-        'tasks-worked-on',
       ]);
     });
 
@@ -257,7 +246,7 @@ describe('useDashboardSettings', () => {
       expect(mockSetPreferences).toHaveBeenCalledWith(
         expect.objectContaining({
           widgets: expect.any(Array),
-          migrationVersion: 1,
+          migrationVersion: 2,
         })
       );
     });
@@ -303,7 +292,7 @@ describe('useDashboardSettings', () => {
     it('should not run migration when version is current', () => {
       const preferencesWithCurrentVersion = {
         ...defaultPreferences,
-        migrationVersion: 1,
+        migrationVersion: 2,
       };
 
       mockUseLocalStorage.mockReturnValue([
@@ -315,32 +304,6 @@ describe('useDashboardSettings', () => {
 
       // Should not call setPreferences for migration
       expect(mockSetPreferences).not.toHaveBeenCalled();
-    });
-
-    it('should run migration when version is behind', () => {
-      const preferencesWithOldVersion = {
-        widgets: [
-          { id: 'total-time-today', enabled: true, order: 1 },
-          { id: 'earnings-today', enabled: true, order: 2 },
-        ],
-        migrationVersion: 0,
-      };
-
-      mockUseLocalStorage.mockReturnValue([
-        preferencesWithOldVersion,
-        mockSetPreferences,
-      ]);
-
-      renderHook(() => useDashboardSettings());
-
-      // Should call setPreferences to add missing widgets
-      expect(mockSetPreferences).toHaveBeenCalled();
-
-      const updateFunction = mockSetPreferences.mock.calls[0][0];
-      const newPreferences = updateFunction(preferencesWithOldVersion);
-
-      expect(newPreferences.migrationVersion).toBe(1);
-      expect(newPreferences.widgets.length).toBeGreaterThan(2);
     });
 
     it('should add missing widgets during migration', () => {
@@ -358,11 +321,14 @@ describe('useDashboardSettings', () => {
 
       renderHook(() => useDashboardSettings());
 
+      expect(mockSetPreferences).toHaveBeenCalled();
+
       const updateFunction = mockSetPreferences.mock.calls[0][0];
       const newPreferences = updateFunction(preferencesWithMissingWidgets);
 
-      // Should have all 4 default widgets
-      expect(newPreferences.widgets).toHaveLength(4);
+      // Should have both default widgets
+      expect(newPreferences.migrationVersion).toBe(2);
+      expect(newPreferences.widgets).toHaveLength(2);
 
       // Should preserve existing widget
       const existingWidget = newPreferences.widgets.find((w: any) => w.id === 'total-time-today');
@@ -373,33 +339,41 @@ describe('useDashboardSettings', () => {
       expect(newWidget).toEqual({ id: 'earnings-today', enabled: true, order: 2 });
     });
 
-    it('should update version when no widgets need to be added', () => {
-      const preferencesWithAllWidgets = {
+    it('should prune stored widgets that no longer exist (v2 migration)', () => {
+      // A v1 store still carrying the removed renderer-less widgets, with
+      // user customizations on the survivors.
+      const v1Preferences = {
         widgets: [
-          { id: 'total-time-today', enabled: true, order: 1 },
+          { id: 'total-time-today', enabled: false, order: 7 },
           { id: 'earnings-today', enabled: true, order: 2 },
           { id: 'tasks-worked-on', enabled: true, order: 3 },
           { id: 'todays-entries', enabled: true, order: 5 },
           { id: 'daily-goal-progress', enabled: true, order: 4 },
         ],
-        migrationVersion: 0,
+        migrationVersion: 1,
       };
 
       mockUseLocalStorage.mockReturnValue([
-        preferencesWithAllWidgets,
+        v1Preferences,
         mockSetPreferences,
       ]);
 
       renderHook(() => useDashboardSettings());
 
-      // Should still update version even if no widgets added
       expect(mockSetPreferences).toHaveBeenCalled();
 
       const updateFunction = mockSetPreferences.mock.calls[0][0];
-      const newPreferences = updateFunction(preferencesWithAllWidgets);
+      const newPreferences = updateFunction(v1Preferences);
 
-      expect(newPreferences.migrationVersion).toBe(1);
-      expect(newPreferences.widgets).toEqual(preferencesWithAllWidgets.widgets);
+      expect(newPreferences.migrationVersion).toBe(2);
+      // Orphans pruned, user customizations preserved.
+      expect(newPreferences.widgets).toEqual([
+        { id: 'total-time-today', enabled: false, order: 7 },
+        { id: 'earnings-today', enabled: true, order: 2 },
+      ]);
+
+      // Idempotent: re-running against the migrated store changes nothing.
+      expect(updateFunction(newPreferences).widgets).toEqual(newPreferences.widgets);
     });
 
     it('should handle missing migrationVersion property', () => {
@@ -426,7 +400,7 @@ describe('useDashboardSettings', () => {
     it('should handle empty widgets array', () => {
       const preferencesWithEmptyWidgets = {
         widgets: [],
-        migrationVersion: 1,
+        migrationVersion: 2,
       };
 
       mockUseLocalStorage.mockReturnValue([
@@ -446,7 +420,7 @@ describe('useDashboardSettings', () => {
           { id: 'total-time-today', enabled: true },
           { id: 'earnings-today', enabled: true, order: 2 },
         ],
-        migrationVersion: 1,
+        migrationVersion: 2,
       };
 
       mockUseLocalStorage.mockReturnValue([
@@ -480,7 +454,7 @@ describe('useDashboardSettings', () => {
         widgets: [
           { id: 'total-time-today', enabled: true, order: 1, customProp: 'value' },
         ],
-        migrationVersion: 1,
+        migrationVersion: 2,
       };
 
       mockUseLocalStorage.mockReturnValue([

@@ -8,6 +8,7 @@
  */
 
 import { TaskSession, TimeEntry, TimerInstance, TimerState } from '../types/timer';
+import { formatDateString } from './dateHelpers';
 
 function toMs(value: Date | string | undefined): number | null {
   if (!value) return null;
@@ -50,6 +51,41 @@ export function getSessionElapsedMs(session: TaskSession, nowMs: number = Date.n
   if (!session || !Array.isArray(session.timerInstances)) return 0;
   return session.timerInstances.reduce(
     (total, instance) => total + getInstanceElapsedMs(instance, nowMs),
+    0
+  );
+}
+
+/**
+ * Local calendar date (YYYY-MM-DD) a timer instance's time belongs to: the
+ * day it actually started running. session.date is frozen at session
+ * creation, so bucketing by it hides timers run today inside an older,
+ * reactivated session. start_timer_instance resets startTime to the actual
+ * run start, making it the honest bucket. Accepted limitation: a timer
+ * started before local midnight and still running lands entirely in
+ * yesterday's bucket.
+ */
+export function getInstanceDateString(instance: TimerInstance, fallbackDate?: string): string {
+  const startMs = toMs(instance.startTime);
+  if (startMs == null) return fallbackDate ?? '';
+  return formatDateString(new Date(startMs));
+}
+
+/**
+ * Net tracked milliseconds a session contributes to one local calendar date:
+ * the sum of getInstanceElapsedMs over the instances that started on that
+ * date (idle instances contribute 0 regardless of their bucket).
+ */
+export function getSessionElapsedMsOnDate(
+  session: TaskSession,
+  dateStr: string,
+  nowMs: number = Date.now()
+): number {
+  if (!session || !Array.isArray(session.timerInstances)) return 0;
+  return session.timerInstances.reduce(
+    (total, instance) =>
+      getInstanceDateString(instance, session.date) === dateStr
+        ? total + getInstanceElapsedMs(instance, nowMs)
+        : total,
     0
   );
 }

@@ -13,14 +13,8 @@ import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { ActiveTimerProvider } from '../../../contexts/ActiveTimerContext';
 
-// Mock dependencies
-const mockInvoke = vi.fn();
-vi.mock('@tauri-apps/api/tauri', () => ({
-  invoke: mockInvoke,
-  listen: vi.fn(),
-  emit: vi.fn(),
-}));
-
+// Mock dependencies (Tauri v2 core/event modules are mocked globally in
+// src/__tests__/setup/global-mocks.ts)
 const mockShowError = vi.fn();
 const mockShowSuccess = vi.fn();
 const mockShowWarning = vi.fn();
@@ -29,6 +23,14 @@ vi.mock('../../../contexts/NotificationContext', () => ({
     showError: mockShowError,
     showSuccess: mockShowSuccess,
     showWarning: mockShowWarning,
+  }),
+}));
+
+// Dashboard widget settings: all widgets enabled unless a test says otherwise
+const mockIsWidgetEnabled = vi.fn(() => true);
+vi.mock('../../../hooks/useDashboardSettings', () => ({
+  useDashboardSettings: () => ({
+    isWidgetEnabled: mockIsWidgetEnabled,
   }),
 }));
 
@@ -166,8 +168,12 @@ vi.mock('../../layout/SessionTimerToolbar', () => ({
 const renderDashboard = () => render(<SessionDashboard />, { wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider> });
 
 vi.mock('../../ui/sessions/SessionList', () => ({
-  SessionList: ({ sessions, archivedTaskNames }: { sessions: TaskSession[]; archivedTaskNames?: string[] }) => (
-    <div data-testid="session-list" data-archived-task-names={(archivedTaskNames ?? []).join(',')}>
+  SessionList: ({ sessions, archivedTaskNames, isLoading }: { sessions: TaskSession[]; archivedTaskNames?: string[]; isLoading?: boolean }) => (
+    <div
+      data-testid="session-list"
+      data-loading={String(isLoading ?? false)}
+      data-archived-task-names={(archivedTaskNames ?? []).join(',')}
+    >
       {sessions.map((session) => (
         <div key={session.id} data-testid="session-card" className={session.isActive ? 'active' : ''}>
           <span>{session.taskName}</span>
@@ -214,6 +220,8 @@ describe('SessionDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockActiveTimer = null;
+    // clearAllMocks keeps implementations; undo any per-test override
+    mockIsWidgetEnabled.mockImplementation(() => true);
     // Reset mock state
     Object.assign(mockSessionManagement, {
       sessions: [],
@@ -753,6 +761,36 @@ describe('SessionDashboard', () => {
     });
   });
 
+  describe('Session List Loading Guard', () => {
+    it('does not blank the list while a timer action is in flight', () => {
+      // Every start/stop/pause/resume toggles isLoading; with sessions
+      // already loaded the list must stay rendered (loading is passed
+      // through for the initial empty load only).
+      Object.assign(mockSessionManagement, {
+        sessions: [
+          {
+            id: 'session-loaded',
+            taskId: 'task-1',
+            taskName: 'Development Work',
+            timerInstances: [],
+            totalDuration: 0,
+            isActive: false,
+            date: '2024-01-15',
+            createdAt: '2024-01-15T10:00:00Z',
+            updatedAt: '2024-01-15T10:00:00Z',
+          },
+        ],
+        activeSession: null,
+        isLoading: true,
+        error: null,
+      });
+
+      renderDashboard();
+
+      expect(screen.getByTestId('session-list')).toHaveAttribute('data-loading', 'false');
+    });
+  });
+
   describe('Overview Stats', () => {
     // Local noon (no Z suffix): formatDateString buckets by local date.
     const NOW = new Date('2024-01-15T12:00:00');
@@ -790,8 +828,9 @@ describe('SessionDashboard', () => {
           {
             id: 'instance-stopped',
             sessionId: 'session-stopped',
-            startTime: new Date('2024-01-15T09:00:00Z'),
-            endTime: new Date('2024-01-15T09:30:00Z'),
+            // Local times: stats bucket instances by their local start date.
+            startTime: new Date(NOW.getTime() - 3 * 3_600_000),
+            endTime: new Date(NOW.getTime() - 2.5 * 3_600_000),
             duration: 30 * 60_000,
             state: TimerState.stopped,
             isRunning: false,
@@ -835,8 +874,8 @@ describe('SessionDashboard', () => {
       // previously excluded entirely (totalDuration > 0 filter), so the old
       // code showed 0h 30m here.
       expect(screen.getByText('0h 40m')).toBeInTheDocument();
-      // 40 min at $60/h
-      expect(screen.getByText('40')).toBeInTheDocument();
+      // 40 min at $60/h, rendered as currency
+      expect(screen.getByText('$40.00')).toBeInTheDocument();
     });
 
     it('ticks the totals forward while a timer is running', () => {
@@ -849,7 +888,76 @@ describe('SessionDashboard', () => {
       });
 
       expect(screen.getByText('0h 41m')).toBeInTheDocument();
-      expect(screen.getByText('41')).toBeInTheDocument();
+      expect(screen.getByText('$41.00')).toBeInTheDocument();
+    });
+
+    it('counts timers run today inside a session created on an earlier day', () => {
+      // The live repro: sessions are reactivated across days, and their
+      // `date` stays frozen at creation. Bucketing by session.date hid this
+      // running timer entirely (both cards stuck at zero while it ticked).
+      Object.assign(mockSessionManagement, {
+        sessions: [
+          {
+            ...statsSessions[0],
+            id: 'session-yesterday',
+            date: '2024-01-14',
+            timerInstances: [
+              {
+                ...statsSessions[1].timerInstances[0],
+                id: 'instance-yesterday',
+                sessionId: 'session-yesterday',
+                // Ran yesterday: stays in yesterday's bucket.
+                startTime: new Date(NOW.getTime() - 26 * 3_600_000),
+                endTime: new Date(NOW.getTime() - 25.5 * 3_600_000),
+              },
+              {
+                ...statsSessions[0].timerInstances[0],
+                id: 'instance-today',
+                sessionId: 'session-yesterday',
+                startTime: new Date(NOW.getTime() - 10 * 60_000),
+              },
+            ],
+          },
+        ],
+      });
+
+      renderDashboard();
+
+      expect(screen.getByText('0h 10m')).toBeInTheDocument();
+      expect(screen.getByText('$10.00')).toBeInTheDocument();
+    });
+
+    it('rolls the date bucket over at midnight even with no timer running', () => {
+      // `today` derives from the ticking clock; before the fix the interval
+      // was gated on a running timer, freezing the bucket overnight.
+      const LATE = new Date('2024-01-15T23:59:30');
+      vi.setSystemTime(LATE);
+      Object.assign(mockSessionManagement, {
+        sessions: [
+          {
+            ...statsSessions[1],
+            timerInstances: [
+              {
+                ...statsSessions[1].timerInstances[0],
+                startTime: new Date(LATE.getTime() - 59.5 * 60_000),
+                endTime: new Date(LATE.getTime() - 30_000),
+                duration: 59 * 60_000,
+              },
+            ],
+          },
+        ],
+      });
+
+      renderDashboard();
+
+      expect(screen.getByText('0h 59m')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(120_000); // idle tick fires each minute
+      });
+
+      // Past midnight the finished timer belongs to yesterday's bucket.
+      expect(screen.getByText('0h 0m')).toBeInTheDocument();
     });
 
     it('does not render the removed Tasks Worked On card', () => {
@@ -858,6 +966,15 @@ describe('SessionDashboard', () => {
       expect(screen.getByText('Total Time Today')).toBeInTheDocument();
       expect(screen.getByText('Earnings Today')).toBeInTheDocument();
       expect(screen.queryByText('Tasks Worked On')).not.toBeInTheDocument();
+    });
+
+    it('hides a scorecard when its dashboard widget setting is disabled', () => {
+      mockIsWidgetEnabled.mockImplementation(((id: string) => id !== 'earnings-today') as never);
+
+      renderDashboard();
+
+      expect(screen.getByText('Total Time Today')).toBeInTheDocument();
+      expect(screen.queryByText('Earnings Today')).not.toBeInTheDocument();
     });
   });
 });

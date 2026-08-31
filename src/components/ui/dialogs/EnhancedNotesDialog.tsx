@@ -654,6 +654,7 @@ const NoteList: React.FC<{
                 onClick={() => onEdit(note)}
                 size="small"
                 sx={{ mr: 1 }}
+                aria-label="Edit note"
               >
                 <EditIcon />
               </IconButton>
@@ -662,6 +663,7 @@ const NoteList: React.FC<{
                 onClick={() => onDelete(note.id)}
                 size="small"
                 color="error"
+                aria-label="Delete note"
               >
                 <DeleteIcon />
               </IconButton>
