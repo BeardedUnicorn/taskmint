@@ -210,14 +210,18 @@ describe('getSessionElapsedMsOnDate', () => {
 });
 
 describe('sessionsToTimeEntries', () => {
+  // Local-noon constructor keeps the local calendar date identical in every
+  // timezone the suite might run in.
+  const localNoon = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0);
+
   it('flattens instances with session task info and derives isRunning from state', () => {
     const session: TaskSession = {
       id: 'session_1',
       taskId: 'task_1',
       taskName: 'Deep work',
       timerInstances: [
-        instance({ id: 'a', state: TimerState.running }),
-        instance({ id: 'b', state: TimerState.stopped, duration: sec(60) }),
+        instance({ id: 'a', state: TimerState.running, startTime: localNoon(2026, 8, 18) }),
+        instance({ id: 'b', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 18) }),
       ],
       totalDuration: sec(60),
       isActive: true,
@@ -236,6 +240,31 @@ describe('sessionsToTimeEntries', () => {
       isRunning: true,
     });
     expect(entries[1]).toMatchObject({ id: 'b', isRunning: false, duration: sec(60) });
+  });
+
+  it('dates each entry by its own local start date, not session.date', () => {
+    // Sessions are reactivated across days with their date frozen at
+    // creation; entries must land on the day the timer actually ran so
+    // Calendar and daily-goal bucketing agree with the Sessions dashboard.
+    const session: TaskSession = {
+      id: 'session_1',
+      taskId: 'task_1',
+      taskName: 'Deep work',
+      timerInstances: [
+        instance({ id: 'old', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 17) }),
+        instance({ id: 'new', state: TimerState.running, startTime: localNoon(2026, 8, 18) }),
+        // Invalid startTime falls back to the session date.
+        instance({ id: 'bad', state: TimerState.idle, startTime: 'garbage' as unknown as Date }),
+      ],
+      totalDuration: sec(60),
+      isActive: true,
+      date: '2026-08-18',
+      createdAt: new Date(T0).toISOString(),
+      updatedAt: new Date(T0).toISOString(),
+    };
+
+    const entries = sessionsToTimeEntries([session]);
+    expect(entries.map(e => e.date)).toEqual(['2026-08-17', '2026-08-18', '2026-08-18']);
   });
 
   it('skips malformed sessions without timerInstances arrays', () => {

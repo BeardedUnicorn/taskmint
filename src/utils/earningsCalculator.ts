@@ -7,6 +7,7 @@
 
 import { TimeEntry } from '../types/timer';
 import { Task } from '../types/task';
+import { formatDateString } from './dateHelpers';
 
 /**
  * Calculate total earnings for a specific date
@@ -195,9 +196,12 @@ function generateDateRange(startDate: string, endDate: string): string[] {
 }
 
 /**
- * Get today's date in YYYY-MM-DD format
+ * Get today's date in YYYY-MM-DD format, in the user's LOCAL timezone.
+ * Entry/session dates are local day strings, so the boundary here must be
+ * local too — the old toISOString() version used a UTC boundary, flipping
+ * "today" hours early for users west of UTC (late afternoon in the US).
  * @returns Today's date string
  */
 export function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0];
+  return formatDateString(new Date());
 }

@@ -25,7 +25,7 @@ import { EditTimeEntryData } from './types/form';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
-import { sessionsToTimeEntries, buildTimerEditUpdates } from './utils/timerHelpers';
+import { sessionsToTimeEntries, buildTimerEditUpdates, getInstanceDateString } from './utils/timerHelpers';
 import { createServiceErrorHandler } from './utils/errorHandler';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
 
@@ -55,7 +55,8 @@ function AppContent() {
       taskId: sessionManager.activeSession.taskId,
       startTime: new Date(activeTimer.startTime),
       isRunning: true,
-      date: sessionManager.activeSession.date,
+      // Same per-instance day bucketing as sessionsToTimeEntries.
+      date: getInstanceDateString(activeTimer, sessionManager.activeSession.date),
     };
   }, [sessionManager.activeSession, activeTimer]);
 

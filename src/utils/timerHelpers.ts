@@ -126,8 +126,11 @@ export function buildTimerEditUpdates(instance: TimerInstance, durationMs: numbe
 /**
  * Flatten backend sessions into the TimeEntry shape the Tasks, Time Entries,
  * Reports, and Calendar pages consume. Keeps the raw instance fields and
- * overlays the session-level ones, matching the shape those pages have always
- * received.
+ * overlays the session-level ones. Each entry's `date` is the instance's own
+ * local start date (not session.date, which is frozen at session creation
+ * while sessions get reactivated across days) — the same per-instance
+ * bucketing the Sessions-page scorecards use, and the same day the pages
+ * that key off startTime already display.
  */
 export function sessionsToTimeEntries(sessions: TaskSession[]): TimeEntry[] {
   return sessions
@@ -138,7 +141,7 @@ export function sessionsToTimeEntries(sessions: TaskSession[]): TimeEntry[] {
         taskName: s.taskName,
         taskId: s.taskId,
         isRunning: i.state === TimerState.running,
-        date: s.date,
+        date: getInstanceDateString(i, s.date),
       }))
     ) as unknown as TimeEntry[];
 }

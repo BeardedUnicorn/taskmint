@@ -218,12 +218,20 @@ export function useDailyGoalProgressMonitor({
     }
 
     const today = getTodayDateString();
-    
-    // Check if we need to record yesterday's achievement
-    if (currentGoal.lastNotificationDate && currentGoal.lastNotificationDate !== today) {
+
+    // Check if we need to record yesterday's achievement. Only record dates
+    // strictly BEFORE today: a stored lastNotificationDate can be ahead of
+    // the local day (it was stamped with a UTC boundary before 2026-08, or
+    // the clock moved) and recording a future day would write a bogus
+    // zero-earnings achievement.
+    if (
+      currentGoal.lastNotificationDate &&
+      currentGoal.lastNotificationDate !== today &&
+      currentGoal.lastNotificationDate < today
+    ) {
       const yesterday = currentGoal.lastNotificationDate;
       const yesterdayEarnings = calculateTotalEarningsForDate(yesterday, timeEntries, tasks);
-      
+
       if (currentGoal.targetAmount > 0) {
         const percentageAchieved = (yesterdayEarnings / currentGoal.targetAmount) * 100;
         const difference = yesterdayEarnings - currentGoal.targetAmount;

@@ -407,29 +407,25 @@ describe('earningsCalculator', () => {
   });
 
   describe('getTodayDateString', () => {
-    it('should return today\'s date in YYYY-MM-DD format', () => {
-      const mockDate = new Date('2024-01-15T14:30:00.000Z');
-      vi.spyOn(global, 'Date').mockImplementation(function () {
-        return mockDate;
-      } as any);
-
-      const dateString = getTodayDateString();
-      expect(dateString).toBe('2024-01-15');
-
-      vi.restoreAllMocks();
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
-    it('should handle different timezones consistently', () => {
-      // Test with a date that might have timezone issues
-      const mockDate = new Date('2024-12-31T23:59:59.999Z');
-      vi.spyOn(global, 'Date').mockImplementation(function () {
-        return mockDate;
-      } as any);
+    it('should return today\'s date in YYYY-MM-DD format', () => {
+      vi.useFakeTimers();
+      // Local-constructed midday: the same local calendar date in every TZ.
+      vi.setSystemTime(new Date(2024, 0, 15, 14, 30, 0));
 
-      const dateString = getTodayDateString();
-      expect(dateString).toBe('2024-12-31');
+      expect(getTodayDateString()).toBe('2024-01-15');
+    });
 
-      vi.restoreAllMocks();
+    it('uses the LOCAL day boundary, not UTC', () => {
+      vi.useFakeTimers();
+      // Late local evening: the old toISOString() implementation returned
+      // the NEXT day for users west of UTC (daily goal flipped at 4-5pm PT).
+      vi.setSystemTime(new Date(2024, 11, 31, 23, 59, 59));
+
+      expect(getTodayDateString()).toBe('2024-12-31');
     });
   });
 
