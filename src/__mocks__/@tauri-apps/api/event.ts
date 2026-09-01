@@ -79,7 +79,7 @@ export const __triggerEvent = vi.fn((event: string, payload?: any) => {
       }
     });
   }
-};
+});
 
 // Helper function for tests to clear all listeners
 export const __clearAllListeners = () => {

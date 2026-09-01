@@ -140,4 +140,22 @@ describe('ImportWorkLogsDialog', () => {
     expect(screen.getByText(/update task hourly rates from imported pay/i)).toBeInTheDocument();
     expect(screen.getByText(/\$75\.00\/hr/)).toBeInTheDocument();
   });
+
+  it('prefills from initialText and previews without any typing', () => {
+    renderDialog({ initialText: samplePayload });
+
+    expect(screen.getByLabelText(/paste the site's json payload/i)).toHaveValue(samplePayload);
+    expect(screen.getByText(deriveTimedWorkDay(CREATED_AT, 240))).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /apply import/i })).toBeEnabled();
+  });
+
+  it('resets to an empty paste box when reopened without initialText', () => {
+    const { rerender, props } = renderDialog({ initialText: samplePayload });
+    expect(screen.getByLabelText(/paste the site's json payload/i)).toHaveValue(samplePayload);
+
+    rerender(<ImportWorkLogsDialog {...props} initialText={undefined} open={false} />);
+    rerender(<ImportWorkLogsDialog {...props} initialText={undefined} open={true} />);
+
+    expect(screen.getByLabelText(/paste the site's json payload/i)).toHaveValue('');
+  });
 });

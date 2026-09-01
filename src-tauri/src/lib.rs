@@ -15,6 +15,7 @@ pub mod backup;
 pub mod google_drive;
 pub mod config;
 pub mod storage;
+pub mod capture_server;
 
 
 // Re-export commonly used types
@@ -27,6 +28,17 @@ pub fn run() {
     let app_state = AppState::new();
 
     tauri::Builder::default()
+        // Must be the FIRST plugin: a second launch (e.g. a taskmint:// deep
+        // link on Windows) forwards its args here and exits; the deep-link
+        // plugin's "deep-link" feature routes those args to on_open_url.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            use tauri::Manager;
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -175,6 +187,38 @@ pub fn run() {
                     tray::start_tray_update_timer(&app_handle, &app_state);
                 }
 
+                // taskmint:// deep links (browser-extension captures). macOS
+                // registration is bundle-time (Info.plist via tauri.conf.json);
+                // production Windows registers via the installer; runtime
+                // registration covers Linux and Windows dev builds.
+                {
+                    use tauri_plugin_deep_link::DeepLinkExt;
+
+                    #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+                    if let Err(e) = app_handle.deep_link().register_all() {
+                        eprintln!("Failed to register deep-link schemes: {}", e);
+                    }
+
+                    // URLs the app was launched with (cold start via a link).
+                    if let Ok(Some(urls)) = app_handle.deep_link().get_current() {
+                        let urls: Vec<String> = urls.iter().map(|u| u.to_string()).collect();
+                        capture_server::handle_deep_link_urls(&app_handle, &app_state, &urls);
+                    }
+
+                    // URLs opened while running (macOS Apple events; forwarded
+                    // argv from a second instance on Windows/Linux).
+                    let link_app = app_handle.clone();
+                    let link_state = app_state.clone();
+                    app_handle.deep_link().on_open_url(move |event| {
+                        let urls: Vec<String> =
+                            event.urls().iter().map(|u| u.to_string()).collect();
+                        capture_server::handle_deep_link_urls(&link_app, &link_state, &urls);
+                    });
+                }
+
+                // Localhost capture server for the browser extension.
+                capture_server::start_capture_server(&app_handle, &app_state);
+
                 Ok(())
             }
         })
@@ -210,6 +254,10 @@ pub fn run() {
             // Work-log commands
             commands::worklogs::get_work_logs,
             commands::worklogs::apply_work_log_import,
+
+            // Browser-capture commands
+            commands::capture::take_pending_work_log_capture,
+            commands::capture::get_capture_server_status,
 
             // Tray commands
             commands::tray::update_tray_menu_command,

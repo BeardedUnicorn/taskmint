@@ -200,6 +200,25 @@ pub struct WorkLogEntry {
     pub updated_at: String, // last-upserted ISO
 }
 
+// A raw work-log payload delivered by the browser extension (over localhost
+// or a taskmint:// deep link), waiting for the frontend to take and process
+// it. Latest delivery wins; take_pending_work_log_capture clears it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingCapture {
+    pub payload: String, // raw JSON text as captured from the site
+    pub received_at: String, // RFC3339
+}
+
+// Status of the localhost capture server, surfaced on the Payouts page.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureServerStatus {
+    pub running: bool,
+    pub port: u16,
+    pub warning: Option<String>,
+}
+
 // Remembered mapping from a site project to a TaskMint task, upserted by
 // `project_id`.
 #[derive(Debug, Clone, Serialize, Deserialize)]

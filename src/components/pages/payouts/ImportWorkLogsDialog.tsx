@@ -7,7 +7,7 @@
  * that out per day before anything is touched.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -55,6 +55,8 @@ import { TaskSelector } from '../../ui/forms/TaskSelector';
 interface ImportWorkLogsDialogProps {
   open: boolean;
   onClose: () => void;
+  /** Prefills the paste box on open (e.g. a staged browser capture). */
+  initialText?: string;
   existingEntries: WorkLogEntry[];
   existingMappings: ProjectTaskMapping[];
   sessions: TaskSession[];
@@ -78,6 +80,7 @@ function signedMinutes(deltaMinutes: number): string {
 export function ImportWorkLogsDialog({
   open,
   onClose,
+  initialText,
   existingEntries,
   existingMappings,
   sessions,
@@ -92,10 +95,18 @@ export function ImportWorkLogsDialog({
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<WorkLogImportSummary | null>(null);
 
-  // Fresh dialog on every open.
+  // Latest initialText without re-running the open-reset: re-triggering on an
+  // initialText change would wipe the result view when a successful staged
+  // apply clears the banner while the dialog is still showing its summary.
+  const initialTextRef = useRef(initialText);
+  useEffect(() => {
+    initialTextRef.current = initialText;
+  }, [initialText]);
+
+  // Fresh dialog on every open, seeded with any staged capture.
   useEffect(() => {
     if (open) {
-      setRawText('');
+      setRawText(initialTextRef.current ?? '');
       setTaskChoices({});
       setUpdateRates(true);
       setApplying(false);
