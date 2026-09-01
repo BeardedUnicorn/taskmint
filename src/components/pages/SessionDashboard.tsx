@@ -37,7 +37,7 @@ import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
-import { formatCurrency, formatDuration } from '../../utils/formatters';
+import { formatCurrency, formatTime } from '../../utils/formatters';
 import { getInstanceElapsedMs, getSessionElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
 
 export function SessionDashboard() {
@@ -92,14 +92,16 @@ export function SessionDashboard() {
   // hidden from the session list's task filter chips
   const archivedTaskNames = useMemo(() => archivedTasks.map(t => t.name), [archivedTasks]);
 
-  // Live stats: the backend's session.totalDuration only sums finalized
-  // instances (running/paused contribute 0) and sessions state only changes
-  // on discrete timer events, so derive totals from instance state via
-  // getSessionElapsedMs and tick once a second while any timer is running.
+  // The page's single clock: the backend's session.totalDuration only sums
+  // finalized instances (running/paused contribute 0) and sessions state only
+  // changes on discrete timer events, so live durations are derived from
+  // instance state via getSessionElapsedMs. This nowMs feeds the score cards,
+  // the Active Session panel, and the session list so they never disagree on
+  // the displayed second; it ticks only while a timer is running.
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const hasRunningTimer = !!activeSession?.timerInstances.some(
-    (instance) => instance.state === TimerState.running
+  const hasRunningTimer = sessions.some((session) =>
+    session.timerInstances?.some((instance) => instance.state === TimerState.running)
   );
 
   // Totals only accrue while a timer runs (paused time is frozen, idle time
@@ -116,12 +118,11 @@ export function SessionDashboard() {
     // it ran; with no active session both cards read zero.
     const totalTime = activeSession ? getSessionElapsedMs(activeSession, nowMs) : 0;
     const task = activeSession ? tasks.find((t) => t.id === activeSession.taskId) : undefined;
+    const hourlyRate = task?.hourlyRate ?? 0;
     const totalEarnings =
-      task?.hourlyRate && task.hourlyRate > 0
-        ? (totalTime / (1000 * 60 * 60)) * task.hourlyRate
-        : 0;
+      hourlyRate > 0 ? (totalTime / (1000 * 60 * 60)) * hourlyRate : 0;
 
-    return { totalTime, totalEarnings };
+    return { totalTime, totalEarnings, hourlyRate };
   }, [activeSession, tasks, nowMs]);
 
   // Determine currently running timer instance for inactivity handling
@@ -157,11 +158,15 @@ export function SessionDashboard() {
     });
   }, []);
 
-  // Stable identity: an inline arrow here would defeat the toolbar's memo()
-  // on every 1s stats tick.
-  const handleEditActiveSessionTimer = useCallback((instance: TimerInstance) => {
-    if (activeSession) handleEditTimer(instance, activeSession);
-  }, [activeSession, handleEditTimer]);
+  const handleAddTimer = useCallback(async () => {
+    if (!activeSession) return;
+    try {
+      await createTimerInstance(activeSession.id);
+      // New timers start idle — the user starts them explicitly.
+    } catch (error) {
+      showError(error instanceof Error ? error.message : 'Failed to add timer');
+    }
+  }, [activeSession, createTimerInstance, showError]);
 
   const handleCloseEditTimerDialog = useCallback(() => {
     setEditingTimerData(null);
@@ -241,11 +246,6 @@ export function SessionDashboard() {
     return session;
   }, [createSession]);
 
-  // Memoized callback for timer notes with proper typing
-  const handleOpenTimerNotesForActiveSession = useCallback((instanceId: string) => {
-    handleOpenTimerNotes(activeSession?.id || '', instanceId);
-  }, [activeSession?.id, handleOpenTimerNotes]);
-
   // Memoized dialog close callbacks
   const handleCloseNotesDialog = useCallback(() => setNotesDialogOpen(false), []);
   const handleCloseQuickSessionDialog = useCallback(() => setQuickSessionDialogOpen(false), []);
@@ -283,15 +283,7 @@ export function SessionDashboard() {
           onEndSession={endActiveSession}
           onPauseAll={pauseAllTimersInActiveSession}
           onResumeAll={resumeAllTimersInActiveSession}
-          onCreateTimerInstance={createTimerInstance}
-          onStartTimer={startTimerInstance}
-          onStopTimer={stopTimerInstance}
-          onPauseTimer={pauseTimerInstance}
-          onResumeTimer={resumeTimerInstance}
-          onDeleteTimer={deleteTimerInstance}
-          onEditTimer={handleEditActiveSessionTimer}
           onOpenSessionNotes={handleOpenSessionNotes}
-          onOpenTimerNotes={handleOpenTimerNotesForActiveSession}
         />
       </Box>
 
@@ -300,18 +292,24 @@ export function SessionDashboard() {
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
           {isWidgetEnabled('total-time-today') && (
             <StatsCard
-              title="Total Time"
-              value={formatDuration(stats.totalTime)}
-              subtitle={stats.totalTime > 0 ? 'Keep up the great work!' : 'Start tracking your time'}
+              title="Session Time"
+              value={activeSession ? formatTime(stats.totalTime) : '—'}
+              subtitle={activeSession ? activeSession.taskName : 'No active session'}
               icon={<TimerIcon sx={{ fontSize: 40 }} />}
               color="primary"
             />
           )}
           {isWidgetEnabled('earnings-today') && (
             <StatsCard
-              title="Earnings"
-              value={formatCurrency(stats.totalEarnings)}
-              subtitle={stats.totalEarnings > 0 ? 'Based on hourly rates' : 'Set hourly rates to track earnings'}
+              title="Session Earnings"
+              value={activeSession ? formatCurrency(stats.totalEarnings) : '—'}
+              subtitle={
+                activeSession
+                  ? stats.hourlyRate > 0
+                    ? `At ${formatCurrency(stats.hourlyRate)}/hr`
+                    : 'Set an hourly rate on this task'
+                  : 'Start a session to track earnings'
+              }
               icon={<MoneyIcon sx={{ fontSize: 40 }} />}
               color="success"
             />
@@ -328,9 +326,11 @@ export function SessionDashboard() {
             </Typography>
             <SessionTimerDisplay
               session={activeSession}
+              nowMs={nowMs}
               showControls
               showNotes
               size="large"
+              onAddTimer={handleAddTimer}
               onStartTimer={startTimerInstance}
               onStopTimer={stopTimerInstance}
               onPauseTimer={pauseTimerInstance}
@@ -349,7 +349,9 @@ export function SessionDashboard() {
           </Typography>
           <SessionList
             sessions={sessions}
+            nowMs={nowMs}
             onSelectSession={handleSelectSession}
+            onCreateSession={handleOpenQuickSessionDialog}
             onDeleteSession={deleteSession}
             onStartSession={handleStartSelectedSession}
             onStopSession={endActiveSession}
@@ -370,7 +372,6 @@ export function SessionDashboard() {
           remainingSeconds={warningTimeRemaining}
           onContinue={handleContinueWork}
           onPause={handlePauseFromInactivity}
-          timerInstance={activeTimerInstance}
         />
       )}
 

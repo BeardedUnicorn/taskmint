@@ -1,4 +1,5 @@
 import { Box, Typography, Chip, Tooltip, IconButton } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   Timer as TimerIcon,
   PlayArrow as PlayIcon,
@@ -8,15 +9,15 @@ import {
   Delete as DeleteIcon,
   Notes as NotesIcon,
 } from '@mui/icons-material';
-import { useMemo } from 'react';
 import { TimerInstance, TimerState } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
-import { useTimer } from '../../../hooks/useTimer';
 import { getInstanceElapsedMs } from '../../../utils/timerHelpers';
 
 export interface TimerRowProps {
   instance: TimerInstance;
   index: number;
+  /** Shared page clock — running rows derive their live elapsed from it. */
+  nowMs: number;
   showControls: boolean;
   showNotes: boolean;
   size: 'small' | 'medium' | 'large';
@@ -27,12 +28,12 @@ export interface TimerRowProps {
   onDelete: () => void;
   onEdit: () => void;
   onOpenNotes: () => void;
-  isSessionActive: boolean;
 }
 
 export function TimerRow({
   instance,
   index,
+  nowMs,
   showControls,
   showNotes,
   size,
@@ -43,59 +44,64 @@ export function TimerRow({
   onDelete,
   onEdit,
   onOpenNotes,
-  isSessionActive,
 }: TimerRowProps) {
-  const startTime = useMemo(() => {
-    if (instance.state !== TimerState.running || !instance.startTime) return undefined;
-    return instance.startTime instanceof Date
-      ? instance.startTime
-      : new Date(instance.startTime);
-  }, [instance.state, instance.startTime]);
-
-  const isRunning = instance.state === TimerState.running;
-  const currentElapsed = useTimer(isRunning, startTime, instance.pausedDuration || 0);
-  // Paused timers show their frozen elapsed; stopped ones their recorded duration.
-  const displayTime = isRunning ? currentElapsed : getInstanceElapsedMs(instance);
+  // getInstanceElapsedMs covers every state: running counts from nowMs,
+  // paused shows its frozen elapsed, stopped its recorded duration.
+  const displayTime = getInstanceElapsedMs(instance, nowMs);
   const isSmall = size === 'small';
+  const isRunning = instance.state === TimerState.running;
+  const isPaused = instance.state === TimerState.paused;
+  const isStopped = instance.state === TimerState.stopped;
 
   return (
     <Box
-      sx={{
+      data-testid="timer-instance"
+      sx={(theme) => ({
         display: 'flex',
         alignItems: 'center',
         gap: 1,
         p: 1,
         borderRadius: 1,
-        bgcolor: instance.state === TimerState.running
-          ? 'success.light'
-          : instance.state === TimerState.paused
-            ? 'warning.light'
-            : isSessionActive
-              ? 'primary.dark'
-              : 'grey.100',
-        color: instance.state === TimerState.running || instance.state === TimerState.paused || isSessionActive
-          ? 'white'
-          : 'text.primary',
-      }}
+        border: '1px solid',
+        borderLeft: '3px solid',
+        ...(isRunning
+          ? {
+              bgcolor: alpha(theme.palette.success.main, 0.15),
+              borderColor: alpha(theme.palette.success.main, 0.4),
+              borderLeftColor: theme.palette.success.main,
+            }
+          : isPaused
+            ? {
+                bgcolor: alpha(theme.palette.warning.main, 0.15),
+                borderColor: alpha(theme.palette.warning.main, 0.4),
+                borderLeftColor: theme.palette.warning.main,
+              }
+            : {
+                bgcolor: 'background.default',
+                borderColor: 'divider',
+                borderLeftColor: 'divider',
+              }),
+      })}
     >
-      <TimerIcon fontSize={isSmall ? 'small' : 'medium'} />
+      <TimerIcon fontSize={isSmall ? 'small' : 'medium'} sx={{ color: 'text.secondary' }} />
 
-      <Typography variant={isSmall ? 'caption' : 'body2'} sx={{ minWidth: 60 }}>
+      <Typography variant={isSmall ? 'caption' : 'body2'} sx={{ minWidth: 60, color: 'text.secondary' }}>
         Timer {index}
       </Typography>
 
       <Typography
         variant={isSmall ? 'body2' : 'body1'}
         sx={{
-          fontFamily: 'monospace',
+          fontFamily: '"Roboto Mono", monospace',
           fontWeight: 600,
           flex: 1,
+          color: isStopped ? 'text.secondary' : 'text.primary',
         }}
       >
         {formatTime(displayTime)}
       </Typography>
 
-      {instance.state === TimerState.running && (
+      {isRunning && (
         <Chip
           size="small"
           label="Running"
@@ -104,7 +110,7 @@ export function TimerRow({
         />
       )}
 
-      {instance.state === TimerState.paused && (
+      {isPaused && (
         <Chip
           size="small"
           label="Paused"
@@ -118,53 +124,53 @@ export function TimerRow({
           {/* A completed (stopped) timer is final: Start only appears on fresh timers */}
           {instance.state === TimerState.idle && (
             <Tooltip title="Start Timer">
-              <IconButton size="small" onClick={onStart} sx={{ color: 'inherit' }}>
+              <IconButton size="small" onClick={onStart}>
                 <PlayIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
 
-          {instance.state === TimerState.running && (
+          {isRunning && (
             <>
               <Tooltip title="Pause Timer">
-                <IconButton size="small" onClick={onPause} sx={{ color: 'inherit' }}>
+                <IconButton size="small" onClick={onPause}>
                   <PauseIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Stop Timer">
-                <IconButton size="small" onClick={onStop} sx={{ color: 'inherit' }}>
+                <IconButton size="small" onClick={onStop}>
                   <StopIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </>
           )}
 
-          {instance.state === TimerState.paused && (
+          {isPaused && (
             <>
               <Tooltip title="Resume Timer">
-                <IconButton size="small" onClick={onResume} sx={{ color: 'inherit' }}>
+                <IconButton size="small" onClick={onResume}>
                   <PlayIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Stop Timer">
-                <IconButton size="small" onClick={onStop} sx={{ color: 'inherit' }}>
+                <IconButton size="small" onClick={onStop}>
                   <StopIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </>
           )}
 
-          {instance.state === TimerState.stopped && (
+          {isStopped && (
             <Tooltip title="Edit Timer">
-              <IconButton size="small" onClick={onEdit} sx={{ color: 'inherit' }}>
+              <IconButton size="small" onClick={onEdit}>
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
 
-          {(instance.state === TimerState.idle || instance.state === TimerState.stopped) && (
+          {(instance.state === TimerState.idle || isStopped) && (
             <Tooltip title="Delete Timer">
-              <IconButton size="small" onClick={onDelete} sx={{ color: 'inherit' }}>
+              <IconButton size="small" onClick={onDelete}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -174,7 +180,7 @@ export function TimerRow({
 
       {showNotes && (
         <Tooltip title="Timer Notes">
-          <IconButton size="small" onClick={onOpenNotes} sx={{ color: 'inherit' }}>
+          <IconButton size="small" onClick={onOpenNotes}>
             <NotesIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -182,4 +188,3 @@ export function TimerRow({
     </Box>
   );
 }
-

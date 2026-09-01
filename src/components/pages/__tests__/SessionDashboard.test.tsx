@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionDashboard } from '../SessionDashboard';
 import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
@@ -149,20 +149,11 @@ vi.mock('../../../contexts/ActiveTimerContext', () => ({
   useActiveTimer: () => ({ activeTimer: mockActiveTimer, setActiveTimer: mockSetActiveTimer }),
 }));
 
-// Mock child components to isolate SessionDashboard testing
+// Mock child components to isolate SessionDashboard testing. The toolbar is
+// a session-level status bar now — per-timer actions (including Add Timer)
+// come through SessionTimerDisplay.
 vi.mock('../../layout/SessionTimerToolbar', () => ({
-  SessionTimerToolbar: ({ onCreateTimerInstance, onStartTimer }: any) => (
-    <div data-testid="session-timer-bar">
-      <button
-        onClick={() => {
-          const mockInstance = { id: 'timer-2' };
-          onCreateTimerInstance('session-1').then(() => onStartTimer('timer-2'));
-        }}
-      >
-        Add Timer
-      </button>
-    </div>
-  ),
+  SessionTimerToolbar: () => <div data-testid="session-timer-bar" />,
 }));
 
 const renderDashboard = () => render(<SessionDashboard />, { wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider> });
@@ -185,8 +176,9 @@ vi.mock('../../ui/sessions/SessionList', () => ({
 }));
 
 vi.mock('../../ui/display/SessionTimerDisplay', () => ({
-  SessionTimerDisplay: ({ onStartTimer, onStopTimer, onPauseTimer, onResumeTimer, onOpenNotes }: any) => (
+  SessionTimerDisplay: ({ onStartTimer, onStopTimer, onPauseTimer, onResumeTimer, onOpenNotes, onAddTimer }: any) => (
     <div data-testid="session-timer-display">
+      <button onClick={() => onAddTimer()}>Add Timer</button>
       <button onClick={() => onStartTimer('timer-1')}>Start Timer</button>
       <button onClick={() => onStopTimer('timer-1')}>Stop Timer</button>
       <button onClick={() => onPauseTimer('timer-1')}>Pause Timer</button>
@@ -364,9 +356,12 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      expect(screen.getByText('Development Work')).toBeInTheDocument();
-      expect(screen.getByText('Code Review')).toBeInTheDocument();
-      expect(screen.getByText('01:00:00')).toBeInTheDocument(); // 1 hour duration
+      // Scoped to the list: the active session's name also appears in the
+      // Session Time score card subtitle.
+      const list = within(screen.getByTestId('session-list'));
+      expect(list.getByText('Development Work')).toBeInTheDocument();
+      expect(list.getByText('Code Review')).toBeInTheDocument();
+      expect(list.getByText('01:00:00')).toBeInTheDocument(); // 1 hour duration
 
       // Reset for other tests
       (mockSessionManagement as any).sessions = [];
@@ -405,7 +400,9 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      const activeSessionCard = screen.getByText('Code Review').closest('[data-testid="session-card"]');
+      const activeSessionCard = within(screen.getByTestId('session-list'))
+        .getByText('Code Review')
+        .closest('[data-testid="session-card"]');
       expect(activeSessionCard).toHaveClass('active');
 
       // Reset for other tests
@@ -447,7 +444,7 @@ describe('SessionDashboard', () => {
       mockSessionManagement.error = null;
     });
 
-    it('should create and start a timer instance when Add Timer is clicked', async () => {
+    it('should create an idle timer when the panel Add Timer button is clicked', async () => {
       const newTimerInstance: TimerInstance = {
         id: 'timer-2',
         sessionId: 'session-1',
@@ -461,17 +458,30 @@ describe('SessionDashboard', () => {
       };
 
       mockCreateTimerInstance.mockResolvedValue(newTimerInstance);
-      mockStartTimer.mockResolvedValue(undefined);
 
       renderDashboard();
 
-      // Find and click the Add Timer button in SessionTimerToolbar
+      // The Add Timer affordance lives in the Active Session panel
       const addTimerButton = screen.getByText('Add Timer');
       fireEvent.click(addTimerButton);
 
       await waitFor(() => {
         expect(mockCreateTimerInstance).toHaveBeenCalledWith('session-1');
-        expect(mockStartTimer).toHaveBeenCalledWith('timer-2');
+      });
+      // New timers start idle — the user starts them explicitly
+      expect(mockStartTimer).not.toHaveBeenCalled();
+    });
+
+    it('should surface an error notification when adding a timer fails', async () => {
+      mockCreateTimerInstance.mockRejectedValue(new Error('Add failed'));
+
+      renderDashboard();
+
+      fireEvent.click(screen.getByText('Add Timer'));
+
+      await waitFor(() => {
+        expect(mockCreateTimerInstance).toHaveBeenCalledWith('session-1');
+        expect(mockShowError).toHaveBeenCalledWith('Add failed');
       });
     });
 
@@ -869,32 +879,35 @@ describe('SessionDashboard', () => {
       renderDashboard();
 
       // Active session: one timer running for 10 min. The inactive session's
-      // 30 min stopped timer is not part of the cards.
-      expect(screen.getByText('0h 10m')).toBeInTheDocument();
-      // 10 min at $60/h, rendered as currency
+      // 30 min stopped timer is not part of the cards. Live values render in
+      // the ticking HH:MM:SS format.
+      expect(screen.getByText('00:10:00')).toBeInTheDocument();
+      // 10 min at $60/h, rendered as currency, with the rate as subtitle
       expect(screen.getByText('$10.00')).toBeInTheDocument();
+      expect(screen.getByText('At $60.00/hr')).toBeInTheDocument();
     });
 
     it('ticks the totals forward while a timer is running', () => {
       renderDashboard();
 
-      expect(screen.getByText('0h 10m')).toBeInTheDocument();
+      expect(screen.getByText('00:10:00')).toBeInTheDocument();
 
       act(() => {
         vi.advanceTimersByTime(60_000);
       });
 
-      expect(screen.getByText('0h 11m')).toBeInTheDocument();
+      expect(screen.getByText('00:11:00')).toBeInTheDocument();
       expect(screen.getByText('$11.00')).toBeInTheDocument();
     });
 
-    it('shows zeros when no session is active', () => {
+    it('shows placeholders and honest copy when no session is active', () => {
       Object.assign(mockSessionManagement, { activeSession: null });
 
       renderDashboard();
 
-      expect(screen.getByText('0h 0m')).toBeInTheDocument();
-      expect(screen.getByText('$0.00')).toBeInTheDocument();
+      expect(screen.getAllByText('—')).toHaveLength(2);
+      expect(screen.getByText('No active session')).toBeInTheDocument();
+      expect(screen.getByText('Start a session to track earnings')).toBeInTheDocument();
     });
 
     it('includes the active session\'s timers from earlier days', () => {
@@ -928,7 +941,7 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      expect(screen.getByText('0h 40m')).toBeInTheDocument();
+      expect(screen.getByText('00:40:00')).toBeInTheDocument();
       expect(screen.getByText('$40.00')).toBeInTheDocument();
     });
 
@@ -955,20 +968,20 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      expect(screen.getByText('0h 59m')).toBeInTheDocument();
+      expect(screen.getByText('00:59:00')).toBeInTheDocument();
 
       act(() => {
         vi.advanceTimersByTime(120_000); // crosses local midnight
       });
 
-      expect(screen.getByText('0h 59m')).toBeInTheDocument();
+      expect(screen.getByText('00:59:00')).toBeInTheDocument();
     });
 
     it('does not render the removed Tasks Worked On card', () => {
       renderDashboard();
 
-      expect(screen.getByText('Total Time')).toBeInTheDocument();
-      expect(screen.getByText('Earnings')).toBeInTheDocument();
+      expect(screen.getByText('Session Time')).toBeInTheDocument();
+      expect(screen.getByText('Session Earnings')).toBeInTheDocument();
       expect(screen.queryByText('Tasks Worked On')).not.toBeInTheDocument();
     });
 
@@ -977,8 +990,8 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      expect(screen.getByText('Total Time')).toBeInTheDocument();
-      expect(screen.queryByText('Earnings')).not.toBeInTheDocument();
+      expect(screen.getByText('Session Time')).toBeInTheDocument();
+      expect(screen.queryByText('Session Earnings')).not.toBeInTheDocument();
     });
   });
 });

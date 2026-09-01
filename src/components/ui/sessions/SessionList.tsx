@@ -5,7 +5,7 @@
  * filtering, and detailed session information.
  */
 
-import React, { useState, useMemo, useEffect, memo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import {
   Box,
   Card,
@@ -22,11 +22,11 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
-  Alert,
   FormControl,
   InputLabel,
   Select,
   SelectChangeEvent,
+  Skeleton,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -38,18 +38,24 @@ import {
   Notes as NotesIcon,
   Timer as TimerIcon,
   Today as DateIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 import { TaskSession, TimerState } from '../../../types/timer';
-import { formatTime, formatDate } from '../../../utils/formatters';
+import { formatTime, formatDuration, formatDate } from '../../../utils/formatters';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { getSessionElapsedMs } from '../../../utils/timerHelpers';
+import { EmptyState } from '../display/EmptyState';
 
 interface SessionListProps {
   sessions: TaskSession[];
+  /** Shared page clock — the active session's card duration ticks off it. */
+  nowMs: number;
   onSelectSession: (session: TaskSession) => void;
   onDeleteSession: (sessionId: string) => void;
   onStartSession: (session: TaskSession) => void;
   onStopSession: () => void;
+  /** Opens the create-session flow from the list's empty state. */
+  onCreateSession?: () => void;
   selectedSessionId?: string;
   isLoading?: boolean;
   onEditSession: (session: TaskSession) => void;
@@ -58,15 +64,17 @@ interface SessionListProps {
   archivedTaskNames?: string[];
 }
 
-// Memoized so the dashboard's 1s stats tick doesn't re-render the whole list
-// on top of the list's own tick — every prop is referentially stable across
-// ticks (context state + useCallback handlers).
+// Memoized so unrelated dashboard state changes (dialogs, selection) don't
+// re-render the list; the shared nowMs prop changes once a second while a
+// timer runs and deliberately re-renders it — that tick is the list's clock.
 export const SessionList = memo(function SessionList({
   sessions,
+  nowMs,
   onSelectSession,
   onDeleteSession,
   onStartSession,
   onStopSession,
+  onCreateSession,
   selectedSessionId,
   isLoading = false,
   onEditSession,
@@ -78,23 +86,6 @@ export const SessionList = memo(function SessionList({
   const [taskFilters, setTaskFilters] = useState<string[]>([]);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedSession, setSelectedSession] = useState<TaskSession | null>(null);
-
-  // Live durations: the backend's session.totalDuration only sums finalized
-  // instances (running/paused contribute 0), so derive each card's duration
-  // from instance state via getSessionElapsedMs and tick once a second while
-  // any timer is running.
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
-  const hasRunningTimer = sessions.some((session) =>
-    session.timerInstances?.some((instance) => instance.state === TimerState.running)
-  );
-
-  useEffect(() => {
-    if (!hasRunningTimer) return;
-    setNowMs(Date.now()); // catch up immediately when a timer starts
-    const interval = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [hasRunningTimer]);
 
   // Unique task names for task filter chips. Archived tasks' names are
   // hidden to keep the chip row manageable, but a chip stays visible while
@@ -200,7 +191,11 @@ export const SessionList = memo(function SessionList({
   if (isLoading) {
     return (
       <Box sx={{ p: 2 }}>
-        <Typography>Loading sessions...</Typography>
+        <Stack spacing={2}>
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} variant="rounded" height={110} />
+          ))}
+        </Stack>
       </Box>
     );
   }
@@ -208,9 +203,18 @@ export const SessionList = memo(function SessionList({
   if (sessions.length === 0) {
     return (
       <Box sx={{ p: 2 }}>
-        <Alert severity="info">
-          No sessions found. Create your first session to get started!
-        </Alert>
+        <EmptyState
+          icon={<TimerIcon />}
+          title="No sessions yet"
+          description="Start a session to begin tracking your time."
+          action={
+            onCreateSession && (
+              <Button variant="contained" startIcon={<AddIcon />} onClick={onCreateSession}>
+                Start a session
+              </Button>
+            )
+          }
+        />
       </Box>
     );
   }
@@ -292,9 +296,22 @@ export const SessionList = memo(function SessionList({
 
       {/* Sessions grouped by date */}
       {sessionsByDate.length === 0 ? (
-        <Alert severity="info">
-          No sessions match your search criteria.
-        </Alert>
+        <EmptyState
+          title="No matching sessions"
+          description="Nothing matches your current search and filters."
+          action={
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('all');
+                setTaskFilters([]);
+              }}
+            >
+              Clear filters
+            </Button>
+          }
+        />
       ) : (
         <Stack spacing={3}>
           {sessionsByDate.map(({ date, sessions: dateSessions }) => (
@@ -432,7 +449,13 @@ function SessionCard({
             <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
               <Chip
                 icon={<TimerIcon />}
-                label={formatTime(getSessionElapsedMs(session, nowMs))}
+                // Live sessions tick in HH:MM:SS; finished ones read as a
+                // plain duration — one glance separates now from history.
+                label={
+                  session.isActive
+                    ? formatTime(getSessionElapsedMs(session, nowMs))
+                    : formatDuration(getSessionElapsedMs(session, nowMs))
+                }
                 size="small"
                 color={session.isActive ? 'primary' : 'default'}
                 variant={session.isActive ? 'filled' : 'outlined'}

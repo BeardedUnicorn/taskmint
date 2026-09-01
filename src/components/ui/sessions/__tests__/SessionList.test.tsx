@@ -1,19 +1,23 @@
 /**
  * Unit Tests for SessionList Component
- * 
+ *
  * Tests the session list component including session display,
  * selection, activation, and management operations.
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { SessionList } from '../SessionList';
 import { TaskSession, TimerInstance, TimerState } from '../../../../types/timer';
 import { formatDate } from '../../../../utils/formatters';
 import { parseDateStringLocal } from '../../../../utils/dateHelpers';
 
 describe('SessionList', () => {
+  // One hour after the running fixture's 10:00Z start. Duration math is
+  // timezone-independent, so an absolute UTC instant keeps tests exact.
+  const NOW_MS = new Date('2024-01-15T11:00:00Z').getTime();
+
   const mockTimerInstance: TimerInstance = {
     id: 'instance-1',
     sessionId: 'session-1',
@@ -74,13 +78,16 @@ describe('SessionList', () => {
 
   const mockProps = {
     sessions: mockSessions,
+    nowMs: NOW_MS,
     onSelectSession: vi.fn(),
     onDeleteSession: vi.fn(),
-    onUpdateSession: vi.fn(),
     onStartSession: vi.fn(),
     onStopSession: vi.fn(),
+    onCreateSession: vi.fn(),
     selectedSessionId: undefined as string | undefined,
     isLoading: false,
+    onEditSession: vi.fn(),
+    onOpenNotes: vi.fn(),
   };
 
   beforeEach(() => {
@@ -90,20 +97,20 @@ describe('SessionList', () => {
   describe('Rendering', () => {
     it('should render list of sessions', () => {
       render(<SessionList {...mockProps} />);
-      
+
       expect(screen.getAllByText('Development Work')[0]).toBeInTheDocument();
       expect(screen.getAllByText('Code Review')[0]).toBeInTheDocument();
       expect(screen.getAllByText('Documentation')[0]).toBeInTheDocument();
     });
 
-    it('should display finalized session durations correctly', () => {
+    it('should display durations in the live format for active sessions and as plain durations otherwise', () => {
       render(<SessionList {...mockProps} />);
 
-      // Only the stopped and empty sessions are deterministic under real
-      // timers; the running session's live duration is covered by the
-      // fake-timer tests in the Live Durations describe below.
-      expect(screen.getByText('01:00:00')).toBeInTheDocument(); // 1 hour, stopped
-      expect(screen.getByText('00:00:00')).toBeInTheDocument(); // no instances
+      // The active session ticks in HH:MM:SS off the shared clock
+      expect(screen.getByText('01:00:00')).toBeInTheDocument();
+      // Finished sessions read as plain durations
+      expect(screen.getByText('1h 0m')).toBeInTheDocument(); // stopped, 1 hour
+      expect(screen.getByText('0h 0m')).toBeInTheDocument(); // no instances
     });
 
     it('should display timer instance counts', () => {
@@ -113,16 +120,28 @@ describe('SessionList', () => {
       expect(screen.getByText('0 timers')).toBeInTheDocument();
     });
 
-    it('should show loading state when isLoading is true', () => {
-      render(<SessionList {...mockProps} isLoading={true} />);
+    it('should show skeleton placeholders while loading', () => {
+      const { container } = render(<SessionList {...mockProps} isLoading={true} />);
 
-      expect(screen.getByText('Loading sessions...')).toBeInTheDocument();
+      expect(container.querySelectorAll('.MuiSkeleton-root')).toHaveLength(3);
+      expect(screen.queryByText('Loading sessions...')).not.toBeInTheDocument();
     });
 
-    it('should show empty state when no sessions', () => {
+    it('should show an empty state with a create CTA when no sessions exist', () => {
       render(<SessionList {...mockProps} sessions={[]} />);
 
-      expect(screen.getByText('No sessions found. Create your first session to get started!')).toBeInTheDocument();
+      expect(screen.getByText('No sessions yet')).toBeInTheDocument();
+      expect(screen.getByText('Start a session to begin tracking your time.')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /start a session/i }));
+      expect(mockProps.onCreateSession).toHaveBeenCalled();
+    });
+
+    it('should omit the empty-state CTA when no create handler is provided', () => {
+      render(<SessionList {...mockProps} sessions={[]} onCreateSession={undefined} />);
+
+      expect(screen.getByText('No sessions yet')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /start a session/i })).not.toBeInTheDocument();
     });
   });
 
@@ -186,6 +205,21 @@ describe('SessionList', () => {
       expect(
         screen.queryByRole('heading', { name: 'Documentation' })
       ).not.toBeInTheDocument();
+    });
+
+    it('should show a no-matches state whose Clear filters action restores the list', () => {
+      render(<SessionList {...mockProps} />);
+
+      fireEvent.change(screen.getByLabelText('Search sessions'), {
+        target: { value: 'zzz-nothing-matches' },
+      });
+
+      expect(screen.getByText('No matching sessions')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
+
+      expect(screen.queryByText('No matching sessions')).not.toBeInTheDocument();
+      expect(screen.getAllByText('Development Work')[0]).toBeInTheDocument();
     });
   });
 
@@ -310,7 +344,7 @@ describe('SessionList', () => {
 
     it('should display session task information', () => {
       render(<SessionList {...mockProps} />);
-      
+
       expect(screen.getAllByText('Development Work')[0]).toBeInTheDocument();
       expect(screen.getAllByText('Code Review')[0]).toBeInTheDocument();
       expect(screen.getAllByText('Documentation')[0]).toBeInTheDocument();
@@ -323,9 +357,9 @@ describe('SessionList', () => {
           notes: 'Working on user authentication feature',
         },
       ];
-      
+
       render(<SessionList {...mockProps} sessions={sessionsWithNotes} />);
-      
+
       expect(screen.getByText('Working on user authentication feature')).toBeInTheDocument();
     });
 
@@ -348,50 +382,41 @@ describe('SessionList', () => {
   });
 
   describe('Live Durations', () => {
-    // One hour after the running fixture's 10:00Z start. Duration math is
-    // timezone-independent, so an absolute UTC instant keeps this exact.
-    const NOW = new Date('2024-01-15T11:00:00Z');
-
-    beforeEach(() => {
-      vi.useFakeTimers();
-      vi.setSystemTime(NOW);
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
     it('derives durations from timer instances instead of stale totalDuration', () => {
       render(<SessionList {...mockProps} />);
 
       // Code Review's timer has run for 1h, but the backend only counts
       // finalized instances, so its totalDuration still says 30m. The old
-      // code rendered that stale 00:30:00.
+      // code rendered that stale value.
       expect(screen.queryByText('00:30:00')).not.toBeInTheDocument();
-      // Live 1h for Code Review plus the stored 1h for stopped Development Work
-      expect(screen.getAllByText('01:00:00')).toHaveLength(2);
+      expect(screen.queryByText('0h 30m')).not.toBeInTheDocument();
+      // Live 1h for the active Code Review session
+      expect(screen.getByText('01:00:00')).toBeInTheDocument();
     });
 
-    it('ticks running session durations forward once a second', () => {
-      render(<SessionList {...mockProps} />);
+    it('re-renders the active session from the shared clock prop', () => {
+      const { rerender } = render(<SessionList {...mockProps} />);
 
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
+      expect(screen.getByText('01:00:00')).toBeInTheDocument();
 
-      // Only the running session moves; the stopped one stays frozen
+      rerender(<SessionList {...mockProps} nowMs={NOW_MS + 1000} />);
+
+      // Only the active session moves; finished ones stay frozen
       expect(screen.getByText('01:00:01')).toBeInTheDocument();
-      expect(screen.getByText('01:00:00')).toBeInTheDocument();
-
-      act(() => {
-        vi.advanceTimersByTime(59_000);
-      });
-
-      expect(screen.getByText('01:01:00')).toBeInTheDocument();
-      expect(screen.getByText('01:00:00')).toBeInTheDocument();
+      expect(screen.getByText('1h 0m')).toBeInTheDocument();
     });
 
-    it('freezes paused sessions and registers no tick without running timers', () => {
+    it('owns no interval of its own — the shared page clock is the only ticker', () => {
+      vi.useFakeTimers();
+      try {
+        render(<SessionList {...mockProps} />);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('shows a paused session frozen at its paused elapsed', () => {
       const pausedSession: TaskSession = {
         id: 'session-paused',
         taskId: 'task-4',
@@ -417,17 +442,18 @@ describe('SessionList', () => {
         updatedAt: '2024-01-15T10:15:00Z',
       };
 
-      render(<SessionList {...mockProps} sessions={[pausedSession]} />);
+      const { rerender } = render(
+        <SessionList {...mockProps} sessions={[pausedSession]} />
+      );
 
-      expect(screen.getByText('00:15:00')).toBeInTheDocument();
-      // The 1s interval is gated on a running timer existing
-      expect(vi.getTimerCount()).toBe(0);
+      expect(screen.getByText('0h 15m')).toBeInTheDocument();
 
-      act(() => {
-        vi.advanceTimersByTime(60_000);
-      });
+      // Advancing the shared clock leaves the frozen elapsed untouched
+      rerender(
+        <SessionList {...mockProps} sessions={[pausedSession]} nowMs={NOW_MS + 60_000} />
+      );
 
-      expect(screen.getByText('00:15:00')).toBeInTheDocument();
+      expect(screen.getByText('0h 15m')).toBeInTheDocument();
     });
   });
 });
