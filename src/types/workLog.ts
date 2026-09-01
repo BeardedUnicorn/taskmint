@@ -153,3 +153,16 @@ export interface WorkLogImportSummary {
   groupsApplied: AppliedGroup[];
   groupsSkipped: SkippedGroup[];
 }
+
+/** Wire shape of take_pending_work_log_capture (Rust PendingCapture). */
+export interface PendingWorkLogCapture {
+  payload: string; // raw captured JSON text
+  receivedAt: string; // RFC3339
+}
+
+/** Wire shape of get_capture_server_status. */
+export interface CaptureServerStatus {
+  running: boolean;
+  port: number;
+  warning: string | null;
+}

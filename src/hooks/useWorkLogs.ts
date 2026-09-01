@@ -7,7 +7,8 @@
  * which refreshes itself via the backend's `work-logs-imported` event after
  * an apply.
  *
- * Intended for a single consumer (the Payouts page).
+ * Intended for a single consumer: WorkLogProvider (src/contexts/
+ * WorkLogContext.tsx). Pages read the shared instance via useWorkLogContext.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';

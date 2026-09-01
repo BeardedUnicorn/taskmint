@@ -1,7 +1,10 @@
 // Application state management
 
 use std::sync::{Arc, Mutex};
-use crate::types::{ProjectTaskMapping, TimerState, Task, TaskSession, WorkLogEntry};
+use crate::types::{
+    CaptureServerStatus, PendingCapture, ProjectTaskMapping, TimerState, Task, TaskSession,
+    WorkLogEntry,
+};
 use crate::google_drive::GoogleDriveClient;
 
 // Imported work-log ledger + remembered project→task mappings, persisted
@@ -17,6 +20,8 @@ pub type SharedTimerState = Arc<Mutex<TimerState>>;
 pub type SharedTasks = Arc<Mutex<Vec<Task>>>;
 pub type SharedTaskSessions = Arc<Mutex<Vec<TaskSession>>>;
 pub type SharedWorkLogs = Arc<Mutex<WorkLogStore>>;
+pub type SharedPendingCapture = Arc<Mutex<Option<PendingCapture>>>;
+pub type SharedCaptureServerStatus = Arc<Mutex<CaptureServerStatus>>;
 pub type SharedTrayIcon = Arc<Mutex<Option<tauri::tray::TrayIcon>>>;
 pub type SharedGoogleDriveClient = Arc<Mutex<Option<GoogleDriveClient>>>;
 pub type SharedLoadWarning = Arc<Mutex<Option<String>>>;
@@ -28,6 +33,10 @@ pub struct AppState {
     pub tasks: SharedTasks,
     pub task_sessions: SharedTaskSessions,
     pub work_logs: SharedWorkLogs,
+    // Latest raw payload delivered by the browser extension (localhost POST
+    // or taskmint:// deep link); cleared by take_pending_work_log_capture.
+    pub pending_work_log_capture: SharedPendingCapture,
+    pub capture_server_status: SharedCaptureServerStatus,
     pub tray_icon: SharedTrayIcon,
     pub google_drive_client: SharedGoogleDriveClient,
     // Set once at startup when the sessions store could not be fully read;
@@ -44,6 +53,12 @@ impl AppState {
             tasks: Arc::new(Mutex::new(Vec::new())),
             task_sessions: Arc::new(Mutex::new(Vec::new())),
             work_logs: Arc::new(Mutex::new(WorkLogStore::default())),
+            pending_work_log_capture: Arc::new(Mutex::new(None)),
+            capture_server_status: Arc::new(Mutex::new(CaptureServerStatus {
+                running: false,
+                port: crate::capture_server::CAPTURE_SERVER_PORT,
+                warning: None,
+            })),
             tray_icon: Arc::new(Mutex::new(None)),
             google_drive_client: Arc::new(Mutex::new(None)),
             session_load_warning: Arc::new(Mutex::new(None)),
@@ -162,6 +177,51 @@ impl AppState {
             .lock()
             .map_err(|e| format!("Failed to lock work logs: {}", e))?;
         Ok(f(&mut *work_logs))
+    }
+
+    // Browser-capture methods
+    pub fn with_pending_work_log_capture<T, F>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&Option<PendingCapture>) -> T,
+    {
+        let capture = self
+            .pending_work_log_capture
+            .lock()
+            .map_err(|e| format!("Failed to lock pending work log capture: {}", e))?;
+        Ok(f(&*capture))
+    }
+
+    pub fn with_pending_work_log_capture_mut<T, F>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&mut Option<PendingCapture>) -> T,
+    {
+        let mut capture = self
+            .pending_work_log_capture
+            .lock()
+            .map_err(|e| format!("Failed to lock pending work log capture: {}", e))?;
+        Ok(f(&mut *capture))
+    }
+
+    pub fn with_capture_server_status<T, F>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&CaptureServerStatus) -> T,
+    {
+        let status = self
+            .capture_server_status
+            .lock()
+            .map_err(|e| format!("Failed to lock capture server status: {}", e))?;
+        Ok(f(&*status))
+    }
+
+    pub fn with_capture_server_status_mut<T, F>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&mut CaptureServerStatus) -> T,
+    {
+        let mut status = self
+            .capture_server_status
+            .lock()
+            .map_err(|e| format!("Failed to lock capture server status: {}", e))?;
+        Ok(f(&mut *status))
     }
 
     pub fn with_work_log_load_warning<T, F>(&self, f: F) -> Result<T, String>

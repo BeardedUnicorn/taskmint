@@ -10,16 +10,19 @@ import { render, screen, fireEvent } from '../../../../__tests__/setup/test-help
 import { PayoutsPage } from '../PayoutsPage';
 import { Task } from '../../../../types/task';
 import { TaskSession, TimerState } from '../../../../types/timer';
-import { UseWorkLogsReturn } from '../../../../hooks/useWorkLogs';
+import { WorkLogContextValue } from '../../../../contexts/WorkLogContext';
 import { formatDateString } from '../../../../utils/dateHelpers';
 import {
   createMockTask,
   createMockWorkLogEntry,
 } from '../../../../__tests__/setup/session-test-utils';
+import { invoke } from '@tauri-apps/api/core';
 
-let mockWorkLogsReturn: UseWorkLogsReturn;
-vi.mock('../../../../hooks/useWorkLogs', () => ({
-  useWorkLogs: () => mockWorkLogsReturn,
+const mockInvoke = vi.mocked(invoke);
+
+let mockWorkLogsReturn: WorkLogContextValue;
+vi.mock('../../../../contexts/WorkLogContext', () => ({
+  useWorkLogContext: () => mockWorkLogsReturn,
 }));
 
 const mockSessionContext = { sessions: [] as TaskSession[] };
@@ -80,6 +83,7 @@ function stoppedSessionOn(offset: number, taskId: string, hours: number): TaskSe
 describe('PayoutsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockInvoke.mockImplementation(async () => undefined);
     mockWorkLogsReturn = {
       entries: [],
       mappings: [],
@@ -88,6 +92,9 @@ describe('PayoutsPage', () => {
       loadWarning: null,
       reload: vi.fn(),
       applyImport: vi.fn(),
+      stagedCapture: null,
+      stageCapture: vi.fn(),
+      clearStagedCapture: vi.fn(),
     };
     mockSessionContext.sessions = [];
     mockTaskContext.tasks = [];
@@ -142,5 +149,54 @@ describe('PayoutsPage', () => {
     mockWorkLogsReturn.loadWarning = '2 saved work-log record(s) could not be read';
     render(<PayoutsPage />);
     expect(screen.getByText(/could not be read/)).toBeInTheDocument();
+  });
+
+  it('opens the import dialog prefilled from a staged browser capture', async () => {
+    const payloadText = '{"workLogs":[],"timedWorkEntries":[]}';
+    mockWorkLogsReturn.stagedCapture = { payloadText, receivedAt: '2026-08-31T12:00:00Z' };
+
+    render(<PayoutsPage />);
+
+    expect(screen.getByText(/project without a task match/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText(/paste the site's json payload/i)).toHaveValue(payloadText);
+  });
+
+  it('dismisses a staged browser capture from the banner', () => {
+    mockWorkLogsReturn.stagedCapture = {
+      payloadText: '{"workLogs":[]}',
+      receivedAt: '2026-08-31T12:00:00Z',
+    };
+
+    render(<PayoutsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(mockWorkLogsReturn.clearStagedCapture).toHaveBeenCalled();
+  });
+
+  it('shows the capture-server warning when the port could not be bound', async () => {
+    mockInvoke.mockImplementation(async (command: string) => {
+      if (command === 'get_capture_server_status') {
+        return {
+          running: false,
+          port: 43117,
+          warning: 'Browser capture server could not start on 127.0.0.1:43117',
+        };
+      }
+      return undefined;
+    });
+
+    render(<PayoutsPage />);
+
+    expect(
+      await screen.findByText(/Browser capture server could not start/)
+    ).toBeInTheDocument();
+  });
+
+  it('renders no capture-server alert when the server is healthy', async () => {
+    render(<PayoutsPage />);
+    expect(screen.queryByText(/Browser capture server/)).not.toBeInTheDocument();
   });
 });

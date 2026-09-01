@@ -29,12 +29,14 @@ import {
   TrendingUp as TrendingUpIcon,
   Upload as UploadIcon,
 } from '@mui/icons-material';
+import { invoke } from '@tauri-apps/api/core';
 import { useSessionManagementContext } from '../../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../../contexts/TaskManagementContext';
-import { useWorkLogs } from '../../../hooks/useWorkLogs';
+import { useWorkLogContext } from '../../../contexts/WorkLogContext';
 import { useFundsReleaseSettings } from '../../../hooks/useFundsReleaseSettings';
 import { TimerState } from '../../../types/timer';
 import { Task } from '../../../types/task';
+import { CaptureServerStatus, WorkLogImportPayload } from '../../../types/workLog';
 import {
   buildPayoutCells,
   buildReleaseSchedule,
@@ -60,9 +62,19 @@ function deltaLabel(cell: PayoutDayCell): { text: string; color: string } {
 export function PayoutsPage() {
   const { sessions } = useSessionManagementContext();
   const { tasks, addTask, updateTask } = useTaskManagementContext();
-  const workLogs = useWorkLogs();
+  const workLogs = useWorkLogContext();
   const { days: fundsReleaseDays } = useFundsReleaseSettings();
   const [importOpen, setImportOpen] = useState(false);
+
+  // One-shot status of the localhost capture server (port conflicts etc.).
+  const [captureServerWarning, setCaptureServerWarning] = useState<string | null>(null);
+  useEffect(() => {
+    invoke<CaptureServerStatus>('get_capture_server_status')
+      .then(status => setCaptureServerWarning(status?.warning ?? null))
+      .catch(() => {
+        // Older backend without the command: nothing to surface.
+      });
+  }, []);
 
   // Same live-tick pattern as the Sessions dashboard: 1s while a timer runs
   // (estimates track live time), 60s otherwise so "today" still rolls over.
@@ -87,6 +99,13 @@ export function PayoutsPage() {
     const task = await addTask({ name });
     if (!task) throw new Error(`Failed to create task "${name}"`);
     return task;
+  };
+
+  // A successful apply of a staged browser capture also retires the banner.
+  const handleApplyImport = async (payload: WorkLogImportPayload) => {
+    const summary = await workLogs.applyImport(payload);
+    if (summary) workLogs.clearStagedCapture();
+    return summary;
   };
 
   const isEmpty = workLogs.entries.length === 0 && cells.length === 0;
@@ -121,6 +140,32 @@ export function PayoutsPage() {
           Import work logs
         </Button>
       </Box>
+
+      {workLogs.stagedCapture && (
+        <Alert
+          severity="info"
+          sx={{ mb: 3 }}
+          action={
+            <>
+              <Button color="inherit" size="small" onClick={() => setImportOpen(true)}>
+                Review
+              </Button>
+              <Button color="inherit" size="small" onClick={workLogs.clearStagedCapture}>
+                Dismiss
+              </Button>
+            </>
+          }
+        >
+          Work logs captured from DataAnnotation include a project without a task match —
+          review to finish the import.
+        </Alert>
+      )}
+
+      {captureServerWarning && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          {captureServerWarning}
+        </Alert>
+      )}
 
       {workLogs.loadWarning && (
         <Alert severity="warning" sx={{ mb: 3 }}>
@@ -314,11 +359,12 @@ export function PayoutsPage() {
       <ImportWorkLogsDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
+        initialText={workLogs.stagedCapture?.payloadText}
         existingEntries={workLogs.entries}
         existingMappings={workLogs.mappings}
         sessions={sessions}
         tasks={tasks}
-        onApply={workLogs.applyImport}
+        onApply={handleApplyImport}
         onCreateTask={handleCreateTask}
         onUpdateTaskRate={(taskId, rate) => updateTask(taskId, { hourlyRate: rate })}
       />
