@@ -38,8 +38,7 @@ import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatCurrency, formatDuration } from '../../utils/formatters';
-import { formatDateString } from '../../utils/dateHelpers';
-import { getInstanceElapsedMs, getSessionElapsedMsOnDate, buildTimerEditUpdates } from '../../utils/timerHelpers';
+import { getInstanceElapsedMs, getSessionElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
 
 export function SessionDashboard() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -103,39 +102,31 @@ export function SessionDashboard() {
     session.timerInstances.some((instance) => instance.state === TimerState.running)
   );
 
-  // The clock always ticks — `today` is derived from it, so a gated interval
-  // would freeze the date bucket overnight whenever no timer runs. Tick every
-  // second while a timer accrues time, once a minute otherwise (enough to
-  // roll the date over at midnight).
+  // Totals only accrue while a timer runs (paused time is frozen, idle time
+  // is stored), so the clock only needs to tick during a run.
   useEffect(() => {
     setNowMs(Date.now()); // catch up immediately when the rate changes
-    const interval = setInterval(
-      () => setNowMs(Date.now()),
-      hasRunningTimer ? 1000 : 60_000
-    );
+    if (!hasRunningTimer) return;
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [hasRunningTimer]);
 
   const stats = useMemo(() => {
-    const today = formatDateString(new Date(nowMs));
-
-    // Bucket by each instance's own start date, not session.date: sessions
-    // are reactivated across days, so a timer run today inside a session
-    // created yesterday must still count toward today's totals.
-    let totalTimeToday = 0;
-    let earningsToday = 0;
+    // Sum every timer in every session, regardless of the day it ran.
+    let totalTime = 0;
+    let totalEarnings = 0;
     for (const session of sessions) {
-      const elapsed = getSessionElapsedMsOnDate(session, today, nowMs);
+      const elapsed = getSessionElapsedMs(session, nowMs);
       if (elapsed === 0) continue;
-      totalTimeToday += elapsed;
+      totalTime += elapsed;
 
       const task = tasks.find((t) => t.id === session.taskId);
       if (task?.hourlyRate && task.hourlyRate > 0) {
-        earningsToday += (elapsed / (1000 * 60 * 60)) * task.hourlyRate;
+        totalEarnings += (elapsed / (1000 * 60 * 60)) * task.hourlyRate;
       }
     }
 
-    return { totalTimeToday, earningsToday };
+    return { totalTime, totalEarnings };
   }, [sessions, tasks, nowMs]);
 
   // Determine currently running timer instance for inactivity handling
@@ -314,18 +305,18 @@ export function SessionDashboard() {
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
           {isWidgetEnabled('total-time-today') && (
             <StatsCard
-              title="Total Time Today"
-              value={formatDuration(stats.totalTimeToday)}
-              subtitle={stats.totalTimeToday > 0 ? 'Keep up the great work!' : 'Start tracking your time'}
+              title="Total Time"
+              value={formatDuration(stats.totalTime)}
+              subtitle={stats.totalTime > 0 ? 'Keep up the great work!' : 'Start tracking your time'}
               icon={<TimerIcon sx={{ fontSize: 40 }} />}
               color="primary"
             />
           )}
           {isWidgetEnabled('earnings-today') && (
             <StatsCard
-              title="Earnings Today"
-              value={formatCurrency(stats.earningsToday)}
-              subtitle={stats.earningsToday > 0 ? 'Based on hourly rates' : 'Set hourly rates to track earnings'}
+              title="Earnings"
+              value={formatCurrency(stats.totalEarnings)}
+              subtitle={stats.totalEarnings > 0 ? 'Based on hourly rates' : 'Set hourly rates to track earnings'}
               icon={<MoneyIcon sx={{ fontSize: 40 }} />}
               color="success"
             />

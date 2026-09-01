@@ -148,7 +148,7 @@ describe('useDashboardSettings', () => {
       expect(metadata).toEqual(
         expect.objectContaining({
           id: 'total-time-today',
-          title: 'Total Time Today',
+          title: 'Total Time',
           description: expect.any(String),
           defaultEnabled: true,
           defaultOrder: 1,
