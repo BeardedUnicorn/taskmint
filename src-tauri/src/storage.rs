@@ -104,6 +104,62 @@ pub fn clear_all_sessions(app: &AppHandle) -> Result<(), String> {
     store.save().map_err(|e| e.to_string())
 }
 
+/// Wipe every key in a store file and persist the empty store. Goes through
+/// the store plugin (not fs::remove_file) so the plugin's cached instance
+/// cannot resurrect the old contents on the next open.
+fn clear_store_named(app: &AppHandle, filename: &str) -> Result<(), String> {
+    let store = get_store_named(app, filename)?;
+    store.clear();
+    store.save().map_err(|e| e.to_string())
+}
+
+pub fn clear_sessions_store(app: &AppHandle) -> Result<(), String> {
+    clear_store_named(app, STORE_FILENAME)
+}
+
+pub fn clear_work_logs_store(app: &AppHandle) -> Result<(), String> {
+    clear_store_named(app, WORKLOG_STORE_FILENAME)
+}
+
+/// True for the timestamped safety copies backup_store_file_named writes
+/// (e.g. "sessions.json.bak-20260831120000").
+pub fn is_store_backup_filename(name: &str) -> bool {
+    [STORE_FILENAME, WORKLOG_STORE_FILENAME]
+        .iter()
+        .any(|store| {
+            name.strip_prefix(store)
+                .map_or(false, |rest| rest.starts_with(".bak-"))
+        })
+}
+
+/// Delete the on-disk .bak-* copies of both stores. They hold the same user
+/// data as the stores, so a full app-data reset must remove them too.
+/// Returns how many files were deleted.
+pub fn delete_store_backups(app: &AppHandle) -> Result<usize, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?;
+    let entries = match std::fs::read_dir(&data_dir) {
+        Ok(entries) => entries,
+        // No data dir yet means there is nothing to delete.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(e) => return Err(format!("Failed to read app data dir: {}", e)),
+    };
+
+    let mut deleted = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if is_store_backup_filename(name) {
+            std::fs::remove_file(entry.path())
+                .map_err(|e| format!("Failed to delete backup {}: {}", name, e))?;
+            deleted += 1;
+        }
+    }
+    Ok(deleted)
+}
+
 // ============================================================================
 // WORK-LOG STORE (worklogs.json: imported ledger entries + project mappings)
 // ============================================================================
@@ -278,6 +334,21 @@ mod tests {
     #[test]
     fn parse_work_log_entries_rejects_non_array_value() {
         assert!(parse_work_log_entries(&json!({"not": "an array"})).is_err());
+    }
+
+    #[test]
+    fn backup_filename_matcher_accepts_only_store_bak_files() {
+        assert!(is_store_backup_filename("sessions.json.bak-20260831120000"));
+        assert!(is_store_backup_filename("worklogs.json.bak-20260831120000"));
+
+        // The live stores and unrelated files must never match.
+        assert!(!is_store_backup_filename("sessions.json"));
+        assert!(!is_store_backup_filename("worklogs.json"));
+        assert!(!is_store_backup_filename("sessions.json.bak"));
+        assert!(!is_store_backup_filename("other.json.bak-20260831120000"));
+        assert!(!is_store_backup_filename(
+            "mysessions.json.bak-20260831120000"
+        ));
     }
 
     #[test]
