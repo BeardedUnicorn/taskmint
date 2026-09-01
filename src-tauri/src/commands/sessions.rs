@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
-const MAX_TIMER_INSTANCES_PER_SESSION: usize = 50;
+pub(crate) const MAX_TIMER_INSTANCES_PER_SESSION: usize = 50;
 
 fn new_session_id() -> String {
     format!("session_{}", Uuid::new_v4())
@@ -63,7 +63,7 @@ fn validate_start(
     Ok(())
 }
 
-fn recalculate_total_duration(session: &mut TaskSession) {
+pub(crate) fn recalculate_total_duration(session: &mut TaskSession) {
     session.total_duration = session
         .timer_instances
         .iter()
@@ -166,6 +166,7 @@ pub fn create_session(
         total_duration: 0,
         notes: None,
         is_active: true,
+        source: None,
         // Local day, not UTC: the dashboard's today-filter and the calendar
         // compare this string against the user's local date.
         date: Local::now().format("%Y-%m-%d").to_string(),
@@ -282,6 +283,7 @@ pub async fn create_timer_instance(
         paused_at: None,
         paused_duration: None,
         resumed_at: None,
+        external_id: None,
         notes: None,
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
@@ -813,6 +815,7 @@ mod tests {
             paused_at: None,
             paused_duration: None,
             resumed_at: None,
+            external_id: None,
             notes: None,
             created_at: ts(0).to_rfc3339(),
             updated_at: ts(0).to_rfc3339(),
@@ -889,6 +892,7 @@ mod tests {
             total_duration: 0,
             notes: None,
             is_active: true,
+            source: None,
             date: "2026-08-19".to_string(),
             created_at: ts(0).to_rfc3339(),
             updated_at: ts(0).to_rfc3339(),

@@ -42,6 +42,22 @@ export type {
   UseTaskManagementReturn,
 } from './task';
 
+// Work-Log Reconciliation Types
+export type {
+  SiteTimedWorkEntry,
+  SiteWorkLog,
+  WorkLogKind,
+  WorkLogEntry,
+  ProjectTaskMapping,
+  WorkLogsResponse,
+  RewriteGroup,
+  WorkLogImportPayload,
+  AppliedGroup,
+  SkippedGroup,
+  WorkLogImportSummary,
+} from './workLog';
+export { WORKLOG_IMPORT_SOURCE } from './workLog';
+
 // Note Templates and Task Notes Types
 export type {
   FieldType,

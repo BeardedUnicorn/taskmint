@@ -16,6 +16,7 @@ const NotesPage = lazy(() => import('./components/pages/NotesPage').then(module 
 const TimeEntriesPage = lazy(() => import('./components/pages/TimeEntriesPage').then(module => ({ default: module.TimeEntriesPage })));
 const ReportsPage = lazy(() => import('./components/pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
 const CalendarPage = lazy(() => import('./components/pages/CalendarPage'));
+const PayoutsPage = lazy(() => import('./components/pages/payouts/PayoutsPage').then(module => ({ default: module.PayoutsPage })));
 const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 const AdminPage = lazy(() => import('./components/pages/AdminPage').then(module => ({ default: module.AdminPage })));
 import { SessionDashboard } from './components/pages/SessionDashboard';
@@ -199,6 +200,7 @@ function AppContent() {
                 />
               )}
               {activeView === 'calendar' && <CalendarPage />}
+              {activeView === 'payouts' && <PayoutsPage />}
               {activeView === 'settings' && <SettingsPage />}
               {activeView === 'admin' && <AdminPage />}
             </Suspense>

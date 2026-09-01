@@ -22,13 +22,15 @@ import { useNotification } from '../contexts/NotificationContext';
 import { measurePerformance } from '../utils/performance';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
 
-// Backend events that signal session data changed outside this hook's own calls
+// Backend events that signal session data changed outside this hook's own
+// calls (timer-instance changes and work-log imports that rewrite sessions)
 const TIMER_INSTANCE_EVENTS = [
   'timer-instance-started',
   'timer-instance-stopped',
   'timer-instance-paused',
   'timer-instance-resumed',
   'timer-instance-deleted',
+  'work-logs-imported',
 ] as const;
 
 // Helper to ensure timer instances always have a state value. The Rust

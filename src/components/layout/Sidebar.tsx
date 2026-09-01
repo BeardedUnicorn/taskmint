@@ -23,9 +23,10 @@ import {
   CalendarToday as CalendarIcon,
   AdminPanelSettings as AdminIcon,
   PlayCircleOutlined as SessionsIcon,
+  AttachMoney as PayoutsIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'settings' | 'admin';
+export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'payouts' | 'settings' | 'admin';
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -65,6 +66,11 @@ const navigationItems = [
     id: 'calendar' as SidebarView,
     label: 'Calendar',
     icon: CalendarIcon,
+  },
+  {
+    id: 'payouts' as SidebarView,
+    label: 'Payouts',
+    icon: PayoutsIcon,
   },
   {
     id: 'settings' as SidebarView,

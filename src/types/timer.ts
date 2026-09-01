@@ -138,6 +138,7 @@ export interface TimerInstance {
   pausedAt?: Date;
   pausedDuration?: number; // Total time paused in milliseconds
   resumedAt?: Date; // Last time the timer was resumed
+  externalId?: string; // Site work-entry id for import-synthesized instances
   notes?: string; // Timer-level notes
   createdAt: string;
   updatedAt: string;
@@ -152,6 +153,7 @@ export interface TaskSession {
   totalDuration: number; // Sum of all timer instances in milliseconds
   notes?: string; // Session-level notes
   isActive: boolean; // Whether this session is currently active
+  source?: string; // WORKLOG_IMPORT_SOURCE for sessions synthesized by an import
   date: string; // YYYY-MM-DD format
   createdAt: string;
   updatedAt: string;
@@ -207,6 +209,7 @@ export const TimerInstanceSchema = z.object({
   pausedAt: z.coerce.date().optional(),
   pausedDuration: z.number().min(0).optional(),
   resumedAt: z.coerce.date().optional(),
+  externalId: z.string().optional(),
   notes: z.string().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -220,6 +223,7 @@ export const TaskSessionSchema = z.object({
   totalDuration: z.number().min(0),
   notes: z.string().optional(),
   isActive: z.boolean(),
+  source: z.string().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()

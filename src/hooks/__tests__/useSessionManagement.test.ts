@@ -706,7 +706,7 @@ describe('useSessionManagement', () => {
         };
       });
 
-      const expectedListenerCount = 5; // timer-instance started/stopped/paused/resumed/deleted
+      const expectedListenerCount = 6; // timer-instance started/stopped/paused/resumed/deleted + work-logs-imported
 
       const { unmount } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
       await waitFor(() => expect(activeListeners).toBe(expectedListenerCount));
