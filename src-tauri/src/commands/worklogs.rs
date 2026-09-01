@@ -323,7 +323,7 @@ pub async fn apply_work_log_import(
     let now = Utc::now();
     let now_iso = now.to_rfc3339();
 
-    // Lock order: sessions → worklogs. This is the only command holding both;
+    // Lock order: sessions → worklogs (also upheld by reset_all_app_data);
     // any future command touching both stores must lock in the same order.
     let summary = app_state.with_task_sessions_mut(|sessions| -> Result<WorkLogImportSummary, String> {
         app_state.with_work_logs_mut(|work_logs| -> Result<WorkLogImportSummary, String> {

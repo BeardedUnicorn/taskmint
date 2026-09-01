@@ -255,6 +255,9 @@ pub fn run() {
             commands::worklogs::get_work_logs,
             commands::worklogs::apply_work_log_import,
 
+            // Full app-data reset
+            commands::reset::reset_all_app_data,
+
             // Browser-capture commands
             commands::capture::take_pending_work_log_capture,
             commands::capture::get_capture_server_status,
