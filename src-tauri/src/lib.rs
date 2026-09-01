@@ -108,6 +108,52 @@ pub fn run() {
                     }
                 }
 
+                // Load the work-log ledger with the same tolerance and warning
+                // surface as sessions (warning reaches the frontend via
+                // get_work_logs).
+                match storage::load_work_logs(app.handle()) {
+                    Ok(loaded) => {
+                        if loaded.skipped > 0 {
+                            let backup_note = match storage::backup_store_file_named(
+                                app.handle(),
+                                storage::WORKLOG_STORE_FILENAME,
+                            ) {
+                                Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
+                                Ok(None) => String::new(),
+                                Err(e) => format!(" Backing up the previous data also failed: {}.", e),
+                            };
+                            let warning = format!(
+                                "{} saved work-log record(s) could not be read and were skipped.{}",
+                                loaded.skipped, backup_note
+                            );
+                            eprintln!("{}", warning);
+                            if let Ok(mut slot) = app_state.work_log_load_warning.lock() {
+                                *slot = Some(warning);
+                            }
+                        }
+                        if let Ok(mut work_logs) = app_state.work_logs.lock() {
+                            work_logs.entries = loaded.entries;
+                            work_logs.mappings = loaded.mappings;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to load work logs: {}", e);
+                        let backup_note = match storage::backup_store_file_named(
+                            app.handle(),
+                            storage::WORKLOG_STORE_FILENAME,
+                        ) {
+                            Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
+                            Ok(None) => String::new(),
+                            Err(backup_err) => {
+                                format!(" Backing up the previous data also failed: {}.", backup_err)
+                            }
+                        };
+                        if let Ok(mut slot) = app_state.work_log_load_warning.lock() {
+                            *slot = Some(format!("Failed to load saved work logs: {}.{}", e, backup_note));
+                        }
+                    }
+                }
+
                 // Set up menu event handling
                 let app_handle = app.handle().clone();
                 let state_for_menu = app_state.clone();
@@ -160,6 +206,10 @@ pub fn run() {
             commands::sessions::set_active_session,
             commands::sessions::clear_all_sessions,
             commands::sessions::get_session_load_warning,
+
+            // Work-log commands
+            commands::worklogs::get_work_logs,
+            commands::worklogs::apply_work_log_import,
 
             // Tray commands
             commands::tray::update_tray_menu_command,

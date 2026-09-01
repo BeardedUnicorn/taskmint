@@ -9,6 +9,7 @@ import { vi } from 'vitest';
 import { TaskSession, TimerInstance, InactivitySettings } from '../../types/timer';
 import { Task } from '../../types/task';
 import { TaskNote } from '../../types/notes';
+import { ProjectTaskMapping, WORKLOG_IMPORT_SOURCE, WorkLogEntry } from '../../types/workLog';
 
 // ============================================================================
 // MOCK DATA FACTORIES
@@ -59,6 +60,55 @@ export const createMockTaskNote = (overrides: Partial<TaskNote> = {}): TaskNote 
   updatedAt: '2024-01-15T10:30:00Z',
   ...overrides,
 });
+
+export const createMockWorkLogEntry = (overrides: Partial<WorkLogEntry> = {}): WorkLogEntry => ({
+  id: 'worklog-entry-1',
+  kind: 'timed',
+  createdAt: '2024-01-15T18:00:00Z',
+  workDay: '2024-01-15',
+  projectId: 'project-1',
+  projectName: 'Test Project',
+  taskId: 'task-1',
+  taskName: 'Test Task',
+  timeInMinutes: 60,
+  reportedTimeInMinutes: null,
+  amountCents: 7500,
+  status: 'Pending Approval',
+  importedAt: '2024-01-16T00:00:00Z',
+  updatedAt: '2024-01-16T00:00:00Z',
+  ...overrides,
+});
+
+export const createMockProjectTaskMapping = (
+  overrides: Partial<ProjectTaskMapping> = {}
+): ProjectTaskMapping => ({
+  projectId: 'project-1',
+  projectName: 'Test Project',
+  taskId: 'task-1',
+  taskName: 'Test Task',
+  createdAt: '2024-01-16T00:00:00Z',
+  updatedAt: '2024-01-16T00:00:00Z',
+  ...overrides,
+});
+
+/** A session synthesized by a work-log import: finalized instance, provenance set. */
+export const createMockImportedSession = (overrides: Partial<TaskSession> = {}): TaskSession => {
+  const instance = createMockTimerInstance({
+    id: 'imported-instance-1',
+    sessionId: 'imported-session-1',
+    startTime: new Date('2024-01-15T17:00:00Z'),
+    endTime: new Date('2024-01-15T18:00:00Z'),
+    duration: 3600000,
+    externalId: 'worklog-entry-1',
+  });
+  return createMockTaskSession({
+    id: 'imported-session-1',
+    source: WORKLOG_IMPORT_SOURCE,
+    timerInstances: [instance],
+    totalDuration: 3600000,
+    ...overrides,
+  });
+};
 
 export const createMockInactivitySettings = (overrides: Partial<InactivitySettings> = {}): InactivitySettings => ({
   enabled: true,
@@ -217,6 +267,16 @@ export const createMockTauriInvoke = () => {
           elapsedMs: 0,
           isPaused: false,
           pausedDueToInactivity: false,
+        });
+      case 'get_work_logs':
+        return Promise.resolve({ entries: [], mappings: [], loadWarning: null });
+      case 'apply_work_log_import':
+        return Promise.resolve({
+          entriesAdded: 0,
+          entriesUpdated: 0,
+          mappingsSaved: 0,
+          groupsApplied: [],
+          groupsSkipped: [],
         });
       case 'get_inactivity_settings':
         return Promise.resolve(createMockInactivitySettings());

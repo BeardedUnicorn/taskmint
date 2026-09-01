@@ -459,6 +459,15 @@ function SessionCard({
                   color="primary"
                 />
               )}
+
+              {session.source === 'worklog-import' && (
+                <Chip
+                  label="Imported"
+                  size="small"
+                  color="secondary"
+                  variant="outlined"
+                />
+              )}
             </Stack>
             
             {session.notes && (
