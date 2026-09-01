@@ -55,51 +55,46 @@ export function createLightTheme() {
       fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       // Improved font sizes for accessibility
       fontSize: 14,
+      // No per-variant colors: text color comes from the palette so
+      // Typography can inherit contrastText on colored surfaces. The palette
+      // values match what was hardcoded here before (#3F4E4F / #757575).
       h1: {
         fontSize: '2.5rem',
         fontWeight: 600,
         lineHeight: 1.2,
-        color: '#3F4E4F',
       },
       h2: {
         fontSize: '2rem',
         fontWeight: 600,
         lineHeight: 1.3,
-        color: '#3F4E4F',
       },
       h3: {
         fontSize: '1.75rem',
         fontWeight: 600,
         lineHeight: 1.3,
-        color: '#3F4E4F',
       },
       h4: {
         fontSize: '1.5rem',
         fontWeight: 600,
         lineHeight: 1.4,
-        color: '#3F4E4F',
       },
       h5: {
         fontSize: '1.25rem',
         fontWeight: 600,
         lineHeight: 1.4,
-        color: '#3F4E4F',
       },
       h6: {
         fontSize: '1.125rem',
         fontWeight: 600,
         lineHeight: 1.4,
-        color: '#3F4E4F',
       },
       body1: {
         fontSize: '1rem',
         lineHeight: 1.5,
-        color: '#3F4E4F',
       },
       body2: {
         fontSize: '0.875rem',
         lineHeight: 1.5,
-        color: '#757575',
       },
       button: {
         fontSize: '0.875rem',

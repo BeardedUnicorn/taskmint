@@ -315,7 +315,6 @@ export interface InactivityWarningProps {
   remainingSeconds: number;
   onContinue: () => void;
   onPause: () => void;
-  timerInstance: TimerInstance;
 }
 
 // ============================================================================

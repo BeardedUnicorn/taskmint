@@ -1,30 +1,39 @@
 /**
  * Session Timer Display Component
- * 
- * Enhanced timer display that shows session information, multiple timer instances,
- * and provides a clear visual hierarchy between session totals and individual timers.
+ *
+ * The detailed view of a session: header with the live session total,
+ * per-timer rows with controls, and an Add Timer affordance. This panel is
+ * the single surface for managing the active session's timers — the toolbar
+ * above it only carries session-level actions.
  */
 
-
-import { 
+import {
   Box,
   Typography,
   Chip,
   Stack,
   Paper,
   IconButton,
+  Button,
 } from '@mui/material';
+import type { SxProps, Theme } from '@mui/material/styles';
 import {
   PlayArrow as PlayIcon,
   FolderOpen as SessionIcon,
   Notes as NotesIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 import { memo } from 'react';
 import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
+import { formatTime } from '../../../utils/formatters';
+import { getSessionElapsedMs } from '../../../utils/timerHelpers';
+import { SESSION_CONSTANTS } from '../../../constants';
 import { TimerRow } from './TimerRow';
 
 interface SessionTimerDisplayProps {
   session: TaskSession;
+  /** Shared page clock — the total and running rows tick off this value. */
+  nowMs: number;
   showControls?: boolean;
   showNotes?: boolean;
   size?: 'small' | 'medium' | 'large';
@@ -35,13 +44,16 @@ interface SessionTimerDisplayProps {
   onDeleteTimer?: (instanceId: string) => void;
   onEditTimer?: (instance: TimerInstance, session: TaskSession) => void;
   onOpenNotes?: (sessionId: string, instanceId?: string) => void;
-  sx?: any;
+  onAddTimer?: () => void;
+  sx?: SxProps<Theme>;
 }
 
-// Memoized so the dashboard's 1s stats tick doesn't re-render every TimerRow
-// — the rows own their live ticking via useTimer.
+// Memoized so dashboard state changes (dialogs, selection) don't re-render
+// the panel; while a timer runs, the shared nowMs prop changes once a second
+// and deliberately re-renders it — that tick is the panel's clock.
 export const SessionTimerDisplay = memo(function SessionTimerDisplay({
   session,
+  nowMs,
   showControls = false,
   showNotes = false,
   size = 'medium',
@@ -52,10 +64,12 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
   onDeleteTimer,
   onEditTimer,
   onOpenNotes,
+  onAddTimer,
   sx,
 }: SessionTimerDisplayProps) {
   const runningInstance = session.timerInstances?.find(i => i.state === TimerState.running);
-
+  const timerCount = session.timerInstances?.length || 0;
+  const atTimerLimit = timerCount >= SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION;
 
   const getDisplaySize = () => {
     switch (size) {
@@ -97,19 +111,24 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
       sx={{
         p: displayConfig.padding,
         borderRadius: 2,
-        bgcolor: session.isActive ? 'primary.main' : 'background.paper',
-        color: session.isActive ? 'primary.contrastText' : 'text.primary',
-        border: runningInstance ? 2 : 1,
+        bgcolor: 'background.paper',
+        border: '1px solid',
         borderColor: runningInstance ? 'success.main' : 'divider',
+        borderLeft: '4px solid',
+        borderLeftColor: runningInstance
+          ? 'success.main'
+          : session.isActive
+            ? 'primary.main'
+            : 'divider',
         ...sx,
       }}
     >
       {/* Session Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: displayConfig.spacing, mb: 2 }}>
-        <SessionIcon fontSize={displayConfig.iconSize} />
+        <SessionIcon fontSize={displayConfig.iconSize} color="primary" />
         <Box sx={{ flex: 1 }}>
-          <Typography 
-            variant={displayConfig.sessionTitle} 
+          <Typography
+            variant={displayConfig.sessionTitle}
             sx={{ fontWeight: 600, mb: 0.5 }}
           >
             {session.taskName}
@@ -117,12 +136,8 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
           <Stack direction="row" spacing={1}>
             <Chip
               size="small"
-              label={`${session.timerInstances?.length || 0} timer${(session.timerInstances?.length || 0) !== 1 ? 's' : ''}`}
+              label={`${timerCount} timer${timerCount !== 1 ? 's' : ''}`}
               variant="outlined"
-              sx={{
-                color: session.isActive ? 'primary.contrastText' : 'text.secondary',
-                borderColor: session.isActive ? 'primary.contrastText' : 'divider',
-              }}
             />
             {session.isActive && (
               <Chip
@@ -141,42 +156,71 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
             )}
           </Stack>
         </Box>
-        
+
+        <Typography
+          variant={displayConfig.sessionTime}
+          component="span"
+          aria-label="Session total time"
+          sx={{ fontFamily: '"Roboto Mono", monospace', fontWeight: 700 }}
+        >
+          {formatTime(getSessionElapsedMs(session, nowMs))}
+        </Typography>
+
         {showNotes && (
           <IconButton
             size="small"
             onClick={() => onOpenNotes?.(session.id)}
             aria-label="Session notes"
-            sx={{
-              color: session.isActive ? 'primary.contrastText' : 'text.secondary'
-            }}
           >
             <NotesIcon />
           </IconButton>
         )}
       </Box>
 
-
-      {/* Timer Instances */}
-      {(session.timerInstances?.length || 0) > 0 && (
-        <Box>
+      {/* Timers */}
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Typography
             variant="subtitle2"
+            sx={{ fontWeight: 600, color: 'text.secondary' }}
+          >
+            Timers
+          </Typography>
+          {onAddTimer && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={onAddTimer}
+              disabled={atTimerLimit}
+            >
+              Add Timer
+            </Button>
+          )}
+        </Box>
+
+        {timerCount === 0 ? (
+          <Box
             sx={{
-              fontWeight: 600,
-              mb: 1,
-              color: session.isActive ? 'primary.contrastText' : 'text.secondary',
+              p: 2,
+              borderRadius: 1,
+              border: '1px dashed',
+              borderColor: 'divider',
+              textAlign: 'center',
             }}
           >
-            Timer Instances
-          </Typography>
-
+            <Typography variant="body2" color="text.secondary">
+              No timers yet — add one to start tracking.
+            </Typography>
+          </Box>
+        ) : (
           <Stack spacing={1}>
             {(session.timerInstances || []).map((instance, index) => (
               <TimerRow
                 key={instance.id}
                 instance={instance}
                 index={index + 1}
+                nowMs={nowMs}
                 showControls={showControls}
                 showNotes={showNotes}
                 size={size}
@@ -187,12 +231,11 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
                 onDelete={() => onDeleteTimer?.(instance.id)}
                 onEdit={() => onEditTimer?.(instance, session)}
                 onOpenNotes={() => onOpenNotes?.(session.id, instance.id)}
-                isSessionActive={session.isActive}
               />
             ))}
           </Stack>
-        </Box>
-      )}
+        )}
+      </Box>
 
     </Paper>
   );

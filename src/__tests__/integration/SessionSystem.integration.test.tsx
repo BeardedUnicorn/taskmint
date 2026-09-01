@@ -11,6 +11,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionDashboard } from '../../components/pages/SessionDashboard';
 import { SessionTimerToolbar } from '../../components/layout/SessionTimerToolbar';
+import { SessionTimerDisplay } from '../../components/ui/display/SessionTimerDisplay';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
@@ -48,11 +49,6 @@ vi.mock('../../hooks/useInactivityDetection', () => ({
       resumeOnActivity: false,
     },
   }),
-}));
-
-// Mock timer hook
-vi.mock('../../hooks/useTimer', () => ({
-  useTimer: (isRunning: boolean) => (isRunning ? 1000 : 0), // 1 second elapsed
 }));
 
 // Mock session management hook
@@ -301,8 +297,8 @@ describe('Session System Integration', () => {
         expect(screen.getAllByText('Development Work').length).toBeGreaterThanOrEqual(3); // Timer bar, active session, session list
       });
 
-      // Find and click stop button for the timer instance
-      const stopButton = screen.getByLabelText(/stop timer 1/i);
+      // Find and click stop button for the timer instance (in the panel)
+      const stopButton = screen.getByRole('button', { name: 'Stop Timer' });
       fireEvent.click(stopButton);
 
       await waitFor(() => {
@@ -393,11 +389,6 @@ describe('Session System Integration', () => {
           onEndSession={vi.fn()}
           onPauseAll={vi.fn()}
           onResumeAll={vi.fn()}
-          onCreateTimerInstance={vi.fn()}
-          onStartTimer={vi.fn()}
-          onStopTimer={vi.fn()}
-          onPauseTimer={vi.fn()}
-          onResumeTimer={vi.fn()}
         />
       );
 
@@ -421,11 +412,6 @@ describe('Session System Integration', () => {
           onEndSession={vi.fn()}
           onPauseAll={vi.fn()}
           onResumeAll={vi.fn()}
-          onCreateTimerInstance={vi.fn()}
-          onStartTimer={vi.fn()}
-          onStopTimer={vi.fn()}
-          onPauseTimer={vi.fn()}
-          onResumeTimer={vi.fn()}
         />
       );
 
@@ -434,8 +420,8 @@ describe('Session System Integration', () => {
       expect(screen.getByText('End Session')).toBeInTheDocument();
     });
 
-    it('should handle timer controls correctly', async () => {
-      const onStartTimer = vi.fn();
+    it('should handle timer controls correctly in the session panel', async () => {
+      // Per-timer controls moved out of the toolbar into SessionTimerDisplay
       const onStopTimer = vi.fn();
       const onPauseTimer = vi.fn();
 
@@ -446,15 +432,12 @@ describe('Session System Integration', () => {
       };
 
       render(
-        <SessionTimerToolbar
-          activeSession={activeSession}
-          predefinedTasks={mockTasks}
-          onStartSession={vi.fn()}
-          onEndSession={vi.fn()}
-          onPauseAll={vi.fn()}
-          onResumeAll={vi.fn()}
-          onCreateTimerInstance={vi.fn()}
-          onStartTimer={onStartTimer}
+        <SessionTimerDisplay
+          session={activeSession}
+          nowMs={Date.now()}
+          showControls
+          size="large"
+          onStartTimer={vi.fn()}
           onStopTimer={onStopTimer}
           onPauseTimer={onPauseTimer}
           onResumeTimer={vi.fn()}
@@ -462,11 +445,11 @@ describe('Session System Integration', () => {
       );
 
       // Test timer controls
-      const pauseButton = screen.getByLabelText(/pause/i);
+      const pauseButton = screen.getByRole('button', { name: 'Pause Timer' });
       fireEvent.click(pauseButton);
       expect(onPauseTimer).toHaveBeenCalledWith('instance-1');
 
-      const stopButton = screen.getByLabelText(/stop/i);
+      const stopButton = screen.getByRole('button', { name: 'Stop Timer' });
       fireEvent.click(stopButton);
       expect(onStopTimer).toHaveBeenCalledWith('instance-1');
     });
