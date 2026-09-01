@@ -18,17 +18,19 @@ import {
 // actually renders belong here — the old todays-entries and
 // daily-goal-progress entries never had a renderer, so their toggles lied.
 const DEFAULT_WIDGETS: DashboardWidget[] = [
+  // Ids predate the switch to all-time totals; they are stored in users'
+  // saved preferences, so they keep their historical "-today" names.
   {
     id: 'total-time-today',
-    title: 'Total Time Today',
-    description: 'Shows the total time tracked for the current day',
+    title: 'Total Time',
+    description: 'Shows the total time tracked across all sessions',
     defaultEnabled: true,
     defaultOrder: 1,
   },
   {
     id: 'earnings-today',
-    title: 'Earnings Today',
-    description: 'Shows total earnings based on hourly rates for today',
+    title: 'Earnings',
+    description: 'Shows total earnings based on hourly rates',
     defaultEnabled: true,
     defaultOrder: 2,
   },

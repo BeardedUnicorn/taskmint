@@ -792,8 +792,7 @@ describe('SessionDashboard', () => {
   });
 
   describe('Overview Stats', () => {
-    // Local noon (no Z suffix): formatDateString buckets by local date.
-    const NOW = new Date('2024-01-15T12:00:00');
+    const NOW = new Date('2024-01-15T12:00:00'); // local noon (no Z suffix)
 
     const statsSessions: TaskSession[] = [
       {
@@ -828,7 +827,6 @@ describe('SessionDashboard', () => {
           {
             id: 'instance-stopped',
             sessionId: 'session-stopped',
-            // Local times: stats bucket instances by their local start date.
             startTime: new Date(NOW.getTime() - 3 * 3_600_000),
             endTime: new Date(NOW.getTime() - 2.5 * 3_600_000),
             duration: 30 * 60_000,
@@ -867,7 +865,7 @@ describe('SessionDashboard', () => {
       vi.useRealTimers();
     });
 
-    it('includes running timers in Total Time Today and Earnings Today', () => {
+    it('includes running timers in Total Time and Earnings', () => {
       renderDashboard();
 
       // 10 min running + 30 min stopped. The running-only session was
@@ -891,10 +889,9 @@ describe('SessionDashboard', () => {
       expect(screen.getByText('$41.00')).toBeInTheDocument();
     });
 
-    it('counts timers run today inside a session created on an earlier day', () => {
-      // The live repro: sessions are reactivated across days, and their
-      // `date` stays frozen at creation. Bucketing by session.date hid this
-      // running timer entirely (both cards stuck at zero while it ticked).
+    it('includes timers from earlier days in the totals', () => {
+      // The cards show all-time totals for the sessions on the page: a timer
+      // that ran yesterday counts the same as one running right now.
       Object.assign(mockSessionManagement, {
         sessions: [
           {
@@ -906,7 +903,7 @@ describe('SessionDashboard', () => {
                 ...statsSessions[1].timerInstances[0],
                 id: 'instance-yesterday',
                 sessionId: 'session-yesterday',
-                // Ran yesterday: stays in yesterday's bucket.
+                // 30 min run finished yesterday
                 startTime: new Date(NOW.getTime() - 26 * 3_600_000),
                 endTime: new Date(NOW.getTime() - 25.5 * 3_600_000),
               },
@@ -923,13 +920,13 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      expect(screen.getByText('0h 10m')).toBeInTheDocument();
-      expect(screen.getByText('$10.00')).toBeInTheDocument();
+      expect(screen.getByText('0h 40m')).toBeInTheDocument();
+      expect(screen.getByText('$40.00')).toBeInTheDocument();
     });
 
-    it('rolls the date bucket over at midnight even with no timer running', () => {
-      // `today` derives from the ticking clock; before the fix the interval
-      // was gated on a running timer, freezing the bucket overnight.
+    it('keeps totals unchanged across midnight with no timer running', () => {
+      // Totals are not day-bucketed, so nothing rolls over or resets at
+      // local midnight while every timer is stopped.
       const LATE = new Date('2024-01-15T23:59:30');
       vi.setSystemTime(LATE);
       Object.assign(mockSessionManagement, {
@@ -953,18 +950,17 @@ describe('SessionDashboard', () => {
       expect(screen.getByText('0h 59m')).toBeInTheDocument();
 
       act(() => {
-        vi.advanceTimersByTime(120_000); // idle tick fires each minute
+        vi.advanceTimersByTime(120_000); // crosses local midnight
       });
 
-      // Past midnight the finished timer belongs to yesterday's bucket.
-      expect(screen.getByText('0h 0m')).toBeInTheDocument();
+      expect(screen.getByText('0h 59m')).toBeInTheDocument();
     });
 
     it('does not render the removed Tasks Worked On card', () => {
       renderDashboard();
 
-      expect(screen.getByText('Total Time Today')).toBeInTheDocument();
-      expect(screen.getByText('Earnings Today')).toBeInTheDocument();
+      expect(screen.getByText('Total Time')).toBeInTheDocument();
+      expect(screen.getByText('Earnings')).toBeInTheDocument();
       expect(screen.queryByText('Tasks Worked On')).not.toBeInTheDocument();
     });
 
@@ -973,8 +969,8 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      expect(screen.getByText('Total Time Today')).toBeInTheDocument();
-      expect(screen.queryByText('Earnings Today')).not.toBeInTheDocument();
+      expect(screen.getByText('Total Time')).toBeInTheDocument();
+      expect(screen.queryByText('Earnings')).not.toBeInTheDocument();
     });
   });
 });
