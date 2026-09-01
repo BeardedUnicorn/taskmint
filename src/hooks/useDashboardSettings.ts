@@ -23,14 +23,14 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
   {
     id: 'total-time-today',
     title: 'Total Time',
-    description: 'Shows the total time tracked across all sessions',
+    description: 'Shows the total time tracked in the active session',
     defaultEnabled: true,
     defaultOrder: 1,
   },
   {
     id: 'earnings-today',
     title: 'Earnings',
-    description: 'Shows total earnings based on hourly rates',
+    description: "Shows earnings for the active session based on its task's hourly rate",
     defaultEnabled: true,
     defaultOrder: 2,
   },

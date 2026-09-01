@@ -850,7 +850,7 @@ describe('SessionDashboard', () => {
       vi.setSystemTime(NOW);
       Object.assign(mockSessionManagement, {
         sessions: statsSessions,
-        activeSession: null,
+        activeSession: statsSessions[0],
         isLoading: false,
         error: null,
       });
@@ -865,57 +865,65 @@ describe('SessionDashboard', () => {
       vi.useRealTimers();
     });
 
-    it('includes running timers in Total Time and Earnings', () => {
+    it('sums only the active session, including its running timer', () => {
       renderDashboard();
 
-      // 10 min running + 30 min stopped. The running-only session was
-      // previously excluded entirely (totalDuration > 0 filter), so the old
-      // code showed 0h 30m here.
-      expect(screen.getByText('0h 40m')).toBeInTheDocument();
-      // 40 min at $60/h, rendered as currency
-      expect(screen.getByText('$40.00')).toBeInTheDocument();
+      // Active session: one timer running for 10 min. The inactive session's
+      // 30 min stopped timer is not part of the cards.
+      expect(screen.getByText('0h 10m')).toBeInTheDocument();
+      // 10 min at $60/h, rendered as currency
+      expect(screen.getByText('$10.00')).toBeInTheDocument();
     });
 
     it('ticks the totals forward while a timer is running', () => {
       renderDashboard();
 
-      expect(screen.getByText('0h 40m')).toBeInTheDocument();
+      expect(screen.getByText('0h 10m')).toBeInTheDocument();
 
       act(() => {
         vi.advanceTimersByTime(60_000);
       });
 
-      expect(screen.getByText('0h 41m')).toBeInTheDocument();
-      expect(screen.getByText('$41.00')).toBeInTheDocument();
+      expect(screen.getByText('0h 11m')).toBeInTheDocument();
+      expect(screen.getByText('$11.00')).toBeInTheDocument();
     });
 
-    it('includes timers from earlier days in the totals', () => {
-      // The cards show all-time totals for the sessions on the page: a timer
-      // that ran yesterday counts the same as one running right now.
-      Object.assign(mockSessionManagement, {
-        sessions: [
+    it('shows zeros when no session is active', () => {
+      Object.assign(mockSessionManagement, { activeSession: null });
+
+      renderDashboard();
+
+      expect(screen.getByText('0h 0m')).toBeInTheDocument();
+      expect(screen.getByText('$0.00')).toBeInTheDocument();
+    });
+
+    it('includes the active session\'s timers from earlier days', () => {
+      // The cards total every timer in the active session: a timer that ran
+      // yesterday counts the same as one running right now.
+      const sessionAcrossDays = {
+        ...statsSessions[0],
+        id: 'session-yesterday',
+        date: '2024-01-14',
+        timerInstances: [
           {
-            ...statsSessions[0],
-            id: 'session-yesterday',
-            date: '2024-01-14',
-            timerInstances: [
-              {
-                ...statsSessions[1].timerInstances[0],
-                id: 'instance-yesterday',
-                sessionId: 'session-yesterday',
-                // 30 min run finished yesterday
-                startTime: new Date(NOW.getTime() - 26 * 3_600_000),
-                endTime: new Date(NOW.getTime() - 25.5 * 3_600_000),
-              },
-              {
-                ...statsSessions[0].timerInstances[0],
-                id: 'instance-today',
-                sessionId: 'session-yesterday',
-                startTime: new Date(NOW.getTime() - 10 * 60_000),
-              },
-            ],
+            ...statsSessions[1].timerInstances[0],
+            id: 'instance-yesterday',
+            sessionId: 'session-yesterday',
+            // 30 min run finished yesterday
+            startTime: new Date(NOW.getTime() - 26 * 3_600_000),
+            endTime: new Date(NOW.getTime() - 25.5 * 3_600_000),
+          },
+          {
+            ...statsSessions[0].timerInstances[0],
+            id: 'instance-today',
+            sessionId: 'session-yesterday',
+            startTime: new Date(NOW.getTime() - 10 * 60_000),
           },
         ],
+      };
+      Object.assign(mockSessionManagement, {
+        sessions: [sessionAcrossDays],
+        activeSession: sessionAcrossDays,
       });
 
       renderDashboard();
@@ -929,20 +937,20 @@ describe('SessionDashboard', () => {
       // local midnight while every timer is stopped.
       const LATE = new Date('2024-01-15T23:59:30');
       vi.setSystemTime(LATE);
-      Object.assign(mockSessionManagement, {
-        sessions: [
+      const stoppedSession = {
+        ...statsSessions[1],
+        timerInstances: [
           {
-            ...statsSessions[1],
-            timerInstances: [
-              {
-                ...statsSessions[1].timerInstances[0],
-                startTime: new Date(LATE.getTime() - 59.5 * 60_000),
-                endTime: new Date(LATE.getTime() - 30_000),
-                duration: 59 * 60_000,
-              },
-            ],
+            ...statsSessions[1].timerInstances[0],
+            startTime: new Date(LATE.getTime() - 59.5 * 60_000),
+            endTime: new Date(LATE.getTime() - 30_000),
+            duration: 59 * 60_000,
           },
         ],
+      };
+      Object.assign(mockSessionManagement, {
+        sessions: [stoppedSession],
+        activeSession: stoppedSession,
       });
 
       renderDashboard();

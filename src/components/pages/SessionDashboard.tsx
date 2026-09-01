@@ -98,8 +98,8 @@ export function SessionDashboard() {
   // getSessionElapsedMs and tick once a second while any timer is running.
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const hasRunningTimer = sessions.some((session) =>
-    session.timerInstances.some((instance) => instance.state === TimerState.running)
+  const hasRunningTimer = !!activeSession?.timerInstances.some(
+    (instance) => instance.state === TimerState.running
   );
 
   // Totals only accrue while a timer runs (paused time is frozen, idle time
@@ -112,22 +112,17 @@ export function SessionDashboard() {
   }, [hasRunningTimer]);
 
   const stats = useMemo(() => {
-    // Sum every timer in every session, regardless of the day it ran.
-    let totalTime = 0;
-    let totalEarnings = 0;
-    for (const session of sessions) {
-      const elapsed = getSessionElapsedMs(session, nowMs);
-      if (elapsed === 0) continue;
-      totalTime += elapsed;
-
-      const task = tasks.find((t) => t.id === session.taskId);
-      if (task?.hourlyRate && task.hourlyRate > 0) {
-        totalEarnings += (elapsed / (1000 * 60 * 60)) * task.hourlyRate;
-      }
-    }
+    // Totals cover every timer in the active session, regardless of the day
+    // it ran; with no active session both cards read zero.
+    const totalTime = activeSession ? getSessionElapsedMs(activeSession, nowMs) : 0;
+    const task = activeSession ? tasks.find((t) => t.id === activeSession.taskId) : undefined;
+    const totalEarnings =
+      task?.hourlyRate && task.hourlyRate > 0
+        ? (totalTime / (1000 * 60 * 60)) * task.hourlyRate
+        : 0;
 
     return { totalTime, totalEarnings };
-  }, [sessions, tasks, nowMs]);
+  }, [activeSession, tasks, nowMs]);
 
   // Determine currently running timer instance for inactivity handling
   const { activeTimer: activeTimerInstance } = useActiveTimer();
