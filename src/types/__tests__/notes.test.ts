@@ -79,8 +79,9 @@ describe('Enhanced Notes Types', () => {
       expect(() => TemplateFieldSchema.parse(dateField)).not.toThrow();
     });
 
-    it('should validate command field', () => {
-      const commandField: TemplateField = {
+    it('loads a legacy command field as a text field without its command', () => {
+      // Shape saved/exported before command fields were removed.
+      const legacyCommandField = {
         id: 'field4',
         label: 'Command Field',
         type: 'command',
@@ -89,7 +90,33 @@ describe('Enhanced Notes Types', () => {
         command: 'echo "Hello World"',
       };
 
-      expect(() => TemplateFieldSchema.parse(commandField)).not.toThrow();
+      const parsed = TemplateFieldSchema.parse(legacyCommandField);
+
+      expect(parsed).toEqual({
+        id: 'field4',
+        label: 'Command Field',
+        type: 'text',
+        required: false,
+        order: 3,
+      });
+      expect(parsed).not.toHaveProperty('command');
+    });
+
+    it('keeps a stored template with a legacy command field loadable', () => {
+      const parsed = NoteTemplateSchema.parse({
+        id: 'legacy',
+        name: 'Legacy',
+        fields: [
+          { id: 'f1', label: 'Hostname', type: 'command', required: true, order: 0, command: 'hostname' },
+          { id: 'f2', label: 'Notes', type: 'text', required: false, order: 1 },
+        ],
+        isActive: true,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      });
+
+      expect(parsed.fields.map(f => f.type)).toEqual(['text', 'text']);
+      expect(parsed.fields[0]).not.toHaveProperty('command');
     });
 
     it('should validate checkbox field', () => {
@@ -162,7 +189,7 @@ describe('Enhanced Notes Types', () => {
   });
 
   describe('Field Type Coverage', () => {
-    const allFieldTypes: FieldType[] = ['text', 'number', 'date', 'command', 'checkbox', 'select'];
+    const allFieldTypes: FieldType[] = ['text', 'number', 'date', 'checkbox', 'select'];
 
     it('should support all defined field types', () => {
       allFieldTypes.forEach(type => {
@@ -172,7 +199,6 @@ describe('Enhanced Notes Types', () => {
           type,
           required: false,
           order: 0,
-          ...(type === 'command' && { command: 'echo test' }),
           ...(type === 'select' && { options: [{ label: 'Test', value: 'test' }] }),
         };
 
@@ -208,14 +234,6 @@ describe('Enhanced Notes Types', () => {
             type: 'date' as FieldType,
             required: false,
             order: 2,
-          },
-          {
-            id: 'command_field',
-            label: 'Command Field',
-            type: 'command' as FieldType,
-            required: false,
-            order: 3,
-            command: 'echo "test"',
           },
           {
             id: 'checkbox_field',

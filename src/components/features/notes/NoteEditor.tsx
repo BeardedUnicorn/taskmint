@@ -25,7 +25,6 @@ import {
   MenuItem,
   FormControlLabel,
   Checkbox,
-  useTheme,
 } from '@mui/material';
 import {
   ExpandMore as ExpandIcon,
@@ -33,10 +32,8 @@ import {
   Save as SaveIcon,
   Clear as ClearIcon,
   Notes as NotesIcon,
-  PlayArrow as RunIcon,
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
-import { invoke } from '@tauri-apps/api/core';
 import {NoteEditorProps, TemplateField, NoteTemplate, TaskNote} from '../../../types';
 
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
@@ -69,7 +66,6 @@ export function NoteEditor({
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
-  const [isRunningCommand, setIsRunningCommand] = useState<Record<string, boolean>>({});
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [copySnackbar, setCopySnackbar] = useState<{ open: boolean; message: string }>({
@@ -100,7 +96,6 @@ export function NoteEditor({
       selectedTemplate.fields.forEach(field => {
         switch (field.type) {
           case 'text':
-          case 'command':
             initialValues[field.id] = '';
             break;
           case 'number':
@@ -119,17 +114,6 @@ export function NoteEditor({
       setHasUnsavedChanges(false);
     }
   }, [existingNote, selectedTemplate]);
-
-  // Run commands for new notes
-  useEffect(() => {
-    if (!existingNote && selectedTemplate) {
-      selectedTemplate.fields.forEach(field => {
-        if (field.type === 'command' && field.command) {
-          runCommand(field.id, field.command);
-        }
-      });
-    }
-  }, [selectedTemplate, existingNote]);
 
   const handleFieldChange = useCallback((fieldId: string, value: any) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
@@ -151,19 +135,6 @@ export function NoteEditor({
 
   const handleSelectChange = useCallback((fieldId: string, value: string) => {
     handleFieldChange(fieldId, value);
-  }, [handleFieldChange]);
-
-  const runCommand = useCallback(async (fieldId: string, command: string) => {
-    setIsRunningCommand(prev => ({ ...prev, [fieldId]: true }));
-    try {
-      const output = await invoke<string>('execute_cli_command', { command });
-      handleFieldChange(fieldId, output.trim());
-    } catch (error) {
-      console.error('Failed to run command:', error);
-      setErrors(prev => ({ ...prev, [fieldId]: 'Failed to run command' }));
-    } finally {
-      setIsRunningCommand(prev => ({ ...prev, [fieldId]: false }));
-    }
   }, [handleFieldChange]);
 
   const validateFields = useCallback((): boolean => {
@@ -207,7 +178,6 @@ export function NoteEditor({
           }
           break;
         case 'text':
-        case 'command':
           if (typeof value === 'string') {
             if (field.validation?.min !== undefined && value.length < field.validation.min) {
               newErrors[field.id] = `${field.label} must be at least ${field.validation.min} characters`;
@@ -343,7 +313,6 @@ export function NoteEditor({
       selectedTemplate.fields.forEach((field: TemplateField) => {
         switch (field.type) {
           case 'text':
-          case 'command':
             clearedValues[field.id] = '';
             break;
           case 'number':
@@ -471,42 +440,6 @@ export function NoteEditor({
             }}
           />
         );
-      case 'command':
-        const theme = useTheme();
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-            <TextField
-              {...commonProps}
-              multiline
-              minRows={4}
-              maxRows={12}
-              placeholder={field.placeholder}
-              sx={{
-                flex: 1,
-                '& .MuiInputBase-root': {
-                  alignItems: 'flex-start',
-                  backgroundColor: theme.palette.background.default,
-                  border: '1px solid',
-                  borderColor: theme.palette.divider,
-                },
-                '& .MuiInputBase-input': {
-                  whiteSpace: 'pre-wrap',
-                  wordWrap: 'break-word',
-                  lineHeight: 1.5,
-                  fontFamily: '"Roboto Mono", monospace',
-                  color: theme.palette.text.primary,
-                },
-              }}
-            />
-            <IconButton
-              onClick={() => field.command && runCommand(field.id, field.command)}
-              disabled={isRunningCommand[field.id] || !field.command}
-              title="Run Command"
-            >
-              {isRunningCommand[field.id] ? <CircularProgress size={24} /> : <RunIcon />}
-            </IconButton>
-          </Box>
-        );
       case 'checkbox':
         return (
           <FormControlLabel
@@ -552,7 +485,7 @@ export function NoteEditor({
       default:
         return null;
     }
-  }, [fieldValues, errors, handleFieldChange, handleCheckboxChange, handleSelectChange, isRunningCommand, runCommand]);
+  }, [fieldValues, errors, handleFieldChange, handleCheckboxChange, handleSelectChange]);
 
   const notesSummary = useMemo(() => {
     if (!selectedTemplate) {

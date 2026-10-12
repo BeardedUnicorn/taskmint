@@ -31,6 +31,9 @@ export const STORAGE_KEYS = {
   ENHANCED_TIMER_SETTINGS: 'enhancedTimerSettings',
   INACTIVITY_SETTINGS: 'inactivitySettings',
   TIMER_ACTIVITY_STATE: 'timerActivityState',
+  // Error reporting (read synchronously before React mounts)
+  ERROR_REPORTING_ENABLED: 'errorReportingEnabled',
+  INSTALL_ID: 'installId',
 } as const;
 
 // Time formatting constants
