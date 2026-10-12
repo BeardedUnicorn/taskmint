@@ -22,6 +22,7 @@ import {
 import { SettingsSection } from './SettingsSection';
 import { useDataBackup } from '../../../hooks/useDataBackup';
 import { useResetAppData } from '../../../hooks/useResetAppData';
+import { reloadApp } from '../../../utils/appReload';
 
 // Typed confirmation guarding the full app-data reset.
 export const RESET_CONFIRMATION_WORD = 'RESET';
@@ -44,9 +45,11 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
     onExportError: (error: unknown) => {
       onError?.(error as string);
     },
-    onImportSuccess: (result: any) => {
-      console.log('Import successful:', result);
+    onImportSuccess: () => {
       onImportSuccess?.();
+      // Every provider (tasks, sessions, work logs, notes) re-reads the
+      // restored stores, same as after a reset.
+      reloadApp();
     },
     onImportError: (error: unknown) => {
       onImportError?.(error as string);
@@ -124,9 +127,11 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
 
       <Alert severity="info" sx={{ mt: 2 }}>
         <Typography variant="body2">
-          <strong>Export:</strong> Downloads all your time entries, tasks, and note templates as a JSON file.
+          <strong>Export:</strong> Saves your tasks, sessions and tracked time, imported work logs,
+          notes, note templates and goals to a JSON file.
           <br />
-          <strong>Import:</strong> Restores data from a previously exported JSON file.
+          <strong>Import:</strong> Adds anything from an export file that isn&apos;t already here;
+          existing data is kept. The app reloads afterwards.
         </Typography>
       </Alert>
 

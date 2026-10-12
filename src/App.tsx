@@ -24,6 +24,7 @@ import { EditTimeEntryData } from './types/form';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
 import { WorkLogProvider } from './contexts/WorkLogContext';
+import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
 import { sessionsToTimeEntries, buildTimerEditUpdates, getInstanceDateString } from './utils/timerHelpers';
 import { createServiceErrorHandler } from './utils/errorHandler';
@@ -226,7 +227,9 @@ function App() {
             <ActiveTimerProvider>
               <SessionManagementProvider>
                 <WorkLogProvider>
-                  <AppContent />
+                  <BackupSettingsProvider>
+                    <AppContent />
+                  </BackupSettingsProvider>
                 </WorkLogProvider>
               </SessionManagementProvider>
             </ActiveTimerProvider>

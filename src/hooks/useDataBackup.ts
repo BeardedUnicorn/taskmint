@@ -1,8 +1,12 @@
 import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { StorageService } from '../services/StorageService';
 import { Task } from '../types/task';
 import { NoteTemplate, TaskNote } from '../types/notes';
 import { DailyGoalAchievement } from '../types/goal';
+import { TaskSession } from '../types/timer';
+import { WorkLogsResponse } from '../types/workLog';
+import { BACKUP_FORMAT_VERSION, BackupFileSchema, RestoreSummary } from '../types/backup';
 import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
 
 interface UseDataBackupProps {
@@ -32,7 +36,8 @@ export const useDataBackup = ({
         taskNotes,
         dailyGoal,
         goalAchievements,
-        sessions
+        sessions,
+        workLogs
       ] = await Promise.all([
         storageService.getTimeEntries(),
         storageService.getTasks(),
@@ -40,15 +45,15 @@ export const useDataBackup = ({
         storageService.getTaskNotes(),
         storageService.getDailyGoal(),
         storageService.getGoalAchievements(),
-        // The session/time-tracking data lives in the Rust sessions store —
-        // the localStorage keys above hold only legacy/auxiliary data, so a
-        // backup without this contains no tracked time at all. safeInvoke
-        // resolves null (never rejects) outside Tauri or on command failure.
-        safeInvoke('get_sessions').catch(() => null)
+        // Tracked time and the work-log ledger live in the Rust stores. Use
+        // invoke, not safeInvoke: a failed read must fail the backup rather
+        // than silently produce a file with no tracked time in it.
+        isTauriEnvironment() ? invoke<TaskSession[]>('get_sessions') : Promise.resolve([]),
+        isTauriEnvironment() ? invoke<WorkLogsResponse>('get_work_logs') : Promise.resolve(null),
       ]);
 
       return {
-        version: '1.0',
+        version: BACKUP_FORMAT_VERSION,
         exportDate: new Date().toISOString(),
         data: {
           timeEntries,
@@ -57,7 +62,11 @@ export const useDataBackup = ({
           taskNotes,
           dailyGoal,
           goalAchievements,
-          sessions: sessions ?? []
+          sessions,
+          workLogs: {
+            entries: workLogs?.entries ?? [],
+            mappings: workLogs?.mappings ?? [],
+          },
         }
       };
     } catch (error) {
@@ -131,18 +140,26 @@ export const useDataBackup = ({
         throw new Error('Import was cancelled or failed');
       }
       
-      // Parse the imported data
-      const importedData = JSON.parse(fileContents);
-      
-      // Validate the imported data structure
-      if (!importedData.data) {
-        throw new Error('Invalid backup file format: missing data section');
+      const parsed = BackupFileSchema.safeParse(JSON.parse(fileContents));
+      if (!parsed.success) {
+        throw new Error('Invalid backup file format: this is not a TaskMint export');
       }
-      
+      const { data, exportDate } = parsed.data;
+
+      // Sessions and work logs first: the Rust restore writes safety copies
+      // of both stores before changing them. A section the file lacks (v1
+      // exports have no work logs) is sent as null and left untouched.
+      const restored = await invoke<RestoreSummary>('restore_backup_data', {
+        payload: {
+          mode,
+          sessions: data.sessions ?? null,
+          workLogEntries: data.workLogs?.entries ?? null,
+          workLogMappings: data.workLogs?.mappings ?? null,
+          exportedAt: exportDate ?? null,
+        },
+      });
+
       const storageService = StorageService.getInstance();
-      
-      // Import each data type
-      const { data } = importedData;
       
       // Handle time entries
       if (data.timeEntries && Array.isArray(data.timeEntries)) {
@@ -237,8 +254,11 @@ export const useDataBackup = ({
           tasks: data.tasks?.length || 0,
           noteTemplates: data.noteTemplates?.length || 0,
           taskNotes: data.taskNotes?.length || 0,
-          goalAchievements: data.goalAchievements?.length || 0
-        }
+          goalAchievements: data.goalAchievements?.length || 0,
+          sessions: restored.sessionsRestored,
+          workLogEntries: restored.workLogEntriesRestored,
+        },
+        recordsSkipped: restored.recordsSkipped,
       });
       
     } catch (error) {

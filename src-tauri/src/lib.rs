@@ -270,6 +270,7 @@ pub fn run() {
             commands::backup::perform_automatic_backup,
             commands::backup::export_data_to_file,
             commands::backup::import_data_from_file,
+            commands::restore::restore_backup_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
