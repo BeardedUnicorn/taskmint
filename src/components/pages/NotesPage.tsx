@@ -40,10 +40,9 @@ import { useNoteTemplates } from '../../hooks/useNoteTemplates';
 interface NotesPageProps {
   tasks: Task[];
   activeEntry: TimeEntry | null;
-  notesPageState?: { filterTaskId: string | null; openNoteId: string | null };
 }
 
-export function NotesPage({ tasks, activeEntry, notesPageState }: NotesPageProps) {
+export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
   // State for note management
   const [editingNote, setEditingNote] = useState<TaskNote | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
@@ -68,19 +67,6 @@ export function NotesPage({ tasks, activeEntry, notesPageState }: NotesPageProps
 
   // Hooks for templates
   const { templates } = useNoteTemplates();
-  useEffect(() => {
-    if (notesPageState) {
-      if (notesPageState.filterTaskId) {
-        setSelectedTaskFilter(notesPageState.filterTaskId);
-      }
-      if (notesPageState.openNoteId) {
-        const noteToEdit = notes.find((note: TaskNote) => note.id === notesPageState.openNoteId);
-        if (noteToEdit) {
-          handleEditNote(noteToEdit);
-        }
-      }
-    }
-  }, [notesPageState, notes]);
 
   // Filter and search notes - separate active and archived
   const { filteredActiveNotes, filteredArchivedNotes } = useMemo(() => {

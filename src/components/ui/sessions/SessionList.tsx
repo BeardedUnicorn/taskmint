@@ -45,6 +45,7 @@ import { formatTime, formatDuration, formatDate } from '../../../utils/formatter
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { getSessionElapsedMs } from '../../../utils/timerHelpers';
 import { EmptyState } from '../display/EmptyState';
+import { ConfirmDialog } from '../dialogs/ConfirmDialog';
 
 interface SessionListProps {
   sessions: TaskSession[];
@@ -86,6 +87,9 @@ export const SessionList = memo(function SessionList({
   const [taskFilters, setTaskFilters] = useState<string[]>([]);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedSession, setSelectedSession] = useState<TaskSession | null>(null);
+  // Deleting a session removes all of its timers' tracked time, so it waits
+  // for an explicit confirmation.
+  const [sessionPendingDelete, setSessionPendingDelete] = useState<TaskSession | null>(null);
 
   // Unique task names for task filter chips. Archived tasks' names are
   // hidden to keep the chip row manageable, but a chip stays visible while
@@ -158,9 +162,29 @@ export const SessionList = memo(function SessionList({
 
   const handleDeleteSession = () => {
     if (selectedSession) {
-      onDeleteSession(selectedSession.id);
+      setSessionPendingDelete(selectedSession);
       handleMenuClose();
     }
+  };
+
+  const handleConfirmDelete = () => {
+    if (sessionPendingDelete) {
+      onDeleteSession(sessionPendingDelete.id);
+    }
+  };
+
+  const deleteMessage = (session: TaskSession) => {
+    const timerCount = session.timerInstances?.length || 0;
+    const tracked = formatDuration(getSessionElapsedMs(session, nowMs));
+    const activeNote = session.isActive
+      ? ' This is the active session, so any running timer goes with it.'
+      : '';
+    return (
+      `Delete the "${session.taskName}" session from ` +
+      `${formatDate(parseDateStringLocal(session.date))}? Its ` +
+      `${timerCount} timer${timerCount !== 1 ? 's' : ''} and ${tracked} of tracked ` +
+      `time will be removed permanently.${activeNote}`
+    );
   };
 
   const handleToggleActive = () => {
@@ -393,6 +417,16 @@ export const SessionList = memo(function SessionList({
           <ListItemText>Delete Session</ListItemText>
         </MenuItem>
       </Menu>
+
+      <ConfirmDialog
+        open={sessionPendingDelete !== null}
+        title="Delete Session"
+        message={sessionPendingDelete ? deleteMessage(sessionPendingDelete) : ''}
+        confirmLabel="Delete"
+        severity="error"
+        onConfirm={handleConfirmDelete}
+        onClose={() => setSessionPendingDelete(null)}
+      />
     </Box>
   );
 });

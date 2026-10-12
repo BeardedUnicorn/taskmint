@@ -135,6 +135,10 @@ export function InactivitySettingsSection({
               <Typography variant="body2" color="text.secondary">
                 Monitor user activity and automatically pause timers when inactive
               </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Only activity inside the TaskMint window counts for now, so time spent
+                working in another app also looks idle.
+              </Typography>
             </Box>
           }
         />
@@ -249,43 +253,47 @@ export function InactivitySettingsSection({
 
             <Divider />
 
-            {/* Testing Mode */}
-            <Box>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={localSettings.testingMode || false}
-                    onChange={(e) => handleSettingChange('testingMode', e.target.checked)}
+            {/* Testing Mode: a development aid, so release builds don't show it */}
+            {import.meta.env.DEV && (
+              <>
+                <Box>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={localSettings.testingMode || false}
+                        onChange={(e) => handleSettingChange('testingMode', e.target.checked)}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                          Development Testing Mode
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Use shorter thresholds for easier testing and development
+                        </Typography>
+                      </Box>
+                    }
                   />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      Development Testing Mode
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Use shorter thresholds for easier testing and development
-                    </Typography>
-                  </Box>
-                }
-              />
 
-              {localSettings.testingMode && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  <Typography variant="body2">
-                    <strong>Testing Mode Active:</strong> Inactivity thresholds are significantly reduced for development purposes.
-                    <br />
-                    • 15 minutes → 1 minute
-                    • 30 minutes → 2 minutes
-                    • 60 minutes → 3 minutes
-                    <br />
-                    Warning duration is also reduced to 1/3 of the normal time.
-                  </Typography>
-                </Alert>
-              )}
-            </Box>
+                  {localSettings.testingMode && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      <Typography variant="body2">
+                        <strong>Testing Mode Active:</strong> Inactivity thresholds are significantly reduced for development purposes.
+                        <br />
+                        • 15 minutes → 1 minute
+                        • 30 minutes → 2 minutes
+                        • 60 minutes → 3 minutes
+                        <br />
+                        Warning duration is also reduced to 1/3 of the normal time.
+                      </Typography>
+                    </Alert>
+                  )}
+                </Box>
 
-            <Divider />
+                <Divider />
+              </>
+            )}
 
             {/* Preview */}
             <Box>

@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocalStorage } from './useLocalStorage';
-import { seedInactivitySettingsFromLegacyEnhanced } from './useEnhancedTimerSettings';
+import { prepareInactivitySettings } from './useEnhancedTimerSettings';
 import { STORAGE_KEYS, INACTIVITY_CONSTANTS } from '../constants';
 import {
   InactivitySettings,
@@ -37,9 +37,9 @@ function getEffectiveWarningDuration(normalDuration: number): number {
 }
 
 export function useInactivityDetection(): UseInactivityDetectionReturn {
-  // Settings stored in localStorage (seed once from the legacy nested blob
-  // so values configured through the old Settings path are honored)
-  seedInactivitySettingsFromLegacyEnhanced();
+  // Settings stored in localStorage (run the one-time migrations first: the
+  // legacy nested-blob seed and the switch to off-by-default)
+  prepareInactivitySettings();
   const [settings, setSettings] = useLocalStorage<InactivitySettings>(
     STORAGE_KEYS.INACTIVITY_SETTINGS,
     DEFAULT_INACTIVITY_SETTINGS
@@ -146,7 +146,10 @@ export function useInactivityDetection(): UseInactivityDetectionReturn {
     if (pausedDueToInactivityRef.current || warningShownRef.current) return;
 
     const timeSinceLastActivity = Date.now() - lastActivityRef.current;
-    const effectiveThresholdMinutes = currentSettings.testingMode
+    // Testing mode is a dev-only aid (Settings hides it in release builds), so
+    // a value saved earlier can't shorten thresholds in a release build.
+    const testingMode = import.meta.env.DEV && Boolean(currentSettings.testingMode);
+    const effectiveThresholdMinutes = testingMode
       ? getEffectiveThresholdMinutes(currentSettings.thresholdMinutes)
       : currentSettings.thresholdMinutes;
     const inactivityThreshold = effectiveThresholdMinutes * 60 * 1000;
@@ -167,7 +170,7 @@ export function useInactivityDetection(): UseInactivityDetectionReturn {
     }));
     setIsWarningShown(true);
 
-    const effectiveWarningDuration = currentSettings.testingMode
+    const effectiveWarningDuration = testingMode
       ? getEffectiveWarningDuration(currentSettings.warningDurationSeconds)
       : currentSettings.warningDurationSeconds;
     setWarningTimeRemaining(effectiveWarningDuration);

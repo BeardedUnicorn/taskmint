@@ -174,6 +174,21 @@ describe('TaskService', () => {
       expect(prepareSpy).not.toHaveBeenCalled();
     });
 
+    it('orphans child tasks by default instead of refusing the delete', async () => {
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask]);
+      vi.mocked(hierarchyUtils.canDeleteTask).mockReturnValue({ canDelete: true });
+      vi.mocked(hierarchyUtils.prepareTaskDeletion).mockReturnValue({
+        tasksToDelete: ['task1'],
+        tasksToUpdate: [],
+      });
+
+      await service.deleteTask('task1');
+
+      expect(hierarchyUtils.canDeleteTask).toHaveBeenCalledWith(expect.any(Array), 'task1', 'orphan');
+      expect(hierarchyUtils.prepareTaskDeletion).toHaveBeenCalledWith(expect.any(Array), 'task1', 'orphan');
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([]);
+    });
+
     it('should throw when getTask encounters storage error', async () => {
       mockStorageService.getTasks = vi.fn().mockRejectedValue(new Error('failure'));
       await expect(service.getTask('task1')).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });

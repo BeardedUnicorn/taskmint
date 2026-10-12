@@ -325,7 +325,8 @@ describe('useTaskManagement', () => {
         await result.current.deleteTask('task-1');
       });
 
-      expect(mockTaskService.deleteTask).toHaveBeenCalledWith('task-1', 'prevent');
+      // Orphan by default: hidden child tasks never block deleting a parent
+      expect(mockTaskService.deleteTask).toHaveBeenCalledWith('task-1', 'orphan');
       expect(mockShowSuccess).toHaveBeenCalledWith('Task "Development" deleted successfully!');
     });
 

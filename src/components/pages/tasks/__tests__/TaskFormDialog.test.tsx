@@ -26,7 +26,6 @@ describe('TaskFormDialog', () => {
         onClose={onClose}
         mode="add"
         initialTask={null}
-        availableTasks={[]}
         onSubmit={onSubmit}
       />
     );
@@ -48,7 +47,6 @@ describe('TaskFormDialog', () => {
         onClose={onClose}
         mode="add"
         initialTask={null}
-        availableTasks={[]}
         onSubmit={onSubmit}
       />
     );
@@ -63,9 +61,22 @@ describe('TaskFormDialog', () => {
         name: 'New Task',
         hourlyRate: 25,
         defaultNoteTemplateId: null,
-        parentId: null,
       });
     });
+  });
+
+  it('has no Parent Task field', () => {
+    render(
+      <TaskFormDialog
+        open={true}
+        onClose={onClose}
+        mode="add"
+        initialTask={null}
+        onSubmit={onSubmit}
+      />
+    );
+
+    expect(screen.queryByLabelText('Parent Task')).not.toBeInTheDocument();
   });
 
   it('prefills values in edit mode', () => {
@@ -85,7 +96,6 @@ describe('TaskFormDialog', () => {
         onClose={onClose}
         mode="edit"
         initialTask={task}
-        availableTasks={[]}
         onSubmit={onSubmit}
       />
     );

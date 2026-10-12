@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -10,6 +10,7 @@ import { TimeEntry } from '../../types/timer';
 import { TaskDetailPane } from './tasks/TaskDetailPane';
 import { TaskListPane } from './tasks/TaskListPane';
 import { TaskFormDialog } from './tasks/TaskFormDialog';
+import { DeleteTaskDialog, TaskHistory } from './tasks/DeleteTaskDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui';
 import { EditTimeEntryData } from '../../types/form';
@@ -93,15 +94,29 @@ export function TasksPage({
     }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!deletingTaskId || !onDeleteTask) return;
+  const deletingTask = deletingTaskId ? tasks.find(t => t.id === deletingTaskId) ?? null : null;
+
+  // Time tracked against the task being deleted, matched the same way the
+  // detail pane matches its entries (task id, or name for older entries).
+  const deletingTaskHistory = useMemo((): TaskHistory => {
+    if (!deletingTask) return { entryCount: 0, trackedMs: 0 };
+    const entries = timeEntries.filter(
+      entry => entry.taskId === deletingTask.id || entry.taskName === deletingTask.name
+    );
+    return {
+      entryCount: entries.length,
+      trackedMs: entries.reduce((total, entry) => total + getEntryElapsedMs(entry), 0),
+    };
+  }, [deletingTask, timeEntries]);
+
+  const handleConfirmDelete = async (taskId: string) => {
+    if (!onDeleteTask) return;
 
     try {
-      await onDeleteTask(deletingTaskId);
-      if (selectedTask?.id === deletingTaskId) {
+      await onDeleteTask(taskId);
+      if (selectedTask?.id === taskId) {
         setSelectedTask(null);
       }
-      setDeletingTaskId(null);
     } catch (error) {
       console.error('Failed to delete task:', error);
     }
@@ -218,7 +233,6 @@ export function TasksPage({
         onClose={() => setShowNewTaskDialog(false)}
         mode="add"
         initialTask={null}
-        availableTasks={tasks}
         onSubmit={handleAddTaskDialog}
       />
 
@@ -227,19 +241,16 @@ export function TasksPage({
         onClose={() => setEditingTask(null)}
         mode="edit"
         initialTask={editingTask}
-        availableTasks={tasks}
         onSubmit={(data) => (editingTask ? handleSaveEdit(editingTask.id, data) : Promise.resolve(null))}
       />
 
       {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deletingTaskId !== null}
-        title="Delete Task"
-        message="Are you sure you want to delete this task? This action cannot be undone and will remove all associated time entries."
-        onConfirm={handleConfirmDelete}
+      <DeleteTaskDialog
+        task={deletingTask}
+        history={deletingTaskHistory}
+        onDelete={(taskId) => { void handleConfirmDelete(taskId); }}
+        onArchive={onArchiveTask ? (taskId) => { void onArchiveTask(taskId); } : undefined}
         onClose={() => setDeletingTaskId(null)}
-        confirmLabel="Delete"
-        severity="error"
       />
 
       {/* Edit Time Entry Dialog */}

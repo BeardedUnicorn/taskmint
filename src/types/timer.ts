@@ -89,18 +89,6 @@ export interface UseSystemTrayProps {
   onShowNewTaskDialog: () => void;
 }
 
-// Timer rounding options
-export type TimerRoundingOption = 'none' | 'up-5min' | 'up-15min' | 'up-30min';
-
-export interface TimerSettings {
-  roundingOption: TimerRoundingOption;
-}
-
-// Zod schema for timer settings
-export const TimerSettingsSchema = z.object({
-  roundingOption: z.enum(['none', 'up-5min', 'up-15min', 'up-30min'])
-});
-
 // Favorite tasks functionality
 export interface FavoriteTasksSettings {
   favoriteTaskIds: string[];
@@ -169,11 +157,6 @@ export interface InactivitySettings {
   testingMode?: boolean; // Enable shorter thresholds for development/testing
 }
 
-// Enhanced Timer Settings with inactivity detection
-export interface EnhancedTimerSettings extends TimerSettings {
-  inactivity: InactivitySettings;
-}
-
 // Timer Activity State for inactivity detection
 export interface TimerActivityState {
   lastActivityTime: Date;
@@ -238,10 +221,6 @@ export const InactivitySettingsSchema = z.object({
   testingMode: z.boolean().optional()
 });
 
-export const EnhancedTimerSettingsSchema = z.object({
-  roundingOption: z.enum(['none', 'up-5min', 'up-15min', 'up-30min']),
-  inactivity: InactivitySettingsSchema
-});
 
 export const TimerActivityStateSchema = z.object({
   lastActivityTime: z.coerce.date(),
@@ -254,8 +233,10 @@ export const TimerActivityStateSchema = z.object({
 // DEFAULT VALUES
 // ============================================================================
 
+// Off by default: detection only sees activity inside TaskMint's own window,
+// so with work happening in another app it would pause a running timer.
 export const DEFAULT_INACTIVITY_SETTINGS: InactivitySettings = {
-  enabled: true,
+  enabled: false,
   thresholdMinutes: 15, // 15 minutes default
   showWarningBeforePause: true,
   warningDurationSeconds: 30, // 30 seconds warning
@@ -263,10 +244,6 @@ export const DEFAULT_INACTIVITY_SETTINGS: InactivitySettings = {
   testingMode: false // Testing mode disabled by default
 };
 
-export const DEFAULT_ENHANCED_TIMER_SETTINGS: EnhancedTimerSettings = {
-  roundingOption: 'none',
-  inactivity: DEFAULT_INACTIVITY_SETTINGS
-};
 
 
 

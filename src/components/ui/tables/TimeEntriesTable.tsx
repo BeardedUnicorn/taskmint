@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -30,6 +30,68 @@ import dayjs from 'dayjs';
 
 export type SortField = 'taskName' | 'startTime' | 'endTime' | 'duration' | 'date' | 'earnings';
 export type SortDirection = 'asc' | 'desc';
+
+/** Rate-based earnings for a finished entry (0 when it has no duration or rate). */
+function entryEarnings(entry: TimeEntry, tasks: Task[]): number {
+  if (!entry.duration) return 0;
+
+  const task = entry.taskId
+    ? tasks.find(t => t.id === entry.taskId)
+    : tasks.find(t => t.name === entry.taskName);
+  if (!task?.hourlyRate) return 0;
+
+  const hours = entry.duration / (1000 * 60 * 60);
+  return hours * task.hourlyRate;
+}
+
+/**
+ * Sort time entries for the table. Callers that paginate must sort the full
+ * list first — sorting only the visible page leaves the order of pages wrong.
+ */
+export function sortTimeEntries(
+  entries: TimeEntry[],
+  tasks: Task[],
+  sortField: SortField,
+  sortDirection: SortDirection
+): TimeEntry[] {
+  return [...entries].sort((a, b) => {
+    let aValue: string | number;
+    let bValue: string | number;
+
+    switch (sortField) {
+      case 'taskName':
+        aValue = a.taskName.toLowerCase();
+        bValue = b.taskName.toLowerCase();
+        break;
+      case 'startTime':
+        aValue = new Date(a.startTime).getTime();
+        bValue = new Date(b.startTime).getTime();
+        break;
+      case 'endTime':
+        aValue = a.endTime ? new Date(a.endTime).getTime() : 0;
+        bValue = b.endTime ? new Date(b.endTime).getTime() : 0;
+        break;
+      case 'duration':
+        aValue = a.duration || 0;
+        bValue = b.duration || 0;
+        break;
+      case 'date':
+        aValue = dayjs(a.startTime).format('YYYY-MM-DD');
+        bValue = dayjs(b.startTime).format('YYYY-MM-DD');
+        break;
+      case 'earnings':
+        aValue = entryEarnings(a, tasks);
+        bValue = entryEarnings(b, tasks);
+        break;
+      default:
+        return 0;
+    }
+
+    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
 
 export interface TimeEntriesTableProps {
   entries: TimeEntry[];
@@ -64,68 +126,9 @@ export function TimeEntriesTable({
 }: TimeEntriesTableProps) {
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
 
-  // Helper functions
-  const getTaskById = (taskId?: string) => {
-    if (!taskId) return undefined;
-    return tasks.find(task => task.id === taskId);
-  };
-
-  const getTaskByName = (taskName: string) => {
-    return tasks.find(task => task.name === taskName);
-  };
-
-  const calculateEarnings = (entry: TimeEntry): number => {
-    if (!entry.duration) return 0;
-    
-    const task = entry.taskId ? getTaskById(entry.taskId) : getTaskByName(entry.taskName);
-    if (!task?.hourlyRate) return 0;
-    
-    const hours = entry.duration / (1000 * 60 * 60);
-    return hours * task.hourlyRate;
-  };
-
-  // Sorting logic
-  const sortedEntries = useMemo(() => {
-    const sorted = [...entries].sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
-
-      switch (sortField) {
-        case 'taskName':
-          aValue = a.taskName.toLowerCase();
-          bValue = b.taskName.toLowerCase();
-          break;
-        case 'startTime':
-          aValue = new Date(a.startTime).getTime();
-          bValue = new Date(b.startTime).getTime();
-          break;
-        case 'endTime':
-          aValue = a.endTime ? new Date(a.endTime).getTime() : 0;
-          bValue = b.endTime ? new Date(b.endTime).getTime() : 0;
-          break;
-        case 'duration':
-          aValue = a.duration || 0;
-          bValue = b.duration || 0;
-          break;
-        case 'date':
-          aValue = dayjs(a.startTime).format('YYYY-MM-DD');
-          bValue = dayjs(b.startTime).format('YYYY-MM-DD');
-          break;
-        case 'earnings':
-          aValue = calculateEarnings(a);
-          bValue = calculateEarnings(b);
-          break;
-        default:
-          return 0;
-      }
-
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return sorted;
-  }, [entries, sortField, sortDirection, tasks]);
+  // Rows render in the order given: the page sorts the full filtered list
+  // (sortTimeEntries) before paginating, and the header only reports clicks.
+  const calculateEarnings = (entry: TimeEntry): number => entryEarnings(entry, tasks);
 
   // Selection handlers
   const handleSelectAll = (checked: boolean) => {
@@ -281,7 +284,7 @@ export function TimeEntriesTable({
           </TableHead>
 
           <TableBody>
-            {sortedEntries.map((entry) => {
+            {entries.map((entry) => {
               const earnings = calculateEarnings(entry);
               const isSelected = selectedEntries.has(entry.id);
               const entryDate = dayjs(entry.startTime).format('MMM DD, YYYY');

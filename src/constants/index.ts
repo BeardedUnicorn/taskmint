@@ -18,15 +18,17 @@ export const STORAGE_KEYS = {
   PREDEFINED_TASKS: 'predefinedTasks',
   NOTE_TEMPLATES: 'noteTemplates',
   TASK_NOTES: 'taskNotes',
-  TIMER_SETTINGS: 'timerSettings',
   FAVORITE_TASKS: 'favoriteTasks',
   DAILY_GOAL: 'dailyGoal',
   DAILY_GOAL_ACHIEVEMENTS: 'dailyGoalAchievements',
   FUNDS_RELEASE_DAYS: 'fundsReleaseDays',
   // Session-based storage keys (session data itself lives in the Rust
-  // sessions.json store, not localStorage)
+  // sessions.json store, not localStorage). ENHANCED_TIMER_SETTINGS is a
+  // legacy blob, read only to seed INACTIVITY_SETTINGS on older installs.
   ENHANCED_TIMER_SETTINGS: 'enhancedTimerSettings',
   INACTIVITY_SETTINGS: 'inactivitySettings',
+  // Set once the off-by-default migration has run (see useEnhancedTimerSettings)
+  INACTIVITY_DEFAULT_OFF_APPLIED: 'inactivityDefaultOffApplied',
   TIMER_ACTIVITY_STATE: 'timerActivityState',
   // Error reporting (read synchronously before React mounts)
   ERROR_REPORTING_ENABLED: 'errorReportingEnabled',

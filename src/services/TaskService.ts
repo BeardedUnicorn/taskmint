@@ -232,7 +232,7 @@ export class TaskService implements ITaskService {
   /**
    * Delete a task with hierarchical support
    */
-  async deleteTask(taskId: string, strategy: TaskDeletionStrategy = 'prevent'): Promise<void> {
+  async deleteTask(taskId: string, strategy: TaskDeletionStrategy = 'orphan'): Promise<void> {
     try {
 
       const tasks = await this.getAllTasks();

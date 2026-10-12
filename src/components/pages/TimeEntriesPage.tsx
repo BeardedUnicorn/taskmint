@@ -19,7 +19,7 @@ import {
 import { TimeEntry } from '../../types/timer';
 import { Task } from '../../types/task';
 import { EditTimeEntryData } from '../../types/form';
-import { TimeEntriesTable, SortField, SortDirection } from '../ui/tables/TimeEntriesTable';
+import { TimeEntriesTable, SortField, SortDirection, sortTimeEntries } from '../ui/tables/TimeEntriesTable';
 import {
   TimeEntriesFilters,
   TimeEntriesFiltersState,
@@ -77,21 +77,27 @@ export function TimeEntriesPage({
     severity: 'success',
   });
 
-  // Apply filters and sorting
+  // Filter, then sort the whole list, then paginate — sorting after the
+  // slice would only order the visible page.
   const filteredEntries = useMemo(() => {
     return applyTimeEntriesFilters(timeEntries, filters);
   }, [timeEntries, filters]);
 
+  const sortedEntries = useMemo(
+    () => sortTimeEntries(filteredEntries, tasks, sortField, sortDirection),
+    [filteredEntries, tasks, sortField, sortDirection]
+  );
+
   // Pagination
-  const totalPages = Math.ceil(filteredEntries.length / entriesPerPage);
+  const totalPages = Math.ceil(sortedEntries.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
   const endIndex = startIndex + entriesPerPage;
-  const paginatedEntries = filteredEntries.slice(startIndex, endIndex);
+  const paginatedEntries = sortedEntries.slice(startIndex, endIndex);
 
-  // Reset page when filters change
+  // Back to the first page when the filters or the sort change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
+  }, [filters, sortField, sortDirection]);
 
   // Event handlers
   const handleFiltersChange = (newFilters: TimeEntriesFiltersState) => {

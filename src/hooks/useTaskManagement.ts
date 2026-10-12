@@ -120,7 +120,9 @@ export function useTaskManagement(): UseTaskManagementReturn {
     );
   }, [taskService, executeAsync, showSuccess, showError]);
 
-  const deleteTask = useCallback(async (taskId: string, strategy: TaskDeletionStrategy = 'prevent'): Promise<void> => {
+  // 'orphan' by default: the UI no longer shows or edits parent tasks, so
+  // children a user can't see must never block deleting their parent.
+  const deleteTask = useCallback(async (taskId: string, strategy: TaskDeletionStrategy = 'orphan'): Promise<void> => {
     const taskToDelete = tasks.find(task => task.id === taskId);
     await executeAsync(
       async () => {

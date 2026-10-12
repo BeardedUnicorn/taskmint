@@ -35,7 +35,6 @@ import { TaskManagementProvider, useTaskManagementContext } from './contexts/Tas
 function AppContent() {
   const [activeView, setActiveView] = useState<SidebarView>('sessions');
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
-  const [notesPageState, setNotesPageState] = useState<{ filterTaskId: string | null; openNoteId: string | null }>({ filterTaskId: null, openNoteId: null });
 
   const appErrorHandler = useMemo(() => createServiceErrorHandler('AppContent'), []);
 
@@ -86,9 +85,6 @@ function AppContent() {
 
   const handleViewChange = (view: SidebarView) => {
     setActiveView(view);
-    if (view !== 'notes') {
-      setNotesPageState({ filterTaskId: null, openNoteId: null });
-    }
   };
 
   const handleUpdateEntry = async (data: EditTimeEntryData) => {
@@ -160,7 +156,6 @@ function AppContent() {
                 <NotesPage
                   tasks={tasks}
                   activeEntry={activeEntry}
-                  notesPageState={notesPageState}
                 />
               )}
               {activeView === 'time-entries' && (
