@@ -3,6 +3,11 @@
  * 
  * Centralized storage management with validation, migration, and error handling
  * Provides a unified interface for all data persistence operations
+ *
+ * The records (tasks, notes, note templates, the daily goal and its history)
+ * live in the app's appdata.json in the desktop app, through the records
+ * cache (services/appRecords); everything else, and every key outside the
+ * app, uses localStorage.
  */
 
 import { z } from 'zod';
@@ -15,6 +20,13 @@ import { STORAGE_KEYS } from '../constants';
 import { migrateData, createBackup, needsMigration, migrateTaskNotes } from '../utils/dataMigration';
 import { validateWithSchema } from '../utils/validation';
 import { StorageErrorClass, createStorageError } from '../types/errors';
+import {
+  AppRecordKey,
+  appRecordsActive,
+  isAppRecordKey,
+  readAppRecord,
+  writeAppRecord,
+} from './appRecords';
 
 export interface IStorageService {
   // Generic storage operations
@@ -56,6 +68,32 @@ export class StorageService implements IStorageService {
     return StorageService.instance;
   }
 
+  /** Kept in appdata.json (desktop app) rather than localStorage. */
+  private usesAppRecords(key: string): key is AppRecordKey {
+    return appRecordsActive() && isAppRecordKey(key);
+  }
+
+  /** A record from the records cache, validated like a localStorage read. */
+  private readRecord<T>(key: AppRecordKey, defaultValue: T, schema?: z.ZodType<T>): T {
+    let data = readAppRecord(key);
+    if (data === undefined) return defaultValue;
+    // Plain data is stored; tolerate a version wrapper restored from old data
+    if (data && typeof data === 'object' && typeof (data as { version?: unknown }).version === 'number' && 'data' in data) {
+      data = (data as { data: unknown }).data;
+    }
+    if (!schema) return data as T;
+
+    const validationResult = validateWithSchema(schema, data);
+    if (!validationResult.success) {
+      console.error(`Validation failed for key "${key}":`, validationResult.error);
+      throw createStorageError('STORAGE_VALIDATION_FAILED',
+        `Data validation failed for key "${key}": ${validationResult.error}`,
+        { key, validationError: validationResult.error }
+      );
+    }
+    return validationResult.data!;
+  }
+
   /**
    * Generic method to get data from localStorage with validation and migration
    */
@@ -64,6 +102,9 @@ export class StorageService implements IStorageService {
     defaultValue: T,
     schema?: z.ZodType<T>
   ): Promise<T> {
+    if (this.usesAppRecords(key)) {
+      return this.readRecord(key, defaultValue, schema);
+    }
     try {
       const item = localStorage.getItem(key);
 
@@ -156,6 +197,11 @@ export class StorageService implements IStorageService {
         }
       }
 
+      if (this.usesAppRecords(key)) {
+        await writeAppRecord(key, value);
+        return;
+      }
+
       const serializedValue = JSON.stringify(value);
       localStorage.setItem(key, serializedValue);
     } catch (error) {
@@ -163,7 +209,7 @@ export class StorageService implements IStorageService {
         throw error;
       }
       
-      console.error(`Failed to set item in localStorage for key "${key}":`, error);
+      console.error(`Failed to save data for key "${key}":`, error);
       throw createStorageError('STORAGE_WRITE_FAILED', 
         `Failed to write data for key "${key}"`, 
         { key, originalError: error }
@@ -176,9 +222,13 @@ export class StorageService implements IStorageService {
    */
   async removeItem(key: string): Promise<void> {
     try {
+      if (this.usesAppRecords(key)) {
+        await writeAppRecord(key, null);
+        return;
+      }
       localStorage.removeItem(key);
     } catch (error) {
-      console.error(`Failed to remove item from localStorage for key "${key}":`, error);
+      console.error(`Failed to remove data for key "${key}":`, error);
       throw createStorageError('STORAGE_DELETE_FAILED', 
         `Failed to delete data for key "${key}"`, 
         { key, originalError: error }
@@ -259,6 +309,9 @@ export class StorageService implements IStorageService {
   }
 
   async getTaskNotes(): Promise<TaskNote[]> {
+    if (this.usesAppRecords(STORAGE_KEYS.TASK_NOTES)) {
+      return this.readRecord(STORAGE_KEYS.TASK_NOTES, [], z.array(TaskNoteSchema));
+    }
     try {
       const item = localStorage.getItem(STORAGE_KEYS.TASK_NOTES);
 

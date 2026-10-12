@@ -19,8 +19,7 @@ import { useSessionNotesMigration } from './hooks/useSessionNotesMigration';
 
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
 const NotesPage = lazy(() => import('./components/pages/NotesPage').then(module => ({ default: module.NotesPage })));
-const TimeEntriesPage = lazy(() => import('./components/pages/TimeEntriesPage').then(module => ({ default: module.TimeEntriesPage })));
-const ReportsPage = lazy(() => import('./components/pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
+const HistoryPage = lazy(() => import('./components/pages/history/HistoryPage').then(module => ({ default: module.HistoryPage })));
 const CalendarPage = lazy(() => import('./components/pages/CalendarPage'));
 const PayoutsPage = lazy(() => import('./components/pages/payouts/PayoutsPage').then(module => ({ default: module.PayoutsPage })));
 const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
@@ -191,21 +190,13 @@ function AppContent() {
                   activeEntry={activeEntry}
                 />
               )}
-              {activeView === 'time-entries' && (
-                <TimeEntriesPage
+              {activeView === 'history' && (
+                <HistoryPage
                   timeEntries={allTimeEntries}
                   tasks={tasks}
                   onUpdateEntry={handleUpdateEntry}
                   onDeleteEntry={handleDeleteEntry}
                   onAddTime={() => setAddTimeDialogOpen(true)}
-                />
-              )}
-              {activeView === 'reports' && (
-                <ReportsPage
-                  timeEntries={allTimeEntries}
-                  tasks={tasks}
-                  onDeleteEntry={handleDeleteEntry}
-                  onUpdateEntry={handleUpdateEntry}
                 />
               )}
               {activeView === 'calendar' && <CalendarPage />}

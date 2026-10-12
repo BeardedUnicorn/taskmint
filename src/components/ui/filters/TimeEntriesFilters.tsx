@@ -48,6 +48,8 @@ export interface TimeEntriesFiltersProps {
   onClearFilters: () => void;
   isExpanded?: boolean;
   onToggleExpanded?: () => void;
+  /** The page's default range: choosing it doesn't count as a filter. */
+  defaultDatePreset?: DateRangePreset | null;
 }
 
 export function TimeEntriesFilters({
@@ -57,29 +59,26 @@ export function TimeEntriesFilters({
   onClearFilters,
   isExpanded = false,
   onToggleExpanded,
+  defaultDatePreset = null,
 }: TimeEntriesFiltersProps) {
   const updateFilters = (updates: Partial<TimeEntriesFiltersState>) => {
     onFiltersChange({ ...filters, ...updates });
   };
 
-  const hasActiveFilters = 
-    filters.searchQuery ||
-    filters.selectedTasks.length > 0 ||
-    filters.startDate ||
-    filters.endDate ||
-    filters.minDuration !== null ||
-    filters.maxDuration !== null ||
-    filters.status !== 'all';
+  // The date range counts as one filter, and not at all when it's the default
+  const rangeIsDefault = defaultDatePreset
+    ? filters.datePreset === defaultDatePreset
+    : !filters.startDate && !filters.endDate;
 
   const activeFiltersCount = [
     filters.searchQuery,
     filters.selectedTasks.length > 0,
-    filters.startDate,
-    filters.endDate,
+    !rangeIsDefault,
     filters.minDuration !== null,
     filters.maxDuration !== null,
     filters.status !== 'all',
   ].filter(Boolean).length;
+  const hasActiveFilters = activeFiltersCount > 0;
 
   return (
     <Paper variant="outlined" sx={{ mb: 2 }}>
@@ -130,9 +129,21 @@ export function TimeEntriesFilters({
         <Box sx={{
           display: 'flex',
           flexDirection: { xs: 'column', md: 'row' },
+          flexWrap: 'wrap',
           gap: 2,
           alignItems: { md: 'center' }
         }}>
+          <Box sx={{ flex: 1, minWidth: 160 }}>
+            <DateRangePresetSelect
+              start={filters.startDate}
+              end={filters.endDate}
+              onChange={(range, preset) =>
+                updateFilters({ startDate: range.start, endDate: range.end, datePreset: preset })
+              }
+              fullWidth
+            />
+          </Box>
+
           <Box sx={{ flex: 1, minWidth: 200 }}>
             <TextField
               fullWidth
@@ -204,18 +215,7 @@ export function TimeEntriesFilters({
               gap: 2,
               flexWrap: 'wrap'
             }}>
-              {/* Date Range */}
-              <Box sx={{ flex: 1, minWidth: 200 }}>
-                <DateRangePresetSelect
-                  start={filters.startDate}
-                  end={filters.endDate}
-                  onChange={(range, preset) =>
-                    updateFilters({ startDate: range.start, endDate: range.end, datePreset: preset })
-                  }
-                  fullWidth
-                />
-              </Box>
-
+              {/* Custom dates (the Range picker above sets them too) */}
               <Box sx={{ flex: 1, minWidth: 200 }}>
                 <DatePicker
                   label="Start Date"

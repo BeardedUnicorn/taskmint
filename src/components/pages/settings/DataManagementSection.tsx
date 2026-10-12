@@ -23,6 +23,7 @@ import { SettingsSection } from './SettingsSection';
 import { useDataBackup } from '../../../hooks/useDataBackup';
 import { useResetAppData } from '../../../hooks/useResetAppData';
 import { reloadApp } from '../../../utils/appReload';
+import { flushAppRecords } from '../../../services/appRecords';
 
 // Typed confirmation guarding the full app-data reset.
 export const RESET_CONFIRMATION_WORD = 'RESET';
@@ -48,8 +49,9 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
     onImportSuccess: () => {
       onImportSuccess?.();
       // Every provider (tasks, sessions, work logs, notes) re-reads the
-      // restored stores, same as after a reset.
-      reloadApp();
+      // restored stores, same as after a reset, once pending record writes
+      // have landed.
+      void flushAppRecords().finally(reloadApp);
     },
     onImportError: (error: unknown) => {
       onImportError?.(error as string);

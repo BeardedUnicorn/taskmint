@@ -12,6 +12,21 @@ pub const WORKLOG_STORE_FILENAME: &str = "worklogs.json";
 const WORKLOG_ENTRIES_KEY: &str = "entries";
 const WORKLOG_MAPPINGS_KEY: &str = "mappings";
 
+/// The frontend's records (tasks, notes, note templates, the daily goal and
+/// its history), stored as opaque JSON: the frontend owns their schemas, so
+/// fields Rust doesn't model are never dropped.
+pub const APP_RECORDS_STORE_FILENAME: &str = "appdata.json";
+/// The record keys (the frontend's STORAGE_KEYS names).
+pub const APP_RECORD_KEYS: [&str; 5] = [
+    "predefinedTasks",
+    "taskNotes",
+    "noteTemplates",
+    "dailyGoal",
+    "dailyGoalAchievements",
+];
+/// Set once the records have been moved in from the webview's localStorage.
+const APP_RECORDS_INITIALIZED_KEY: &str = "initialized";
+
 fn get_store_named(app: &AppHandle, filename: &str) -> Result<Arc<Store<Wry>>, String> {
     let path = filename
         .parse::<PathBuf>()
@@ -112,15 +127,23 @@ pub fn clear_work_logs_store(app: &AppHandle) -> Result<(), String> {
     clear_store_named(app, WORKLOG_STORE_FILENAME)
 }
 
+pub fn clear_app_records_store(app: &AppHandle) -> Result<(), String> {
+    clear_store_named(app, APP_RECORDS_STORE_FILENAME)
+}
+
 /// True for the timestamped safety copies backup_store_file_named writes
 /// (e.g. "sessions.json.bak-20260831120000").
 pub fn is_store_backup_filename(name: &str) -> bool {
-    [STORE_FILENAME, WORKLOG_STORE_FILENAME]
-        .iter()
-        .any(|store| {
-            name.strip_prefix(store)
-                .is_some_and(|rest| rest.starts_with(".bak-"))
-        })
+    [
+        STORE_FILENAME,
+        WORKLOG_STORE_FILENAME,
+        APP_RECORDS_STORE_FILENAME,
+    ]
+    .iter()
+    .any(|store| {
+        name.strip_prefix(store)
+            .is_some_and(|rest| rest.starts_with(".bak-"))
+    })
 }
 
 /// Delete the on-disk .bak-* copies of both stores. They hold the same user
@@ -230,6 +253,101 @@ pub fn save_work_logs(
     store.set(WORKLOG_ENTRIES_KEY.to_string(), entries_value);
     store.set(WORKLOG_MAPPINGS_KEY.to_string(), mappings_value);
     store.save().map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// APP RECORDS STORE (appdata.json: tasks, notes, templates, goal)
+// ============================================================================
+
+pub type RecordMap = serde_json::Map<String, serde_json::Value>;
+
+pub struct LoadedAppRecords {
+    pub records: RecordMap,
+    pub initialized: bool,
+}
+
+pub fn is_app_record_key(key: &str) -> bool {
+    APP_RECORD_KEYS.contains(&key)
+}
+
+/// Adds imported records only where the key is absent (or null), so moving
+/// records in can never overwrite what's already stored. Unknown keys are
+/// ignored. Returns the keys that were set.
+pub fn merge_imported_records(existing: &mut RecordMap, imported: RecordMap) -> Vec<String> {
+    let mut set = Vec::new();
+    for (key, value) in imported {
+        if !is_app_record_key(&key) || value.is_null() {
+            continue;
+        }
+        if existing.get(&key).is_some_and(|current| !current.is_null()) {
+            continue;
+        }
+        existing.insert(key.clone(), value);
+        set.push(key);
+    }
+    set
+}
+
+fn records_from_store(store: &Store<Wry>) -> LoadedAppRecords {
+    let mut records = RecordMap::new();
+    for key in APP_RECORD_KEYS {
+        if let Some(value) = store.get(key) {
+            records.insert(key.to_string(), value);
+        }
+    }
+    let initialized = store
+        .get(APP_RECORDS_INITIALIZED_KEY)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    LoadedAppRecords {
+        records,
+        initialized,
+    }
+}
+
+pub fn load_app_records(app: &AppHandle) -> Result<LoadedAppRecords, String> {
+    let store = get_store_named(app, APP_RECORDS_STORE_FILENAME)?;
+    store.reload().map_err(|e| e.to_string())?;
+    Ok(records_from_store(&store))
+}
+
+/// Saves one record; null removes it.
+pub fn save_app_record(app: &AppHandle, key: &str, value: serde_json::Value) -> Result<(), String> {
+    if !is_app_record_key(key) {
+        return Err(format!("Unknown record \"{}\"", key));
+    }
+    let store = get_store_named(app, APP_RECORDS_STORE_FILENAME)?;
+    if value.is_null() {
+        store.delete(key);
+    } else {
+        store.set(key.to_string(), value);
+    }
+    store.save().map_err(|e| e.to_string())
+}
+
+/// The one-time move from localStorage: stores the imported records where
+/// none exist yet, marks the store initialized, and returns what's stored.
+pub fn import_app_records(
+    app: &AppHandle,
+    imported: RecordMap,
+) -> Result<LoadedAppRecords, String> {
+    let store = get_store_named(app, APP_RECORDS_STORE_FILENAME)?;
+    store.reload().map_err(|e| e.to_string())?;
+    let mut records = records_from_store(&store).records;
+    for key in merge_imported_records(&mut records, imported) {
+        if let Some(value) = records.get(&key) {
+            store.set(key.clone(), value.clone());
+        }
+    }
+    store.set(
+        APP_RECORDS_INITIALIZED_KEY.to_string(),
+        serde_json::Value::Bool(true),
+    );
+    store.save().map_err(|e| e.to_string())?;
+    Ok(LoadedAppRecords {
+        records,
+        initialized: true,
+    })
 }
 
 #[cfg(test)]
@@ -353,5 +471,47 @@ mod tests {
         assert_eq!(mappings.len(), 1);
         assert_eq!(skipped, 1);
         assert_eq!(mappings[0].project_id, "proj-1");
+    }
+
+    #[test]
+    fn only_the_five_record_keys_are_records() {
+        for key in APP_RECORD_KEYS {
+            assert!(is_app_record_key(key));
+        }
+        assert!(!is_app_record_key("sessions"));
+        assert!(!is_app_record_key("initialized"));
+        assert!(!is_app_record_key("theme-mode"));
+    }
+
+    #[test]
+    fn importing_records_never_overwrites_stored_ones() {
+        let mut existing = RecordMap::new();
+        existing.insert("predefinedTasks".into(), json!([{ "id": "kept" }]));
+        existing.insert("dailyGoal".into(), serde_json::Value::Null);
+
+        let mut imported = RecordMap::new();
+        imported.insert("predefinedTasks".into(), json!([{ "id": "from-webview" }]));
+        imported.insert("taskNotes".into(), json!([{ "id": "note" }]));
+        imported.insert("dailyGoal".into(), json!({ "targetAmount": 100 }));
+        imported.insert("noteTemplates".into(), serde_json::Value::Null);
+        imported.insert("theme-mode".into(), json!("dark"));
+
+        let mut set = merge_imported_records(&mut existing, imported.clone());
+        set.sort();
+
+        assert_eq!(set, vec!["dailyGoal", "taskNotes"]);
+        assert_eq!(existing["predefinedTasks"], json!([{ "id": "kept" }]));
+        assert_eq!(existing["dailyGoal"], json!({ "targetAmount": 100 }));
+        assert!(!existing.contains_key("noteTemplates"));
+        assert!(!existing.contains_key("theme-mode"));
+
+        // A second import changes nothing
+        assert!(merge_imported_records(&mut existing, imported).is_empty());
+    }
+
+    #[test]
+    fn backup_files_of_the_records_store_are_recognized() {
+        assert!(is_store_backup_filename("appdata.json.bak-20261012120000"));
+        assert!(!is_store_backup_filename("appdata.json"));
     }
 }

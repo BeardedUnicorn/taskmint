@@ -279,6 +279,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Task commands
             commands::tasks::update_tasks,
+            // Records (tasks, notes, templates, goal) in appdata.json
+            commands::records::get_app_records,
+            commands::records::set_app_record,
+            commands::records::import_app_records,
             // Session commands
             commands::sessions::start_task,
             commands::sessions::add_manual_time,

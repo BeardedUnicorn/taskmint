@@ -14,6 +14,8 @@ import "@fontsource/roboto-mono/700.css";
 import App from "./App";
 import "./styles.css";
 import { initSentry } from "./utils/sentry";
+import { loadAppRecords } from "./services/appRecords";
+import { StartupError } from "./components/StartupError";
 
 // Initialize Sentry before rendering the app
 initSentry();
@@ -27,8 +29,21 @@ for (const key of ['userSubscription', 'featureOverrides', 'taskLimitOverride'])
   }
 }
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
+
+// Tasks, notes, templates and the goal load from the app's data file before
+// the first render, so every page can read them synchronously.
+loadAppRecords().then(
+  () => {
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>,
+    );
+  },
+  (error: unknown) => {
+    console.error("Failed to load app records:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    root.render(<StartupError message={message} />);
+  },
 );

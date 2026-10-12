@@ -12,8 +12,7 @@ you've earned and when it pays out.
 | **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session. Live totals for the active session. **Add time** logs a finished timer after the fact (a "Manual" session). |
 | **Tasks** | Tasks with hourly rates and default note templates; star favorites; archive tasks you're done with. Time keeps the rate it was tracked at, so changing a rate only affects new time. |
 | **Notes** | Free-form or template-based notes on a task (pick it on the Notes page), a session or a timer. A session's notes open from its row, which previews the newest one. |
-| **Time Entries** | Every finished timer as a filterable list (quick ranges such as This month); edit durations, delete entries, or export them as CSV. |
-| **Reports** | Totals, earnings and charts over a date range (quick ranges, remembered), with CSV export of the entries shown. |
+| **History** | Every tracked, added and imported entry: quick ranges (remembered), search and task filters, totals and charts, the sortable entries table (edit, delete, CSV export), and the daily goal's results over the range. |
 | **Calendar** | Earnings, hours and released amounts per day, and the month's totals; click a day for its tasks and releases. |
 | **Payouts** | Import DataAnnotation work logs, map projects to tasks, and see available, pending and upcoming releases; daily reconciliation grouped by month. |
 | **Settings** | Appearance, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
@@ -50,7 +49,8 @@ TaskMint stores everything locally. Nothing is synced anywhere.
 |---|---|
 | Sessions and timer instances | `sessions.json` in the app data dir, owned by the Rust backend |
 | Imported work logs and project→task mappings | `worklogs.json` in the app data dir, owned by the Rust backend |
-| Tasks, notes, note templates, goals, settings | The webview's `localStorage` |
+| Tasks, notes, note templates, the daily goal and its history | `appdata.json` in the app data dir, owned by the Rust backend (moved in from `localStorage` on first launch) |
+| Settings and UI preferences | The webview's `localStorage` |
 
 App data dir on macOS: `~/Library/Application Support/com.taskmint.app/`.
 Before risky operations (a skipped-record load, an import that rewrites days, a
@@ -61,8 +61,8 @@ file (format v2) and imports it back. Import adds what isn't already present
 (existing data wins), then the app reloads. Settings → Automatic Backups writes
 the same file to a folder daily, weekly or monthly, keeping the newest N.
 
-**Reset.** Settings → Data Management → Reset All Data wipes both stores, their
-`.bak` copies and `localStorage`.
+**Reset.** Settings → Data Management → Reset All Data wipes all three data
+files, their `.bak` copies and `localStorage`.
 
 ## Browser capture (optional)
 
@@ -134,12 +134,12 @@ src/                     React frontend
   components/pages/      One folder/file per page (payouts/, settings/, tasks/)
   contexts/              App-wide providers: sessions, tasks, work logs, backups, …
   hooks/                 Data hooks (useSessionManagement, useWorkLogs, useDataBackup, …)
-  services/              localStorage-backed services (tasks, notes, templates)
+  services/              Tasks, notes, templates (appRecords.ts: the appdata.json cache)
   utils/                 Pure logic: time math, payouts, work-log import, Sentry
   types/                 Shared types and zod schemas
 src-tauri/               Rust backend
   src/commands/          IPC commands (sessions, worklogs, restore, backup, reset, …)
-  src/storage.rs         sessions.json / worklogs.json persistence and .bak copies
+  src/storage.rs         sessions.json / worklogs.json / appdata.json persistence and .bak copies
   src/capture_server.rs  localhost capture server and taskmint:// deep links
   src/tray.rs            System tray
   config.toml            Build-time constants (generated into Rust by build.rs)

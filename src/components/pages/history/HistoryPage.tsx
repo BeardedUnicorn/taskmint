@@ -1,3 +1,12 @@
+/**
+ * History Page
+ *
+ * Every tracked, added and imported entry in one place (it replaced the
+ * separate Reports and Time Entries pages): filters with quick ranges, a
+ * summary, charts, the sortable entries table with edit / delete / CSV, and
+ * the daily goal's results over the range.
+ */
+
 import React, { useState, useMemo } from 'react';
 import {
   Box,
@@ -10,31 +19,42 @@ import {
   Select,
   MenuItem,
   Alert,
+  Paper,
   Snackbar,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
   MoreTime as AddTimeIcon,
 } from '@mui/icons-material';
-import { TimeEntry } from '../../types/timer';
-import { Task } from '../../types/task';
-import { EditTimeEntryData } from '../../types/form';
-import { TimeEntriesTable, SortField, SortDirection, sortTimeEntries } from '../ui/tables/TimeEntriesTable';
+import { TimeEntry } from '../../../types/timer';
+import { Task } from '../../../types/task';
+import { EditTimeEntryData } from '../../../types/form';
+import { TimeEntriesTable, SortField, SortDirection, sortTimeEntries } from '../../ui/tables/TimeEntriesTable';
 import {
   TimeEntriesFilters,
   TimeEntriesFiltersState,
   defaultFilters,
   applyTimeEntriesFilters,
   hydrateTimeEntriesFilters,
-} from '../ui/filters/TimeEntriesFilters';
-import { useCsvExport } from '../../hooks/useCsvExport';
-import { csvFileName, exportableEntries, timeEntriesToCsv } from '../../utils/csvExport';
-import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
-import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
-import { getEntryElapsedMs } from '../../utils/timerHelpers';
+} from '../../ui/filters/TimeEntriesFilters';
+import { useCsvExport } from '../../../hooks/useCsvExport';
+import { csvFileName, exportableEntries, timeEntriesToCsv } from '../../../utils/csvExport';
+import { EditTimeEntryDialog } from '../../ui/dialogs/EditTimeEntryDialog';
+import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
+import { useLocalStorage } from '../../../hooks/useLocalStorage';
+import { getEntryElapsedMs } from '../../../utils/timerHelpers';
+import { DateRangePreset } from '../../../utils/dateRanges';
+import { buildGoalHistory } from '../../../utils/goalHistory';
+import { useDailyGoals } from '../../../hooks/useDailyGoals';
+import { GoalAchievementsTable } from '../../ui/tables/GoalAchievementsTable';
+import { HistorySummary } from './HistorySummary';
+import { HistoryCharts } from './HistoryCharts';
 
-interface TimeEntriesPageProps {
+/** The range History opens on until you choose another. */
+const DEFAULT_DATE_PRESET: DateRangePreset = 'last7';
+const DEFAULT_FILTERS: TimeEntriesFiltersState = { ...defaultFilters, datePreset: DEFAULT_DATE_PRESET };
+
+interface HistoryPageProps {
   timeEntries: TimeEntry[];
   tasks: Task[];
   onUpdateEntry: (data: EditTimeEntryData) => void;
@@ -46,18 +66,18 @@ interface TimeEntriesPageProps {
 
 const ENTRIES_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
-export function TimeEntriesPage({
+export function HistoryPage({
   timeEntries,
   tasks,
   onUpdateEntry,
   onDeleteEntry,
   onBulkDeleteEntries,
   onAddTime,
-}: TimeEntriesPageProps) {
-  // State management
+}: HistoryPageProps) {
+  // State management (the key predates History: Time Entries' saved filters carry over)
   const [storedFilters, setFilters] = useLocalStorage<TimeEntriesFiltersState>(
     'timeEntriesFilters',
-    defaultFilters
+    DEFAULT_FILTERS
   );
   // Saved dates come back as text and saved tasks as stale copies
   const filters = useMemo(
@@ -115,7 +135,7 @@ export function TimeEntriesPage({
   };
 
   const handleClearFilters = () => {
-    setFilters(defaultFilters);
+    setFilters(DEFAULT_FILTERS);
   };
 
   const handleSort = (field: SortField, direction: SortDirection) => {
@@ -171,12 +191,28 @@ export function TimeEntriesPage({
     }
   };
 
-  // Finished entries only: a running timer has no end yet
-  const entriesToExport = useMemo(() => exportableEntries(filteredEntries), [filteredEntries]);
+  // Finished entries (a running timer has no end yet): the summary, charts and CSV
+  const finishedEntries = useMemo(() => exportableEntries(filteredEntries), [filteredEntries]);
+
+  // The goal's day results over the range (all tasks): each day's saved
+  // target, earnings recomputed from tracked time so edits and imports count.
+  const { achievements, currentGoal } = useDailyGoals();
+  const goalHistory = useMemo(
+    () =>
+      buildGoalHistory({
+        startDate: filters.startDate ? filters.startDate.format('YYYY-MM-DD') : '0000-01-01',
+        endDate: filters.endDate ? filters.endDate.format('YYYY-MM-DD') : '9999-12-31',
+        timeEntries,
+        tasks,
+        records: achievements,
+        currentGoal,
+      }),
+    [filters.startDate, filters.endDate, timeEntries, tasks, achievements, currentGoal]
+  );
   const handleExport = () =>
     exportCsv(
-      timeEntriesToCsv(entriesToExport, tasks),
-      csvFileName(entriesToExport, filters.startDate, filters.endDate)
+      timeEntriesToCsv(finishedEntries, tasks),
+      csvFileName(finishedEntries, filters.startDate, filters.endDate)
     );
 
   const handlePageChange = (_: React.ChangeEvent<unknown>, page: number) => {
@@ -194,10 +230,10 @@ export function TimeEntriesPage({
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-            Time Entries
+            History
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            View and manage all your time entries with advanced filtering and sorting
+            Everything you've tracked, added and imported, with totals and charts
           </Typography>
         </Box>
 
@@ -211,9 +247,9 @@ export function TimeEntriesPage({
             variant="outlined"
             startIcon={<DownloadIcon />}
             onClick={handleExport}
-            disabled={entriesToExport.length === 0 || isExporting}
+            disabled={finishedEntries.length === 0 || isExporting}
           >
-            Export CSV ({entriesToExport.length})
+            Export CSV ({finishedEntries.length})
           </Button>
         </Stack>
       </Stack>
@@ -226,7 +262,11 @@ export function TimeEntriesPage({
         onClearFilters={handleClearFilters}
         isExpanded={filtersExpanded}
         onToggleExpanded={() => setFiltersExpanded(!filtersExpanded)}
+        defaultDatePreset={DEFAULT_DATE_PRESET}
       />
+
+      <HistorySummary entries={finishedEntries} tasks={tasks} />
+      <HistoryCharts entries={finishedEntries} tasks={tasks} />
 
       {/* Results Summary */}
       <Stack
@@ -284,6 +324,19 @@ export function TimeEntriesPage({
             showLastButton
           />
         </Box>
+      )}
+
+      {/* Daily goal results over the range */}
+      {(currentGoal?.isEnabled || goalHistory.length > 0) && (
+        <Paper sx={{ p: 3, mt: 3 }}>
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+            Daily goal
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            How each day in the range did against its goal
+          </Typography>
+          <GoalAchievementsTable achievements={goalHistory} />
+        </Paper>
       )}
 
       {/* Edit Dialog */}

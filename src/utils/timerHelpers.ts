@@ -124,8 +124,8 @@ export function buildTimerEditUpdates(instance: TimerInstance, durationMs: numbe
 }
 
 /**
- * Flatten backend sessions into the TimeEntry shape the Tasks, Time Entries,
- * Reports, and Calendar pages consume. Keeps the raw instance fields and
+ * Flatten backend sessions into the TimeEntry shape the Tasks, History and
+ * Calendar pages consume. Keeps the raw instance fields and
  * overlays the session-level ones. Each entry's `date` is the instance's own
  * local start date (not session.date, which is frozen at session creation
  * while sessions get reactivated across days) — the same per-instance
