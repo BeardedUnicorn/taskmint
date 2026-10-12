@@ -40,6 +40,12 @@ import { buildGoalHistory } from '../../utils/goalHistory';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { EditTimeEntryData } from '../../types/form';
+import { DateRangePresetSelect } from '../ui/filters/DateRangePresetSelect';
+import { DateRange, DateRangePreset, isDateRangePreset, presetRange } from '../../utils/dateRanges';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useCsvExport } from '../../hooks/useCsvExport';
+import { csvFileName, timeEntriesToCsv } from '../../utils/csvExport';
+import { Download as DownloadIcon } from '@mui/icons-material';
 
 // Lazy load chart components for better performance
 const TaskTimeBarChart = lazy(() => import('../ui/charts/TaskTimeBarChart').then(module => ({ default: module.TaskTimeBarChart })));
@@ -53,9 +59,6 @@ import {
   prepareTaskDistributionData,
 } from '../../utils/chartDataHelpers';
 import dayjs, { Dayjs } from 'dayjs';
-import isBetween from 'dayjs/plugin/isBetween';
-
-dayjs.extend(isBetween);
 
 interface ReportsPageProps {
   timeEntries: TimeEntry[];
@@ -70,12 +73,19 @@ export function ReportsPage({
   onDeleteEntry,
   onUpdateEntry,
 }: ReportsPageProps) {
-  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().subtract(7, 'days'));
-  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
+  // The last quick range chosen (not its dates), so "This month" stays current
+  const [savedPreset, setSavedPreset] = useLocalStorage<DateRangePreset>('reportsDatePreset', 'last7');
+  const [initialRange] = useState(() =>
+    presetRange(isDateRangePreset(savedPreset) ? savedPreset : 'last7')
+  );
+  const [startDate, setStartDate] = useState<Dayjs | null>(initialRange.start);
+  const [endDate, setEndDate] = useState<Dayjs | null>(initialRange.end);
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [timelineView, setTimelineView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+
+  const { exportCsv, isExporting } = useCsvExport();
 
   // Daily goals hook and state
   const { achievements, currentGoal } = useDailyGoals();
@@ -83,9 +93,11 @@ export function ReportsPage({
   // Filter entries based on date range and selected tasks
   const filteredEntries = useMemo(() => {
     return timeEntries.filter(entry => {
-      // Filter by date range
+      // Filter by date range (either end may be open)
       const entryDate = dayjs(entry.startTime);
-      const isInDateRange = startDate && endDate ? entryDate.isBetween(startDate, endDate, 'day', '[]') : true;
+      const isInDateRange =
+        (!startDate || !entryDate.isBefore(startDate, 'day')) &&
+        (!endDate || !entryDate.isAfter(endDate, 'day'));
       
       // Filter by selected tasks (if any)
       const isTaskSelected = selectedTasks.length === 0 || 
@@ -159,6 +171,12 @@ export function ReportsPage({
     };
   }, [filteredEntries, tasks, timelineView]);
 
+  const handlePresetChange = (range: DateRange, preset: DateRangePreset) => {
+    setStartDate(range.start);
+    setEndDate(range.end);
+    setSavedPreset(preset);
+  };
+
   const handleEditEntry = (entry: TimeEntry) => {
     setEditingEntry(entry);
   };
@@ -188,7 +206,14 @@ export function ReportsPage({
             Filters
           </Typography>
           
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            spacing={2}
+            useFlexGap
+            sx={{ flexWrap: 'wrap', alignItems: { md: 'center' } }}
+          >
+            <DateRangePresetSelect start={startDate} end={endDate} onChange={handlePresetChange} />
+
             {/* Date Range */}
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
               <DatePicker
@@ -352,9 +377,25 @@ export function ReportsPage({
 
         {/* Time Entries Table */}
         <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-            Time Entries
-          </Typography>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Time Entries
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<DownloadIcon />}
+              disabled={filteredEntries.length === 0 || isExporting}
+              onClick={() =>
+                exportCsv(
+                  timeEntriesToCsv(filteredEntries, tasks),
+                  csvFileName(filteredEntries, startDate, endDate)
+                )
+              }
+            >
+              Export CSV
+            </Button>
+          </Stack>
           
           {filteredEntries.length === 0 ? (
             <Alert severity="info" sx={{ mt: 2 }}>

@@ -16,6 +16,7 @@ import { formatDateString, parseDateStringLocal } from './dateHelpers';
 import { effectiveMinutes } from './workLogImport';
 import { getInstanceDateString, getSessionElapsedMsOnDate } from './timerHelpers';
 import { earningsForMs, sessionRate } from './earnings';
+import { formatCurrency } from './formatters';
 
 export interface PayoutDayCell {
   workDay: string;
@@ -206,6 +207,45 @@ export function buildPayoutCells(
   return cells.sort(
     (a, b) => b.workDay.localeCompare(a.workDay) || a.taskName.localeCompare(b.taskName)
   );
+}
+
+/** "$1,234.00 + ~$80.00": imported amounts, then estimates; "—" for none. */
+export function formatPayoutAmount(actualCents: number, estimatedCents: number): string {
+  const parts = [
+    actualCents > 0 && formatCurrency(centsToDollars(actualCents)),
+    estimatedCents > 0 && `~${formatCurrency(centsToDollars(estimatedCents))}`,
+  ].filter(Boolean) as string[];
+  return parts.length > 0 ? parts.join(' + ') : '—';
+}
+
+/** A month of reconciliation rows with its totals (Payouts groups by month). */
+export interface PayoutMonthGroup {
+  /** YYYY-MM */
+  month: string;
+  cells: PayoutDayCell[];
+  trackedMs: number;
+  importedMinutes: number;
+  actualCents: number;
+  estimatedCents: number;
+}
+
+/** Cells grouped by their work day's month, newest month first; cell order kept. */
+export function groupCellsByMonth(cells: PayoutDayCell[]): PayoutMonthGroup[] {
+  const byMonth = new Map<string, PayoutMonthGroup>();
+  for (const cell of cells) {
+    const month = cell.workDay.slice(0, 7);
+    let group = byMonth.get(month);
+    if (!group) {
+      group = { month, cells: [], trackedMs: 0, importedMinutes: 0, actualCents: 0, estimatedCents: 0 };
+      byMonth.set(month, group);
+    }
+    group.cells.push(cell);
+    group.trackedMs += cell.trackedMs;
+    group.importedMinutes += cell.importedMinutes;
+    group.actualCents += cell.actualCents;
+    group.estimatedCents += cell.estimatedCents;
+  }
+  return [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
 
 export interface PayoutSummary {

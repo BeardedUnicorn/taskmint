@@ -1,10 +1,11 @@
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { TimeEntriesPage } from '../TimeEntriesPage';
 import { TimeEntry } from '../../../types/timer';
 import { createLightTheme } from '../../../theme';
+import { NotificationProvider } from '../../../contexts/NotificationContext';
 
 const ENTRY_COUNT = 30;
 
@@ -31,12 +32,14 @@ function makeEntries(): TimeEntry[] {
 function renderPage(entries: TimeEntry[]) {
   return render(
     <ThemeProvider theme={createLightTheme()}>
-      <TimeEntriesPage
-        timeEntries={entries}
-        tasks={[]}
-        onUpdateEntry={() => {}}
-        onDeleteEntry={() => {}}
-      />
+      <NotificationProvider>
+        <TimeEntriesPage
+          timeEntries={entries}
+          tasks={[]}
+          onUpdateEntry={() => {}}
+          onDeleteEntry={() => {}}
+        />
+      </NotificationProvider>
     </ThemeProvider>
   );
 }
@@ -74,5 +77,45 @@ describe('TimeEntriesPage sorting and pagination', () => {
       .sort((a, b) => (a.duration ?? 0) - (b.duration ?? 0))
       .map(e => e.taskName);
     expect(visibleTaskNames()).toEqual(shortestFirst.slice(0, 25));
+  });
+});
+
+describe('TimeEntriesPage saved filters and export', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  const saveFilters = (filters: Record<string, unknown>) =>
+    window.localStorage.setItem(
+      'timeEntriesFilters',
+      JSON.stringify({ version: 1, data: { ...filters }, migratedAt: '2026-10-01T00:00:00Z' })
+    );
+
+  it('reads saved dates back as dates (they are stored as text)', () => {
+    saveFilters({
+      searchQuery: '',
+      selectedTasks: [],
+      startDate: new Date(2026, 8, 10).toISOString(),
+      endDate: new Date(2026, 8, 12).toISOString(),
+      minDuration: null,
+      maxDuration: null,
+      status: 'all',
+    });
+    renderPage(makeEntries());
+
+    expect(visibleTaskNames()).toEqual(['Task 12', 'Task 11', 'Task 10']);
+  });
+
+  it('counts only finished entries for export, and exports them', () => {
+    const entries = makeEntries();
+    entries[29] = { ...entries[29], isRunning: true, duration: undefined, endTime: undefined };
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    renderPage(entries);
+
+    const exportButton = screen.getByRole('button', { name: 'Export CSV (29)' });
+    fireEvent.click(exportButton);
+
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
   });
 });

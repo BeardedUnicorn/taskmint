@@ -11,6 +11,7 @@ import {
   buildPayoutCells,
   buildReleaseSchedule,
   centsToDollars,
+  groupCellsByMonth,
   summarizePayouts,
   PayoutDayCell,
 } from '../payoutCalculator';
@@ -386,3 +387,31 @@ describe('centsToDollars', () => {
     expect(centsToDollars(0)).toBe(0);
   });
 });
+
+describe('groupCellsByMonth', () => {
+  it('groups rows by work-day month, newest first, with each month\'s totals', () => {
+    const cells = [
+      makeCell({ workDay: '2026-10-03', taskId: 'a', trackedMs: 3_600_000, importedMinutes: 60, actualCents: 5000 }),
+      makeCell({ workDay: '2026-09-30', taskId: 'a', trackedMs: 1_800_000, importedMinutes: 0, actualCents: 0, estimatedCents: 2500 }),
+      makeCell({ workDay: '2026-10-01', taskId: 'b', trackedMs: 7_200_000, importedMinutes: 90, actualCents: 7500 }),
+      makeCell({ workDay: '2026-09-02', taskId: 'b', trackedMs: 0, importedMinutes: 30, actualCents: 1000 }),
+    ];
+
+    const groups = groupCellsByMonth(cells);
+
+    expect(groups.map(g => g.month)).toEqual(['2026-10', '2026-09']);
+    expect(groups[0]).toMatchObject({
+      trackedMs: 3 * 3_600_000,
+      importedMinutes: 150,
+      actualCents: 12500,
+      estimatedCents: 0,
+    });
+    expect(groups[0].cells.map(c => c.workDay)).toEqual(['2026-10-03', '2026-10-01']);
+    expect(groups[1]).toMatchObject({ trackedMs: 1_800_000, importedMinutes: 30, actualCents: 1000, estimatedCents: 2500 });
+  });
+
+  it('is empty without rows', () => {
+    expect(groupCellsByMonth([])).toEqual([]);
+  });
+});
+

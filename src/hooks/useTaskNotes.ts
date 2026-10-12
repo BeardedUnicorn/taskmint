@@ -5,14 +5,31 @@
  * including CRUD operations, validation, and note management.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { TaskNote, UseTaskNotesReturn } from '../types/notes';
 import { TaskNotesService } from '../services/TaskNotesService';
 import { useAsyncError } from './useAsyncError';
 
-export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
+export const TaskNotesContext = createContext<UseTaskNotesReturn | null>(null);
+
+/**
+ * The notes every page shares (Notes page, session notes, session rows), so
+ * a note saved in one place shows everywhere without a reload.
+ */
+export function useTaskNotes(): UseTaskNotesReturn {
+  const context = useContext(TaskNotesContext);
+  if (!context) {
+    throw new Error('useTaskNotes must be used within a TaskNotesProvider');
+  }
+  return context;
+}
+
+/** The notes state itself. Use once, in TaskNotesProvider. */
+export function useTaskNotesState(taskId?: string): UseTaskNotesReturn {
   const [notes, setNotes] = useState<TaskNote[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Loading until the first load finishes, so nothing mistakes "not loaded
+  // yet" for "no notes".
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   const { executeAsync } = useAsyncError();
@@ -56,6 +73,21 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
       }
       
       return newNote;
+    });
+  }, [notesService, executeAsync, taskId]);
+
+  /**
+   * Add finished notes in one write (notes moved in from elsewhere); notes
+   * whose id already exists are skipped. Returns the notes that were added.
+   */
+  const addNotes = useCallback(async (newNotes: TaskNote[]): Promise<TaskNote[]> => {
+    return executeAsync(async () => {
+      setError(null);
+      const added = await notesService.addNotes(newNotes);
+      if (added.length > 0) {
+        setNotes(prev => [...prev, ...added.filter(note => !taskId || note.taskId === taskId)]);
+      }
+      return added;
     });
   }, [notesService, executeAsync, taskId]);
 
@@ -365,6 +397,7 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
   return {
     notes,
     createNote,
+    addNotes,
     updateNote,
     deleteNote,
     archiveNote,
@@ -391,8 +424,6 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
     validateNoteData,
     refreshNotes: loadNotes,
   } as UseTaskNotesReturn & {
-    archiveNote: (noteId: string) => Promise<TaskNote>;
-    unarchiveNote: (noteId: string) => Promise<TaskNote>;
     deleteNotesByTaskId: (taskId: string) => Promise<void>;
     getNotesByTemplateId: (templateId: string) => TaskNote[];
     getNotesStats: () => {
@@ -401,7 +432,6 @@ export function useTaskNotes(taskId?: string): UseTaskNotesReturn {
       lastNoteDate?: string;
       notesByTemplate: Record<string, number>;
     };
-    searchNotes: (query: string) => TaskNote[];
     sortNotes: (sortBy: 'createdAt' | 'updatedAt' | 'templateName', order?: 'asc' | 'desc') => TaskNote[];
     getRecentNotes: (days?: number) => TaskNote[];
     getActiveNotes: () => TaskNote[];

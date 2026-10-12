@@ -285,6 +285,7 @@ pub fn run() {
             commands::sessions::get_sessions,
             commands::sessions::update_session,
             commands::sessions::delete_session,
+            commands::sessions::clear_session_notes,
             commands::sessions::create_timer_instance,
             commands::sessions::update_timer_instance,
             commands::sessions::start_timer_instance,
@@ -311,6 +312,7 @@ pub fn run() {
             commands::backup::validate_backup_path,
             commands::backup::perform_automatic_backup,
             commands::backup::export_data_to_file,
+            commands::backup::export_csv_file,
             commands::backup::import_data_from_file,
             commands::restore::restore_backup_data,
         ])

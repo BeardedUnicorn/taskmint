@@ -26,12 +26,16 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { Task } from '../../../types/task';
 import dayjs, { Dayjs } from 'dayjs';
+import { DateRangePresetSelect } from './DateRangePresetSelect';
+import { DateRangePreset, isDateRangePreset, presetRange } from '../../../utils/dateRanges';
 
 export interface TimeEntriesFiltersState {
   searchQuery: string;
   selectedTasks: Task[];
   startDate: Dayjs | null;
   endDate: Dayjs | null;
+  /** The quick range chosen, recomputed from today on each visit; null once dates are edited by hand. */
+  datePreset?: DateRangePreset | null;
   minDuration: number | null; // in minutes
   maxDuration: number | null; // in minutes
   status: 'all' | 'completed' | 'running';
@@ -202,10 +206,21 @@ export function TimeEntriesFilters({
             }}>
               {/* Date Range */}
               <Box sx={{ flex: 1, minWidth: 200 }}>
+                <DateRangePresetSelect
+                  start={filters.startDate}
+                  end={filters.endDate}
+                  onChange={(range, preset) =>
+                    updateFilters({ startDate: range.start, endDate: range.end, datePreset: preset })
+                  }
+                  fullWidth
+                />
+              </Box>
+
+              <Box sx={{ flex: 1, minWidth: 200 }}>
                 <DatePicker
                   label="Start Date"
                   value={filters.startDate}
-                  onChange={(date) => updateFilters({ startDate: date as Dayjs | null })}
+                  onChange={(date) => updateFilters({ startDate: date as Dayjs | null, datePreset: null })}
                   slotProps={{
                     textField: {
                       size: 'small',
@@ -219,7 +234,7 @@ export function TimeEntriesFilters({
                 <DatePicker
                   label="End Date"
                   value={filters.endDate}
-                  onChange={(date) => updateFilters({ endDate: date as Dayjs | null })}
+                  onChange={(date) => updateFilters({ endDate: date as Dayjs | null, datePreset: null })}
                   minDate={filters.startDate || undefined}
                   slotProps={{
                     textField: {
@@ -282,6 +297,41 @@ export const defaultFilters: TimeEntriesFiltersState = {
   maxDuration: null,
   status: 'all',
 };
+
+function toDay(value: unknown): Dayjs | null {
+  if (value === null || value === undefined || value === '') return null;
+  const day = dayjs(value as string | Dayjs);
+  return day.isValid() ? day : null;
+}
+
+/**
+ * Filters as saved to localStorage come back as plain JSON: dates as text
+ * and tasks as stale copies. Turn them back into dates and current tasks (by
+ * id), and recompute a saved quick range from today.
+ */
+export function hydrateTimeEntriesFilters(
+  stored: Partial<TimeEntriesFiltersState> | null | undefined,
+  tasks: Task[],
+  today: Dayjs = dayjs()
+): TimeEntriesFiltersState {
+  const merged = { ...defaultFilters, ...(stored ?? {}) };
+  const datePreset = isDateRangePreset(merged.datePreset) ? merged.datePreset : null;
+  const range = datePreset
+    ? presetRange(datePreset, today)
+    : { start: toDay(merged.startDate), end: toDay(merged.endDate) };
+  const taskById = new Map(tasks.map(task => [task.id, task]));
+  const selectedTasks = (Array.isArray(merged.selectedTasks) ? merged.selectedTasks : [])
+    .map(task => taskById.get(task?.id))
+    .filter((task): task is Task => task !== undefined);
+
+  return {
+    ...merged,
+    selectedTasks,
+    startDate: range.start,
+    endDate: range.end,
+    datePreset,
+  };
+}
 
 // Helper function to apply filters to time entries
 export function applyTimeEntriesFilters(

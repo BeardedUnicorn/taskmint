@@ -4,12 +4,13 @@
  * A dedicated page for managing all notes across tasks. This page provides:
  * - A list of all notes from all tasks
  * - Ability to create new notes
- * - If there's an active timer, new notes default to the active task and use its default template
+ * - A Task picker on each note; new notes default to the running timer's task
+ *   (else favorites / recently used first) and that task's default template
  * - Search and filter functionality
  * - Note editing and deletion
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -31,18 +32,23 @@ import {
   Notes as NotesIcon,
 } from '@mui/icons-material';
 import { Task } from '../../types/task';
-import { TimeEntry } from '../../types/timer';
+import { TaskSession, TimeEntry } from '../../types/timer';
 import { TaskNote, NoteTemplate } from '../../types/notes';
 import { NotesList, NoteEditor } from '../features/notes';
 import { useTaskNotes } from '../../hooks/useTaskNotes';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
+import { orderTasksForStart } from '../../utils/taskOrdering';
 
 interface NotesPageProps {
   tasks: Task[];
+  /** For ordering the Task picker by recent use */
+  sessions?: TaskSession[];
   activeEntry: TimeEntry | null;
 }
 
-export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
+const NO_SESSIONS: TaskSession[] = [];
+
+export function NotesPage({ tasks, sessions = NO_SESSIONS, activeEntry }: NotesPageProps) {
   // State for note management
   const [editingNote, setEditingNote] = useState<TaskNote | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
@@ -63,7 +69,7 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
     archiveNote,
     unarchiveNote,
     searchNotes,
-  } = useTaskNotes() as any; // Type assertion for extended methods
+  } = useTaskNotes();
 
   // Hooks for templates
   const { templates } = useNoteTemplates();
@@ -106,19 +112,26 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
     };
   }, [notes, searchQuery, selectedTaskFilter, selectedTemplateFilter, searchNotes]);
 
+  // Task picker: active tasks, favorites and recently used first
+  const pickerTasks = useMemo(() => orderTasksForStart(tasks, sessions), [tasks, sessions]);
+  const taskNames = useMemo(
+    () => Object.fromEntries(tasks.map(task => [task.id, task.name])),
+    [tasks]
+  );
+  // A note on an archived task can still be edited (and moved off it)
+  const editorTasks = useMemo(() => {
+    const noteTask = editingNote && tasks.find(task => task.id === editingNote.taskId);
+    return noteTask && !pickerTasks.includes(noteTask) ? [...pickerTasks, noteTask] : pickerTasks;
+  }, [editingNote, tasks, pickerTasks]);
+  const activeTask = activeEntry?.taskId
+    ? tasks.find(task => task.id === activeEntry.taskId)
+    : undefined;
+
   // Get unique templates used in notes for filter dropdown
   const usedTemplates = useMemo(() => {
     const templateIds = [...new Set(notes.map((note: TaskNote) => note.templateId))];
     return templates.filter(template => templateIds.includes(template.id));
   }, [notes, templates]);
-
-  // Reset editor state when switching between notes
-  useEffect(() => {
-    if (!isCreatingNewNote) {
-      setEditingNote(null);
-      setSelectedTemplate(null);
-    }
-  }, [isCreatingNewNote]);
 
   // Handlers
   const handleDeleteNote = async (noteId: string): Promise<void> => {
@@ -142,38 +155,24 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
   const handleCreateNote = () => {
     setEditingNote(null);
     setIsCreatingNewNote(true);
-    
-    // If there's an active timer, use the active task and its default template
-    if (activeEntry) {
-      const activeTask = tasks.find(task => task.name === activeEntry.taskName);
-      if (activeTask?.defaultNoteTemplateId) {
-        const defaultTemplate = templates.find(t => t.id === activeTask.defaultNoteTemplateId);
-        setSelectedTemplate(defaultTemplate || null);
-      } else {
-        setSelectedTemplate(null);
-      }
-    } else {
-      setSelectedTemplate(null);
-    }
-    
+
+    // The default task's default template, if it has one
+    const defaultTask = tasks.find(task => task.id === getDefaultTaskId());
+    const defaultTemplate = defaultTask?.defaultNoteTemplateId
+      ? templates.find(t => t.id === defaultTask.defaultNoteTemplateId)
+      : undefined;
+    setSelectedTemplate(defaultTemplate ?? null);
+
     setIsEditorCollapsed(false);
   };
 
-  const handleSaveNote = async (noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote> => {
-    const savedNote = await createNote(noteData);
-    setEditingNote(null);
-    setSelectedTemplate(null);
-    setIsCreatingNewNote(false);
-    return savedNote;
-  };
+  // Saving (auto-save included) leaves the editor open; it closes itself on
+  // an explicit Save, Close or Cancel (onCloseEditor).
+  const handleSaveNote = (noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote> =>
+    createNote(noteData);
 
-  const handleUpdateNote = async (noteId: string, updates: Partial<TaskNote>): Promise<TaskNote> => {
-    const updatedNote = await updateNote(noteId, updates);
-    setEditingNote(null);
-    setSelectedTemplate(null);
-    setIsCreatingNewNote(false);
-    return updatedNote;
-  };
+  const handleUpdateNote = (noteId: string, updates: Partial<TaskNote>): Promise<TaskNote> =>
+    updateNote(noteId, updates);
 
   const handleToggleEditor = () => {
     setIsEditorCollapsed(!isEditorCollapsed);
@@ -185,16 +184,10 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
     setIsCreatingNewNote(false);
   };
 
-  // Get the task ID for new notes (prefer active timer task)
+  // The task for new notes: the running timer's, else the first in the picker
   const getDefaultTaskId = (): string => {
-    if (activeEntry) {
-      const activeTask = tasks.find(task => task.name === activeEntry.taskName);
-      if (activeTask) {
-        return activeTask.id;
-      }
-    }
-    // Fallback to the first active task (then any task) if no active timer
-    return tasks.find(task => !task.isArchived)?.id ?? tasks[0]?.id ?? '';
+    if (activeTask && !activeTask.isArchived) return activeTask.id;
+    return pickerTasks[0]?.id ?? '';
   };
 
   return (
@@ -225,7 +218,6 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
             <Typography variant="body2">
               <strong>Active Timer:</strong> {activeEntry.taskName}
               {(() => {
-                const activeTask = tasks.find(task => task.name === activeEntry.taskName);
                 const defaultTemplate = activeTask?.defaultNoteTemplateId 
                   ? templates.find(t => t.id === activeTask.defaultNoteTemplateId)
                   : null;
@@ -299,7 +291,7 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
             variant="contained"
             startIcon={<AddIcon />}
             onClick={handleCreateNote}
-            disabled={tasks.length === 0}
+            disabled={pickerTasks.length === 0}
           >
             Add Note
           </Button>
@@ -322,6 +314,8 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
             {(editingNote || selectedTemplate || isCreatingNewNote) && (
               <Box sx={{ mb: 3 }}>
                 <NoteEditor
+                  key={editingNote?.id ?? 'new'}
+                  tasks={editorTasks}
                   taskId={editingNote?.taskId || getDefaultTaskId()}
                   template={selectedTemplate}
                   existingNote={editingNote}
@@ -363,6 +357,7 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
                 {filteredActiveNotes.length > 0 && (
                   <NotesList
                     taskId="" // Empty string since we're showing notes from all tasks
+                    taskNames={taskNames}
                     notes={filteredActiveNotes}
                     onEditNote={handleEditNote}
                     onDeleteNote={handleDeleteNote}
@@ -380,6 +375,7 @@ export function NotesPage({ tasks, activeEntry }: NotesPageProps) {
                     </Typography>
                     <NotesList
                       taskId="" // Empty string since we're showing notes from all tasks
+                      taskNames={taskNames}
                       notes={filteredArchivedNotes}
                       onEditNote={handleEditNote}
                       onDeleteNote={handleDeleteNote}

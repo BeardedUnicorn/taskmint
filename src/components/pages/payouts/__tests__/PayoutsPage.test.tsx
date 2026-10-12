@@ -216,6 +216,61 @@ describe('PayoutsPage', () => {
     expect(screen.getByText('Pending Approval')).toBeInTheDocument();
   });
 
+  describe('reconciliation by month', () => {
+    /** Local YYYY-MM-DD for a day in the month `monthOffset` months from now. */
+    const dayInMonth = (monthOffset: number, day: number) => {
+      const t = new Date();
+      return formatDateString(new Date(t.getFullYear(), t.getMonth() + monthOffset, day));
+    };
+    const monthLabel = (monthOffset: number) => {
+      const t = new Date();
+      return new Date(t.getFullYear(), t.getMonth() + monthOffset, 1).toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      });
+    };
+
+    beforeEach(() => {
+      mockWorkLogsReturn.entries = [
+        createMockWorkLogEntry({ id: 'this-month', workDay: dayInMonth(0, 1), amountCents: 7500, timeInMinutes: 60 }),
+        createMockWorkLogEntry({ id: 'last-month-a', workDay: dayInMonth(-1, 10), amountCents: 4000, timeInMinutes: 30 }),
+        createMockWorkLogEntry({ id: 'last-month-b', workDay: dayInMonth(-1, 20), amountCents: 6000, timeInMinutes: 90 }),
+      ];
+    });
+
+    it('opens the current month and totals each month', () => {
+      render(<PayoutsPage />);
+
+      expect(screen.getByRole('button', { name: `Hide ${monthLabel(0)}` })).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByRole('button', { name: `Show ${monthLabel(-1)}` })).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.getByText(dayInMonth(0, 1))).toBeInTheDocument();
+      expect(screen.queryByText(dayInMonth(-1, 10))).not.toBeInTheDocument();
+      // Last month's header: 30m + 1h 30m reported, $40 + $60
+      const lastMonthRow = screen.getByRole('button', { name: `Show ${monthLabel(-1)}` }).closest('tr')!;
+      expect(within(lastMonthRow).getByText('$100.00')).toBeInTheDocument();
+      expect(within(lastMonthRow).getByText('2h 0m')).toBeInTheDocument();
+    });
+
+    it('shows and hides a month on click', () => {
+      render(<PayoutsPage />);
+
+      fireEvent.click(screen.getByRole('button', { name: `Show ${monthLabel(-1)}` }));
+      expect(screen.getByText(dayInMonth(-1, 10))).toBeInTheDocument();
+      expect(screen.getByText(dayInMonth(-1, 20))).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: `Hide ${monthLabel(0)}` }));
+      expect(screen.queryByText(dayInMonth(0, 1))).not.toBeInTheDocument();
+    });
+
+    it('opens the newest month when this month has nothing yet', () => {
+      mockWorkLogsReturn.entries = mockWorkLogsReturn.entries.filter(e => e.id !== 'this-month');
+      render(<PayoutsPage />);
+
+      expect(screen.getByRole('button', { name: `Hide ${monthLabel(-1)}` })).toBeInTheDocument();
+      expect(screen.getByText(dayInMonth(-1, 10))).toBeInTheDocument();
+    });
+  });
+
   it('shows the empty state and opens the import dialog', async () => {
     render(<PayoutsPage />);
 

@@ -174,14 +174,21 @@ vi.mock('../../ui/display/SessionTimerDisplay', () => ({
   ),
 }));
 
-vi.mock('../../ui/dialogs/EnhancedNotesDialog', () => ({
-  EnhancedNotesDialog: ({ open, onClose }: any) =>
+vi.mock('../../ui/dialogs/SessionNotesDialog', () => ({
+  SessionNotesDialog: ({ open, onClose, timerInstanceId }: any) =>
     open ? (
       <div data-testid="notes-dialog">
         <span>Notes Dialog</span>
+        {timerInstanceId && <span>for {timerInstanceId}</span>}
         <button onClick={onClose}>Close</button>
       </div>
     ) : null,
+}));
+
+// Stable object: a fresh one per render would re-run the dashboard's memos
+const mockTaskNotes = { notes: [] as any[] };
+vi.mock('../../../hooks/useTaskNotes', () => ({
+  useTaskNotes: () => mockTaskNotes,
 }));
 
 describe('SessionDashboard', () => {
@@ -688,8 +695,9 @@ describe('SessionDashboard', () => {
       const notesButton = screen.getByText('Notes');
       fireEvent.click(notesButton);
 
-      // Verify notes dialog is opened
+      // Verify notes dialog is opened, for the timer the button belongs to
       expect(screen.getByTestId('notes-dialog')).toBeInTheDocument();
+      expect(screen.getByText('for timer-1')).toBeInTheDocument();
     });
 
     it('should close notes dialog when close button is clicked', async () => {

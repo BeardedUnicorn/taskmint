@@ -19,6 +19,7 @@ export interface ITaskNotesService {
   getNotesByTimerInstanceId(timerInstanceId: string): Promise<TaskNote[]>;
   getNoteById(noteId: string): Promise<TaskNote | null>;
   createNote(noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<TaskNote>;
+  addNotes(notes: TaskNote[]): Promise<TaskNote[]>;
   updateNote(noteId: string, updates: Partial<TaskNote>): Promise<TaskNote>;
   deleteNote(noteId: string): Promise<void>;
   deleteNotesByTaskId(taskId: string): Promise<void>;
@@ -207,6 +208,27 @@ export class TaskNotesService implements ITaskNotesService {
       templateId: noteData.templateId,
       timeEntryId: noteData.timeEntryId || undefined 
     });
+  }
+
+  /**
+   * Add finished notes (ids and dates already set) in one write. Notes whose
+   * id is already stored, or that fail the schema, are skipped. Returns the
+   * notes that were added.
+   */
+  async addNotes(newNotes: TaskNote[]): Promise<TaskNote[]> {
+    return this.errorHandler.handleAsync(async () => {
+      const notes = await this.getAllNotes();
+      const existingIds = new Set(notes.map(note => note.id));
+      const added = newNotes.filter(
+        note => !existingIds.has(note.id) && validateWithSchema(TaskNoteSchema, note).success
+      );
+      if (added.length === 0) return [];
+
+      await this.storageService.setTaskNotes([...notes, ...added]);
+      added.forEach(note => this.notesCache.set(note.id, note));
+      this.errorHandler.logInfo(`Added ${added.length} notes`, 'addNotes');
+      return added;
+    }, 'addNotes');
   }
 
   /**

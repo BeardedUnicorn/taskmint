@@ -81,6 +81,7 @@ describe('NotesPage', () => {
   const mockActiveEntry: TimeEntry = {
     id: 'entry1',
     taskName: 'Task 1',
+    taskId: 'task1',
     startTime: new Date(),
     isRunning: true,
     date: '2024-01-01',
@@ -174,6 +175,7 @@ describe('NotesPage', () => {
     const mockActiveEntryNoTemplate: TimeEntry = {
       ...mockActiveEntry,
       taskName: 'Task 2', // Task 2 has no default template
+      taskId: 'task2',
     };
 
     render(<NotesPage tasks={mockTasks} activeEntry={mockActiveEntryNoTemplate} />);
@@ -379,6 +381,64 @@ describe('NotesPage', () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId('note-editor')).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps the editor open after a save (auto-save saves while you type)', async () => {
+    const mockCreateNote = vi.fn().mockResolvedValue({ id: 'new-note' });
+    mockUseTaskNotes.mockReturnValue({
+      notes: [],
+      createNote: mockCreateNote,
+      updateNote: vi.fn(),
+      deleteNote: vi.fn(),
+      isLoading: false,
+      error: null,
+    });
+
+    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    fireEvent.click(screen.getByText('Add Note'));
+    fireEvent.click(await screen.findByText('Save Note'));
+
+    await waitFor(() => expect(mockCreateNote).toHaveBeenCalled());
+    expect(screen.getByTestId('note-editor')).toBeInTheDocument();
+  });
+
+  it("offers tasks favorites-first in the editor's picker, defaulting to the running timer's task", async () => {
+    const { NoteEditor } = await import('../../features/notes');
+    const tasks: Task[] = [
+      ...mockTasks,
+      { ...mockTasks[1], id: 'task3', name: 'Task 3', isFavorite: true },
+      { ...mockTasks[1], id: 'task4', name: 'Old task', isArchived: true },
+    ];
+    // A running timer on Task 2, renamed since: matched by id, not name
+    const entry = { ...mockActiveEntry, taskId: 'task2', taskName: 'Renamed' };
+
+    render(<NotesPage tasks={tasks} activeEntry={entry} />);
+    fireEvent.click(screen.getByText('Add Note'));
+    await screen.findByTestId('note-editor');
+
+    const props = vi.mocked(NoteEditor).mock.calls.at(-1)![0];
+    expect(props.taskId).toBe('task2');
+    expect(props.tasks!.map(task => task.id)).toEqual(['task3', 'task1', 'task2']);
+  });
+
+  it("shows each note's task", async () => {
+    const { NotesList } = await import('../../features/notes');
+    mockUseTaskNotes.mockReturnValue({
+      notes: mockNotes,
+      createNote: vi.fn(),
+      updateNote: vi.fn(),
+      deleteNote: vi.fn(),
+      searchNotes: vi.fn(() => mockNotes),
+      isLoading: false,
+      error: null,
+    });
+
+    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+
+    expect(vi.mocked(NotesList).mock.calls.at(-1)![0].taskNames).toEqual({
+      task1: 'Task 1',
+      task2: 'Task 2',
     });
   });
 

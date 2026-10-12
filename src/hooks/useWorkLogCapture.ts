@@ -9,6 +9,9 @@
  * arrived by taskmint:// link (any web page can open one, and an import
  * rewrites tracked days), and payloads with a project that has no task match.
  *
+ * Captures usually land while you're in the browser, so each outcome is
+ * also a desktop notification when the app window isn't focused.
+ *
  * Invoked once, by WorkLogProvider. Dependencies are injected so tests need
  * no context tree.
  */
@@ -34,6 +37,12 @@ import {
   resolveProjectMappings,
 } from '../utils/workLogImport';
 import { useNotification } from '../contexts/NotificationContext';
+import { isAppFocused, notifyDesktop } from '../utils/desktopNotification';
+
+/** A desktop notification too, when the window isn't where you're looking. */
+function notifyIfAway(title: string, body: string) {
+  if (!isAppFocused()) void notifyDesktop(title, body);
+}
 
 export const WORK_LOG_CAPTURED_EVENT = 'work-log-payload-captured';
 
@@ -111,6 +120,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
           reason: 'unverified-link',
         });
         showInfo('Work logs arrived through a taskmint:// link. Review them in Payouts before importing.');
+        notifyIfAway('Work logs to review', 'They arrived through a link. Review them in Payouts before importing.');
         return;
       }
       lastProcessedRef.current = { payload: capture.payload, outcome: 'handled' };
@@ -118,6 +128,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
       const parsed = parseWorkLogPayload(capture.payload);
       if (parsed.error) {
         showError(`Captured work-log payload could not be read: ${parsed.error}`);
+        notifyIfAway("Couldn't read captured work logs", parsed.error);
         return;
       }
       if (parsed.skippedRecords > 0) {
@@ -151,6 +162,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
         showInfo(
           'Work logs captured from DataAnnotation — a new project needs a task match. Review in Payouts.'
         );
+        notifyIfAway('Work logs to review', 'A new project needs a task match. Review in Payouts.');
         return;
       }
 
@@ -176,11 +188,11 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
         d.clearStagedCapture();
       }
 
-      showSuccess(
-        `Work logs imported from DataAnnotation: ${summary.entriesAdded} new, ` +
-          `${summary.entriesUpdated} updated, ${summary.groupsApplied.length} day` +
-          `${summary.groupsApplied.length === 1 ? '' : 's'} rewritten.`
-      );
+      const importedText =
+        `${summary.entriesAdded} new, ${summary.entriesUpdated} updated, ` +
+        `${summary.groupsApplied.length} day${summary.groupsApplied.length === 1 ? '' : 's'} rewritten.`;
+      showSuccess(`Work logs imported from DataAnnotation: ${importedText}`);
+      notifyIfAway('Work logs imported', importedText);
       for (const skipped of summary.groupsSkipped) {
         showWarning(`${skipped.workDay}: ${skipped.reason}`);
       }
@@ -199,6 +211,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
       showError(
         `Failed to process captured work logs${message ? `: ${message}` : ''}`
       );
+      notifyIfAway("Couldn't import captured work logs", message || 'Open Payouts to try again.');
     } finally {
       processingRef.current = false;
       if (queuedRef.current) {

@@ -26,6 +26,7 @@ export interface TimeEntry {
   isRunning: boolean;
   date: string; // YYYY-MM-DD format
   hourlyRate?: number | null; // The session's rate (see TaskSession.hourlyRate)
+  source?: string; // The session's source (manual / imported); absent for tracked time
 }
 
 // Zod validation schemas
@@ -39,6 +40,7 @@ export const TimeEntrySchema = z.object({
   isRunning: z.boolean(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
   hourlyRate: z.number().nullable().optional(),
+  source: z.string().optional(),
 });
 
 export interface EarningsData {
@@ -296,6 +298,8 @@ export interface UseSessionManagementReturn {
   /** Log a finished timer after the fact ("Add time"). Rejects with the reason. */
   addManualTime: (input: AddManualTimeInput) => Promise<TaskSession>;
   updateSession: (sessionId: string, updates: Partial<TaskSession>) => Promise<TaskSession | null>;
+  /** Clears sessions' old plain-text notes once they've moved to the notes store; returns how many had text. */
+  clearSessionNotes: (sessionIds: string[]) => Promise<number>;
   deleteSession: (sessionId: string) => Promise<void>;
   getSessionById: (sessionId: string) => TaskSession | undefined;
   getSessionsByTaskId: (taskId: string) => TaskSession[];

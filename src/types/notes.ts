@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import type { Task } from './task';
 
 // Field Types
 export type FieldType = 'text' | 'number' | 'date' | 'checkbox' | 'select';
@@ -172,11 +173,15 @@ export interface NoteEditorProps {
    * auto‑save being enabled.
    */
   autoSaveDisabled?: boolean;
+  /** When given, the editor shows a Task picker with these tasks (taskId is the default). */
+  tasks?: Task[];
 }
 
 export interface NotesListProps {
   taskId: string;
   notes: TaskNote[];
+  /** Task names by id; when given, each note shows its task. */
+  taskNames?: Record<string, string>;
   onEditNote: (note: TaskNote) => void;
   onDeleteNote: (noteId: string) => void;
   onCreateNote: () => void;
@@ -210,8 +215,13 @@ export interface UseNoteTemplatesReturn {
 export interface UseTaskNotesReturn {
   notes: TaskNote[];
   createNote: (note: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<TaskNote>;
+  /** Adds finished notes in one write, skipping ids that exist; returns the notes added. */
+  addNotes: (notes: TaskNote[]) => Promise<TaskNote[]>;
   updateNote: (noteId: string, updates: Partial<TaskNote>) => Promise<TaskNote>;
   deleteNote: (noteId: string) => Promise<void>;
+  archiveNote: (noteId: string) => Promise<TaskNote>;
+  unarchiveNote: (noteId: string) => Promise<TaskNote>;
+  searchNotes: (query: string) => TaskNote[];
   getNotesByTaskId: (taskId: string) => TaskNote[];
   getNotesByTimeEntryId: (timeEntryId: string) => TaskNote[];
   getNotesBySessionId: (sessionId: string) => TaskNote[];

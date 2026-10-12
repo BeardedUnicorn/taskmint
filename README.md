@@ -11,11 +11,11 @@ you've earned and when it pays out.
 |---|---|
 | **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session. Live totals for the active session. **Add time** logs a finished timer after the fact (a "Manual" session). |
 | **Tasks** | Tasks with hourly rates and default note templates; star favorites; archive tasks you're done with. Time keeps the rate it was tracked at, so changing a rate only affects new time. |
-| **Notes** | Free-form or template-based notes attached to a task, session or timer. |
-| **Time Entries** | Every finished timer as a filterable list; edit durations or delete entries. |
-| **Reports** | Totals, earnings and charts over a date range. |
-| **Calendar** | Earned and transferable amounts per day. |
-| **Payouts** | Import DataAnnotation work logs, map projects to tasks, and see available, pending and upcoming releases. |
+| **Notes** | Free-form or template-based notes on a task (pick it on the Notes page), a session or a timer. A session's notes open from its row, which previews the newest one. |
+| **Time Entries** | Every finished timer as a filterable list (quick ranges such as This month); edit durations, delete entries, or export them as CSV. |
+| **Reports** | Totals, earnings and charts over a date range (quick ranges, remembered), with CSV export of the entries shown. |
+| **Calendar** | Earnings, hours and released amounts per day, and the month's totals; click a day for its tasks and releases. |
+| **Payouts** | Import DataAnnotation work logs, map projects to tasks, and see available, pending and upcoming releases; daily reconciliation grouped by month. |
 | **Settings** | Appearance, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
 
 The **system tray** (menu-bar item on macOS) shows the running or paused
@@ -71,7 +71,8 @@ work logs from the payments page and delivers them to the app over
 `http://127.0.0.1:43117`, or through a `taskmint://` link that launches the app
 if it's closed. The app accepts localhost deliveries only from this
 extension's fixed ID. Payloads that arrive only by link wait in Payouts for
-review, since any web page can open a link. See
+review, since any web page can open a link. When the app window isn't in
+front, each capture's result also shows as a desktop notification. See
 [chrome-extension/README.md](chrome-extension/README.md).
 
 ## Error reporting

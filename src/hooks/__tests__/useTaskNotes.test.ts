@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useTaskNotes } from '../useTaskNotes';
+// The state hook itself (useTaskNotes reads it from TaskNotesProvider)
+import { useTaskNotesState as useTaskNotes, useTaskNotes as useSharedTaskNotes } from '../useTaskNotes';
 import { TaskNotesService } from '../../services/TaskNotesService';
 import { TaskNote } from '../../types/notes';
 
@@ -141,5 +142,11 @@ describe('useTaskNotes stats', () => {
 
     expect(result.current.notes.map(n => n.id)).toEqual(initialOrder);
     expect(stats.lastNoteDate).toBe('2024-01-03T00:00:00Z');
+  });
+});
+
+describe('useTaskNotes context', () => {
+  it('needs the provider', () => {
+    expect(() => renderHook(() => useSharedTaskNotes())).toThrow(/TaskNotesProvider/);
   });
 });
