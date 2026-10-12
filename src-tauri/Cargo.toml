@@ -41,3 +41,5 @@ uuid = { version = "1.0", features = ["v4"] }
 tiny_http = "0.12"
 flate2 = "1"
 
+[dev-dependencies]
+sha2 = "0.10"

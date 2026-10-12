@@ -52,7 +52,10 @@ the same file to a folder daily, weekly or monthly, keeping the newest N.
 `chrome-extension/` is a Chrome extension that captures your DataAnnotation
 work logs from the payments page and delivers them to the app over
 `http://127.0.0.1:43117`, or through a `taskmint://` link that launches the app
-if it's closed. See [chrome-extension/README.md](chrome-extension/README.md).
+if it's closed. The app accepts localhost deliveries only from this
+extension's fixed ID. Payloads that arrive only by link wait in Payouts for
+review, since any web page can open a link. See
+[chrome-extension/README.md](chrome-extension/README.md).
 
 ## Error reporting
 

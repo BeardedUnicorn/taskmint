@@ -11,7 +11,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useWorkLogCapture, UseWorkLogCaptureDeps, WORK_LOG_CAPTURED_EVENT } from '../useWorkLogCapture';
 import { deriveTimedWorkDay } from '../../utils/workLogImport';
-import { PendingWorkLogCapture, WorkLogImportSummary } from '../../types/workLog';
+import { CaptureSource, PendingWorkLogCapture, WorkLogImportSummary } from '../../types/workLog';
 import { createMockTask } from '../../__tests__/setup/session-test-utils';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -59,8 +59,8 @@ const samplePayloadText = JSON.stringify({
   ],
 });
 
-function capture(payload: string): PendingWorkLogCapture {
-  return { payload, receivedAt: '2026-08-31T12:00:00.000Z' };
+function capture(payload: string, source: CaptureSource = 'extension'): PendingWorkLogCapture {
+  return { payload, receivedAt: '2026-08-31T12:00:00.000Z', source };
 }
 
 const appliedSummary: WorkLogImportSummary = {
@@ -85,7 +85,9 @@ function makeDeps(overrides: Partial<UseWorkLogCaptureDeps> = {}): UseWorkLogCap
     sessions: [],
     tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 50 })],
     updateTask: vi.fn(async () => null),
+    stagedCapture: null,
     stageCapture: vi.fn(),
+    clearStagedCapture: vi.fn(),
     ...overrides,
   };
 }
@@ -173,10 +175,59 @@ describe('useWorkLogCapture', () => {
       expect(deps.stageCapture).toHaveBeenCalledWith({
         payloadText: samplePayloadText,
         receivedAt: '2026-08-31T12:00:00.000Z',
+        reason: 'unmapped-project',
       })
     );
     expect(mockShowInfo).toHaveBeenCalledWith(expect.stringContaining('Review in Payouts'));
     expect(deps.applyImport).not.toHaveBeenCalled();
+  });
+
+  it('stages a taskmint:// link payload for review instead of applying it', async () => {
+    takeQueue.push(capture(samplePayloadText, 'link'));
+    const deps = makeDeps();
+
+    renderHook(() => useWorkLogCapture(deps));
+
+    await waitFor(() =>
+      expect(deps.stageCapture).toHaveBeenCalledWith({
+        payloadText: samplePayloadText,
+        receivedAt: '2026-08-31T12:00:00.000Z',
+        reason: 'unverified-link',
+      })
+    );
+    expect(mockShowInfo).toHaveBeenCalledWith(expect.stringContaining('taskmint:// link'));
+    expect(deps.applyImport).not.toHaveBeenCalled();
+  });
+
+  it("applies a link-staged payload once the extension's trusted delivery confirms it", async () => {
+    takeQueue.push(capture(samplePayloadText, 'link'));
+    const deps = makeDeps();
+    const { rerender } = renderHook(props => useWorkLogCapture(props), { initialProps: deps });
+    await waitFor(() => expect(deps.stageCapture).toHaveBeenCalledTimes(1));
+
+    // The context now holds the staged copy; the extension's POST arrives.
+    const staged = vi.mocked(deps.stageCapture).mock.calls[0][0];
+    const withStaged = { ...deps, stagedCapture: staged };
+    rerender(withStaged);
+    takeQueue.push(capture(samplePayloadText, 'extension'));
+    await fireCaptureEvent();
+
+    await waitFor(() => expect(deps.applyImport).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(deps.clearStagedCapture).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not re-stage an identical link payload, nor stage one already applied', async () => {
+    takeQueue.push(capture(samplePayloadText, 'extension'));
+    const deps = makeDeps();
+    renderHook(() => useWorkLogCapture(deps));
+    await waitFor(() => expect(deps.applyImport).toHaveBeenCalledTimes(1));
+
+    takeQueue.push(capture(samplePayloadText, 'link'));
+    await fireCaptureEvent();
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2)); // second take happened
+
+    expect(deps.stageCapture).not.toHaveBeenCalled();
+    expect(deps.applyImport).toHaveBeenCalledTimes(1);
   });
 
   it('reports an unreadable payload without applying anything', async () => {

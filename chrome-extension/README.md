@@ -12,10 +12,15 @@ for review otherwise).
   site's own `recent_work_logs_and_timed_work_entries` API call — no extra
   requests to the site.
 - The payload is POSTed to the TaskMint app at `http://127.0.0.1:43117`.
+  TaskMint accepts it only from this extension's fixed ID, and imports it
+  automatically when every project already has a task match.
 - If TaskMint isn't running, the extension fires a `taskmint://` link so the
   OS launches the app (the link carries the gzip-compressed payload when it
   fits), keeps the payload queued, and retries every minute until TaskMint
-  confirms delivery.
+  confirms delivery. Any web page can open a `taskmint://` link, so a payload
+  that arrives *only* by link is held in Payouts for review. The extension's
+  localhost retry a moment later confirms it, and it then imports
+  automatically.
 - Identical payloads are deduplicated — revisiting the page with no new data
   delivers nothing and never launches the app.
 
@@ -49,9 +54,11 @@ taskmint links"** so future launches are silent.
   payload still delivers over localhost the next time TaskMint runs.
 - **Badge stuck on `!`** — launch TaskMint; delivery completes within about a
   minute (or instantly on the next payments-page visit).
-- **Moved this folder?** Unpacked extension IDs derive from the folder path;
-  reload the extension after moving it. TaskMint accepts any
-  `chrome-extension://` origin, so nothing else needs updating.
+- **Delivery refused (403)?** TaskMint only accepts this extension, identified
+  by its fixed ID `akokpjpnondkhammgcndnffildbbapga` (pinned by the `key` in
+  `manifest.json`). After updating the extension, click **Reload** on
+  `chrome://extensions` and check the ID shown there matches. Other installed
+  extensions can't deliver to TaskMint.
 - **Edge case**: if TaskMint crashes in the instant between accepting a
   payload and importing it, that one delivery is lost — revisit the payments
   page (any change re-delivers) or paste the JSON manually in Payouts.

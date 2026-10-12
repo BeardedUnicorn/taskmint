@@ -152,6 +152,19 @@ pub struct WorkLogEntry {
     pub updated_at: String, // last-upserted ISO
 }
 
+// How a captured payload reached the app. Must match CaptureSource in
+// src/types/workLog.ts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptureSource {
+    /// localhost POST from the pinned TaskMint extension (or a local tool):
+    /// trusted, auto-applied when every project has a task match.
+    Extension,
+    /// taskmint:// link. Any web page can open one, so the frontend stages
+    /// these for review instead of applying them.
+    Link,
+}
+
 // A raw work-log payload delivered by the browser extension (over localhost
 // or a taskmint:// deep link), waiting for the frontend to take and process
 // it. Latest delivery wins; take_pending_work_log_capture clears it.
@@ -160,6 +173,7 @@ pub struct WorkLogEntry {
 pub struct PendingCapture {
     pub payload: String,     // raw JSON text as captured from the site
     pub received_at: String, // RFC3339
+    pub source: CaptureSource,
 }
 
 // Status of the localhost capture server, surfaced on the Payouts page.

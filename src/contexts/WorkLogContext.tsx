@@ -44,7 +44,9 @@ export function WorkLogProvider({ children }: { children: ReactNode }) {
     sessions,
     tasks,
     updateTask,
+    stagedCapture,
     stageCapture,
+    clearStagedCapture,
   });
 
   return (

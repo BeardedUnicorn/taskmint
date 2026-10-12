@@ -232,7 +232,11 @@ describe('PayoutsPage', () => {
 
   it('opens the import dialog prefilled from a staged browser capture', async () => {
     const payloadText = '{"workLogs":[],"timedWorkEntries":[]}';
-    mockWorkLogsReturn.stagedCapture = { payloadText, receivedAt: '2026-08-31T12:00:00Z' };
+    mockWorkLogsReturn.stagedCapture = {
+      payloadText,
+      receivedAt: '2026-08-31T12:00:00Z',
+      reason: 'unmapped-project',
+    };
 
     render(<PayoutsPage />);
 
@@ -247,12 +251,27 @@ describe('PayoutsPage', () => {
     mockWorkLogsReturn.stagedCapture = {
       payloadText: '{"workLogs":[]}',
       receivedAt: '2026-08-31T12:00:00Z',
+      reason: 'unmapped-project',
     };
 
     render(<PayoutsPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(mockWorkLogsReturn.clearStagedCapture).toHaveBeenCalled();
+  });
+
+  it('warns that a link-delivered capture needs review before importing', () => {
+    mockWorkLogsReturn.stagedCapture = {
+      payloadText: '{"workLogs":[]}',
+      receivedAt: '2026-08-31T12:00:00Z',
+      reason: 'unverified-link',
+    };
+
+    render(<PayoutsPage />);
+
+    expect(screen.getByText(/arrived through a taskmint:\/\/ link/)).toBeInTheDocument();
+    expect(screen.queryByText(/project without a task match/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review' })).toBeInTheDocument();
   });
 
   it('shows the capture-server warning when the port could not be bound', async () => {

@@ -155,9 +155,17 @@ export interface WorkLogImportSummary {
 }
 
 /** Wire shape of take_pending_work_log_capture (Rust PendingCapture). */
+/**
+ * How a capture reached the app (CaptureSource in src-tauri/src/types.rs).
+ * 'extension': localhost POST from the pinned TaskMint extension — trusted.
+ * 'link': a taskmint:// link, which any web page can open — review first.
+ */
+export type CaptureSource = 'extension' | 'link';
+
 export interface PendingWorkLogCapture {
   payload: string; // raw captured JSON text
   receivedAt: string; // RFC3339
+  source: CaptureSource;
 }
 
 /** Wire shape of get_capture_server_status. */
