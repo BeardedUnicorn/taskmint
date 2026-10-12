@@ -13,21 +13,6 @@ import { TasksPage } from '../TasksPage';
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';
 
-// Mock the subscription context
-vi.mock('../../../contexts/SubscriptionContext', () => ({
-  useSubscription: vi.fn(() => ({
-    subscription: null,
-    upgradeSubscription: vi.fn(),
-  })),
-  useTaskLimit: vi.fn(() => ({
-    canAddTask: true,
-    currentCount: 1,
-    limit: 10,
-    reason: null,
-    isLoading: false,
-  })),
-}));
-
 // Mock the task detail pane
 vi.mock('../tasks/TaskDetailPane', () => ({
   TaskDetailPane: vi.fn(({ task, onEditEntry, onDeleteEntry }) => (
@@ -79,14 +64,6 @@ vi.mock('../../ui', () => ({
       <div data-testid="confirm-dialog">
         <button onClick={onConfirm}>Confirm</button>
         <button onClick={onClose}>Cancel</button>
-      </div>
-    ) : null
-  ),
-  UpgradeDialog: vi.fn(({ open, onUpgrade, onClose }) =>
-    open ? (
-      <div data-testid="upgrade-dialog">
-        <button onClick={() => onUpgrade('pro-lifetime')}>Upgrade</button>
-        <button onClick={onClose}>Close</button>
       </div>
     ) : null
   ),
@@ -158,14 +135,8 @@ describe('TasksPage - Task List Layout', () => {
     onDeleteEntry: vi.fn(),
   };
 
-  let mockUseTaskLimit: any;
-
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-
-    // Import the mocked functions
-    const subscriptionModule = await import('../../../contexts/SubscriptionContext');
-    mockUseTaskLimit = vi.mocked(subscriptionModule.useTaskLimit);
   });
 
   it('renders the tasks page with header, task list, and controls', () => {
@@ -400,36 +371,22 @@ describe('TasksPage - Task List Layout', () => {
     });
   });
 
-  it('shows upgrade dialog when task limit is reached', async () => {
-    mockUseTaskLimit.mockReturnValue({
-      canAddTask: false,
-      currentCount: 10,
-      limit: 10,
-      reason: 'Task limit reached',
-      isLoading: false,
-    });
+  it('lets you add a task past the old 10-task free limit with no upgrade prompt', async () => {
+    const manyTasks: Task[] = Array.from({ length: 12 }, (_, i) => ({
+      ...mockTasks[0],
+      id: `task${i + 1}`,
+      name: `Task ${i + 1}`,
+    }));
 
-    render(<TasksPage {...mockProps} />);
+    render(<TasksPage {...mockProps} tasks={manyTasks} />);
 
+    expect(screen.queryByText(/Tasks: \d+\/\d+/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Add Task'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('upgrade-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('add-task-dialog')).toBeInTheDocument();
     });
-  });
-
-  it('shows task limit information when limit exists', () => {
-    mockUseTaskLimit.mockReturnValue({
-      canAddTask: true,
-      currentCount: 5,
-      limit: 10,
-      reason: null,
-      isLoading: false,
-    });
-
-    render(<TasksPage {...mockProps} />);
-
-    expect(screen.getByText('Tasks: 5/10')).toBeInTheDocument();
+    expect(screen.queryByText(/upgrade/i)).not.toBeInTheDocument();
   });
 
   it('shows empty state when no tasks are available', () => {

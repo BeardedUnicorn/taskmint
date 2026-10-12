@@ -5,7 +5,6 @@ use crate::types::{
     CaptureServerStatus, PendingCapture, ProjectTaskMapping, TimerState, Task, TaskSession,
     WorkLogEntry,
 };
-use crate::google_drive::GoogleDriveClient;
 
 // Imported work-log ledger + remembered project→task mappings, persisted
 // together in worklogs.json.
@@ -23,7 +22,6 @@ pub type SharedWorkLogs = Arc<Mutex<WorkLogStore>>;
 pub type SharedPendingCapture = Arc<Mutex<Option<PendingCapture>>>;
 pub type SharedCaptureServerStatus = Arc<Mutex<CaptureServerStatus>>;
 pub type SharedTrayIcon = Arc<Mutex<Option<tauri::tray::TrayIcon>>>;
-pub type SharedGoogleDriveClient = Arc<Mutex<Option<GoogleDriveClient>>>;
 pub type SharedLoadWarning = Arc<Mutex<Option<String>>>;
 
 // Main application state container
@@ -38,7 +36,6 @@ pub struct AppState {
     pub pending_work_log_capture: SharedPendingCapture,
     pub capture_server_status: SharedCaptureServerStatus,
     pub tray_icon: SharedTrayIcon,
-    pub google_drive_client: SharedGoogleDriveClient,
     // Set once at startup when the sessions store could not be fully read;
     // surfaced to the frontend via get_session_load_warning.
     pub session_load_warning: SharedLoadWarning,
@@ -60,7 +57,6 @@ impl AppState {
                 warning: None,
             })),
             tray_icon: Arc::new(Mutex::new(None)),
-            google_drive_client: Arc::new(Mutex::new(None)),
             session_load_warning: Arc::new(Mutex::new(None)),
             work_log_load_warning: Arc::new(Mutex::new(None)),
         }
@@ -266,28 +262,6 @@ impl AppState {
             .lock()
             .map_err(|e| format!("Failed to lock session load warning: {}", e))?;
         Ok(f(&mut *warning))
-    }
-
-    pub fn with_google_drive_client<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&Option<GoogleDriveClient>) -> T,
-    {
-        let client = self
-            .google_drive_client
-            .lock()
-            .map_err(|e| format!("Failed to lock Google Drive client: {}", e))?;
-        Ok(f(&*client))
-    }
-
-    pub fn with_google_drive_client_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut Option<GoogleDriveClient>) -> T,
-    {
-        let mut client = self
-            .google_drive_client
-            .lock()
-            .map_err(|e| format!("Failed to lock Google Drive client: {}", e))?;
-        Ok(f(&mut *client))
     }
 }
 

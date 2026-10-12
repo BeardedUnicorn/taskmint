@@ -54,14 +54,6 @@ max_hour = 23                # Maximum hour value
 max_minute = 59              # Maximum minute value
 max_second = 59              # Maximum second value
 
-# Google Drive Configuration
-[google_drive]
-oauth_url = "https://accounts.google.com/o/oauth2/v2/auth"
-token_url = "https://oauth2.googleapis.com/token"
-api_url = "https://www.googleapis.com/drive/v3"
-scope = "https://www.googleapis.com/auth/drive.file"
-token_refresh_buffer_minutes = 5  # Minutes before expiry to refresh tokens
-
 # Application Metadata
 [app]
 product_name = "TaskMint"

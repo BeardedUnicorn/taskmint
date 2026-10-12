@@ -6,7 +6,6 @@ import {
 } from '@mui/material';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
-import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
 import { StartTaskDialog } from './components/pages/StartTaskDialog';
 import { Sidebar, type SidebarView } from './components/layout';
@@ -18,7 +17,6 @@ const ReportsPage = lazy(() => import('./components/pages/ReportsPage').then(mod
 const CalendarPage = lazy(() => import('./components/pages/CalendarPage'));
 const PayoutsPage = lazy(() => import('./components/pages/payouts/PayoutsPage').then(module => ({ default: module.PayoutsPage })));
 const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
-const AdminPage = lazy(() => import('./components/pages/AdminPage').then(module => ({ default: module.AdminPage })));
 import { SessionDashboard } from './components/pages/SessionDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
@@ -203,7 +201,6 @@ function AppContent() {
               {activeView === 'calendar' && <CalendarPage />}
               {activeView === 'payouts' && <PayoutsPage />}
               {activeView === 'settings' && <SettingsPage />}
-              {activeView === 'admin' && <AdminPage />}
             </Suspense>
           </Box>
         </Box>
@@ -225,17 +222,15 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <NotificationProvider>
-          <SubscriptionProvider>
-            <TaskManagementProvider>
-              <ActiveTimerProvider>
-                <SessionManagementProvider>
-                  <WorkLogProvider>
-                    <AppContent />
-                  </WorkLogProvider>
-                </SessionManagementProvider>
-              </ActiveTimerProvider>
-            </TaskManagementProvider>
-          </SubscriptionProvider>
+          <TaskManagementProvider>
+            <ActiveTimerProvider>
+              <SessionManagementProvider>
+                <WorkLogProvider>
+                  <AppContent />
+                </WorkLogProvider>
+              </SessionManagementProvider>
+            </ActiveTimerProvider>
+          </TaskManagementProvider>
         </NotificationProvider>
       </ThemeProvider>
     </ErrorBoundary>

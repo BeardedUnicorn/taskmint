@@ -21,12 +21,11 @@ import {
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
   CalendarToday as CalendarIcon,
-  AdminPanelSettings as AdminIcon,
   PlayCircleOutlined as SessionsIcon,
   AttachMoney as PayoutsIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'payouts' | 'settings' | 'admin';
+export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'payouts' | 'settings';
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -76,11 +75,6 @@ const navigationItems = [
     id: 'settings' as SidebarView,
     label: 'Settings',
     icon: SettingsIcon,
-  },
-  {
-    id: 'admin' as SidebarView,
-    label: 'Admin',
-    icon: AdminIcon,
   },
 ];
 

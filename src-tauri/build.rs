@@ -46,15 +46,6 @@ struct ValidationConfig {
 }
 
 #[derive(Debug, Deserialize)]
-struct GoogleDriveConfig {
-    oauth_url: String,
-    token_url: String,
-    api_url: String,
-    scope: String,
-    token_refresh_buffer_minutes: i64,
-}
-
-#[derive(Debug, Deserialize)]
 struct AppConfig {
     product_name: String,
     version: String,
@@ -91,7 +82,6 @@ struct BuildTimeConfig {
     time: TimeConfig,
     backup: BackupConfig,
     validation: ValidationConfig,
-    google_drive: GoogleDriveConfig,
     app: AppConfig,
     window: WindowConfig,
     dev: DevConfig,
@@ -148,13 +138,6 @@ pub const VALIDATION_MAX_HOUR: u32 = {};
 pub const VALIDATION_MAX_MINUTE: u32 = {};
 pub const VALIDATION_MAX_SECOND: u32 = {};
 
-// Google Drive Configuration
-pub const GOOGLE_DRIVE_OAUTH_URL: &str = "{}";
-pub const GOOGLE_DRIVE_TOKEN_URL: &str = "{}";
-pub const GOOGLE_DRIVE_API_URL: &str = "{}";
-pub const GOOGLE_DRIVE_SCOPE: &str = "{}";
-pub const GOOGLE_DRIVE_TOKEN_REFRESH_BUFFER_MINUTES: i64 = {};
-
 // Application Configuration
 pub const APP_PRODUCT_NAME: &str = "{}";
 pub const APP_VERSION: &str = "{}";
@@ -199,11 +182,6 @@ pub const ICON_BUNDLE_ICONS: &[&str] = &{:?};
         config.validation.max_hour,
         config.validation.max_minute,
         config.validation.max_second,
-        config.google_drive.oauth_url,
-        config.google_drive.token_url,
-        config.google_drive.api_url,
-        config.google_drive.scope,
-        config.google_drive.token_refresh_buffer_minutes,
         config.app.product_name,
         config.app.version,
         config.app.identifier,

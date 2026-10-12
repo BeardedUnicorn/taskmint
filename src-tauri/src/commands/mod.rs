@@ -9,4 +9,3 @@ pub mod reset;
 pub mod capture;
 pub mod tray;
 pub mod backup;
-pub mod google_drive;

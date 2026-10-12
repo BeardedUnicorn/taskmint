@@ -63,27 +63,6 @@ pub struct PathValidationResult {
     pub error: Option<String>,
 }
 
-// Google Drive authentication result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GoogleDriveAuthResult {
-    pub success: bool,
-    pub access_token: Option<String>,
-    pub refresh_token: Option<String>,
-    pub expires_at: Option<String>,
-    pub error: Option<String>,
-}
-
-// Google Drive sync result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GoogleDriveSyncResult {
-    pub success: bool,
-    pub operation: String, // "upload", "download", "conflict"
-    pub timestamp: String,
-    pub error: Option<String>,
-    pub conflict_resolution: Option<String>,
-    pub data_changed: bool,
-}
-
 // ============================================================================
 // SESSION-BASED TIMER SYSTEM TYPES
 // ============================================================================

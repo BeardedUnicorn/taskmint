@@ -23,7 +23,6 @@ import { getRoundingOptionLabel } from '../../utils/formatters';
 import {
   DailyGoalSettings,
   BackupSettingsSection,
-  CloudSyncSettingsSection,
   DashboardCustomizationSection,
   DataManagementSection,
   PrivacySettingsSection,
@@ -168,11 +167,6 @@ export function SettingsPage() {
 
       {/* Privacy Section */}
       <PrivacySettingsSection />
-
-      <Divider sx={{ my: 4 }} />
-
-      {/* Cloud Sync Section */}
-      <CloudSyncSettingsSection onSuccess={handleSuccess} onError={handleError} />
 
       <Divider sx={{ my: 4 }} />
 
