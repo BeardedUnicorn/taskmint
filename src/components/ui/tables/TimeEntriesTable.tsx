@@ -26,23 +26,11 @@ import { Task } from '../../../types/task';
 import { EarningsDisplay } from '../display/EarningsDisplay';
 import { formatDuration } from '../../../utils/formatters';
 import { formatLocalTime } from '../../../utils/dateHelpers';
+import { entryEarnings } from '../../../utils/earnings';
 import dayjs from 'dayjs';
 
 export type SortField = 'taskName' | 'startTime' | 'endTime' | 'duration' | 'date' | 'earnings';
 export type SortDirection = 'asc' | 'desc';
-
-/** Rate-based earnings for a finished entry (0 when it has no duration or rate). */
-function entryEarnings(entry: TimeEntry, tasks: Task[]): number {
-  if (!entry.duration) return 0;
-
-  const task = entry.taskId
-    ? tasks.find(t => t.id === entry.taskId)
-    : tasks.find(t => t.name === entry.taskName);
-  if (!task?.hourlyRate) return 0;
-
-  const hours = entry.duration / (1000 * 60 * 60);
-  return hours * task.hourlyRate;
-}
 
 /**
  * Sort time entries for the table. Callers that paginate must sort the full

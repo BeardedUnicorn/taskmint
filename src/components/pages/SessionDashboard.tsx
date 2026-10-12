@@ -42,6 +42,7 @@ import { StatsCard } from '../ui/display/StatsCard';
 import { formatCurrency, formatDuration, formatTime } from '../../utils/formatters';
 import { getInstanceElapsedMs, getSessionElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
 import { orderTasksForStart } from '../../utils/taskOrdering';
+import { sessionEarnings, sessionRate } from '../../utils/earnings';
 
 interface SessionDashboardProps {
   /** Opens the Tasks page (work starts from existing tasks only). */
@@ -126,11 +127,11 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
   const stats = useMemo(() => {
     // Totals cover every timer in the active session, regardless of the day
     // it ran; with no active session both cards read zero.
+    // The session's own rate (captured when it started), so a rate change
+    // mid-session doesn't rewrite what it has earned.
     const totalTime = activeSession ? getSessionElapsedMs(activeSession, nowMs) : 0;
-    const task = activeSession ? tasks.find((t) => t.id === activeSession.taskId) : undefined;
-    const hourlyRate = task?.hourlyRate ?? 0;
-    const totalEarnings =
-      hourlyRate > 0 ? (totalTime / (1000 * 60 * 60)) * hourlyRate : 0;
+    const hourlyRate = activeSession ? sessionRate(activeSession, tasks) : 0;
+    const totalEarnings = activeSession ? sessionEarnings(activeSession, tasks, nowMs) : 0;
 
     return { totalTime, totalEarnings, hourlyRate };
   }, [activeSession, tasks, nowMs]);

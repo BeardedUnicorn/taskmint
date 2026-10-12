@@ -7,7 +7,7 @@ import { TimeEntry } from '../../../types/timer';
 import { createLightTheme } from '../../../theme';
 
 vi.mock('../../../hooks/useDailyGoals', () => ({
-  useDailyGoals: () => ({ getAchievementsForDateRange: async () => [] }),
+  useDailyGoals: () => ({ achievements: [], currentGoal: null }),
 }));
 
 // Charts are lazy-loaded and irrelevant to the entries table

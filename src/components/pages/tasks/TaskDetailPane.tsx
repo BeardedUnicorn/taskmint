@@ -29,6 +29,7 @@ import { TimeEntry } from '../../../types/timer';
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { formatLocalTime, formatLocalDate, formatLocalDateTimeForDisplay } from '../../../utils/dateHelpers';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
+import { entryEarnings, entryRate } from '../../../utils/earnings';
 
 interface TaskDetailPaneProps {
   task: Task;
@@ -55,21 +56,20 @@ export function TaskDetailPane({
     ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
   }, [timeEntries, task.id, task.name]);
 
-  // Calculate task statistics
+  // Calculate task statistics. Each entry earns at its session's rate, so a
+  // later change to the task's rate doesn't rewrite these.
+  const allTasks = useMemo(() => [task], [task]);
   const taskStats = useMemo(() => {
     const totalDuration = taskEntries.reduce((total, entry) => total + (entry.duration || 0), 0);
-    const totalEarnings = taskEntries.reduce((total, entry) => {
-      if (!entry.duration || !task.hourlyRate) return total;
-      const hours = entry.duration / (1000 * 60 * 60);
-      return total + (hours * task.hourlyRate);
-    }, 0);
+    const totalEarnings = taskEntries.reduce((total, entry) => total + entryEarnings(entry, allTasks), 0);
 
     return {
       totalDuration,
       totalEarnings,
       entryCount: taskEntries.length,
+      hasRates: taskEntries.some(entry => entryRate(entry, allTasks) > 0),
     };
-  }, [taskEntries, task.hourlyRate]);
+  }, [taskEntries, allTasks]);
 
   const formatDate = (dateString: string) => {
     return formatLocalDateTimeForDisplay(dateString);
@@ -135,7 +135,7 @@ export function TaskDetailPane({
             color="primary"
             variant="outlined"
           />
-          {task.hourlyRate && taskStats.totalEarnings > 0 && (
+          {taskStats.totalEarnings > 0 && (
             <Chip
               icon={<MoneyIcon />}
               label={`Total Earnings: ${formatCurrency(taskStats.totalEarnings)}`}
@@ -188,7 +188,7 @@ export function TaskDetailPane({
                       Duration
                     </Typography>
                   </TableCell>
-                  {task.hourlyRate && (
+                  {taskStats.hasRates && (
                     <TableCell>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         Earnings
@@ -204,9 +204,7 @@ export function TaskDetailPane({
               </TableHead>
               <TableBody>
                 {taskEntries.map((entry) => {
-                  const earnings = task.hourlyRate && entry.duration
-                    ? (entry.duration / (1000 * 60 * 60)) * task.hourlyRate
-                    : 0;
+                  const earnings = entryEarnings(entry, allTasks);
 
                   return (
                     <TableRow key={entry.id} hover>
@@ -230,7 +228,7 @@ export function TaskDetailPane({
                           {entry.duration && formatDuration(entry.duration)}
                         </Typography>
                       </TableCell>
-                      {task.hourlyRate && (
+                      {taskStats.hasRates && (
                         <TableCell>
                           <EarningsDisplay amount={earnings} />
                         </TableCell>

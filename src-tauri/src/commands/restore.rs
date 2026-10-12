@@ -274,6 +274,7 @@ mod tests {
             notes: None,
             is_active: active,
             source: None,
+            hourly_rate: None,
             date: "2026-01-01".to_string(),
             created_at: String::new(),
             updated_at: String::new(),

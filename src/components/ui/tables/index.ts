@@ -2,4 +2,5 @@
  * Table Components Exports
  */
 
-export { TimeEntryRow } from './TimeEntryRow';
+export { TimeEntriesTable } from './TimeEntriesTable';
+export { GoalAchievementsTable } from './GoalAchievementsTable';

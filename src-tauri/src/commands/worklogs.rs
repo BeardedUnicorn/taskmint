@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter, State};
 use super::sessions::{recalculate_total_duration, MAX_TIMER_INSTANCES_PER_SESSION};
 
 // Must match WORKLOG_IMPORT_SOURCE in src/types/workLog.ts.
-const WORKLOG_IMPORT_SOURCE: &str = "worklog-import";
+pub(crate) const WORKLOG_IMPORT_SOURCE: &str = "worklog-import";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -458,6 +458,7 @@ mod tests {
             notes: None,
             is_active: false,
             source: None,
+            hourly_rate: None,
             date: "2026-08-25".to_string(),
             created_at: ts(0).to_rfc3339(),
             updated_at: ts(0).to_rfc3339(),

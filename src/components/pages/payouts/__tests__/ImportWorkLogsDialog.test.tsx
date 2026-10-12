@@ -137,7 +137,7 @@ describe('ImportWorkLogsDialog', () => {
     renderDialog();
     pasteText(samplePayload);
     // 30000 cents over 240 minutes → $75/hr.
-    expect(screen.getByText(/update task hourly rates from imported pay/i)).toBeInTheDocument();
+    expect(screen.getByText(/use the site's rate for new time/i)).toBeInTheDocument();
     expect(screen.getByText(/\$75\.00\/hr/)).toBeInTheDocument();
   });
 

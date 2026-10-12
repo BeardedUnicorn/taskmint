@@ -410,7 +410,7 @@ export function ImportWorkLogsDialog({
                         onChange={e => setUpdateRates(e.target.checked)}
                       />
                     }
-                    label="Update task hourly rates from imported pay"
+                    label="Use the site's rate for new time (time already tracked keeps its rate)"
                   />
                   <Stack spacing={0.5} sx={{ pl: 4 }}>
                     {impliedRates.map(rate => {

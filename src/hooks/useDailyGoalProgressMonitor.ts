@@ -1,16 +1,23 @@
 /**
  * Daily Goal Progress Monitor Hook
- * 
- * Monitors daily earnings progress and triggers notifications at key milestones
- * Handles desktop notifications and progress tracking for daily goals
+ *
+ * Today's earnings against the daily goal, live: computed from the sessions
+ * (including a running timer) with the shared earnings rules, ticking while a
+ * timer runs. Sends the 50% / 75% / 100% / exceeded notifications as they're
+ * crossed, and saves today's target so the day keeps it if the goal changes
+ * later. Used once, in App; the sidebar shows the progress it returns.
  */
 
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { useDailyGoals } from './useDailyGoals';
-import { TimeEntry } from '../types/timer';
+import { TaskSession, TimerState } from '../types/timer';
 import { Task } from '../types/task';
-import { calculateTotalEarningsForDate, getTodayDateString } from '../utils/earningsCalculator';
+import { earningsOnDate } from '../utils/earnings';
+import { formatDateString } from '../utils/dateHelpers';
 import { isTauriEnvironment } from '../utils/tauri';
+
+/** How often today's total refreshes while a timer runs. */
+const LIVE_TICK_MS = 10_000;
 
 // Desktop notification functions - only available in Tauri environment
 let sendNotification: ((options: { title: string; body: string }) => Promise<void>) | null = null;
@@ -56,49 +63,55 @@ if (isTauriEnvironment()) {
 }
 
 export interface UseDailyGoalProgressMonitorProps {
-  timeEntries: TimeEntry[];
+  sessions: TaskSession[];
   tasks: Task[];
 }
 
 export interface DailyGoalProgressData {
-  currentEarnings: number;
-  targetAmount: number;
+  /** A goal is enabled with a target above zero. */
+  enabled: boolean;
+  earned: number;
+  target: number;
+  percent: number;
   currency: string;
-  percentageAchieved: number;
-  isGoalEnabled: boolean;
-  status: 'on-track' | 'behind' | 'achieved' | 'exceeded';
-  remainingAmount: number;
 }
 
 export function useDailyGoalProgressMonitor({
-  timeEntries,
+  sessions,
   tasks,
-}: UseDailyGoalProgressMonitorProps) {
-  const { currentGoal, updateNotificationState, recordAchievement } = useDailyGoals();
+}: UseDailyGoalProgressMonitorProps): DailyGoalProgressData {
+  const { currentGoal, achievements, updateNotificationState, recordAchievement } = useDailyGoals();
+
+  // Today's total only moves while a timer runs; otherwise it changes with
+  // the sessions themselves (stops, edits, Add time, imports).
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const hasRunningTimer = sessions.some(session =>
+    session.timerInstances?.some(instance => instance.state === TimerState.running)
+  );
+  useEffect(() => {
+    setNowMs(Date.now());
+    if (!hasRunningTimer) return;
+    const interval = setInterval(() => setNowMs(Date.now()), LIVE_TICK_MS);
+    return () => clearInterval(interval);
+  }, [hasRunningTimer, sessions]);
+
+  const today = formatDateString(new Date(nowMs));
 
   /**
    * Helper function to trigger desktop notifications
    */
   const triggerDesktopNotification = useCallback(async (title: string, body: string) => {
-    // Only proceed if running in Tauri environment
     if (!sendNotification || !isPermissionGranted || !requestPermission) {
-      console.log('Desktop notifications not available:', { title, body });
       return;
     }
 
     try {
-      // Check if permission is already granted
       let hasPermission = await isPermissionGranted();
-      
-      // Request permission if not granted
       if (!hasPermission) {
         hasPermission = await requestPermission();
       }
-
-      // Send notification if permission granted
       if (hasPermission) {
         await sendNotification({ title, body });
-        console.log('Desktop notification sent:', { title, body });
       } else {
         console.warn('Desktop notification permission denied');
       }
@@ -107,97 +120,54 @@ export function useDailyGoalProgressMonitor({
     }
   }, []);
 
-  /**
-   * Calculate current day's progress
-   */
-  const currentProgress = useMemo((): DailyGoalProgressData => {
-    const today = getTodayDateString();
-    const currentEarnings = calculateTotalEarningsForDate(today, timeEntries, tasks);
-    
-    if (!currentGoal || !currentGoal.isEnabled || currentGoal.targetAmount <= 0) {
-      return {
-        currentEarnings,
-        targetAmount: 0,
-        currency: 'USD',
-        percentageAchieved: 0,
-        isGoalEnabled: false,
-        status: 'on-track',
-        remainingAmount: 0,
-      };
-    }
-
-    const percentageAchieved = (currentEarnings / currentGoal.targetAmount) * 100;
-    const remainingAmount = Math.max(0, currentGoal.targetAmount - currentEarnings);
-    
-    let status: 'on-track' | 'behind' | 'achieved' | 'exceeded';
-    if (percentageAchieved >= 100) {
-      status = percentageAchieved > 100 ? 'exceeded' : 'achieved';
-    } else if (percentageAchieved >= 75) {
-      status = 'on-track';
-    } else {
-      status = 'behind';
-    }
-
+  const progress = useMemo((): DailyGoalProgressData => {
+    const earned = earningsOnDate(sessions, tasks, today, nowMs);
+    const enabled = !!currentGoal?.isEnabled && (currentGoal?.targetAmount ?? 0) > 0;
+    const target = enabled ? currentGoal!.targetAmount : 0;
     return {
-      currentEarnings,
-      targetAmount: currentGoal.targetAmount,
-      currency: currentGoal.currency,
-      percentageAchieved,
-      isGoalEnabled: true,
-      status,
-      remainingAmount,
+      enabled,
+      earned,
+      target,
+      percent: enabled ? (earned / target) * 100 : 0,
+      currency: currentGoal?.currency ?? 'USD',
     };
-  }, [timeEntries, tasks, currentGoal]);
+  }, [sessions, tasks, today, nowMs, currentGoal]);
 
-  /**
-   * Handle progress monitoring and notifications
-   */
+  // Milestone notifications, as each one is crossed
   useEffect(() => {
-    if (!currentGoal || !currentGoal.isEnabled || currentGoal.targetAmount <= 0) {
+    if (!currentGoal || !progress.enabled) return;
+
+    // New day: start over (no notification on this first check)
+    if (currentGoal.lastNotificationDate !== today) {
+      void updateNotificationState(0, today);
       return;
     }
 
-    const today = getTodayDateString();
-    const { percentageAchieved, currentEarnings, targetAmount } = currentProgress;
-
-    // Reset notification state if it's a new day
-    if (currentGoal.lastNotificationDate !== today) {
-      updateNotificationState(0, today);
-      return; // Exit early to avoid notifications on the first check of a new day
-    }
-
-    // Check for notification triggers
-    const checkNotifications = async () => {
+    const { percent, earned, target } = progress;
+    const notify = async () => {
       try {
-        // 50% milestone
-        if (percentageAchieved >= 50 && currentGoal.lastNotifiedPercent < 50) {
+        if (percent >= 50 && currentGoal.lastNotifiedPercent < 50 && percent < 75) {
           await triggerDesktopNotification(
             'Halfway to your goal!',
-            `You've earned $${currentEarnings.toFixed(2)} of your $${targetAmount.toFixed(2)} daily target. Keep up the great work!`
+            `You've earned $${earned.toFixed(2)} of your $${target.toFixed(2)} daily target. Keep up the great work!`
           );
           await updateNotificationState(50, today);
-        }
-        // 75% milestone
-        else if (percentageAchieved >= 75 && currentGoal.lastNotifiedPercent < 75) {
+        } else if (percent >= 75 && currentGoal.lastNotifiedPercent < 75 && percent < 100) {
           await triggerDesktopNotification(
             "You're 75% there!",
-            `You've earned $${currentEarnings.toFixed(2)} of your $${targetAmount.toFixed(2)} daily target. Almost at your goal!`
+            `You've earned $${earned.toFixed(2)} of your $${target.toFixed(2)} daily target. Almost at your goal!`
           );
           await updateNotificationState(75, today);
-        }
-        // 100% milestone
-        else if (percentageAchieved >= 100 && currentGoal.lastNotifiedPercent < 100) {
+        } else if (percent >= 100 && currentGoal.lastNotifiedPercent < 100) {
           await triggerDesktopNotification(
             'Goal Achieved!',
-            `Fantastic job! You've reached your daily target of $${targetAmount.toFixed(2)}!`
+            `Fantastic job! You've reached your daily target of $${target.toFixed(2)}!`
           );
           await updateNotificationState(100, today);
-        }
-        // Exceeded milestone (only trigger once when crossing 100%)
-        else if (percentageAchieved > 100 && currentGoal.lastNotifiedPercent === 100) {
+        } else if (percent > 100 && currentGoal.lastNotifiedPercent === 100) {
           await triggerDesktopNotification(
             'Goal CRUSHED!',
-            `Amazing! You've exceeded your daily target by $${(currentEarnings - targetAmount).toFixed(2)}. You're on fire today!`
+            `Amazing! You've exceeded your daily target by $${(earned - target).toFixed(2)}. You're on fire today!`
           );
           await updateNotificationState(101, today);
         }
@@ -205,66 +175,28 @@ export function useDailyGoalProgressMonitor({
         console.error('Error checking notifications:', error);
       }
     };
+    void notify();
+  }, [progress, currentGoal, today, triggerDesktopNotification, updateNotificationState]);
 
-    checkNotifications();
-  }, [currentProgress, currentGoal, triggerDesktopNotification, updateNotificationState]);
-
-  /**
-   * Handle daily achievement recording when day changes
-   */
+  // Save today's target (again if it changes today), so later goal changes
+  // don't rewrite what this day was measured against.
   useEffect(() => {
-    if (!currentGoal || !currentGoal.isEnabled) {
-      return;
-    }
+    if (!progress.enabled) return;
+    const saved = achievements.find(record => record.date === today);
+    if (saved && saved.goalAmount === progress.target) return;
+    const percentageAchieved = progress.percent;
+    void recordAchievement({
+      date: today,
+      goalAmount: progress.target,
+      earnedAmount: Math.round(progress.earned * 100) / 100,
+      currency: progress.currency,
+      percentageAchieved,
+      status: percentageAchieved > 100 ? 'exceeded' : percentageAchieved >= 100 ? 'hit' : 'missed',
+      difference: progress.earned - progress.target,
+    }).catch(error => console.error('Failed to save today\'s goal:', error));
+    // Keyed on the target and day only: the saved earned amount is
+    // informational (Reports recomputes it), so it isn't re-saved every tick.
+  }, [progress.enabled, progress.target, today, achievements, recordAchievement]);
 
-    const today = getTodayDateString();
-
-    // Check if we need to record yesterday's achievement. Only record dates
-    // strictly BEFORE today: a stored lastNotificationDate can be ahead of
-    // the local day (it was stamped with a UTC boundary before 2026-08, or
-    // the clock moved) and recording a future day would write a bogus
-    // zero-earnings achievement.
-    if (
-      currentGoal.lastNotificationDate &&
-      currentGoal.lastNotificationDate !== today &&
-      currentGoal.lastNotificationDate < today
-    ) {
-      const yesterday = currentGoal.lastNotificationDate;
-      const yesterdayEarnings = calculateTotalEarningsForDate(yesterday, timeEntries, tasks);
-
-      if (currentGoal.targetAmount > 0) {
-        const percentageAchieved = (yesterdayEarnings / currentGoal.targetAmount) * 100;
-        const difference = yesterdayEarnings - currentGoal.targetAmount;
-        
-        let status: 'hit' | 'missed' | 'exceeded';
-        if (percentageAchieved >= 100) {
-          status = percentageAchieved > 100 ? 'exceeded' : 'hit';
-        } else {
-          status = 'missed';
-        }
-
-        // Record the achievement for yesterday
-        recordAchievement({
-          date: yesterday,
-          goalAmount: currentGoal.targetAmount,
-          earnedAmount: yesterdayEarnings,
-          currency: currentGoal.currency,
-          percentageAchieved,
-          status,
-          difference,
-        }).catch((error) => {
-          console.error('Failed to record daily achievement:', error);
-        });
-      }
-
-      // Reset notification state for the new day
-      updateNotificationState(0, today);
-    }
-  }, [currentGoal, timeEntries, tasks, recordAchievement, updateNotificationState]);
-
-  return {
-    currentProgress,
-    isGoalEnabled: currentGoal?.isEnabled || false,
-    hasActiveGoal: !!(currentGoal && currentGoal.isEnabled && currentGoal.targetAmount > 0),
-  };
+  return progress;
 }

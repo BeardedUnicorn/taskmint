@@ -168,14 +168,6 @@ export function useTaskManagement(): UseTaskManagementReturn {
     return taskNames;
   }, [taskNames]);
 
-  const calculateEarnings = useCallback((durationMs: number, hourlyRate?: number): number | undefined => {
-    if (!hourlyRate || hourlyRate <= 0 || durationMs <= 0) {
-      return undefined;
-    }
-    const hours = durationMs / (1000 * 60 * 60);
-    return hours * hourlyRate;
-  }, []);
-
   // Hierarchical methods
   const getTaskHierarchy = useCallback(async (): Promise<TaskHierarchy[]> => {
     return executeAsync(
@@ -238,7 +230,6 @@ export function useTaskManagement(): UseTaskManagementReturn {
     getTaskById,
     getTaskByName,
     getTaskNames,
-    calculateEarnings,
     // Hierarchical methods
     getTaskHierarchy,
     getChildTasks,

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 import {
   Drawer,
   List,
@@ -30,6 +30,8 @@ export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'rep
 interface SidebarProps {
   activeView: SidebarView;
   onViewChange: (view: SidebarView) => void;
+  /** Pinned to the bottom of the sidebar (e.g. today's goal progress). */
+  footer?: (collapsed: boolean) => ReactNode;
 }
 
 const SIDEBAR_WIDTH = 240;
@@ -78,7 +80,7 @@ const navigationItems = [
   },
 ];
 
-export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+export function Sidebar({ activeView, onViewChange, footer }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
@@ -178,6 +180,20 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
           );
         })}
       </List>
+
+      {footer && (
+        <Box
+          sx={{
+            mt: 'auto',
+            p: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: isCollapsed ? 'center' : 'stretch',
+          }}
+        >
+          {footer(isCollapsed)}
+        </Box>
+      )}
     </Drawer>
   );
 }

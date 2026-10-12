@@ -7,6 +7,7 @@
 import dayjs from 'dayjs';
 import { TimeEntry } from '../types/timer';
 import { Task } from '../types/task';
+import { entryEarnings } from './earnings';
 
 export interface TaskTimeData {
   taskName: string;
@@ -38,28 +39,9 @@ export interface MonthlyData {
 }
 
 /**
- * Get task by ID or name from tasks array
+ * Earnings for a time entry, at its session's rate (shared with every page)
  */
-function getTaskInfo(entry: TimeEntry, tasks: Task[]): Task | undefined {
-  let task = tasks.find(t => t.id === entry.taskId);
-  if (!task) {
-    task = tasks.find(t => t.name === entry.taskName);
-  }
-  return task;
-}
-
-/**
- * Calculate earnings for a time entry
- */
-function calculateEarnings(entry: TimeEntry, tasks: Task[]): number {
-  if (!entry.duration) return 0;
-  
-  const task = getTaskInfo(entry, tasks);
-  if (!task?.hourlyRate) return 0;
-  
-  const hours = entry.duration / (1000 * 60 * 60);
-  return hours * task.hourlyRate;
-}
+const calculateEarnings = entryEarnings;
 
 /**
  * Aggregate time entries by task for bar chart

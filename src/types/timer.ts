@@ -25,6 +25,7 @@ export interface TimeEntry {
   duration?: number; // in milliseconds
   isRunning: boolean;
   date: string; // YYYY-MM-DD format
+  hourlyRate?: number | null; // The session's rate (see TaskSession.hourlyRate)
 }
 
 // Zod validation schemas
@@ -36,7 +37,8 @@ export const TimeEntrySchema = z.object({
   endTime: z.coerce.date().optional(),
   duration: z.number().min(0).optional(),
   isRunning: z.boolean(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  hourlyRate: z.number().nullable().optional(),
 });
 
 export interface EarningsData {
@@ -115,6 +117,13 @@ export interface TaskSession {
   notes?: string; // Session-level notes
   isActive: boolean; // Whether this session is currently active
   source?: string; // WORKLOG_IMPORT_SOURCE for sessions synthesized by an import
+  /**
+   * The task's hourly rate when the session started (for imports, the rate
+   * the site's pay implies), so later rate changes don't rewrite past
+   * earnings. Missing on sessions from older builds until the backend fills
+   * it in from the task.
+   */
+  hourlyRate?: number | null;
   date: string; // YYYY-MM-DD format
   createdAt: string;
   updatedAt: string;
@@ -182,6 +191,7 @@ export const TaskSessionSchema = z.object({
   notes: z.string().optional(),
   isActive: z.boolean(),
   source: z.string().optional(),
+  hourlyRate: z.number().nullable().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()

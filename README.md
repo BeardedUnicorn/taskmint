@@ -10,7 +10,7 @@ you've earned and when it pays out.
 | Page | What it's for |
 |---|---|
 | **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session. Live totals for the active session. **Add time** logs a finished timer after the fact (a "Manual" session). |
-| **Tasks** | Tasks with hourly rates and default note templates; star favorites; archive tasks you're done with. |
+| **Tasks** | Tasks with hourly rates and default note templates; star favorites; archive tasks you're done with. Time keeps the rate it was tracked at, so changing a rate only affects new time. |
 | **Notes** | Free-form or template-based notes attached to a task, session or timer. |
 | **Time Entries** | Every finished timer as a filterable list; edit durations or delete entries. |
 | **Reports** | Totals, earnings and charts over a date range. |
@@ -28,6 +28,11 @@ button): starting the task that's already active continues its session
 timer. Work starts from existing tasks; create new ones on the Tasks page.
 Closing the window hides TaskMint to the tray, where timers keep running; quit
 from the tray menu. On macOS, clicking the Dock icon brings the window back.
+
+**Earnings** are rate × time everywhere, at each session's rate (captured when
+it started; imported days carry the rate the site's pay implies, so they match
+Payouts). With a **daily goal** set, the sidebar shows today's progress live,
+and notifications fire at 50%, 75% and 100% as you cross them.
 
 **Inactivity detection** (off by default; Settings → Inactivity Detection)
 uses the system idle time, so work in any app counts. When there's been no
