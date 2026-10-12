@@ -1,5 +1,5 @@
 /**
- * CSV export of time entries (Reports and Time Entries): one row per finished
+ * CSV export of time entries (History): one row per finished
  * entry, earnings at the rate the time was tracked at.
  */
 

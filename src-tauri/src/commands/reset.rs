@@ -1,10 +1,10 @@
 // Full app-data reset (Settings → Data Management → Danger Zone).
 //
-// Wipes both persisted stores (sessions.json, worklogs.json) and their
-// timestamped .bak-* safety copies, and clears every piece of in-memory state
-// derived from them. The frontend clears localStorage (tasks, notes,
-// templates, goals, settings) and reloads the webview after this returns, so
-// no events are emitted here.
+// Wipes the persisted stores (sessions.json, worklogs.json, appdata.json)
+// and their timestamped .bak-* safety copies, and clears every piece of
+// in-memory state derived from them. The frontend clears localStorage
+// (settings) and reloads the webview after this returns, so no events are
+// emitted here.
 
 use crate::state::AppState;
 use crate::storage;
@@ -37,9 +37,13 @@ pub async fn reset_all_app_data(
             storage::clear_work_logs_store(&app)
         })?
     })??;
+    // Tasks, notes, templates and the goal (appdata.json). Clearing it also
+    // drops the "initialized" marker; the next launch finds localStorage
+    // empty (the caller clears it) and starts fresh.
+    storage::clear_app_records_store(&app)?;
 
     // Remaining in-memory state: the tasks mirror (its source of truth is
-    // frontend localStorage, cleared by the caller), an unconsumed browser
+    // appdata.json, cleared above), an unconsumed browser
     // capture, and the startup load warnings (stale after a wipe). The tray
     // reads sessions directly and is refreshed below.
     app_state.with_tasks_mut(|tasks| tasks.clear())?;

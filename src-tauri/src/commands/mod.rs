@@ -3,6 +3,7 @@
 pub mod backup;
 pub mod capture;
 pub mod idle;
+pub mod records;
 pub mod reset;
 pub mod restore;
 pub mod sessions;

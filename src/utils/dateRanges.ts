@@ -1,7 +1,7 @@
 /**
- * Quick date ranges for Reports and Time Entries ("This month", "Last 7
- * days", …). A range is whole local days, start and end inclusive; null means
- * open-ended. Weeks start on Sunday, as on the Calendar.
+ * Quick date ranges for History ("This month", "Last 7 days", …). A range
+ * is whole local days, start and end inclusive; null means open-ended. Weeks
+ * start on Sunday, as on the Calendar.
  */
 
 import dayjs, { Dayjs } from 'dayjs';

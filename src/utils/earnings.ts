@@ -2,8 +2,8 @@
  * Earnings
  *
  * The one place the app turns tracked time into money: rate × time. Every
- * page (Sessions, Tasks, Time Entries, Reports, charts, Payouts estimates and
- * the daily goal) goes through these, so the same time gives the same number
+ * page (Sessions, Tasks, History and its charts, Payouts estimates and the
+ * daily goal) goes through these, so the same time gives the same number
  * everywhere.
  *
  * The rate is the session's: captured from the task when the session started

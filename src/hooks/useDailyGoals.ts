@@ -1,8 +1,9 @@
 /**
  * Daily Goals Hook
  *
- * Manages the daily earnings goal and the per-day goal records, persisted in
- * localStorage. The state lives in ONE place (DailyGoalProvider) and every
+ * Manages the daily earnings goal and the per-day goal records, kept in the
+ * app records (appdata.json in the desktop app; see useAppRecord). The state
+ * lives in ONE place (DailyGoalProvider) and every
  * consumer reads it through useDailyGoals(): separate copies used to drift,
  * and the goal monitor writing back its stale copy could revert a target
  * just saved in Settings.
@@ -13,7 +14,7 @@
  */
 
 import { createContext, useCallback, useContext, useMemo } from 'react';
-import { useLocalStorage } from './useLocalStorage';
+import { useAppRecord } from './useAppRecord';
 import { STORAGE_KEYS } from '../constants';
 import { DailyGoal, DailyGoalAchievement } from '../types/goal';
 
@@ -58,12 +59,12 @@ export function useDailyGoals(): UseDailyGoalsReturn {
 
 /** The goal state itself. Use once, in DailyGoalProvider. */
 export function useDailyGoalsState(): UseDailyGoalsReturn {
-  const [currentGoal, setCurrentGoal] = useLocalStorage<DailyGoal | null>(
+  const [currentGoal, setCurrentGoal] = useAppRecord<DailyGoal | null>(
     STORAGE_KEYS.DAILY_GOAL,
     null
   );
   
-  const [achievements, setAchievements] = useLocalStorage<DailyGoalAchievement[]>(
+  const [achievements, setAchievements] = useAppRecord<DailyGoalAchievement[]>(
     STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
     []
   );

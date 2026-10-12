@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { isTauriEnvironment } from '../utils/tauri';
 import { reloadApp } from '../utils/appReload';
+import { flushAppRecords } from '../services/appRecords';
 
 /** Result of the Rust reset_all_app_data command. */
 export interface ResetAppDataSummary {
@@ -13,10 +14,10 @@ interface UseResetAppDataProps {
 }
 
 /**
- * Full app-data reset: wipes the Rust stores (sessions, work logs, their
- * on-disk backups, tray/timer state), then clears localStorage (tasks, notes,
- * templates, goals, settings) and reloads the app so every provider
- * re-initializes from the empty stores.
+ * Full app-data reset: wipes the Rust stores (sessions, work logs, the
+ * tasks/notes/templates/goal records, their on-disk backups, tray/timer
+ * state), then clears localStorage (settings) and reloads the app so every
+ * provider re-initializes from the empty stores.
  */
 export const useResetAppData = ({ onError }: UseResetAppDataProps = {}) => {
   const [isResetting, setIsResetting] = useState(false);
@@ -27,6 +28,8 @@ export const useResetAppData = ({ onError }: UseResetAppDataProps = {}) => {
 
     try {
       if (isTauriEnvironment()) {
+        // A record write still in flight must land before the wipe, not after
+        await flushAppRecords();
         // Direct invoke rather than safeInvoke: a backend failure must abort
         // the reset before any frontend data is cleared.
         const { invoke } = await import('@tauri-apps/api/core');

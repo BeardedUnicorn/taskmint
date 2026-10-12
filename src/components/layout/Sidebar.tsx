@@ -15,8 +15,7 @@ import {
 import {
   Task as TaskIcon,
   Notes as NotesIcon,
-  AccessTime as TimeEntriesIcon,
-  BarChart as BarChartIcon,
+  History as HistoryIcon,
   Settings as SettingsIcon,
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
@@ -25,7 +24,7 @@ import {
   AttachMoney as PayoutsIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'time-entries' | 'reports' | 'calendar' | 'payouts' | 'settings';
+export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'history' | 'calendar' | 'payouts' | 'settings';
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -54,14 +53,9 @@ const navigationItems = [
     icon: NotesIcon,
   },
   {
-    id: 'time-entries' as SidebarView,
-    label: 'Time Entries',
-    icon: TimeEntriesIcon,
-  },
-  {
-    id: 'reports' as SidebarView,
-    label: 'Reports',
-    icon: BarChartIcon,
+    id: 'history' as SidebarView,
+    label: 'History',
+    icon: HistoryIcon,
   },
   {
     id: 'calendar' as SidebarView,
