@@ -40,6 +40,14 @@ vi.mock('../../contexts/NotificationContext', () => ({
   }),
 }));
 
+// The window is focused unless a test says otherwise
+const mockNotifyDesktop = vi.fn();
+let mockAppFocused = true;
+vi.mock('../../utils/desktopNotification', () => ({
+  notifyDesktop: (...args: unknown[]) => mockNotifyDesktop(...args),
+  isAppFocused: () => mockAppFocused,
+}));
+
 const CREATED_AT = '2026-08-26T20:00:00.000Z';
 const WORK_DAY = deriveTimedWorkDay(CREATED_AT, 240);
 
@@ -103,6 +111,7 @@ async function fireCaptureEvent() {
 describe('useWorkLogCapture', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAppFocused = true;
     takeQueue = [];
     eventHandlers = {};
     mockInvoke.mockImplementation(async (command: string) => {
@@ -321,5 +330,45 @@ describe('useWorkLogCapture', () => {
     await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
     expect(deps.applyImport).not.toHaveBeenCalled();
     expect(mockShowError).not.toHaveBeenCalled();
+  });
+
+  describe('desktop notifications', () => {
+    it('announces an import on the desktop when the window is in the background', async () => {
+      mockAppFocused = false;
+      takeQueue.push(capture(samplePayloadText));
+      const deps = makeDeps();
+
+      renderHook(() => useWorkLogCapture(deps));
+
+      await waitFor(() =>
+        expect(mockNotifyDesktop).toHaveBeenCalledWith(
+          'Work logs imported',
+          '1 new, 0 updated, 1 day rewritten.'
+        )
+      );
+    });
+
+    it('says when a background capture needs review', async () => {
+      mockAppFocused = false;
+      takeQueue.push(capture(samplePayloadText));
+      const deps = makeDeps({ tasks: [createMockTask({ id: 'other', name: 'Unrelated Task' })] });
+
+      renderHook(() => useWorkLogCapture(deps));
+
+      await waitFor(() =>
+        expect(mockNotifyDesktop).toHaveBeenCalledWith('Work logs to review', expect.stringContaining('Payouts'))
+      );
+      expect(deps.applyImport).not.toHaveBeenCalled();
+    });
+
+    it('stays in the app when the window is focused', async () => {
+      takeQueue.push(capture(samplePayloadText));
+      const deps = makeDeps();
+
+      renderHook(() => useWorkLogCapture(deps));
+
+      await waitFor(() => expect(mockShowSuccess).toHaveBeenCalled());
+      expect(mockNotifyDesktop).not.toHaveBeenCalled();
+    });
   });
 });

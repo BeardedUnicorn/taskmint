@@ -31,14 +31,26 @@ vi.mock('../../../contexts/TaskManagementContext', () => ({
 
 // Mock react-big-calendar
 vi.mock('react-big-calendar', () => ({
-  Calendar: ({ events, components, dayPropGetter }: any) => {
+  Calendar: ({ events, components, dayPropGetter, onSelectEvent, onSelectSlot, date }: any) => {
     return (
       <div data-testid="calendar">
         {events.map((event: any) => (
-          <div key={event.id} data-testid={`calendar-event-${event.id}`}>
+          <div
+            key={event.id}
+            data-testid={`calendar-event-${event.id}`}
+            onClick={() => onSelectEvent?.(event)}
+          >
             {components.event && components.event({ event })}
           </div>
         ))}
+        {/* An empty day cell of the shown month (the 20th) */}
+        <button
+          onClick={() =>
+            onSelectSlot?.({ start: new Date(date.getFullYear(), date.getMonth(), 20) })
+          }
+        >
+          empty day
+        </button>
         <div data-testid="day-prop-getter-test">
           {dayPropGetter && JSON.stringify(dayPropGetter(new Date('2024-01-01')))}
         </div>
@@ -338,13 +350,14 @@ describe('CalendarPage', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
-      // Earned on the 1st, nothing released that day; with a 7-day funds
-      // release, the $50 becomes transferable on the 8th
+      // Earned (and worked 1h) on the 1st, nothing released that day; with a
+      // 7-day funds release, the $50 is released on the 8th
       const workDay = screen.getByTestId(`calendar-event-${currentMonth}-01`);
       expect(within(workDay).getByText('$50.00')).toBeInTheDocument();
-      expect(within(workDay).getByText('Transferable: $0.00')).toBeInTheDocument();
+      expect(within(workDay).getByText('1h 0m')).toBeInTheDocument();
+      expect(within(workDay).queryByText(/Released/)).not.toBeInTheDocument();
       const releaseDay = screen.getByTestId(`calendar-event-${currentMonth}-08`);
-      expect(within(releaseDay).getByText('Transferable: $50.00')).toBeInTheDocument();
+      expect(within(releaseDay).getByText('Released: $50.00')).toBeInTheDocument();
     });
 
     it('should show transferable amounts when there are earnings from previous days', async () => {
@@ -385,8 +398,8 @@ describe('CalendarPage', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
-      // The 8th should show transferable amount from 7 days earlier
-      expect(screen.getAllByText('Transferable: $50.00').length).toBeGreaterThan(0);
+      // The 8th should show the amount released from 7 days earlier
+      expect(screen.getAllByText('Released: $50.00').length).toBeGreaterThan(0);
     });
   });
 
@@ -564,7 +577,68 @@ describe('CalendarPage', () => {
 
       // Check that both earnings and transferable amounts are displayed
       expect(screen.getByText('$50.00')).toBeInTheDocument();
-      expect(screen.getAllByText(/Transferable: \$/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Released: \$/).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Day breakdown', () => {
+    const month = () => dayjs().format('YYYY-MM');
+    const oneHourOn = (id: string, day: string, taskId = 'task1', taskName = 'Task 1'): TimeEntry => ({
+      id,
+      taskName,
+      taskId,
+      startTime: new Date(`${month()}-${day}T09:00:00`),
+      endTime: new Date(`${month()}-${day}T10:00:00`),
+      duration: 3600000,
+      isRunning: false,
+      date: `${month()}-${day}`,
+    });
+
+    it("totals the month's tracked time and earnings in the header", async () => {
+      mockSessionContext.sessions = entriesToSessions([oneHourOn('1', '01'), oneHourOn('2', '03')]);
+      renderCalendarPage();
+      await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+
+      expect(screen.getByText('2h 0m · $100.00')).toBeInTheDocument();
+    });
+
+    it("opens a day's tasks, time and amounts when the day is clicked", async () => {
+      mockSessionContext.sessions = entriesToSessions([oneHourOn('1', '01')]);
+      renderCalendarPage();
+      await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+
+      fireEvent.click(screen.getByTestId(`calendar-event-${month()}-01`));
+
+      const dialog = await screen.findByRole('dialog');
+      const worked = within(dialog).getByRole('table', { name: 'Worked' });
+      expect(within(worked).getByText('Task 1')).toBeInTheDocument();
+      expect(within(worked).getByText('1h 0m')).toBeInTheDocument();
+      expect(within(worked).getByText('~$50.00')).toBeInTheDocument();
+      expect(within(dialog).queryByRole('table', { name: 'Released' })).not.toBeInTheDocument();
+    });
+
+    it('lists what a release day releases', async () => {
+      mockSessionContext.sessions = entriesToSessions([oneHourOn('1', '01')]);
+      renderCalendarPage();
+      await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+
+      fireEvent.click(screen.getByTestId(`calendar-event-${month()}-08`));
+
+      const released = within(await screen.findByRole('dialog')).getByRole('table', { name: 'Released' });
+      expect(within(released).getByText(`${month()}-01`)).toBeInTheDocument();
+      expect(within(released).getByText('~$50.00')).toBeInTheDocument();
+    });
+
+    it('says so for a day with nothing on it', async () => {
+      mockSessionContext.sessions = [];
+      renderCalendarPage();
+      await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: 'empty day' }));
+
+      expect(
+        await within(await screen.findByRole('dialog')).findByText('Nothing tracked or released on this day.')
+      ).toBeInTheDocument();
     });
   });
 });

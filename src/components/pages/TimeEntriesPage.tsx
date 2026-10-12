@@ -25,7 +25,10 @@ import {
   TimeEntriesFiltersState,
   defaultFilters,
   applyTimeEntriesFilters,
+  hydrateTimeEntriesFilters,
 } from '../ui/filters/TimeEntriesFilters';
+import { useCsvExport } from '../../hooks/useCsvExport';
+import { csvFileName, exportableEntries, timeEntriesToCsv } from '../../utils/csvExport';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -37,7 +40,6 @@ interface TimeEntriesPageProps {
   onUpdateEntry: (data: EditTimeEntryData) => void;
   onDeleteEntry: (entryId: string) => void;
   onBulkDeleteEntries?: (entryIds: string[]) => void;
-  onExportEntries?: (entries: TimeEntry[]) => void;
   /** Opens the Add Time dialog (time logged after the fact). */
   onAddTime?: () => void;
 }
@@ -50,14 +52,19 @@ export function TimeEntriesPage({
   onUpdateEntry,
   onDeleteEntry,
   onBulkDeleteEntries,
-  onExportEntries,
   onAddTime,
 }: TimeEntriesPageProps) {
   // State management
-  const [filters, setFilters] = useLocalStorage<TimeEntriesFiltersState>(
+  const [storedFilters, setFilters] = useLocalStorage<TimeEntriesFiltersState>(
     'timeEntriesFilters',
     defaultFilters
   );
+  // Saved dates come back as text and saved tasks as stale copies
+  const filters = useMemo(
+    () => hydrateTimeEntriesFilters(storedFilters, tasks),
+    [storedFilters, tasks]
+  );
+  const { exportCsv, isExporting } = useCsvExport();
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [sortField, setSortField] = useLocalStorage<SortField>('timeEntriesSortField', 'startTime');
   const [sortDirection, setSortDirection] = useLocalStorage<SortDirection>('timeEntriesSortDirection', 'desc');
@@ -100,7 +107,7 @@ export function TimeEntriesPage({
   // Back to the first page when the filters or the sort change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [filters, sortField, sortDirection]);
+  }, [storedFilters, sortField, sortDirection]);
 
   // Event handlers
   const handleFiltersChange = (newFilters: TimeEntriesFiltersState) => {
@@ -164,16 +171,13 @@ export function TimeEntriesPage({
     }
   };
 
-  const handleExport = () => {
-    if (onExportEntries) {
-      onExportEntries(filteredEntries);
-      setNotification({
-        open: true,
-        message: 'Time entries exported successfully',
-        severity: 'success',
-      });
-    }
-  };
+  // Finished entries only: a running timer has no end yet
+  const entriesToExport = useMemo(() => exportableEntries(filteredEntries), [filteredEntries]);
+  const handleExport = () =>
+    exportCsv(
+      timeEntriesToCsv(entriesToExport, tasks),
+      csvFileName(entriesToExport, filters.startDate, filters.endDate)
+    );
 
   const handlePageChange = (_: React.ChangeEvent<unknown>, page: number) => {
     setCurrentPage(page);
@@ -203,16 +207,14 @@ export function TimeEntriesPage({
               Add time
             </Button>
           )}
-          {onExportEntries && (
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={handleExport}
-              disabled={filteredEntries.length === 0}
-            >
-              Export ({filteredEntries.length})
-            </Button>
-          )}
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={handleExport}
+            disabled={entriesToExport.length === 0 || isExporting}
+          >
+            Export CSV ({entriesToExport.length})
+          </Button>
         </Stack>
       </Stack>
 

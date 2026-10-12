@@ -26,10 +26,9 @@ import {
 import { SessionTimerToolbar } from '../layout/SessionTimerToolbar';
 import { SessionList } from '../ui/sessions/SessionList';
 import { SessionTimerDisplay } from '../ui/display/SessionTimerDisplay';
-import { EnhancedNotesDialog } from '../ui/dialogs/EnhancedNotesDialog';
+import { SessionNotesDialog } from '../ui/dialogs/SessionNotesDialog';
 import { StartWorkDialog } from '../ui/dialogs/StartWorkDialog';
 import { AddTimeDialog } from '../ui/dialogs/AddTimeDialog';
-import { EditSessionDialog } from '../ui/dialogs/EditSessionDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
@@ -43,6 +42,8 @@ import { formatCurrency, formatDuration, formatTime } from '../../utils/formatte
 import { getInstanceElapsedMs, getSessionElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
 import { orderTasksForStart } from '../../utils/taskOrdering';
 import { sessionEarnings, sessionRate } from '../../utils/earnings';
+import { newestFirst, noteText } from '../../utils/notes';
+import { useTaskNotes } from '../../hooks/useTaskNotes';
 
 interface SessionDashboardProps {
   /** Opens the Tasks page (work starts from existing tasks only). */
@@ -51,16 +52,13 @@ interface SessionDashboardProps {
 
 export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
-  const [notesContext, setNotesContext] = useState<{
-    activeTaskId?: string;
-    activeSessionId?: string;
-    activeTimerInstanceId?: string;
-    taskName?: string;
-  }>({});
+  // Whose notes are open: a session, or one of its timers
+  const [notesTarget, setNotesTarget] = useState<{
+    sessionId: string;
+    timerInstanceId?: string;
+  } | null>(null);
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [addTimeDialogOpen, setAddTimeDialogOpen] = useState(false);
-  const [editingSession, setEditingSession] = useState<TaskSession | null>(null);
   const [editingTimerData, setEditingTimerData] = useState<EditTimeEntryData | null>(null);
   const [editingTimerInstanceId, setEditingTimerInstanceId] = useState<string | null>(null);
   // A finished timer holds tracked time, so deleting one waits for a confirm
@@ -92,7 +90,7 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
   } = useSessionManagementContext();
 
   const { tasks, archivedTasks, isLoading: tasksLoading } = useTaskManagementContext();
-  const { showError, showSuccess } = useNotification();
+  const { showError } = useNotification();
   const { isWidgetEnabled } = useDashboardSettings();
 
   // Every start surface lists tasks the same way (and as the tray does):
@@ -135,11 +133,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
 
     return { totalTime, totalEarnings, hourlyRate };
   }, [activeSession, tasks, nowMs]);
-
-  const handleSaveSessionUpdate = useCallback(async (sessionId: string, updates: { notes?: string }) => {
-    await updateSession(sessionId, updates);
-    showSuccess("Session notes updated successfully.");
-  }, [updateSession, showSuccess]);
 
   const handleEditTimer = useCallback((instance: TimerInstance, session: TaskSession) => {
     setEditingTimerInstanceId(instance.id);
@@ -208,29 +201,25 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
 
   // Notes handlers - memoized to prevent re-renders
   const handleOpenSessionNotes = useCallback((sessionId: string) => {
-    const session = sessions.find(s => s.id === sessionId);
-    if (session) {
-      setNotesContext({
-        activeTaskId: session.taskId,
-        activeSessionId: session.id,
-        taskName: session.taskName
-      });
-      setNotesDialogOpen(true);
-    }
-  }, [sessions]);
+    setNotesTarget({ sessionId });
+  }, []);
 
   const handleOpenTimerNotes = useCallback((sessionId: string, instanceId?: string) => {
-    const session = sessions.find(s => s.id === sessionId);
-    if (session) {
-      setNotesContext({
-        activeTaskId: session.taskId,
-        activeSessionId: session.id,
-        activeTimerInstanceId: instanceId,
-        taskName: session.taskName
-      });
-      setNotesDialogOpen(true);
+    setNotesTarget({ sessionId, timerInstanceId: instanceId });
+  }, []);
+
+  // Each session's note texts (newest first) for the list's previews and search
+  const { notes } = useTaskNotes();
+  const sessionNotes = useMemo(() => {
+    const bySession = new Map<string, string[]>();
+    for (const note of [...notes].sort(newestFirst)) {
+      if (!note.sessionId || note.isArchived) continue;
+      const text = noteText(note);
+      if (!text) continue;
+      bySession.set(note.sessionId, [...(bySession.get(note.sessionId) ?? []), text]);
     }
-  }, [sessions]);
+    return bySession;
+  }, [notes]);
 
   const handleSelectSession = useCallback((session: TaskSession) => {
     setSelectedSessionId(session.id);
@@ -244,14 +233,9 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
     }
   }, [setActiveSession, showError]);
 
-  const handleEditSession = useCallback((session: TaskSession) => {
-    setEditingSession(session);
-  }, []);
-  
   // Memoized dialog close callbacks
-  const handleCloseNotesDialog = useCallback(() => setNotesDialogOpen(false), []);
+  const handleCloseNotesDialog = useCallback(() => setNotesTarget(null), []);
   const handleCloseStartDialog = useCallback(() => setStartDialogOpen(false), []);
-  const handleCloseEditSessionDialog = useCallback(() => setEditingSession(null), []);
   const handleOpenStartDialog = useCallback(() => setStartDialogOpen(true), []);
   const handleOpenTasks = useCallback(() => onOpenTasks?.(), [onOpenTasks]);
 
@@ -372,21 +356,19 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
             // Initial load only: every timer action toggles isLoading, and an
             // unguarded pass-through blanked the whole list on each of them.
             isLoading={sessionsLoading && sessions.length === 0}
-            onEditSession={handleEditSession}
             onOpenNotes={handleOpenSessionNotes}
+            sessionNotes={sessionNotes}
             archivedTaskNames={archivedTaskNames}
           />
         </Box>
       </Box>
 
-      {/* Enhanced Notes Dialog */}
-      <EnhancedNotesDialog
-        open={notesDialogOpen}
+      <SessionNotesDialog
+        open={notesTarget !== null}
         onClose={handleCloseNotesDialog}
-        activeTaskId={notesContext.activeTaskId}
-        activeSessionId={notesContext.activeSessionId}
-        activeTimerInstanceId={notesContext.activeTimerInstanceId}
-        taskName={notesContext.taskName}
+        session={sessions.find(s => s.id === notesTarget?.sessionId) ?? null}
+        timerInstanceId={notesTarget?.timerInstanceId}
+        tasks={tasks}
       />
 
       <EditTimeEntryDialog
@@ -425,13 +407,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
         tasks={tasks}
         sessions={sessions}
         onAdd={addManualTime}
-      />
-
-      <EditSessionDialog
-        open={!!editingSession}
-        onClose={handleCloseEditSessionDialog}
-        session={editingSession}
-        onSave={handleSaveSessionUpdate}
       />
 
       {/* Floating Action Button: start work on a task */}

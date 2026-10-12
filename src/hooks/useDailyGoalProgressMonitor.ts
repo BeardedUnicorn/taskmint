@@ -8,59 +8,16 @@
  * later. Used once, in App; the sidebar shows the progress it returns.
  */
 
-import { useEffect, useCallback, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDailyGoals } from './useDailyGoals';
 import { TaskSession, TimerState } from '../types/timer';
 import { Task } from '../types/task';
 import { earningsOnDate } from '../utils/earnings';
 import { formatDateString } from '../utils/dateHelpers';
-import { isTauriEnvironment } from '../utils/tauri';
+import { notifyDesktop } from '../utils/desktopNotification';
 
 /** How often today's total refreshes while a timer runs. */
 const LIVE_TICK_MS = 10_000;
-
-// Desktop notification functions - only available in Tauri environment
-let sendNotification: ((options: { title: string; body: string }) => Promise<void>) | null = null;
-let isPermissionGranted: (() => Promise<boolean>) | null = null;
-let requestPermission: (() => Promise<boolean>) | null = null;
-
-// Dynamically import Tauri notification API if available.
-// isTauriEnvironment() also accepts __TAURI_INTERNALS__ — window.__TAURI__
-// alone is only defined with app.withGlobalTauri, which this app doesn't set.
-if (isTauriEnvironment()) {
-  // Try to import notification API - handle both v1 and v2 API paths
-  Promise.resolve().then(async () => {
-    try {
-      // Try Tauri v2 plugin API first
-      const { sendNotification: send, isPermissionGranted: isGranted, requestPermission: request } = await import('@tauri-apps/plugin-notification');
-
-      // Wrap the functions to match our expected interface
-      sendNotification = async (options: { title: string; body: string }) => {
-        await send(options);
-      };
-
-      isPermissionGranted = isGranted;
-
-      requestPermission = async () => {
-        const permission = await request();
-        return permission === 'granted';
-      };
-    } catch (error) {
-      console.warn('Failed to load Tauri notification plugin:', error);
-      // Fallback to browser notifications if available
-      if ('Notification' in window) {
-        sendNotification = async (options: { title: string; body: string }) => {
-          new Notification(options.title, { body: options.body });
-        };
-        isPermissionGranted = async () => Notification.permission === 'granted';
-        requestPermission = async () => {
-          const permission = await Notification.requestPermission();
-          return permission === 'granted';
-        };
-      }
-    }
-  });
-}
 
 export interface UseDailyGoalProgressMonitorProps {
   sessions: TaskSession[];
@@ -97,29 +54,6 @@ export function useDailyGoalProgressMonitor({
 
   const today = formatDateString(new Date(nowMs));
 
-  /**
-   * Helper function to trigger desktop notifications
-   */
-  const triggerDesktopNotification = useCallback(async (title: string, body: string) => {
-    if (!sendNotification || !isPermissionGranted || !requestPermission) {
-      return;
-    }
-
-    try {
-      let hasPermission = await isPermissionGranted();
-      if (!hasPermission) {
-        hasPermission = await requestPermission();
-      }
-      if (hasPermission) {
-        await sendNotification({ title, body });
-      } else {
-        console.warn('Desktop notification permission denied');
-      }
-    } catch (error) {
-      console.error('Failed to send desktop notification:', error);
-    }
-  }, []);
-
   const progress = useMemo((): DailyGoalProgressData => {
     const earned = earningsOnDate(sessions, tasks, today, nowMs);
     const enabled = !!currentGoal?.isEnabled && (currentGoal?.targetAmount ?? 0) > 0;
@@ -147,25 +81,25 @@ export function useDailyGoalProgressMonitor({
     const notify = async () => {
       try {
         if (percent >= 50 && currentGoal.lastNotifiedPercent < 50 && percent < 75) {
-          await triggerDesktopNotification(
+          await notifyDesktop(
             'Halfway to your goal!',
             `You've earned $${earned.toFixed(2)} of your $${target.toFixed(2)} daily target. Keep up the great work!`
           );
           await updateNotificationState(50, today);
         } else if (percent >= 75 && currentGoal.lastNotifiedPercent < 75 && percent < 100) {
-          await triggerDesktopNotification(
+          await notifyDesktop(
             "You're 75% there!",
             `You've earned $${earned.toFixed(2)} of your $${target.toFixed(2)} daily target. Almost at your goal!`
           );
           await updateNotificationState(75, today);
         } else if (percent >= 100 && currentGoal.lastNotifiedPercent < 100) {
-          await triggerDesktopNotification(
+          await notifyDesktop(
             'Goal Achieved!',
             `Fantastic job! You've reached your daily target of $${target.toFixed(2)}!`
           );
           await updateNotificationState(100, today);
         } else if (percent > 100 && currentGoal.lastNotifiedPercent === 100) {
-          await triggerDesktopNotification(
+          await notifyDesktop(
             'Goal CRUSHED!',
             `Amazing! You've exceeded your daily target by $${(earned - target).toFixed(2)}. You're on fire today!`
           );
@@ -176,7 +110,7 @@ export function useDailyGoalProgressMonitor({
       }
     };
     void notify();
-  }, [progress, currentGoal, today, triggerDesktopNotification, updateNotificationState]);
+  }, [progress, currentGoal, today, updateNotificationState]);
 
   // Save today's target (again if it changes today), so later goal changes
   // don't rewrite what this day was measured against.

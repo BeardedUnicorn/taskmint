@@ -325,6 +325,38 @@ pub async fn delete_session(
     Ok(())
 }
 
+/// Clears the plain-text notes of the given sessions; returns how many had
+/// text. Session notes now live in the app's notes store, which copies the
+/// text first (see `sessionNotesToTaskNotes`), so this is the second half of
+/// that move.
+pub fn clear_notes(sessions: &mut [TaskSession], session_ids: &[String]) -> usize {
+    let mut cleared = 0;
+    for session in sessions.iter_mut() {
+        if !session_ids.contains(&session.id) {
+            continue;
+        }
+        if session.notes.take().is_some_and(|n| !n.is_empty()) {
+            cleared += 1;
+        }
+    }
+    cleared
+}
+
+#[tauri::command]
+pub fn clear_session_notes(
+    app: AppHandle,
+    app_state: State<'_, AppState>,
+    session_ids: Vec<String>,
+) -> Result<usize, String> {
+    app_state.with_task_sessions_mut(|sessions| -> Result<usize, String> {
+        let cleared = clear_notes(sessions, &session_ids);
+        if cleared > 0 {
+            storage::save_sessions(&app, sessions)?;
+        }
+        Ok(cleared)
+    })?
+}
+
 #[tauri::command]
 pub async fn create_timer_instance(
     app: AppHandle,
@@ -2121,5 +2153,28 @@ mod tests {
         assert_eq!(session.hourly_rate, None);
         let round_trip = serde_json::to_value(&session).unwrap();
         assert!(round_trip.get("hourlyRate").is_some());
+    }
+
+    #[test]
+    fn clearing_notes_touches_only_the_given_sessions() {
+        let with_notes = |id: &str, notes: Option<&str>| {
+            let mut s = fresh_session();
+            s.id = id.to_string();
+            s.notes = notes.map(str::to_string);
+            s
+        };
+        let mut sessions = vec![
+            with_notes("a", Some("moved")),
+            with_notes("b", Some("")),
+            with_notes("c", None),
+            with_notes("d", Some("not asked for")),
+        ];
+        let ids = ["a", "b", "c"].map(String::from);
+
+        assert_eq!(clear_notes(&mut sessions, &ids), 1);
+        assert_eq!(sessions[0].notes, None);
+        assert_eq!(sessions[3].notes.as_deref(), Some("not asked for"));
+        // Nothing left to clear the second time
+        assert_eq!(clear_notes(&mut sessions, &ids), 0);
     }
 }

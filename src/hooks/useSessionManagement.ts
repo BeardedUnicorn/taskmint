@@ -465,6 +465,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
     });
   }, [loadSessions, showSuccess]);
 
+  // Throws on failure: the caller (the session-notes move) retries next launch.
+  const clearSessionNotes = useCallback(async (sessionIds: string[]): Promise<number> => {
+    if (sessionIds.length === 0) return 0;
+    const cleared = await invoke<number>('clear_session_notes', { sessionIds });
+    if (cleared > 0) await loadSessions({ silent: true });
+    return cleared;
+  }, [loadSessions]);
+
   const updateSession = useCallback(async (sessionId: string, updates: Partial<TaskSession>): Promise<TaskSession | null> => {
     return measurePerformance('useSessionManagement.updateSession', async () => {
       setIsLoading(true);
@@ -651,6 +659,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     startTask,
     addManualTime,
     updateSession,
+    clearSessionNotes,
     deleteSession,
     getSessionById,
     getSessionsByTaskId,

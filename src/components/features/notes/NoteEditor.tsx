@@ -5,7 +5,7 @@
  * Features collapsible interface, auto-save, and field validation.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -35,6 +35,7 @@ import {
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import {NoteEditorProps, TemplateField, NoteTemplate, TaskNote} from '../../../types';
+import { FREE_FORM_TEMPLATE_ID, FREE_FORM_TEMPLATE_NAME } from '../../../utils/notes';
 
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 import { ConfirmDialog } from '../../ui';
@@ -54,9 +55,15 @@ export function NoteEditor({
                              onToggleCollapse,
                              onCloseEditor,
                              autoSaveDisabled = false,
+                             tasks,
                            }: NoteEditorProps) {
   const { templates } = useNoteTemplates();
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(initialTemplate);
+  // The note's task: chosen in the picker when `tasks` is given, else the prop
+  const [selectedTaskId, setSelectedTaskId] = useState(existingNote?.taskId ?? taskId);
+  // A new note keeps its draft layout after auto-save creates it, so the
+  // text field you're typing in isn't swapped out from under you.
+  const startedAsNew = useRef(!existingNote).current;
 
   // Track the current note so that auto-save can update existing notes and
   // newly created notes without requiring the parent component to refresh the
@@ -114,6 +121,15 @@ export function NoteEditor({
       setHasUnsavedChanges(false);
     }
   }, [existingNote, selectedTemplate]);
+
+  useEffect(() => {
+    if (!existingNote) setSelectedTaskId(taskId);
+  }, [taskId, existingNote]);
+
+  const handleTaskChange = useCallback((nextTaskId: string) => {
+    setSelectedTaskId(nextTaskId);
+    setHasUnsavedChanges(true);
+  }, []);
 
   const handleFieldChange = useCallback((fieldId: string, value: any) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
@@ -229,11 +245,12 @@ export function NoteEditor({
         }
 
         if (currentNote) {
+          if (selectedTemplate && !validateFields()) return;
+          // Content and task only: the note keeps its own session/timer link
+          // wherever it's edited from.
           await onUpdateNote(currentNote.id, {
             fieldValues: processedValues,
-            sessionId,
-            timerInstanceId,
-            noteLevel,
+            taskId: selectedTaskId,
           });
           setFieldValues(processedValues);
           setLastSaved(new Date());
@@ -251,7 +268,7 @@ export function NoteEditor({
             return;
           }
           noteToSave = {
-            taskId,
+            taskId: selectedTaskId,
             templateId: selectedTemplate.id,
             templateName: selectedTemplate.name,
             fieldValues: processedValues,
@@ -262,12 +279,17 @@ export function NoteEditor({
             isArchived: false,
           };
         } else {
-          // Free-form note
+          // Free-form note: nothing to save until there's text
+          const content = String(processedValues.content ?? '');
+          if (!content.trim()) {
+            if (closeEditor) onCloseEditor?.();
+            return;
+          }
           noteToSave = {
-            taskId,
-            templateId: 'free-form',
-            templateName: 'Free-form Note',
-            fieldValues: { content: processedValues.content || '' },
+            taskId: selectedTaskId,
+            templateId: FREE_FORM_TEMPLATE_ID,
+            templateName: FREE_FORM_TEMPLATE_NAME,
+            fieldValues: { content },
             timeEntryId,
             sessionId,
             timerInstanceId,
@@ -297,7 +319,7 @@ export function NoteEditor({
       currentNote,
       onUpdateNote,
       onSaveNote,
-      taskId,
+      selectedTaskId,
       fieldValues,
       timeEntryId,
       sessionId,
@@ -359,10 +381,18 @@ export function NoteEditor({
 
   // Auto-save note changes after a short period of inactivity. This prevents
   // data loss and keeps notes in sync without manual interaction.
+  // Nothing to save yet: a new free-form note without text (e.g. only its
+  // task picked), or fields showing errors. Saving those would fail or be
+  // skipped, and each attempt would re-arm this timer every second.
+  const isEmptyNewNote =
+    !currentNote && !selectedTemplate && !String(fieldValues.content ?? '').trim();
+  const hasErrors = Object.keys(errors).length > 0;
+
   useEffect(() => {
     if (autoSaveDisabled) return;
     if (!hasUnsavedChanges) return;
     if (isSaving) return;
+    if (isEmptyNewNote || hasErrors) return;
 
     const timeout = setTimeout(() => {
       // Persist changes but keep the editor open
@@ -370,7 +400,7 @@ export function NoteEditor({
     }, 1000);
 
     return () => clearTimeout(timeout);
-  }, [fieldValues, hasUnsavedChanges, isSaving, handleSave, autoSaveDisabled]);
+  }, [fieldValues, hasUnsavedChanges, isSaving, handleSave, autoSaveDisabled, isEmptyNewNote, hasErrors]);
 
   const renderField = useCallback((field: TemplateField) => {
     const value = fieldValues[field.id];
@@ -527,45 +557,74 @@ export function NoteEditor({
     onCloseEditor?.();
   }, [onCloseEditor]);
 
-  // If no template is selected and we are creating a new note, allow template selection
-  if (!selectedTemplate && !currentNote) {
+  const taskPicker = tasks ? (
+    <FormControl fullWidth size="small">
+      <InputLabel id="note-task-label">Task</InputLabel>
+      <Select
+        labelId="note-task-label"
+        label="Task"
+        value={selectedTaskId}
+        onChange={(e) => handleTaskChange(e.target.value)}
+      >
+        {tasks.map(task => (
+          <MenuItem key={task.id} value={task.id}>
+            {task.name}
+          </MenuItem>
+        ))}
+        {selectedTaskId && !tasks.some(task => task.id === selectedTaskId) && (
+          <MenuItem value={selectedTaskId} disabled>
+            Deleted task
+          </MenuItem>
+        )}
+      </Select>
+    </FormControl>
+  ) : null;
+
+  // A new free-form note: template choice (until it's saved) and the text
+  if (!selectedTemplate && (!currentNote || startedAsNew)) {
     return (
       <>
         <Paper sx={{ p: 2, mb: 2 }}>
           <Stack spacing={2}>
-            <Alert severity="info">
-              No template selected. You can choose a template below or create a free-form note.
-            </Alert>
-            <FormControl fullWidth size="small">
-              <InputLabel>Select Template</InputLabel>
-              <Select
-                value={''}
-                onChange={(e) => {
-                  const selected = templates.find((t: NoteTemplate) => t.id === e.target.value);
-                  setSelectedTemplate(selected || null);
-                  // If a template is selected, initialize its fields. Otherwise, clear for free-form.
-                  if (selected) {
-                    const initialValues: Record<string, any> = {};
-                    selected.fields.forEach((field: TemplateField) => {
-                      initialValues[field.id] = field.type === 'number' ? null : '';
-                    });
-                    setFieldValues(initialValues);
-                  } else {
-                    setFieldValues({ content: fieldValues.content || '' }); // Keep existing content if switching to free-form
-                  }
-                }}
-                label="Select Template"
-              >
-                <MenuItem value="">
-                  <em>Free-form Note</em>
-                </MenuItem>
-                {templates.map((tmpl: NoteTemplate) => (
-                  <MenuItem key={tmpl.id} value={tmpl.id}>
-                    {tmpl.name}
+            {!currentNote && (
+              <Alert severity="info">
+                No template selected. You can choose a template below or create a free-form note.
+              </Alert>
+            )}
+            {taskPicker}
+            {/* Template choice only until the note is first saved */}
+            {!currentNote && (
+              <FormControl fullWidth size="small">
+                <InputLabel>Select Template</InputLabel>
+                <Select
+                  value={''}
+                  onChange={(e) => {
+                    const selected = templates.find((t: NoteTemplate) => t.id === e.target.value);
+                    setSelectedTemplate(selected || null);
+                    // If a template is selected, initialize its fields. Otherwise, clear for free-form.
+                    if (selected) {
+                      const initialValues: Record<string, any> = {};
+                      selected.fields.forEach((field: TemplateField) => {
+                        initialValues[field.id] = field.type === 'number' ? null : '';
+                      });
+                      setFieldValues(initialValues);
+                    } else {
+                      setFieldValues({ content: fieldValues.content || '' }); // Keep existing content if switching to free-form
+                    }
+                  }}
+                  label="Select Template"
+                >
+                  <MenuItem value="">
+                    <em>Free-form Note</em>
                   </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                  {templates.map((tmpl: NoteTemplate) => (
+                    <MenuItem key={tmpl.id} value={tmpl.id}>
+                      {tmpl.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
 
             <TextField
               label="Note Content"
@@ -597,11 +656,11 @@ export function NoteEditor({
               </Button>
               <Button
                 variant="outlined"
-                color="error"
+                color={currentNote ? 'inherit' : 'error'}
                 onClick={handleCloseEditor}
                 disabled={isSaving}
               >
-                Cancel
+                {currentNote ? 'Close' : 'Cancel'}
               </Button>
             </Box>
           </Stack>
@@ -653,6 +712,8 @@ export function NoteEditor({
       <Collapse in={!isCollapsed}>
         <Box sx={{ p: 2, pt: 0 }}>
           <Stack spacing={2}>
+            {taskPicker}
+
             {/* Template Info */}
             {selectedTemplate && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -733,6 +794,11 @@ export function NoteEditor({
                   disabled={isSaving}
                 >
                   Delete Note
+                </Button>
+              )}
+              {onCloseEditor && (
+                <Button variant="outlined" onClick={handleCloseEditor} disabled={isSaving}>
+                  Close
                 </Button>
               )}
             </Box>

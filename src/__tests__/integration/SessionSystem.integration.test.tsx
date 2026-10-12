@@ -15,6 +15,7 @@ import { SessionTimerDisplay } from '../../components/ui/display/SessionTimerDis
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
+import { TaskNotesProvider } from '../../contexts/TaskNotesContext';
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -94,7 +95,14 @@ vi.mock('../../contexts/TaskManagementContext', () => ({
   TaskManagementProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-const renderDashboard = () => render(<SessionDashboard />, { wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider> });
+const renderDashboard = () =>
+  render(<SessionDashboard />, {
+    wrapper: ({ children }) => (
+      <ActiveTimerProvider>
+        <TaskNotesProvider>{children}</TaskNotesProvider>
+      </ActiveTimerProvider>
+    ),
+  });
 
 describe('Session System Integration', () => {
   const mockTasks: Task[] = [

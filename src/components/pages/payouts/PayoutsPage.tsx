@@ -8,13 +8,15 @@
  * days without imported data show rate-based estimates.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import dayjs from 'dayjs';
 import {
   Alert,
   Box,
   Button,
   Chip,
   CircularProgress,
+  IconButton,
   Paper,
   Table,
   TableBody,
@@ -25,6 +27,8 @@ import {
 } from '@mui/material';
 import {
   AccountBalanceWallet as WalletIcon,
+  ExpandLess as ExpandLessIcon,
+  ExpandMore as ExpandMoreIcon,
   Schedule as ScheduleIcon,
   TrendingUp as TrendingUpIcon,
   Upload as UploadIcon,
@@ -41,6 +45,8 @@ import {
   buildPayoutCells,
   buildReleaseSchedule,
   centsToDollars,
+  formatPayoutAmount,
+  groupCellsByMonth,
   summarizePayouts,
   PayoutDayCell,
 } from '../../../utils/payoutCalculator';
@@ -100,6 +106,23 @@ export function PayoutsPage() {
     () => summarizePayouts(cells, today, schedule, nowMs),
     [cells, today, schedule, nowMs]
   );
+
+  // Reconciliation by month: the current month starts open (or the newest,
+  // when this month has nothing yet); clicking a month flips it.
+  const monthGroups = useMemo(() => groupCellsByMonth(cells), [cells]);
+  const currentMonth = today.slice(0, 7);
+  const defaultOpenMonth = monthGroups.some(group => group.month === currentMonth)
+    ? currentMonth
+    : monthGroups[0]?.month;
+  const [toggledMonths, setToggledMonths] = useState<Set<string>>(() => new Set());
+  const isMonthOpen = (month: string) => (month === defaultOpenMonth) !== toggledMonths.has(month);
+  const toggleMonth = (month: string) =>
+    setToggledMonths(prev => {
+      const next = new Set(prev);
+      if (next.has(month)) next.delete(month);
+      else next.add(month);
+      return next;
+    });
 
   const handleCreateTask = async (name: string): Promise<Task> => {
     const task = await addTask({ name });
@@ -307,61 +330,98 @@ export function PayoutsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {cells.map(cell => {
-                    const hasImportedTime = cell.importedMinutes > 0;
-                    const delta = deltaLabel(cell);
-                    const amountParts = [
-                      cell.actualCents > 0 && formatCurrency(centsToDollars(cell.actualCents)),
-                      cell.estimatedCents > 0 &&
-                        `~${formatCurrency(centsToDollars(cell.estimatedCents))}`,
-                    ].filter(Boolean) as string[];
+                  {monthGroups.map(group => {
+                    const open = isMonthOpen(group.month);
+                    const label = dayjs(`${group.month}-01`).format('MMMM YYYY');
                     return (
-                      <TableRow key={`${cell.taskId}-${cell.workDay}`}>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{cell.workDay}</TableCell>
-                        <TableCell>{cell.taskName}</TableCell>
-                        <TableCell align="right" sx={MONO}>
-                          {cell.trackedMs > 0 ? formatDuration(cell.trackedMs) : '—'}
-                        </TableCell>
-                        <TableCell align="right" sx={MONO}>
-                          {hasImportedTime
-                            ? formatDuration(cell.importedMinutes * 60_000)
-                            : '—'}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ ...MONO, color: hasImportedTime ? delta.color : 'text.secondary' }}
+                      <Fragment key={group.month}>
+                        <TableRow
+                          hover
+                          onClick={() => toggleMonth(group.month)}
+                          sx={{ cursor: 'pointer', bgcolor: 'action.hover' }}
                         >
-                          {hasImportedTime ? delta.text : '—'}
-                        </TableCell>
-                        <TableCell align="right" sx={MONO}>
-                          {amountParts.length > 0 ? amountParts.join(' + ') : '—'}
-                        </TableCell>
-                        <TableCell>
-                          {cell.statuses.map(status => (
-                            <Chip
-                              key={status}
-                              label={status}
-                              size="small"
-                              variant="outlined"
-                              sx={{ mr: 0.5 }}
-                            />
-                          ))}
-                        </TableCell>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          {cell.actualCents > 0 || cell.estimatedCents > 0
-                            ? cell.releaseDay
-                            : '—'}
-                        </TableCell>
-                        <TableCell>
-                          {cell.actualCents > 0 ? (
-                            <Chip label="Actual" size="small" color="success" />
-                          ) : cell.isEstimate ? (
-                            <Chip label="Estimate" size="small" color="warning" variant="outlined" />
-                          ) : (
-                            <Chip label="Tracked only" size="small" variant="outlined" />
-                          )}
-                        </TableCell>
-                      </TableRow>
+                          <TableCell colSpan={2} sx={{ whiteSpace: 'nowrap' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <IconButton
+                                size="small"
+                                aria-expanded={open}
+                                aria-label={`${open ? 'Hide' : 'Show'} ${label}`}
+                              >
+                                {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                              </IconButton>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                {label}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
+                            {group.trackedMs > 0 ? formatDuration(group.trackedMs) : '—'}
+                          </TableCell>
+                          <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
+                            {group.importedMinutes > 0
+                              ? formatDuration(group.importedMinutes * 60_000)
+                              : '—'}
+                          </TableCell>
+                          <TableCell />
+                          <TableCell align="right" sx={{ ...MONO, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {formatPayoutAmount(group.actualCents, group.estimatedCents)}
+                          </TableCell>
+                          <TableCell colSpan={3} />
+                        </TableRow>
+                        {open &&
+                          group.cells.map(cell => {
+                            const hasImportedTime = cell.importedMinutes > 0;
+                            const delta = deltaLabel(cell);
+                            return (
+                              <TableRow key={`${cell.taskId}-${cell.workDay}`}>
+                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{cell.workDay}</TableCell>
+                                <TableCell>{cell.taskName}</TableCell>
+                                <TableCell align="right" sx={MONO}>
+                                  {cell.trackedMs > 0 ? formatDuration(cell.trackedMs) : '—'}
+                                </TableCell>
+                                <TableCell align="right" sx={MONO}>
+                                  {hasImportedTime
+                                    ? formatDuration(cell.importedMinutes * 60_000)
+                                    : '—'}
+                                </TableCell>
+                                <TableCell
+                                  align="right"
+                                  sx={{ ...MONO, color: hasImportedTime ? delta.color : 'text.secondary' }}
+                                >
+                                  {hasImportedTime ? delta.text : '—'}
+                                </TableCell>
+                                <TableCell align="right" sx={{ ...MONO, whiteSpace: 'nowrap' }}>
+                                  {formatPayoutAmount(cell.actualCents, cell.estimatedCents)}
+                                </TableCell>
+                                <TableCell>
+                                  {cell.statuses.map(status => (
+                                    <Chip
+                                      key={status}
+                                      label={status}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{ mr: 0.5 }}
+                                    />
+                                  ))}
+                                </TableCell>
+                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                                  {cell.actualCents > 0 || cell.estimatedCents > 0
+                                    ? cell.releaseDay
+                                    : '—'}
+                                </TableCell>
+                                <TableCell>
+                                  {cell.actualCents > 0 ? (
+                                    <Chip label="Actual" size="small" color="success" />
+                                  ) : cell.isEstimate ? (
+                                    <Chip label="Estimate" size="small" color="warning" variant="outlined" />
+                                  ) : (
+                                    <Chip label="Tracked only" size="small" variant="outlined" />
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                      </Fragment>
                     );
                   })}
                 </TableBody>
@@ -369,8 +429,8 @@ export function PayoutsPage() {
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
               Statuses are shown as the site reported them; all imported amounts count toward
-              availability by work day. Other pages estimate earnings from task hourly rates —
-              this page is authoritative for imported amounts.
+              availability by work day. Estimates use the rate each session was tracked at, the
+              same amounts Reports, Time Entries and the Calendar show.
             </Typography>
           </Paper>
         </>

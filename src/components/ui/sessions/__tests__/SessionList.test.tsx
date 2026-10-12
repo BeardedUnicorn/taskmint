@@ -86,7 +86,6 @@ describe('SessionList', () => {
     onCreateSession: vi.fn(),
     selectedSessionId: undefined as string | undefined,
     isLoading: false,
-    onEditSession: vi.fn(),
     onOpenNotes: vi.fn(),
   };
 
@@ -294,6 +293,9 @@ describe('SessionList', () => {
 
       expect(screen.getByText('Activate Session')).toBeInTheDocument();
       expect(screen.getByText('Delete Session')).toBeInTheDocument();
+      // One notes entry (the separate plain-text "Edit Session Notes" is gone)
+      expect(screen.getByRole('menuitem', { name: 'Notes' })).toBeInTheDocument();
+      expect(screen.queryByText('Edit Session Notes')).not.toBeInTheDocument();
     });
 
     it('should call onStartSession when the activate menu item is clicked', () => {
@@ -385,7 +387,36 @@ describe('SessionList', () => {
       expect(screen.getAllByText('Documentation')[0]).toBeInTheDocument();
     });
 
-    it('should show session notes when available', () => {
+    it("previews the session's newest note from the notes store", () => {
+      const sessionNotes = new Map([[mockSessions[0].id, ['Newest note', 'Older note']]]);
+      render(
+        <SessionList
+          {...mockProps}
+          sessions={[{ ...mockSessions[0], notes: 'old plain text' }]}
+          sessionNotes={sessionNotes}
+        />
+      );
+
+      expect(screen.getByText('Newest note')).toBeInTheDocument();
+      expect(screen.queryByText('Older note')).not.toBeInTheDocument();
+      expect(screen.queryByText('old plain text')).not.toBeInTheDocument();
+    });
+
+    it('finds sessions by the text of any of their notes', () => {
+      const sessionNotes = new Map([[mockSessions[1].id, ['Newest', 'Reviewed the auth PR']]]);
+      render(<SessionList {...mockProps} sessionNotes={sessionNotes} />);
+
+      fireEvent.change(screen.getByLabelText('Search sessions'), {
+        target: { value: 'auth pr' },
+      });
+
+      expect(screen.getByRole('heading', { name: mockSessions[1].taskName })).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: mockSessions[0].taskName })
+      ).not.toBeInTheDocument();
+    });
+
+    it('still shows text a session carries itself (not yet moved)', () => {
       const sessionsWithNotes = [
         {
           ...mockSessions[0],

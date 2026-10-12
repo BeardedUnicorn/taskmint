@@ -33,7 +33,6 @@ import {
   MoreVert as MoreIcon,
   PlayArrow as PlayIcon,
   Stop as StopIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
   Notes as NotesIcon,
   Timer as TimerIcon,
@@ -59,10 +58,21 @@ interface SessionListProps {
   onCreateSession?: () => void;
   selectedSessionId?: string;
   isLoading?: boolean;
-  onEditSession: (session: TaskSession) => void;
   onOpenNotes: (sessionId: string) => void;
+  /** Each session's notes text, newest note first (from the notes store). */
+  sessionNotes?: Map<string, string[]>;
   /** Task names hidden from the filter chips (their sessions still render) */
   archivedTaskNames?: string[];
+}
+
+/**
+ * A session's note texts, newest first. Text a session still carries itself
+ * (old notes that couldn't be moved to the notes store) shows as a fallback.
+ */
+function notesFor(session: TaskSession, sessionNotes?: Map<string, string[]>): string[] {
+  const texts = sessionNotes?.get(session.id);
+  if (texts && texts.length > 0) return texts;
+  return session.notes?.trim() ? [session.notes] : [];
 }
 
 // Memoized so unrelated dashboard state changes (dialogs, selection) don't
@@ -78,8 +88,8 @@ export const SessionList = memo(function SessionList({
   onCreateSession,
   selectedSessionId,
   isLoading = false,
-  onEditSession,
   onOpenNotes,
+  sessionNotes,
   archivedTaskNames = [],
 }: SessionListProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,7 +119,7 @@ export const SessionList = memo(function SessionList({
       const query = searchQuery.toLowerCase();
       result = result.filter(session =>
         session.taskName.toLowerCase().includes(query) ||
-        session.notes?.toLowerCase().includes(query) ||
+        notesFor(session, sessionNotes).some(text => text.toLowerCase().includes(query)) ||
         session.date.includes(query)
       );
     }
@@ -125,7 +135,7 @@ export const SessionList = memo(function SessionList({
     }
 
     return result;
-  }, [sessions, searchQuery, statusFilter, taskFilters]);
+  }, [sessions, searchQuery, statusFilter, taskFilters, sessionNotes]);
 
   // Group sessions by date
   const sessionsByDate = useMemo(() => {
@@ -194,13 +204,6 @@ export const SessionList = memo(function SessionList({
       } else {
         onStartSession(selectedSession);
       }
-      handleMenuClose();
-    }
-  };
-
-  const handleEditSession = () => {
-    if (selectedSession) {
-      onEditSession(selectedSession);
       handleMenuClose();
     }
   };
@@ -369,6 +372,7 @@ export const SessionList = memo(function SessionList({
                     onStart={() => onStartSession(session)}
                     onStop={() => onStopSession()}
                     onOpenNotes={() => onOpenNotes(session.id)}
+                    notePreview={notesFor(session, sessionNotes)[0]}
                   />
                 ))}
               </Stack>
@@ -394,18 +398,11 @@ export const SessionList = memo(function SessionList({
           </ListItemText>
         </MenuItem>
         
-        <MenuItem onClick={handleEditSession}>
-          <ListItemIcon>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Edit Session Notes</ListItemText>
-        </MenuItem>
-        
         <MenuItem onClick={handleOpenNotes}>
           <ListItemIcon>
             <NotesIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Detailed Notes</ListItemText>
+          <ListItemText>Notes</ListItemText>
         </MenuItem>
         
         <Divider />
@@ -444,6 +441,8 @@ interface SessionCardProps {
   onStart: () => void;
   onStop: () => void;
   onOpenNotes: () => void;
+  /** The newest note's text, previewed under the title. */
+  notePreview?: string;
 }
 
 function SessionCard({
@@ -455,6 +454,7 @@ function SessionCard({
   onStart,
   onStop,
   onOpenNotes,
+  notePreview,
 }: SessionCardProps) {
 
   const runningInstances = session.timerInstances?.filter(i => i.state === TimerState.running) || [];
@@ -535,7 +535,7 @@ function SessionCard({
               )}
             </Stack>
             
-            {session.notes && (
+            {notePreview && (
               <Typography
                 variant="body2"
                 color="text.secondary"
@@ -547,7 +547,7 @@ function SessionCard({
                   WebkitBoxOrient: 'vertical',
                 }}
               >
-                {session.notes}
+                {notePreview}
               </Typography>
             )}
           </Box>

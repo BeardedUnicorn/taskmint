@@ -258,6 +258,40 @@ describe('TaskNotesService', () => {
     });
   });
 
+  describe('addNotes', () => {
+    const moved = (id: string, overrides: Partial<TaskNote> = {}): TaskNote => ({
+      ...mockNote,
+      id,
+      templateId: 'free-form',
+      templateName: 'Free-form Note',
+      fieldValues: { content: 'moved text' },
+      ...overrides,
+    });
+
+    it('adds new notes in one write and returns them', async () => {
+      const added = await service.addNotes([moved('a'), moved('b')]);
+
+      expect(added.map(note => note.id)).toEqual(['a', 'b']);
+      expect(mockStorageService.setTaskNotes).toHaveBeenCalledTimes(1);
+      expect(mockStorageService.setTaskNotes).toHaveBeenCalledWith([mockNote, ...added]);
+    });
+
+    it('skips ids already stored and notes that fail the schema', async () => {
+      const added = await service.addNotes([
+        moved('note1'), // already stored
+        moved('bad', { createdAt: '2023-01-01T00:00:00+00:00' }), // offset form isn't accepted
+        moved('c'),
+      ]);
+
+      expect(added.map(note => note.id)).toEqual(['c']);
+    });
+
+    it("doesn't write when nothing is new", async () => {
+      expect(await service.addNotes([moved('note1')])).toEqual([]);
+      expect(mockStorageService.setTaskNotes).not.toHaveBeenCalled();
+    });
+  });
+
   describe('createNote', () => {
     it('should create note with isArchived set to false by default', async () => {
       const noteData = {

@@ -44,6 +44,7 @@ import { ConfirmDialog, SearchListHeader } from '../../ui';
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 import { createTextPreview, formatMultilineText } from '../../../utils/formatters';
 import { formatRelativeDate } from '../../../utils/dateHelpers';
+import { noteText } from '../../../utils/notes';
 
 // Note level configuration for hierarchical display
 const noteLevelConfig = {
@@ -73,6 +74,7 @@ const noteLevelConfig = {
 // Hierarchical grouping component
 interface HierarchicalNotesViewProps {
   notes: TaskNote[];
+  taskNames?: Record<string, string>;
   onEditNote: (note: TaskNote) => void;
   onDeleteNote: (noteId: string) => void;
   onArchiveNote: (noteId: string) => void;
@@ -81,6 +83,7 @@ interface HierarchicalNotesViewProps {
 
 function HierarchicalNotesView({
   notes,
+  taskNames,
   onEditNote,
   onDeleteNote,
   onArchiveNote,
@@ -141,10 +144,10 @@ function HierarchicalNotesView({
                 display: 'flex',
                 alignItems: 'center',
                 p: 1,
-                bgcolor: 'grey.50',
+                bgcolor: 'action.hover',
                 borderRadius: 1,
                 cursor: 'pointer',
-                '&:hover': { bgcolor: 'grey.100' },
+                '&:hover': { bgcolor: 'action.selected' },
               }}
               onClick={() => toggleLevel(level)}
             >
@@ -171,6 +174,7 @@ function HierarchicalNotesView({
                   <NoteItem
                     key={note.id}
                     note={note}
+                    taskName={taskNames?.[note.taskId]}
                     onEdit={onEditNote}
                     onDelete={onDeleteNote}
                     onArchive={onArchiveNote}
@@ -194,6 +198,8 @@ function HierarchicalNotesView({
 
 interface NoteItemProps {
   note: TaskNote;
+  /** Shown as a chip when notes from several tasks are listed together. */
+  taskName?: string;
   onEdit: (note: TaskNote) => void;
   onDelete: (noteId: string) => void;
   onArchive?: (noteId: string) => void;
@@ -201,7 +207,7 @@ interface NoteItemProps {
   showLevelIndicator?: boolean;
 }
 
-function NoteItem({ note, onEdit, onDelete, onArchive, onUnarchive, showLevelIndicator = true }: NoteItemProps) {
+function NoteItem({ note, taskName, onEdit, onDelete, onArchive, onUnarchive, showLevelIndicator = true }: NoteItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -247,26 +253,16 @@ function NoteItem({ note, onEdit, onDelete, onArchive, onUnarchive, showLevelInd
   }, []);
 
   const getFieldPreview = useCallback(() => {
-    const values = Object.values(note.fieldValues).filter(value =>
-      value !== undefined && value !== null && value !== ''
-    );
+    const text = noteText(note);
+    if (text) return createTextPreview(text, 100);
 
-    if (values.length === 0) return 'No content';
-
-    // Show first non-empty value as preview
-    const firstValue = values[0];
-
-    // Handle different field types
+    // Only checkboxes filled in
+    const firstValue = Object.values(note.fieldValues).find(value => typeof value === 'boolean');
     if (typeof firstValue === 'boolean') {
       return firstValue ? '✓ Checked' : '✗ Unchecked';
     }
-
-    if (typeof firstValue === 'string') {
-      return createTextPreview(firstValue, 100);
-    }
-
-    return String(firstValue);
-  }, [note.fieldValues]);
+    return 'No content';
+  }, [note]);
 
   const getFilledFieldsCount = useCallback(() => {
     return Object.values(note.fieldValues).filter(value =>
@@ -292,7 +288,16 @@ function NoteItem({ note, onEdit, onDelete, onArchive, onUnarchive, showLevelInd
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
           {/* Primary content - chips */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+            {taskName && (
+              <Chip
+                icon={<TaskIcon />}
+                label={taskName}
+                size="small"
+                color="success"
+                variant="outlined"
+              />
+            )}
             <Chip
               label={note.templateName}
               size="small"
@@ -515,6 +520,7 @@ function NoteItem({ note, onEdit, onDelete, onArchive, onUnarchive, showLevelInd
 
 export function NotesList({
   notes,
+  taskNames,
   onEditNote,
   onDeleteNote,
   onCreateNote,
@@ -566,7 +572,7 @@ export function NotesList({
           No Notes Yet
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Start by creating your first note for this task.
+          Start by creating your first note.
         </Typography>
         <Button
           variant="contained"
@@ -627,6 +633,7 @@ export function NotesList({
       {viewMode === 'hierarchical' ? (
         <HierarchicalNotesView
           notes={sortedNotes}
+          taskNames={taskNames}
           onEditNote={onEditNote}
           onDeleteNote={(noteId) => setDeleteConfirm(noteId)}
           onArchiveNote={onArchiveNote || (() => {})}
@@ -638,6 +645,7 @@ export function NotesList({
             <NoteItem
               key={note.id}
               note={note}
+              taskName={taskNames?.[note.taskId]}
               onEdit={onEditNote}
               onDelete={(noteId) => setDeleteConfirm(noteId)}
               onArchive={onArchiveNote}

@@ -141,6 +141,7 @@ export function sessionsToTimeEntries(sessions: TaskSession[]): TimeEntry[] {
         taskName: s.taskName,
         taskId: s.taskId,
         hourlyRate: s.hourlyRate ?? null,
+        source: s.source,
         isRunning: i.state === TimerState.running,
         date: getInstanceDateString(i, s.date),
       }))

@@ -14,6 +14,8 @@ import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar, type SidebarView } from './components/layout';
 import { GoalProgress } from './components/layout/GoalProgress';
 import { DailyGoalProvider } from './contexts/DailyGoalContext';
+import { TaskNotesProvider } from './contexts/TaskNotesContext';
+import { useSessionNotesMigration } from './hooks/useSessionNotesMigration';
 
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
 const NotesPage = lazy(() => import('./components/pages/NotesPage').then(module => ({ default: module.NotesPage })));
@@ -48,7 +50,15 @@ function AppContent() {
   const sessionManager = useSessionManagementContext();
 
   // Task management context
-  const { tasks, activeTasks, addTask, updateTask, deleteTask, archiveTask, unarchiveTask, toggleFavorite } = useTaskManagementContext();
+  const { tasks, activeTasks, addTask, updateTask, deleteTask, archiveTask, unarchiveTask, toggleFavorite, isLoading: tasksLoading } = useTaskManagementContext();
+
+  // Sessions' old plain-text notes move into the notes store (once)
+  useSessionNotesMigration({
+    sessions: sessionManager.sessions,
+    tasks,
+    isLoading: sessionManager.isLoading || tasksLoading,
+    clearSessionNotes: sessionManager.clearSessionNotes,
+  });
 
   const { activeTimer } = useActiveTimer();
   // Derived global active entry for backward compatibility with older pages
@@ -150,7 +160,9 @@ function AppContent() {
               : undefined
           }
         />
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {/* minWidth 0: a wide table scrolls inside its page instead of
+            stretching the content past the window */}
+        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
             <Suspense fallback={
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
@@ -175,6 +187,7 @@ function AppContent() {
               {activeView === 'notes' && (
                 <NotesPage
                   tasks={tasks}
+                  sessions={sessionManager.sessions}
                   activeEntry={activeEntry}
                 />
               )}
@@ -238,11 +251,13 @@ function App() {
             <DailyGoalProvider>
               <ActiveTimerProvider>
                 <SessionManagementProvider>
-                  <WorkLogProvider>
-                    <BackupSettingsProvider>
-                      <AppContent />
-                    </BackupSettingsProvider>
-                  </WorkLogProvider>
+                  <TaskNotesProvider>
+                    <WorkLogProvider>
+                      <BackupSettingsProvider>
+                        <AppContent />
+                      </BackupSettingsProvider>
+                    </WorkLogProvider>
+                  </TaskNotesProvider>
                 </SessionManagementProvider>
               </ActiveTimerProvider>
             </DailyGoalProvider>
