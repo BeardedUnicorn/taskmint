@@ -1,5 +1,6 @@
 // Application state management
 
+use crate::idle::IdleState;
 use crate::tray::TrayLiveKey;
 use crate::types::{
     CaptureServerStatus, PendingCapture, ProjectTaskMapping, Task, TaskSession, WorkLogEntry,
@@ -23,6 +24,7 @@ pub type SharedPendingCapture = Arc<Mutex<Option<PendingCapture>>>;
 pub type SharedCaptureServerStatus = Arc<Mutex<CaptureServerStatus>>;
 pub type SharedTrayIcon = Arc<Mutex<Option<tauri::tray::TrayIcon>>>;
 pub type SharedLoadWarning = Arc<Mutex<Option<String>>>;
+pub type SharedIdleState = Arc<Mutex<IdleState>>;
 
 // Main application state container
 #[derive(Clone)]
@@ -43,6 +45,9 @@ pub struct AppState {
     pub session_load_warning: SharedLoadWarning,
     // Same, for the work-log store; surfaced via get_work_logs.
     pub work_log_load_warning: SharedLoadWarning,
+    // Idle-detection settings (mirrored from the app) and the pending
+    // "you were away" question. In memory only.
+    pub idle: SharedIdleState,
 }
 
 impl AppState {
@@ -61,7 +66,30 @@ impl AppState {
             tray_rendered: Arc::new(Mutex::new(None)),
             session_load_warning: Arc::new(Mutex::new(None)),
             work_log_load_warning: Arc::new(Mutex::new(None)),
+            idle: Arc::new(Mutex::new(IdleState::default())),
         }
+    }
+
+    pub fn with_idle<T, F>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&IdleState) -> T,
+    {
+        let idle = self
+            .idle
+            .lock()
+            .map_err(|e| format!("Failed to lock idle state: {}", e))?;
+        Ok(f(&idle))
+    }
+
+    pub fn with_idle_mut<T, F>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&mut IdleState) -> T,
+    {
+        let mut idle = self
+            .idle
+            .lock()
+            .map_err(|e| format!("Failed to lock idle state: {}", e))?;
+        Ok(f(&mut idle))
     }
 
     // Helper methods for accessing state with better error handling

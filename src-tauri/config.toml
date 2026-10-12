@@ -27,14 +27,8 @@ filename_prefix = "time_tracker_backup_"  # Prefix for backup filenames
 filename_extension = ".json"   # Extension for backup files
 write_test_filename = ".taskmint_write_test"  # Test file for checking write permissions
 
-# Inactivity Detection Configuration
-[inactivity]
-enabled = false               # Off by default (the webview only sees in-app activity)
-threshold_minutes = 15        # Default inactivity threshold in minutes
-show_warning_before_pause = true  # Show warning before auto-pause
-warning_duration_seconds = 30     # Warning duration in seconds
-resume_on_activity = false        # Manual resume by default for safety
-activity_check_interval_ms = 1000 # Check for activity every second
+# Inactivity detection settings belong to the app (Settings → Inactivity
+# Detection) and reach the backend through set_idle_settings.
 
 # Session Management Configuration
 [sessions]

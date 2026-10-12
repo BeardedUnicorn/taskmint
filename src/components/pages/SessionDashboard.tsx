@@ -2,7 +2,8 @@
  * Session Dashboard Component
  * 
  * Main dashboard that integrates all session-based functionality including
- * session management, timer instances, inactivity detection, and notes.
+ * session management, timer instances, and notes. (Idle detection runs in
+ * the backend; its "you were away" question is an app-level dialog.)
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
@@ -25,7 +26,6 @@ import {
 import { SessionTimerToolbar } from '../layout/SessionTimerToolbar';
 import { SessionList } from '../ui/sessions/SessionList';
 import { SessionTimerDisplay } from '../ui/display/SessionTimerDisplay';
-import { InactivityWarningDialog } from '../ui/dialogs/InactivityWarningDialog';
 import { EnhancedNotesDialog } from '../ui/dialogs/EnhancedNotesDialog';
 import { StartWorkDialog } from '../ui/dialogs/StartWorkDialog';
 import { AddTimeDialog } from '../ui/dialogs/AddTimeDialog';
@@ -34,11 +34,9 @@ import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useDashboardSettings } from '../../hooks/useDashboardSettings';
-import { useInactivityDetection } from '../../hooks/useInactivityDetection';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
-import { useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatCurrency, formatDuration, formatTime } from '../../utils/formatters';
@@ -92,12 +90,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
     clearError: clearSessionsError,
   } = useSessionManagementContext();
 
-  const {
-    isWarningShown,
-    warningTimeRemaining,
-    resetActivity,
-  } = useInactivityDetection();
-
   const { tasks, archivedTasks, isLoading: tasksLoading } = useTaskManagementContext();
   const { showError, showSuccess } = useNotification();
   const { isWidgetEnabled } = useDashboardSettings();
@@ -142,24 +134,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
 
     return { totalTime, totalEarnings, hourlyRate };
   }, [activeSession, tasks, nowMs]);
-
-  // Determine currently running timer instance for inactivity handling
-  const { activeTimer: activeTimerInstance } = useActiveTimer();
-
-  // Handle inactivity warning - memoized to prevent re-renders
-  const handleContinueWork = useCallback(() => {
-    resetActivity();
-  }, [resetActivity]);
-
-  const handlePauseFromInactivity = useCallback(() => {
-    // The session layer listens for this on the window event bus
-    window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
-      detail: { reason: 'user-action', timestamp: new Date() }
-    }));
-    // Dismiss the warning — activity over the dialog no longer auto-clears
-    // it, so the button must close it explicitly.
-    resetActivity();
-  }, [resetActivity]);
 
   const handleSaveSessionUpdate = useCallback(async (sessionId: string, updates: { notes?: string }) => {
     await updateSession(sessionId, updates);
@@ -403,15 +377,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
           />
         </Box>
       </Box>
-
-      {/* Inactivity Warning Dialog */}
-      {isWarningShown && activeSession && activeTimerInstance && (
-        <InactivityWarningDialog
-          remainingSeconds={warningTimeRemaining}
-          onContinue={handleContinueWork}
-          onPause={handlePauseFromInactivity}
-        />
-      )}
 
       {/* Enhanced Notes Dialog */}
       <EnhancedNotesDialog

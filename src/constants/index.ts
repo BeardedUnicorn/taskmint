@@ -29,7 +29,6 @@ export const STORAGE_KEYS = {
   INACTIVITY_SETTINGS: 'inactivitySettings',
   // Set once the off-by-default migration has run (see useEnhancedTimerSettings)
   INACTIVITY_DEFAULT_OFF_APPLIED: 'inactivityDefaultOffApplied',
-  TIMER_ACTIVITY_STATE: 'timerActivityState',
   // Error reporting (read synchronously before React mounts)
   ERROR_REPORTING_ENABLED: 'errorReportingEnabled',
   INSTALL_ID: 'installId',
@@ -43,16 +42,11 @@ export const TIME_FORMATS = {
   ISO_STRING: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
 } as const;
 
-// Inactivity detection constants
+// Inactivity (idle) detection threshold limits
 export const INACTIVITY_CONSTANTS = {
   MIN_THRESHOLD_MINUTES: 1,
   MAX_THRESHOLD_MINUTES: 120,
   DEFAULT_THRESHOLD_MINUTES: 15,
-  MIN_WARNING_SECONDS: 5,
-  MAX_WARNING_SECONDS: 60,
-  DEFAULT_WARNING_SECONDS: 30,
-  ACTIVITY_CHECK_INTERVAL_MS: 1000, // Check every second
-  ACTIVITY_EVENTS: ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'] as const,
 } as const;
 
 // Session management constants

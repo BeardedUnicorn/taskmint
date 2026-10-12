@@ -125,7 +125,7 @@ fn begin_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
 
 /// Resume a validated, paused instance, folding the pause into
 /// `paused_duration` (the frontend's elapsed math subtracts it).
-fn resume_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+pub(crate) fn resume_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
     if let Some(paused_at) = instance.paused_at {
         let pause_duration = (now.timestamp_millis() - paused_at.timestamp_millis()).max(0) as u64;
         instance.paused_duration = Some(instance.paused_duration.unwrap_or(0) + pause_duration);
@@ -140,9 +140,31 @@ fn resume_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
 /// Pause a validated, running instance; `paused_at` starts the pause stretch
 /// that resume (or stop) folds into `paused_duration`.
 fn pause_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+    pause_instance_at(instance, now, now);
+}
+
+/// Pause a running instance as of an earlier moment (idle detection backdates
+/// the pause to when input stopped, so the away time isn't counted). Callers
+/// keep `paused_at` at or after the run's start.
+pub(crate) fn pause_instance_at(
+    instance: &mut TimerInstance,
+    paused_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+) {
     instance.is_running = false;
     instance.is_paused = true;
-    instance.paused_at = Some(now);
+    instance.paused_at = Some(paused_at);
+    instance.updated_at = now.to_rfc3339();
+}
+
+/// Resume a paused instance *without* folding the pause into
+/// `paused_duration`, so the paused stretch counts as tracked time ("keep the
+/// away time" after an idle pause).
+pub(crate) fn keep_idle_time(instance: &mut TimerInstance, now: DateTime<Utc>) {
+    instance.is_running = true;
+    instance.is_paused = false;
+    instance.paused_at = None;
+    instance.resumed_at = Some(now);
     instance.updated_at = now.to_rfc3339();
 }
 

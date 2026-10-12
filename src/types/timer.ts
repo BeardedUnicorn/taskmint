@@ -120,23 +120,25 @@ export interface TaskSession {
   updatedAt: string;
 }
 
-// Inactivity Detection Settings
+// Inactivity (idle) detection settings. Detection itself runs in the
+// backend on the system idle time; these are mirrored to it via
+// set_idle_settings. Settings saved by older builds carry extra keys
+// (warning, auto-resume, testing mode) that are ignored.
 export interface InactivitySettings {
   enabled: boolean;
-  thresholdMinutes: number; // Minutes of inactivity before pausing
-  showWarningBeforePause: boolean;
-  warningDurationSeconds: number; // How long to show warning before auto-pause
-  resumeOnActivity: boolean; // Whether to resume timer when activity detected
-  testingMode?: boolean; // Enable shorter thresholds for development/testing
+  thresholdMinutes: number; // Minutes without keyboard/mouse input before pausing
 }
 
-// Timer Activity State for inactivity detection
-export interface TimerActivityState {
-  lastActivityTime: Date;
-  isUserActive: boolean;
-  inactivityWarningShown: boolean;
-  pausedDueToInactivity: boolean;
+/** The backend's pending "you were away" question (get_idle_pause / idle-returned). */
+export interface IdlePause {
+  instanceId: string;
+  taskName: string;
+  idleSince: string;
+  returned: boolean;
+  awayMs: number;
 }
+
+export type IdleChoice = 'discardResume' | 'keepResume' | 'stayPaused';
 
 // Session Statistics
 export interface SessionStats {
@@ -188,33 +190,18 @@ export const TaskSessionSchema = z.object({
 export const InactivitySettingsSchema = z.object({
   enabled: z.boolean(),
   thresholdMinutes: z.number().min(1).max(120), // 1 minute to 2 hours
-  showWarningBeforePause: z.boolean(),
-  warningDurationSeconds: z.number().min(5).max(60), // 5 seconds to 1 minute
-  resumeOnActivity: z.boolean(),
-  testingMode: z.boolean().optional()
-});
-
-
-export const TimerActivityStateSchema = z.object({
-  lastActivityTime: z.coerce.date(),
-  isUserActive: z.boolean(),
-  inactivityWarningShown: z.boolean(),
-  pausedDueToInactivity: z.boolean()
 });
 
 // ============================================================================
 // DEFAULT VALUES
 // ============================================================================
 
-// Off by default: detection only sees activity inside TaskMint's own window,
-// so with work happening in another app it would pause a running timer.
+// Off by default: the user opts in from Settings. (The first, in-window
+// detector paused timers while work happened in other apps; installs from
+// then were switched off once and keep the user's later choice.)
 export const DEFAULT_INACTIVITY_SETTINGS: InactivitySettings = {
   enabled: false,
-  thresholdMinutes: 15, // 15 minutes default
-  showWarningBeforePause: true,
-  warningDurationSeconds: 30, // 30 seconds warning
-  resumeOnActivity: false, // Manual resume by default for safety
-  testingMode: false // Testing mode disabled by default
+  thresholdMinutes: 15,
 };
 
 
@@ -259,12 +246,6 @@ export interface TimerInstanceListProps {
   onResumeTimer: (instanceId: string) => Promise<void>;
   onDeleteTimer: (instanceId: string) => Promise<void>;
   onUpdateTimerNotes: (instanceId: string, notes: string) => Promise<void>;
-}
-
-export interface InactivityWarningProps {
-  remainingSeconds: number;
-  onContinue: () => void;
-  onPause: () => void;
 }
 
 // ============================================================================
@@ -340,18 +321,6 @@ export interface UseTimerInstanceReturn {
   getInstancesBySessionId: (sessionId: string) => TimerInstance[];
   isLoading: boolean;
   error: string | null;
-}
-
-export interface UseInactivityDetectionReturn {
-  isActive: boolean;
-  settings: InactivitySettings;
-  activityState: TimerActivityState;
-  updateSettings: (settings: Partial<InactivitySettings>) => Promise<void>;
-  resetActivity: () => void;
-  pauseDetection: () => void;
-  resumeDetection: () => void;
-  isWarningShown: boolean;
-  warningTimeRemaining: number;
 }
 
 // Timer Sync Event Type
