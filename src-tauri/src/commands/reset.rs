@@ -8,7 +8,6 @@
 
 use crate::state::AppState;
 use crate::storage;
-use crate::types::TimerState;
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
@@ -40,11 +39,10 @@ pub async fn reset_all_app_data(
     })??;
 
     // Remaining in-memory state: the tasks mirror (its source of truth is
-    // frontend localStorage, cleared by the caller), the tray timer state,
-    // an unconsumed browser capture, and the startup load warnings (stale
-    // after a wipe).
+    // frontend localStorage, cleared by the caller), an unconsumed browser
+    // capture, and the startup load warnings (stale after a wipe). The tray
+    // reads sessions directly and is refreshed below.
     app_state.with_tasks_mut(|tasks| tasks.clear())?;
-    app_state.with_timer_state_mut(|timer| *timer = TimerState::default())?;
     app_state.with_pending_work_log_capture_mut(|capture| *capture = None)?;
     app_state.with_session_load_warning_mut(|warning| *warning = None)?;
     app_state.with_work_log_load_warning_mut(|warning| *warning = None)?;

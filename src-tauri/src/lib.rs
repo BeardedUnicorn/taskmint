@@ -9,7 +9,6 @@ pub mod config;
 pub mod error;
 pub mod state;
 pub mod storage;
-pub mod timer;
 pub mod tray;
 pub mod types;
 pub mod utils;
@@ -256,9 +255,23 @@ pub fn run() {
                 Ok(())
             }
         })
+        // Closing the window hides it to the tray: timers keep running and the
+        // tray stays usable; quit from the tray menu. Without a tray icon the
+        // window closes normally, since nothing could bring it back.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                use tauri::Manager;
+                let has_tray = window
+                    .state::<AppState>()
+                    .with_tray_icon(|tray| tray.is_some())
+                    .unwrap_or(false);
+                if window.label() == "main" && has_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
-            // Timer commands
-            commands::timer::update_timer_state,
             // Task commands
             commands::tasks::update_tasks,
             // Session commands
@@ -290,6 +303,21 @@ pub fn run() {
             commands::backup::import_data_from_file,
             commands::restore::restore_backup_data,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, _event| {
+            // macOS: clicking the Dock icon brings back a window hidden by close.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } = _event
+            {
+                use tauri::Manager;
+                if let Some(window) = _app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        });
 }

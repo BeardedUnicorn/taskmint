@@ -3,15 +3,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// Timer state structure
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct TimerState {
-    pub is_running: bool,
-    pub task_name: String,
-    pub start_time: Option<DateTime<Utc>>,
-    pub elapsed_ms: u64,
-}
-
 // Task structure
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,7 +46,7 @@ pub struct PathValidationResult {
 // files loadable after schema additions; records missing the truly required
 // fields (id, sessionId, startTime) are skipped individually at load time
 // instead of failing the whole file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TimerInstance {
     pub id: String,
     #[serde(rename = "sessionId")]
@@ -86,7 +77,7 @@ pub struct TimerInstance {
 }
 
 // Task Session - Groups multiple timer instances for a task
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TaskSession {
     pub id: String,
     #[serde(rename = "taskId", default)]

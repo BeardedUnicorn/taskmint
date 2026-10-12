@@ -1,4 +1,4 @@
-import { useState, useMemo, Suspense, lazy } from 'react';
+import { useState, useMemo, useCallback, Suspense, lazy } from 'react';
 import {
   CssBaseline,
   Box,
@@ -67,29 +67,9 @@ function AppContent() {
     [sessionManager.sessions]
   );
 
-  // System Tray integration
-  useEnhancedSystemTray({
-    activeSession: sessionManager.activeSession,
-    sessions: sessionManager.sessions,
-    tasks,
-    onStartSession: async (taskId, taskName) => {
-      const session = await sessionManager.createSession(taskId, taskName);
-      if (!session) {
-        throw new Error("Failed to create session from system tray.");
-      }
-      return session;
-    },
-    onCreateTimerInstance: async (sessionId) => {
-      const instance = await sessionManager.createTimerInstance(sessionId);
-      if (!instance) {
-        throw new Error("Failed to create timer instance from system tray.");
-      }
-      return instance;
-    },
-    onStartTimer: sessionManager.startTimerInstance,
-    onStopTimer: sessionManager.stopTimerInstance,
-    onShowNewTaskDialog: () => setNewTaskDialogOpen(true),
-  });
+  // System tray: task-list mirror + the tray's New Task request
+  const showNewTaskDialog = useCallback(() => setNewTaskDialogOpen(true), []);
+  useEnhancedSystemTray({ tasks, onShowNewTaskDialog: showNewTaskDialog });
 
   // Daily goal monitoring
   useDailyGoalProgressMonitor({

@@ -18,9 +18,12 @@ you've earned and when it pays out.
 | **Payouts** | Import DataAnnotation work logs, map projects to tasks, and see available, pending and upcoming releases. |
 | **Settings** | Rounding, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
 
-The **system tray** (menu-bar item on macOS) shows the running timer and can
-start a recent task, stop the timer or open the app. Tray actions currently
-need the main window open.
+The **system tray** (menu-bar item on macOS) shows the running or paused
+timer and can start a task's timer, resume, stop, or open the app. Starting
+the task that's already active continues its session (resuming a paused
+timer); any other task gets a new session, as on the Sessions page. Closing
+the window hides TaskMint to the tray, where timers keep running; quit from
+the tray menu. On macOS, clicking the Dock icon brings the window back.
 
 ## Where data lives
 

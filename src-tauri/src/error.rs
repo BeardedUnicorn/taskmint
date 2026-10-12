@@ -15,13 +15,6 @@ impl AppError {
             source: None,
         }
     }
-
-    pub fn with_source(message: impl Into<String>, source: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            source: Some(source.into()),
-        }
-    }
 }
 
 impl fmt::Display for AppError {
@@ -51,34 +44,5 @@ impl From<&str> for AppError {
 impl From<AppError> for String {
     fn from(error: AppError) -> Self {
         error.to_string()
-    }
-}
-
-// Retry mechanism for operations that may fail temporarily
-pub fn retry_operation<T, F>(operation: F, max_retries: u32, delay_ms: u64) -> Result<T, AppError>
-where
-    F: Fn() -> Result<T, AppError>,
-{
-    let mut attempts = 0;
-    loop {
-        match operation() {
-            Ok(result) => return Ok(result),
-            Err(e) if attempts < max_retries => {
-                attempts += 1;
-                log::error!(
-                    "Operation failed (attempt {}/{}): {}",
-                    attempts,
-                    max_retries + 1,
-                    e
-                );
-                std::thread::sleep(std::time::Duration::from_millis(delay_ms * attempts as u64));
-            }
-            Err(e) => {
-                return Err(AppError::with_source(
-                    format!("Operation failed after {} attempts", max_retries + 1),
-                    e.to_string(),
-                ))
-            }
-        }
     }
 }
