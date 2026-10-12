@@ -92,8 +92,14 @@ export function PayoutsPage() {
     () => buildPayoutCells(workLogs.entries, sessions, tasks, fundsReleaseDays, nowMs),
     [workLogs.entries, sessions, tasks, fundsReleaseDays, nowMs]
   );
-  const summary = useMemo(() => summarizePayouts(cells, today), [cells, today]);
-  const schedule = useMemo(() => buildReleaseSchedule(cells, today), [cells, today]);
+  const schedule = useMemo(
+    () => buildReleaseSchedule(cells, today, workLogs.entries, fundsReleaseDays, nowMs),
+    [cells, today, workLogs.entries, fundsReleaseDays, nowMs]
+  );
+  const summary = useMemo(
+    () => summarizePayouts(cells, today, schedule, nowMs),
+    [cells, today, schedule, nowMs]
+  );
 
   const handleCreateTask = async (name: string): Promise<Task> => {
     const task = await addTask({ name });
@@ -173,6 +179,12 @@ export function PayoutsPage() {
         </Alert>
       )}
 
+      {summary.overduePendingCents > 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          {formatCurrency(centsToDollars(summary.overduePendingCents))} in reported work is awaiting site approval past its estimated release date. Re-importing work logs will update these once approved by the site.
+        </Alert>
+      )}
+
       {workLogs.isLoading && workLogs.entries.length === 0 ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress />
@@ -244,9 +256,16 @@ export function PayoutsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {schedule.map(row => (
-                    <TableRow key={row.releaseDay}>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.releaseDay}</TableCell>
+                  {schedule.map((row, idx) => (
+                    <TableRow key={row.releaseIso ?? `${row.releaseDay}-${row.releaseTime ?? ''}-${idx}`}>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2">{row.releaseDay}</Typography>
+                        {row.releaseTime && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            {row.releaseTime}
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell align="right" sx={MONO}>
                         {row.actualCents > 0
                           ? formatCurrency(centsToDollars(row.actualCents))

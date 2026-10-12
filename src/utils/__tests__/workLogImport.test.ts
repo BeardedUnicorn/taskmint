@@ -496,6 +496,29 @@ describe('buildRewriteGroups', () => {
       synthesized.timerInstances.map(i => i.id)
     );
   });
+
+  it('rewrites instances started after midnight within an overnight session created on workDay', () => {
+    // Session created on 2026-08-26, with an instance started at 1:07 AM on 2026-08-27
+    const overnightInstance = makeInstance({
+      id: 'overnight-1',
+      startTime: new Date(2026, 7, 27, 1, 7),
+      endTime: new Date(2026, 7, 27, 4, 7),
+      duration: 3 * 3600_000,
+    });
+    const session = makeSession({
+      date: '2026-08-26',
+      timerInstances: [overnightInstance],
+    });
+
+    const result = buildRewriteGroups([pasteEntry], [pasteEntry], [session], {
+      nowIso: NOW_ISO,
+      idFactory: () => 'fixed',
+    });
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].workDay).toBe('2026-08-26');
+    expect(result.groups[0].deleteInstanceIds).toEqual(['overnight-1']);
+  });
 });
 
 describe('buildImportPreview', () => {

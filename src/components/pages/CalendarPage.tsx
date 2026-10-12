@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Box, Typography, Paper, CircularProgress, IconButton, useTheme, Button } from '@mui/material';
-import { format, addMonths, subMonths, subDays } from 'date-fns';
+import { format, addMonths, subMonths } from 'date-fns';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment';
@@ -8,9 +8,11 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
-import { sessionsToTimeEntries } from '../../utils/timerHelpers';
-import { calculateEntryEarnings } from '../../utils/earningsCalculator';
+import { useWorkLogContext } from '../../contexts/WorkLogContext';
 import { parseDateStringLocal } from '../../utils/dateHelpers';
+import { buildPayoutCells, centsToDollars } from '../../utils/payoutCalculator';
+import { TimerState } from '../../types/timer';
+import { WorkLogEntry } from '../../types/workLog';
 
 const localizer = momentLocalizer(moment);
 
@@ -65,40 +67,60 @@ const CalendarPage: React.FC = () => {
   const { days: fundsReleaseDays } = useFundsReleaseSettings();
   const theme = useTheme();
 
-  // Same source of truth as the rest of the app: backend sessions flattened
-  // into time entries (the legacy localStorage SessionService silently
-  // diverged from the session data every other page showed).
   const { sessions, isLoading: sessionsLoading } = useSessionManagementContext();
   const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
 
-  const timeEntries = useMemo(() => sessionsToTimeEntries(sessions), [sessions]);
+  let workLogEntries: WorkLogEntry[] = [];
+  try {
+    const workLogs = useWorkLogContext();
+    workLogEntries = workLogs?.entries ?? [];
+  } catch {
+    // Graceful fallback if rendered without WorkLogProvider in isolated tests
+  }
+
   const loading = (sessionsLoading && sessions.length === 0) || tasksLoading;
 
+  // Running instances in progress do not contribute to finalized daily earnings
+  const completedSessions = useMemo(() => {
+    return sessions.map(s => ({
+      ...s,
+      timerInstances: s.timerInstances.filter(
+        i => i.state !== TimerState.running && !i.isRunning
+      ),
+    }));
+  }, [sessions]);
+
+  const cells = useMemo(() => {
+    return buildPayoutCells(workLogEntries, completedSessions, tasks, fundsReleaseDays, Date.now());
+  }, [workLogEntries, completedSessions, tasks, fundsReleaseDays]);
+
   const dailyData = useMemo(() => {
-    // Calculate earnings for all days that have time entries
     const dailyEarned: Record<string, number> = {};
-    timeEntries.forEach(entry => {
-      // entry.date is a local YYYY-MM-DD string — parse it as local time, or
-      // every entry shifts to the previous day for users west of UTC.
-      const dateKey = format(parseDateStringLocal(String(entry.date)), 'yyyy-MM-dd');
-      dailyEarned[dateKey] = (dailyEarned[dateKey] || 0) + calculateEntryEarnings(entry, tasks);
-    });
+    const dailyTransferable: Record<string, number> = {};
+
+    for (const cell of cells) {
+      const amount = centsToDollars(cell.actualCents + cell.estimatedCents);
+      dailyEarned[cell.workDay] = (dailyEarned[cell.workDay] || 0) + amount;
+      if (cell.releaseDay) {
+        dailyTransferable[cell.releaseDay] = (dailyTransferable[cell.releaseDay] || 0) + amount;
+      }
+    }
 
     // Generate all days in the current month view
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    
+
     // Get the start of the calendar view (may include days from previous month)
     const startOfCalendar = new Date(startOfMonth);
     startOfCalendar.setDate(startOfCalendar.getDate() - startOfMonth.getDay());
-    
+
     // Get the end of the calendar view (may include days from next month)
     const endOfCalendar = new Date(endOfMonth);
     endOfCalendar.setDate(endOfCalendar.getDate() + (6 - endOfMonth.getDay()));
-    
+
     const allDates: string[] = [];
     const current = new Date(startOfCalendar);
-    
+
     while (current <= endOfCalendar) {
       allDates.push(format(current, 'yyyy-MM-dd'));
       current.setDate(current.getDate() + 1);
@@ -107,9 +129,7 @@ const CalendarPage: React.FC = () => {
     // Create data for all dates in the calendar view
     return allDates.map(dateStr => {
       const earned = dailyEarned[dateStr] || 0;
-      const transferableDate = subDays(parseDateStringLocal(dateStr), fundsReleaseDays);
-      const transferableKey = format(transferableDate, 'yyyy-MM-dd');
-      const transferable = dailyEarned[transferableKey] || 0;
+      const transferable = dailyTransferable[dateStr] || 0;
 
       return {
         date: dateStr,
@@ -117,7 +137,7 @@ const CalendarPage: React.FC = () => {
         transferable,
       };
     });
-  }, [timeEntries, tasks, fundsReleaseDays, currentDate]);
+  }, [cells, currentDate]);
 
   const events = useMemo((): CalendarEvent[] => {
     return dailyData.map(dayData => {

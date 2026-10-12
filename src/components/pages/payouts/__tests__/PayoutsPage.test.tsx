@@ -6,7 +6,7 @@
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent } from '../../../../__tests__/setup/test-helpers';
+import { render, screen, fireEvent, within } from '../../../../__tests__/setup/test-helpers';
 import { PayoutsPage } from '../PayoutsPage';
 import { Task } from '../../../../types/task';
 import { TaskSession, TimerState } from '../../../../types/timer';
@@ -102,16 +102,95 @@ describe('PayoutsPage', () => {
 
   it('splits imported money into available and pending by release day', () => {
     mockWorkLogsReturn.entries = [
-      createMockWorkLogEntry({ id: 'released', workDay: dayOffset(-10), amountCents: 30000 }),
-      createMockWorkLogEntry({ id: 'waiting', workDay: dayOffset(-2), amountCents: 12300 }),
+      createMockWorkLogEntry({ id: 'released', status: 'Untransferred', workDay: dayOffset(-10), amountCents: 30000 }),
+      createMockWorkLogEntry({ id: 'waiting', status: 'Pending Approval', workDay: dayOffset(-2), amountCents: 12300 }),
     ];
 
     render(<PayoutsPage />);
 
-    expect(screen.getByText('Available now')).toBeInTheDocument();
-    expect(screen.getAllByText('$300.00').length).toBeGreaterThan(0);
+    const availableTitle = screen.getByText('Available now');
+    const availableCard = availableTitle.closest('.MuiCard-root')!;
+    expect(availableCard).toHaveTextContent('$300.00');
+
     expect(screen.getByText('Pending release')).toBeInTheDocument();
     expect(screen.getAllByText('$123.00').length).toBeGreaterThan(0);
+  });
+
+  it('only includes Untransferred in Available now, excluding Paid and Pending Approval', () => {
+    mockWorkLogsReturn.entries = [
+      createMockWorkLogEntry({ id: 'untransferred', status: 'Untransferred', workDay: dayOffset(-10), amountCents: 25000 }),
+      createMockWorkLogEntry({ id: 'paid', status: 'Paid', workDay: dayOffset(-15), amountCents: 60000 }),
+      createMockWorkLogEntry({ id: 'pending', status: 'Pending Approval', workDay: dayOffset(-8), amountCents: 10000 }),
+    ];
+
+    render(<PayoutsPage />);
+
+    const availableTitle = screen.getByText('Available now');
+    const availableCard = availableTitle.closest('.MuiCard-root')!;
+    expect(availableCard).toHaveTextContent('$250.00');
+    expect(availableCard).not.toHaveTextContent('$600.00');
+    expect(availableCard).not.toHaveTextContent('$850.00');
+    expect(availableCard).not.toHaveTextContent('$950.00');
+  });
+
+  it('renders Upcoming releases table with release date and time under it, not grouping on date', () => {
+    const today = new Date();
+    // 2 entries created 5 days ago, so funds release 2 days from now at different times
+    const d1 = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5, 14, 30);
+    const d2 = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5, 18, 0);
+
+    mockWorkLogsReturn.entries = [
+      createMockWorkLogEntry({
+        id: 'upcoming-1',
+        createdAt: d1.toISOString(),
+        workDay: dayOffset(-5),
+        amountCents: 3500,
+        status: 'Pending Approval',
+      }),
+      createMockWorkLogEntry({
+        id: 'upcoming-2',
+        createdAt: d2.toISOString(),
+        workDay: dayOffset(-5),
+        amountCents: 4500,
+        status: 'Pending Approval',
+      }),
+      createMockWorkLogEntry({
+        id: 'already-paid',
+        createdAt: d1.toISOString(),
+        workDay: dayOffset(-5),
+        amountCents: 10000,
+        status: 'Paid',
+      }),
+      createMockWorkLogEntry({
+        id: 'already-untransferred',
+        createdAt: d1.toISOString(),
+        workDay: dayOffset(-5),
+        amountCents: 5000,
+        status: 'Untransferred',
+      }),
+    ];
+
+    render(<PayoutsPage />);
+
+    expect(screen.getByText('Upcoming releases')).toBeInTheDocument();
+    const upcomingTable = screen.getByText('Upcoming releases').closest('.MuiPaper-root')!;
+
+    // Paid and Untransferred should not be in upcoming releases
+    expect(within(upcomingTable).queryByText('$100.00')).not.toBeInTheDocument();
+    expect(within(upcomingTable).queryByText('$50.00')).not.toBeInTheDocument();
+
+    // Upcoming releases should show $35.00 and $45.00 (in both Imported and Total columns)
+    expect(within(upcomingTable).getAllByText('$35.00').length).toBe(2);
+    expect(within(upcomingTable).getAllByText('$45.00').length).toBe(2);
+
+    // Check that both times are rendered under the release date
+    expect(within(upcomingTable).getByText('2:30 PM')).toBeInTheDocument();
+    expect(within(upcomingTable).getByText('6:00 PM')).toBeInTheDocument();
+
+    // Check that both times are rendered under the release date
+    const expectedReleaseDay = dayOffset(2); // 7 days after -5 = +2
+    const dateElements = within(upcomingTable).getAllByText(expectedReleaseDay);
+    expect(dateElements.length).toBe(2); // Two separate rows, not grouped!
   });
 
   it('estimates un-imported tracked days from the task rate and labels them', () => {

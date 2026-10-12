@@ -23,8 +23,9 @@ import {
   WORKLOG_IMPORT_SOURCE,
   WorkLogEntry,
 } from '../types/workLog';
+import dayjs from 'dayjs';
 import { formatDateString } from './dateHelpers';
-import { getInstanceDateString, getSessionElapsedMsOnDate } from './timerHelpers';
+import { getInstanceDateString, getInstanceElapsedMs } from './timerHelpers';
 
 const MS_PER_MINUTE = 60_000;
 
@@ -352,6 +353,41 @@ export function buildSynthesizedSession(
   };
 }
 
+/**
+ * Determines whether a timer instance belongs to a given workDay for import reconciliation.
+ * - For synthesized import sessions, strict match against session.date (which is workDay).
+ * - For tracked sessions:
+ *   1. Direct match: instance started on workDay (via getInstanceDateString).
+ *   2. Overnight crossing: session was created on workDay, and instance started within the
+ *      next calendar day (workDay + 1) before noon, e.g. overnight work shift into early morning.
+ *   3. Spanning: instance startTime to endTime spans across workDay.
+ */
+export function instanceBelongsToWorkDay(
+  instance: TimerInstance,
+  session: TaskSession,
+  workDay: string
+): boolean {
+  if (session.source === WORKLOG_IMPORT_SOURCE) {
+    return session.date === workDay;
+  }
+
+  const instWorkDay = getInstanceDateString(instance, session.date);
+  if (instWorkDay === workDay) {
+    return true;
+  }
+
+  // Overnight shift: session created on workDay with an instance starting the following morning (before noon)
+  const nextDay = formatDateString(dayjs(workDay).add(1, 'day').toDate());
+  if (session.date === workDay && instWorkDay === nextDay) {
+    const startHour = instance.startTime ? new Date(instance.startTime).getHours() : 0;
+    if (startHour < 12) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export interface RewriteGroupBuildResult {
   groups: RewriteGroup[];
   /** Buckets that contain a running/paused timer; sent anyway, backend skips them. */
@@ -399,7 +435,7 @@ export function buildRewriteGroups(
     for (const session of sessions) {
       if (session.taskId !== taskId) continue;
       for (const instance of session.timerInstances) {
-        if (getInstanceDateString(instance, session.date) !== workDay) continue;
+        if (!instanceBelongsToWorkDay(instance, session, workDay)) continue;
         bucketSize += 1;
         bucketSessions.add(session);
         if (isRunningOrPaused(instance)) blockingInstanceIds.push(instance.id);
@@ -524,9 +560,9 @@ export function buildImportPreview(
     let isRemap = false;
     for (const session of sessions) {
       if (session.taskId !== taskId) continue;
-      trackedMs += getSessionElapsedMsOnDate(session, workDay, nowMs);
       for (const instance of session.timerInstances) {
-        if (getInstanceDateString(instance, session.date) !== workDay) continue;
+        if (!instanceBelongsToWorkDay(instance, session, workDay)) continue;
+        trackedMs += getInstanceElapsedMs(instance, nowMs);
         if (timed.length > 0 && isRunningOrPaused(instance)) blocked = true;
         if (session.source === WORKLOG_IMPORT_SOURCE) isRemap = true;
       }
