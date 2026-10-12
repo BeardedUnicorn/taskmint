@@ -46,33 +46,9 @@ struct ValidationConfig {
 }
 
 #[derive(Debug, Deserialize)]
-struct AppConfig {
-    product_name: String,
-    version: String,
-    identifier: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct WindowConfig {
-    title: String,
-    default_width: u32,
-    default_height: u32,
-    min_width: u32,
-    min_height: u32,
-    resizable: bool,
-    fullscreen: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct DevConfig {
-    frontend_url: String,
-}
-
-#[derive(Debug, Deserialize)]
 struct IconConfig {
     tray_primary: String,
     tray_fallback: String,
-    bundle_icons: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,9 +58,6 @@ struct BuildTimeConfig {
     time: TimeConfig,
     backup: BackupConfig,
     validation: ValidationConfig,
-    app: AppConfig,
-    window: WindowConfig,
-    dev: DevConfig,
     icons: IconConfig,
 }
 
@@ -137,27 +110,9 @@ pub const VALIDATION_MAX_HOUR: u32 = {};
 pub const VALIDATION_MAX_MINUTE: u32 = {};
 pub const VALIDATION_MAX_SECOND: u32 = {};
 
-// Application Configuration
-pub const APP_PRODUCT_NAME: &str = "{}";
-pub const APP_VERSION: &str = "{}";
-pub const APP_IDENTIFIER: &str = "{}";
-
-// Window Configuration
-pub const WINDOW_TITLE: &str = "{}";
-pub const WINDOW_DEFAULT_WIDTH: u32 = {};
-pub const WINDOW_DEFAULT_HEIGHT: u32 = {};
-pub const WINDOW_MIN_WIDTH: u32 = {};
-pub const WINDOW_MIN_HEIGHT: u32 = {};
-pub const WINDOW_RESIZABLE: bool = {};
-pub const WINDOW_FULLSCREEN: bool = {};
-
-// Development Configuration
-pub const DEV_FRONTEND_URL: &str = "{}";
-
 // Icon Configuration
 pub const ICON_TRAY_PRIMARY: &str = "{}";
 pub const ICON_TRAY_FALLBACK: &str = "{}";
-pub const ICON_BUNDLE_ICONS: &[&str] = &{:?};
 "#,
         config.tray.status_update_interval,
         config.tray.menu_refresh_interval,
@@ -181,20 +136,8 @@ pub const ICON_BUNDLE_ICONS: &[&str] = &{:?};
         config.validation.max_hour,
         config.validation.max_minute,
         config.validation.max_second,
-        config.app.product_name,
-        config.app.version,
-        config.app.identifier,
-        config.window.title,
-        config.window.default_width,
-        config.window.default_height,
-        config.window.min_width,
-        config.window.min_height,
-        config.window.resizable,
-        config.window.fullscreen,
-        config.dev.frontend_url,
         config.icons.tray_primary,
         config.icons.tray_fallback,
-        config.icons.bundle_icons
     );
 
     fs::write(&dest_path, generated_code).expect("Failed to write generated_config.rs");

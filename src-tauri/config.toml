@@ -54,34 +54,10 @@ max_hour = 23                # Maximum hour value
 max_minute = 59              # Maximum minute value
 max_second = 59              # Maximum second value
 
-# Application Metadata
-[app]
-product_name = "TaskMint"
-version = "1.0.0"
-identifier = "com.taskmint.app"
-
-# Window Configuration
-[window]
-title = "TaskMint"
-default_width = 1620
-default_height = 1000
-min_width = 800
-min_height = 500
-resizable = true
-fullscreen = false
-
-# Development Configuration
-[dev]
-frontend_url = "http://localhost:1420"
+# App name, version, identifier, window size and dev URL live in
+# tauri.conf.json (the version itself comes from package.json).
 
 # Icon Paths
 [icons]
 tray_primary = "../icons/32x32.png"
 tray_fallback = "../icons/icon.png"
-bundle_icons = [
-    "icons/32x32.png",
-    "icons/128x128.png", 
-    "icons/128x128@2x.png",
-    "icons/icon.icns",
-    "icons/icon.ico"
-]

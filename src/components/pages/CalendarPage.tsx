@@ -1,20 +1,20 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Box, Typography, Paper, CircularProgress, IconButton, useTheme, Button } from '@mui/material';
-import { format, addMonths, subMonths } from 'date-fns';
+import dayjs from 'dayjs';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
-import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
-import moment from 'moment';
+import { Calendar, View, Views } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useWorkLogContext } from '../../contexts/WorkLogContext';
-import { parseDateStringLocal } from '../../utils/dateHelpers';
+import { formatDateString, parseDateStringLocal } from '../../utils/dateHelpers';
+import { calendarLocalizer } from '../../utils/calendarLocalizer';
 import { buildPayoutCells, centsToDollars } from '../../utils/payoutCalculator';
 import { TimerState } from '../../types/timer';
 import { WorkLogEntry } from '../../types/workLog';
 
-const localizer = momentLocalizer(moment);
+const localizer = calendarLocalizer;
 
 interface CalendarEvent {
   id: string;
@@ -55,7 +55,7 @@ const CalendarControls: React.FC<{
         </Button>
       </Box>
       <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
-        {format(currentDate, 'MMMM yyyy')}
+        {dayjs(currentDate).format('MMMM YYYY')}
       </Typography>
     </Box>
   );
@@ -122,7 +122,7 @@ const CalendarPage: React.FC = () => {
     const current = new Date(startOfCalendar);
 
     while (current <= endOfCalendar) {
-      allDates.push(format(current, 'yyyy-MM-dd'));
+      allDates.push(formatDateString(current));
       current.setDate(current.getDate() + 1);
     }
 
@@ -156,11 +156,11 @@ const CalendarPage: React.FC = () => {
   }, [dailyData]);
 
   const handlePrevMonth = useCallback(() => {
-    setCurrentDate(prev => subMonths(prev, 1));
+    setCurrentDate(prev => dayjs(prev).subtract(1, 'month').toDate());
   }, []);
 
   const handleNextMonth = useCallback(() => {
-    setCurrentDate(prev => addMonths(prev, 1));
+    setCurrentDate(prev => dayjs(prev).add(1, 'month').toDate());
   }, []);
 
   const handleToday = useCallback(() => {
@@ -199,7 +199,7 @@ const CalendarPage: React.FC = () => {
   }, [theme]);
 
   const DayPropGetter = useCallback((date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
+    const dateStr = formatDateString(date);
     const hasData = dailyData.some(d => d.date === dateStr);
     
     return {

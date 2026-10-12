@@ -5,7 +5,9 @@
  * taskmint:// deep link). The backend stores the latest payload and emits
  * `work-log-payload-captured`; this hook takes it (take semantics — processed
  * at most once) and either auto-applies it through the same pipeline as the
- * import dialog, or stages it for review when a project has no task match.
+ * import dialog, or stages it for review in Payouts. Staged: anything that
+ * arrived by taskmint:// link (any web page can open one, and an import
+ * rewrites tracked days), and payloads with a project that has no task match.
  *
  * Invoked once, by WorkLogProvider. Dependencies are injected so tests need
  * no context tree.
@@ -35,10 +37,17 @@ import { useNotification } from '../contexts/NotificationContext';
 
 export const WORK_LOG_CAPTURED_EVENT = 'work-log-payload-captured';
 
+export type StagedCaptureReason = 'unmapped-project' | 'unverified-link';
+
 export interface StagedCapture {
   payloadText: string;
   receivedAt: string;
+  reason: StagedCaptureReason;
 }
+
+// 'staged-link': only staged because it came by link — the extension's
+// trusted delivery of the same payload may still apply it.
+type ProcessedOutcome = 'handled' | 'staged-link';
 
 export interface UseWorkLogCaptureDeps {
   entries: WorkLogEntry[];
@@ -47,7 +56,9 @@ export interface UseWorkLogCaptureDeps {
   sessions: TaskSession[];
   tasks: Task[];
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<unknown>;
+  stagedCapture: StagedCapture | null;
   stageCapture: (capture: StagedCapture) => void;
+  clearStagedCapture: () => void;
 }
 
 export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
@@ -62,7 +73,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
 
   const processingRef = useRef(false);
   const queuedRef = useRef(false);
-  const lastProcessedRef = useRef<string | null>(null);
+  const lastProcessedRef = useRef<{ payload: string; outcome: ProcessedOutcome } | null>(null);
 
   const processPending = useCallback(async () => {
     // Serialize: an event landing mid-apply is replayed afterwards, so a
@@ -79,11 +90,31 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
       if (!capture || typeof capture.payload !== 'string') return;
 
       // Identical re-deliveries (protocol + confirming POST, extension
-      // retries) must not re-apply or re-toast.
-      if (capture.payload === lastProcessedRef.current) return;
-      lastProcessedRef.current = capture.payload;
+      // retries) must not re-apply or re-toast — except that the extension's
+      // trusted POST may confirm a payload a taskmint:// link only staged.
+      const trusted = capture.source !== 'link';
+      const last = lastProcessedRef.current;
+      if (
+        last &&
+        last.payload === capture.payload &&
+        !(last.outcome === 'staged-link' && trusted)
+      ) {
+        return;
+      }
 
       const d = depsRef.current;
+      if (!trusted) {
+        lastProcessedRef.current = { payload: capture.payload, outcome: 'staged-link' };
+        d.stageCapture({
+          payloadText: capture.payload,
+          receivedAt: capture.receivedAt,
+          reason: 'unverified-link',
+        });
+        showInfo('Work logs arrived through a taskmint:// link. Review them in Payouts before importing.');
+        return;
+      }
+      lastProcessedRef.current = { payload: capture.payload, outcome: 'handled' };
+
       const parsed = parseWorkLogPayload(capture.payload);
       if (parsed.error) {
         showError(`Captured work-log payload could not be read: ${parsed.error}`);
@@ -112,7 +143,11 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
       );
 
       if (resolution.unresolved.length > 0) {
-        d.stageCapture({ payloadText: capture.payload, receivedAt: capture.receivedAt });
+        d.stageCapture({
+          payloadText: capture.payload,
+          receivedAt: capture.receivedAt,
+          reason: 'unmapped-project',
+        });
         showInfo(
           'Work logs captured from DataAnnotation — a new project needs a task match. Review in Payouts.'
         );
@@ -134,6 +169,11 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
         // retry after what may have been a transient failure.
         lastProcessedRef.current = null;
         return;
+      }
+
+      // The same payload may be waiting for review from an earlier link.
+      if (d.stagedCapture?.payloadText === capture.payload) {
+        d.clearStagedCapture();
       }
 
       showSuccess(

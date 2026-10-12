@@ -7,13 +7,14 @@
 
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
-import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
-// Extend dayjs with required plugins
+// Extend dayjs with required plugins. Not `timezone`: nothing here needs
+// named zones, and when dayjs.tz exists react-big-calendar's localizer
+// switches to tz-mode date math that adds 24h per "day" across a DST change
+// (duplicating Nov 1 in US zones). See utils/calendarLocalizer.ts.
 dayjs.extend(localizedFormat);
-dayjs.extend(timezone);
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 

@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Captures the DataAnnotation payments work-log payload and delivers it to the TaskMint desktop app.",
   "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0dWf9Bt76PaUsSTm5/FSx35q0w5zJ6Ib6VEcLQOELe3BLUOc95hiKL+JREwuVE4SF2XkAla9fTKldQI5LoaZEpfosrpiRi4Hr2haKtQgeqgy+Tlz3gH6CSuw627foGmnc6fvOQISAJ8sgj2/nt7otv5EoTZE//0SXFt94lM5H42cfFs93AtRxmw+BcZ8fRc3izqnKZMz03HEKZarQlIAmTzJTo0G4zWtq4+ehwkj8crIT4hpKOAs/v+YAdOI4oBgKe4ax3598E9deiZvKxs2D/b3riJc9Cptynr87oaJxX/fcUVSpI4a9CB0gWsT+X9t0Aco8EPOFsK4Vx+kRHskkQIDAQAB",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

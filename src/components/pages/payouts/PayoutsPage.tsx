@@ -162,8 +162,9 @@ export function PayoutsPage() {
             </>
           }
         >
-          Work logs captured from DataAnnotation include a project without a task match —
-          review to finish the import.
+          {workLogs.stagedCapture.reason === 'unverified-link'
+            ? 'Work logs arrived through a taskmint:// link. Links can be opened by any web page, so review them before importing.'
+            : 'Work logs captured from DataAnnotation include a project without a task match — review to finish the import.'}
         </Alert>
       )}
 

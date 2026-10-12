@@ -24,7 +24,7 @@ export default defineConfig({
           if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react-vendor';
           if (id.includes('/node_modules/@mui/')) return 'mui-vendor';
           if (/\/node_modules\/(recharts|victory-vendor|d3-[^/]+)\//.test(id)) return 'chart-vendor';
-          if (/\/node_modules\/(dayjs|date-fns)\//.test(id)) return 'date-vendor';
+          if (id.includes('/node_modules/dayjs/')) return 'date-vendor';
           if (id.includes('/node_modules/@tauri-apps/')) return 'tauri-vendor';
           if (id.includes('/node_modules/@sentry/')) return 'sentry-vendor';
           return undefined;
