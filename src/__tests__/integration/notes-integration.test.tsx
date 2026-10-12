@@ -273,21 +273,31 @@ describe('Notes Integration', () => {
   });
 
   describe('Field Types Support', () => {
-    it('should support command field type', async () => {
-      const template = await templateService.createTemplate({
-        name: 'Command Template',
-        fields: [
-          {
-            id: 'command-field',
-            label: 'Command Output',
-            type: 'command' as const,
-            required: false,
-            order: 0,
-            command: 'echo "Hello World"',
-          },
-        ],
-        isActive: true,
-      });
+    it('loads templates saved with legacy command fields as text fields', async () => {
+      // A template stored before command fields were removed.
+      localStorage.setItem('noteTemplates', JSON.stringify([
+        {
+          id: 'legacy-template',
+          name: 'Command Template',
+          fields: [
+            {
+              id: 'command-field',
+              label: 'Command Output',
+              type: 'command',
+              required: false,
+              order: 0,
+              command: 'echo "Hello World"',
+            },
+          ],
+          isActive: true,
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-01T00:00:00.000Z',
+        },
+      ]));
+
+      const [template] = await templateService.getAllTemplates();
+      expect(template.fields[0].type).toBe('text');
+      expect(template.fields[0]).not.toHaveProperty('command');
 
       const note = await notesService.createNote({
         taskId: 'test-task',
@@ -297,10 +307,7 @@ describe('Notes Integration', () => {
           'command-field': 'Hello World',
         },
       });
-
       expect(note.fieldValues['command-field']).toBe('Hello World');
-      expect(template.fields[0].type).toBe('command');
-      expect(template.fields[0].command).toBe('echo "Hello World"');
     });
 
     it('should support all field types', async () => {
@@ -327,14 +334,6 @@ describe('Notes Integration', () => {
             type: 'date' as const,
             required: false,
             order: 2,
-          },
-          {
-            id: 'command-field',
-            label: 'Command Field',
-            type: 'command' as const,
-            required: false,
-            order: 3,
-            command: 'date',
           },
           {
             id: 'checkbox-field',
@@ -366,7 +365,6 @@ describe('Notes Integration', () => {
           'text-field': 'Sample text',
           'number-field': 42,
           'date-field': '2024-01-01',
-          'command-field': 'Command output',
           'checkbox-field': true,
           'select-field': 'opt1',
         },
@@ -375,7 +373,6 @@ describe('Notes Integration', () => {
       expect(note.fieldValues['text-field']).toBe('Sample text');
       expect(note.fieldValues['number-field']).toBe(42);
       expect(note.fieldValues['date-field']).toBe('2024-01-01');
-      expect(note.fieldValues['command-field']).toBe('Command output');
       expect(note.fieldValues['checkbox-field']).toBe(true);
       expect(note.fieldValues['select-field']).toBe('opt1');
     });

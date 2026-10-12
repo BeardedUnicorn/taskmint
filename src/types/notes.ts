@@ -8,7 +8,7 @@
 import { z } from 'zod';
 
 // Field Types
-export type FieldType = 'text' | 'number' | 'date' | 'command' | 'checkbox' | 'select';
+export type FieldType = 'text' | 'number' | 'date' | 'checkbox' | 'select';
 
 export interface SelectOption {
   label: string;
@@ -27,7 +27,6 @@ export interface TemplateField {
     max?: number;
     pattern?: string;
   };
-  command?: string;
   options?: SelectOption[]; // For select field type
 }
 
@@ -72,10 +71,22 @@ export const SelectOptionSchema = z.object({
   value: z.string().min(1),
 });
 
-export const TemplateFieldSchema = z.object({
+// 'command' fields (which ran a shell command to fill the value) were removed.
+// Templates saved or exported before that still carry them, so they load as
+// plain text fields instead of failing validation; saved values are kept.
+function migrateLegacyCommandField(field: unknown): unknown {
+  if (!field || typeof field !== 'object') return field;
+  const record = field as Record<string, unknown>;
+  if (record.type !== 'command') return field;
+  const migrated: Record<string, unknown> = { ...record, type: 'text' };
+  delete migrated.command;
+  return migrated;
+}
+
+export const TemplateFieldSchema = z.preprocess(migrateLegacyCommandField, z.object({
   id: z.string().min(1),
   label: z.string().min(1).max(100),
-  type: z.enum(['text', 'number', 'date', 'command', 'checkbox', 'select']),
+  type: z.enum(['text', 'number', 'date', 'checkbox', 'select']),
   required: z.boolean(),
   placeholder: z.string().optional(),
   order: z.number().min(0),
@@ -84,9 +95,8 @@ export const TemplateFieldSchema = z.object({
     max: z.number().optional(),
     pattern: z.string().optional(),
   }).optional(),
-  command: z.string().optional(),
   options: z.array(SelectOptionSchema).optional(),
-});
+}));
 
 export const NoteTemplateSchema = z.object({
   id: z.string().min(1),

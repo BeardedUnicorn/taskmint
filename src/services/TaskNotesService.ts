@@ -402,11 +402,6 @@ export class TaskNotesService implements ITaskNotesService {
               errors[field.id] = `${field.label} must be one of the available options`;
             }
             break;
-          case 'command':
-            if (typeof value !== 'string') {
-              errors[field.id] = `${field.label} must be a string`;
-            }
-            break;
         }
       }
     });

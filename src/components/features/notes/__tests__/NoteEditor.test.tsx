@@ -6,9 +6,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate, TaskNote } from '../../../../types/notes';
+import { invoke } from '@tauri-apps/api/core';
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockResolvedValue('Command output'),
+  invoke: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('NoteEditor', () => {
@@ -25,11 +26,10 @@ describe('NoteEditor', () => {
       },
       {
         id: 'field2',
-        label: 'Command Field',
-        type: 'command',
+        label: 'Number Field',
+        type: 'number',
         required: false,
         order: 1,
-        command: 'echo "Test"',
       },
     ],
     createdAt: new Date().toISOString(),
@@ -58,11 +58,11 @@ describe('NoteEditor', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Text Field')).toBeInTheDocument();
-      expect(screen.getByLabelText('Command Field')).toBeInTheDocument();
+      expect(screen.getByLabelText('Number Field')).toBeInTheDocument();
     });
   });
 
-  it('runs command on button click', async () => {
+  it('never runs a backend command when a template opens', async () => {
     render(
       <NoteEditor
         taskId="task1"
@@ -77,12 +77,11 @@ describe('NoteEditor', () => {
       />
     );
 
-    const runButton = screen.getByTitle('Run Command');
-    fireEvent.click(runButton);
-
     await waitFor(() => {
-      expect(screen.getByLabelText('Command Field')).toHaveValue('Command output');
+      expect(screen.getByLabelText('Text Field')).toBeInTheDocument();
     });
+    expect(screen.queryByTitle('Run Command')).not.toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('shows confirmation dialog when cancelling with unsaved changes', async () => {

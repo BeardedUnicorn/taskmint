@@ -33,7 +33,6 @@ import {
   TextFields as TextIcon,
   Numbers as NumberIcon,
   CalendarToday as DateIcon,
-  Terminal as CommandIcon,
   CheckBox as CheckboxIcon,
   List as SelectIcon,
   Add as AddIcon,
@@ -45,7 +44,6 @@ const FIELD_TYPE_ICONS = {
   text: TextIcon,
   number: NumberIcon,
   date: DateIcon,
-  command: CommandIcon,
   checkbox: CheckboxIcon,
   select: SelectIcon,
 };
@@ -54,7 +52,6 @@ const FIELD_TYPE_LABELS = {
   text: 'Text',
   number: 'Number',
   date: 'Date',
-  command: 'Command',
   checkbox: 'Checkbox',
   select: 'Select',
 };
@@ -81,11 +78,10 @@ export function FieldEditor({
   }, [handleFieldUpdate]);
 
   const handleTypeChange = useCallback((type: FieldType) => {
-    // Clear validation, command, and options when type changes
+    // Clear validation and options when type changes
     const updates: Partial<TemplateField> = {
       type,
       validation: undefined,
-      command: type === 'command' ? '' : undefined,
       options: type === 'select' ? [{ label: 'Option 1', value: 'option1' }] : undefined,
     };
     handleFieldUpdate(updates);
@@ -115,10 +111,6 @@ export function FieldEditor({
       validation: Object.keys(newValidation).length > 0 ? newValidation : undefined 
     });
   }, [localField.validation, handleFieldUpdate]);
-
-  const handleCommandChange = useCallback((command: string) => {
-    handleFieldUpdate({ command: command || undefined });
-  }, [handleFieldUpdate]);
 
   const handleOptionsChange = useCallback((options: SelectOption[]) => {
     handleFieldUpdate({ options });
@@ -344,23 +336,6 @@ export function FieldEditor({
             </Box>
           )}
 
-          {localField.type === 'command' && (
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                Command Configuration
-              </Typography>
-              <TextField
-                label="CLI Command"
-                value={localField.command || ''}
-                onChange={(e) => handleCommandChange(e.target.value)}
-                size="small"
-                fullWidth
-                placeholder="echo 'Hello World'"
-                helperText="The CLI command to execute when the note is created or the button is clicked"
-              />
-            </Box>
-          )}
-
           {localField.type === 'select' && (
             <Box>
               <Typography variant="subtitle2" gutterBottom>
@@ -457,29 +432,6 @@ export function FieldEditor({
                   size="small"
                   slotProps={{
                     inputLabel: { shrink: true }
-                  }}
-                />
-              )}
-              {localField.type === 'command' && (
-                <TextField
-                  label={localField.label}
-                  placeholder={localField.placeholder || 'Output from command'}
-                  required={localField.required}
-                  multiline
-                  minRows={3}
-                  maxRows={6}
-                  fullWidth
-                  disabled
-                  size="small"
-                  sx={{
-                    '& .MuiInputBase-root': {
-                      alignItems: 'flex-start',
-                    },
-                    '& .MuiInputBase-input': {
-                      whiteSpace: 'pre-wrap',
-                      wordWrap: 'break-word',
-                      lineHeight: 1.5,
-                    },
                   }}
                 />
               )}

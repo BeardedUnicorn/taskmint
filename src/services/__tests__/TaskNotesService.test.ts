@@ -127,28 +127,6 @@ describe('TaskNotesService', () => {
       expect(invalid.isValid).toBe(false);
       expect(invalid.errors.color).toBe('Color must be one of the available options');
     });
-
-    it('should validate command fields', () => {
-      const template: NoteTemplate = {
-        ...mockTemplate,
-        fields: [
-          {
-            id: 'cmd',
-            label: 'Command',
-            type: 'command',
-            required: false,
-            order: 0,
-          },
-        ],
-      };
-
-      const valid = (service as any).validateNoteFieldValues({ cmd: 'echo test' }, template);
-      expect(valid.isValid).toBe(true);
-
-      const invalid = (service as any).validateNoteFieldValues({ cmd: 123 }, template);
-      expect(invalid.isValid).toBe(false);
-      expect(invalid.errors.cmd).toBe('Command must be a string');
-    });
   });
 
   describe('Archive functionality', () => {

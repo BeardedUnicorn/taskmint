@@ -26,6 +26,7 @@ import {
   CloudSyncSettingsSection,
   DashboardCustomizationSection,
   DataManagementSection,
+  PrivacySettingsSection,
 } from './settings';
 import { InactivitySettingsSection } from './settings/InactivitySettingsSection';
 
@@ -162,6 +163,11 @@ export function SettingsPage() {
         onImportSuccess={handleImportSuccess}
         onImportError={handleImportError}
       />
+
+      <Divider sx={{ my: 4 }} />
+
+      {/* Privacy Section */}
+      <PrivacySettingsSection />
 
       <Divider sx={{ my: 4 }} />
 

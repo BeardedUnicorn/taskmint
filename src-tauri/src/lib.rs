@@ -266,9 +266,6 @@ pub fn run() {
             commands::tray::update_tray_menu_command,
             commands::tray::test_new_task_dialog,
             
-            // System commands
-            commands::system::execute_cli_command,
-            
             // Backup commands
             commands::backup::validate_backup_path,
             commands::backup::perform_automatic_backup,
