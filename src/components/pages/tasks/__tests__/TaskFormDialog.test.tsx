@@ -65,6 +65,17 @@ describe('TaskFormDialog', () => {
     });
   });
 
+  it('explains that a changed rate applies to new time only', () => {
+    const task: Task = { id: '1', name: 'Existing Task', hourlyRate: 10, createdAt: '', updatedAt: '' };
+    render(<TaskFormDialog open={true} onClose={onClose} mode="edit" initialTask={task} onSubmit={onSubmit} />);
+
+    expect(screen.queryByText(/Applies to time tracked from now on/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Hourly Rate'), { target: { value: '12' } });
+    expect(
+      screen.getByText(/Applies to time tracked from now on. Time already tracked keeps the rate it was tracked at./)
+    ).toBeInTheDocument();
+  });
+
   it('has no Parent Task field', () => {
     render(
       <TaskFormDialog

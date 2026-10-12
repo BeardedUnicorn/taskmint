@@ -391,6 +391,26 @@ describe('buildSynthesizedSession', () => {
   });
 });
 
+describe('buildSynthesizedSession rate', () => {
+  it("carries the rate the site's pay implies, so rate × time is the imported amount", () => {
+    const a = makeTimedEntry({ id: 'a', createdAt: localIso(2026, 8, 26, 10), timeInMinutes: 40, amountCents: 2000 });
+    const b = makeTimedEntry({ id: 'b', createdAt: localIso(2026, 8, 26, 12), timeInMinutes: 20, amountCents: 1000 });
+
+    const session = buildSynthesizedSession('task-1', 'Raccoon - SWE', a.workDay, [a, b], NOW_ISO);
+
+    // $30 over one hour
+    expect(session.hourlyRate).toBeCloseTo(30, 10);
+    const earned = (session.totalDuration / 3_600_000) * (session.hourlyRate as number);
+    expect(Math.round(earned * 100)).toBe(3000);
+  });
+
+  it('has no rate when the entries carry no pay', () => {
+    const free = makeTimedEntry({ id: 'f', createdAt: localIso(2026, 8, 26, 10), amountCents: 0 });
+    const session = buildSynthesizedSession('task-1', 'Raccoon - SWE', free.workDay, [free], NOW_ISO);
+    expect(session.hourlyRate).toBeNull();
+  });
+});
+
 describe('buildRewriteGroups', () => {
   const createdAt = localIso(2026, 8, 26, 14, 0);
   const pasteEntry = makeTimedEntry({ id: 'paste-1', createdAt, timeInMinutes: 240 });

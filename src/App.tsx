@@ -12,6 +12,8 @@ import { AddTimeDialog } from './components/ui/dialogs/AddTimeDialog';
 import { IdleReturnDialog } from './components/ui/dialogs/IdleReturnDialog';
 import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar, type SidebarView } from './components/layout';
+import { GoalProgress } from './components/layout/GoalProgress';
+import { DailyGoalProvider } from './contexts/DailyGoalContext';
 
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
 const NotesPage = lazy(() => import('./components/pages/NotesPage').then(module => ({ default: module.NotesPage })));
@@ -89,8 +91,9 @@ function AppContent() {
   const idleReturn = useIdleReturn();
 
   // Daily goal monitoring
-  useDailyGoalProgressMonitor({
-    timeEntries: allTimeEntries,
+  // Daily goal: live progress for the sidebar, plus milestone notifications
+  const goalProgress = useDailyGoalProgressMonitor({
+    sessions: sessionManager.sessions,
     tasks,
   });
 
@@ -141,6 +144,11 @@ function AppContent() {
         <Sidebar
           activeView={activeView}
           onViewChange={handleViewChange}
+          footer={
+            goalProgress.enabled
+              ? (collapsed) => <GoalProgress progress={goalProgress} collapsed={collapsed} />
+              : undefined
+          }
         />
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
@@ -227,15 +235,17 @@ function App() {
       <ThemeProvider>
         <NotificationProvider>
           <TaskManagementProvider>
-            <ActiveTimerProvider>
-              <SessionManagementProvider>
-                <WorkLogProvider>
-                  <BackupSettingsProvider>
-                    <AppContent />
-                  </BackupSettingsProvider>
-                </WorkLogProvider>
-              </SessionManagementProvider>
-            </ActiveTimerProvider>
+            <DailyGoalProvider>
+              <ActiveTimerProvider>
+                <SessionManagementProvider>
+                  <WorkLogProvider>
+                    <BackupSettingsProvider>
+                      <AppContent />
+                    </BackupSettingsProvider>
+                  </WorkLogProvider>
+                </SessionManagementProvider>
+              </ActiveTimerProvider>
+            </DailyGoalProvider>
           </TaskManagementProvider>
         </NotificationProvider>
       </ThemeProvider>

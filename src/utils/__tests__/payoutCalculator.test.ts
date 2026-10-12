@@ -187,6 +187,39 @@ describe('buildPayoutCells', () => {
   });
 });
 
+describe('buildPayoutCells estimates use each session\'s rate', () => {
+  it('keeps an earlier day at the rate it was tracked at after the task rate changes', () => {
+    // Two hours tracked at $40; the task now pays $75
+    const session = makeSession({ hourlyRate: 40, timerInstances: [makeInstance()] });
+    const [cell] = buildPayoutCells([], [session], [makeTask({ hourlyRate: 75 })], 7, NOW_MS);
+    expect(cell.estimatedCents).toBe(8000);
+  });
+
+  it('falls back to the task rate for sessions without one', () => {
+    const session = makeSession({ timerInstances: [makeInstance()] });
+    const [cell] = buildPayoutCells([], [session], [makeTask({ hourlyRate: 75 })], 7, NOW_MS);
+    expect(cell.estimatedCents).toBe(15000);
+  });
+
+  it('adds sessions at different rates on the same day', () => {
+    const morning = makeSession({ id: 's-am', hourlyRate: 40, timerInstances: [makeInstance({ id: 'am' })] });
+    const evening = makeSession({
+      id: 's-pm',
+      hourlyRate: 50,
+      timerInstances: [
+        makeInstance({
+          id: 'pm',
+          startTime: new Date(2026, 7, 26, 18, 0),
+          endTime: new Date(2026, 7, 26, 19, 0),
+          duration: 3_600_000,
+        }),
+      ],
+    });
+    const [cell] = buildPayoutCells([], [morning, evening], [makeTask()], 7, NOW_MS);
+    expect(cell.estimatedCents).toBe(8000 + 5000);
+  });
+});
+
 describe('summarizePayouts', () => {
   const today = dayStr(2026, 8, 31);
 

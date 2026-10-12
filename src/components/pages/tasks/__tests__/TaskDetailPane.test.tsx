@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { vi, describe, it, expect } from 'vitest';
 import { TaskDetailPane } from '../TaskDetailPane';
 import { Task } from '../../../../types/task';
+import { TimeEntry } from '../../../../types/timer';
 
 const task: Task = {
   id: 'task-1',
@@ -49,3 +50,47 @@ describe('TaskDetailPane favorite star', () => {
     expect(screen.queryByRole('button', { name: /favorites/ })).not.toBeInTheDocument();
   });
 });
+
+describe('TaskDetailPane earnings', () => {
+  const entry = (id: string, hourlyRate: number | null): TimeEntry => ({
+    id,
+    taskId: 'task-1',
+    taskName: 'Annotation',
+    startTime: new Date(2026, 9, 10, 9, 0),
+    endTime: new Date(2026, 9, 10, 10, 0),
+    duration: 3_600_000,
+    isRunning: false,
+    date: '2026-10-10',
+    hourlyRate,
+  });
+
+  it('keeps time at the rate it was tracked at after the task rate changes', () => {
+    // An hour each, tracked at $40 and $45; the task now pays $90
+    render(
+      <TaskDetailPane
+        task={{ ...task, hourlyRate: 90 }}
+        timeEntries={[entry('a', 40), entry('b', 45)]}
+        onEditEntry={() => {}}
+        onDeleteEntry={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Total Earnings: $85.00')).toBeInTheDocument();
+    expect(screen.getByText('$40.00')).toBeInTheDocument();
+    expect(screen.getByText('$45.00')).toBeInTheDocument();
+  });
+
+  it('uses the current task rate for time without one of its own', () => {
+    render(
+      <TaskDetailPane
+        task={{ ...task, hourlyRate: 90 }}
+        timeEntries={[entry('a', null)]}
+        onEditEntry={() => {}}
+        onDeleteEntry={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Total Earnings: $90.00')).toBeInTheDocument();
+  });
+});
+

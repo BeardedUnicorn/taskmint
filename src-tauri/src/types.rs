@@ -98,6 +98,11 @@ pub struct TaskSession {
     // (must match WORKLOG_IMPORT_SOURCE in src/types/workLog.ts).
     #[serde(default)]
     pub source: Option<String>,
+    // The task's hourly rate when the session started (or, for imports, the
+    // rate the site's pay implies), so later rate changes don't rewrite past
+    // earnings. None for sessions from older builds until filled in.
+    #[serde(rename = "hourlyRate", default)]
+    pub hourly_rate: Option<f64>,
     #[serde(default)]
     pub date: String, // YYYY-MM-DD format
     #[serde(rename = "createdAt", default)]

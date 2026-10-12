@@ -339,14 +339,23 @@ export function buildSynthesizedSession(
       };
     });
 
+  // The rate the site's pay implies for this (task, day), unrounded, so
+  // rate × time reproduces the imported cents on every page that shows
+  // earnings (and a later change to the task's rate leaves it alone).
+  const totalDuration = instances.reduce((sum, i) => sum + (i.duration ?? 0), 0);
+  const totalCents = timedEntries.reduce((sum, entry) => sum + entry.amountCents, 0);
+  const hourlyRate =
+    totalDuration > 0 && totalCents > 0 ? totalCents / 100 / (totalDuration / 3_600_000) : null;
+
   return {
     id: sessionId,
     taskId,
     taskName,
     timerInstances: instances,
-    totalDuration: instances.reduce((sum, i) => sum + (i.duration ?? 0), 0),
+    totalDuration,
     isActive: false,
     source: WORKLOG_IMPORT_SOURCE,
+    hourlyRate,
     date: workDay,
     createdAt: nowIso,
     updatedAt: nowIso,

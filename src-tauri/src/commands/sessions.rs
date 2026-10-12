@@ -2,7 +2,7 @@
 
 use crate::state::AppState;
 use crate::storage;
-use crate::types::{TaskSession, TimerInstance};
+use crate::types::{Task, TaskSession, TimerInstance, WorkLogEntry};
 use chrono::{DateTime, Local, Utc};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
@@ -74,8 +74,14 @@ pub(crate) fn recalculate_total_duration(session: &mut TaskSession) {
         .sum();
 }
 
-/// A new, active session for a task. Callers deactivate the others first.
-fn new_task_session(task_id: String, task_name: String, now: DateTime<Utc>) -> TaskSession {
+/// A new, active session for a task, carrying the task's current rate.
+/// Callers deactivate the others first.
+fn new_task_session(
+    task_id: String,
+    task_name: String,
+    hourly_rate: Option<f64>,
+    now: DateTime<Utc>,
+) -> TaskSession {
     TaskSession {
         id: new_session_id(),
         task_id,
@@ -85,6 +91,7 @@ fn new_task_session(task_id: String, task_name: String, now: DateTime<Utc>) -> T
         notes: None,
         is_active: true,
         source: None,
+        hourly_rate,
         // Local day, not UTC: the dashboard's today-filter and the calendar
         // compare this string against the user's local date.
         date: Local::now().format("%Y-%m-%d").to_string(),
@@ -890,6 +897,7 @@ pub fn start_task_timer(
     sessions: &mut Vec<TaskSession>,
     task_id: &str,
     task_name: &str,
+    hourly_rate: Option<f64>,
     now: DateTime<Utc>,
 ) -> Result<(TrayStart, Vec<String>), String> {
     if let Some(session) = sessions
@@ -927,7 +935,8 @@ pub fn start_task_timer(
         }
         session.is_active = false;
     }
-    let mut session = new_task_session(task_id.to_string(), task_name.to_string(), now);
+    let mut session =
+        new_task_session(task_id.to_string(), task_name.to_string(), hourly_rate, now);
     let mut instance = new_timer_instance(&session.id, now);
     begin_instance(&mut instance, now);
     let id = instance.id.clone();
@@ -972,14 +981,86 @@ pub fn start_task_with_handoff(
     sessions: &mut Vec<TaskSession>,
     task_id: &str,
     task_name: &str,
+    hourly_rate: Option<f64>,
     now: DateTime<Utc>,
 ) -> Result<(TrayStart, Vec<String>, Option<String>), String> {
     let previous = live_timer(sessions, now);
-    let (outcome, stopped) = start_task_timer(sessions, task_id, task_name, now)?;
+    let (outcome, stopped) = start_task_timer(sessions, task_id, task_name, hourly_rate, now)?;
     let handoff = previous
         .filter(|live| stopped.contains(&live.instance_id))
         .map(|live| live.task_name);
     Ok((outcome, stopped, handoff))
+}
+
+/// A task's current hourly rate from the mirrored task list (None when the
+/// task has no rate, or isn't mirrored yet; fill_missing_session_rates
+/// catches the session up later).
+fn task_rate(app_state: &AppState, task_id: &str) -> Option<f64> {
+    app_state
+        .with_tasks(|tasks| {
+            tasks
+                .iter()
+                .find(|t| t.id == task_id)
+                .and_then(|t| t.hourly_rate)
+                .filter(|rate| *rate > 0.0)
+        })
+        .ok()
+        .flatten()
+}
+
+/// Give sessions without a rate their task's current rate (when it has one).
+/// Sessions keep the rate they were given, so this only reaches sessions from
+/// older builds and time tracked before the task had a rate. Returns whether
+/// anything changed.
+pub fn fill_missing_session_rates(sessions: &mut [TaskSession], tasks: &[Task]) -> bool {
+    let mut changed = false;
+    for session in sessions.iter_mut().filter(|s| s.hourly_rate.is_none()) {
+        let rate = tasks
+            .iter()
+            .find(|t| t.id == session.task_id)
+            .and_then(|t| t.hourly_rate)
+            .filter(|rate| *rate > 0.0);
+        if rate.is_some() {
+            session.hourly_rate = rate;
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Imported sessions saved before rates were captured: give them the rate the
+/// site's pay implies, from their timers' ledger entries (matched by
+/// external_id), so rate × time reproduces the imported amount. Runs before
+/// fill_missing_session_rates, which would otherwise give them the task's
+/// rate. Returns whether anything changed.
+pub fn fill_imported_session_rates(sessions: &mut [TaskSession], entries: &[WorkLogEntry]) -> bool {
+    use std::collections::HashMap;
+    let cents_by_entry: HashMap<&str, i64> = entries
+        .iter()
+        .map(|entry| (entry.id.as_str(), entry.amount_cents))
+        .collect();
+    let mut changed = false;
+    for session in sessions.iter_mut().filter(|s| {
+        s.hourly_rate.is_none()
+            && s.source.as_deref() == Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE)
+    }) {
+        let (mut cents, mut ms) = (0_i64, 0_u64);
+        for instance in &session.timer_instances {
+            let (Some(entry_id), Some(duration)) = (&instance.external_id, instance.duration)
+            else {
+                continue;
+            };
+            if let Some(entry_cents) = cents_by_entry.get(entry_id.as_str()) {
+                cents += entry_cents;
+                ms += duration;
+            }
+        }
+        if cents > 0 && ms > 0 {
+            session.hourly_rate = Some(cents as f64 / 100.0 / (ms as f64 / 3_600_000.0));
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// Start a task's timer: mutate, persist, notify. Shared by the start_task
@@ -991,9 +1072,11 @@ pub fn start_task_now(
     task_name: &str,
 ) -> Result<(TrayStart, Option<String>), String> {
     let now = Utc::now();
+    // Read before taking the sessions lock (the two locks are never nested)
+    let hourly_rate = task_rate(app_state, task_id);
     let (outcome, stopped, handoff) = app_state.with_task_sessions_mut(
         |sessions| -> Result<(TrayStart, Vec<String>, Option<String>), String> {
-            let result = start_task_with_handoff(sessions, task_id, task_name, now)?;
+            let result = start_task_with_handoff(sessions, task_id, task_name, hourly_rate, now)?;
             if result.0 != TrayStart::AlreadyRunning {
                 storage::save_sessions(app, sessions)?;
             }
@@ -1140,6 +1223,7 @@ pub fn build_manual_session(
     sessions: &[TaskSession],
     task_id: &str,
     task_name: &str,
+    hourly_rate: Option<f64>,
     start: DateTime<Utc>,
     duration_ms: u64,
     now: DateTime<Utc>,
@@ -1174,7 +1258,8 @@ pub fn build_manual_session(
         }
     }
 
-    let mut session = new_task_session(task_id.to_string(), task_name.to_string(), now);
+    let mut session =
+        new_task_session(task_id.to_string(), task_name.to_string(), hourly_rate, now);
     session.is_active = false;
     session.source = Some(MANUAL_SOURCE.to_string());
     session.date = start.with_timezone(&Local).format("%Y-%m-%d").to_string();
@@ -1204,6 +1289,7 @@ pub fn add_manual_time(
     let start = DateTime::parse_from_rfc3339(&start_time)
         .map_err(|e| format!("Invalid start time: {}", e))?
         .with_timezone(&Utc);
+    let hourly_rate = task_rate(&app_state, task_id.trim());
 
     let session =
         app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
@@ -1211,6 +1297,7 @@ pub fn add_manual_time(
                 sessions,
                 task_id.trim(),
                 task_name.trim(),
+                hourly_rate,
                 start,
                 duration_ms,
                 now,
@@ -1326,6 +1413,7 @@ mod tests {
             notes: None,
             is_active: true,
             source: None,
+            hourly_rate: None,
             date: "2026-08-19".to_string(),
             created_at: ts(0).to_rfc3339(),
             updated_at: ts(0).to_rfc3339(),
@@ -1603,7 +1691,8 @@ mod tests {
         cur.timer_instances = vec![running];
         let mut sessions = vec![cur];
 
-        let (outcome, stopped) = start_task_timer(&mut sessions, "b", "Task b", ts(60)).unwrap();
+        let (outcome, stopped) =
+            start_task_timer(&mut sessions, "b", "Task b", None, ts(60)).unwrap();
 
         assert_eq!(stopped, vec!["r".to_string()]);
         assert!(!sessions[0].is_active);
@@ -1634,7 +1723,8 @@ mod tests {
         cur.timer_instances = vec![done];
         let mut sessions = vec![cur];
 
-        let (outcome, stopped) = start_task_timer(&mut sessions, "a", "Task a", ts(100)).unwrap();
+        let (outcome, stopped) =
+            start_task_timer(&mut sessions, "a", "Task a", None, ts(100)).unwrap();
 
         assert!(stopped.is_empty());
         assert_eq!(sessions.len(), 1);
@@ -1654,7 +1744,7 @@ mod tests {
         cur.timer_instances = vec![paused];
         let mut sessions = vec![cur];
 
-        let (outcome, _) = start_task_timer(&mut sessions, "a", "Task a", ts(90)).unwrap();
+        let (outcome, _) = start_task_timer(&mut sessions, "a", "Task a", None, ts(90)).unwrap();
 
         assert_eq!(outcome, TrayStart::Resumed("p".to_string()));
         let resumed = &sessions[0].timer_instances[0];
@@ -1672,7 +1762,8 @@ mod tests {
         let mut sessions = vec![cur];
         let before = sessions.clone();
 
-        let (outcome, stopped) = start_task_timer(&mut sessions, "a", "Task a", ts(90)).unwrap();
+        let (outcome, stopped) =
+            start_task_timer(&mut sessions, "a", "Task a", None, ts(90)).unwrap();
 
         assert_eq!(outcome, TrayStart::AlreadyRunning);
         assert!(stopped.is_empty());
@@ -1711,7 +1802,7 @@ mod tests {
         let mut sessions = vec![cur];
 
         let (outcome, stopped, handoff) =
-            start_task_with_handoff(&mut sessions, "b", "Task b", ts(60)).unwrap();
+            start_task_with_handoff(&mut sessions, "b", "Task b", None, ts(60)).unwrap();
 
         assert!(matches!(outcome, TrayStart::Started(_)));
         assert_eq!(stopped, vec!["r".to_string()]);
@@ -1729,7 +1820,7 @@ mod tests {
         let mut sessions = vec![cur];
 
         let (outcome, _, handoff) =
-            start_task_with_handoff(&mut sessions, "a", "Task a", ts(90)).unwrap();
+            start_task_with_handoff(&mut sessions, "a", "Task a", None, ts(90)).unwrap();
 
         assert_eq!(outcome, TrayStart::Resumed("p".to_string()));
         assert_eq!(handoff, None);
@@ -1739,7 +1830,7 @@ mod tests {
     fn start_has_no_handoff_when_nothing_was_live() {
         let mut sessions = vec![tray_session("old", "a", false)];
         let (_, stopped, handoff) =
-            start_task_with_handoff(&mut sessions, "b", "Task b", ts(10)).unwrap();
+            start_task_with_handoff(&mut sessions, "b", "Task b", None, ts(10)).unwrap();
         assert!(stopped.is_empty());
         assert_eq!(handoff, None);
     }
@@ -1808,22 +1899,23 @@ mod tests {
     fn manual_time_rejects_invalid_entries() {
         let now = ts(100_000);
         let start = ts(10_000);
-        assert!(build_manual_session(&[], "", "Task", start, HOUR_MS, now).is_err());
+        assert!(build_manual_session(&[], "", "Task", None, start, HOUR_MS, now).is_err());
         assert_eq!(
-            build_manual_session(&[], "a", "Task a", start, 0, now).unwrap_err(),
+            build_manual_session(&[], "a", "Task a", None, start, 0, now).unwrap_err(),
             "Duration must be greater than zero"
         );
         assert_eq!(
-            build_manual_session(&[], "a", "Task a", start, 24 * HOUR_MS + 1, now).unwrap_err(),
+            build_manual_session(&[], "a", "Task a", None, start, 24 * HOUR_MS + 1, now)
+                .unwrap_err(),
             "A time entry can be at most 24 hours"
         );
         // Ends 30 minutes after "now"
         assert_eq!(
-            build_manual_session(&[], "a", "Task a", ts(98_000), HOUR_MS, now).unwrap_err(),
+            build_manual_session(&[], "a", "Task a", None, ts(98_000), HOUR_MS, now).unwrap_err(),
             "The time entry can't end in the future"
         );
         // Ending within the clock-skew tolerance is fine
-        assert!(build_manual_session(&[], "a", "Task a", ts(96_430), HOUR_MS, now).is_ok());
+        assert!(build_manual_session(&[], "a", "Task a", None, ts(96_430), HOUR_MS, now).is_ok());
     }
 
     #[test]
@@ -1834,29 +1926,60 @@ mod tests {
         done.timer_instances = vec![finished("f", "done", 10_000, 13_600)];
 
         // Starts inside the finished timer
-        let err = build_manual_session(&[done.clone()], "a", "Task a", ts(12_000), HOUR_MS, now)
-            .unwrap_err();
+        let err = build_manual_session(
+            &[done.clone()],
+            "a",
+            "Task a",
+            None,
+            ts(12_000),
+            HOUR_MS,
+            now,
+        )
+        .unwrap_err();
         assert!(err.contains("Earlier work"), "{}", err);
         // Touching end to start is not an overlap
+        assert!(build_manual_session(
+            &[done.clone()],
+            "a",
+            "Task a",
+            None,
+            ts(13_600),
+            HOUR_MS,
+            now
+        )
+        .is_ok());
         assert!(
-            build_manual_session(&[done.clone()], "a", "Task a", ts(13_600), HOUR_MS, now).is_ok()
+            build_manual_session(&[done], "a", "Task a", None, ts(6_400), HOUR_MS, now).is_ok()
         );
-        assert!(build_manual_session(&[done], "a", "Task a", ts(6_400), HOUR_MS, now).is_ok());
 
         // A live timer occupies its start up to now
         let mut live = tray_instance("r", "cur", 90_000);
         live.is_running = true;
         let mut cur = tray_session("cur", "b", true);
         cur.timer_instances = vec![live];
-        assert!(
-            build_manual_session(&[cur.clone()], "a", "Task a", ts(88_000), HOUR_MS, now).is_err()
-        );
+        assert!(build_manual_session(
+            &[cur.clone()],
+            "a",
+            "Task a",
+            None,
+            ts(88_000),
+            HOUR_MS,
+            now
+        )
+        .is_err());
         // Idle (never run) timers occupy nothing
         let mut idle_session = tray_session("idle", "c", true);
         idle_session.timer_instances = vec![tray_instance("i", "idle", 88_000)];
-        assert!(
-            build_manual_session(&[idle_session], "a", "Task a", ts(88_000), HOUR_MS, now).is_ok()
-        );
+        assert!(build_manual_session(
+            &[idle_session],
+            "a",
+            "Task a",
+            None,
+            ts(88_000),
+            HOUR_MS,
+            now
+        )
+        .is_ok());
     }
 
     #[test]
@@ -1864,7 +1987,8 @@ mod tests {
         let now = ts(100_000);
         let start = ts(20_000);
 
-        let session = build_manual_session(&[], "a", "Task a", start, 90 * 60_000, now).unwrap();
+        let session =
+            build_manual_session(&[], "a", "Task a", None, start, 90 * 60_000, now).unwrap();
 
         assert!(!session.is_active);
         assert_eq!(session.source.as_deref(), Some(MANUAL_SOURCE));
@@ -1885,5 +2009,117 @@ mod tests {
         assert_eq!(instance.duration, Some(90 * 60_000));
         assert_eq!(instance.paused_duration, Some(0));
         assert!(!instance.is_running && !instance.is_paused);
+    }
+
+    // --- hourly rates ------------------------------------------------------
+
+    fn rated_task(id: &str, rate: Option<f64>) -> Task {
+        Task {
+            id: id.to_string(),
+            name: format!("Task {}", id),
+            hourly_rate: rate,
+            default_note_template_id: None,
+            is_archived: false,
+            is_favorite: false,
+            created_at: ts(0).to_rfc3339(),
+            updated_at: ts(0).to_rfc3339(),
+        }
+    }
+
+    #[test]
+    fn a_new_session_captures_the_rate_and_continuing_keeps_it() {
+        let mut sessions = Vec::new();
+        start_task_timer(&mut sessions, "a", "Task a", Some(40.0), ts(0)).unwrap();
+        assert_eq!(sessions[0].hourly_rate, Some(40.0));
+
+        // Pause, then start the same task again at a new rate: same session,
+        // same rate.
+        pause_live_timer(&mut sessions, ts(60));
+        start_task_timer(&mut sessions, "a", "Task a", Some(55.0), ts(120)).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].hourly_rate, Some(40.0));
+
+        // Another task opens its own session at its own rate
+        start_task_timer(&mut sessions, "b", "Task b", Some(25.0), ts(180)).unwrap();
+        assert_eq!(sessions[1].hourly_rate, Some(25.0));
+    }
+
+    #[test]
+    fn manual_time_captures_the_rate() {
+        let session = build_manual_session(
+            &[],
+            "a",
+            "Task a",
+            Some(32.5),
+            ts(1_000),
+            60_000,
+            ts(10_000),
+        )
+        .unwrap();
+        assert_eq!(session.hourly_rate, Some(32.5));
+    }
+
+    #[test]
+    fn filling_rates_reaches_only_sessions_without_one() {
+        let mut keeps = tray_session("keeps", "a", false);
+        keeps.hourly_rate = Some(20.0);
+        let missing_a = tray_session("missing-a", "a", false);
+        let missing_unrated = tray_session("missing-b", "b", false);
+        let mut sessions = vec![keeps, missing_a, missing_unrated];
+        let tasks = vec![rated_task("a", Some(30.0)), rated_task("b", None)];
+
+        assert!(fill_missing_session_rates(&mut sessions, &tasks));
+        assert_eq!(sessions[0].hourly_rate, Some(20.0)); // past rate kept
+        assert_eq!(sessions[1].hourly_rate, Some(30.0)); // filled from the task
+        assert_eq!(sessions[2].hourly_rate, None); // task has no rate yet
+
+        // Nothing left to fill: reports no change
+        assert!(!fill_missing_session_rates(&mut sessions, &tasks));
+        // Once task b gets a rate, its earlier time picks it up
+        let tasks = vec![rated_task("a", Some(99.0)), rated_task("b", Some(15.0))];
+        assert!(fill_missing_session_rates(&mut sessions, &tasks));
+        assert_eq!(sessions[1].hourly_rate, Some(30.0));
+        assert_eq!(sessions[2].hourly_rate, Some(15.0));
+    }
+
+    #[test]
+    fn older_imported_sessions_get_the_rate_the_site_pay_implies() {
+        let ledger: Vec<WorkLogEntry> = serde_json::from_value(serde_json::json!([
+            { "id": "e1", "kind": "timed", "amountCents": 2_000 },
+            { "id": "e2", "kind": "timed", "amountCents": 1_000 }
+        ]))
+        .unwrap();
+        let timer = |id: &str, entry: &str, minutes: u64| TimerInstance {
+            external_id: Some(entry.to_string()),
+            duration: Some(minutes * 60_000),
+            ..tray_instance(id, "imp", 0)
+        };
+        let mut imported = tray_session("imp", "a", false);
+        imported.source = Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE.to_string());
+        imported.timer_instances = vec![timer("i1", "e1", 40), timer("i2", "e2", 20)];
+        let tracked = tray_session("tracked", "a", false);
+        let mut sessions = vec![imported, tracked];
+
+        assert!(fill_imported_session_rates(&mut sessions, &ledger));
+        // $30 over one hour
+        assert_eq!(sessions[0].hourly_rate, Some(30.0));
+        // Tracked sessions are left to fill_missing_session_rates
+        assert_eq!(sessions[1].hourly_rate, None);
+        assert!(!fill_imported_session_rates(&mut sessions, &ledger));
+    }
+
+    #[test]
+    fn sessions_saved_without_a_rate_still_load() {
+        let json = serde_json::json!({
+            "id": "s",
+            "taskId": "a",
+            "taskName": "Task a",
+            "timerInstances": [],
+            "notes": null
+        });
+        let session: TaskSession = serde_json::from_value(json).unwrap();
+        assert_eq!(session.hourly_rate, None);
+        let round_trip = serde_json::to_value(&session).unwrap();
+        assert!(round_trip.get("hourlyRate").is_some());
     }
 }

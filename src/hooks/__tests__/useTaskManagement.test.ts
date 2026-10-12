@@ -450,38 +450,6 @@ describe('useTaskManagement', () => {
     });
   });
 
-  describe('earnings calculation', () => {
-    it('should calculate earnings with provided hourly rate', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      
-      // Wait for initialization to complete
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      const earnings = result.current.calculateEarnings(3600000, 50); // 1 hour at $50/hour
-      expect(earnings).toBe(50);
-    });
-
-    it('should calculate earnings for partial hours', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      
-      // Wait for initialization to complete
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      const earnings = result.current.calculateEarnings(1800000, 60); // 30 minutes at $60/hour
-      expect(earnings).toBe(30);
-    });
-
-    it('should return undefined for invalid inputs', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      
-      // Wait for initialization to complete
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      expect(result.current.calculateEarnings(-1000, 50)).toBeUndefined();
-      expect(result.current.calculateEarnings(3600000, -50)).toBeUndefined();
-    });
-  });
-
   describe('hierarchical methods', () => {
     it('should get task hierarchy', async () => {
       const { result } = renderHook(() => useTaskManagement());
@@ -581,9 +549,6 @@ describe('useTaskManagement', () => {
       expect(result.current).toHaveProperty('getTaskByName');
       expect(result.current).toHaveProperty('getTaskNames');
 
-      // Utility methods
-      expect(result.current).toHaveProperty('calculateEarnings');
-
       // Hierarchical methods
       expect(result.current).toHaveProperty('getTaskHierarchy');
       expect(result.current).toHaveProperty('getChildTasks');
@@ -597,7 +562,6 @@ describe('useTaskManagement', () => {
       expect(typeof result.current.getTaskById).toBe('function');
       expect(typeof result.current.getTaskByName).toBe('function');
       expect(typeof result.current.getTaskNames).toBe('function');
-      expect(typeof result.current.calculateEarnings).toBe('function');
       expect(typeof result.current.getTaskHierarchy).toBe('function');
       expect(typeof result.current.getChildTasks).toBe('function');
       expect(typeof result.current.getParentTask).toBe('function');

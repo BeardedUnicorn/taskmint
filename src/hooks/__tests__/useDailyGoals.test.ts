@@ -3,7 +3,7 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
-import { useDailyGoals } from '../useDailyGoals';
+import { useDailyGoalsState as useDailyGoals } from '../useDailyGoals';
 import { DailyGoal, DailyGoalAchievement } from '../../types';
 import { useLocalStorage } from '../useLocalStorage'; // Import the actual module
 

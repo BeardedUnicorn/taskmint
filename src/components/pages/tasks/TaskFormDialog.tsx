@@ -113,6 +113,18 @@ export function TaskFormDialog({
     onClose();
   };
 
+  // Sessions keep the rate they were tracked at, so a new rate only applies
+  // going forward; say so when the user changes it.
+  const initialRate = initialTask?.hourlyRate?.toString() ?? '';
+  const rateChanged = mode === 'edit' && hourlyRate.trim() !== initialRate;
+  const rateHelperText =
+    errors.hourlyRate ||
+    (rateChanged
+      ? 'Applies to time tracked from now on. Time already tracked keeps the rate it was tracked at.'
+      : mode === 'add'
+        ? 'Optional - leave blank if not applicable'
+        : 'Leave empty if not applicable');
+
   const title = mode === 'add' ? 'Add New Task' : 'Edit Task';
   const submitLabel = mode === 'add' ? 'Add Task' : 'Save Changes';
 
@@ -140,7 +152,7 @@ export function TaskFormDialog({
               value={hourlyRate}
               onChange={setHourlyRate}
               error={!!errors.hourlyRate}
-              helperText={errors.hourlyRate || (mode === 'add' ? 'Optional - leave blank if not applicable' : 'Leave empty if not applicable')}
+              helperText={rateHelperText}
               placeholder="0.00"
             />
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, Suspense, lazy } from 'react';
+import { useState, useMemo, Suspense, lazy } from 'react';
 import {
   Box,
   Typography,
@@ -29,13 +29,14 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { TimeEntry } from '../../types/timer';
 import { Task } from '../../types/task';
-import { DailyGoalAchievement } from '../../types/goal';
 import { formatLocalTime } from '../../utils/dateHelpers';
 import { getEntryElapsedMs } from '../../utils/timerHelpers';
 import { formatDuration } from '../../utils/formatters';
 import { EarningsDisplay } from '../ui/display/EarningsDisplay';
+import { entryEarnings } from '../../utils/earnings';
 import { GoalAchievementsTable } from '../ui/tables/GoalAchievementsTable';
 import { useDailyGoals } from '../../hooks/useDailyGoals';
+import { buildGoalHistory } from '../../utils/goalHistory';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { EditTimeEntryData } from '../../types/form';
@@ -77,9 +78,7 @@ export function ReportsPage({
   const [timelineView, setTimelineView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
 
   // Daily goals hook and state
-  const { getAchievementsForDateRange } = useDailyGoals();
-  const [filteredAchievements, setFilteredAchievements] = useState<DailyGoalAchievement[]>([]);
-  const [achievementsLoading, setAchievementsLoading] = useState(false);
+  const { achievements, currentGoal } = useDailyGoals();
 
   // Filter entries based on date range and selected tasks
   const filteredEntries = useMemo(() => {
@@ -105,20 +104,11 @@ export function ReportsPage({
   const summaryStats = useMemo(() => {
     const totalDuration = filteredEntries.reduce((total, entry) => total + (entry.duration || 0), 0);
     
-    const totalEarnings = filteredEntries.reduce((total, entry) => {
-      if (!entry.duration) return total;
-      
-      // Find task for earnings calculation
-      let task = tasks.find(t => t.id === entry.taskId);
-      if (!task) {
-        task = tasks.find(t => t.name === entry.taskName);
-      }
-      
-      if (!task?.hourlyRate) return total;
-      
-      const hours = entry.duration / (1000 * 60 * 60);
-      return total + (hours * task.hourlyRate);
-    }, 0);
+    // Each entry earns at its session's rate (shared with every other page)
+    const totalEarnings = filteredEntries.reduce(
+      (total, entry) => total + entryEarnings(entry, tasks),
+      0
+    );
 
     const uniqueTasks = new Set(filteredEntries.map(entry => entry.taskName));
     
@@ -130,25 +120,20 @@ export function ReportsPage({
     };
   }, [filteredEntries, tasks]);
 
-  // Load goal achievements when date range changes
-  useEffect(() => {
-    const loadAchievements = async () => {
-      setAchievementsLoading(true);
-      try {
-        const startDateStr = startDate ? startDate.format('YYYY-MM-DD') : '';
-        const endDateStr = endDate ? endDate.format('YYYY-MM-DD') : '';
-        const achievements = await getAchievementsForDateRange(startDateStr, endDateStr);
-        setFilteredAchievements(achievements);
-      } catch (error) {
-        console.error('Failed to load achievements:', error);
-        setFilteredAchievements([]);
-      } finally {
-        setAchievementsLoading(false);
-      }
-    };
-
-    loadAchievements();
-  }, [startDate, endDate, getAchievementsForDateRange]);
+  // Goal results per day over the range (all tasks): each day's saved
+  // target, earnings recomputed from tracked time so edits and imports count.
+  const goalHistory = useMemo(
+    () =>
+      buildGoalHistory({
+        startDate: startDate ? startDate.format('YYYY-MM-DD') : '0000-01-01',
+        endDate: endDate ? endDate.format('YYYY-MM-DD') : '9999-12-31',
+        timeEntries,
+        tasks,
+        records: achievements,
+        currentGoal,
+      }),
+    [startDate, endDate, timeEntries, tasks, achievements, currentGoal]
+  );
 
   // Chart data
   const chartData = useMemo(() => {
@@ -173,15 +158,6 @@ export function ReportsPage({
       timelineData,
     };
   }, [filteredEntries, tasks, timelineView]);
-
-  const getTaskById = (taskId?: string) => {
-    if (!taskId) return undefined;
-    return tasks.find(task => task.id === taskId);
-  };
-
-  const getTaskByName = (taskName: string) => {
-    return tasks.find(task => task.name === taskName);
-  };
 
   const handleEditEntry = (entry: TimeEntry) => {
     setEditingEntry(entry);
@@ -423,15 +399,7 @@ export function ReportsPage({
                 </TableHead>
                 <TableBody>
                   {filteredEntries.map((entry) => {
-                    // Find task for earnings calculation
-                    let task = getTaskById(entry.taskId);
-                    if (!task) {
-                      task = getTaskByName(entry.taskName);
-                    }
-
-                    const earnings = task?.hourlyRate && entry.duration
-                      ? (entry.duration / (1000 * 60 * 60)) * task.hourlyRate
-                      : 0;
+                    const earnings = entryEarnings(entry, tasks);
 
                     return (
                       <TableRow key={entry.id} hover>
@@ -497,8 +465,7 @@ export function ReportsPage({
           </Typography>
 
           <GoalAchievementsTable
-            achievements={filteredAchievements}
-            loading={achievementsLoading}
+            achievements={goalHistory}
           />
         </Paper>
 

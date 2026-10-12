@@ -82,7 +82,6 @@ const mockTaskManagement = {
   getTaskById: vi.fn(),
   getTaskByName: vi.fn(),
   getTaskNames: vi.fn(),
-  calculateEarnings: vi.fn(),
   getTaskHierarchy: vi.fn(),
   getChildTasks: vi.fn(),
   getParentTask: vi.fn(),

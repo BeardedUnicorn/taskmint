@@ -15,8 +15,7 @@ import { WorkLogEntry } from '../types/workLog';
 import { formatDateString, parseDateStringLocal } from './dateHelpers';
 import { effectiveMinutes } from './workLogImport';
 import { getInstanceDateString, getSessionElapsedMsOnDate } from './timerHelpers';
-
-const MS_PER_HOUR = 3_600_000;
+import { earningsForMs, sessionRate } from './earnings';
 
 export interface PayoutDayCell {
   workDay: string;
@@ -70,8 +69,8 @@ function cellKey(taskId: string, workDay: string): string {
 /**
  * Build one cell per (task, local day) across the ledger and the tracked
  * sessions. Rule per cell: any timed import makes the day actual (its cents
- * replace the estimate); otherwise tracked time × the task's hourlyRate is
- * shown as an estimate. workLog (no-time) cents always count as actuals on
+ * replace the estimate); otherwise tracked time × each session's rate (see
+ * utils/earnings) is shown as an estimate. workLog (no-time) cents always count as actuals on
  * their day. Cells with no money and no tracked time are dropped.
  */
 export function buildPayoutCells(
@@ -111,18 +110,20 @@ export function buildPayoutCells(
     const timedCents = timed.reduce((sum, e) => sum + e.amountCents, 0);
     const importedMinutes = timed.reduce((sum, e) => sum + effectiveMinutes(e), 0);
 
+    // Each session's time earns at its own rate, so a task rate changed
+    // later doesn't move an earlier day's estimate.
     let trackedMs = 0;
+    let estimatedDollars = 0;
     for (const session of sessions) {
       if (session.taskId !== taskId) continue;
-      trackedMs += getSessionElapsedMsOnDate(session, workDay, nowMs);
+      const ms = getSessionElapsedMsOnDate(session, workDay, nowMs);
+      trackedMs += ms;
+      estimatedDollars += earningsForMs(ms, sessionRate(session, tasks));
     }
 
     const task = taskById.get(taskId);
     const hasTimedImport = timed.length > 0;
-    let estimatedCents = 0;
-    if (!hasTimedImport && trackedMs > 0 && task?.hourlyRate && task.hourlyRate > 0) {
-      estimatedCents = Math.round((trackedMs / MS_PER_HOUR) * task.hourlyRate * 100);
-    }
+    const estimatedCents = hasTimedImport ? 0 : Math.round(estimatedDollars * 100);
     const actualCents = (hasTimedImport ? timedCents : 0) + workLogCents;
 
     if (actualCents === 0 && estimatedCents === 0 && trackedMs === 0 && forKey.length === 0) {

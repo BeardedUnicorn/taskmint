@@ -83,7 +83,6 @@ export interface UseTaskManagementReturn {
   getTaskById: (taskId: string) => Task | undefined;
   getTaskByName: (taskName: string) => Task | undefined;
   getTaskNames: () => string[];
-  calculateEarnings: (durationMs: number, hourlyRate?: number) => number | undefined;
   // Hierarchical methods
   getTaskHierarchy: () => Promise<TaskHierarchy[]>;
   getChildTasks: (parentId: string) => Promise<Task[]>;
