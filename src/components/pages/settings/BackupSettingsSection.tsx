@@ -19,7 +19,7 @@ import {
   Folder as FolderIcon,
 } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
-import { useBackupSettings } from '../../../hooks/useBackupSettings';
+import { useBackupSettingsContext } from '../../../contexts/BackupSettingsContext';
 import { BackupFrequency, getBackupFrequencyLabel } from '../../../types/backup';
 
 interface BackupSettingsSectionProps {
@@ -38,7 +38,7 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
     selectBackupDirectory,
     performManualBackup,
     getStatusSummary,
-  } = useBackupSettings();
+  } = useBackupSettingsContext();
 
   const backupFrequencies: BackupFrequency[] = ['daily', 'weekly', 'monthly'];
 

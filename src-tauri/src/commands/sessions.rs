@@ -104,7 +104,7 @@ fn finalize_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
 /// paused instance freezing at its pause point. Returns the finalized
 /// instance ids so the caller can emit `timer-instance-stopped` after the
 /// lock is released.
-fn stop_active_instances(session: &mut TaskSession, now: DateTime<Utc>) -> Vec<String> {
+pub(crate) fn stop_active_instances(session: &mut TaskSession, now: DateTime<Utc>) -> Vec<String> {
     let mut stopped = Vec::new();
     for instance in session.timer_instances.iter_mut() {
         if instance.is_running || instance.is_paused {

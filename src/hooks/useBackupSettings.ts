@@ -157,20 +157,23 @@ export function useBackupSettings() {
         maxBackups: config.maxBackups,
       });
 
-      // Update config with last backup time
+      // Only a successful backup resets the schedule; a failed one stays
+      // due and is retried on the next check.
       const now = new Date().toISOString();
-      setConfig(prev => ({ ...prev, lastBackupTime: now }));
+      if (result.success) {
+        setConfig(prev => ({ ...prev, lastBackupTime: now }));
+      }
 
       // Update status
       setStatus(prev => ({
         ...prev,
         isRunning: false,
-        lastBackupTime: now,
+        lastBackupTime: result.success ? now : prev.lastBackupTime,
         lastBackupSuccess: result.success,
         lastBackupError: result.success ? undefined : result.error,
-        nextScheduledBackup: config.enabled
+        nextScheduledBackup: config.enabled && result.success
           ? getNextBackupTime(config.frequency, now).toISOString()
-          : undefined,
+          : prev.nextScheduledBackup,
       }));
 
       // Show user notification based on result

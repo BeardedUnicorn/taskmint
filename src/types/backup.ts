@@ -125,3 +125,52 @@ export function isBackupDue(config: BackupConfig): boolean {
   const nextBackupTime = getNextBackupTime(config.frequency, config.lastBackupTime);
   return new Date() >= nextBackupTime;
 }
+
+// ============================================================================
+// Export / backup file format
+// ============================================================================
+
+/**
+ * "2": adds `data.workLogs`, and import restores `data.sessions` (v1 files
+ * carried sessions that import ignored). v1 files still import.
+ */
+export const BACKUP_FORMAT_VERSION = '2';
+
+// Records stay untyped here; see the schema comment for where they are checked.
+const recordList = z.array(z.any());
+
+/**
+ * Structural check only. Records are validated where they are stored: zod
+ * schemas in StorageService for localStorage data, and the Rust restore
+ * command (per-record, skipping unreadable ones) for sessions and work logs.
+ */
+export const BackupFileSchema = z.object({
+  version: z.string().optional(),
+  exportDate: z.string().optional(),
+  data: z.object({
+    timeEntries: recordList.optional(),
+    tasks: recordList.optional(),
+    noteTemplates: recordList.optional(),
+    taskNotes: recordList.optional(),
+    dailyGoal: z.any().optional(),
+    goalAchievements: recordList.optional(),
+    sessions: recordList.optional(),
+    workLogs: z
+      .object({
+        entries: recordList.optional(),
+        mappings: recordList.optional(),
+      })
+      .optional(),
+  }),
+});
+
+export type BackupFile = z.infer<typeof BackupFileSchema>;
+
+/** Mirrors RestoreSummary in src-tauri/src/commands/restore.rs. */
+export interface RestoreSummary {
+  sessionsRestored: number;
+  sessionsAlreadyPresent: number;
+  workLogEntriesRestored: number;
+  workLogMappingsRestored: number;
+  recordsSkipped: number;
+}
