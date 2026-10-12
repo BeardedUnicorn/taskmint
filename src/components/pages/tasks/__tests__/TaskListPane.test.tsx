@@ -74,6 +74,14 @@ describe('TaskListPane', () => {
     expect(screen.getByText('Gamma Archived')).toBeInTheDocument();
   });
 
+  it('marks favorite tasks with a star', () => {
+    render(<TaskListPane {...defaultProps} tasks={[{ ...activeAlpha, isFavorite: true }, activeBeta]} />);
+
+    const stars = screen.getAllByLabelText('Favorite');
+    expect(stars).toHaveLength(1);
+    expect(stars[0].parentElement?.textContent).toBe('Alpha Work★');
+  });
+
   it('omits the archived section when no tasks are archived', () => {
     render(<TaskListPane {...defaultProps} tasks={[activeAlpha, activeBeta]} />);
 

@@ -245,6 +245,7 @@ export const testUtils = {
     hourlyRate: 50,
     isArchived: false,
     archivedAt: null,
+    isFavorite: false,
     createdAt: '2023-01-01T00:00:00Z',
     updatedAt: '2023-01-01T00:00:00Z',
     ...overrides,

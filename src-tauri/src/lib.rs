@@ -275,7 +275,8 @@ pub fn run() {
             // Task commands
             commands::tasks::update_tasks,
             // Session commands
-            commands::sessions::create_session,
+            commands::sessions::start_task,
+            commands::sessions::add_manual_time,
             commands::sessions::get_sessions,
             commands::sessions::update_session,
             commands::sessions::delete_session,

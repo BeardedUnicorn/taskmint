@@ -35,7 +35,8 @@ vi.mock('../../../hooks/useDashboardSettings', () => ({
 }));
 
 // Mock session management hook
-const mockCreateSession = vi.fn();
+const mockStartTask = vi.fn();
+const mockAddManualTime = vi.fn();
 const mockUpdateSession = vi.fn();
 const mockDeleteSession = vi.fn();
 const mockCreateTimerInstance = vi.fn();
@@ -57,7 +58,8 @@ const mockSessionManagement = {
   activeSession: null,
   isLoading: false,
   error: null,
-  createSession: mockCreateSession,
+  startTask: mockStartTask,
+  addManualTime: mockAddManualTime,
   updateSession: mockUpdateSession,
   deleteSession: mockDeleteSession,
   createTimerInstance: mockCreateTimerInstance,
@@ -240,8 +242,8 @@ describe('SessionDashboard', () => {
       renderDashboard();
       
       expect(screen.getByText('All Sessions')).toBeInTheDocument();
-      // The FAB button should be present for creating sessions
-      expect(screen.getByLabelText('create session')).toBeInTheDocument();
+      // The FAB starts work on a task
+      expect(screen.getByLabelText('start work')).toBeInTheDocument();
     });
 
     it('should show loading state when sessions are loading', () => {
@@ -272,42 +274,31 @@ describe('SessionDashboard', () => {
     });
   });
 
-  describe('Session Creation', () => {
-    it('should create a new session via FAB dialog', async () => {
-      const newSession: TaskSession = {
-        id: 'session-1',
-        taskId: 'task-1',
-        taskName: 'Development Work',
-        timerInstances: [],
-        totalDuration: 0,
-        isActive: true,
-        date: '2024-01-15',
-        createdAt: '2024-01-15T10:00:00Z',
-        updatedAt: '2024-01-15T10:00:00Z',
-      };
-
-      mockCreateSession.mockResolvedValue(newSession);
-
+  describe('Starting work', () => {
+    it('starts the chosen task from the + button in one step', async () => {
+      mockStartTask.mockResolvedValue({ outcome: 'started', instanceId: 'i-1' });
       renderDashboard();
-      
-      // Click FAB to open dialog
-      const fab = screen.getByLabelText('create session');
-      fireEvent.click(fab);
-      
-      // Wait for dialog to open
-      await waitFor(() => {
-        expect(screen.getByText('Start a Quick Session')).toBeInTheDocument();
-      });
 
-      // The actual session creation would happen in the dialog
-      // For now, just verify the dialog opens
+      fireEvent.click(screen.getByLabelText('start work'));
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText('Start Work')).toBeInTheDocument();
+
+      fireEvent.change(within(dialog).getByLabelText('Task'), { target: { value: 'Dev' } });
+      fireEvent.click(await screen.findByRole('option', { name: 'Development Work' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Start' }));
+
+      await waitFor(() => {
+        expect(mockStartTask).toHaveBeenCalledWith('task-1', 'Development Work');
+      });
     });
 
-    it('should show FAB for session creation', () => {
+    it('opens Add Time from the All Sessions header', async () => {
       renderDashboard();
-      
-      const fab = screen.getByLabelText('create session');
-      expect(fab).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add time' }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByRole('heading', { name: 'Add Time' })).toBeInTheDocument();
     });
   });
 
@@ -680,25 +671,6 @@ describe('SessionDashboard', () => {
       // Verify session selection behavior (this would typically update some state)
       // Since we're mocking, we can't test the actual state change, but we can verify the UI responds
       expect(sessionCard).toBeInTheDocument();
-    });
-
-    it('should show floating action button for quick session creation', () => {
-      renderDashboard();
-
-      const fab = screen.getByLabelText('create session');
-      expect(fab).toBeInTheDocument();
-    });
-
-    it('should handle quick session creation from FAB', async () => {
-      renderDashboard();
-
-      const fab = screen.getByLabelText('create session');
-      fireEvent.click(fab);
-
-      // The FAB opens a dialog for quick session creation
-      await waitFor(() => {
-        expect(screen.getByText('Start a Quick Session')).toBeInTheDocument();
-      });
     });
   });
 

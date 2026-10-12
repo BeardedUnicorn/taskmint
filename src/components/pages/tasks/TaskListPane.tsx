@@ -94,6 +94,11 @@ export function TaskListPane({
               sx={{ fontWeight: 500, color: task.isArchived ? 'text.secondary' : 'text.primary' }}
             >
               {task.name}
+              {task.isFavorite && (
+                <Box component="span" aria-label="Favorite" sx={{ color: 'warning.main', ml: 0.75 }}>
+                  ★
+                </Box>
+              )}
             </Typography>
           }
           secondary={

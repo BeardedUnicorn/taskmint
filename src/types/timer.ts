@@ -80,33 +80,6 @@ export interface CalendarViewProps {
   onDeleteEntry: (entryId: string) => void;
 }
 
-// System tray related interfaces
-export interface UseSystemTrayProps {
-  activeEntry: TimeEntry | null;
-  timeEntries: TimeEntry[];
-  onStartTimer: (taskName: string, startTime: Date) => Promise<void>;
-  onStopTimer: () => void;
-  onShowNewTaskDialog: () => void;
-}
-
-// Favorite tasks functionality
-export interface FavoriteTasksSettings {
-  favoriteTaskIds: string[];
-  maxRecentTasks: number;
-}
-
-export interface TaskWithUsage extends Task {
-  lastUsed?: Date;
-  usageCount?: number;
-  isFavorite?: boolean;
-}
-
-// Zod schema for favorite tasks settings
-export const FavoriteTasksSettingsSchema = z.object({
-  favoriteTaskIds: z.array(z.string()),
-  maxRecentTasks: z.number().min(1).max(20).default(5)
-});
-
 // ============================================================================
 // NEW SESSION-BASED TIMER SYSTEM
 // ============================================================================
@@ -298,10 +271,39 @@ export interface InactivityWarningProps {
 // HOOK RETURN TYPES FOR SESSION SYSTEM
 // ============================================================================
 
+/**
+ * Provenance marker on sessions created by "Add time". Must match
+ * MANUAL_SOURCE in src-tauri/src/commands/sessions.rs.
+ */
+export const MANUAL_SOURCE = 'manual';
+
+/** What start_task did: began a new timer, resumed a paused one, or nothing. */
+export type StartTaskOutcome = 'started' | 'resumed' | 'alreadyRunning';
+
+export interface StartTaskResult {
+  outcome: StartTaskOutcome;
+  instanceId?: string | null;
+  /** Task whose live timer this start finalized, if any. */
+  stoppedTaskName?: string | null;
+}
+
+export interface AddManualTimeInput {
+  taskId: string;
+  taskName: string;
+  startTime: Date;
+  durationMs: number;
+}
+
 export interface UseSessionManagementReturn {
   sessions: TaskSession[];
   activeSession: TaskSession | null;
-  createSession: (taskId: string, taskName: string) => Promise<TaskSession | null>;
+  /**
+   * Start (or continue) work on an existing task: continues the task's
+   * active session, otherwise opens a new session with a running timer.
+   */
+  startTask: (taskId: string, taskName: string) => Promise<StartTaskResult | null>;
+  /** Log a finished timer after the fact ("Add time"). Rejects with the reason. */
+  addManualTime: (input: AddManualTimeInput) => Promise<TaskSession>;
   updateSession: (sessionId: string, updates: Partial<TaskSession>) => Promise<TaskSession | null>;
   deleteSession: (sessionId: string) => Promise<void>;
   getSessionById: (sessionId: string) => TaskSession | undefined;
@@ -350,21 +352,6 @@ export interface UseInactivityDetectionReturn {
   resumeDetection: () => void;
   isWarningShown: boolean;
   warningTimeRemaining: number;
-}
-
-// ============================================================================
-// ENHANCED SYSTEM TRAY PROPS
-// ============================================================================
-
-export interface UseEnhancedSystemTrayProps {
-  activeSession: TaskSession | null;
-  sessions: TaskSession[];
-  tasks: Task[];
-  onStartSession: (taskId: string, taskName: string) => Promise<TaskSession | null>;
-  onCreateTimerInstance: (sessionId: string) => Promise<TimerInstance | null>;
-  onStartTimer: (instanceId: string) => Promise<void>;
-  onStopTimer: (instanceId: string) => Promise<void>;
-  onShowNewTaskDialog: () => void;
 }
 
 // Timer Sync Event Type

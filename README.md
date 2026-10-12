@@ -9,8 +9,8 @@ you've earned and when it pays out.
 
 | Page | What it's for |
 |---|---|
-| **Sessions** | Start a session for a task; run, pause and stop timers inside it. Live totals for the active session. |
-| **Tasks** | Tasks with hourly rates and default note templates; archive tasks you're done with. |
+| **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session. Live totals for the active session. **Add time** logs a finished timer after the fact (a "Manual" session). |
+| **Tasks** | Tasks with hourly rates and default note templates; star favorites; archive tasks you're done with. |
 | **Notes** | Free-form or template-based notes attached to a task, session or timer. |
 | **Time Entries** | Every finished timer as a filterable list; edit durations or delete entries. |
 | **Reports** | Totals, earnings and charts over a date range. |
@@ -19,11 +19,15 @@ you've earned and when it pays out.
 | **Settings** | Rounding, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
 
 The **system tray** (menu-bar item on macOS) shows the running or paused
-timer and can start a task's timer, resume, stop, or open the app. Starting
-the task that's already active continues its session (resuming a paused
-timer); any other task gets a new session, as on the Sessions page. Closing
-the window hides TaskMint to the tray, where timers keep running; quit from
-the tray menu. On macOS, clicking the Dock icon brings the window back.
+timer and can pause, resume or stop it, start a task's timer, or open the app.
+Its Start menu lists starred tasks first, then the ones you used most
+recently; **Choose Task…** opens the app's start dialog for any other task.
+Starting work behaves the same everywhere (tray, Sessions toolbar, the +
+button): starting the task that's already active continues its session
+(resuming a paused timer); any other task gets a new session with a running
+timer. Work starts from existing tasks; create new ones on the Tasks page.
+Closing the window hides TaskMint to the tray, where timers keep running; quit
+from the tray menu. On macOS, clicking the Dock icon brings the window back.
 
 ## Where data lives
 

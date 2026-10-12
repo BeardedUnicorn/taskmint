@@ -356,6 +356,16 @@ describe('SessionList', () => {
     });
   });
 
+  describe('Session sources', () => {
+    it('marks sessions added with Add time as Manual', () => {
+      const manual: TaskSession = { ...mockSessions[0], id: 'manual-1', source: 'manual' };
+      render(<SessionList {...mockProps} sessions={[manual]} />);
+
+      expect(screen.getByText('Manual')).toBeInTheDocument();
+      expect(screen.queryByText('Imported')).not.toBeInTheDocument();
+    });
+  });
+
   describe('Session Details', () => {
     it('should display session creation date as the local calendar day', () => {
       render(<SessionList {...mockProps} />);

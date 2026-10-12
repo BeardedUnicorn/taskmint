@@ -11,9 +11,6 @@ export type {
   EarningsData,
   TimeEntryFormProps,
   CalendarViewProps,
-  UseSystemTrayProps,
-  FavoriteTasksSettings,
-  TaskWithUsage,
   // New session-based types
   TimerInstance,
   TaskSession,
@@ -27,7 +24,6 @@ export type {
   UseSessionManagementReturn,
   UseTimerInstanceReturn,
   UseInactivityDetectionReturn,
-  UseEnhancedSystemTrayProps,
 } from './timer';
 
 // Task Management Types
@@ -35,7 +31,6 @@ export type {
   Task,
   TaskFormData,
   TaskManagementProps,
-  StartTaskDialogProps,
   UseTaskManagementReturn,
 } from './task';
 

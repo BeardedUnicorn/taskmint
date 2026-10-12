@@ -11,6 +11,7 @@ import {
   Container,
   Typography,
   Alert,
+  Button,
   Fab,
   Backdrop,
   CircularProgress,
@@ -19,13 +20,15 @@ import {
   Add as AddIcon,
   Timer as TimerIcon,
   AttachMoney as MoneyIcon,
+  MoreTime as AddTimeIcon,
 } from '@mui/icons-material';
 import { SessionTimerToolbar } from '../layout/SessionTimerToolbar';
 import { SessionList } from '../ui/sessions/SessionList';
 import { SessionTimerDisplay } from '../ui/display/SessionTimerDisplay';
 import { InactivityWarningDialog } from '../ui/dialogs/InactivityWarningDialog';
 import { EnhancedNotesDialog } from '../ui/dialogs/EnhancedNotesDialog';
-import { QuickSessionDialog } from '../ui/dialogs/QuickSessionDialog';
+import { StartWorkDialog } from '../ui/dialogs/StartWorkDialog';
+import { AddTimeDialog } from '../ui/dialogs/AddTimeDialog';
 import { EditSessionDialog } from '../ui/dialogs/EditSessionDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
@@ -40,8 +43,14 @@ import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatCurrency, formatDuration, formatTime } from '../../utils/formatters';
 import { getInstanceElapsedMs, getSessionElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
+import { orderTasksForStart } from '../../utils/taskOrdering';
 
-export function SessionDashboard() {
+interface SessionDashboardProps {
+  /** Opens the Tasks page (work starts from existing tasks only). */
+  onOpenTasks?: () => void;
+}
+
+export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [notesContext, setNotesContext] = useState<{
@@ -50,7 +59,8 @@ export function SessionDashboard() {
     activeTimerInstanceId?: string;
     taskName?: string;
   }>({});
-  const [quickSessionDialogOpen, setQuickSessionDialogOpen] = useState(false);
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [addTimeDialogOpen, setAddTimeDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<TaskSession | null>(null);
   const [editingTimerData, setEditingTimerData] = useState<EditTimeEntryData | null>(null);
   const [editingTimerInstanceId, setEditingTimerInstanceId] = useState<string | null>(null);
@@ -62,7 +72,8 @@ export function SessionDashboard() {
   const {
     sessions,
     activeSession,
-    createSession,
+    startTask,
+    addManualTime,
     updateSession,
     deleteSession,
     setActiveSession,
@@ -87,9 +98,13 @@ export function SessionDashboard() {
     resetActivity,
   } = useInactivityDetection();
 
-  const { tasks, activeTasks, archivedTasks, isLoading: tasksLoading } = useTaskManagementContext();
+  const { tasks, archivedTasks, isLoading: tasksLoading } = useTaskManagementContext();
   const { showError, showSuccess } = useNotification();
   const { isWidgetEnabled } = useDashboardSettings();
+
+  // Every start surface lists tasks the same way (and as the tray does):
+  // favorites, then most recently used, then the rest; never archived ones.
+  const startOptions = useMemo(() => orderTasksForStart(tasks, sessions), [tasks, sessions]);
 
   // Archived tasks keep their session history visible, but their names are
   // hidden from the session list's task filter chips
@@ -258,19 +273,12 @@ export function SessionDashboard() {
     setEditingSession(session);
   }, []);
   
-  const handleStartQuickSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession> => {
-    const session = await createSession(taskId, taskName);
-    if (!session) {
-      throw new Error("Failed to start session from quick dialog.");
-    }
-    return session;
-  }, [createSession]);
-
   // Memoized dialog close callbacks
   const handleCloseNotesDialog = useCallback(() => setNotesDialogOpen(false), []);
-  const handleCloseQuickSessionDialog = useCallback(() => setQuickSessionDialogOpen(false), []);
+  const handleCloseStartDialog = useCallback(() => setStartDialogOpen(false), []);
   const handleCloseEditSessionDialog = useCallback(() => setEditingSession(null), []);
-  const handleOpenQuickSessionDialog = useCallback(() => setQuickSessionDialogOpen(true), []);
+  const handleOpenStartDialog = useCallback(() => setStartDialogOpen(true), []);
+  const handleOpenTasks = useCallback(() => onOpenTasks?.(), [onOpenTasks]);
 
   // Show the blocking loader only for the initial load — every timer action
   // toggles isLoading briefly, and a full-screen backdrop on each start/stop
@@ -298,8 +306,8 @@ export function SessionDashboard() {
       <Box sx={{ mb: 4 }}>
         <SessionTimerToolbar
           activeSession={activeSession}
-          predefinedTasks={activeTasks}
-          onStartSession={createSession}
+          startOptions={startOptions}
+          onStartTask={startTask}
           onEndSession={endActiveSession}
           onPauseAll={pauseAllTimersInActiveSession}
           onResumeAll={resumeAllTimersInActiveSession}
@@ -364,14 +372,24 @@ export function SessionDashboard() {
 
         {/* Session List */}
         <Box sx={{ flex: activeSession ? 1 : 2 }}>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            All Sessions
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              All Sessions
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<AddTimeIcon />}
+              onClick={() => setAddTimeDialogOpen(true)}
+            >
+              Add time
+            </Button>
+          </Box>
           <SessionList
             sessions={sessions}
             nowMs={nowMs}
             onSelectSession={handleSelectSession}
-            onCreateSession={handleOpenQuickSessionDialog}
+            onCreateSession={handleOpenStartDialog}
             onDeleteSession={deleteSession}
             onStartSession={handleStartSelectedSession}
             onStopSession={endActiveSession}
@@ -426,11 +444,21 @@ export function SessionDashboard() {
         onClose={() => setTimerPendingDelete(null)}
       />
 
-      <QuickSessionDialog
-        open={quickSessionDialogOpen}
-        onClose={handleCloseQuickSessionDialog}
-        onStartSession={handleStartQuickSession}
-        tasks={activeTasks}
+      <StartWorkDialog
+        open={startDialogOpen}
+        onClose={handleCloseStartDialog}
+        tasks={tasks}
+        sessions={sessions}
+        onStart={startTask}
+        onAddTask={handleOpenTasks}
+      />
+
+      <AddTimeDialog
+        open={addTimeDialogOpen}
+        onClose={() => setAddTimeDialogOpen(false)}
+        tasks={tasks}
+        sessions={sessions}
+        onAdd={addManualTime}
       />
 
       <EditSessionDialog
@@ -440,16 +468,16 @@ export function SessionDashboard() {
         onSave={handleSaveSessionUpdate}
       />
 
-      {/* Floating Action Button for Quick Session Creation */}
+      {/* Floating Action Button: start work on a task */}
       <Fab
         color="primary"
-        aria-label="create session"
+        aria-label="start work"
         sx={{
           position: 'fixed',
           bottom: 16,
           right: 16,
         }}
-        onClick={handleOpenQuickSessionDialog}
+        onClick={handleOpenStartDialog}
       >
         <AddIcon />
       </Fab>

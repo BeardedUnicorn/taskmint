@@ -17,7 +17,10 @@ import {
   TimerInstance,
   UseSessionManagementReturn,
   TimerState,
+  StartTaskResult,
+  AddManualTimeInput,
 } from '../types/timer';
+import { formatDuration } from '../utils/formatters';
 import { useNotification } from '../contexts/NotificationContext';
 import { measurePerformance } from '../utils/performance';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
@@ -88,7 +91,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { showError, showSuccess } = useNotification();
+  const { showError, showSuccess, showInfo } = useNotification();
   const { activeTimer, setActiveTimer } = useActiveTimer();
 
   // Load sessions from backend. `silent` skips the loading flag so
@@ -512,31 +515,60 @@ export function useSessionManagement(): UseSessionManagementReturn {
     };
   }, [resumeTimerInstance, showError]);
 
-  const createSession = useCallback(async (taskId: string, taskName: string): Promise<TaskSession | null> => {
-    return measurePerformance('useSessionManagement.createSession', async () => {
+  // The app's single start path (also the tray's): continue the task's active
+  // session, or open a new one with a running timer. The backend announces
+  // any timer it finalized for another task, so the hand-off isn't silent.
+  const startTask = useCallback(async (taskId: string, taskName: string): Promise<StartTaskResult | null> => {
+    return measurePerformance('useSessionManagement.startTask', async () => {
       setIsLoading(true);
       setError(null);
 
       try {
-        const trimmedTaskName = taskName?.trim() || '';
-        if (!trimmedTaskName) throw new Error('Task name cannot be empty');
+        const result = await invoke<StartTaskResult>('start_task', { taskId, taskName });
+        await loadSessions({ silent: true });
 
-        const newSession = await invoke<TaskSession>('create_session', { taskId, taskName: trimmedTaskName });
-
-        await loadSessions(); // Reload all sessions to reflect the new active one
-        showSuccess(`Session started for "${trimmedTaskName}"`);
-
-        return newSession;
+        const handoff = result.stoppedTaskName
+          ? ` — stopped the running timer for "${result.stoppedTaskName}"`
+          : '';
+        if (result.outcome === 'alreadyRunning') {
+          showInfo(`"${taskName}" is already running`);
+        } else if (result.outcome === 'resumed') {
+          showSuccess(`Resumed "${taskName}"${handoff}`);
+        } else {
+          showSuccess(`Started "${taskName}"${handoff}`);
+        }
+        return result;
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to create session');
+        const errorMessage = errorText(err, 'Failed to start the task');
         setError(errorMessage);
         showError(errorMessage);
-        throw err; // Re-throw the error so tests can catch it
+        return null;
       } finally {
         setIsLoading(false);
       }
     });
-  }, [showError, showSuccess, loadSessions]);
+  }, [loadSessions, showError, showInfo, showSuccess]);
+
+  // "Add time": a finished timer logged after the fact. Rejects with the
+  // backend's reason (e.g. an overlap) so the dialog can show it in place.
+  const addManualTime = useCallback(async (input: AddManualTimeInput): Promise<TaskSession> => {
+    return measurePerformance('useSessionManagement.addManualTime', async () => {
+      try {
+        const session = await invoke<TaskSession>('add_manual_time', {
+          taskId: input.taskId,
+          taskName: input.taskName,
+          startTime: input.startTime.toISOString(),
+          durationMs: input.durationMs,
+        });
+        await loadSessions({ silent: true });
+        const day = input.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        showSuccess(`Added ${formatDuration(input.durationMs)} to "${input.taskName}" on ${day}`);
+        return session;
+      } catch (err) {
+        throw new Error(errorText(err, 'Failed to add the time entry'));
+      }
+    });
+  }, [loadSessions, showSuccess]);
 
   const updateSession = useCallback(async (sessionId: string, updates: Partial<TaskSession>): Promise<TaskSession | null> => {
     return measurePerformance('useSessionManagement.updateSession', async () => {
@@ -722,7 +754,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
   return {
     sessions,
     activeSession,
-    createSession,
+    startTask,
+    addManualTime,
     updateSession,
     deleteSession,
     getSessionById,

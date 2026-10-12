@@ -4,20 +4,55 @@ use crate::commands::sessions::{self, LiveTimer};
 use crate::config::{get_config, Config};
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::types::Task;
+use crate::types::{Task, TaskSession};
 use crate::utils::{format_duration_hm, is_macos};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
 
-/// Tasks eligible for the tray's quick-start submenu. Archived tasks are
-/// hidden, and truncation happens only after filtering so archived entries
-/// never consume visible slots.
-pub(crate) fn visible_tasks(tasks: &[Task], max: usize) -> Vec<&Task> {
-    tasks.iter().filter(|t| !t.is_archived).take(max).collect()
+/// When each task last had a timer start, from the sessions (keyed by task id).
+pub(crate) fn last_used_by_task(sessions: &[TaskSession]) -> HashMap<String, DateTime<Utc>> {
+    let mut last_used: HashMap<String, DateTime<Utc>> = HashMap::new();
+    for session in sessions {
+        for instance in &session.timer_instances {
+            last_used
+                .entry(session.task_id.clone())
+                .and_modify(|latest| {
+                    if instance.start_time > *latest {
+                        *latest = instance.start_time;
+                    }
+                })
+                .or_insert(instance.start_time);
+        }
+    }
+    last_used
+}
+
+/// Tasks for the tray's quick-start submenu, in the same order as the app's
+/// start pickers (orderTasksForStart in src/utils/taskOrdering.ts): favorites
+/// first, then most recently used, then never-used tasks by name. Archived
+/// tasks are hidden, and truncation happens after ordering so they never
+/// consume visible slots.
+pub(crate) fn visible_tasks<'a>(
+    tasks: &'a [Task],
+    last_used: &HashMap<String, DateTime<Utc>>,
+    max: usize,
+) -> Vec<&'a Task> {
+    let mut visible: Vec<&Task> = tasks.iter().filter(|t| !t.is_archived).collect();
+    // Option orders None first, so comparing b to a puts the latest use first
+    // and never-used tasks last; those fall back to their names.
+    visible.sort_by(|a, b| {
+        b.is_favorite
+            .cmp(&a.is_favorite)
+            .then_with(|| last_used.get(&b.id).cmp(&last_used.get(&a.id)))
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    visible.truncate(max);
+    visible
 }
 
 /// What the tray last rendered for the live timer. A change in any of these
@@ -71,6 +106,10 @@ pub fn create_tray_menu(
                 let resume_item =
                     MenuItem::with_id(app, "resume_timer", "▶️ Resume Timer", true, None::<&str>)?;
                 menu.append(&resume_item)?;
+            } else {
+                let pause_item =
+                    MenuItem::with_id(app, "pause_timer", "⏸️ Pause Timer", true, None::<&str>)?;
+                menu.append(&pause_item)?;
             }
             let stop_item =
                 MenuItem::with_id(app, "stop_timer", "⏹️ Stop Timer", true, None::<&str>)?;
@@ -84,9 +123,15 @@ pub fn create_tray_menu(
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
-    // Quick start tasks section (archived tasks are not listed)
+    // Quick start tasks section (archived tasks are not listed). Recency comes
+    // from the sessions; read it before taking the tasks lock (never nested).
+    let last_used = state
+        .with_task_sessions(|sessions| last_used_by_task(sessions))
+        .unwrap_or_default();
     let has_tasks = state
-        .with_tasks(|tasks| !visible_tasks(tasks, config.tray_max_recent_tasks).is_empty())
+        .with_tasks(|tasks| {
+            !visible_tasks(tasks, &last_used, config.tray_max_recent_tasks).is_empty()
+        })
         .unwrap_or(false);
 
     if has_tasks {
@@ -96,10 +141,14 @@ pub fn create_tray_menu(
         // Add recent/favorite tasks (limit to configured max)
         state
             .with_tasks(|tasks| {
-                for task in visible_tasks(tasks, config.tray_max_recent_tasks) {
+                for task in visible_tasks(tasks, &last_used, config.tray_max_recent_tasks) {
                     let menu_id = format!("start_task_{}", task.id);
-                    let task_item =
-                        MenuItem::with_id(app, &menu_id, &task.name, true, None::<&str>)?;
+                    let label = if task.is_favorite {
+                        format!("★ {}", task.name)
+                    } else {
+                        task.name.clone()
+                    };
+                    let task_item = MenuItem::with_id(app, &menu_id, &label, true, None::<&str>)?;
                     start_submenu.append(&task_item)?;
                     log::debug!("Added task item: '{}' with ID: '{}'", task.name, menu_id);
                 }
@@ -107,19 +156,18 @@ pub fn create_tray_menu(
             })
             .unwrap_or(Ok(()))?;
 
+        // Every task, not just the ones listed above, in the app's start dialog
         start_submenu.append(&PredefinedMenuItem::separator(app)?)?;
-        let new_task_item =
-            MenuItem::with_id(app, "new_task", "➕ New Task...", true, None::<&str>)?;
-        start_submenu.append(&new_task_item)?;
-        log::debug!("Added new task item to submenu with ID: 'new_task'");
+        let choose_item =
+            MenuItem::with_id(app, "choose_task", "Choose Task…", true, None::<&str>)?;
+        start_submenu.append(&choose_item)?;
 
         menu.append(&start_submenu)?;
         log::debug!("Added start timer submenu to main menu");
     } else {
-        let start_item =
-            MenuItem::with_id(app, "new_task", "▶️ Start New Task...", true, None::<&str>)?;
-        menu.append(&start_item)?;
-        log::debug!("Added start new task item with ID: 'new_task' (no existing tasks)");
+        // Work starts from existing tasks only; the app opens on Tasks.
+        let add_item = MenuItem::with_id(app, "add_task", "➕ Add a Task…", true, None::<&str>)?;
+        menu.append(&add_item)?;
     }
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
@@ -179,20 +227,27 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
             }
             sync_tray(app, state);
         }
+        "pause_timer" => {
+            if let Err(e) = sessions::tray_pause_timer(app, state) {
+                log::error!("Failed to pause timer from tray: {}", e);
+            }
+            sync_tray(app, state);
+        }
         "resume_timer" => {
             // Starting the paused timer's own task resumes it.
             if let Some(live) = current_live_timer(state).filter(|l| l.is_paused) {
-                if let Err(e) =
-                    sessions::tray_start_task(app, state, &live.task_id, &live.task_name)
+                if let Err(e) = sessions::start_task_now(app, state, &live.task_id, &live.task_name)
                 {
                     log::error!("Failed to resume timer from tray: {}", e);
                 }
             }
             sync_tray(app, state);
         }
-        "new_task" => {
-            if let Err(e) = app.emit("show-new-task-dialog", ()) {
-                log::error!("Failed to emit show-new-task-dialog event: {}", e);
+        // The app picks: its start dialog, or the Tasks page when there are
+        // no tasks to start yet.
+        "choose_task" | "add_task" => {
+            if let Err(e) = app.emit("show-start-task-dialog", ()) {
+                log::error!("Failed to emit show-start-task-dialog event: {}", e);
             }
             show_main_window(app);
         }
@@ -212,7 +267,7 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
 
             match task_name {
                 Some(task_name) => {
-                    if let Err(e) = sessions::tray_start_task(app, state, task_id, &task_name) {
+                    if let Err(e) = sessions::start_task_now(app, state, task_id, &task_name) {
                         log::error!("Failed to start timer from tray: {}", e);
                     }
                     sync_tray(app, state);
@@ -469,6 +524,7 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
 
     fn task(id: &str, archived: bool) -> Task {
         Task {
@@ -477,19 +533,34 @@ mod tests {
             hourly_rate: None,
             default_note_template_id: None,
             is_archived: archived,
+            is_favorite: false,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
         }
     }
 
+    fn favorite(id: &str) -> Task {
+        Task {
+            is_favorite: true,
+            ..task(id, false)
+        }
+    }
+
+    fn at(secs: i64) -> DateTime<Utc> {
+        Utc.timestamp_opt(secs, 0).unwrap()
+    }
+
+    fn ids<'a>(tasks: &[&'a Task]) -> Vec<&'a str> {
+        tasks.iter().map(|t| t.id.as_str()).collect()
+    }
+
     #[test]
     fn visible_tasks_filters_archived() {
         let tasks = vec![task("a", false), task("b", true), task("c", false)];
-        let ids: Vec<&str> = visible_tasks(&tasks, 5)
-            .iter()
-            .map(|t| t.id.as_str())
-            .collect();
-        assert_eq!(ids, vec!["a", "c"]);
+        assert_eq!(
+            ids(&visible_tasks(&tasks, &HashMap::new(), 5)),
+            vec!["a", "c"]
+        );
     }
 
     #[test]
@@ -502,16 +573,102 @@ mod tests {
             task("b", false),
             task("c", false),
         ];
-        let ids: Vec<&str> = visible_tasks(&tasks, 2)
-            .iter()
-            .map(|t| t.id.as_str())
-            .collect();
-        assert_eq!(ids, vec!["a", "b"]);
+        assert_eq!(
+            ids(&visible_tasks(&tasks, &HashMap::new(), 2)),
+            vec!["a", "b"]
+        );
     }
 
     #[test]
     fn visible_tasks_empty_when_all_archived() {
         let tasks = vec![task("a", true), task("b", true)];
-        assert!(visible_tasks(&tasks, 5).is_empty());
+        assert!(visible_tasks(&tasks, &HashMap::new(), 5).is_empty());
+    }
+
+    #[test]
+    fn visible_tasks_puts_recently_used_first_then_never_used_by_name() {
+        let tasks = vec![
+            task("d", false),
+            task("b", false),
+            task("c", false),
+            task("a", false),
+        ];
+        let last_used = HashMap::from([("c".to_string(), at(200)), ("b".to_string(), at(100))]);
+        assert_eq!(
+            ids(&visible_tasks(&tasks, &last_used, 5)),
+            vec!["c", "b", "a", "d"]
+        );
+    }
+
+    #[test]
+    fn visible_tasks_pins_favorites_ahead_of_recent_ones() {
+        let tasks = vec![
+            task("a", false),
+            favorite("b"),
+            task("c", false),
+            favorite("d"),
+        ];
+        // a is the most recent overall, but both favorites come first, each
+        // group ordered by recency
+        let last_used = HashMap::from([
+            ("a".to_string(), at(300)),
+            ("d".to_string(), at(200)),
+            ("b".to_string(), at(100)),
+        ]);
+        assert_eq!(
+            ids(&visible_tasks(&tasks, &last_used, 3)),
+            vec!["d", "b", "a"]
+        );
+    }
+
+    #[test]
+    fn last_used_by_task_takes_each_task_latest_timer_start() {
+        let session = |id: &str, task_id: &str, starts: &[i64]| {
+            let json = serde_json::json!({
+                "id": id,
+                "taskId": task_id,
+                "taskName": task_id,
+                "timerInstances": starts.iter().enumerate().map(|(n, s)| serde_json::json!({
+                    "id": format!("{}-{}", id, n),
+                    "sessionId": id,
+                    "startTime": at(*s).to_rfc3339(),
+                    "endTime": null,
+                    "duration": null,
+                    "pausedAt": null,
+                    "pausedDuration": null,
+                    "resumedAt": null,
+                    "notes": null
+                })).collect::<Vec<_>>(),
+                "notes": null
+            });
+            serde_json::from_value::<TaskSession>(json).unwrap()
+        };
+        let sessions = vec![
+            session("s1", "a", &[10, 50]),
+            session("s2", "a", &[30]),
+            session("s3", "b", &[20]),
+            session("s4", "c", &[]),
+        ];
+
+        let last_used = last_used_by_task(&sessions);
+
+        assert_eq!(last_used.get("a"), Some(&at(50)));
+        assert_eq!(last_used.get("b"), Some(&at(20)));
+        assert_eq!(last_used.get("c"), None);
+    }
+
+    #[test]
+    fn task_without_is_favorite_deserializes_as_not_favorite() {
+        let json = serde_json::json!({
+            "id": "t1",
+            "name": "Task",
+            "hourlyRate": null,
+            "defaultNoteTemplateId": null,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+        });
+        let task: Task = serde_json::from_value(json).unwrap();
+        assert!(!task.is_favorite);
+        assert!(!task.is_archived);
     }
 }

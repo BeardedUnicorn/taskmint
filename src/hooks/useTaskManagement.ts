@@ -120,6 +120,23 @@ export function useTaskManagement(): UseTaskManagementReturn {
     );
   }, [taskService, executeAsync, showSuccess, showError]);
 
+  // The star is its own feedback, so unlike updateTask this doesn't toast.
+  const toggleFavorite = useCallback(async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return null;
+    return executeAsync(
+      async () => {
+        const updatedTask = await taskService.updateTask(taskId, { isFavorite: !task.isFavorite });
+        setTasks(prev => prev.map(t => (t.id === taskId ? updatedTask : t)));
+        return updatedTask;
+      },
+      {
+        operation: 'toggleFavorite',
+        errorHandler: () => showError('Failed to update the favorite. Please try again.')
+      }
+    );
+  }, [tasks, taskService, executeAsync, showError]);
+
   // 'orphan' by default: the UI no longer shows or edits parent tasks, so
   // children a user can't see must never block deleting their parent.
   const deleteTask = useCallback(async (taskId: string, strategy: TaskDeletionStrategy = 'orphan'): Promise<void> => {
@@ -217,6 +234,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
     deleteTask,
     archiveTask,
     unarchiveTask,
+    toggleFavorite,
     getTaskById,
     getTaskByName,
     getTaskNames,

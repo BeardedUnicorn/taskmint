@@ -228,6 +228,40 @@ describe('useTaskManagement', () => {
     });
   });
 
+  describe('toggleFavorite', () => {
+    it('stars the task without a toast and updates the list', async () => {
+      const starred = { ...sampleTasks[0], isFavorite: true };
+      mockTaskService.getAllTasks.mockResolvedValue(sampleTasks);
+      mockTaskService.updateTask.mockResolvedValue(starred);
+
+      const { result } = renderHook(() => useTaskManagement());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await act(async () => {
+        await result.current.toggleFavorite('task-1');
+      });
+
+      expect(mockTaskService.updateTask).toHaveBeenCalledWith('task-1', { isFavorite: true });
+      expect(result.current.tasks.find(t => t.id === 'task-1')?.isFavorite).toBe(true);
+      expect(mockShowSuccess).not.toHaveBeenCalled();
+    });
+
+    it('unstars a starred task', async () => {
+      const starred = { ...sampleTasks[0], isFavorite: true };
+      mockTaskService.getAllTasks.mockResolvedValue([starred, ...sampleTasks.slice(1)]);
+      mockTaskService.updateTask.mockResolvedValue({ ...starred, isFavorite: false });
+
+      const { result } = renderHook(() => useTaskManagement());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await act(async () => {
+        await result.current.toggleFavorite('task-1');
+      });
+
+      expect(mockTaskService.updateTask).toHaveBeenCalledWith('task-1', { isFavorite: false });
+    });
+  });
+
   describe('archiving', () => {
     it('should partition tasks into activeTasks and archivedTasks', async () => {
       const archivedTask = {
