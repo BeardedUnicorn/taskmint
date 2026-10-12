@@ -19,9 +19,6 @@ export * from './display';
 // Table Components
 export * from './tables';
 
-// Subscription Components
-export { UpgradeDialog } from './UpgradeDialog';
-
 // Loading Components
 export * from './loading';
 

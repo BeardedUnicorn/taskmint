@@ -41,14 +41,13 @@ pub async fn reset_all_app_data(
 
     // Remaining in-memory state: the tasks mirror (its source of truth is
     // frontend localStorage, cleared by the caller), the tray timer state,
-    // an unconsumed browser capture, the startup load warnings (stale after
-    // a wipe), and the in-memory Google Drive OAuth tokens.
+    // an unconsumed browser capture, and the startup load warnings (stale
+    // after a wipe).
     app_state.with_tasks_mut(|tasks| tasks.clear())?;
     app_state.with_timer_state_mut(|timer| *timer = TimerState::default())?;
     app_state.with_pending_work_log_capture_mut(|capture| *capture = None)?;
     app_state.with_session_load_warning_mut(|warning| *warning = None)?;
     app_state.with_work_log_load_warning_mut(|warning| *warning = None)?;
-    app_state.with_google_drive_client_mut(|client| *client = None)?;
 
     // Best-effort from here: the stores are already reset, so a cleanup
     // failure must not fail the command and strand the frontend un-reset.

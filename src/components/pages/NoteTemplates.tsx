@@ -12,18 +12,13 @@ import {
   Alert,
   CircularProgress,
   Snackbar,
-  Button,
 } from '@mui/material';
 import { NoteTemplate } from '../../types/notes';
 import { NoteTemplateBuilder } from '../features/notes/NoteTemplateBuilder';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
-import { useSubscription, useFeatureAccess } from '../../contexts/SubscriptionContext';
-import { FEATURES } from '../../types/subscription';
-import { UpgradeDialog } from '../ui/UpgradeDialog';
 
 export function NoteTemplates() {
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -33,10 +28,6 @@ export function NoteTemplates() {
     message: '',
     severity: 'success',
   });
-
-  // Subscription access control
-  const { subscription, upgradeSubscription } = useSubscription();
-  const { hasAccess: hasNoteTemplates } = useFeatureAccess(FEATURES.NOTE_TEMPLATES);
 
   const {
     templates,
@@ -98,15 +89,6 @@ export function NoteTemplates() {
     setSelectedTemplate(template);
   }, []);
 
-  const handleUpgrade = async (sku: any) => {
-    try {
-      await upgradeSubscription(sku);
-      setShowUpgradeDialog(false);
-    } catch (error) {
-      console.error('Failed to upgrade subscription:', error);
-    }
-  };
-
   if (isLoading) {
     return (
       <Box sx={{ 
@@ -142,39 +124,14 @@ export function NoteTemplates() {
 
       {/* Main Content */}
       <Box sx={{ flex: 1, minHeight: 0 }}>
-        {hasNoteTemplates ? (
-          <NoteTemplateBuilder
-            templates={templates}
-            onCreateTemplate={handleCreateTemplate}
-            onUpdateTemplate={handleUpdateTemplate}
-            onDeleteTemplate={handleDeleteTemplate}
-            onSelectTemplate={handleSelectTemplate}
-            selectedTemplate={selectedTemplate}
-          />
-        ) : (
-          <Alert 
-            severity="warning" 
-            action={
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button 
-                  color="inherit" 
-                  size="small" 
-                  onClick={() => setShowUpgradeDialog(true)}
-                >
-                  Upgrade
-                </Button>
-              </Box>
-            }
-          >
-            <Typography variant="h6" gutterBottom>
-              Note Templates - Pro Feature
-            </Typography>
-            <Typography variant="body2">
-              Note Templates are available with Pro or Power subscription. Create structured templates 
-              to capture consistent information across your tasks with custom fields and validation.
-            </Typography>
-          </Alert>
-        )}
+        <NoteTemplateBuilder
+          templates={templates}
+          onCreateTemplate={handleCreateTemplate}
+          onUpdateTemplate={handleUpdateTemplate}
+          onDeleteTemplate={handleDeleteTemplate}
+          onSelectTemplate={handleSelectTemplate}
+          selectedTemplate={selectedTemplate}
+        />
       </Box>
 
       {/* Success/Error Snackbar */}
@@ -191,16 +148,6 @@ export function NoteTemplates() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-
-      {/* Upgrade Dialog */}
-      <UpgradeDialog
-        open={showUpgradeDialog}
-        onClose={() => setShowUpgradeDialog(false)}
-        onUpgrade={handleUpgrade}
-        currentSku={subscription?.sku}
-        featureName="Note Templates"
-        requiredSku="pro-lifetime"
-      />
     </Box>
   );
 }

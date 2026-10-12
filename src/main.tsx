@@ -18,6 +18,15 @@ import { initSentry } from "./utils/sentry";
 // Initialize Sentry before rendering the app
 initSentry();
 
+// Clear data left behind by the removed subscription/paywall system.
+for (const key of ['userSubscription', 'featureOverrides', 'taskLimitOverride']) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Storage unavailable; nothing to clean up.
+  }
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />

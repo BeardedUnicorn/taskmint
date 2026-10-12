@@ -23,9 +23,6 @@ export const STORAGE_KEYS = {
   DAILY_GOAL: 'dailyGoal',
   DAILY_GOAL_ACHIEVEMENTS: 'dailyGoalAchievements',
   FUNDS_RELEASE_DAYS: 'fundsReleaseDays',
-  USER_SUBSCRIPTION: 'userSubscription',
-  FEATURE_OVERRIDES: 'featureOverrides',
-  TASK_LIMIT_OVERRIDE: 'taskLimitOverride',
   // Session-based storage keys (session data itself lives in the Rust
   // sessions.json store, not localStorage)
   ENHANCED_TIMER_SETTINGS: 'enhancedTimerSettings',

@@ -38,9 +38,6 @@ import { GoalAchievementsTable } from '../ui/tables/GoalAchievementsTable';
 import { useDailyGoals } from '../../hooks/useDailyGoals';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { EditTimeEntryData } from '../../types/form';
-import { useSubscription, useFeatureAccess } from '../../contexts/SubscriptionContext';
-import { FEATURES } from '../../types/subscription';
-import { UpgradeDialog } from '../ui/UpgradeDialog';
 
 // Lazy load chart components for better performance
 const TaskTimeBarChart = lazy(() => import('../ui/charts/TaskTimeBarChart').then(module => ({ default: module.TaskTimeBarChart })));
@@ -76,11 +73,6 @@ export function ReportsPage({
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [timelineView, setTimelineView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-
-  // Subscription access control
-  const { subscription, upgradeSubscription } = useSubscription();
-  const { hasAccess: hasAdvancedReports } = useFeatureAccess(FEATURES.ADVANCED_REPORTS);
 
   // Daily goals hook and state
   const { getAchievementsForDateRange } = useDailyGoals();
@@ -200,15 +192,6 @@ export function ReportsPage({
     setEditingEntry(null);
   };
 
-  const handleUpgrade = async (sku: any) => {
-    try {
-      await upgradeSubscription(sku);
-      setShowUpgradeDialog(false);
-    } catch (error) {
-      console.error('Failed to upgrade subscription:', error);
-    }
-  };
-
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ p: 3 }}>
@@ -325,95 +308,68 @@ export function ReportsPage({
 
         {/* Charts Section */}
         {filteredEntries.length > 0 && (
-          <>
-            {hasAdvancedReports ? (
-              /* Chart Controls */
-              <Paper sx={{ p: 3, mb: 3 }}>
-                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Visual Analytics
-                  </Typography>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>Timeline View</InputLabel>
-                    <Select
-                      value={timelineView}
-                      label="Timeline View"
-                      onChange={(e) => setTimelineView(e.target.value as any)}
-                    >
-                      <MenuItem value="daily">Daily</MenuItem>
-                      <MenuItem value="weekly">Weekly</MenuItem>
-                      <MenuItem value="monthly">Monthly</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Stack>
+          /* Chart Controls */
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Visual Analytics
+              </Typography>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Timeline View</InputLabel>
+                <Select
+                  value={timelineView}
+                  label="Timeline View"
+                  onChange={(e) => setTimelineView(e.target.value as any)}
+                >
+                  <MenuItem value="daily">Daily</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                </Select>
+              </FormControl>
+            </Stack>
 
-                <Suspense fallback={
-                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
-                    <CircularProgress />
-                  </Box>
-                }>
-                  <Stack spacing={3}>
-                    {/* Top Row - Task Time Bar Chart and Task Distribution Pie Chart */}
-                    <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>
-                      {/* Task Time Bar Chart */}
-                      <Box sx={{ flex: { lg: 2 }, minWidth: 0 }}>
-                        <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
-                          <TaskTimeBarChart
-                            data={chartData.taskTimeData}
-                            showEarnings={true}
-                            height={400}
-                          />
-                        </Paper>
-                      </Box>
-
-                      {/* Task Distribution Pie Chart */}
-                      <Box sx={{ flex: { lg: 1 }, minWidth: 0 }}>
-                        <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
-                          <TaskDistributionPieChart
-                            data={chartData.taskDistributionData}
-                            height={400}
-                          />
-                        </Paper>
-                      </Box>
-                    </Box>
-
-                    {/* Timeline Chart */}
+            <Suspense fallback={
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+                <CircularProgress />
+              </Box>
+            }>
+              <Stack spacing={3}>
+                {/* Top Row - Task Time Bar Chart and Task Distribution Pie Chart */}
+                <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>
+                  {/* Task Time Bar Chart */}
+                  <Box sx={{ flex: { lg: 2 }, minWidth: 0 }}>
                     <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
-                      <TimelineChart
-                        data={chartData.timelineData}
-                        dataType={timelineView}
+                      <TaskTimeBarChart
+                        data={chartData.taskTimeData}
                         showEarnings={true}
                         height={400}
                       />
                     </Paper>
-                  </Stack>
-                </Suspense>
-              </Paper>
-            ) : (
-              /* Upgrade Required for Advanced Reports */
-              <Paper sx={{ p: 3, mb: 3 }}>
-                <Alert 
-                  severity="warning" 
-                  action={
-                    <Button 
-                      color="inherit" 
-                      size="small" 
-                      onClick={() => setShowUpgradeDialog(true)}
-                    >
-                      Upgrade
-                    </Button>
-                  }
-                >
-                  <Typography variant="h6" gutterBottom>
-                    Advanced Reports & Analytics
-                  </Typography>
-                  <Typography variant="body2">
-                    Unlock visual analytics including charts, graphs, and advanced reporting features with Pro or Power subscription.
-                  </Typography>
-                </Alert>
-              </Paper>
-            )}
-          </>
+                  </Box>
+
+                  {/* Task Distribution Pie Chart */}
+                  <Box sx={{ flex: { lg: 1 }, minWidth: 0 }}>
+                    <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
+                      <TaskDistributionPieChart
+                        data={chartData.taskDistributionData}
+                        height={400}
+                      />
+                    </Paper>
+                  </Box>
+                </Box>
+
+                {/* Timeline Chart */}
+                <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
+                  <TimelineChart
+                    data={chartData.timelineData}
+                    dataType={timelineView}
+                    showEarnings={true}
+                    height={400}
+                  />
+                </Paper>
+              </Stack>
+            </Suspense>
+          </Paper>
         )}
 
         {/* Time Entries Table */}
@@ -560,16 +516,6 @@ export function ReportsPage({
             onClose={() => setEditingEntry(null)}
           />
         )}
-
-        {/* Upgrade Dialog */}
-        <UpgradeDialog
-          open={showUpgradeDialog}
-          onClose={() => setShowUpgradeDialog(false)}
-          onUpgrade={handleUpgrade}
-          currentSku={subscription?.sku}
-          featureName="Advanced Reports & Analytics"
-          requiredSku="pro-lifetime"
-        />
       </Box>
     </LocalizationProvider>
   );

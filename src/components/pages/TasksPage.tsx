@@ -11,9 +11,8 @@ import { TaskDetailPane } from './tasks/TaskDetailPane';
 import { TaskListPane } from './tasks/TaskListPane';
 import { TaskFormDialog } from './tasks/TaskFormDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
-import { ConfirmDialog, UpgradeDialog } from '../ui';
+import { ConfirmDialog } from '../ui';
 import { EditTimeEntryData } from '../../types/form';
-import { useSubscription, useTaskLimit } from '../../contexts/SubscriptionContext';
 import { getEntryElapsedMs } from '../../utils/timerHelpers';
 
 interface TasksPageProps {
@@ -47,11 +46,6 @@ export function TasksPage({
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-
-  // Subscription hooks
-  const { subscription, upgradeSubscription } = useSubscription();
-  const { canAddTask, currentCount, limit, reason, isLoading: limitLoading } = useTaskLimit(tasks);
 
   // Keep the selection in sync with the task list
   useEffect(() => {
@@ -136,21 +130,7 @@ export function TasksPage({
   };
 
   const handleAddTaskClick = () => {
-    if (limitLoading) return;
-    if (!canAddTask) {
-      setShowUpgradeDialog(true);
-      return;
-    }
     setShowNewTaskDialog(true);
-  };
-
-  const handleUpgrade = async (sku: any) => {
-    try {
-      await upgradeSubscription(sku);
-      setShowUpgradeDialog(false);
-    } catch (error) {
-      console.error('Failed to upgrade subscription:', error);
-    }
   };
 
 
@@ -166,25 +146,6 @@ export function TasksPage({
           Manage your tasks and view detailed time tracking information
         </Typography>
       </Box>
-
-      {/* Task Limit Display */}
-      {limit && (
-        <Box sx={{ px: 3, pb: 1 }}>
-          <Alert 
-            severity={canAddTask ? "info" : "warning"} 
-            sx={{ mb: 1 }}
-          >
-            <Typography variant="body2">
-              Tasks: {currentCount}/{limit} {!canAddTask && '(Limit reached)'}
-            </Typography>
-            {!canAddTask && reason && (
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                {reason}
-              </Typography>
-            )}
-          </Alert>
-        </Box>
-      )}
 
       {/* Main Content - Task List + Details */}
       <Box sx={{ flex: 1, overflow: 'hidden', px: 3, pb: 3 }}>
@@ -307,16 +268,6 @@ export function TasksPage({
         onClose={() => setDeletingEntryId(null)}
         confirmLabel="Delete"
         severity="error"
-      />
-
-      {/* Upgrade Dialog */}
-      <UpgradeDialog
-        open={showUpgradeDialog}
-        onClose={() => setShowUpgradeDialog(false)}
-        onUpgrade={handleUpgrade}
-        currentSku={subscription?.sku}
-        featureName="Unlimited Tasks"
-        requiredSku="pro-lifetime"
       />
     </Box>
   );

@@ -1,15 +1,15 @@
 /**
  * StorageService Tests
  *
- * Verifies persistence and error handling for tasks, sessions, notes, and subscription data
+ * Verifies persistence and error handling for tasks, sessions, notes, and generic schema-validated data
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { StorageService } from '../StorageService';
 import { STORAGE_KEYS } from '../../constants';
 import { Task } from '../../types/task';
 import { TaskNote } from '../../types/notes';
-import { SUBSCRIPTION_SKUS, UserSubscriptionSchema } from '../../types/subscription';
 import { StorageErrorClass } from '../../types/errors';
 
 const service = StorageService.getInstance();
@@ -84,32 +84,27 @@ describe('StorageService', () => {
     });
   });
 
-  describe('subscription data persistence', () => {
-    it('should persist and retrieve subscription data', async () => {
-      const sub = { sku: SUBSCRIPTION_SKUS.PRO, activatedAt: '2023-01-01T00:00:00.000Z' };
-      await service.setItem(STORAGE_KEYS.USER_SUBSCRIPTION, sub, UserSubscriptionSchema);
-      const result = await service.getItem(
-        STORAGE_KEYS.USER_SUBSCRIPTION,
-        { sku: SUBSCRIPTION_SKUS.FREE, activatedAt: 'default' },
-        UserSubscriptionSchema
-      );
-      expect(result).toEqual(sub);
+  describe('schema-validated persistence', () => {
+    const KEY = 'storageServiceTestRecord';
+    const RecordSchema = z.object({ name: z.string(), count: z.number() });
+
+    it('should persist and retrieve schema-validated data', async () => {
+      const record = { name: 'saved', count: 3 };
+      await service.setItem(KEY, record, RecordSchema);
+      const result = await service.getItem(KEY, { name: 'default', count: 0 }, RecordSchema);
+      expect(result).toEqual(record);
     });
 
     it('should return default value when key is missing', async () => {
-      const def = { sku: SUBSCRIPTION_SKUS.FREE, activatedAt: 'default' };
-      const result = await service.getItem(STORAGE_KEYS.USER_SUBSCRIPTION, def, UserSubscriptionSchema);
+      const def = { name: 'default', count: 0 };
+      const result = await service.getItem(KEY, def, RecordSchema);
       expect(result).toEqual(def);
     });
 
     it('should throw StorageError on invalid JSON', async () => {
-      localStorage.setItem(STORAGE_KEYS.USER_SUBSCRIPTION, 'invalid');
+      localStorage.setItem(KEY, 'invalid');
       await expect(
-        service.getItem(
-          STORAGE_KEYS.USER_SUBSCRIPTION,
-          { sku: SUBSCRIPTION_SKUS.FREE, activatedAt: 'x' },
-          UserSubscriptionSchema
-        )
+        service.getItem(KEY, { name: 'x', count: 0 }, RecordSchema)
       ).rejects.toBeInstanceOf(StorageErrorClass);
     });
   });

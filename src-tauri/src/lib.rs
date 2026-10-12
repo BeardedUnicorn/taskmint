@@ -12,7 +12,6 @@ pub mod timer;
 pub mod tray;
 pub mod utils;
 pub mod backup;
-pub mod google_drive;
 pub mod config;
 pub mod storage;
 pub mod capture_server;
@@ -271,15 +270,6 @@ pub fn run() {
             commands::backup::perform_automatic_backup,
             commands::backup::export_data_to_file,
             commands::backup::import_data_from_file,
-            
-            // Google Drive commands
-            commands::google_drive::get_auth_url,
-            commands::google_drive::authenticate,
-            commands::google_drive::list_files,
-            commands::google_drive::get_file_metadata,
-            commands::google_drive::download_file,
-            commands::google_drive::upload_file,
-            commands::google_drive::update_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

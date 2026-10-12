@@ -43,13 +43,6 @@ pub struct Config {
     pub validation_max_minute: u32,
     pub validation_max_second: u32,
     
-    /// Google Drive configuration
-    pub google_drive_oauth_url: String,
-    pub google_drive_token_url: String,
-    pub google_drive_api_url: String,
-    pub google_drive_scope: String,
-    pub google_drive_token_refresh_buffer_minutes: i64,
-    
     /// Icon configuration
     pub icon_tray_primary: String,
     pub icon_tray_fallback: String,
@@ -94,11 +87,6 @@ impl Default for Config {
             validation_max_hour: VALIDATION_MAX_HOUR,
             validation_max_minute: VALIDATION_MAX_MINUTE,
             validation_max_second: VALIDATION_MAX_SECOND,
-            google_drive_oauth_url: GOOGLE_DRIVE_OAUTH_URL.to_string(),
-            google_drive_token_url: GOOGLE_DRIVE_TOKEN_URL.to_string(),
-            google_drive_api_url: GOOGLE_DRIVE_API_URL.to_string(),
-            google_drive_scope: GOOGLE_DRIVE_SCOPE.to_string(),
-            google_drive_token_refresh_buffer_minutes: GOOGLE_DRIVE_TOKEN_REFRESH_BUFFER_MINUTES,
             icon_tray_primary: ICON_TRAY_PRIMARY.to_string(),
             icon_tray_fallback: ICON_TRAY_FALLBACK.to_string(),
             // Default values for new configuration options (constants will be generated from config.toml)
@@ -137,11 +125,6 @@ impl Config {
         Duration::from_millis(self.retry_base_delay_ms * attempt as u64)
     }
     
-    /// Get Google Drive token refresh buffer duration
-    pub fn google_drive_token_refresh_buffer_duration(&self) -> chrono::Duration {
-        chrono::Duration::minutes(self.google_drive_token_refresh_buffer_minutes)
-    }
-
     /// Get inactivity threshold duration
     pub fn inactivity_threshold_duration(&self) -> Duration {
         Duration::from_secs(self.inactivity_threshold_minutes as u64 * 60)
