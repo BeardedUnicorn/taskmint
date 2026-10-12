@@ -1,22 +1,6 @@
 // Utility functions used throughout the application
 
 use crate::config::get_config;
-use chrono::{DateTime, Utc};
-
-// Time formatting utilities
-pub fn get_current_elapsed_ms(start_time: &DateTime<Utc>) -> u64 {
-    // A start_time in the future (clock skew, user-edited timestamps) must
-    // clamp to zero instead of wrapping to a huge unsigned value.
-    (Utc::now() - *start_time).num_milliseconds().max(0) as u64
-}
-
-pub fn format_duration(ms: u64) -> String {
-    let config = get_config();
-    let total_seconds = ms / config.ms_per_second;
-    let minutes = total_seconds / config.seconds_per_minute;
-    let seconds = total_seconds % config.seconds_per_minute;
-    format!("{:02}:{:02}", minutes, seconds)
-}
 
 pub fn format_duration_hm(ms: u64) -> String {
     let config = get_config();

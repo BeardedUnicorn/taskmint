@@ -6,5 +6,4 @@ pub mod reset;
 pub mod restore;
 pub mod sessions;
 pub mod tasks;
-pub mod timer;
 pub mod worklogs;

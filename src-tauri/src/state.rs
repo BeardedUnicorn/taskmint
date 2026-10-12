@@ -1,8 +1,8 @@
 // Application state management
 
+use crate::tray::TrayLiveKey;
 use crate::types::{
-    CaptureServerStatus, PendingCapture, ProjectTaskMapping, Task, TaskSession, TimerState,
-    WorkLogEntry,
+    CaptureServerStatus, PendingCapture, ProjectTaskMapping, Task, TaskSession, WorkLogEntry,
 };
 use std::sync::{Arc, Mutex};
 
@@ -15,7 +15,7 @@ pub struct WorkLogStore {
 }
 
 // Type aliases for shared state
-pub type SharedTimerState = Arc<Mutex<TimerState>>;
+pub type SharedTrayRendered = Arc<Mutex<Option<TrayLiveKey>>>;
 pub type SharedTasks = Arc<Mutex<Vec<Task>>>;
 pub type SharedTaskSessions = Arc<Mutex<Vec<TaskSession>>>;
 pub type SharedWorkLogs = Arc<Mutex<WorkLogStore>>;
@@ -27,7 +27,6 @@ pub type SharedLoadWarning = Arc<Mutex<Option<String>>>;
 // Main application state container
 #[derive(Clone)]
 pub struct AppState {
-    pub timer_state: SharedTimerState,
     pub tasks: SharedTasks,
     pub task_sessions: SharedTaskSessions,
     pub work_logs: SharedWorkLogs,
@@ -36,6 +35,9 @@ pub struct AppState {
     pub pending_work_log_capture: SharedPendingCapture,
     pub capture_server_status: SharedCaptureServerStatus,
     pub tray_icon: SharedTrayIcon,
+    // The live timer the tray menu was last built for (None = idle), so the
+    // tray rebuilds only when it changes.
+    pub tray_rendered: SharedTrayRendered,
     // Set once at startup when the sessions store could not be fully read;
     // surfaced to the frontend via get_session_load_warning.
     pub session_load_warning: SharedLoadWarning,
@@ -46,7 +48,6 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            timer_state: Arc::new(Mutex::new(TimerState::default())),
             tasks: Arc::new(Mutex::new(Vec::new())),
             task_sessions: Arc::new(Mutex::new(Vec::new())),
             work_logs: Arc::new(Mutex::new(WorkLogStore::default())),
@@ -57,32 +58,33 @@ impl AppState {
                 warning: None,
             })),
             tray_icon: Arc::new(Mutex::new(None)),
+            tray_rendered: Arc::new(Mutex::new(None)),
             session_load_warning: Arc::new(Mutex::new(None)),
             work_log_load_warning: Arc::new(Mutex::new(None)),
         }
     }
 
     // Helper methods for accessing state with better error handling
-    pub fn with_timer_state<T, F>(&self, f: F) -> Result<T, String>
+    pub fn with_tray_rendered<T, F>(&self, f: F) -> Result<T, String>
     where
-        F: FnOnce(&TimerState) -> T,
+        F: FnOnce(&Option<TrayLiveKey>) -> T,
     {
-        let state = self
-            .timer_state
+        let rendered = self
+            .tray_rendered
             .lock()
-            .map_err(|e| format!("Failed to lock timer state: {}", e))?;
-        Ok(f(&state))
+            .map_err(|e| format!("Failed to lock tray state: {}", e))?;
+        Ok(f(&rendered))
     }
 
-    pub fn with_timer_state_mut<T, F>(&self, f: F) -> Result<T, String>
+    pub fn with_tray_rendered_mut<T, F>(&self, f: F) -> Result<T, String>
     where
-        F: FnOnce(&mut TimerState) -> T,
+        F: FnOnce(&mut Option<TrayLiveKey>) -> T,
     {
-        let mut state = self
-            .timer_state
+        let mut rendered = self
+            .tray_rendered
             .lock()
-            .map_err(|e| format!("Failed to lock timer state: {}", e))?;
-        Ok(f(&mut state))
+            .map_err(|e| format!("Failed to lock tray state: {}", e))?;
+        Ok(f(&mut rendered))
     }
 
     pub fn with_tasks<T, F>(&self, f: F) -> Result<T, String>

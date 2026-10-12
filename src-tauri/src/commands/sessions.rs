@@ -74,6 +74,69 @@ pub(crate) fn recalculate_total_duration(session: &mut TaskSession) {
         .sum();
 }
 
+/// A new, active session for a task. Callers deactivate the others first.
+fn new_task_session(task_id: String, task_name: String, now: DateTime<Utc>) -> TaskSession {
+    TaskSession {
+        id: new_session_id(),
+        task_id,
+        task_name,
+        timer_instances: Vec::new(),
+        total_duration: 0,
+        notes: None,
+        is_active: true,
+        source: None,
+        // Local day, not UTC: the dashboard's today-filter and the calendar
+        // compare this string against the user's local date.
+        date: Local::now().format("%Y-%m-%d").to_string(),
+        created_at: now.to_rfc3339(),
+        updated_at: now.to_rfc3339(),
+    }
+}
+
+/// A fresh (idle, never-run) timer instance.
+fn new_timer_instance(session_id: &str, now: DateTime<Utc>) -> TimerInstance {
+    TimerInstance {
+        id: new_instance_id(),
+        session_id: session_id.to_string(),
+        start_time: now,
+        end_time: None,
+        duration: None,
+        is_running: false,
+        is_paused: false,
+        paused_at: None,
+        paused_duration: None,
+        resumed_at: None,
+        external_id: None,
+        notes: None,
+        created_at: now.to_rfc3339(),
+        updated_at: now.to_rfc3339(),
+    }
+}
+
+/// Put a validated, never-run instance into the running state.
+fn begin_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+    instance.is_running = true;
+    instance.is_paused = false;
+    instance.start_time = now;
+    instance.resumed_at = Some(now);
+    instance.paused_duration = Some(0);
+    instance.updated_at = now.to_rfc3339();
+}
+
+/// Resume a validated, paused instance, folding the pause into
+/// `paused_duration` (the frontend's elapsed math subtracts it).
+fn resume_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+    if let Some(paused_at) = instance.paused_at {
+        let pause_duration = (now.timestamp_millis() - paused_at.timestamp_millis()).max(0) as u64;
+        instance.paused_duration = Some(instance.paused_duration.unwrap_or(0) + pause_duration);
+    }
+    instance.is_running = true;
+    instance.is_paused = false;
+    instance.paused_at = None;
+    instance.resumed_at = Some(now);
+    instance.updated_at = now.to_rfc3339();
+}
+
 /// Finalize one running or paused instance with the same math as
 /// `stop_timer_instance`: clear the state flags, stamp `end_time`, and store
 /// the net duration. A live pause stretch is folded into `paused_duration`,
@@ -161,21 +224,7 @@ pub fn create_session(
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
 
-    let new_session = TaskSession {
-        id: new_session_id(),
-        task_id,
-        task_name,
-        timer_instances: Vec::new(),
-        total_duration: 0,
-        notes: None,
-        is_active: true,
-        source: None,
-        // Local day, not UTC: the dashboard's today-filter and the calendar
-        // compare this string against the user's local date.
-        date: Local::now().format("%Y-%m-%d").to_string(),
-        created_at: now.to_rfc3339(),
-        updated_at: now.to_rfc3339(),
-    };
+    let new_session = new_task_session(task_id, task_name, now);
 
     let stopped_instance_ids =
         app_state.with_task_sessions_mut(|sessions| -> Result<Vec<String>, String> {
@@ -276,22 +325,7 @@ pub async fn create_timer_instance(
 ) -> Result<TimerInstance, String> {
     let now = Utc::now();
 
-    let new_instance = TimerInstance {
-        id: new_instance_id(),
-        session_id: session_id.clone(),
-        start_time: now,
-        end_time: None,
-        duration: None,
-        is_running: false,
-        is_paused: false,
-        paused_at: None,
-        paused_duration: None,
-        resumed_at: None,
-        external_id: None,
-        notes: None,
-        created_at: now.to_rfc3339(),
-        updated_at: now.to_rfc3339(),
-    };
+    let new_instance = new_timer_instance(&session_id, now);
 
     app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
         {
@@ -501,13 +535,7 @@ pub async fn start_timer_instance(
                         })?;
 
                     validate_start(instance, session_is_active, another_running)?;
-
-                    instance.is_running = true;
-                    instance.is_paused = false;
-                    instance.start_time = now;
-                    instance.resumed_at = Some(now);
-                    instance.paused_duration = Some(0);
-                    instance.updated_at = now.to_rfc3339();
+                    begin_instance(instance, now);
                 }
 
                 session.updated_at = now.to_rfc3339();
@@ -683,18 +711,7 @@ pub async fn resume_timer_instance(
                         return Err("Another timer instance is already running".to_string());
                     }
 
-                    if let Some(paused_at) = instance.paused_at {
-                        let pause_duration =
-                            (now.timestamp_millis() - paused_at.timestamp_millis()).max(0) as u64;
-                        instance.paused_duration =
-                            Some(instance.paused_duration.unwrap_or(0) + pause_duration);
-                    }
-
-                    instance.is_running = true;
-                    instance.is_paused = false;
-                    instance.paused_at = None;
-                    instance.resumed_at = Some(now);
-                    instance.updated_at = now.to_rfc3339();
+                    resume_instance(instance, now);
                 }
 
                 session.updated_at = now.to_rfc3339();
@@ -804,6 +821,191 @@ pub async fn set_active_session(
 #[tauri::command]
 pub fn get_session_load_warning(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
     app_state.with_session_load_warning(|warning| warning.clone())
+}
+
+// ============================================================================
+// SYSTEM TRAY OPERATIONS
+// ============================================================================
+//
+// The tray drives sessions directly in Rust (no webview round trip), so it
+// works whatever state the window is in. Each operation upholds the same
+// invariants as the commands above and emits the same timer-instance events,
+// which the frontend's session context reloads on.
+
+/// The timer the tray shows: the running instance, else a paused one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiveTimer {
+    pub instance_id: String,
+    pub task_id: String,
+    pub task_name: String,
+    pub is_paused: bool,
+    /// Net tracked time at `now` (a paused timer's value is frozen).
+    pub elapsed_ms: u64,
+}
+
+pub fn live_timer(sessions: &[TaskSession], now: DateTime<Utc>) -> Option<LiveTimer> {
+    let find = |paused: bool| {
+        sessions.iter().find_map(|session| {
+            session
+                .timer_instances
+                .iter()
+                .find(|i| if paused { i.is_paused } else { i.is_running })
+                .map(|instance| (session, instance))
+        })
+    };
+    let (session, instance) = find(false).or_else(|| find(true))?;
+    let (elapsed_ms, _) = compute_final_duration(
+        instance.start_time,
+        instance.paused_duration.unwrap_or(0),
+        if instance.is_paused {
+            instance.paused_at
+        } else {
+            None
+        },
+        now,
+    );
+    Some(LiveTimer {
+        instance_id: instance.id.clone(),
+        task_id: session.task_id.clone(),
+        task_name: session.task_name.clone(),
+        is_paused: instance.is_paused,
+        elapsed_ms,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TrayStart {
+    /// The task's timer is already running; nothing changed.
+    AlreadyRunning,
+    Resumed(String),
+    Started(String),
+}
+
+/// "Start <task>" from the tray, mirroring the Sessions page: if the task's
+/// session is already the active one, continue it (resume a paused timer, or
+/// start a new timer in it); otherwise open a new active session for the task
+/// with a running timer, finalizing the previous session's live timers the
+/// way create_session does. Returns the outcome and any finalized instance ids.
+pub fn start_task_timer(
+    sessions: &mut Vec<TaskSession>,
+    task_id: &str,
+    task_name: &str,
+    now: DateTime<Utc>,
+) -> Result<(TrayStart, Vec<String>), String> {
+    if let Some(session) = sessions
+        .iter_mut()
+        .find(|s| s.is_active && s.task_id == task_id)
+    {
+        if session.timer_instances.iter().any(|i| i.is_running) {
+            return Ok((TrayStart::AlreadyRunning, Vec::new()));
+        }
+        let outcome = if let Some(paused) = session.timer_instances.iter_mut().find(|i| i.is_paused)
+        {
+            resume_instance(paused, now);
+            TrayStart::Resumed(paused.id.clone())
+        } else {
+            if session.timer_instances.len() >= MAX_TIMER_INSTANCES_PER_SESSION {
+                return Err(format!(
+                    "Maximum number of timers ({}) reached for this session",
+                    MAX_TIMER_INSTANCES_PER_SESSION
+                ));
+            }
+            let mut instance = new_timer_instance(&session.id, now);
+            begin_instance(&mut instance, now);
+            let id = instance.id.clone();
+            session.timer_instances.push(instance);
+            TrayStart::Started(id)
+        };
+        session.updated_at = now.to_rfc3339();
+        return Ok((outcome, Vec::new()));
+    }
+
+    let mut stopped = Vec::new();
+    for session in sessions.iter_mut() {
+        if session.is_active {
+            stopped.extend(stop_active_instances(session, now));
+        }
+        session.is_active = false;
+    }
+    let mut session = new_task_session(task_id.to_string(), task_name.to_string(), now);
+    let mut instance = new_timer_instance(&session.id, now);
+    begin_instance(&mut instance, now);
+    let id = instance.id.clone();
+    session.timer_instances.push(instance);
+    sessions.push(session);
+    Ok((TrayStart::Started(id), stopped))
+}
+
+/// Finalize the live timer (running, else paused), like stop_timer_instance.
+/// Returns its id, or None when nothing is live.
+pub fn stop_live_timer(sessions: &mut [TaskSession], now: DateTime<Utc>) -> Option<String> {
+    let instance_id = live_timer(sessions, now)?.instance_id;
+    let session = sessions
+        .iter_mut()
+        .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))?;
+    let instance = session
+        .timer_instances
+        .iter_mut()
+        .find(|i| i.id == instance_id)?;
+    finalize_instance(instance, now);
+    session.updated_at = now.to_rfc3339();
+    recalculate_total_duration(session);
+    Some(instance_id)
+}
+
+/// Tray entry point for starting a task's timer: mutate, persist, notify.
+pub fn tray_start_task(
+    app: &AppHandle,
+    app_state: &AppState,
+    task_id: &str,
+    task_name: &str,
+) -> Result<TrayStart, String> {
+    let now = Utc::now();
+    let (outcome, stopped) = app_state.with_task_sessions_mut(
+        |sessions| -> Result<(TrayStart, Vec<String>), String> {
+            let result = start_task_timer(sessions, task_id, task_name, now)?;
+            if result.0 != TrayStart::AlreadyRunning {
+                storage::save_sessions(app, sessions)?;
+            }
+            Ok(result)
+        },
+    )??;
+
+    // Persisted already; emit failures only delay the frontend's refresh.
+    emit_stopped_events(app, &stopped, now);
+    match &outcome {
+        TrayStart::Started(instance_id) => {
+            let _ = app.emit(
+                "timer-instance-started",
+                serde_json::json!({ "instanceId": instance_id, "startTime": now.to_rfc3339() }),
+            );
+        }
+        TrayStart::Resumed(instance_id) => {
+            let _ = app.emit(
+                "timer-instance-resumed",
+                serde_json::json!({ "instanceId": instance_id, "resumedAt": now.to_rfc3339() }),
+            );
+        }
+        TrayStart::AlreadyRunning => {}
+    }
+    Ok(outcome)
+}
+
+/// Tray entry point for Stop: finalize the live timer, persist, notify.
+pub fn tray_stop_timer(app: &AppHandle, app_state: &AppState) -> Result<Option<String>, String> {
+    let now = Utc::now();
+    let stopped =
+        app_state.with_task_sessions_mut(|sessions| -> Result<Option<String>, String> {
+            let stopped = stop_live_timer(sessions, now);
+            if stopped.is_some() {
+                storage::save_sessions(app, sessions)?;
+            }
+            Ok(stopped)
+        })??;
+    if let Some(instance_id) = &stopped {
+        emit_stopped_events(app, std::slice::from_ref(instance_id), now);
+    }
+    Ok(stopped)
 }
 
 #[cfg(test)]
@@ -1113,5 +1315,168 @@ mod tests {
         recalculate_total_duration(&mut session);
 
         assert_eq!(session.total_duration, 75_000);
+    }
+
+    // --- system tray operations -------------------------------------------
+
+    fn tray_session(id: &str, task_id: &str, active: bool) -> TaskSession {
+        TaskSession {
+            id: id.to_string(),
+            task_id: task_id.to_string(),
+            task_name: format!("Task {}", task_id),
+            is_active: active,
+            ..fresh_session()
+        }
+    }
+
+    fn tray_instance(id: &str, session_id: &str, start: i64) -> TimerInstance {
+        TimerInstance {
+            id: id.to_string(),
+            session_id: session_id.to_string(),
+            start_time: ts(start),
+            ..fresh_instance()
+        }
+    }
+
+    #[test]
+    fn live_timer_prefers_running_and_reports_net_elapsed() {
+        let mut paused = tray_instance("p", "old", 0);
+        paused.is_paused = true;
+        paused.paused_at = Some(ts(30));
+        paused.paused_duration = Some(0);
+        let mut old = tray_session("old", "a", false);
+        old.timer_instances = vec![paused];
+
+        let mut running = tray_instance("r", "cur", 100);
+        running.is_running = true;
+        running.paused_duration = Some(20_000);
+        let mut cur = tray_session("cur", "b", true);
+        cur.timer_instances = vec![running];
+
+        let live = live_timer(&[old, cur], ts(200)).unwrap();
+        assert_eq!(live.instance_id, "r");
+        assert_eq!(live.task_id, "b");
+        assert!(!live.is_paused);
+        assert_eq!(live.elapsed_ms, 80_000); // 100s wall - 20s paused
+    }
+
+    #[test]
+    fn live_timer_freezes_a_paused_timer() {
+        let mut paused = tray_instance("p", "s", 0);
+        paused.is_paused = true;
+        paused.paused_at = Some(ts(45));
+        paused.paused_duration = Some(5_000);
+        let mut session = tray_session("s", "a", true);
+        session.timer_instances = vec![paused];
+
+        let live = live_timer(&[session], ts(500)).unwrap();
+        assert!(live.is_paused);
+        assert_eq!(live.elapsed_ms, 40_000);
+        assert!(live_timer(&[tray_session("x", "a", true)], ts(500)).is_none());
+    }
+
+    #[test]
+    fn tray_start_opens_a_new_session_and_finalizes_the_previous_timer() {
+        let mut running = tray_instance("r", "cur", 0);
+        running.is_running = true;
+        running.paused_duration = Some(0);
+        let mut cur = tray_session("cur", "a", true);
+        cur.timer_instances = vec![running];
+        let mut sessions = vec![cur];
+
+        let (outcome, stopped) = start_task_timer(&mut sessions, "b", "Task b", ts(60)).unwrap();
+
+        assert_eq!(stopped, vec!["r".to_string()]);
+        assert!(!sessions[0].is_active);
+        assert_eq!(sessions[0].timer_instances[0].duration, Some(60_000));
+        let new_session = &sessions[1];
+        assert!(new_session.is_active);
+        assert_eq!(new_session.task_id, "b");
+        assert_eq!(new_session.task_name, "Task b");
+        let started = &new_session.timer_instances[0];
+        assert!(started.is_running);
+        assert_eq!(started.start_time, ts(60));
+        assert_eq!(outcome, TrayStart::Started(started.id.clone()));
+        // Exactly one running timer overall
+        let running_count = sessions
+            .iter()
+            .flat_map(|s| s.timer_instances.iter())
+            .filter(|i| i.is_running)
+            .count();
+        assert_eq!(running_count, 1);
+    }
+
+    #[test]
+    fn tray_start_for_the_active_task_continues_its_session() {
+        let mut done = tray_instance("done", "cur", 0);
+        done.duration = Some(10_000);
+        done.end_time = Some(ts(10));
+        let mut cur = tray_session("cur", "a", true);
+        cur.timer_instances = vec![done];
+        let mut sessions = vec![cur];
+
+        let (outcome, stopped) = start_task_timer(&mut sessions, "a", "Task a", ts(100)).unwrap();
+
+        assert!(stopped.is_empty());
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].timer_instances.len(), 2);
+        let started = &sessions[0].timer_instances[1];
+        assert!(started.is_running);
+        assert_eq!(outcome, TrayStart::Started(started.id.clone()));
+    }
+
+    #[test]
+    fn tray_start_for_the_active_task_resumes_a_paused_timer() {
+        let mut paused = tray_instance("p", "cur", 0);
+        paused.is_paused = true;
+        paused.paused_at = Some(ts(30));
+        paused.paused_duration = Some(0);
+        let mut cur = tray_session("cur", "a", true);
+        cur.timer_instances = vec![paused];
+        let mut sessions = vec![cur];
+
+        let (outcome, _) = start_task_timer(&mut sessions, "a", "Task a", ts(90)).unwrap();
+
+        assert_eq!(outcome, TrayStart::Resumed("p".to_string()));
+        let resumed = &sessions[0].timer_instances[0];
+        assert!(resumed.is_running && !resumed.is_paused);
+        assert_eq!(resumed.paused_duration, Some(60_000));
+        assert_eq!(sessions[0].timer_instances.len(), 1);
+    }
+
+    #[test]
+    fn tray_start_is_a_no_op_when_the_task_is_already_running() {
+        let mut running = tray_instance("r", "cur", 0);
+        running.is_running = true;
+        let mut cur = tray_session("cur", "a", true);
+        cur.timer_instances = vec![running];
+        let mut sessions = vec![cur];
+        let before = sessions.clone();
+
+        let (outcome, stopped) = start_task_timer(&mut sessions, "a", "Task a", ts(90)).unwrap();
+
+        assert_eq!(outcome, TrayStart::AlreadyRunning);
+        assert!(stopped.is_empty());
+        assert_eq!(sessions, before);
+    }
+
+    #[test]
+    fn tray_stop_finalizes_the_live_timer() {
+        let mut running = tray_instance("r", "cur", 0);
+        running.is_running = true;
+        running.paused_duration = Some(15_000);
+        let mut cur = tray_session("cur", "a", true);
+        cur.timer_instances = vec![running];
+        let mut sessions = vec![cur];
+
+        assert_eq!(
+            stop_live_timer(&mut sessions, ts(75)),
+            Some("r".to_string())
+        );
+        let stopped = &sessions[0].timer_instances[0];
+        assert!(!stopped.is_running);
+        assert_eq!(stopped.duration, Some(60_000));
+        assert_eq!(sessions[0].total_duration, 60_000);
+        assert_eq!(stop_live_timer(&mut sessions, ts(80)), None);
     }
 }

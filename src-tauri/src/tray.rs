@@ -1,11 +1,12 @@
 // System tray functionality
 
+use crate::commands::sessions::{self, LiveTimer};
 use crate::config::{get_config, Config};
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::timer;
 use crate::types::Task;
-use crate::utils::{format_duration_hm, get_current_elapsed_ms, is_macos};
+use crate::utils::{format_duration_hm, is_macos};
+use chrono::Utc;
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -19,6 +20,33 @@ pub(crate) fn visible_tasks(tasks: &[Task], max: usize) -> Vec<&Task> {
     tasks.iter().filter(|t| !t.is_archived).take(max).collect()
 }
 
+/// What the tray last rendered for the live timer. A change in any of these
+/// fields needs a menu rebuild; elapsed time alone only needs the tooltip.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrayLiveKey {
+    pub instance_id: String,
+    pub task_name: String,
+    pub is_paused: bool,
+}
+
+impl From<&LiveTimer> for TrayLiveKey {
+    fn from(live: &LiveTimer) -> Self {
+        Self {
+            instance_id: live.instance_id.clone(),
+            task_name: live.task_name.clone(),
+            is_paused: live.is_paused,
+        }
+    }
+}
+
+/// The live timer, read straight from the Rust-owned sessions.
+fn current_live_timer(state: &AppState) -> Option<LiveTimer> {
+    state
+        .with_task_sessions(|sessions| sessions::live_timer(sessions, Utc::now()))
+        .ok()
+        .flatten()
+}
+
 pub fn create_tray_menu(
     app: &AppHandle,
     state: &AppState,
@@ -27,36 +55,31 @@ pub fn create_tray_menu(
     log::debug!("Creating tray menu...");
     let menu = Menu::new(app)?;
 
-    // Get current timer state and tasks
-    let (is_running, current_task, elapsed_text) = state
-        .with_timer_state(|timer_state| {
-            let elapsed = if let Some(ref start_time) = timer_state.start_time {
-                get_current_elapsed_ms(start_time)
-            } else {
-                timer_state.elapsed_ms
-            };
-            (
-                timer_state.is_running,
-                timer_state.task_name.clone(),
-                format_duration_hm(elapsed),
-            )
-        })
-        .unwrap_or((false, String::new(), String::new()));
-
     // Timer status section
-    if is_running {
-        let status_text = format!("⏱️ Running: {} ({})", current_task, elapsed_text);
-        let status_item = MenuItem::new(app, status_text.clone(), false, None::<&str>)?;
-        menu.append(&status_item)?;
-        log::debug!("Added timer status item: '{}'", status_text);
+    match current_live_timer(state) {
+        Some(live) => {
+            let elapsed_text = format_duration_hm(live.elapsed_ms);
+            let status_text = if live.is_paused {
+                format!("⏸️ Paused: {} ({})", live.task_name, elapsed_text)
+            } else {
+                format!("⏱️ Running: {} ({})", live.task_name, elapsed_text)
+            };
+            let status_item = MenuItem::new(app, status_text, false, None::<&str>)?;
+            menu.append(&status_item)?;
 
-        let stop_item = MenuItem::with_id(app, "stop_timer", "⏹️ Stop Timer", true, None::<&str>)?;
-        menu.append(&stop_item)?;
-        log::debug!("Added stop timer item with ID: 'stop_timer'");
-    } else {
-        let status_item = MenuItem::new(app, "⏸️ No active timer", false, None::<&str>)?;
-        menu.append(&status_item)?;
-        log::debug!("Added no active timer status item");
+            if live.is_paused {
+                let resume_item =
+                    MenuItem::with_id(app, "resume_timer", "▶️ Resume Timer", true, None::<&str>)?;
+                menu.append(&resume_item)?;
+            }
+            let stop_item =
+                MenuItem::with_id(app, "stop_timer", "⏹️ Stop Timer", true, None::<&str>)?;
+            menu.append(&stop_item)?;
+        }
+        None => {
+            let status_item = MenuItem::new(app, "No active timer", false, None::<&str>)?;
+            menu.append(&status_item)?;
+        }
     }
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
@@ -147,43 +170,37 @@ fn handle_tray_click_event(event: TrayIconEvent, app: &AppHandle) {
 }
 
 pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
-    log::debug!("Menu item clicked: '{}' (length: {})", id, id.len());
+    log::debug!("Tray menu item clicked: '{}'", id);
 
     match id {
         "stop_timer" => {
-            log::debug!("Handling stop_timer menu item");
-            if let Err(e) = timer::stop_timer_from_tray(app, state) {
+            if let Err(e) = sessions::tray_stop_timer(app, state) {
                 log::error!("Failed to stop timer from tray: {}", e);
-            } else {
-                log::debug!("Timer stopped successfully from tray");
-                let _ = update_tray_menu(app, state);
-                if let Err(e) = update_tray_tooltip_only(state) {
-                    log::error!("Failed to update tray tooltip after stop: {:?}", e);
+            }
+            sync_tray(app, state);
+        }
+        "resume_timer" => {
+            // Starting the paused timer's own task resumes it.
+            if let Some(live) = current_live_timer(state).filter(|l| l.is_paused) {
+                if let Err(e) =
+                    sessions::tray_start_task(app, state, &live.task_id, &live.task_name)
+                {
+                    log::error!("Failed to resume timer from tray: {}", e);
                 }
             }
+            sync_tray(app, state);
         }
         "new_task" => {
-            log::debug!("Handling new_task menu item");
             if let Err(e) = app.emit("show-new-task-dialog", ()) {
                 log::error!("Failed to emit show-new-task-dialog event: {}", e);
-            } else {
-                log::debug!("Successfully emitted show-new-task-dialog event");
             }
             show_main_window(app);
         }
         "show_app" => {
-            log::debug!("Handling show_app menu item");
             show_main_window(app);
         }
-        "quit" => {
-            log::debug!("Handling quit menu item");
-            app.exit(0);
-        }
         id if id.starts_with("start_task_") => {
-            let task_id = &id[11..]; // Remove "start_task_" prefix
-            log::debug!("Handling start_task menu item for task_id: '{}'", task_id);
-
-            // Find and start the task
+            let task_id = &id["start_task_".len()..];
             let task_name = state
                 .with_tasks(|tasks| {
                     tasks
@@ -193,22 +210,14 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
                 })
                 .unwrap_or(None);
 
-            if let Some(task_name) = task_name {
-                log::debug!("Found task: '{}'", task_name);
-                if let Err(e) = timer::start_timer_from_tray(app, state, task_name.clone()) {
-                    log::error!("Failed to start timer from tray: {}", e);
-                } else {
-                    log::debug!(
-                        "Timer started successfully from tray for task: '{}'",
-                        task_name
-                    );
-                    let _ = update_tray_menu(app, state);
-                    if let Err(e) = update_tray_tooltip_only(state) {
-                        log::error!("Failed to update tray tooltip after start: {:?}", e);
+            match task_name {
+                Some(task_name) => {
+                    if let Err(e) = sessions::tray_start_task(app, state, task_id, &task_name) {
+                        log::error!("Failed to start timer from tray: {}", e);
                     }
+                    sync_tray(app, state);
                 }
-            } else {
-                log::error!("Task not found for id: '{}'", task_id);
+                None => log::error!("Tray start: task not found for id '{}'", task_id),
             }
         }
         _ => {
@@ -235,15 +244,37 @@ fn show_main_window(app: &AppHandle) {
 }
 
 pub fn update_tray_menu(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
+    let rendered = current_live_timer(state).as_ref().map(TrayLiveKey::from);
     state
         .with_tray_icon(|tray_option| {
             if let Some(ref tray) = tray_option {
                 let new_menu = create_tray_menu(app, state)?;
                 tray.set_menu(Some(new_menu))?;
             }
-            Ok(())
+            Ok::<(), tauri::Error>(())
         })
-        .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))?
+        .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))??;
+    let _ = state.with_tray_rendered_mut(|slot| *slot = rendered);
+    Ok(())
+}
+
+/// Bring the tray in line with the sessions: rebuild the menu only when the
+/// live timer changed (a rebuild closes an open menu, so no-op rebuilds must
+/// not happen), and refresh the tooltip/title. Called after tray actions and
+/// by the update thread, so changes made in the app show within a tick.
+pub fn sync_tray(app: &AppHandle, state: &AppState) {
+    let live = current_live_timer(state).as_ref().map(TrayLiveKey::from);
+    let changed = state
+        .with_tray_rendered(|rendered| *rendered != live)
+        .unwrap_or(true);
+    if changed {
+        if let Err(e) = update_tray_menu(app, state) {
+            log::error!("Failed to update tray menu: {:?}", e);
+        }
+    }
+    if let Err(e) = update_tray_tooltip_only(state) {
+        log::error!("Failed to update tray tooltip: {:?}", e);
+    }
 }
 
 pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
@@ -353,51 +384,46 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
 
 pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
     let config = get_config();
+    let live = current_live_timer(state);
+
+    let (tooltip, title) = match &live {
+        Some(live) => {
+            let elapsed = format_duration_hm(live.elapsed_ms);
+            if live.is_paused {
+                (
+                    format!(
+                        "⏸️ {} - {} paused (Click for menu)",
+                        live.task_name, elapsed
+                    ),
+                    format!("⏸ {}", elapsed),
+                )
+            } else {
+                (
+                    format!("⏱️ {} - {} (Click for menu)", live.task_name, elapsed),
+                    elapsed,
+                )
+            }
+        }
+        None => (
+            format!(
+                "{} - No active timer (Click for menu)",
+                config.tray_tooltip_app_name
+            ),
+            // tray-icon's macOS set_title(None) is a no-op (it only calls
+            // setTitle for Some), so an empty string is what clears it.
+            String::new(),
+        ),
+    };
 
     state.with_tray_icon(|tray_option| {
-        if let Some(ref tray) = tray_option {
-            let (tooltip, should_show_title, title_text) =
-                state.with_timer_state(|timer_state| {
-                    if timer_state.is_running {
-                        let current_elapsed = if let Some(ref start_time) = timer_state.start_time {
-                            get_current_elapsed_ms(start_time)
-                        } else {
-                            timer_state.elapsed_ms
-                        };
-                        let duration_text_tooltip = format_duration_hm(current_elapsed);
-                        let duration_text_title = format_duration_hm(current_elapsed);
-                        let tooltip = format!(
-                            "⏱️ {} - {} (Click for menu)",
-                            timer_state.task_name, duration_text_tooltip
-                        );
-                        (tooltip, true, duration_text_title)
-                    } else {
-                        let tooltip = format!(
-                            "{} - No active timer (Click for menu)",
-                            config.tray_tooltip_app_name
-                        );
-                        (tooltip, false, String::new())
-                    }
-                })?;
-
-            // Set tooltip with timer info
-            tray.set_tooltip(Some(&tooltip))
-                .map_err(|e| AppError::new(format!("Failed to set tooltip: {}", e)))?;
-
-            // Set or clear title for macOS based on timer state
-            if is_macos() {
-                if should_show_title {
-                    tray.set_title(Some(&title_text))
-                        .map_err(|e| AppError::new(format!("Failed to set title: {}", e)))?;
-                } else {
-                    // tray-icon 0.24.2's macOS set_title(None) is a no-op (it only
-                    // calls setTitle for Some), so pass an empty string to clear
-                    tray.set_title(Some(""))
-                        .map_err(|e| AppError::new(format!("Failed to clear title: {}", e)))?;
-                }
-            }
-        } else {
-            return Err(AppError::new("Tray icon not available"));
+        let tray = tray_option
+            .as_ref()
+            .ok_or_else(|| AppError::new("Tray icon not available"))?;
+        tray.set_tooltip(Some(&tooltip))
+            .map_err(|e| AppError::new(format!("Failed to set tooltip: {}", e)))?;
+        if is_macos() {
+            tray.set_title(Some(&title))
+                .map_err(|e| AppError::new(format!("Failed to set title: {}", e)))?;
         }
         Ok(())
     })?
@@ -410,42 +436,32 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
 
     std::thread::spawn(move || {
         let mut last_menu_update = std::time::Instant::now();
-        let mut was_running = false;
 
         loop {
             std::thread::sleep(config.tray_status_update_duration());
 
-            // Check if timer is running
-            let is_running = state_clone
-                .with_timer_state(|timer_state| timer_state.is_running)
+            // Picks up starts/stops made anywhere (app UI, tray, imports) and
+            // keeps the running clock in the tooltip/title current.
+            let live = current_live_timer(&state_clone);
+            let changed = state_clone
+                .with_tray_rendered(|rendered| *rendered != live.as_ref().map(TrayLiveKey::from))
                 .unwrap_or(false);
+            let running = live.as_ref().is_some_and(|l| !l.is_paused);
 
-            // Always update tooltip when timer is running
-            if is_running {
-                if let Err(e) = update_tray_tooltip_only(&state_clone) {
-                    log::error!("Failed to update tray tooltip: {:?}", e);
-                }
+            if changed || running {
+                sync_tray(&app_clone, &state_clone);
+            }
 
-                // Update menu periodically to refresh the elapsed time display
-                if last_menu_update.elapsed() >= config.tray_menu_refresh_duration() {
-                    if let Err(e) = update_tray_menu(&app_clone, &state_clone) {
-                        log::error!("Failed to update tray menu: {:?}", e);
-                    }
-                    last_menu_update = std::time::Instant::now();
-                }
-            } else if was_running {
-                // Timer just stopped: clear the stale title/tooltip and menu once,
-                // since no further updates happen while the timer is idle
-                if let Err(e) = update_tray_tooltip_only(&state_clone) {
-                    log::error!("Failed to update tray tooltip: {:?}", e);
-                }
+            // The menu's status line shows elapsed time too; refresh it
+            // occasionally while running (sync_tray only rebuilds on change).
+            if changed {
+                last_menu_update = std::time::Instant::now();
+            } else if running && last_menu_update.elapsed() >= config.tray_menu_refresh_duration() {
                 if let Err(e) = update_tray_menu(&app_clone, &state_clone) {
                     log::error!("Failed to update tray menu: {:?}", e);
                 }
                 last_menu_update = std::time::Instant::now();
             }
-
-            was_running = is_running;
         }
     });
 }
