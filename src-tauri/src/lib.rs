@@ -1,26 +1,23 @@
 // TaskMint Tauri app with system tray and timer functionality
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-
-
 // Import all modules
-pub mod types;
+pub mod backup;
+pub mod capture_server;
 pub mod commands;
+pub mod config;
 pub mod error;
 pub mod state;
+pub mod storage;
 pub mod timer;
 pub mod tray;
+pub mod types;
 pub mod utils;
-pub mod backup;
-pub mod config;
-pub mod storage;
-pub mod capture_server;
-
 
 // Re-export commonly used types
-pub use types::*;
 pub use error::AppError;
 pub use state::AppState;
+pub use types::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -67,9 +64,13 @@ pub fn run() {
                     Ok(loaded) => {
                         let warning = if loaded.skipped > 0 {
                             let backup_note = match storage::backup_store_file(app.handle()) {
-                                Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
+                                Ok(Some(path)) => {
+                                    format!(" A backup was saved to {}.", path.display())
+                                }
                                 Ok(None) => String::new(),
-                                Err(e) => format!(" Backing up the previous data also failed: {}.", e),
+                                Err(e) => {
+                                    format!(" Backing up the previous data also failed: {}.", e)
+                                }
                             };
                             Some(format!(
                                 "{} saved session record(s) could not be read and were skipped.{}",
@@ -97,7 +98,10 @@ pub fn run() {
                             // path above already backed the file up.
                             if loaded.skipped == 0 {
                                 if let Err(e) = storage::backup_store_file(app.handle()) {
-                                    log::error!("Failed to back up sessions before migration: {}", e);
+                                    log::error!(
+                                        "Failed to back up sessions before migration: {}",
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -123,11 +127,17 @@ pub fn run() {
                             Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
                             Ok(None) => String::new(),
                             Err(backup_err) => {
-                                format!(" Backing up the previous data also failed: {}.", backup_err)
+                                format!(
+                                    " Backing up the previous data also failed: {}.",
+                                    backup_err
+                                )
                             }
                         };
                         if let Ok(mut slot) = app_state.session_load_warning.lock() {
-                            *slot = Some(format!("Failed to load saved sessions: {}.{}", e, backup_note));
+                            *slot = Some(format!(
+                                "Failed to load saved sessions: {}.{}",
+                                e, backup_note
+                            ));
                         }
                     }
                 }
@@ -142,9 +152,13 @@ pub fn run() {
                                 app.handle(),
                                 storage::WORKLOG_STORE_FILENAME,
                             ) {
-                                Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
+                                Ok(Some(path)) => {
+                                    format!(" A backup was saved to {}.", path.display())
+                                }
                                 Ok(None) => String::new(),
-                                Err(e) => format!(" Backing up the previous data also failed: {}.", e),
+                                Err(e) => {
+                                    format!(" Backing up the previous data also failed: {}.", e)
+                                }
                             };
                             let warning = format!(
                                 "{} saved work-log record(s) could not be read and were skipped.{}",
@@ -169,11 +183,17 @@ pub fn run() {
                             Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
                             Ok(None) => String::new(),
                             Err(backup_err) => {
-                                format!(" Backing up the previous data also failed: {}.", backup_err)
+                                format!(
+                                    " Backing up the previous data also failed: {}.",
+                                    backup_err
+                                )
                             }
                         };
                         if let Ok(mut slot) = app_state.work_log_load_warning.lock() {
-                            *slot = Some(format!("Failed to load saved work logs: {}.{}", e, backup_note));
+                            *slot = Some(format!(
+                                "Failed to load saved work logs: {}.{}",
+                                e, backup_note
+                            ));
                         }
                     }
                 }
@@ -190,7 +210,10 @@ pub fn run() {
 
                 // Setup system tray
                 if let Err(e) = tray::setup_system_tray(&app_handle, &app_state) {
-                    log::error!("Failed to set up the system tray; no tray icon this session: {:?}", e);
+                    log::error!(
+                        "Failed to set up the system tray; no tray icon this session: {:?}",
+                        e
+                    );
                     // Continue running even if tray setup fails
                 } else {
                     log::info!("System tray setup successful, starting update timer...");
@@ -236,10 +259,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Timer commands
             commands::timer::update_timer_state,
-
             // Task commands
             commands::tasks::update_tasks,
-
             // Session commands
             commands::sessions::create_session,
             commands::sessions::get_sessions,
@@ -254,18 +275,14 @@ pub fn run() {
             commands::sessions::delete_timer_instance,
             commands::sessions::set_active_session,
             commands::sessions::get_session_load_warning,
-
             // Work-log commands
             commands::worklogs::get_work_logs,
             commands::worklogs::apply_work_log_import,
-
             // Full app-data reset
             commands::reset::reset_all_app_data,
-
             // Browser-capture commands
             commands::capture::take_pending_work_log_capture,
             commands::capture::get_capture_server_status,
-
             // Backup commands
             commands::backup::validate_backup_path,
             commands::backup::perform_automatic_backup,

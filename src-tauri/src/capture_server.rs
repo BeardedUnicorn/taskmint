@@ -252,7 +252,10 @@ fn respond_preflight(request: Request, origin: &str) {
     for (field, value) in [
         ("Access-Control-Allow-Origin", origin),
         ("Access-Control-Allow-Methods", "POST, OPTIONS"),
-        ("Access-Control-Allow-Headers", "content-type, x-taskmint-capture"),
+        (
+            "Access-Control-Allow-Headers",
+            "content-type, x-taskmint-capture",
+        ),
         ("Access-Control-Max-Age", "600"),
     ] {
         if let Ok(header) = Header::from_bytes(field.as_bytes(), value.as_bytes()) {
@@ -307,8 +310,16 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
                 );
                 return;
             }
-            if request.body_length().is_some_and(|len| len > MAX_BODY_BYTES) {
-                respond_json(request, 413, r#"{"error":"payload too large"}"#, cors.as_deref());
+            if request
+                .body_length()
+                .is_some_and(|len| len > MAX_BODY_BYTES)
+            {
+                respond_json(
+                    request,
+                    413,
+                    r#"{"error":"payload too large"}"#,
+                    cors.as_deref(),
+                );
                 return;
             }
             let mut body = String::new();
@@ -318,11 +329,21 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
                 .read_to_string(&mut body)
                 .is_ok();
             if !read_ok {
-                respond_json(request, 400, r#"{"error":"unreadable body"}"#, cors.as_deref());
+                respond_json(
+                    request,
+                    400,
+                    r#"{"error":"unreadable body"}"#,
+                    cors.as_deref(),
+                );
                 return;
             }
             if body.len() > MAX_BODY_BYTES {
-                respond_json(request, 413, r#"{"error":"payload too large"}"#, cors.as_deref());
+                respond_json(
+                    request,
+                    413,
+                    r#"{"error":"payload too large"}"#,
+                    cors.as_deref(),
+                );
                 return;
             }
             match accept_capture_payload(app, state, body) {
@@ -336,7 +357,12 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
                     );
                 }
                 Err(_) => {
-                    respond_json(request, 500, r#"{"error":"state unavailable"}"#, cors.as_deref());
+                    respond_json(
+                        request,
+                        500,
+                        r#"{"error":"state unavailable"}"#,
+                        cors.as_deref(),
+                    );
                 }
             }
         }
@@ -357,8 +383,7 @@ mod tests {
     use std::io::Write;
 
     fn gzip_base64url(text: &str) -> String {
-        let mut encoder =
-            flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         encoder.write_all(text.as_bytes()).unwrap();
         let compressed = encoder.finish().unwrap();
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(compressed)
@@ -380,7 +405,9 @@ mod tests {
     fn is_extension_origin_requires_a_present_extension_origin() {
         assert!(!is_extension_origin(None));
         assert!(is_extension_origin(Some("chrome-extension://abc")));
-        assert!(!is_extension_origin(Some("https://app.dataannotation.tech")));
+        assert!(!is_extension_origin(Some(
+            "https://app.dataannotation.tech"
+        )));
     }
 
     // ---- shape + path ------------------------------------------------------
@@ -399,7 +426,10 @@ mod tests {
 
     #[test]
     fn split_path_drops_the_query() {
-        assert_eq!(split_path("/api/work-log-payload?a=1&b=2"), "/api/work-log-payload");
+        assert_eq!(
+            split_path("/api/work-log-payload?a=1&b=2"),
+            "/api/work-log-payload"
+        );
         assert_eq!(split_path("/api/health"), "/api/health");
         assert_eq!(split_path("/"), "/");
     }
@@ -432,8 +462,7 @@ mod tests {
             .unwrap_err()
             .contains("too large"));
         // Non-UTF-8 decompressed bytes are refused by read_to_string.
-        let mut encoder =
-            flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         encoder.write_all(&[0xff, 0xfe, 0xfd]).unwrap();
         let bad_utf8 =
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(encoder.finish().unwrap());

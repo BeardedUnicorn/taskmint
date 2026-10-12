@@ -94,10 +94,9 @@ fn main() {
 
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     let config_path = Path::new(&manifest_dir).join("config.toml");
-    let config_content = fs::read_to_string(config_path)
-        .expect("Failed to read config.toml");
-    let config: BuildTimeConfig = toml::from_str(&config_content)
-        .expect("Failed to parse config.toml");
+    let config_content = fs::read_to_string(config_path).expect("Failed to read config.toml");
+    let config: BuildTimeConfig =
+        toml::from_str(&config_content).expect("Failed to parse config.toml");
 
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("generated_config.rs");
@@ -198,8 +197,7 @@ pub const ICON_BUNDLE_ICONS: &[&str] = &{:?};
         config.icons.bundle_icons
     );
 
-    fs::write(&dest_path, generated_code)
-        .expect("Failed to write generated_config.rs");
+    fs::write(&dest_path, generated_code).expect("Failed to write generated_config.rs");
 
     tauri_build::build()
 }

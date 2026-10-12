@@ -1,18 +1,16 @@
 // Core application types and data structures
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 // Timer state structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TimerState {
     pub is_running: bool,
     pub task_name: String,
     pub start_time: Option<DateTime<Utc>>,
     pub elapsed_ms: u64,
 }
-
 
 // Task structure
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -169,7 +167,7 @@ pub struct WorkLogEntry {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingCapture {
-    pub payload: String, // raw JSON text as captured from the site
+    pub payload: String,     // raw JSON text as captured from the site
     pub received_at: String, // RFC3339
 }
 

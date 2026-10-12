@@ -5,7 +5,11 @@ use crate::types::Task;
 use tauri::{AppHandle, State};
 
 #[tauri::command]
-pub fn update_tasks(app: AppHandle, app_state: State<AppState>, tasks: Vec<Task>) -> Result<(), String> {
+pub fn update_tasks(
+    app: AppHandle,
+    app_state: State<AppState>,
+    tasks: Vec<Task>,
+) -> Result<(), String> {
     let tasks_changed = app_state.with_tasks_mut(|stored_tasks| {
         let changed = *stored_tasks != tasks;
         *stored_tasks = tasks;
@@ -20,4 +24,3 @@ pub fn update_tasks(app: AppHandle, app_state: State<AppState>, tasks: Vec<Task>
     }
     Ok(())
 }
-

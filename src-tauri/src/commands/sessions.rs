@@ -33,7 +33,10 @@ fn compute_final_duration(
         total_paused += now.timestamp_millis() - paused_at.timestamp_millis();
     }
     let total_paused = total_paused.max(0);
-    ((total_elapsed - total_paused).max(0) as u64, total_paused as u64)
+    (
+        (total_elapsed - total_paused).max(0) as u64,
+        total_paused as u64,
+    )
 }
 
 /// A timer instance may only be started when it has never run: a completed
@@ -174,18 +177,19 @@ pub fn create_session(
         updated_at: now.to_rfc3339(),
     };
 
-    let stopped_instance_ids = app_state.with_task_sessions_mut(|sessions| -> Result<Vec<String>, String> {
-        let mut stopped = Vec::new();
-        for session in sessions.iter_mut() {
-            if session.is_active {
-                stopped.extend(stop_active_instances(session, now));
+    let stopped_instance_ids =
+        app_state.with_task_sessions_mut(|sessions| -> Result<Vec<String>, String> {
+            let mut stopped = Vec::new();
+            for session in sessions.iter_mut() {
+                if session.is_active {
+                    stopped.extend(stop_active_instances(session, now));
+                }
+                session.is_active = false;
             }
-            session.is_active = false;
-        }
-        sessions.push(new_session.clone());
-        storage::save_sessions(&app, sessions)?;
-        Ok(stopped)
-    })??;
+            sessions.push(new_session.clone());
+            storage::save_sessions(&app, sessions)?;
+            Ok(stopped)
+        })??;
 
     emit_stopped_events(&app, &stopped_instance_ids, now);
 
@@ -418,8 +422,16 @@ pub async fn update_timer_instance(
 
     // Validate and parse up front so a bad payload fails before any mutation.
     validate_timer_instance_updates(&updates)?;
-    let resumed_at = updates.resumed_at.as_deref().map(parse_rfc3339).transpose()?;
-    let start_time = updates.start_time.as_deref().map(parse_rfc3339).transpose()?;
+    let resumed_at = updates
+        .resumed_at
+        .as_deref()
+        .map(parse_rfc3339)
+        .transpose()?;
+    let start_time = updates
+        .start_time
+        .as_deref()
+        .map(parse_rfc3339)
+        .transpose()?;
     let end_time = updates.end_time.as_deref().map(parse_rfc3339).transpose()?;
 
     app_state.with_task_sessions_mut(|sessions| -> Result<TimerInstance, String> {
@@ -465,43 +477,46 @@ pub async fn start_timer_instance(
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
 
-    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
-        let another_running = sessions
-            .iter()
-            .flat_map(|s| s.timer_instances.iter())
-            .any(|i| i.is_running && i.id != instance_id);
+    let updated_session =
+        app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+            let another_running = sessions
+                .iter()
+                .flat_map(|s| s.timer_instances.iter())
+                .any(|i| i.is_running && i.id != instance_id);
 
-        let result = {
-            let session = sessions
-                .iter_mut()
-                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
-                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
-            let session_is_active = session.is_active;
-
-            {
-                let instance = session
-                    .timer_instances
+            let result = {
+                let session = sessions
                     .iter_mut()
-                    .find(|i| i.id == instance_id)
+                    .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                     .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+                let session_is_active = session.is_active;
 
-                validate_start(instance, session_is_active, another_running)?;
+                {
+                    let instance = session
+                        .timer_instances
+                        .iter_mut()
+                        .find(|i| i.id == instance_id)
+                        .ok_or_else(|| {
+                            format!("Timer instance with ID {} not found", instance_id)
+                        })?;
 
-                instance.is_running = true;
-                instance.is_paused = false;
-                instance.start_time = now;
-                instance.resumed_at = Some(now);
-                instance.paused_duration = Some(0);
-                instance.updated_at = now.to_rfc3339();
-            }
+                    validate_start(instance, session_is_active, another_running)?;
 
-            session.updated_at = now.to_rfc3339();
-            session.clone()
-        };
+                    instance.is_running = true;
+                    instance.is_paused = false;
+                    instance.start_time = now;
+                    instance.resumed_at = Some(now);
+                    instance.paused_duration = Some(0);
+                    instance.updated_at = now.to_rfc3339();
+                }
 
-        storage::save_sessions(&app, sessions)?;
-        Ok(result)
-    })??;
+                session.updated_at = now.to_rfc3339();
+                session.clone()
+            };
+
+            storage::save_sessions(&app, sessions)?;
+            Ok(result)
+        })??;
 
     app.emit(
         "timer-instance-started",
@@ -523,35 +538,38 @@ pub async fn stop_timer_instance(
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
 
-    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
-        let result = {
-            let session = sessions
-                .iter_mut()
-                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
-                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
-
-            {
-                let instance = session
-                    .timer_instances
+    let updated_session =
+        app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+            let result = {
+                let session = sessions
                     .iter_mut()
-                    .find(|i| i.id == instance_id)
+                    .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                     .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
 
-                if !instance.is_running && !instance.is_paused {
-                    return Err("Cannot stop timer: timer is not running".to_string());
+                {
+                    let instance = session
+                        .timer_instances
+                        .iter_mut()
+                        .find(|i| i.id == instance_id)
+                        .ok_or_else(|| {
+                            format!("Timer instance with ID {} not found", instance_id)
+                        })?;
+
+                    if !instance.is_running && !instance.is_paused {
+                        return Err("Cannot stop timer: timer is not running".to_string());
+                    }
+
+                    finalize_instance(instance, now);
                 }
 
-                finalize_instance(instance, now);
-            }
+                session.updated_at = now.to_rfc3339();
+                recalculate_total_duration(session);
+                session.clone()
+            };
 
-            session.updated_at = now.to_rfc3339();
-            recalculate_total_duration(session);
-            session.clone()
-        };
-
-        storage::save_sessions(&app, sessions)?;
-        Ok(result)
-    })??;
+            storage::save_sessions(&app, sessions)?;
+            Ok(result)
+        })??;
 
     app.emit(
         "timer-instance-stopped",
@@ -573,37 +591,40 @@ pub async fn pause_timer_instance(
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
 
-    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
-        let result = {
-            let session = sessions
-                .iter_mut()
-                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
-                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
-
-            {
-                let instance = session
-                    .timer_instances
+    let updated_session =
+        app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+            let result = {
+                let session = sessions
                     .iter_mut()
-                    .find(|i| i.id == instance_id)
+                    .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                     .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
 
-                if !instance.is_running {
-                    return Err("Cannot pause timer: timer is not running".to_string());
+                {
+                    let instance = session
+                        .timer_instances
+                        .iter_mut()
+                        .find(|i| i.id == instance_id)
+                        .ok_or_else(|| {
+                            format!("Timer instance with ID {} not found", instance_id)
+                        })?;
+
+                    if !instance.is_running {
+                        return Err("Cannot pause timer: timer is not running".to_string());
+                    }
+
+                    instance.is_running = false;
+                    instance.is_paused = true;
+                    instance.paused_at = Some(now);
+                    instance.updated_at = now.to_rfc3339();
                 }
 
-                instance.is_running = false;
-                instance.is_paused = true;
-                instance.paused_at = Some(now);
-                instance.updated_at = now.to_rfc3339();
-            }
+                session.updated_at = now.to_rfc3339();
+                session.clone()
+            };
 
-            session.updated_at = now.to_rfc3339();
-            session.clone()
-        };
-
-        storage::save_sessions(&app, sessions)?;
-        Ok(result)
-    })??;
+            storage::save_sessions(&app, sessions)?;
+            Ok(result)
+        })??;
 
     app.emit(
         "timer-instance-paused",
@@ -625,61 +646,64 @@ pub async fn resume_timer_instance(
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
 
-    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
-        // Resume re-enters the running state, so it must uphold the same
-        // invariants as start: one running timer at a time, active session
-        // only ("Resume All" would otherwise set several timers running and
-        // double-count the same wall-clock time).
-        let another_running = sessions
-            .iter()
-            .flat_map(|s| s.timer_instances.iter())
-            .any(|i| i.is_running && i.id != instance_id);
+    let updated_session =
+        app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+            // Resume re-enters the running state, so it must uphold the same
+            // invariants as start: one running timer at a time, active session
+            // only ("Resume All" would otherwise set several timers running and
+            // double-count the same wall-clock time).
+            let another_running = sessions
+                .iter()
+                .flat_map(|s| s.timer_instances.iter())
+                .any(|i| i.is_running && i.id != instance_id);
 
-        let result = {
-            let session = sessions
-                .iter_mut()
-                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
-                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
-            let session_is_active = session.is_active;
-
-            {
-                let instance = session
-                    .timer_instances
+            let result = {
+                let session = sessions
                     .iter_mut()
-                    .find(|i| i.id == instance_id)
+                    .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                     .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+                let session_is_active = session.is_active;
 
-                if !instance.is_paused {
-                    return Err("Cannot resume timer: timer is not paused".to_string());
+                {
+                    let instance = session
+                        .timer_instances
+                        .iter_mut()
+                        .find(|i| i.id == instance_id)
+                        .ok_or_else(|| {
+                            format!("Timer instance with ID {} not found", instance_id)
+                        })?;
+
+                    if !instance.is_paused {
+                        return Err("Cannot resume timer: timer is not paused".to_string());
+                    }
+                    if !session_is_active {
+                        return Err("Cannot resume timer for inactive session".to_string());
+                    }
+                    if another_running {
+                        return Err("Another timer instance is already running".to_string());
+                    }
+
+                    if let Some(paused_at) = instance.paused_at {
+                        let pause_duration =
+                            (now.timestamp_millis() - paused_at.timestamp_millis()).max(0) as u64;
+                        instance.paused_duration =
+                            Some(instance.paused_duration.unwrap_or(0) + pause_duration);
+                    }
+
+                    instance.is_running = true;
+                    instance.is_paused = false;
+                    instance.paused_at = None;
+                    instance.resumed_at = Some(now);
+                    instance.updated_at = now.to_rfc3339();
                 }
-                if !session_is_active {
-                    return Err("Cannot resume timer for inactive session".to_string());
-                }
-                if another_running {
-                    return Err("Another timer instance is already running".to_string());
-                }
 
-                if let Some(paused_at) = instance.paused_at {
-                    let pause_duration =
-                        (now.timestamp_millis() - paused_at.timestamp_millis()).max(0) as u64;
-                    instance.paused_duration =
-                        Some(instance.paused_duration.unwrap_or(0) + pause_duration);
-                }
+                session.updated_at = now.to_rfc3339();
+                session.clone()
+            };
 
-                instance.is_running = true;
-                instance.is_paused = false;
-                instance.paused_at = None;
-                instance.resumed_at = Some(now);
-                instance.updated_at = now.to_rfc3339();
-            }
-
-            session.updated_at = now.to_rfc3339();
-            session.clone()
-        };
-
-        storage::save_sessions(&app, sessions)?;
-        Ok(result)
-    })??;
+            storage::save_sessions(&app, sessions)?;
+            Ok(result)
+        })??;
 
     app.emit(
         "timer-instance-resumed",
@@ -701,31 +725,34 @@ pub async fn delete_timer_instance(
 ) -> Result<TaskSession, String> {
     let now = Utc::now();
 
-    let updated_session = app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
-        let result = {
-            let session = sessions
-                .iter_mut()
-                .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
-                .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
-
-            {
-                let instance = session
-                    .timer_instances
-                    .iter()
-                    .find(|i| i.id == instance_id)
+    let updated_session =
+        app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+            let result = {
+                let session = sessions
+                    .iter_mut()
+                    .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                     .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
-                ensure_deletable(instance)?;
-            }
 
-            session.timer_instances.retain(|i| i.id != instance_id);
-            session.updated_at = now.to_rfc3339();
-            recalculate_total_duration(session);
-            session.clone()
-        };
+                {
+                    let instance = session
+                        .timer_instances
+                        .iter()
+                        .find(|i| i.id == instance_id)
+                        .ok_or_else(|| {
+                            format!("Timer instance with ID {} not found", instance_id)
+                        })?;
+                    ensure_deletable(instance)?;
+                }
 
-        storage::save_sessions(&app, sessions)?;
-        Ok(result)
-    })??;
+                session.timer_instances.retain(|i| i.id != instance_id);
+                session.updated_at = now.to_rfc3339();
+                recalculate_total_duration(session);
+                session.clone()
+            };
+
+            storage::save_sessions(&app, sessions)?;
+            Ok(result)
+        })??;
 
     app.emit(
         "timer-instance-deleted",

@@ -1,9 +1,9 @@
-use tauri::{AppHandle, Manager};
-use tauri_plugin_store::{Store, StoreBuilder};
 use crate::types::{ProjectTaskMapping, TaskSession, WorkLogEntry};
 use std::path::PathBuf;
-use tauri::Wry;
 use std::sync::Arc;
+use tauri::Wry;
+use tauri::{AppHandle, Manager};
+use tauri_plugin_store::{Store, StoreBuilder};
 
 const STORE_FILENAME: &str = "sessions.json";
 const SESSIONS_KEY: &str = "sessions";
@@ -74,10 +74,7 @@ pub fn load_sessions(app: &AppHandle) -> Result<LoadedSessions, String> {
 /// Copy an on-disk store aside before a save can overwrite data the load
 /// could not read (or before a destructive rewrite). Returns the backup path,
 /// or None when there is no store file yet.
-pub fn backup_store_file_named(
-    app: &AppHandle,
-    filename: &str,
-) -> Result<Option<PathBuf>, String> {
+pub fn backup_store_file_named(app: &AppHandle, filename: &str) -> Result<Option<PathBuf>, String> {
     let data_dir = app
         .path()
         .app_data_dir()

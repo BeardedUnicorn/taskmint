@@ -125,7 +125,10 @@ pub fn upsert_mappings(
     let mut saved = 0;
     for mut mapping in incoming {
         mapping.updated_at = now_iso.to_string();
-        match store.iter_mut().find(|m| m.project_id == mapping.project_id) {
+        match store
+            .iter_mut()
+            .find(|m| m.project_id == mapping.project_id)
+        {
             Some(existing) => {
                 mapping.created_at = if existing.created_at.is_empty() {
                     now_iso.to_string()
@@ -213,7 +216,9 @@ pub fn validate_rewrite_group(
     }
     for instance in &replacement.timer_instances {
         if instance.session_id != replacement.id {
-            return Err("replacement instance is not linked to the replacement session".to_string());
+            return Err(
+                "replacement instance is not linked to the replacement session".to_string(),
+            );
         }
         if instance.is_running || instance.is_paused {
             return Err("replacement session is not finalized".to_string());
@@ -325,49 +330,51 @@ pub async fn apply_work_log_import(
 
     // Lock order: sessions → worklogs (also upheld by reset_all_app_data);
     // any future command touching both stores must lock in the same order.
-    let summary = app_state.with_task_sessions_mut(|sessions| -> Result<WorkLogImportSummary, String> {
-        app_state.with_work_logs_mut(|work_logs| -> Result<WorkLogImportSummary, String> {
-            let (entries_added, entries_updated) =
-                upsert_entries(&mut work_logs.entries, payload.entries, &now_iso);
-            let mappings_saved =
-                upsert_mappings(&mut work_logs.mappings, payload.mappings, &now_iso);
+    let summary = app_state.with_task_sessions_mut(
+        |sessions| -> Result<WorkLogImportSummary, String> {
+            app_state.with_work_logs_mut(|work_logs| -> Result<WorkLogImportSummary, String> {
+                let (entries_added, entries_updated) =
+                    upsert_entries(&mut work_logs.entries, payload.entries, &now_iso);
+                let mappings_saved =
+                    upsert_mappings(&mut work_logs.mappings, payload.mappings, &now_iso);
 
-            // The rewrite deletes real tracked data; keep a pre-import copy of
-            // the store file. Best-effort — an import must not fail because a
-            // backup could not be written.
-            if !payload.rewrite_groups.is_empty() {
-                if let Err(e) = storage::backup_store_file(&app) {
-                    log::error!("Failed to back up sessions before import: {}", e);
+                // The rewrite deletes real tracked data; keep a pre-import copy of
+                // the store file. Best-effort — an import must not fail because a
+                // backup could not be written.
+                if !payload.rewrite_groups.is_empty() {
+                    if let Err(e) = storage::backup_store_file(&app) {
+                        log::error!("Failed to back up sessions before import: {}", e);
+                    }
                 }
-            }
 
-            let mut groups_applied = Vec::new();
-            let mut groups_skipped = Vec::new();
-            for group in payload.rewrite_groups {
-                match validate_rewrite_group(sessions, &group) {
-                    Ok(()) => groups_applied.push(apply_rewrite_group(sessions, group, now)),
-                    Err(reason) => groups_skipped.push(SkippedGroup {
-                        task_id: group.task_id,
-                        work_day: group.work_day,
-                        reason,
-                    }),
+                let mut groups_applied = Vec::new();
+                let mut groups_skipped = Vec::new();
+                for group in payload.rewrite_groups {
+                    match validate_rewrite_group(sessions, &group) {
+                        Ok(()) => groups_applied.push(apply_rewrite_group(sessions, group, now)),
+                        Err(reason) => groups_skipped.push(SkippedGroup {
+                            task_id: group.task_id,
+                            work_day: group.work_day,
+                            reason,
+                        }),
+                    }
                 }
-            }
 
-            if !groups_applied.is_empty() {
-                storage::save_sessions(&app, sessions)?;
-            }
-            storage::save_work_logs(&app, &work_logs.entries, &work_logs.mappings)?;
+                if !groups_applied.is_empty() {
+                    storage::save_sessions(&app, sessions)?;
+                }
+                storage::save_work_logs(&app, &work_logs.entries, &work_logs.mappings)?;
 
-            Ok(WorkLogImportSummary {
-                entries_added,
-                entries_updated,
-                mappings_saved,
-                groups_applied,
-                groups_skipped,
-            })
-        })?
-    })??;
+                Ok(WorkLogImportSummary {
+                    entries_added,
+                    entries_updated,
+                    mappings_saved,
+                    groups_applied,
+                    groups_skipped,
+                })
+            })?
+        },
+    )??;
 
     if !summary.groups_applied.is_empty() {
         // Refreshes the frontend session context (same debounced reload path
@@ -530,7 +537,11 @@ mod tests {
     #[test]
     fn validate_rejects_blocking_instances() {
         let sessions = vec![session_with("s1", "task-1", vec![])];
-        let mut g = group("task-1", vec![], replacement("task-1", "2026-08-25", vec![]));
+        let mut g = group(
+            "task-1",
+            vec![],
+            replacement("task-1", "2026-08-25", vec![]),
+        );
         g.blocking_instance_ids.push("instance_running".to_string());
         let err = validate_rewrite_group(&sessions, &g).unwrap_err();
         assert!(err.contains("stop it first"));
@@ -544,7 +555,11 @@ mod tests {
         running.end_time = None;
         let sessions = vec![session_with("s1", "task-1", vec![running])];
 
-        let g = group("task-1", vec!["i1"], replacement("task-1", "2026-08-25", vec![]));
+        let g = group(
+            "task-1",
+            vec!["i1"],
+            replacement("task-1", "2026-08-25", vec![]),
+        );
         let err = validate_rewrite_group(&sessions, &g).unwrap_err();
         assert!(err.contains("stop it first"));
     }
@@ -556,7 +571,11 @@ mod tests {
             "task-OTHER",
             vec![finalized_instance("i1", "s_other", 0, 60_000)],
         )];
-        let g = group("task-1", vec!["i1"], replacement("task-1", "2026-08-25", vec![]));
+        let g = group(
+            "task-1",
+            vec!["i1"],
+            replacement("task-1", "2026-08-25", vec![]),
+        );
         let err = validate_rewrite_group(&sessions, &g).unwrap_err();
         assert!(err.contains("another task"));
     }
@@ -567,7 +586,11 @@ mod tests {
         let g = group(
             "task-1",
             vec!["i_gone"],
-            replacement("task-1", "2026-08-25", vec![repl_instance("r1", 100, 60_000)]),
+            replacement(
+                "task-1",
+                "2026-08-25",
+                vec![repl_instance("r1", 100, 60_000)],
+            ),
         );
         assert!(validate_rewrite_group(&sessions, &g).is_ok());
     }
@@ -576,7 +599,11 @@ mod tests {
     fn validate_rejects_mismatched_or_active_or_unfinalized_replacement() {
         let sessions = vec![session_with("s1", "task-1", vec![])];
 
-        let g = group("task-1", vec![], replacement("task-OTHER", "2026-08-25", vec![]));
+        let g = group(
+            "task-1",
+            vec![],
+            replacement("task-OTHER", "2026-08-25", vec![]),
+        );
         assert!(validate_rewrite_group(&sessions, &g)
             .unwrap_err()
             .contains("does not match"));
@@ -605,7 +632,11 @@ mod tests {
         let sessions = vec![session_with("s1", "task-1", vec![])];
         let mut bad = repl_instance("r1", 100, 60_000);
         bad.duration = Some(61_000); // end - start says 60s
-        let g = group("task-1", vec![], replacement("task-1", "2026-08-25", vec![bad]));
+        let g = group(
+            "task-1",
+            vec![],
+            replacement("task-1", "2026-08-25", vec![bad]),
+        );
         assert!(validate_rewrite_group(&sessions, &g)
             .unwrap_err()
             .contains("duration invariant"));
@@ -617,7 +648,11 @@ mod tests {
         let instances: Vec<TimerInstance> = (0..=MAX_TIMER_INSTANCES_PER_SESSION)
             .map(|n| repl_instance(&format!("r{}", n), (n as i64) * 1000, 1_000))
             .collect();
-        let g = group("task-1", vec![], replacement("task-1", "2026-08-25", instances));
+        let g = group(
+            "task-1",
+            vec![],
+            replacement("task-1", "2026-08-25", instances),
+        );
         assert!(validate_rewrite_group(&sessions, &g)
             .unwrap_err()
             .contains("not supported"));
@@ -634,7 +669,11 @@ mod tests {
         // Replacement instance reusing a live id → rejected.
         let mut clash = repl_instance("i1", 100, 60_000);
         clash.session_id = "session_repl".to_string();
-        let g = group("task-1", vec![], replacement("task-1", "2026-08-25", vec![clash]));
+        let g = group(
+            "task-1",
+            vec![],
+            replacement("task-1", "2026-08-25", vec![clash]),
+        );
         assert!(validate_rewrite_group(&sessions, &g)
             .unwrap_err()
             .contains("already exists"));
@@ -671,7 +710,11 @@ mod tests {
                     finalized_instance("i2", "s1", 100_000, 30_000),
                 ],
             ),
-            session_with("s_other", "task-2", vec![finalized_instance("j1", "s_other", 0, 5_000)]),
+            session_with(
+                "s_other",
+                "task-2",
+                vec![finalized_instance("j1", "s_other", 0, 5_000)],
+            ),
         ];
 
         let applied = apply_rewrite_group(
@@ -679,7 +722,11 @@ mod tests {
             group(
                 "task-1",
                 vec!["i1", "i2"],
-                replacement("task-1", "2026-08-25", vec![repl_instance("r1", 200, 90_000)]),
+                replacement(
+                    "task-1",
+                    "2026-08-25",
+                    vec![repl_instance("r1", 200, 90_000)],
+                ),
             ),
             ts(1_000_000),
         );
@@ -698,9 +745,17 @@ mod tests {
 
     #[test]
     fn apply_keeps_emptied_sessions_with_notes_or_active() {
-        let mut noted = session_with("s_notes", "task-1", vec![finalized_instance("i1", "s_notes", 0, 60_000)]);
+        let mut noted = session_with(
+            "s_notes",
+            "task-1",
+            vec![finalized_instance("i1", "s_notes", 0, 60_000)],
+        );
         noted.notes = Some("keep me".to_string());
-        let mut active = session_with("s_active", "task-1", vec![finalized_instance("i2", "s_active", 0, 30_000)]);
+        let mut active = session_with(
+            "s_active",
+            "task-1",
+            vec![finalized_instance("i2", "s_active", 0, 30_000)],
+        );
         active.is_active = true;
         let mut sessions = vec![noted, active];
 
@@ -709,7 +764,11 @@ mod tests {
             group(
                 "task-1",
                 vec!["i1", "i2"],
-                replacement("task-1", "2026-08-25", vec![repl_instance("r1", 200, 90_000)]),
+                replacement(
+                    "task-1",
+                    "2026-08-25",
+                    vec![repl_instance("r1", 200, 90_000)],
+                ),
             ),
             ts(1_000_000),
         );
@@ -738,7 +797,11 @@ mod tests {
             group(
                 "task-1",
                 vec!["i_day"],
-                replacement("task-1", "2026-08-25", vec![repl_instance("r1", 300, 90_000)]),
+                replacement(
+                    "task-1",
+                    "2026-08-25",
+                    vec![repl_instance("r1", 300, 90_000)],
+                ),
             ),
             ts(1_000_000),
         );
@@ -761,7 +824,11 @@ mod tests {
             group(
                 "task-1",
                 vec!["i1"],
-                replacement("task-1", "2026-08-25", vec![repl_instance("r1", 200, 90_000)]),
+                replacement(
+                    "task-1",
+                    "2026-08-25",
+                    vec![repl_instance("r1", 200, 90_000)],
+                ),
             ),
             ts(1_000_000),
         );
@@ -769,7 +836,11 @@ mod tests {
 
         // A second import rebuilds the same day: it deletes the first
         // replacement's instances and installs a fresh session.
-        let mut second_repl = replacement("task-1", "2026-08-25", vec![repl_instance("r2", 200, 90_000)]);
+        let mut second_repl = replacement(
+            "task-1",
+            "2026-08-25",
+            vec![repl_instance("r2", 200, 90_000)],
+        );
         second_repl.id = "session_repl_2".to_string();
         for i in &mut second_repl.timer_instances {
             i.session_id = second_repl.id.clone();

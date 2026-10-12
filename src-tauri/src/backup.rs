@@ -72,7 +72,10 @@ pub fn perform_automatic_backup(
     let config = get_config();
     let timestamp = Utc::now();
     let timestamp_str = timestamp.format("%Y%m%d_%H%M%S").to_string();
-    let filename = format!("{}{}{}", config.backup_filename_prefix, timestamp_str, config.backup_filename_extension);
+    let filename = format!(
+        "{}{}{}",
+        config.backup_filename_prefix, timestamp_str, config.backup_filename_extension
+    );
     let file_path = Path::new(backup_path).join(&filename);
 
     // Ensure backup directory exists
@@ -135,7 +138,9 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
     for entry in entries.flatten() {
         let path = entry.path();
         if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-            if filename.starts_with(&config.backup_filename_prefix) && filename.ends_with(&config.backup_filename_extension) {
+            if filename.starts_with(&config.backup_filename_prefix)
+                && filename.ends_with(&config.backup_filename_extension)
+            {
                 if let Some(timestamp_part) = filename
                     .strip_prefix(&config.backup_filename_prefix)
                     .and_then(|s| s.strip_suffix(&config.backup_filename_extension))
@@ -160,10 +165,7 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
 
         for path_str in files_to_remove {
             if let Err(e) = fs::remove_file(path_str) {
-                log::warn!(
-                    "Failed to remove old backup file {}: {}",
-                    path_str, e
-                );
+                log::warn!("Failed to remove old backup file {}: {}", path_str, e);
             } else {
                 log::info!("Removed old backup file: {}", path_str);
             }

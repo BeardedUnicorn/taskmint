@@ -1,7 +1,7 @@
 // System tray functionality
 
-use crate::config::{Config, get_config};
-use crate::error::{AppError};
+use crate::config::{get_config, Config};
+use crate::error::AppError;
 use crate::state::AppState;
 use crate::timer;
 use crate::types::Task;
@@ -19,7 +19,10 @@ pub(crate) fn visible_tasks(tasks: &[Task], max: usize) -> Vec<&Task> {
     tasks.iter().filter(|t| !t.is_archived).take(max).collect()
 }
 
-pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri::Wry>, tauri::Error> {
+pub fn create_tray_menu(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<Menu<tauri::Wry>, tauri::Error> {
     let config = get_config();
     log::debug!("Creating tray menu...");
     let menu = Menu::new(app)?;
@@ -72,7 +75,8 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
             .with_tasks(|tasks| {
                 for task in visible_tasks(tasks, config.tray_max_recent_tasks) {
                     let menu_id = format!("start_task_{}", task.id);
-                    let task_item = MenuItem::with_id(app, &menu_id, &task.name, true, None::<&str>)?;
+                    let task_item =
+                        MenuItem::with_id(app, &menu_id, &task.name, true, None::<&str>)?;
                     start_submenu.append(&task_item)?;
                     log::debug!("Added task item: '{}' with ID: '{}'", task.name, menu_id);
                 }
@@ -81,14 +85,16 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
             .unwrap_or(Ok(()))?;
 
         start_submenu.append(&PredefinedMenuItem::separator(app)?)?;
-        let new_task_item = MenuItem::with_id(app, "new_task", "➕ New Task...", true, None::<&str>)?;
+        let new_task_item =
+            MenuItem::with_id(app, "new_task", "➕ New Task...", true, None::<&str>)?;
         start_submenu.append(&new_task_item)?;
         log::debug!("Added new task item to submenu with ID: 'new_task'");
 
         menu.append(&start_submenu)?;
         log::debug!("Added start timer submenu to main menu");
     } else {
-        let start_item = MenuItem::with_id(app, "new_task", "▶️ Start New Task...", true, None::<&str>)?;
+        let start_item =
+            MenuItem::with_id(app, "new_task", "▶️ Start New Task...", true, None::<&str>)?;
         menu.append(&start_item)?;
         log::debug!("Added start new task item with ID: 'new_task' (no existing tasks)");
     }
@@ -119,7 +125,8 @@ fn handle_tray_click_event(event: TrayIconEvent, app: &AppHandle) {
         } => {
             log::debug!(
                 "Tray click event - button: {:?}, state: {:?}",
-                button, button_state
+                button,
+                button_state
             );
             // The context menu should appear automatically on left-click due to the menu configuration
         }
@@ -174,10 +181,7 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
         }
         id if id.starts_with("start_task_") => {
             let task_id = &id[11..]; // Remove "start_task_" prefix
-            log::debug!(
-                "Handling start_task menu item for task_id: '{}'",
-                task_id
-            );
+            log::debug!("Handling start_task menu item for task_id: '{}'", task_id);
 
             // Find and start the task
             let task_name = state
@@ -231,13 +235,15 @@ fn show_main_window(app: &AppHandle) {
 }
 
 pub fn update_tray_menu(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
-    state.with_tray_icon(|tray_option| {
-        if let Some(ref tray) = tray_option {
-            let new_menu = create_tray_menu(app, state)?;
-            tray.set_menu(Some(new_menu))?;
-        }
-        Ok(())
-    }).map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))?
+    state
+        .with_tray_icon(|tray_option| {
+            if let Some(ref tray) = tray_option {
+                let new_menu = create_tray_menu(app, state)?;
+                tray.set_menu(Some(new_menu))?;
+            }
+            Ok(())
+        })
+        .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))?
 }
 
 pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
@@ -301,7 +307,7 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
 
 fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
     let config = get_config();
-    
+
     // Try primary icon first
     let primary_icon_bytes = include_bytes!("../icons/32x32.png");
     log::debug!(
@@ -311,11 +317,18 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
 
     match Image::from_bytes(primary_icon_bytes) {
         Ok(icon) => {
-            log::debug!("Successfully created icon from primary {}", config.icon_tray_primary);
+            log::debug!(
+                "Successfully created icon from primary {}",
+                config.icon_tray_primary
+            );
             Ok(icon)
         }
         Err(e) => {
-            log::error!("Failed to create icon from {}: {:?}", config.icon_tray_primary, e);
+            log::error!(
+                "Failed to create icon from {}: {:?}",
+                config.icon_tray_primary,
+                e
+            );
             log::debug!("Trying fallback icon...");
 
             // Try fallback icon
@@ -326,7 +339,11 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
             );
 
             Image::from_bytes(fallback_icon_bytes).map_err(|e2| {
-                log::error!("Failed to create icon from fallback {}: {:?}", config.icon_tray_fallback, e2);
+                log::error!(
+                    "Failed to create icon from fallback {}: {:?}",
+                    config.icon_tray_fallback,
+                    e2
+                );
                 log::error!("Both primary and fallback icons failed!");
                 e2
             })
@@ -336,15 +353,13 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
 
 pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
     let config = get_config();
-    
+
     state.with_tray_icon(|tray_option| {
         if let Some(ref tray) = tray_option {
-            let (tooltip, should_show_title, title_text) = state
-                .with_timer_state(|timer_state| {
+            let (tooltip, should_show_title, title_text) =
+                state.with_timer_state(|timer_state| {
                     if timer_state.is_running {
-                        let current_elapsed = if let Some(ref start_time) =
-                            timer_state.start_time
-                        {
+                        let current_elapsed = if let Some(ref start_time) = timer_state.start_time {
                             get_current_elapsed_ms(start_time)
                         } else {
                             timer_state.elapsed_ms
@@ -357,8 +372,10 @@ pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError>
                         );
                         (tooltip, true, duration_text_title)
                     } else {
-                        let tooltip =
-                            format!("{} - No active timer (Click for menu)", config.tray_tooltip_app_name);
+                        let tooltip = format!(
+                            "{} - No active timer (Click for menu)",
+                            config.tray_tooltip_app_name
+                        );
                         (tooltip, false, String::new())
                     }
                 })?;
@@ -452,7 +469,10 @@ mod tests {
     #[test]
     fn visible_tasks_filters_archived() {
         let tasks = vec![task("a", false), task("b", true), task("c", false)];
-        let ids: Vec<&str> = visible_tasks(&tasks, 5).iter().map(|t| t.id.as_str()).collect();
+        let ids: Vec<&str> = visible_tasks(&tasks, 5)
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect();
         assert_eq!(ids, vec!["a", "c"]);
     }
 
@@ -466,7 +486,10 @@ mod tests {
             task("b", false),
             task("c", false),
         ];
-        let ids: Vec<&str> = visible_tasks(&tasks, 2).iter().map(|t| t.id.as_str()).collect();
+        let ids: Vec<&str> = visible_tasks(&tasks, 2)
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect();
         assert_eq!(ids, vec!["a", "b"]);
     }
 

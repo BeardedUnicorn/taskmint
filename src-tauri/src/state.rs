@@ -1,10 +1,10 @@
 // Application state management
 
-use std::sync::{Arc, Mutex};
 use crate::types::{
-    CaptureServerStatus, PendingCapture, ProjectTaskMapping, TimerState, Task, TaskSession,
+    CaptureServerStatus, PendingCapture, ProjectTaskMapping, Task, TaskSession, TimerState,
     WorkLogEntry,
 };
+use std::sync::{Arc, Mutex};
 
 // Imported work-log ledger + remembered project→task mappings, persisted
 // together in worklogs.json.
