@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
 import dayjs from 'dayjs';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -244,20 +244,35 @@ describe('CalendarPage', () => {
       expect(screen.getByTestId(`calendar-event-${currentMonth}-01`)).toBeInTheDocument();
     });
 
-    it('should display $0.00 earnings for days without time entries', async () => {
+    it('shows no event on days without earnings or releases', async () => {
+      const currentMonth = dayjs().format('YYYY-MM');
+      mockSessionContext.sessions = entriesToSessions([
+        {
+          id: '1',
+          taskName: 'Task 1',
+          taskId: 'task1',
+          startTime: new Date(`${currentMonth}-01T09:00:00`),
+          endTime: new Date(`${currentMonth}-01T10:00:00`),
+          duration: 3600000,
+          isRunning: false,
+          date: `${currentMonth}-01`,
+        },
+      ]);
+
       renderCalendarPage();
 
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
-      // Should have events for all days in the calendar view, including days with $0
-      const calendarEvents = screen.getAllByTestId(/calendar-event-/);
-      expect(calendarEvents.length).toBeGreaterThan(3); // More than just the days with actual entries
-
-      // Check that $0.00 is displayed for days without entries
-      const zeroEarnings = screen.getAllByText('$0.00');
-      expect(zeroEarnings.length).toBeGreaterThan(0);
+      // The work day and its release day (7 days later) have events; no
+      // other day in the month does
+      const eventIds = screen
+        .getAllByTestId(/calendar-event-/)
+        .map(node => node.getAttribute('data-testid'));
+      expect(eventIds).toContain(`calendar-event-${currentMonth}-01`);
+      expect(eventIds).toContain(`calendar-event-${currentMonth}-08`);
+      expect(eventIds).toHaveLength(2);
     });
 
     it('should calculate correct earnings based on hourly rates', async () => {
@@ -303,15 +318,33 @@ describe('CalendarPage', () => {
     });
 
     it('should calculate transferable amounts based on funds release days', async () => {
+      const currentMonth = dayjs().format('YYYY-MM');
+      mockSessionContext.sessions = entriesToSessions([
+        {
+          id: '1',
+          taskName: 'Task 1',
+          taskId: 'task1',
+          startTime: new Date(`${currentMonth}-01T09:00:00`),
+          endTime: new Date(`${currentMonth}-01T10:00:00`),
+          duration: 3600000, // 1 hour at $50/hr
+          isRunning: false,
+          date: `${currentMonth}-01`,
+        },
+      ]);
+
       renderCalendarPage();
 
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
-      // With 7-day funds release and no historical data, transferable amounts should be $0
-      const transferableTexts = screen.getAllByText(/Transferable: \$0\.00/);
-      expect(transferableTexts.length).toBeGreaterThan(0);
+      // Earned on the 1st, nothing released that day; with a 7-day funds
+      // release, the $50 becomes transferable on the 8th
+      const workDay = screen.getByTestId(`calendar-event-${currentMonth}-01`);
+      expect(within(workDay).getByText('$50.00')).toBeInTheDocument();
+      expect(within(workDay).getByText('Transferable: $0.00')).toBeInTheDocument();
+      const releaseDay = screen.getByTestId(`calendar-event-${currentMonth}-08`);
+      expect(within(releaseDay).getByText('Transferable: $50.00')).toBeInTheDocument();
     });
 
     it('should show transferable amounts when there are earnings from previous days', async () => {
@@ -420,10 +453,9 @@ describe('CalendarPage', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
-      // Should still render calendar with $0.00 for all days
+      // The calendar renders, with no $0.00 events on empty days
       expect(screen.getByTestId('calendar')).toBeInTheDocument();
-      const zeroEarnings = screen.getAllByText('$0.00');
-      expect(zeroEarnings.length).toBeGreaterThan(0);
+      expect(screen.queryAllByTestId(/calendar-event-/)).toHaveLength(0);
     });
 
     it('should handle tasks without hourly rates', async () => {
@@ -448,8 +480,8 @@ describe('CalendarPage', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
-      // Should show $0.00 for tasks without hourly rates
-      expect(screen.getAllByText('$0.00').length).toBeGreaterThan(0);
+      // Time without an hourly rate earns nothing, so no event appears
+      expect(screen.queryAllByTestId(/calendar-event-/)).toHaveLength(0);
     });
 
     it('should handle running time entries', async () => {
@@ -475,7 +507,7 @@ describe('CalendarPage', () => {
       });
 
       // Running entries should not contribute to earnings
-      expect(screen.getAllByText('$0.00').length).toBeGreaterThan(0);
+      expect(screen.queryAllByTestId(/calendar-event-/)).toHaveLength(0);
     });
   });
 

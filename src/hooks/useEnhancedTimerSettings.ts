@@ -1,8 +1,7 @@
 /**
  * Enhanced Timer Settings Hook
  *
- * Manages enhanced timer settings including inactivity detection,
- * rounding options, and other timer-related preferences.
+ * Manages the inactivity-detection settings and their one-time migrations.
  *
  * Inactivity settings are stored under STORAGE_KEYS.INACTIVITY_SETTINGS — the
  * same key useInactivityDetection reads — so changes made in Settings actually
@@ -12,13 +11,7 @@
 
 import { useLocalStorage } from './useLocalStorage';
 import { STORAGE_KEYS } from '../constants';
-import {
-  EnhancedTimerSettings,
-  InactivitySettings,
-  TimerRoundingOption,
-  DEFAULT_ENHANCED_TIMER_SETTINGS,
-  DEFAULT_INACTIVITY_SETTINGS,
-} from '../types/timer';
+import { InactivitySettings, DEFAULT_INACTIVITY_SETTINGS } from '../types/timer';
 
 /**
  * One-time migration: if inactivity settings were only ever saved nested in
@@ -50,24 +43,49 @@ export function seedInactivitySettingsFromLegacyEnhanced(): void {
   }
 }
 
-export function useEnhancedTimerSettings() {
-  seedInactivitySettingsFromLegacyEnhanced();
+/**
+ * One-time migration for the default flipping to off: detection only sees
+ * activity inside TaskMint's window, so a saved `enabled: true` (from the
+ * old on-by-default) would keep pausing timers while the user works in other
+ * apps. Turn it off once; the flag means a later re-enable sticks.
+ */
+export function turnInactivityDetectionOffOnce(): void {
+  try {
+    if (window.localStorage.getItem(STORAGE_KEYS.INACTIVITY_DEFAULT_OFF_APPLIED) !== null) return;
 
-  const [roundingSettings, setRoundingSettings] = useLocalStorage<EnhancedTimerSettings>(
-    STORAGE_KEYS.ENHANCED_TIMER_SETTINGS,
-    DEFAULT_ENHANCED_TIMER_SETTINGS
-  );
+    const raw = window.localStorage.getItem(STORAGE_KEYS.INACTIVITY_SETTINGS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const isVersioned = Boolean(parsed?.version);
+      const data = isVersioned ? parsed.data : parsed;
+      if (data && typeof data === 'object' && data.enabled === true) {
+        const updated = { ...data, enabled: false };
+        window.localStorage.setItem(
+          STORAGE_KEYS.INACTIVITY_SETTINGS,
+          JSON.stringify(isVersioned ? { ...parsed, data: updated } : updated)
+        );
+      }
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_DEFAULT_OFF_APPLIED, 'true');
+  } catch (error) {
+    console.error('Failed to apply the inactivity default-off migration:', error);
+  }
+}
+
+/** Run the inactivity-settings migrations, in order, before anything reads them. */
+export function prepareInactivitySettings(): void {
+  seedInactivitySettingsFromLegacyEnhanced();
+  turnInactivityDetectionOffOnce();
+}
+
+export function useEnhancedTimerSettings() {
+  prepareInactivitySettings();
+
   const [inactivitySettings, setInactivitySettings] = useLocalStorage<InactivitySettings>(
     STORAGE_KEYS.INACTIVITY_SETTINGS,
     DEFAULT_INACTIVITY_SETTINGS
   );
-
-  const updateRoundingOption = (roundingOption: TimerRoundingOption) => {
-    setRoundingSettings(prev => ({
-      ...prev,
-      roundingOption,
-    }));
-  };
 
   const updateInactivitySettings = (updates: Partial<InactivitySettings>) => {
     setInactivitySettings(prev => ({
@@ -76,27 +94,13 @@ export function useEnhancedTimerSettings() {
     }));
   };
 
-  const updateAllSettings = (newSettings: Partial<EnhancedTimerSettings>) => {
-    if (newSettings.roundingOption) {
-      updateRoundingOption(newSettings.roundingOption);
-    }
-    if (newSettings.inactivity) {
-      updateInactivitySettings(newSettings.inactivity);
-    }
-  };
-
   const resetToDefaults = () => {
-    setRoundingSettings(DEFAULT_ENHANCED_TIMER_SETTINGS);
     setInactivitySettings(DEFAULT_INACTIVITY_SETTINGS);
   };
 
   return {
-    settings: { roundingOption: roundingSettings.roundingOption, inactivity: inactivitySettings },
-    roundingOption: roundingSettings.roundingOption,
     inactivitySettings,
-    updateRoundingOption,
     updateInactivitySettings,
-    updateAllSettings,
     resetToDefaults,
   };
 }

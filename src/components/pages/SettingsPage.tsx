@@ -13,19 +13,17 @@ import {
 } from '@mui/material';
 import {
   Description as TemplateIcon,
-  Timer as TimerIcon,
+  AccountBalanceWallet as PayoutsIcon,
 } from '@mui/icons-material';
 import { NoteTemplates } from './NoteTemplates';
-import { useTimerSettings } from '../../hooks/useTimerSettings';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
-import { TimerRoundingOption } from '../../types/timer';
-import { getRoundingOptionLabel } from '../../utils/formatters';
 import {
   DailyGoalSettings,
   BackupSettingsSection,
   DashboardCustomizationSection,
   DataManagementSection,
   PrivacySettingsSection,
+  AppearanceSettingsSection,
 } from './settings';
 import { InactivitySettingsSection } from './settings/InactivitySettingsSection';
 
@@ -35,10 +33,7 @@ export function SettingsPage() {
   const [importSuccess, setImportSuccess] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
-  const { roundingOption, updateRoundingOption } = useTimerSettings();
   const { days, updateDays } = useFundsReleaseSettings();
-
-  const roundingOptions: TimerRoundingOption[] = ['none', 'up-5min', 'up-15min', 'up-30min'];
 
   // Shared success/error handlers for sub-components
   const handleSuccess = () => {
@@ -74,43 +69,20 @@ export function SettingsPage() {
         Manage your application settings, note templates, and data
       </Typography>
 
-      {/* Timer Settings Section */}
+      <AppearanceSettingsSection />
+
+      <Divider sx={{ my: 4 }} />
+
+      {/* Payout Settings Section */}
       <Paper sx={{ p: 3, mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <TimerIcon color="primary" />
+          <PayoutsIcon color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Timer Settings
+            Payouts
           </Typography>
         </Box>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Configure how timer durations are calculated and displayed.
-        </Typography>
-
         <FormControl sx={{ minWidth: 250 }}>
-          <InputLabel id="rounding-option-label">Duration Rounding</InputLabel>
-          <Select
-            labelId="rounding-option-label"
-            value={roundingOption}
-            label="Duration Rounding"
-            onChange={(e) => updateRoundingOption(e.target.value as TimerRoundingOption)}
-          >
-            {roundingOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {getRoundingOptionLabel(option)}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <Alert severity="info" sx={{ mt: 2 }}>
-          <Typography variant="body2">
-            <strong>Duration Rounding:</strong> Choose how timer durations are rounded when stopping a timer.
-            This affects the final duration saved for time entries and earnings calculations.
-          </Typography>
-        </Alert>
-
-        <FormControl sx={{ minWidth: 250, mt: 3 }}>
           <InputLabel id="funds-release-label">Days Before Funds Released</InputLabel>
           <Select
             labelId="funds-release-label"

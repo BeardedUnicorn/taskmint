@@ -29,7 +29,7 @@ write_test_filename = ".taskmint_write_test"  # Test file for checking write per
 
 # Inactivity Detection Configuration
 [inactivity]
-enabled = true                # Enable inactivity detection by default
+enabled = false               # Off by default (the webview only sees in-app activity)
 threshold_minutes = 15        # Default inactivity threshold in minutes
 show_warning_before_pause = true  # Show warning before auto-pause
 warning_duration_seconds = 30     # Warning duration in seconds

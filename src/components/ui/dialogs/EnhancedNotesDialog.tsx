@@ -26,7 +26,6 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   Divider,
-  Autocomplete,
   FormControl,
   InputLabel,
   Select,
@@ -56,7 +55,6 @@ interface Note {
   sessionId?: string;
   timerInstanceId?: string;
   templateId?: string;
-  tags: string[];
   createdAt: string;
   updatedAt: string;
   metadata?: {
@@ -114,7 +112,6 @@ const NoteEditor: React.FC<{
   const [content, setContent] = useState(note?.content || '');
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
-  const [tags, setTags] = useState<string[]>(note?.tags || []);
   const [isLoading, setIsLoading] = useState(false);
 
   // Get active templates
@@ -305,7 +302,6 @@ const NoteEditor: React.FC<{
         noteData = {
           content: JSON.stringify(fieldValues), // Store field values as JSON
           type,
-          tags,
           templateId: selectedTemplate.id,
           ...contextIds,
           metadata: {
@@ -319,7 +315,6 @@ const NoteEditor: React.FC<{
         noteData = {
           content: content.trim(),
           type,
-          tags,
           templateId: undefined,
           ...contextIds,
           metadata: {
@@ -392,33 +387,6 @@ const NoteEditor: React.FC<{
           fullWidth
         />
       )}
-
-      {/* Tags input */}
-      <Autocomplete
-        multiple
-        freeSolo
-        options={[]}
-        value={tags}
-        onChange={(_, newTags) => setTags(newTags)}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label="Tags"
-            placeholder="Add tags..."
-            size="small"
-          />
-        )}
-        renderValue={(value, getItemProps) =>
-          value.map((option, index) => (
-            <Chip
-              variant="outlined"
-              label={option}
-              size="small"
-              {...getItemProps({ index })}
-            />
-          ))
-        }
-      />
 
       {/* Actions */}
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
@@ -559,9 +527,6 @@ const NoteList: React.FC<{
                       color="primary"
                     />
                   )}
-                  {note.tags.map(tag => (
-                    <Chip key={tag} label={tag} size="small" variant="outlined" />
-                  ))}
                 </Box>
               }
               secondary={renderNoteContent(note)}
@@ -651,7 +616,6 @@ export function EnhancedNotesDialog({
           sessionId: note.sessionId || undefined,
           timerInstanceId: note.timerInstanceId || undefined,
           templateId: note.templateId,
-          tags: [], // TaskNote doesn't have tags, could be extended
           createdAt: note.createdAt,
           updatedAt: note.updatedAt,
           metadata: {
@@ -717,7 +681,6 @@ export function EnhancedNotesDialog({
         sessionId: savedNote.sessionId || undefined,
         timerInstanceId: savedNote.timerInstanceId || undefined,
         templateId: savedNote.templateId,
-        tags: [],
         createdAt: savedNote.createdAt,
         updatedAt: savedNote.updatedAt,
         metadata: {

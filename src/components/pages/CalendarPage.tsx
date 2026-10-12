@@ -139,8 +139,15 @@ const CalendarPage: React.FC = () => {
     });
   }, [cells, currentDate]);
 
+  // Only days with money earned or released get an event; a "$0.00" on
+  // every empty day buries the days that matter.
+  const daysWithMoney = useMemo(
+    () => dailyData.filter(day => day.earned > 0 || day.transferable > 0),
+    [dailyData]
+  );
+
   const events = useMemo((): CalendarEvent[] => {
-    return dailyData.map(dayData => {
+    return daysWithMoney.map(dayData => {
       const date = parseDateStringLocal(dayData.date);
       return {
         id: dayData.date,
@@ -153,7 +160,7 @@ const CalendarPage: React.FC = () => {
         },
       };
     });
-  }, [dailyData]);
+  }, [daysWithMoney]);
 
   const handlePrevMonth = useCallback(() => {
     setCurrentDate(prev => dayjs(prev).subtract(1, 'month').toDate());
@@ -200,14 +207,14 @@ const CalendarPage: React.FC = () => {
 
   const DayPropGetter = useCallback((date: Date) => {
     const dateStr = formatDateString(date);
-    const hasData = dailyData.some(d => d.date === dateStr);
-    
+    const hasMoney = daysWithMoney.some(d => d.date === dateStr);
+
     return {
       style: {
-        backgroundColor: hasData ? theme.palette.action.hover : 'transparent',
+        backgroundColor: hasMoney ? theme.palette.action.hover : 'transparent',
       },
     };
-  }, [dailyData, theme]);
+  }, [daysWithMoney, theme]);
 
   const calendarStyle = useMemo(() => ({
     height: 600,
@@ -241,7 +248,10 @@ const CalendarPage: React.FC = () => {
             '--mui-palette-text-secondary': theme.palette.text.secondary,
             '--mui-palette-text-disabled': theme.palette.text.disabled,
             '--mui-palette-divider': theme.palette.divider,
-            '--mui-palette-action-disabled': theme.palette.action.disabled,
+            // Off-range (other month) cells are tinted with this; action.hover
+            // is the faint tint styles.css intends (action.disabled is a text
+            // color and turned those cells into heavy grey blocks).
+            '--mui-palette-action-disabled': theme.palette.action.hover,
             '--mui-palette-primary-main': theme.palette.primary.main,
           }}
         >

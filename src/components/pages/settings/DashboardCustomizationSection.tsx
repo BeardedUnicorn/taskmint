@@ -97,9 +97,6 @@ export function DashboardCustomizationSection({ onSuccess, onError }: DashboardC
         <Typography variant="body2">
           <strong>Widget Visibility:</strong> Toggle widgets on/off to customize your dashboard view.
           Changes are saved automatically and will be applied immediately.
-          <br />
-          <strong>New:</strong> The "Daily Goal Progress" widget shows your progress towards daily earnings goals.
-          Set up a goal above to start tracking your progress!
         </Typography>
       </Alert>
     </SettingsSection>

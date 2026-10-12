@@ -176,9 +176,11 @@ vi.mock('../../ui/sessions/SessionList', () => ({
 }));
 
 vi.mock('../../ui/display/SessionTimerDisplay', () => ({
-  SessionTimerDisplay: ({ onStartTimer, onStopTimer, onPauseTimer, onResumeTimer, onOpenNotes, onAddTimer }: any) => (
+  SessionTimerDisplay: ({ onStartTimer, onStopTimer, onPauseTimer, onResumeTimer, onDeleteTimer, onOpenNotes, onAddTimer }: any) => (
     <div data-testid="session-timer-display">
       <button onClick={() => onAddTimer()}>Add Timer</button>
+      <button onClick={() => onDeleteTimer('timer-idle')}>Delete Idle Timer</button>
+      <button onClick={() => onDeleteTimer('timer-done')}>Delete Finished Timer</button>
       <button onClick={() => onStartTimer('timer-1')}>Start Timer</button>
       <button onClick={() => onStopTimer('timer-1')}>Stop Timer</button>
       <button onClick={() => onPauseTimer('timer-1')}>Pause Timer</button>
@@ -554,6 +556,79 @@ describe('SessionDashboard', () => {
         // The error handling might be different in the actual implementation
         // Just verify the function was called and failed
       });
+    });
+  });
+
+  describe('Timer deletion', () => {
+    const sessionWithTimers: TaskSession = {
+      id: 'session-1',
+      taskId: 'task-1',
+      taskName: 'Development Work',
+      timerInstances: [
+        {
+          id: 'timer-idle',
+          sessionId: 'session-1',
+          startTime: new Date('2024-01-15T12:00:00Z'),
+          state: TimerState.idle,
+          isRunning: false,
+          isPaused: false,
+          createdAt: '2024-01-15T12:00:00Z',
+          updatedAt: '2024-01-15T12:00:00Z',
+        },
+        {
+          id: 'timer-done',
+          sessionId: 'session-1',
+          startTime: new Date('2024-01-15T10:00:00Z'),
+          endTime: new Date('2024-01-15T11:30:00Z'),
+          duration: 90 * 60_000,
+          state: TimerState.stopped,
+          isRunning: false,
+          isPaused: false,
+          createdAt: '2024-01-15T10:00:00Z',
+          updatedAt: '2024-01-15T11:30:00Z',
+        },
+      ],
+      totalDuration: 90 * 60_000,
+      isActive: true,
+      date: '2024-01-15',
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T11:30:00Z',
+    };
+
+    beforeEach(() => {
+      (mockSessionManagement as any).sessions = [sessionWithTimers];
+      (mockSessionManagement as any).activeSession = sessionWithTimers;
+    });
+
+    it('deletes an idle timer without asking, since it holds no time', () => {
+      renderDashboard();
+
+      fireEvent.click(screen.getByText('Delete Idle Timer'));
+
+      expect(mockSessionManagement.deleteTimerInstance).toHaveBeenCalledWith('timer-idle');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('asks before deleting a finished timer and names its tracked time', () => {
+      renderDashboard();
+
+      fireEvent.click(screen.getByText('Delete Finished Timer'));
+
+      expect(mockSessionManagement.deleteTimerInstance).not.toHaveBeenCalled();
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText(/1h 30m of tracked time/)).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      expect(mockSessionManagement.deleteTimerInstance).toHaveBeenCalledWith('timer-done');
+    });
+
+    it('keeps a finished timer when the confirmation is cancelled', () => {
+      renderDashboard();
+
+      fireEvent.click(screen.getByText('Delete Finished Timer'));
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+      expect(mockSessionManagement.deleteTimerInstance).not.toHaveBeenCalled();
     });
   });
 

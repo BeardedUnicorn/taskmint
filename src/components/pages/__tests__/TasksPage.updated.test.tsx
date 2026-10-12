@@ -6,7 +6,7 @@
  * selection fallback preferring active tasks.
  */
 
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { TasksPage } from '../TasksPage';
@@ -233,20 +233,59 @@ describe('TasksPage - Task List Layout', () => {
     });
   });
 
-  it('opens the delete confirmation from a row and calls onDeleteTask on confirm', async () => {
-    render(<TasksPage {...mockProps} />);
+  describe('deleting a task', () => {
+    it('offers Archive when the task has tracked time, and says what delete really does', async () => {
+      render(<TasksPage {...mockProps} />);
 
-    const deleteButtons = screen.getAllByLabelText('Delete task');
-    fireEvent.click(deleteButtons[0]);
+      fireEvent.click(screen.getAllByLabelText('Delete task')[0]);
 
-    await waitFor(() => {
-      expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText(/1 time entry \(1h 0m\)/)).toBeInTheDocument();
+      expect(within(dialog).getByText(/lose its hourly rate/)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/remove all associated time entries/)).not.toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Archive instead' }));
+
+      expect(mockProps.onArchiveTask).toHaveBeenCalledWith('task1');
+      expect(mockProps.onDeleteTask).not.toHaveBeenCalled();
     });
 
-    fireEvent.click(screen.getByText('Confirm'));
+    it('still deletes when the user chooses Delete anyway', async () => {
+      render(<TasksPage {...mockProps} />);
 
-    await waitFor(() => {
-      expect(mockProps.onDeleteTask).toHaveBeenCalledWith('task1');
+      fireEvent.click(screen.getAllByLabelText('Delete task')[0]);
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete anyway' }));
+
+      await waitFor(() => {
+        expect(mockProps.onDeleteTask).toHaveBeenCalledWith('task1');
+      });
+      expect(mockProps.onArchiveTask).not.toHaveBeenCalled();
+    });
+
+    it('is a plain confirmation for a task with no tracked time', async () => {
+      render(<TasksPage {...mockProps} />);
+
+      fireEvent.click(screen.getAllByLabelText('Delete task')[1]);
+      const dialog = await screen.findByRole('dialog');
+
+      expect(within(dialog).queryByRole('button', { name: 'Archive instead' })).not.toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() => {
+        expect(mockProps.onDeleteTask).toHaveBeenCalledWith('task2');
+      });
+    });
+
+    it('does nothing when cancelled', async () => {
+      render(<TasksPage {...mockProps} />);
+
+      fireEvent.click(screen.getAllByLabelText('Delete task')[0]);
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+      expect(mockProps.onDeleteTask).not.toHaveBeenCalled();
+      expect(mockProps.onArchiveTask).not.toHaveBeenCalled();
     });
   });
 

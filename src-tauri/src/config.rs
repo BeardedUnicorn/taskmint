@@ -90,7 +90,7 @@ impl Default for Config {
             icon_tray_primary: ICON_TRAY_PRIMARY.to_string(),
             icon_tray_fallback: ICON_TRAY_FALLBACK.to_string(),
             // Default values for new configuration options (constants will be generated from config.toml)
-            inactivity_enabled: true,
+            inactivity_enabled: false,
             inactivity_threshold_minutes: 15,
             inactivity_show_warning_before_pause: true,
             inactivity_warning_duration_seconds: 30,

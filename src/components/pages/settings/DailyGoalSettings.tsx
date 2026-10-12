@@ -5,10 +5,6 @@ import {
   Button,
   Stack,
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Switch,
   FormControlLabel,
 } from '@mui/material';
@@ -27,6 +23,8 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
   const [goalSuccess, setGoalSuccess] = useState(false);
   const [goalError, setGoalError] = useState<string | null>(null);
   const [goalTargetAmount, setGoalTargetAmount] = useState('');
+  // Every amount in the app is shown in dollars, so there's no currency
+  // picker; a goal's stored currency is carried through unchanged on save.
   const [goalCurrency, setGoalCurrency] = useState('USD');
   const [goalEnabled, setGoalEnabled] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -115,24 +113,6 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
             helperText={goalError && goalError.includes('target amount') ? goalError : 'Set your daily earnings target'}
             sx={{ minWidth: 200 }}
           />
-
-          <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel id="goal-currency-label">Currency</InputLabel>
-            <Select
-              labelId="goal-currency-label"
-              value={goalCurrency}
-              label="Currency"
-              onChange={(e) => handleFieldChange(setGoalCurrency, e.target.value)}
-              disabled={!goalEnabled}
-              size="medium"
-            >
-              <MenuItem value="USD">USD ($)</MenuItem>
-              <MenuItem value="EUR">EUR (€)</MenuItem>
-              <MenuItem value="GBP">GBP (£)</MenuItem>
-              <MenuItem value="CAD">CAD ($)</MenuItem>
-              <MenuItem value="AUD">AUD ($)</MenuItem>
-            </Select>
-          </FormControl>
         </Stack>
 
         {/* Save Button */}

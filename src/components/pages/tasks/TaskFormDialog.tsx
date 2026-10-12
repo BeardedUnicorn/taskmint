@@ -22,12 +22,12 @@ interface TaskFormDialogProps {
   onClose: () => void;
   initialTask?: Task | null;
   mode: 'add' | 'edit';
-  availableTasks?: Task[];
+  // No parent-task field: the task list is flat and nothing rolls up, so a
+  // parent had no visible effect. Existing parentId values are left as-is.
   onSubmit: (data: {
     name: string;
     hourlyRate?: number;
     defaultNoteTemplateId?: string | null;
-    parentId?: string | null;
   }) => Promise<Task | null>;
 }
 
@@ -36,13 +36,11 @@ export function TaskFormDialog({
   onClose,
   initialTask = null,
   mode,
-  availableTasks = [],
   onSubmit,
 }: TaskFormDialogProps) {
   const [taskName, setTaskName] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
   const [defaultNoteTemplateId, setDefaultNoteTemplateId] = useState<string>('');
-  const [parentId, setParentId] = useState<string>('');
   const [errors, setErrors] = useState<{ taskName?: string; hourlyRate?: string }>({});
 
   const { getActiveTemplates, isLoading: templatesLoading } = useNoteTemplates();
@@ -53,13 +51,11 @@ export function TaskFormDialog({
       setTaskName(initialTask.name);
       setHourlyRate(initialTask.hourlyRate?.toString() || '');
       setDefaultNoteTemplateId(initialTask.defaultNoteTemplateId || '');
-      setParentId(initialTask.parentId || '');
       setErrors({});
     } else {
       setTaskName('');
       setHourlyRate('');
       setDefaultNoteTemplateId('');
-      setParentId('');
       setErrors({});
     }
   }, [initialTask, open]);
@@ -93,14 +89,12 @@ export function TaskFormDialog({
 
     const hourlyRateValue = hourlyRate.trim() ? parseFloat(hourlyRate) : undefined;
     const templateId = defaultNoteTemplateId || null;
-    const parent = parentId || null;
 
     try {
       const result = await onSubmit({
         name: taskName.trim(),
         hourlyRate: hourlyRateValue,
         defaultNoteTemplateId: templateId,
-        parentId: parent,
       });
 
       if (result) {
@@ -115,16 +109,12 @@ export function TaskFormDialog({
     setTaskName('');
     setHourlyRate('');
     setDefaultNoteTemplateId('');
-    setParentId('');
     setErrors({});
     onClose();
   };
 
   const title = mode === 'add' ? 'Add New Task' : 'Edit Task';
   const submitLabel = mode === 'add' ? 'Add Task' : 'Save Changes';
-  const filteredTasks = mode === 'edit' && initialTask
-    ? availableTasks.filter(t => t.id !== initialTask.id)
-    : availableTasks;
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -153,25 +143,6 @@ export function TaskFormDialog({
               helperText={errors.hourlyRate || (mode === 'add' ? 'Optional - leave blank if not applicable' : 'Leave empty if not applicable')}
               placeholder="0.00"
             />
-
-            <FormControl fullWidth>
-              <InputLabel id="parent-task-label">Parent Task</InputLabel>
-              <Select
-                labelId="parent-task-label"
-                value={parentId}
-                label="Parent Task"
-                onChange={(e) => setParentId(e.target.value)}
-              >
-                <MenuItem value="">
-                  <em>None (Root Level)</em>
-                </MenuItem>
-                {filteredTasks.map((task) => (
-                  <MenuItem key={task.id} value={task.id}>
-                    {task.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
 
             <FormControl fullWidth>
               <InputLabel id="default-note-template-label">Default Note Template</InputLabel>

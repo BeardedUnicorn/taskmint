@@ -313,21 +313,46 @@ describe('SessionList', () => {
       expect(mockProps.onStartSession).toHaveBeenCalled();
     });
 
-    it('should call onDeleteSession when delete menu item is clicked', () => {
+    function openDeleteFor(taskName: string) {
+      // The name also appears as a filter chip; the card is the one to act on
+      const card = screen
+        .getAllByText(taskName)
+        .map(node => node.closest('.MuiCard-root'))
+        .find(Boolean) as HTMLElement;
+      fireEvent.click(within(card).getByRole('button', { name: 'More options' }));
+      fireEvent.click(screen.getByText('Delete Session'));
+    }
+
+    it('asks for confirmation, naming the tracked time, before deleting a session', () => {
       render(<SessionList {...mockProps} />);
 
-      // Open context menu
-      const moreButtons = screen.getAllByRole('button');
-      const moreButton = moreButtons.find(button =>
-        button.querySelector('[data-testid="MoreVertIcon"]')
-      );
-      fireEvent.click(moreButton!);
+      openDeleteFor('Development Work');
 
-      // Click delete session
-      const deleteMenuItem = screen.getByText('Delete Session');
-      fireEvent.click(deleteMenuItem);
+      expect(mockProps.onDeleteSession).not.toHaveBeenCalled();
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText(/1 timer and 1h 0m of tracked time/)).toBeInTheDocument();
 
-      expect(mockProps.onDeleteSession).toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      expect(mockProps.onDeleteSession).toHaveBeenCalledWith('session-1');
+    });
+
+    it('does not delete the session when the confirmation is cancelled', () => {
+      render(<SessionList {...mockProps} />);
+
+      openDeleteFor('Development Work');
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+      expect(mockProps.onDeleteSession).not.toHaveBeenCalled();
+    });
+
+    it('warns that deleting the active session takes its running timer with it', () => {
+      render(<SessionList {...mockProps} />);
+
+      openDeleteFor('Code Review');
+
+      expect(
+        within(screen.getByRole('dialog')).getByText(/This is the active session/)
+      ).toBeInTheDocument();
     });
   });
 

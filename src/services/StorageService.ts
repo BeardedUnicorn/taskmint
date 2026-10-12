@@ -9,10 +9,9 @@ import { z } from 'zod';
 import {
   TimeEntry,
   TimeEntrySchema,
-  EnhancedTimerSettings,
-  EnhancedTimerSettingsSchema,
   InactivitySettings,
   InactivitySettingsSchema,
+  DEFAULT_INACTIVITY_SETTINGS,
   TimerActivityState,
   TimerActivityStateSchema
 } from '../types/timer';
@@ -47,8 +46,6 @@ export interface IStorageService {
   setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void>;
 
   // Session-based storage operations
-  getEnhancedTimerSettings(): Promise<EnhancedTimerSettings>;
-  setEnhancedTimerSettings(settings: EnhancedTimerSettings): Promise<void>;
   getInactivitySettings(): Promise<InactivitySettings>;
   setInactivitySettings(settings: InactivitySettings): Promise<void>;
   getTimerActivityState(): Promise<TimerActivityState | null>;
@@ -385,26 +382,10 @@ export class StorageService implements IStorageService {
   // localStorage copies of sessions/timer instances were removed with
   // SessionService.
 
-  async getEnhancedTimerSettings(): Promise<EnhancedTimerSettings> {
-    return await this.getItem(
-      STORAGE_KEYS.ENHANCED_TIMER_SETTINGS,
-      { roundingOption: 'none', inactivity: { enabled: true, thresholdMinutes: 15, showWarningBeforePause: true, warningDurationSeconds: 30, resumeOnActivity: false } },
-      EnhancedTimerSettingsSchema
-    );
-  }
-
-  async setEnhancedTimerSettings(settings: EnhancedTimerSettings): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.ENHANCED_TIMER_SETTINGS,
-      settings,
-      EnhancedTimerSettingsSchema
-    );
-  }
-
   async getInactivitySettings(): Promise<InactivitySettings> {
     return await this.getItem(
       STORAGE_KEYS.INACTIVITY_SETTINGS,
-      { enabled: true, thresholdMinutes: 15, showWarningBeforePause: true, warningDurationSeconds: 30, resumeOnActivity: false },
+      DEFAULT_INACTIVITY_SETTINGS,
       InactivitySettingsSchema
     );
   }

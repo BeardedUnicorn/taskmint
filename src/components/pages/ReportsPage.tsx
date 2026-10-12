@@ -37,6 +37,7 @@ import { EarningsDisplay } from '../ui/display/EarningsDisplay';
 import { GoalAchievementsTable } from '../ui/tables/GoalAchievementsTable';
 import { useDailyGoals } from '../../hooks/useDailyGoals';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
+import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { EditTimeEntryData } from '../../types/form';
 
 // Lazy load chart components for better performance
@@ -72,6 +73,7 @@ export function ReportsPage({
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [timelineView, setTimelineView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
 
   // Daily goals hook and state
@@ -469,7 +471,7 @@ export function ReportsPage({
                               size="small"
                               variant="outlined"
                               color="error"
-                              onClick={() => onDeleteEntry(entry.id)}
+                              onClick={() => setDeletingEntryId(entry.id)}
                             >
                               Delete
                             </Button>
@@ -499,6 +501,19 @@ export function ReportsPage({
             loading={achievementsLoading}
           />
         </Paper>
+
+        {/* Same confirmation as the Time Entries page: deleting loses tracked time */}
+        <ConfirmDialog
+          open={deletingEntryId !== null}
+          title="Delete Time Entry"
+          message="Are you sure you want to delete this time entry? This action cannot be undone."
+          confirmLabel="Delete"
+          confirmColor="error"
+          onConfirm={() => {
+            if (deletingEntryId) onDeleteEntry(deletingEntryId);
+          }}
+          onClose={() => setDeletingEntryId(null)}
+        />
 
         {/* Edit Time Entry Dialog */}
         {editingEntry && (

@@ -58,15 +58,34 @@ describe('DailyGoalSettings', () => {
   it('should initialize form fields from currentGoal', () => {
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('100');
-    expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('USD ($)');
     expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).not.toBeChecked();
   });
+
+  it('has no currency picker, since every amount in the app is in dollars', () => {
+    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    expect(screen.queryByRole('combobox', { name: 'Currency' })).not.toBeInTheDocument();
+  });
+
+  it('keeps a stored currency when the goal is saved', async () => {
+    const user = userEvent.setup();
+    mockUpdateDailyGoal.mockResolvedValue(undefined);
+    setupMocks({ targetAmount: 150, currency: 'EUR', isEnabled: false });
+    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+
+    await user.click(await screen.findByRole('switch', { name: /enable daily earnings goal/i }));
+    await user.click(screen.getByRole('button', { name: 'Save Goal' }));
+
+    expect(mockUpdateDailyGoal).toHaveBeenCalledWith({
+      targetAmount: 150,
+      currency: 'EUR',
+      isEnabled: true,
+    });
+  }, 30000);
 
   it('should handle enabled goal state', () => {
     setupMocks({ targetAmount: 150, currency: 'EUR', isEnabled: true });
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('150');
-    expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('EUR (€)');
     expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).toBeChecked();
   });
 
@@ -74,7 +93,6 @@ describe('DailyGoalSettings', () => {
     setupMocks(null);
     render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('');
-    expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('USD ($)');
     expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).not.toBeChecked();
   });
 
