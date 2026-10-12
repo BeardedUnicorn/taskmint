@@ -48,12 +48,6 @@ pub struct Config {
     pub icon_tray_fallback: String,
 
     /// Inactivity detection configuration
-    pub inactivity_enabled: bool,
-    pub inactivity_threshold_minutes: u32,
-    pub inactivity_show_warning_before_pause: bool,
-    pub inactivity_warning_duration_seconds: u32,
-    pub inactivity_resume_on_activity: bool,
-    pub inactivity_activity_check_interval_ms: u64,
 
     /// Session management configuration
     pub sessions_max_timer_instances_per_session: usize,
@@ -90,12 +84,6 @@ impl Default for Config {
             icon_tray_primary: ICON_TRAY_PRIMARY.to_string(),
             icon_tray_fallback: ICON_TRAY_FALLBACK.to_string(),
             // Default values for new configuration options (constants will be generated from config.toml)
-            inactivity_enabled: false,
-            inactivity_threshold_minutes: 15,
-            inactivity_show_warning_before_pause: true,
-            inactivity_warning_duration_seconds: 30,
-            inactivity_resume_on_activity: false,
-            inactivity_activity_check_interval_ms: 1000,
             sessions_max_timer_instances_per_session: 50,
             sessions_max_session_name_length: 100,
             sessions_max_session_notes_length: 1000,
@@ -123,21 +111,6 @@ impl Config {
     /// Get retry delay duration for a given attempt number
     pub fn retry_delay_duration(&self, attempt: u32) -> Duration {
         Duration::from_millis(self.retry_base_delay_ms * attempt as u64)
-    }
-
-    /// Get inactivity threshold duration
-    pub fn inactivity_threshold_duration(&self) -> Duration {
-        Duration::from_secs(self.inactivity_threshold_minutes as u64 * 60)
-    }
-
-    /// Get inactivity warning duration
-    pub fn inactivity_warning_duration(&self) -> Duration {
-        Duration::from_secs(self.inactivity_warning_duration_seconds as u64)
-    }
-
-    /// Get activity check interval duration
-    pub fn inactivity_activity_check_duration(&self) -> Duration {
-        Duration::from_millis(self.inactivity_activity_check_interval_ms)
     }
 }
 

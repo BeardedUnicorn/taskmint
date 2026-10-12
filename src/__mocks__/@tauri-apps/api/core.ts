@@ -87,24 +87,6 @@ export const invoke = vi.fn().mockImplementation((command: string, args?: any) =
         isPaused: false,
         pausedDueToInactivity: false,
       });
-    case 'get_inactivity_settings':
-      return Promise.resolve({
-        enabled: true,
-        thresholdMinutes: 5,
-        showWarningBeforePause: true,
-        warningDurationSeconds: 30,
-        testingMode: false,
-      });
-    case 'update_inactivity_settings':
-    case 'update_timer_activity_state':
-      return Promise.resolve();
-    case 'get_timer_activity_state':
-      return Promise.resolve({
-        lastActivityTime: new Date(),
-        isUserActive: true,
-        inactivityWarningShown: false,
-        pausedDueToInactivity: false,
-      });
     default:
       return Promise.resolve();
   }

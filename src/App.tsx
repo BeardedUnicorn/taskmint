@@ -9,6 +9,8 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
 import { StartWorkDialog } from './components/ui/dialogs/StartWorkDialog';
 import { AddTimeDialog } from './components/ui/dialogs/AddTimeDialog';
+import { IdleReturnDialog } from './components/ui/dialogs/IdleReturnDialog';
+import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar, type SidebarView } from './components/layout';
 
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
@@ -81,6 +83,10 @@ function AppContent() {
   }, [hasActiveTasks]);
   useEnhancedSystemTray({ tasks, onShowStartDialog: showStartDialog });
   const openTasksPage = useCallback(() => setActiveView('tasks'), []);
+
+  // Idle detection runs in the backend; this sends it the saved settings and
+  // holds its "you were away" question.
+  const idleReturn = useIdleReturn();
 
   // Daily goal monitoring
   useDailyGoalProgressMonitor({
@@ -194,6 +200,12 @@ function AppContent() {
           sessions={sessionManager.sessions}
           onStart={sessionManager.startTask}
           onAddTask={openTasksPage}
+        />
+        <IdleReturnDialog
+          pending={idleReturn.pending}
+          onResolve={idleReturn.resolve}
+          isResolving={idleReturn.isResolving}
+          error={idleReturn.error}
         />
         <AddTimeDialog
           open={addTimeDialogOpen}

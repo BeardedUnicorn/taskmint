@@ -99,20 +99,15 @@ describe('Session System Validation', () => {
       const defaultSettings: InactivitySettings = {
         enabled: true,
         thresholdMinutes: 15,
-        showWarningBeforePause: true,
-        warningDurationSeconds: 30,
-        resumeOnActivity: false,
       };
 
       const customSettings: InactivitySettings = {
         ...defaultSettings,
         thresholdMinutes: 30,
-        warningDurationSeconds: 60,
       };
 
       // Validate that settings can be customized
       expect(customSettings.thresholdMinutes).toBe(30);
-      expect(customSettings.warningDurationSeconds).toBe(60);
       expect(customSettings.thresholdMinutes).toBeGreaterThan(0);
       expect(customSettings.thresholdMinutes).toBeLessThanOrEqual(120);
       expect(customSettings.enabled).toBe(true);

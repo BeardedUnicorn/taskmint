@@ -36,21 +36,6 @@ vi.mock('../../contexts/NotificationContext', () => ({
   NotificationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// Mock inactivity detection
-vi.mock('../../hooks/useInactivityDetection', () => ({
-  useInactivityDetection: () => ({
-    isWarningShown: false,
-    warningTimeRemaining: 0,
-    settings: {
-      enabled: true,
-      thresholdMinutes: 15,
-      showWarningBeforePause: true,
-      warningDurationSeconds: 30,
-      resumeOnActivity: false,
-    },
-  }),
-}));
-
 // Mock session management hook
 const mockSessionManagement = {
   sessions: [],

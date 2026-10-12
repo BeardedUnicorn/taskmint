@@ -116,8 +116,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
       setError(errorMessage);
       // Keep the last-known-good sessions/activeSession/activeTimer: blanking
       // the list while the toolbar still shows an active session leaves the
-      // UI inconsistent (and would disable inactivity auto-pause). Background
-      // refreshes also should not toast out of nowhere.
+      // UI inconsistent. Background refreshes also should not toast out of
+      // nowhere.
       if (!silent) showError(errorMessage);
     } finally {
       if (!silent) setIsLoading(false);
@@ -260,8 +260,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
   }, [updateLocalSession, setActiveTimer, showError, showSuccess]);
 
   // stop/pause/resume return the updated session (or null on failure) so
-  // orchestrating callers — endActiveSession, the inactivity auto-pause —
-  // can tell whether the command actually succeeded.
+  // orchestrating callers like endActiveSession can tell whether the command
+  // actually succeeded.
   const stopTimerInstance = useCallback(async (instanceId: string): Promise<TaskSession | null> => {
     return measurePerformance('useSessionManagement.stopTimerInstance', async () => {
       setIsLoading(true);
@@ -410,111 +410,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
     };
   }, []);
 
-  // Auto-pause on inactivity. The producers (useInactivityDetection and the
-  // warning dialog) dispatch a DOM CustomEvent on window, so listen on the
-  // same bus — a Tauri listen() would never receive it.
-  //
-  // Timers paused by the automatic path (reason 'inactivity') are remembered
-  // so resumeOnActivity can resume exactly those — a pause the user chose
-  // (reason 'user-action') must stay paused.
-  const inactivityPausedIdsRef = useRef<string[]>([]);
-  // Set when a resume event arrives while the auto-pause IPC is still in
-  // flight (the timers aren't paused yet, so the resume handler can't act);
-  // the pause handler checks it once the pauses land and resumes immediately.
-  const pendingResumeRef = useRef(false);
-  useEffect(() => {
-    const handlePauseInactivity = async (event: Event) => {
-      const reason = (event as CustomEvent).detail?.reason;
-      const currentActiveSession = sessionsRef.current.find(s => s.isActive);
-      const timersToPause: TimerInstance[] = currentActiveSession
-        ? currentActiveSession.timerInstances.filter(t => t.state === TimerState.running)
-        : [];
-
-      const remember = reason === 'inactivity';
-      inactivityPausedIdsRef.current = remember ? timersToPause.map(t => t.id) : [];
-      pendingResumeRef.current = false;
-
-      if (timersToPause.length === 0) return;
-
-      try {
-        const pausedIds: string[] = [];
-        for (const timer of timersToPause) {
-          const paused = await pauseTimerInstance(timer.id);
-          if (paused) pausedIds.push(timer.id);
-        }
-        if (remember) {
-          // Keep only ids whose pause succeeded, preserving any pruning the
-          // resume handler did while the pauses were in flight.
-          inactivityPausedIdsRef.current = inactivityPausedIdsRef.current.filter(id =>
-            pausedIds.includes(id)
-          );
-          // Activity returned while the pause IPC was in flight: resume the
-          // timers we just paused instead of leaving them stranded.
-          if (pendingResumeRef.current) {
-            pendingResumeRef.current = false;
-            const idsToResume = inactivityPausedIdsRef.current;
-            inactivityPausedIdsRef.current = [];
-            for (const id of idsToResume) {
-              await resumeTimerInstance(id);
-            }
-          }
-        }
-        await loadSessions({ silent: true });
-      } catch (err) {
-        const errorMessage =
-          errorText(err, 'Failed to pause inactive timers');
-        showError(errorMessage);
-      }
-    };
-
-    window.addEventListener('timer-pause-inactivity', handlePauseInactivity);
-    return () => {
-      window.removeEventListener('timer-pause-inactivity', handlePauseInactivity);
-    };
-  }, [pauseTimerInstance, resumeTimerInstance, loadSessions, showError]);
-
-  // resumeOnActivity: when activity returns after an automatic inactivity
-  // pause, useInactivityDetection dispatches this event (only when the
-  // setting is enabled) and we resume the timers that pause suspended.
-  useEffect(() => {
-    const handleResumeActivity = async () => {
-      const pausedIds = inactivityPausedIdsRef.current;
-      if (pausedIds.length === 0) return;
-
-      const currentActiveSession = sessionsRef.current.find(s => s.isActive);
-      const timersToResume: TimerInstance[] = currentActiveSession
-        ? currentActiveSession.timerInstances.filter(
-            t => pausedIds.includes(t.id) && t.state === TimerState.paused
-          )
-        : [];
-
-      // Ids not paused yet are an auto-pause still in flight (sessionsRef
-      // updates post-commit, after the pause IPC lands). Keep them remembered
-      // and flag the pause handler to resume them the moment it finishes —
-      // clearing the list here would strand those timers paused forever.
-      const stillPausing = pausedIds.filter(id => !timersToResume.some(t => t.id === id));
-      inactivityPausedIdsRef.current = stillPausing;
-      pendingResumeRef.current = stillPausing.length > 0;
-
-      if (timersToResume.length === 0) return;
-
-      try {
-        for (const timer of timersToResume) {
-          await resumeTimerInstance(timer.id);
-        }
-      } catch (err) {
-        const errorMessage =
-          errorText(err, 'Failed to resume timers after activity');
-        showError(errorMessage);
-      }
-    };
-
-    window.addEventListener('timer-resume-activity', handleResumeActivity);
-    return () => {
-      window.removeEventListener('timer-resume-activity', handleResumeActivity);
-    };
-  }, [resumeTimerInstance, showError]);
-
   // The app's single start path (also the tray's): continue the task's active
   // session, or open a new one with a running timer. The backend announces
   // any timer it finalized for another task, so the hand-off isn't silent.
@@ -651,8 +546,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         setSessions(normalized);
         setActiveSessionState(session ? normalized.find(s => s.id === session.id) || null : null);
         // Keep the shared active-timer slot in sync instead of waiting for
-        // the debounced event reload (the inactivity dialog and active-entry
-        // displays key off it).
+        // the debounced event reload (active-entry displays key off it).
         setActiveTimer(findRunningInstance(normalized)?.instance ?? null);
 
         if (session) {

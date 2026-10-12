@@ -16,7 +16,7 @@ you've earned and when it pays out.
 | **Reports** | Totals, earnings and charts over a date range. |
 | **Calendar** | Earned and transferable amounts per day. |
 | **Payouts** | Import DataAnnotation work logs, map projects to tasks, and see available, pending and upcoming releases. |
-| **Settings** | Rounding, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
+| **Settings** | Appearance, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
 
 The **system tray** (menu-bar item on macOS) shows the running or paused
 timer and can pause, resume or stop it, start a task's timer, or open the app.
@@ -28,6 +28,14 @@ button): starting the task that's already active continues its session
 timer. Work starts from existing tasks; create new ones on the Tasks page.
 Closing the window hides TaskMint to the tray, where timers keep running; quit
 from the tray menu. On macOS, clicking the Dock icon brings the window back.
+
+**Inactivity detection** (off by default; Settings → Inactivity Detection)
+uses the system idle time, so work in any app counts. When there's been no
+keyboard or mouse input for the threshold, the running timer pauses as of when
+input stopped, so the away time isn't counted. When you're back, TaskMint comes
+to the front and asks whether to discard the away time and resume, keep it and
+resume, or stay paused; the tray offers the same choices. This works on macOS
+and Windows.
 
 ## Where data lives
 

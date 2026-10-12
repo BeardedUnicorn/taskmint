@@ -62,14 +62,17 @@ pub struct TrayLiveKey {
     pub instance_id: String,
     pub task_name: String,
     pub is_paused: bool,
+    /// Paused by idle detection, with the keep/discard question pending.
+    pub idle_paused: bool,
 }
 
-impl From<&LiveTimer> for TrayLiveKey {
-    fn from(live: &LiveTimer) -> Self {
+impl TrayLiveKey {
+    pub fn new(live: &LiveTimer, idle_paused: bool) -> Self {
         Self {
             instance_id: live.instance_id.clone(),
             task_name: live.task_name.clone(),
             is_paused: live.is_paused,
+            idle_paused,
         }
     }
 }
@@ -82,6 +85,23 @@ fn current_live_timer(state: &AppState) -> Option<LiveTimer> {
         .flatten()
 }
 
+/// Whether the live timer is the one idle detection paused (question pending).
+fn is_idle_paused(state: &AppState, live: &LiveTimer) -> bool {
+    live.is_paused
+        && state
+            .with_idle(|idle| {
+                idle.pause
+                    .as_ref()
+                    .is_some_and(|p| p.instance_id == live.instance_id)
+            })
+            .unwrap_or(false)
+}
+
+/// The rebuild key for the tray's current state.
+fn current_tray_key(state: &AppState) -> Option<TrayLiveKey> {
+    current_live_timer(state).map(|live| TrayLiveKey::new(&live, is_idle_paused(state, &live)))
+}
+
 pub fn create_tray_menu(
     app: &AppHandle,
     state: &AppState,
@@ -92,6 +112,37 @@ pub fn create_tray_menu(
 
     // Timer status section
     match current_live_timer(state) {
+        Some(live) if is_idle_paused(state, &live) => {
+            // Idle detection paused it as of when input stopped: the resume
+            // choices decide whether that away time counts.
+            let status_text = format!(
+                "⏸️ Paused while away: {} ({})",
+                live.task_name,
+                format_duration_hm(live.elapsed_ms)
+            );
+            menu.append(&MenuItem::new(app, status_text, false, None::<&str>)?)?;
+            menu.append(&MenuItem::with_id(
+                app,
+                "idle_discard_resume",
+                "▶️ Resume (don't count away time)",
+                true,
+                None::<&str>,
+            )?)?;
+            menu.append(&MenuItem::with_id(
+                app,
+                "idle_keep_resume",
+                "↩️ Resume, counting away time",
+                true,
+                None::<&str>,
+            )?)?;
+            menu.append(&MenuItem::with_id(
+                app,
+                "stop_timer",
+                "⏹️ Stop Timer",
+                true,
+                None::<&str>,
+            )?)?;
+        }
         Some(live) => {
             let elapsed_text = format_duration_hm(live.elapsed_ms);
             let status_text = if live.is_paused {
@@ -227,6 +278,17 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
             }
             sync_tray(app, state);
         }
+        "idle_discard_resume" | "idle_keep_resume" => {
+            let choice = if id == "idle_keep_resume" {
+                crate::idle::IdleChoice::KeepResume
+            } else {
+                crate::idle::IdleChoice::DiscardResume
+            };
+            if let Err(e) = crate::idle::resolve(app, state, choice) {
+                log::error!("Failed to resume after idle from tray: {}", e);
+            }
+            sync_tray(app, state);
+        }
         "pause_timer" => {
             if let Err(e) = sessions::tray_pause_timer(app, state) {
                 log::error!("Failed to pause timer from tray: {}", e);
@@ -281,7 +343,7 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
     }
 }
 
-fn show_main_window(app: &AppHandle) {
+pub(crate) fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         if let Err(e) = window.show() {
             log::error!("Failed to show window: {}", e);
@@ -299,7 +361,7 @@ fn show_main_window(app: &AppHandle) {
 }
 
 pub fn update_tray_menu(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
-    let rendered = current_live_timer(state).as_ref().map(TrayLiveKey::from);
+    let rendered = current_tray_key(state);
     state
         .with_tray_icon(|tray_option| {
             if let Some(ref tray) = tray_option {
@@ -318,7 +380,7 @@ pub fn update_tray_menu(app: &AppHandle, state: &AppState) -> Result<(), tauri::
 /// not happen), and refresh the tooltip/title. Called after tray actions and
 /// by the update thread, so changes made in the app show within a tick.
 pub fn sync_tray(app: &AppHandle, state: &AppState) {
-    let live = current_live_timer(state).as_ref().map(TrayLiveKey::from);
+    let live = current_tray_key(state);
     let changed = state
         .with_tray_rendered(|rendered| *rendered != live)
         .unwrap_or(true);
@@ -498,8 +560,9 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
             // Picks up starts/stops made anywhere (app UI, tray, imports) and
             // keeps the running clock in the tooltip/title current.
             let live = current_live_timer(&state_clone);
+            let key = current_tray_key(&state_clone);
             let changed = state_clone
-                .with_tray_rendered(|rendered| *rendered != live.as_ref().map(TrayLiveKey::from))
+                .with_tray_rendered(|rendered| *rendered != key)
                 .unwrap_or(false);
             let running = live.as_ref().is_some_and(|l| !l.is_paused);
 
@@ -655,6 +718,22 @@ mod tests {
         assert_eq!(last_used.get("a"), Some(&at(50)));
         assert_eq!(last_used.get("b"), Some(&at(20)));
         assert_eq!(last_used.get("c"), None);
+    }
+
+    #[test]
+    fn tray_key_changes_when_idle_detection_pauses_the_timer() {
+        let live = LiveTimer {
+            instance_id: "r".to_string(),
+            task_id: "a".to_string(),
+            task_name: "Task a".to_string(),
+            is_paused: true,
+            elapsed_ms: 60_000,
+        };
+        // Same paused timer: the menu must still rebuild for the away choices
+        assert_ne!(
+            TrayLiveKey::new(&live, false),
+            TrayLiveKey::new(&live, true)
+        );
     }
 
     #[test]

@@ -15,15 +15,12 @@ export type {
   TimerInstance,
   TaskSession,
   InactivitySettings,
-  TimerActivityState,
   SessionStats,
   SessionTimerToolbarProps,
   SessionListProps,
   TimerInstanceListProps,
-  InactivityWarningProps,
   UseSessionManagementReturn,
   UseTimerInstanceReturn,
-  UseInactivityDetectionReturn,
 } from './timer';
 
 // Task Management Types

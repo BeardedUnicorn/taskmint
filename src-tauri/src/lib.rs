@@ -7,6 +7,7 @@ pub mod capture_server;
 pub mod commands;
 pub mod config;
 pub mod error;
+pub mod idle;
 pub mod state;
 pub mod storage;
 pub mod tray;
@@ -220,6 +221,10 @@ pub fn run() {
                     tray::start_tray_update_timer(&app_handle, &app_state);
                 }
 
+                // System-wide idle detection (acts only once the app sends
+                // enabled settings)
+                idle::start_idle_monitor(&app_handle, &app_state);
+
                 // taskmint:// deep links (browser-extension captures). macOS
                 // registration is bundle-time (Info.plist via tauri.conf.json);
                 // production Windows registers via the installer; runtime
@@ -289,6 +294,11 @@ pub fn run() {
             commands::sessions::delete_timer_instance,
             commands::sessions::set_active_session,
             commands::sessions::get_session_load_warning,
+            // Idle-detection commands
+            commands::idle::set_idle_settings,
+            commands::idle::get_idle_support,
+            commands::idle::get_idle_pause,
+            commands::idle::resolve_idle_pause,
             // Work-log commands
             commands::worklogs::get_work_logs,
             commands::worklogs::apply_work_log_import,

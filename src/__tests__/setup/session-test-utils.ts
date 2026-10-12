@@ -113,9 +113,6 @@ export const createMockImportedSession = (overrides: Partial<TaskSession> = {}):
 export const createMockInactivitySettings = (overrides: Partial<InactivitySettings> = {}): InactivitySettings => ({
   enabled: true,
   thresholdMinutes: 15,
-  showWarningBeforePause: true,
-  warningDurationSeconds: 30,
-  resumeOnActivity: false,
   ...overrides,
 });
 
@@ -204,8 +201,6 @@ export const createInactivityScenario = () => {
   const settings = createMockInactivitySettings({
     enabled: true,
     thresholdMinutes: 5,
-    showWarningBeforePause: true,
-    warningDurationSeconds: 10,
   });
 
   const { session, runningInstance } = createActiveSessionScenario();

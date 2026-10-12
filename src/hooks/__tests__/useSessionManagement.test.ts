@@ -780,113 +780,17 @@ describe('useSessionManagement', () => {
       await waitFor(() => expect(activeListeners).toBe(expectedListenerCount));
     });
 
-    it('pauses running timers of the active session on the window inactivity event', async () => {
-      const runningInstance = { ...mockTimerInstance, state: TimerState.running };
-      const activeSession = { ...mockSession, isActive: true, timerInstances: [runningInstance] };
-      const pausedSession = {
-        ...activeSession,
-        timerInstances: [{ ...runningInstance, state: TimerState.paused }],
-      };
-
-      primeCommand('get_sessions', [activeSession], [pausedSession]);
-      primeCommand('pause_timer_instance', pausedSession);
-
+    it('no longer pauses timers on in-window inactivity events (detection runs in the backend)', async () => {
+      const running = { ...mockSession, isActive: true, timerInstances: [{ ...mockTimerInstance, state: TimerState.running, isRunning: true }] };
+      primeCommand('get_sessions', [running]);
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.activeSession).toEqual(activeSession);
-      });
+      await waitFor(() => expect(result.current.sessions).toHaveLength(1));
 
       await act(async () => {
-        window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
-          detail: { reason: 'inactivity', timestamp: new Date() },
-        }));
+        window.dispatchEvent(new CustomEvent('timer-pause-inactivity', { detail: { reason: 'inactivity' } }));
       });
 
-      await waitFor(() => {
-        expect(mockInvoke).toHaveBeenCalledWith('pause_timer_instance', {
-          instanceId: 'instance-1',
-        });
-      });
-    });
-
-    it('resumes timers paused by inactivity when activity returns', async () => {
-      const runningInstance = { ...mockTimerInstance, state: TimerState.running };
-      const activeSession = { ...mockSession, isActive: true, timerInstances: [runningInstance] };
-      const pausedSession = {
-        ...activeSession,
-        timerInstances: [{ ...runningInstance, state: TimerState.paused }],
-      };
-
-      primeCommand('get_sessions', [activeSession], [pausedSession]);
-      primeCommand('pause_timer_instance', pausedSession);
-      primeCommand('resume_timer_instance', activeSession);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.activeSession).toEqual(activeSession);
-      });
-
-      await act(async () => {
-        window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
-          detail: { reason: 'inactivity', timestamp: new Date() },
-        }));
-      });
-
-      await waitFor(() => {
-        expect(result.current.activeSession?.timerInstances[0].state).toBe(TimerState.paused);
-      });
-
-      await act(async () => {
-        window.dispatchEvent(new CustomEvent('timer-resume-activity', {
-          detail: { reason: 'activity-detected', timestamp: new Date() },
-        }));
-      });
-
-      await waitFor(() => {
-        expect(mockInvoke).toHaveBeenCalledWith('resume_timer_instance', {
-          instanceId: 'instance-1',
-        });
-      });
-    });
-
-    it('does not auto-resume a timer the user paused from the warning dialog', async () => {
-      const runningInstance = { ...mockTimerInstance, state: TimerState.running };
-      const activeSession = { ...mockSession, isActive: true, timerInstances: [runningInstance] };
-      const pausedSession = {
-        ...activeSession,
-        timerInstances: [{ ...runningInstance, state: TimerState.paused }],
-      };
-
-      primeCommand('get_sessions', [activeSession], [pausedSession]);
-      primeCommand('pause_timer_instance', pausedSession);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.activeSession).toEqual(activeSession);
-      });
-
-      // The user explicitly chose to pause via the warning dialog
-      await act(async () => {
-        window.dispatchEvent(new CustomEvent('timer-pause-inactivity', {
-          detail: { reason: 'user-action', timestamp: new Date() },
-        }));
-      });
-
-      await waitFor(() => {
-        expect(result.current.activeSession?.timerInstances[0].state).toBe(TimerState.paused);
-      });
-
-      await act(async () => {
-        window.dispatchEvent(new CustomEvent('timer-resume-activity', {
-          detail: { reason: 'activity-detected', timestamp: new Date() },
-        }));
-      });
-
-      const resumeCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'resume_timer_instance');
-      expect(resumeCalls).toHaveLength(0);
+      expect(mockInvoke).not.toHaveBeenCalledWith('pause_timer_instance', expect.anything());
     });
   });
 

@@ -6,15 +6,7 @@
  */
 
 import { z } from 'zod';
-import {
-  TimeEntry,
-  TimeEntrySchema,
-  InactivitySettings,
-  InactivitySettingsSchema,
-  DEFAULT_INACTIVITY_SETTINGS,
-  TimerActivityState,
-  TimerActivityStateSchema
-} from '../types/timer';
+import { TimeEntry, TimeEntrySchema } from '../types/timer';
 import { Task, TaskSchema } from '../types/task';
 import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../types/notes';
 import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
@@ -44,12 +36,6 @@ export interface IStorageService {
   setDailyGoal(goal: DailyGoal): Promise<void>;
   getGoalAchievements(): Promise<DailyGoalAchievement[]>;
   setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void>;
-
-  // Session-based storage operations
-  getInactivitySettings(): Promise<InactivitySettings>;
-  setInactivitySettings(settings: InactivitySettings): Promise<void>;
-  getTimerActivityState(): Promise<TimerActivityState | null>;
-  setTimerActivityState(state: TimerActivityState): Promise<void>;
 
   // Backup and migration
   createBackup(key: string): Promise<void>;
@@ -381,38 +367,6 @@ export class StorageService implements IStorageService {
   // Session data lives in the Rust backend (sessions.json); the legacy
   // localStorage copies of sessions/timer instances were removed with
   // SessionService.
-
-  async getInactivitySettings(): Promise<InactivitySettings> {
-    return await this.getItem(
-      STORAGE_KEYS.INACTIVITY_SETTINGS,
-      DEFAULT_INACTIVITY_SETTINGS,
-      InactivitySettingsSchema
-    );
-  }
-
-  async setInactivitySettings(settings: InactivitySettings): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.INACTIVITY_SETTINGS,
-      settings,
-      InactivitySettingsSchema
-    );
-  }
-
-  async getTimerActivityState(): Promise<TimerActivityState | null> {
-    return await this.getItem(
-      STORAGE_KEYS.TIMER_ACTIVITY_STATE,
-      null,
-      TimerActivityStateSchema.nullable()
-    );
-  }
-
-  async setTimerActivityState(state: TimerActivityState): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.TIMER_ACTIVITY_STATE,
-      state,
-      TimerActivityStateSchema
-    );
-  }
 
   async createBackup(key: string): Promise<void> {
     try {

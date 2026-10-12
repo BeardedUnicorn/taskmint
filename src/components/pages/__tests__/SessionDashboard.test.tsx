@@ -125,23 +125,6 @@ vi.mock('../../../contexts/TaskManagementContext', () => ({
   TaskManagementProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// Mock useInactivityDetection hook
-const mockResetActivity = vi.fn();
-const mockPauseDetection = vi.fn();
-const mockResumeDetection = vi.fn();
-
-const mockInactivityDetection = {
-  isWarningShown: false,
-  warningTimeRemaining: 0,
-  resetActivity: mockResetActivity,
-  pauseDetection: mockPauseDetection,
-  resumeDetection: mockResumeDetection,
-};
-
-vi.mock('../../../hooks/useInactivityDetection', () => ({
-  useInactivityDetection: () => mockInactivityDetection,
-}));
-
 // Mock active timer context
 let mockActiveTimer: TimerInstance | null = null;
 const mockSetActiveTimer = vi.fn();
@@ -188,16 +171,6 @@ vi.mock('../../ui/display/SessionTimerDisplay', () => ({
       <button onClick={() => onPauseTimer('timer-1')}>Pause Timer</button>
       <button onClick={() => onResumeTimer('timer-1')}>Resume Timer</button>
       <button onClick={() => onOpenNotes('session-1', 'timer-1')}>Notes</button>
-    </div>
-  ),
-}));
-
-vi.mock('../../ui/dialogs/InactivityWarningDialog', () => ({
-  InactivityWarningDialog: ({ onContinue, onPause }: any) => (
-    <div data-testid="inactivity-warning">
-      <span>Inactivity Warning</span>
-      <button onClick={onContinue}>Continue Working</button>
-      <button onClick={onPause}>Pause Timer</button>
     </div>
   ),
 }));
@@ -671,86 +644,6 @@ describe('SessionDashboard', () => {
       // Verify session selection behavior (this would typically update some state)
       // Since we're mocking, we can't test the actual state change, but we can verify the UI responds
       expect(sessionCard).toBeInTheDocument();
-    });
-  });
-
-  describe('Inactivity Detection', () => {
-    beforeEach(() => {
-      // Update the mock objects directly
-      Object.assign(mockInactivityDetection, {
-        isWarningShown: true,
-        warningTimeRemaining: 30,
-      });
-
-      Object.assign(mockSessionManagement, {
-        sessions: [],
-        activeSession: {
-          id: 'session-1',
-          taskId: 'task-1',
-          taskName: 'Development Work',
-          timerInstances: [
-            {
-              id: 'timer-1',
-              sessionId: 'session-1',
-              startTime: new Date(),
-              endTime: undefined,
-              duration: 0,
-              isRunning: true,
-              isPaused: false,
-              createdAt: '2024-01-15T10:00:00Z',
-              updatedAt: '2024-01-15T10:00:00Z',
-            },
-          ],
-          totalDuration: 0,
-          isActive: true,
-          date: '2024-01-15',
-          createdAt: '2024-01-15T10:00:00Z',
-          updatedAt: '2024-01-15T10:00:00Z',
-        },
-        isLoading: false,
-        error: null,
-      });
-
-      mockActiveTimer = mockSessionManagement.activeSession.timerInstances[0] as TimerInstance;
-    });
-
-    it('should show inactivity warning dialog when warning is active', () => {
-      renderDashboard();
-
-      expect(screen.getByText('Inactivity Warning')).toBeInTheDocument();
-      expect(screen.getByText('Continue Working')).toBeInTheDocument();
-      // Use a more specific selector for the inactivity warning pause button
-      expect(screen.getByTestId('inactivity-warning')).toContainElement(screen.getAllByText('Pause Timer')[1]);
-    });
-
-    it('should handle continue work action from inactivity warning', async () => {
-      renderDashboard();
-
-      const continueButton = screen.getByText('Continue Working');
-      fireEvent.click(continueButton);
-
-      // Continue resets the inactivity clock directly
-      expect(mockResetActivity).toHaveBeenCalled();
-    });
-
-    it('should handle pause from inactivity action', async () => {
-      const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
-
-      renderDashboard();
-
-      // Get the pause button specifically from the inactivity warning dialog
-      const inactivityWarning = screen.getByTestId('inactivity-warning');
-      const pauseButton = inactivityWarning.querySelector('button:last-child') as HTMLElement;
-      fireEvent.click(pauseButton);
-
-      expect(dispatchEventSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'timer-pause-inactivity',
-          detail: expect.objectContaining({
-            reason: 'user-action',
-          }),
-        })
-      );
     });
   });
 

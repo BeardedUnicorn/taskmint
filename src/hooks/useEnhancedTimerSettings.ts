@@ -2,15 +2,19 @@
  * Enhanced Timer Settings Hook
  *
  * Manages the inactivity-detection settings and their one-time migrations.
+ * Detection runs in the backend (system idle time), so every change is also
+ * mirrored to it with set_idle_settings; useIdleReturn sends the saved value
+ * at startup.
  *
- * Inactivity settings are stored under STORAGE_KEYS.INACTIVITY_SETTINGS — the
- * same key useInactivityDetection reads — so changes made in Settings actually
- * reach the detector. (They historically lived nested inside
- * STORAGE_KEYS.ENHANCED_TIMER_SETTINGS, which the detector never read.)
+ * Inactivity settings are stored under STORAGE_KEYS.INACTIVITY_SETTINGS.
+ * (They historically lived nested inside STORAGE_KEYS.ENHANCED_TIMER_SETTINGS;
+ * the legacy seed below carries such values over.)
  */
 
+import { useMemo } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { STORAGE_KEYS } from '../constants';
+import { safeInvoke } from '../utils/tauri';
 import { InactivitySettings, DEFAULT_INACTIVITY_SETTINGS } from '../types/timer';
 
 /**
@@ -79,6 +83,13 @@ export function prepareInactivitySettings(): void {
   turnInactivityDetectionOffOnce();
 }
 
+/** Mirror detection settings to the backend's idle monitor. */
+export function sendIdleSettings(settings: InactivitySettings): Promise<unknown> {
+  return safeInvoke('set_idle_settings', {
+    settings: { enabled: settings.enabled, thresholdMinutes: settings.thresholdMinutes },
+  });
+}
+
 export function useEnhancedTimerSettings() {
   prepareInactivitySettings();
 
@@ -87,19 +98,30 @@ export function useEnhancedTimerSettings() {
     DEFAULT_INACTIVITY_SETTINGS
   );
 
+  // Only the current fields: older builds also stored warning, auto-resume
+  // and testing-mode keys, which are dropped on the next save. Memoized so
+  // consumers' effects keyed on it don't re-run every render.
+  const enabled = inactivitySettings?.enabled ?? DEFAULT_INACTIVITY_SETTINGS.enabled;
+  const thresholdMinutes =
+    inactivitySettings?.thresholdMinutes ?? DEFAULT_INACTIVITY_SETTINGS.thresholdMinutes;
+  const current = useMemo<InactivitySettings>(
+    () => ({ enabled, thresholdMinutes }),
+    [enabled, thresholdMinutes]
+  );
+
   const updateInactivitySettings = (updates: Partial<InactivitySettings>) => {
-    setInactivitySettings(prev => ({
-      ...prev,
-      ...updates,
-    }));
+    const next = { ...current, ...updates };
+    setInactivitySettings(next);
+    void sendIdleSettings(next);
   };
 
   const resetToDefaults = () => {
     setInactivitySettings(DEFAULT_INACTIVITY_SETTINGS);
+    void sendIdleSettings(DEFAULT_INACTIVITY_SETTINGS);
   };
 
   return {
-    inactivitySettings,
+    inactivitySettings: current,
     updateInactivitySettings,
     resetToDefaults,
   };
