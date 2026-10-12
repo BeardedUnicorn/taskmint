@@ -1,380 +1,124 @@
 # TaskMint
 
-A fresh, modern time tracking and earnings management application built with Tauri v2, React, and TypeScript. TaskMint combines precision time tracking with beautiful task management, featuring hourly rates, system tray integration, and templated notes system.
+A desktop time tracker and earnings ledger built with Tauri v2, React and
+TypeScript. You track time in sessions against tasks with hourly rates,
+reconcile it against work logs imported from DataAnnotation, and see what
+you've earned and when it pays out.
 
-**Fresh Productivity, Minted Daily.**
+## What it does
 
-*Tasks Managed. Goals Achieved. Time is Money. Track Both Beautifully.*
+| Page | What it's for |
+|---|---|
+| **Sessions** | Start a session for a task; run, pause and stop timers inside it. Live totals for the active session. |
+| **Tasks** | Tasks with hourly rates and default note templates; archive tasks you're done with. |
+| **Notes** | Free-form or template-based notes attached to a task, session or timer. |
+| **Time Entries** | Every finished timer as a filterable list; edit durations or delete entries. |
+| **Reports** | Totals, earnings and charts over a date range. |
+| **Calendar** | Earned and transferable amounts per day. |
+| **Payouts** | Import DataAnnotation work logs, map projects to tasks, and see available, pending and upcoming releases. |
+| **Settings** | Rounding, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
 
-## 🚀 Features
+The **system tray** (menu-bar item on macOS) shows the running timer and can
+start a recent task, stop the timer or open the app. Tray actions currently
+need the main window open.
 
-### Core Timer Functionality
-- **Precision Time Tracking**: Start, stop, and manage timers with millisecond accuracy
-- **Task-Based Organization**: Associate time entries with predefined tasks and hourly rates
-- **Real-Time Updates**: Live timer display with automatic duration calculations
-- **Persistent State**: Timers continue running even when the app is closed
+## Where data lives
 
-### System Tray Integration
-- **Cross-Platform Support**: Native system tray for both macOS and Windows
-- **Real-Time Display**: Live timer duration shown in tray title (macOS) or tooltip
-- **Quick Actions**: Start/stop timers directly from the system tray
-- **Task Selection**: Quick access to recent tasks for instant timer start
-- **Daily Totals**: View total time tracked per day from the tray
+TaskMint stores everything locally. Nothing is synced anywhere.
 
-### Task Management
-- **Predefined Tasks**: Create and manage tasks with custom hourly rates
-- **Earnings Calculation**: Automatic calculation of earnings based on time and rates
-- **Task Categories**: Organize tasks with descriptions and metadata
-- **Quick Task Creation**: Create new tasks on-the-fly during timer operations
+| Data | Store |
+|---|---|
+| Sessions and timer instances | `sessions.json` in the app data dir, owned by the Rust backend |
+| Imported work logs and project→task mappings | `worklogs.json` in the app data dir, owned by the Rust backend |
+| Tasks, notes, note templates, goals, settings | The webview's `localStorage` |
 
+App data dir on macOS: `~/Library/Application Support/com.taskmint.app/`.
+Before risky operations (a skipped-record load, an import that rewrites days, a
+restore), the backend writes timestamped `*.bak-*` copies next to the stores.
 
+**Backups.** Settings → Data Management exports everything above to one JSON
+file (format v2) and imports it back. Import adds what isn't already present
+(existing data wins), then the app reloads. Settings → Automatic Backups writes
+the same file to a folder daily, weekly or monthly, keeping the newest N.
 
-### Templated Notes System
-- **Template Management**: Create and manage note templates with custom fields
-- **Drag-and-Drop Builder**: Visual field builder for template creation
-- **Auto-Save**: Automatic saving of notes with collision detection
-- **Task Integration**: Link notes to specific tasks and time entries
+**Reset.** Settings → Data Management → Reset All Data wipes both stores, their
+`.bak` copies and `localStorage`.
 
-### Data Management
-- **Local Storage**: All data stored locally with automatic backup
-- **JSON Export**: Export time entries, tasks, and templates to JSON format
-- **Data Backup**: Comprehensive backup system with metadata
-- **Import/Export**: Full data portability with version control
-- **Cloud Sync**: Optional Google Drive integration for data synchronization
+## Browser capture (optional)
 
-## 🛠 Technology Stack
+`chrome-extension/` is a Chrome extension that captures your DataAnnotation
+work logs from the payments page and delivers them to the app over
+`http://127.0.0.1:43117`, or through a `taskmint://` link that launches the app
+if it's closed. See [chrome-extension/README.md](chrome-extension/README.md).
 
-- **Frontend**: React 19, TypeScript, Material-UI v9
-- **Backend**: Rust with Tauri v2 framework
-- **Build Tool**: Vite with React plugin
-- **Testing**: Vitest with React Testing Library
-- **State Management**: React hooks with local storage persistence
-- **UI Components**: Material-UI with dark theme support
-- **System Integration**: Native system tray, IPC communication
-- **Security**: Content Security Policy, secure webview implementation
+## Error reporting
 
-## 📋 Prerequisites
+If `VITE_SENTRY_DSN` is set at build time, crashes and errors are reported to
+Sentry. Reports contain the error and where in the app it happened. Task
+names, notes, earnings and work-log data are stripped before sending, and
+there's no session replay or tracing. Turn it off in Settings → Privacy.
 
-- **Node.js**: Version 20.19 or higher (22.12+ recommended)
-- **Rust**: Latest stable version (1.70+)
-- **Platform Requirements**:
-  - **macOS**: macOS 10.15 or later
-  - **Windows**: Windows 10 or later
-- **Development Tools**: Git, pnpm (the repository pins `pnpm` via the `packageManager` field; enable with `corepack enable` or `npm i -g pnpm`)
+## Development
 
-## 🔧 Installation
+**Prerequisites:** Node 20+ (24 recommended), pnpm (pinned via
+`packageManager`; `corepack enable` picks it up), and stable Rust.
 
-### 1. Clone the Repository
 ```bash
-git clone <repository-url>
-cd taskmint
-```
-
-### 2. Install Dependencies
-```bash
-# Install Node.js dependencies
 pnpm install
-
-# Install Rust dependencies (handled automatically by Tauri)
+pnpm tauri dev      # desktop app with hot reload (Vite on :1420)
+pnpm dev            # UI only in a browser; no Rust backend, so sessions won't load
 ```
 
-### 3. Environment Configuration
-```bash
-# Copy environment template
-cp .env.example .env
+**Quit the installed TaskMint before running `pnpm tauri dev`.** Dev and
+release builds share the app identifier, so they share the data dir. The
+single-instance lock and the capture server port also collide.
 
-# Edit .env file with your Google Drive API credentials (optional)
-# Only needed if you plan to use cloud sync features
-```
+Copy `.env.example` to `.env` to set a Sentry DSN; otherwise reporting stays
+off.
 
-### 4. Development Setup
-```bash
-# Start development server
-pnpm dev
-
-# This will:
-# - Start Vite dev server on http://localhost:1420
-# - Launch Tauri development window
-# - Enable hot reload for both frontend and backend
-```
-
-## 🚀 Development
-
-### Available Scripts
+### Checks
 
 ```bash
-# Development
-pnpm dev          # Start development server with hot reload
-pnpm build        # Build for production
-pnpm preview      # Preview production build
-
-# Tauri Commands
-pnpm tauri dev    # Start Tauri development mode
-pnpm tauri build  # Build production executable
-
-# Testing
-pnpm test         # Run all tests
-pnpm test:watch   # Run tests in watch mode
-pnpm test:coverage # Run tests with coverage report
-pnpm test:unit    # Run unit tests only
-pnpm test:integration # Run integration tests only
+pnpm build                        # tsc + vite build
+pnpm test                         # vitest
+pnpm test:coverage                # vitest with enforced coverage floors
+cd src-tauri && cargo test        # backend unit tests
+cd src-tauri && cargo clippy --all-targets -- -D warnings
+cd src-tauri && cargo fmt --check
 ```
 
-### Project Structure
+CI (`.github/workflows/ci.yml`) runs all of these on pushes to `main` and on
+pull requests.
 
-```
-taskmint/
-├── src/                    # React frontend source
-│   ├── components/         # React components
-│   ├── hooks/             # Custom React hooks
-│   ├── services/          # Business logic services
-│   ├── types/             # TypeScript type definitions
-│   ├── contexts/          # React contexts (Theme, etc.)
-│   └── __tests__/         # Test files
-├── src-tauri/             # Rust backend source
-│   ├── src/               # Rust source code
-│   ├── icons/             # Application icons
-│   ├── capabilities/      # Tauri security capabilities
-│   └── Cargo.toml         # Rust dependencies
-├── public/                # Static assets
-└── dist/                  # Built frontend (generated)
-```
+### Building
 
-## 🎯 Usage Guide
-
-### Basic Timer Operations
-1. **Start Timer**: Select a task and click "Start Timer"
-2. **Stop Timer**: Click "Stop Timer" or use system tray
-3. **View Entries**: Check the calendar view for all time entries
-4. **Edit Entries**: Click on any entry to modify details
-
-### Task Management
-1. **Create Tasks**: Go to Task Management tab
-2. **Set Hourly Rates**: Configure rates for automatic earnings calculation
-3. **Quick Start**: Use system tray for instant task selection
-
-### System Tray Features
-- **Left Click**: Show/hide main application window
-- **Right Click**: Access context menu with timer controls
-- **Real-Time Display**: See current timer duration in tray
-
-
-
-## 🧪 Testing
-
-The project includes comprehensive testing setup:
-
-### Test Categories
-- **Unit Tests**: Component and service testing
-- **Integration Tests**: Full workflow testing
-- **Mock Services**: Tauri API mocking for testing
-
-### Running Tests
 ```bash
-# Run all tests with coverage
-pnpm test:coverage
-
-# Run specific test suites
-pnpm test:unit
-pnpm test:integration
-
-# Watch mode for development
-pnpm test:watch
+pnpm tauri build    # .dmg on macOS, NSIS installer on Windows
+pnpm build:win      # cross-compile the Windows installer from macOS (needs cargo-xwin)
 ```
 
-### Test Configuration
-- **Vitest**: Primary testing framework
-- **React Testing Library**: Component testing utilities
-- **jsdom**: Browser environment simulation
-- **Mocked APIs**: Tauri API mocks for isolated testing
+### Logs
 
-## 🏗 Architecture
+The backend logs through `tauri-plugin-log` to stdout and to the app log dir
+(`~/Library/Logs/com.taskmint.app/` on macOS). Release builds log `info` and
+above, dev builds include `debug`.
 
-### Service Layer Pattern
-- **TimerService**: Core timer functionality with singleton pattern
-- **TaskService**: Task management operations
-- **NoteTemplateService**: Template management with CRUD operations
-- **DataBackupService**: Export/import operations with JSON format
+## Project layout
 
-### State Management
-- **Local Storage**: Persistent data storage with automatic serialization
-- **React Hooks**: Component state management with custom hooks
-- **Tauri State**: Backend state synchronization via IPC
-- **Error Boundaries**: Comprehensive error handling and recovery
-
-### IPC Communication
-- **Event System**: Tauri v2 emit/listen pattern for real-time updates
-- **Command Handlers**: Rust backend commands with error handling
-- **Real-Time Updates**: Automatic state synchronization between frontend and backend
-- **System Tray Integration**: Native platform integration with live updates
-
-### Security Architecture
-- **Content Security Policy**: Strict CSP for secure operations
-- **Capability-Based Permissions**: Tauri v2 security model
-- **Local Data Storage**: No external data transmission
-- **Input Validation**: Comprehensive data sanitization
-
-## 🤝 Contributing
-
-### Development Principles
-- **Single Responsibility**: Each component has one clear purpose
-- **Service Layer**: Business logic separated from UI components
-- **Type Safety**: Comprehensive TypeScript coverage with strict mode
-- **Testing**: All features covered by unit and integration tests
-- **Dark Theme**: Consistent dark theme implementation across all components
-
-### Code Organization
-- **Component Files**: Dedicated files for each component with co-located styles
-- **Type Definitions**: Domain-specific type files (TimerTypes.ts, TaskTypes.ts)
-- **Service Classes**: Singleton pattern for services with dependency injection
-- **Hook Composition**: Reusable custom hooks with proper dependency management
-
-### Development Workflow
-1. **Feature Development**: Create feature branch from main
-2. **Implementation**: Follow single responsibility principle
-3. **Testing**: Write comprehensive tests for new features
-4. **Code Review**: Ensure code quality and consistency
-5. **Integration**: Merge with proper testing and validation
-
-### Pull Request Process
-1. Fork the repository
-2. Create feature branch with descriptive name
-3. Implement changes with comprehensive tests
-4. Ensure all tests pass and coverage is maintained
-5. Submit pull request with detailed description and screenshots
-6. Address review feedback and maintain code quality
-
-## 🖥 Platform Support
-
-### macOS
-- **System Tray**: Real-time timer display in menu bar title using `set_title()`
-- **Native Integration**: macOS-specific tray behavior and menu styling
-- **Permissions**: Automatic permission handling for system access
-- **Performance**: Optimized for macOS with native rendering
-
-### Windows
-- **System Tray**: Timer display in tooltip with context menu
-- **Native Integration**: Windows-specific tray behavior and notifications
-- **Compatibility**: Windows 10+ support with modern UI guidelines
-- **Performance**: Optimized for Windows with efficient resource usage
-
-### Cross-Platform Features
-- **Consistent UI**: Material-UI components with platform-appropriate styling
-- **Data Portability**: JSON export/import works across all platforms
-- **Keyboard Shortcuts**: Platform-appropriate keyboard shortcuts
-- **File System**: Cross-platform file operations with proper path handling
-
-## 📊 Performance
-
-### Optimization Features
-- **Memoization**: Expensive calculations cached with React.memo
-- **Lazy Loading**: Components loaded on demand
-- **Efficient Updates**: Minimal re-renders with proper dependency arrays
-
-### Performance Monitoring
-- **Error Boundaries**: Comprehensive error catching and reporting
-- **Loading States**: User feedback during async operations
-- **Memory Management**: Proper cleanup of event listeners and timers
-- **Background Processing**: Non-blocking operations with Web Workers
-
-## 🔒 Security
-
-### Data Protection
-- **Local Storage**: All data stored locally, no cloud transmission
-- **Encryption**: Sensitive data encrypted at rest
-- **Secure Communication**: HTTPS-only external communications
-- **Input Validation**: Comprehensive input sanitization
-
-### Application Security
-- **Content Security Policy**: Strict CSP for secure operations
-- **Minimal Permissions**: Only required system access granted
-- **Capability-Based Access**: Tauri v2 security model implementation
-- **Secure Context**: All operations in secure environment
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🔗 Links
-
-- **Website**: https://taskmint.app
-- [Tauri Documentation](https://tauri.app/)
-- [React Documentation](https://react.dev/)
-- [Material-UI Documentation](https://mui.com/)
-- [TypeScript Documentation](https://www.typescriptlang.org/)
-- [Vitest Testing Framework](https://vitest.dev/)
-- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-#### Development Server Won't Start
-```bash
-# Clear node modules and reinstall
-rm -rf node_modules
-pnpm install
-
-# Clear Tauri cache
-rm -rf src-tauri/target
 ```
-
-#### System Tray Not Working
-- **macOS**: Check system preferences for tray icon permissions
-- **Windows**: Ensure Windows 10+ and proper system tray settings
-- **Both**: Verify icon files exist in `src-tauri/icons/`
-
-#### Build Failures
-```bash
-# Update Rust toolchain
-rustup update
-
-# Clean build cache
-pnpm tauri build -- --clean
+src/                     React frontend
+  components/pages/      One folder/file per page (payouts/, settings/, tasks/)
+  contexts/              App-wide providers: sessions, tasks, work logs, backups, …
+  hooks/                 Data hooks (useSessionManagement, useWorkLogs, useDataBackup, …)
+  services/              localStorage-backed services (tasks, notes, templates)
+  utils/                 Pure logic: time math, payouts, work-log import, Sentry
+  types/                 Shared types and zod schemas
+src-tauri/               Rust backend
+  src/commands/          IPC commands (sessions, worklogs, restore, backup, reset, …)
+  src/storage.rs         sessions.json / worklogs.json persistence and .bak copies
+  src/capture_server.rs  localhost capture server and taskmint:// deep links
+  src/tray.rs            System tray
+  config.toml            Build-time constants (generated into Rust by build.rs)
+  capabilities/          Frontend permission grants
+chrome-extension/        Work-log capture extension (MV3)
 ```
-
-#### Test Failures
-```bash
-# Run tests with verbose output
-pnpm test -- --reporter=verbose
-```
-
-#### Google Drive API Setup (Optional)
-If you want to use cloud sync features:
-
-1. **Create Google Cloud Project**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select existing one
-
-2. **Enable Google Drive API**:
-   - Navigate to "APIs & Services" > "Library"
-   - Search for "Google Drive API" and enable it
-
-3. **Create OAuth 2.0 Credentials**:
-   - Go to "APIs & Services" > "Credentials"
-   - Click "Create Credentials" > "OAuth 2.0 Client IDs"
-   - Set application type to "Web application"
-   - Add `http://localhost:3000/auth/callback` to authorized redirect URIs
-
-4. **Configure Environment Variables**:
-   ```bash
-   # Edit .env file
-   VITE_GOOGLE_CLIENT_ID=your_actual_client_id_here
-   VITE_GOOGLE_CLIENT_SECRET=your_actual_client_secret_here
-   ```
-
-**Note**: Cloud sync is optional. The app works fully without Google Drive integration.
-
-### Getting Help
-- Check existing issues in the repository
-- Review Tauri documentation for platform-specific issues
-- Ensure all prerequisites are properly installed
-- Verify Node.js and Rust versions meet requirements
-
----
-
-**Built with ❤️ using Tauri v2, React, and TypeScript**
-
-*TaskMint - Fresh Productivity, Minted Daily*
-
-*Last updated: 2025-06-24*
