@@ -31,7 +31,7 @@ pub async fn export_data_to_file(
         .file()
         .set_title("Export Data")
         .add_filter("JSON Files", &["json"])
-        .set_file_name(&suggested_filename.unwrap_or_else(|| {
+        .set_file_name(suggested_filename.unwrap_or_else(|| {
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
             format!("taskmint_export_{}.json", timestamp)
         }))
@@ -44,7 +44,7 @@ pub async fn export_data_to_file(
             let path = std::path::Path::new(&path_str);
             
             // Write the data to the selected file
-            match std::fs::write(&path, data_json) {
+            match std::fs::write(path, data_json) {
                 Ok(_) => {
                     // Open the folder containing the exported file
                     if let Some(parent_dir) = path.parent() {
@@ -80,7 +80,7 @@ pub async fn import_data_from_file(app: tauri::AppHandle) -> Result<String, Stri
             let path = std::path::Path::new(&path_str);
             
             // Read the data from the selected file
-            match std::fs::read_to_string(&path) {
+            match std::fs::read_to_string(path) {
                 Ok(file_contents) => {
                     // Validate that it's valid JSON
                     match serde_json::from_str::<serde_json::Value>(&file_contents) {

@@ -771,21 +771,6 @@ pub async fn set_active_session(
     Ok(updated_sessions)
 }
 
-#[tauri::command]
-pub async fn clear_all_sessions(
-    app: AppHandle,
-    app_state: State<'_, AppState>,
-) -> Result<(), String> {
-    // Persist inside the lock like every other mutation — clearing the store
-    // after releasing it could wipe a save another command made in between.
-    app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
-        sessions.clear();
-        storage::clear_all_sessions(&app)
-    })??;
-
-    Ok(())
-}
-
 /// Non-fatal problems from the startup sessions load (skipped records or a
 /// full load failure). The frontend fetches this once and shows it to the
 /// user instead of the data silently vanishing.

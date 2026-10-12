@@ -275,7 +275,7 @@ pub fn apply_rewrite_group(
                 let has_notes = session
                     .notes
                     .as_deref()
-                    .map_or(false, |n| !n.trim().is_empty());
+                    .is_some_and(|n| !n.trim().is_empty());
                 if !has_notes && !session.is_active {
                     emptied_session_ids.push(session.id.clone());
                 }
@@ -337,7 +337,7 @@ pub async fn apply_work_log_import(
             // backup could not be written.
             if !payload.rewrite_groups.is_empty() {
                 if let Err(e) = storage::backup_store_file(&app) {
-                    eprintln!("Failed to back up sessions before import: {}", e);
+                    log::error!("Failed to back up sessions before import: {}", e);
                 }
             }
 

@@ -22,7 +22,7 @@ pub fn validate_backup_path(path: &str) -> Result<PathValidationResult, String> 
     // Check if path exists
     if !backup_path.exists() {
         // Try to create the directory to test if it's writable
-        match fs::create_dir_all(&backup_path) {
+        match fs::create_dir_all(backup_path) {
             Ok(_) => {
                 return Ok(PathValidationResult {
                     is_valid: true,
@@ -96,7 +96,7 @@ pub fn perform_automatic_backup(
 
             // Clean up old backups
             if let Err(e) = cleanup_old_backups(backup_path, max_backups) {
-                eprintln!("Warning: Failed to cleanup old backups: {}", e);
+                log::warn!("Failed to clean up old backups: {}", e);
             }
 
             Ok(BackupResult {
@@ -132,23 +132,21 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
 
     let mut backup_files: Vec<String> = Vec::new();
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                if filename.starts_with(&config.backup_filename_prefix) && filename.ends_with(&config.backup_filename_extension) {
-                    if let Some(timestamp_part) = filename
-                        .strip_prefix(&config.backup_filename_prefix)
-                        .and_then(|s| s.strip_suffix(&config.backup_filename_extension))
-                    {
-                        if is_valid_backup_timestamp(timestamp_part) {
-                            backup_files.push(path.to_string_lossy().to_string());
-                        } else {
-                            println!("Skipping file with invalid timestamp format: {}", filename);
-                        }
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+            if filename.starts_with(&config.backup_filename_prefix) && filename.ends_with(&config.backup_filename_extension) {
+                if let Some(timestamp_part) = filename
+                    .strip_prefix(&config.backup_filename_prefix)
+                    .and_then(|s| s.strip_suffix(&config.backup_filename_extension))
+                {
+                    if is_valid_backup_timestamp(timestamp_part) {
+                        backup_files.push(path.to_string_lossy().to_string());
                     } else {
-                        println!("Skipping file with unexpected name format: {}", filename);
+                        log::debug!("Skipping file with invalid timestamp format: {}", filename);
                     }
+                } else {
+                    log::debug!("Skipping file with unexpected name format: {}", filename);
                 }
             }
         }
@@ -162,16 +160,16 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
 
         for path_str in files_to_remove {
             if let Err(e) = fs::remove_file(path_str) {
-                eprintln!(
-                    "Warning: Failed to remove old backup file {}: {}",
+                log::warn!(
+                    "Failed to remove old backup file {}: {}",
                     path_str, e
                 );
             } else {
-                println!("Removed old backup file: {}", path_str);
+                log::info!("Removed old backup file: {}", path_str);
             }
         }
     } else {
-        println!(
+        log::debug!(
             "No cleanup needed: {} backup files found (max: {})",
             backup_files.len(),
             max_backups

@@ -44,7 +44,7 @@ pub fn origin_allowed(origin: Option<&str>) -> bool {
 
 /// Whether CORS response headers should be echoed (extension callers only).
 pub fn is_extension_origin(origin: Option<&str>) -> bool {
-    origin.map_or(false, |o| o.starts_with("chrome-extension://"))
+    origin.is_some_and(|o| o.starts_with("chrome-extension://"))
 }
 
 /// Light shape check — full validation happens in the frontend pipeline. A
@@ -53,8 +53,8 @@ pub fn is_extension_origin(origin: Option<&str>) -> bool {
 pub fn payload_shape_ok(body: &str) -> bool {
     match serde_json::from_str::<serde_json::Value>(body) {
         Ok(serde_json::Value::Object(map)) => {
-            map.get("workLogs").map_or(false, |v| v.is_array())
-                || map.get("timedWorkEntries").map_or(false, |v| v.is_array())
+            map.get("workLogs").is_some_and(|v| v.is_array())
+                || map.get("timedWorkEntries").is_some_and(|v| v.is_array())
         }
         _ => false,
     }
@@ -175,7 +175,7 @@ pub fn handle_deep_link_urls(app: &AppHandle, state: &AppState, urls: &[String])
                 let result = decode_protocol_payload(&encoded)
                     .and_then(|body| accept_capture_payload(app, state, body));
                 if let Err(e) = result {
-                    eprintln!("Ignoring taskmint:// import link: {}", e);
+                    log::warn!("Ignoring taskmint:// import link: {}", e);
                 }
             }
             Some(DeepLinkAction::CapturePending) => {
@@ -206,7 +206,7 @@ pub fn start_capture_server(app: &AppHandle, state: &AppState) {
                      captures will be delivered to that instance instead.",
                     CAPTURE_SERVER_PORT, e
                 );
-                eprintln!("{}", warning);
+                log::warn!("{}", warning);
                 let _ = state.with_capture_server_status_mut(|status| {
                     status.running = false;
                     status.warning = Some(warning);
@@ -307,7 +307,7 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
                 );
                 return;
             }
-            if request.body_length().map_or(false, |len| len > MAX_BODY_BYTES) {
+            if request.body_length().is_some_and(|len| len > MAX_BODY_BYTES) {
                 respond_json(request, 413, r#"{"error":"payload too large"}"#, cors.as_deref());
                 return;
             }

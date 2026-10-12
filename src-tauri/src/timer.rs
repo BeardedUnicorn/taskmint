@@ -47,7 +47,7 @@ pub fn start_timer_from_tray(
         config.retry_base_delay_ms,
     )?;
 
-    println!("✅ Timer started successfully for task: '{}'", task_name);
+    log::debug!("Timer started successfully for task: '{}'", task_name);
     Ok(())
 }
 
@@ -94,6 +94,6 @@ pub fn stop_timer_from_tray(app: &AppHandle, state: &AppState) -> Result<(), App
         config.retry_base_delay_ms,
     )?;
 
-    println!("✅ Timer stopped successfully");
+    log::debug!("Timer stopped successfully");
     Ok(())
 }

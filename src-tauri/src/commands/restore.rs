@@ -52,12 +52,15 @@ pub struct RestoreSummary {
     pub records_skipped: usize,
 }
 
+/// Tolerant per-record parser: (records read, records skipped).
+type SectionParser<T> = fn(&serde_json::Value) -> Result<(Vec<T>, usize), String>;
+
 /// A section missing from the file (null) leaves that store untouched, even in
 /// replace mode: v1 exports have no work logs, and restoring one must not wipe
 /// the ledger.
 fn parse_section<T>(
     value: &serde_json::Value,
-    parse: fn(&serde_json::Value) -> Result<(Vec<T>, usize), String>,
+    parse: SectionParser<T>,
 ) -> Result<(Option<Vec<T>>, usize), String> {
     if value.is_null() {
         return Ok((None, 0));

@@ -51,7 +51,7 @@ pub fn parse_sessions(value: &serde_json::Value) -> Result<LoadedSessions, Strin
             Ok(session) => sessions.push(session),
             Err(e) => {
                 skipped += 1;
-                eprintln!("Skipping unreadable session record: {}", e);
+                log::warn!("Skipping unreadable session record: {}", e);
             }
         }
     }
@@ -98,12 +98,6 @@ pub fn backup_store_file(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     backup_store_file_named(app, STORE_FILENAME)
 }
 
-pub fn clear_all_sessions(app: &AppHandle) -> Result<(), String> {
-    let store = get_store(app)?;
-    store.delete(SESSIONS_KEY);
-    store.save().map_err(|e| e.to_string())
-}
-
 /// Wipe every key in a store file and persist the empty store. Goes through
 /// the store plugin (not fs::remove_file) so the plugin's cached instance
 /// cannot resurrect the old contents on the next open.
@@ -128,7 +122,7 @@ pub fn is_store_backup_filename(name: &str) -> bool {
         .iter()
         .any(|store| {
             name.strip_prefix(store)
-                .map_or(false, |rest| rest.starts_with(".bak-"))
+                .is_some_and(|rest| rest.starts_with(".bak-"))
         })
 }
 
@@ -188,7 +182,7 @@ fn parse_records<T: serde::de::DeserializeOwned>(
             Ok(item) => items.push(item),
             Err(e) => {
                 skipped += 1;
-                eprintln!("Skipping unreadable {} record: {}", label, e);
+                log::warn!("Skipping unreadable {} record: {}", label, e);
             }
         }
     }

@@ -69,7 +69,7 @@ where
             Ok(result) => return Ok(result),
             Err(e) if attempts < max_retries => {
                 attempts += 1;
-                eprintln!(
+                log::error!(
                     "Operation failed (attempt {}/{}): {}",
                     attempts,
                     max_retries + 1,

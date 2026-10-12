@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 
 // Timer state structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct TimerState {
     pub is_running: bool,
     pub task_name: String,
@@ -12,16 +13,6 @@ pub struct TimerState {
     pub elapsed_ms: u64,
 }
 
-impl Default for TimerState {
-    fn default() -> Self {
-        Self {
-            is_running: false,
-            task_name: String::new(),
-            start_time: None,
-            elapsed_ms: 0,
-        }
-    }
-}
 
 // Task structure
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -37,13 +28,6 @@ pub struct Task {
     pub is_archived: bool,
     pub created_at: String,
     pub updated_at: String,
-}
-
-// Daily total structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DailyTotal {
-    pub total_duration_ms: u64,
-    pub task_count: usize,
 }
 
 // Backup result structure
