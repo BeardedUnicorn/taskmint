@@ -32,13 +32,14 @@ export default defineConfig({
         '!src/**/*.spec.{ts,tsx}',
       ],
       // The pre-vitest-4 config nested these under `thresholds.global`, which
-      // vitest treated as a file glob and never enforced. These floors reflect
-      // actual coverage today; raise them as coverage improves.
+      // vitest treated as a file glob and never enforced. These floors sit just
+      // under actual coverage (ratcheted 2026-10 after dead-code removal);
+      // raise them as coverage improves.
       thresholds: {
-        branches: 30,
-        functions: 32,
-        lines: 37,
-        statements: 37,
+        branches: 40,
+        functions: 43,
+        lines: 48,
+        statements: 48,
       },
     },
 
