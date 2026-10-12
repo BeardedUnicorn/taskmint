@@ -150,10 +150,22 @@ async function attemptDelivery(capture, { viaTabId = null, launchIfUnreachable =
 }
 
 async function handleCapture(payloadText, tabId) {
+  const currentHash = await sha256Hex(payloadText);
   const { lastDeliveredHash } = await chrome.storage.session.get('lastDeliveredHash');
-  if (lastDeliveredHash && lastDeliveredHash === (await sha256Hex(payloadText))) {
-    return; // unchanged since the last successful delivery
+  const isUnchanged = lastDeliveredHash && lastDeliveredHash === currentHash;
+
+  if (isUnchanged) {
+    // If the payload hasn't changed, deliver if TaskMint is running (e.g. after a data reset in the app),
+    // but do not queue or fire a deep link if unreachable.
+    try {
+      await deliver(payloadText);
+      await markDelivered(payloadText);
+    } catch {
+      // TaskMint is closed and this data was already delivered; do nothing.
+    }
+    return;
   }
+
   await attemptDelivery(
     { payloadText, capturedAt: new Date().toISOString() },
     { viaTabId: tabId, launchIfUnreachable: true }
@@ -203,6 +215,15 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.runtime.onInstalled.addListener(() => {
   setBadge('idle').catch(() => {});
+});
+
+chrome.action.onClicked.addListener(async tab => {
+  await chrome.storage.session.remove('lastDeliveredHash');
+  await chrome.storage.local.remove('pendingCapture');
+  await setBadge('idle');
+  if (tab && tab.id != null && tab.url && tab.url.startsWith(SITE_ORIGIN)) {
+    chrome.tabs.reload(tab.id);
+  }
 });
 
 syncBadgeFromQueue().catch(() => {});
