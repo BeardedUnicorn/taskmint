@@ -1,26 +1,23 @@
 // TaskMint Tauri app with system tray and timer functionality
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-
-
 // Import all modules
-pub mod types;
+pub mod backup;
+pub mod capture_server;
 pub mod commands;
+pub mod config;
 pub mod error;
 pub mod state;
+pub mod storage;
 pub mod timer;
 pub mod tray;
+pub mod types;
 pub mod utils;
-pub mod backup;
-pub mod config;
-pub mod storage;
-pub mod capture_server;
-
 
 // Re-export commonly used types
-pub use types::*;
 pub use error::AppError;
 pub use state::AppState;
+pub use types::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -37,6 +34,19 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        // Levelled logs to stdout and the app log dir (stdout is lost in
+        // bundled builds). Debug detail (tray rebuilds etc.) in dev only.
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Info
+                })
+                .max_file_size(2_000_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(3))
+                .build(),
+        )
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -54,9 +64,13 @@ pub fn run() {
                     Ok(loaded) => {
                         let warning = if loaded.skipped > 0 {
                             let backup_note = match storage::backup_store_file(app.handle()) {
-                                Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
+                                Ok(Some(path)) => {
+                                    format!(" A backup was saved to {}.", path.display())
+                                }
                                 Ok(None) => String::new(),
-                                Err(e) => format!(" Backing up the previous data also failed: {}.", e),
+                                Err(e) => {
+                                    format!(" Backing up the previous data also failed: {}.", e)
+                                }
                             };
                             Some(format!(
                                 "{} saved session record(s) could not be read and were skipped.{}",
@@ -76,7 +90,7 @@ pub fn run() {
                             chrono::Utc::now(),
                         );
                         if migrated > 0 {
-                            eprintln!(
+                            log::warn!(
                                 "Finalized {} stranded timer instance(s) in inactive sessions",
                                 migrated
                             );
@@ -84,7 +98,10 @@ pub fn run() {
                             // path above already backed the file up.
                             if loaded.skipped == 0 {
                                 if let Err(e) = storage::backup_store_file(app.handle()) {
-                                    eprintln!("Failed to back up sessions before migration: {}", e);
+                                    log::error!(
+                                        "Failed to back up sessions before migration: {}",
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -93,28 +110,34 @@ pub fn run() {
                             *sessions = loaded_sessions;
                             if migrated > 0 {
                                 if let Err(e) = storage::save_sessions(app.handle(), &sessions) {
-                                    eprintln!("Failed to persist migrated sessions: {}", e);
+                                    log::error!("Failed to persist migrated sessions: {}", e);
                                 }
                             }
                         }
                         if let Some(warning) = warning {
-                            eprintln!("{}", warning);
+                            log::warn!("{}", warning);
                             if let Ok(mut slot) = app_state.session_load_warning.lock() {
                                 *slot = Some(warning);
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to load sessions: {}", e);
+                        log::error!("Failed to load sessions: {}", e);
                         let backup_note = match storage::backup_store_file(app.handle()) {
                             Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
                             Ok(None) => String::new(),
                             Err(backup_err) => {
-                                format!(" Backing up the previous data also failed: {}.", backup_err)
+                                format!(
+                                    " Backing up the previous data also failed: {}.",
+                                    backup_err
+                                )
                             }
                         };
                         if let Ok(mut slot) = app_state.session_load_warning.lock() {
-                            *slot = Some(format!("Failed to load saved sessions: {}.{}", e, backup_note));
+                            *slot = Some(format!(
+                                "Failed to load saved sessions: {}.{}",
+                                e, backup_note
+                            ));
                         }
                     }
                 }
@@ -129,15 +152,19 @@ pub fn run() {
                                 app.handle(),
                                 storage::WORKLOG_STORE_FILENAME,
                             ) {
-                                Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
+                                Ok(Some(path)) => {
+                                    format!(" A backup was saved to {}.", path.display())
+                                }
                                 Ok(None) => String::new(),
-                                Err(e) => format!(" Backing up the previous data also failed: {}.", e),
+                                Err(e) => {
+                                    format!(" Backing up the previous data also failed: {}.", e)
+                                }
                             };
                             let warning = format!(
                                 "{} saved work-log record(s) could not be read and were skipped.{}",
                                 loaded.skipped, backup_note
                             );
-                            eprintln!("{}", warning);
+                            log::warn!("{}", warning);
                             if let Ok(mut slot) = app_state.work_log_load_warning.lock() {
                                 *slot = Some(warning);
                             }
@@ -148,7 +175,7 @@ pub fn run() {
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to load work logs: {}", e);
+                        log::error!("Failed to load work logs: {}", e);
                         let backup_note = match storage::backup_store_file_named(
                             app.handle(),
                             storage::WORKLOG_STORE_FILENAME,
@@ -156,11 +183,17 @@ pub fn run() {
                             Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
                             Ok(None) => String::new(),
                             Err(backup_err) => {
-                                format!(" Backing up the previous data also failed: {}.", backup_err)
+                                format!(
+                                    " Backing up the previous data also failed: {}.",
+                                    backup_err
+                                )
                             }
                         };
                         if let Ok(mut slot) = app_state.work_log_load_warning.lock() {
-                            *slot = Some(format!("Failed to load saved work logs: {}.{}", e, backup_note));
+                            *slot = Some(format!(
+                                "Failed to load saved work logs: {}.{}",
+                                e, backup_note
+                            ));
                         }
                     }
                 }
@@ -170,18 +203,20 @@ pub fn run() {
                 let state_for_menu = app_state.clone();
 
                 app.on_menu_event(move |app, event| {
-                    println!("🎯 Menu event received: {:?}", event.id());
-                    tray::handle_menu_event(&event.id().as_ref(), app, &state_for_menu);
+                    log::debug!("Menu event received: {:?}", event.id());
+                    tray::handle_menu_event(event.id().as_ref(), app, &state_for_menu);
                 });
-                println!("✅ Menu event handler registered successfully");
+                log::debug!("Menu event handler registered");
 
                 // Setup system tray
                 if let Err(e) = tray::setup_system_tray(&app_handle, &app_state) {
-                    eprintln!("CRITICAL ERROR: Failed to setup system tray: {:?}", e);
-                    eprintln!("This means the system tray icon will not appear!");
+                    log::error!(
+                        "Failed to set up the system tray; no tray icon this session: {:?}",
+                        e
+                    );
                     // Continue running even if tray setup fails
                 } else {
-                    println!("System tray setup successful, starting update timer...");
+                    log::info!("System tray setup successful, starting update timer...");
                     // Start the real-time tray update timer
                     tray::start_tray_update_timer(&app_handle, &app_state);
                 }
@@ -195,7 +230,7 @@ pub fn run() {
 
                     #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
                     if let Err(e) = app_handle.deep_link().register_all() {
-                        eprintln!("Failed to register deep-link schemes: {}", e);
+                        log::error!("Failed to register deep-link schemes: {}", e);
                     }
 
                     // URLs the app was launched with (cold start via a link).
@@ -222,18 +257,10 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            // Basic commands
-            commands::basic::greet,
-            commands::basic::log_to_terminal,
-            
             // Timer commands
             commands::timer::update_timer_state,
-
             // Task commands
             commands::tasks::update_tasks,
-            commands::tasks::get_tasks,
-            commands::tasks::get_daily_total,
-
             // Session commands
             commands::sessions::create_session,
             commands::sessions::get_sessions,
@@ -247,24 +274,15 @@ pub fn run() {
             commands::sessions::resume_timer_instance,
             commands::sessions::delete_timer_instance,
             commands::sessions::set_active_session,
-            commands::sessions::clear_all_sessions,
             commands::sessions::get_session_load_warning,
-
             // Work-log commands
             commands::worklogs::get_work_logs,
             commands::worklogs::apply_work_log_import,
-
             // Full app-data reset
             commands::reset::reset_all_app_data,
-
             // Browser-capture commands
             commands::capture::take_pending_work_log_capture,
             commands::capture::get_capture_server_status,
-
-            // Tray commands
-            commands::tray::update_tray_menu_command,
-            commands::tray::test_new_task_dialog,
-            
             // Backup commands
             commands::backup::validate_backup_path,
             commands::backup::perform_automatic_backup,

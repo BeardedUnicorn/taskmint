@@ -24,14 +24,14 @@ pub async fn export_data_to_file(
     suggested_filename: Option<String>,
 ) -> Result<String, String> {
     use tauri_plugin_dialog::DialogExt;
-    
+
     // Create a save dialog
     let file_path = app
         .dialog()
         .file()
         .set_title("Export Data")
         .add_filter("JSON Files", &["json"])
-        .set_file_name(&suggested_filename.unwrap_or_else(|| {
+        .set_file_name(suggested_filename.unwrap_or_else(|| {
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
             format!("taskmint_export_{}.json", timestamp)
         }))
@@ -42,16 +42,16 @@ pub async fn export_data_to_file(
             // Get the path as a string
             let path_str = file_path.to_string();
             let path = std::path::Path::new(&path_str);
-            
+
             // Write the data to the selected file
-            match std::fs::write(&path, data_json) {
+            match std::fs::write(path, data_json) {
                 Ok(_) => {
                     // Open the folder containing the exported file
                     if let Some(parent_dir) = path.parent() {
                         let _ = tauri_plugin_opener::OpenerExt::opener(&app)
                             .open_path(parent_dir.to_string_lossy().to_string(), None::<String>);
                     }
-                    
+
                     Ok(path_str)
                 }
                 Err(e) => Err(format!("Failed to write export file: {}", e)),
@@ -64,7 +64,7 @@ pub async fn export_data_to_file(
 #[tauri::command]
 pub async fn import_data_from_file(app: tauri::AppHandle) -> Result<String, String> {
     use tauri_plugin_dialog::DialogExt;
-    
+
     // Create an open dialog
     let file_path = app
         .dialog()
@@ -78,9 +78,9 @@ pub async fn import_data_from_file(app: tauri::AppHandle) -> Result<String, Stri
             // Get the path as a string
             let path_str = file_path.to_string();
             let path = std::path::Path::new(&path_str);
-            
+
             // Read the data from the selected file
-            match std::fs::read_to_string(&path) {
+            match std::fs::read_to_string(path) {
                 Ok(file_contents) => {
                     // Validate that it's valid JSON
                     match serde_json::from_str::<serde_json::Value>(&file_contents) {

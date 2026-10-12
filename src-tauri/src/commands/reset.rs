@@ -58,16 +58,16 @@ pub async fn reset_all_app_data(
                 "App data was reset, but removing backup files failed: {}",
                 e
             );
-            eprintln!("{}", warning);
+            log::error!("{}", warning);
             (0, Some(warning))
         }
     };
 
-    if let Err(e) = crate::tray::update_tray_menu(&app, &*app_state) {
-        eprintln!("Failed to update tray menu after data reset: {:?}", e);
+    if let Err(e) = crate::tray::update_tray_menu(&app, &app_state) {
+        log::error!("Failed to update tray menu after data reset: {:?}", e);
     }
-    if let Err(e) = crate::tray::update_tray_tooltip_only(&*app_state) {
-        eprintln!("Failed to update tray tooltip after data reset: {:?}", e);
+    if let Err(e) = crate::tray::update_tray_tooltip_only(&app_state) {
+        log::error!("Failed to update tray tooltip after data reset: {:?}", e);
     }
 
     Ok(ResetSummary {

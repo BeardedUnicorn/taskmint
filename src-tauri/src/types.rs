@@ -1,26 +1,15 @@
 // Core application types and data structures
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 // Timer state structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TimerState {
     pub is_running: bool,
     pub task_name: String,
     pub start_time: Option<DateTime<Utc>>,
     pub elapsed_ms: u64,
-}
-
-impl Default for TimerState {
-    fn default() -> Self {
-        Self {
-            is_running: false,
-            task_name: String::new(),
-            start_time: None,
-            elapsed_ms: 0,
-        }
-    }
 }
 
 // Task structure
@@ -37,13 +26,6 @@ pub struct Task {
     pub is_archived: bool,
     pub created_at: String,
     pub updated_at: String,
-}
-
-// Daily total structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DailyTotal {
-    pub total_duration_ms: u64,
-    pub task_count: usize,
 }
 
 // Backup result structure
@@ -185,7 +167,7 @@ pub struct WorkLogEntry {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingCapture {
-    pub payload: String, // raw JSON text as captured from the site
+    pub payload: String,     // raw JSON text as captured from the site
     pub received_at: String, // RFC3339
 }
 

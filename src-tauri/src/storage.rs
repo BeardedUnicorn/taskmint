@@ -1,9 +1,9 @@
-use tauri::{AppHandle, Manager};
-use tauri_plugin_store::{Store, StoreBuilder};
 use crate::types::{ProjectTaskMapping, TaskSession, WorkLogEntry};
 use std::path::PathBuf;
-use tauri::Wry;
 use std::sync::Arc;
+use tauri::Wry;
+use tauri::{AppHandle, Manager};
+use tauri_plugin_store::{Store, StoreBuilder};
 
 const STORE_FILENAME: &str = "sessions.json";
 const SESSIONS_KEY: &str = "sessions";
@@ -51,7 +51,7 @@ pub fn parse_sessions(value: &serde_json::Value) -> Result<LoadedSessions, Strin
             Ok(session) => sessions.push(session),
             Err(e) => {
                 skipped += 1;
-                eprintln!("Skipping unreadable session record: {}", e);
+                log::warn!("Skipping unreadable session record: {}", e);
             }
         }
     }
@@ -74,10 +74,7 @@ pub fn load_sessions(app: &AppHandle) -> Result<LoadedSessions, String> {
 /// Copy an on-disk store aside before a save can overwrite data the load
 /// could not read (or before a destructive rewrite). Returns the backup path,
 /// or None when there is no store file yet.
-pub fn backup_store_file_named(
-    app: &AppHandle,
-    filename: &str,
-) -> Result<Option<PathBuf>, String> {
+pub fn backup_store_file_named(app: &AppHandle, filename: &str) -> Result<Option<PathBuf>, String> {
     let data_dir = app
         .path()
         .app_data_dir()
@@ -96,12 +93,6 @@ pub fn backup_store_file_named(
 
 pub fn backup_store_file(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     backup_store_file_named(app, STORE_FILENAME)
-}
-
-pub fn clear_all_sessions(app: &AppHandle) -> Result<(), String> {
-    let store = get_store(app)?;
-    store.delete(SESSIONS_KEY);
-    store.save().map_err(|e| e.to_string())
 }
 
 /// Wipe every key in a store file and persist the empty store. Goes through
@@ -128,7 +119,7 @@ pub fn is_store_backup_filename(name: &str) -> bool {
         .iter()
         .any(|store| {
             name.strip_prefix(store)
-                .map_or(false, |rest| rest.starts_with(".bak-"))
+                .is_some_and(|rest| rest.starts_with(".bak-"))
         })
 }
 
@@ -188,7 +179,7 @@ fn parse_records<T: serde::de::DeserializeOwned>(
             Ok(item) => items.push(item),
             Err(e) => {
                 skipped += 1;
-                eprintln!("Skipping unreadable {} record: {}", label, e);
+                log::warn!("Skipping unreadable {} record: {}", label, e);
             }
         }
     }

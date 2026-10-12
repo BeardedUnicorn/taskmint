@@ -34,7 +34,7 @@ pub fn is_macos() -> bool {
 // Validation utilities
 pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
     let config = get_config();
-    
+
     if timestamp.len() != config.validation_timestamp_length {
         return false;
     }
@@ -52,7 +52,7 @@ pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
         return false;
     }
 
-    // Check time part (HHMMSS)  
+    // Check time part (HHMMSS)
     if time_part.len() != 6 || !time_part.chars().all(|c| c.is_ascii_digit()) {
         return false;
     }

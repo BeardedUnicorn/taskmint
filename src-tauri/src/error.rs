@@ -55,11 +55,7 @@ impl From<AppError> for String {
 }
 
 // Retry mechanism for operations that may fail temporarily
-pub fn retry_operation<T, F>(
-    operation: F,
-    max_retries: u32,
-    delay_ms: u64,
-) -> Result<T, AppError>
+pub fn retry_operation<T, F>(operation: F, max_retries: u32, delay_ms: u64) -> Result<T, AppError>
 where
     F: Fn() -> Result<T, AppError>,
 {
@@ -69,7 +65,7 @@ where
             Ok(result) => return Ok(result),
             Err(e) if attempts < max_retries => {
                 attempts += 1;
-                eprintln!(
+                log::error!(
                     "Operation failed (attempt {}/{}): {}",
                     attempts,
                     max_retries + 1,

@@ -1,7 +1,7 @@
 // System tray functionality
 
-use crate::config::{Config, get_config};
-use crate::error::{AppError};
+use crate::config::{get_config, Config};
+use crate::error::AppError;
 use crate::state::AppState;
 use crate::timer;
 use crate::types::Task;
@@ -19,9 +19,12 @@ pub(crate) fn visible_tasks(tasks: &[Task], max: usize) -> Vec<&Task> {
     tasks.iter().filter(|t| !t.is_archived).take(max).collect()
 }
 
-pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri::Wry>, tauri::Error> {
+pub fn create_tray_menu(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<Menu<tauri::Wry>, tauri::Error> {
     let config = get_config();
-    println!("🔧 Creating tray menu...");
+    log::debug!("Creating tray menu...");
     let menu = Menu::new(app)?;
 
     // Get current timer state and tasks
@@ -45,15 +48,15 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
         let status_text = format!("⏱️ Running: {} ({})", current_task, elapsed_text);
         let status_item = MenuItem::new(app, status_text.clone(), false, None::<&str>)?;
         menu.append(&status_item)?;
-        println!("✅ Added timer status item: '{}'", status_text);
+        log::debug!("Added timer status item: '{}'", status_text);
 
         let stop_item = MenuItem::with_id(app, "stop_timer", "⏹️ Stop Timer", true, None::<&str>)?;
         menu.append(&stop_item)?;
-        println!("✅ Added stop timer item with ID: 'stop_timer'");
+        log::debug!("Added stop timer item with ID: 'stop_timer'");
     } else {
         let status_item = MenuItem::new(app, "⏸️ No active timer", false, None::<&str>)?;
         menu.append(&status_item)?;
-        println!("✅ Added no active timer status item");
+        log::debug!("Added no active timer status item");
     }
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
@@ -65,32 +68,35 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
 
     if has_tasks {
         let start_submenu = Submenu::new(app, "▶️ Start Timer", true)?;
-        println!("✅ Created start timer submenu");
+        log::debug!("Created start timer submenu");
 
         // Add recent/favorite tasks (limit to configured max)
         state
             .with_tasks(|tasks| {
                 for task in visible_tasks(tasks, config.tray_max_recent_tasks) {
                     let menu_id = format!("start_task_{}", task.id);
-                    let task_item = MenuItem::with_id(app, &menu_id, &task.name, true, None::<&str>)?;
+                    let task_item =
+                        MenuItem::with_id(app, &menu_id, &task.name, true, None::<&str>)?;
                     start_submenu.append(&task_item)?;
-                    println!("✅ Added task item: '{}' with ID: '{}'", task.name, menu_id);
+                    log::debug!("Added task item: '{}' with ID: '{}'", task.name, menu_id);
                 }
                 Ok::<_, tauri::Error>(())
             })
             .unwrap_or(Ok(()))?;
 
         start_submenu.append(&PredefinedMenuItem::separator(app)?)?;
-        let new_task_item = MenuItem::with_id(app, "new_task", "➕ New Task...", true, None::<&str>)?;
+        let new_task_item =
+            MenuItem::with_id(app, "new_task", "➕ New Task...", true, None::<&str>)?;
         start_submenu.append(&new_task_item)?;
-        println!("✅ Added new task item to submenu with ID: 'new_task'");
+        log::debug!("Added new task item to submenu with ID: 'new_task'");
 
         menu.append(&start_submenu)?;
-        println!("✅ Added start timer submenu to main menu");
+        log::debug!("Added start timer submenu to main menu");
     } else {
-        let start_item = MenuItem::with_id(app, "new_task", "▶️ Start New Task...", true, None::<&str>)?;
+        let start_item =
+            MenuItem::with_id(app, "new_task", "▶️ Start New Task...", true, None::<&str>)?;
         menu.append(&start_item)?;
-        println!("✅ Added start new task item with ID: 'new_task' (no existing tasks)");
+        log::debug!("Added start new task item with ID: 'new_task' (no existing tasks)");
     }
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
@@ -98,13 +104,13 @@ pub fn create_tray_menu(app: &AppHandle, state: &AppState) -> Result<Menu<tauri:
     // App controls
     let show_item = MenuItem::with_id(app, "show_app", "📊 Show App", true, None::<&str>)?;
     menu.append(&show_item)?;
-    println!("✅ Added show app item with ID: 'show_app'");
+    log::debug!("Added show app item with ID: 'show_app'");
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&PredefinedMenuItem::quit(app, Some("Quit"))?)?;
-    println!("✅ Added quit item");
+    log::debug!("Added quit item");
 
-    println!("🎉 Tray menu creation completed successfully");
+    log::debug!("Tray menu creation completed successfully");
     Ok(menu)
 }
 
@@ -117,9 +123,10 @@ fn handle_tray_click_event(event: TrayIconEvent, app: &AppHandle) {
             rect: _,
             id: _,
         } => {
-            println!(
+            log::debug!(
                 "Tray click event - button: {:?}, state: {:?}",
-                button, button_state
+                button,
+                button_state
             );
             // The context menu should appear automatically on left-click due to the menu configuration
         }
@@ -129,7 +136,7 @@ fn handle_tray_click_event(event: TrayIconEvent, app: &AppHandle) {
             rect: _,
             id: _,
         } => {
-            println!("Tray double-click event - showing app window");
+            log::debug!("Tray double-click event - showing app window");
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -140,45 +147,41 @@ fn handle_tray_click_event(event: TrayIconEvent, app: &AppHandle) {
 }
 
 pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
-    println!("🎯 Menu item clicked: '{}' (length: {})", id, id.len());
-    println!("🔍 Menu item bytes: {:?}", id.as_bytes());
+    log::debug!("Menu item clicked: '{}' (length: {})", id, id.len());
 
     match id {
         "stop_timer" => {
-            println!("✅ Handling stop_timer menu item");
+            log::debug!("Handling stop_timer menu item");
             if let Err(e) = timer::stop_timer_from_tray(app, state) {
-                eprintln!("❌ Failed to stop timer from tray: {}", e);
+                log::error!("Failed to stop timer from tray: {}", e);
             } else {
-                println!("✅ Timer stopped successfully from tray");
+                log::debug!("Timer stopped successfully from tray");
                 let _ = update_tray_menu(app, state);
                 if let Err(e) = update_tray_tooltip_only(state) {
-                    eprintln!("❌ Failed to update tray tooltip after stop: {:?}", e);
+                    log::error!("Failed to update tray tooltip after stop: {:?}", e);
                 }
             }
         }
         "new_task" => {
-            println!("✅ Handling new_task menu item");
+            log::debug!("Handling new_task menu item");
             if let Err(e) = app.emit("show-new-task-dialog", ()) {
-                eprintln!("❌ Failed to emit show-new-task-dialog event: {}", e);
+                log::error!("Failed to emit show-new-task-dialog event: {}", e);
             } else {
-                println!("✅ Successfully emitted show-new-task-dialog event");
+                log::debug!("Successfully emitted show-new-task-dialog event");
             }
             show_main_window(app);
         }
         "show_app" => {
-            println!("✅ Handling show_app menu item");
+            log::debug!("Handling show_app menu item");
             show_main_window(app);
         }
         "quit" => {
-            println!("✅ Handling quit menu item");
+            log::debug!("Handling quit menu item");
             app.exit(0);
         }
         id if id.starts_with("start_task_") => {
             let task_id = &id[11..]; // Remove "start_task_" prefix
-            println!(
-                "✅ Handling start_task menu item for task_id: '{}'",
-                task_id
-            );
+            log::debug!("Handling start_task menu item for task_id: '{}'", task_id);
 
             // Find and start the task
             let task_name = state
@@ -191,25 +194,25 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
                 .unwrap_or(None);
 
             if let Some(task_name) = task_name {
-                println!("✅ Found task: '{}'", task_name);
+                log::debug!("Found task: '{}'", task_name);
                 if let Err(e) = timer::start_timer_from_tray(app, state, task_name.clone()) {
-                    eprintln!("❌ Failed to start timer from tray: {}", e);
+                    log::error!("Failed to start timer from tray: {}", e);
                 } else {
-                    println!(
-                        "✅ Timer started successfully from tray for task: '{}'",
+                    log::debug!(
+                        "Timer started successfully from tray for task: '{}'",
                         task_name
                     );
                     let _ = update_tray_menu(app, state);
                     if let Err(e) = update_tray_tooltip_only(state) {
-                        eprintln!("❌ Failed to update tray tooltip after start: {:?}", e);
+                        log::error!("Failed to update tray tooltip after start: {:?}", e);
                     }
                 }
             } else {
-                eprintln!("❌ Task not found for id: '{}'", task_id);
+                log::error!("Task not found for id: '{}'", task_id);
             }
         }
         _ => {
-            println!("⚠️  Unhandled menu item: '{}'", id);
+            log::debug!("Unhandled menu item: '{}'", id);
         }
     }
 }
@@ -217,33 +220,35 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         if let Err(e) = window.show() {
-            eprintln!("❌ Failed to show window: {}", e);
+            log::error!("Failed to show window: {}", e);
         } else {
-            println!("✅ Window shown successfully");
+            log::debug!("Window shown successfully");
         }
         if let Err(e) = window.set_focus() {
-            eprintln!("❌ Failed to focus window: {}", e);
+            log::error!("Failed to focus window: {}", e);
         } else {
-            println!("✅ Window focused successfully");
+            log::debug!("Window focused successfully");
         }
     } else {
-        eprintln!("❌ Main window not found");
+        log::error!("Main window not found");
     }
 }
 
 pub fn update_tray_menu(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
-    state.with_tray_icon(|tray_option| {
-        if let Some(ref tray) = tray_option {
-            let new_menu = create_tray_menu(app, state)?;
-            tray.set_menu(Some(new_menu))?;
-        }
-        Ok(())
-    }).map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))?
+    state
+        .with_tray_icon(|tray_option| {
+            if let Some(ref tray) = tray_option {
+                let new_menu = create_tray_menu(app, state)?;
+                tray.set_menu(Some(new_menu))?;
+            }
+            Ok(())
+        })
+        .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))?
 }
 
 pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
     let config = get_config();
-    println!("Starting system tray setup...");
+    log::debug!("Starting system tray setup...");
 
     // Check if tray icon already exists to prevent duplicates
     let already_exists = state
@@ -251,16 +256,16 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
         .unwrap_or(false);
 
     if already_exists {
-        println!("System tray already initialized, skipping setup to prevent duplicates");
+        log::debug!("System tray already initialized, skipping setup to prevent duplicates");
         return Ok(());
     }
 
     // Clean up any existing tray icon
     let _ = state.with_tray_icon_mut(|tray_option| {
         if let Some(existing_tray) = tray_option.take() {
-            println!("Cleaning up existing tray icon to prevent duplicates...");
+            log::debug!("Cleaning up existing tray icon to prevent duplicates...");
             drop(existing_tray);
-            println!("Existing tray icon cleaned up");
+            log::debug!("Existing tray icon cleaned up");
         }
     });
 
@@ -269,7 +274,7 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
     let menu = create_tray_menu(app, state)?;
 
     // Build the tray icon
-    println!("Building new tray icon...");
+    log::debug!("Building new tray icon...");
     let tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
@@ -277,17 +282,17 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
         .on_tray_icon_event({
             let app_handle = app.clone();
             move |_tray, event| {
-                println!("Tray icon event received: {:?}", event);
+                log::trace!("Tray icon event received: {:?}", event);
                 handle_tray_click_event(event, &app_handle);
             }
         })
         .build(app)
         .map_err(|e| {
-            eprintln!("Failed to build tray icon: {:?}", e);
+            log::error!("Failed to build tray icon: {:?}", e);
             e
         })?;
 
-    println!("Successfully built new tray icon");
+    log::info!("Successfully built new tray icon");
 
     // Store the new tray icon in shared state
     state
@@ -296,39 +301,50 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
         })
         .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))?;
 
-    println!("System tray setup completed successfully");
+    log::info!("System tray setup completed successfully");
     Ok(())
 }
 
 fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
     let config = get_config();
-    
+
     // Try primary icon first
     let primary_icon_bytes = include_bytes!("../icons/32x32.png");
-    println!(
+    log::debug!(
         "Loaded primary icon bytes, size: {} bytes",
         primary_icon_bytes.len()
     );
 
     match Image::from_bytes(primary_icon_bytes) {
         Ok(icon) => {
-            println!("Successfully created icon from primary {}", config.icon_tray_primary);
+            log::debug!(
+                "Successfully created icon from primary {}",
+                config.icon_tray_primary
+            );
             Ok(icon)
         }
         Err(e) => {
-            eprintln!("Failed to create icon from {}: {:?}", config.icon_tray_primary, e);
-            println!("Trying fallback icon...");
+            log::error!(
+                "Failed to create icon from {}: {:?}",
+                config.icon_tray_primary,
+                e
+            );
+            log::debug!("Trying fallback icon...");
 
             // Try fallback icon
             let fallback_icon_bytes = include_bytes!("../icons/icon.png");
-            println!(
+            log::debug!(
                 "Loaded fallback icon bytes, size: {} bytes",
                 fallback_icon_bytes.len()
             );
 
             Image::from_bytes(fallback_icon_bytes).map_err(|e2| {
-                eprintln!("Failed to create icon from fallback {}: {:?}", config.icon_tray_fallback, e2);
-                eprintln!("Both primary and fallback icons failed!");
+                log::error!(
+                    "Failed to create icon from fallback {}: {:?}",
+                    config.icon_tray_fallback,
+                    e2
+                );
+                log::error!("Both primary and fallback icons failed!");
                 e2
             })
         }
@@ -337,15 +353,13 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
 
 pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
     let config = get_config();
-    
+
     state.with_tray_icon(|tray_option| {
         if let Some(ref tray) = tray_option {
-            let (tooltip, should_show_title, title_text) = state
-                .with_timer_state(|timer_state| {
+            let (tooltip, should_show_title, title_text) =
+                state.with_timer_state(|timer_state| {
                     if timer_state.is_running {
-                        let current_elapsed = if let Some(ref start_time) =
-                            timer_state.start_time
-                        {
+                        let current_elapsed = if let Some(ref start_time) = timer_state.start_time {
                             get_current_elapsed_ms(start_time)
                         } else {
                             timer_state.elapsed_ms
@@ -358,8 +372,10 @@ pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError>
                         );
                         (tooltip, true, duration_text_title)
                     } else {
-                        let tooltip =
-                            format!("{} - No active timer (Click for menu)", config.tray_tooltip_app_name);
+                        let tooltip = format!(
+                            "{} - No active timer (Click for menu)",
+                            config.tray_tooltip_app_name
+                        );
                         (tooltip, false, String::new())
                     }
                 })?;
@@ -407,13 +423,13 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
             // Always update tooltip when timer is running
             if is_running {
                 if let Err(e) = update_tray_tooltip_only(&state_clone) {
-                    eprintln!("Failed to update tray tooltip: {:?}", e);
+                    log::error!("Failed to update tray tooltip: {:?}", e);
                 }
 
                 // Update menu periodically to refresh the elapsed time display
                 if last_menu_update.elapsed() >= config.tray_menu_refresh_duration() {
                     if let Err(e) = update_tray_menu(&app_clone, &state_clone) {
-                        eprintln!("Failed to update tray menu: {:?}", e);
+                        log::error!("Failed to update tray menu: {:?}", e);
                     }
                     last_menu_update = std::time::Instant::now();
                 }
@@ -421,10 +437,10 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
                 // Timer just stopped: clear the stale title/tooltip and menu once,
                 // since no further updates happen while the timer is idle
                 if let Err(e) = update_tray_tooltip_only(&state_clone) {
-                    eprintln!("Failed to update tray tooltip: {:?}", e);
+                    log::error!("Failed to update tray tooltip: {:?}", e);
                 }
                 if let Err(e) = update_tray_menu(&app_clone, &state_clone) {
-                    eprintln!("Failed to update tray menu: {:?}", e);
+                    log::error!("Failed to update tray menu: {:?}", e);
                 }
                 last_menu_update = std::time::Instant::now();
             }
@@ -453,7 +469,10 @@ mod tests {
     #[test]
     fn visible_tasks_filters_archived() {
         let tasks = vec![task("a", false), task("b", true), task("c", false)];
-        let ids: Vec<&str> = visible_tasks(&tasks, 5).iter().map(|t| t.id.as_str()).collect();
+        let ids: Vec<&str> = visible_tasks(&tasks, 5)
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect();
         assert_eq!(ids, vec!["a", "c"]);
     }
 
@@ -467,7 +486,10 @@ mod tests {
             task("b", false),
             task("c", false),
         ];
-        let ids: Vec<&str> = visible_tasks(&tasks, 2).iter().map(|t| t.id.as_str()).collect();
+        let ids: Vec<&str> = visible_tasks(&tasks, 2)
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect();
         assert_eq!(ids, vec!["a", "b"]);
     }
 

@@ -7,32 +7,32 @@ use std::time::Duration;
 pub struct Config {
     /// Interval in seconds for updating the tray tooltip status
     pub tray_status_update_interval: u64,
-    
+
     /// Interval in seconds for refreshing the tray menu
     pub tray_menu_refresh_interval: u64,
-    
+
     /// Application name shown in tray tooltip
     pub tray_tooltip_app_name: String,
-    
+
     /// Maximum number of recent tasks to show in tray menu
     pub tray_max_recent_tasks: usize,
-    
+
     /// Retry configuration
     pub retry_max_attempts: u32,
     pub retry_base_delay_ms: u64,
-    
+
     /// Time configuration
     pub ms_per_second: u64,
     pub seconds_per_minute: u64,
     pub seconds_per_hour: u64,
     pub minutes_per_hour: u64,
-    
+
     /// Backup configuration
     pub backup_default_max_backups: u32,
     pub backup_filename_prefix: String,
     pub backup_filename_extension: String,
     pub backup_write_test_filename: String,
-    
+
     /// Validation configuration
     pub validation_timestamp_length: usize,
     pub validation_min_year: u32,
@@ -42,7 +42,7 @@ pub struct Config {
     pub validation_max_hour: u32,
     pub validation_max_minute: u32,
     pub validation_max_second: u32,
-    
+
     /// Icon configuration
     pub icon_tray_primary: String,
     pub icon_tray_fallback: String,
@@ -109,22 +109,22 @@ impl Config {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Get tray status update duration
     pub fn tray_status_update_duration(&self) -> Duration {
         Duration::from_secs(self.tray_status_update_interval)
     }
-    
+
     /// Get tray menu refresh duration
     pub fn tray_menu_refresh_duration(&self) -> Duration {
         Duration::from_secs(self.tray_menu_refresh_interval)
     }
-    
+
     /// Get retry delay duration for a given attempt number
     pub fn retry_delay_duration(&self, attempt: u32) -> Duration {
         Duration::from_millis(self.retry_base_delay_ms * attempt as u64)
     }
-    
+
     /// Get inactivity threshold duration
     pub fn inactivity_threshold_duration(&self) -> Duration {
         Duration::from_secs(self.inactivity_threshold_minutes as u64 * 60)

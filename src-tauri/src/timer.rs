@@ -1,7 +1,7 @@
 // Timer-related functionality
 
 use crate::config::get_config;
-use crate::error::{AppError, retry_operation};
+use crate::error::{retry_operation, AppError};
 use crate::state::AppState;
 use crate::utils::get_current_elapsed_ms;
 use chrono::Utc;
@@ -47,14 +47,14 @@ pub fn start_timer_from_tray(
         config.retry_base_delay_ms,
     )?;
 
-    println!("✅ Timer started successfully for task: '{}'", task_name);
+    log::debug!("Timer started successfully for task: '{}'", task_name);
     Ok(())
 }
 
 // Stop timer functionality
 pub fn stop_timer_from_tray(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let config = get_config();
-    
+
     let (task_name, start_time, elapsed_ms) = retry_operation(
         || {
             state.with_timer_state_mut(|timer_state| {
@@ -94,6 +94,6 @@ pub fn stop_timer_from_tray(app: &AppHandle, state: &AppState) -> Result<(), App
         config.retry_base_delay_ms,
     )?;
 
-    println!("✅ Timer stopped successfully");
+    log::debug!("Timer stopped successfully");
     Ok(())
 }

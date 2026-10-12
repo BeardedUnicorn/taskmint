@@ -1,10 +1,10 @@
 // Application state management
 
-use std::sync::{Arc, Mutex};
 use crate::types::{
-    CaptureServerStatus, PendingCapture, ProjectTaskMapping, TimerState, Task, TaskSession,
+    CaptureServerStatus, PendingCapture, ProjectTaskMapping, Task, TaskSession, TimerState,
     WorkLogEntry,
 };
+use std::sync::{Arc, Mutex};
 
 // Imported work-log ledger + remembered project→task mappings, persisted
 // together in worklogs.json.
@@ -71,7 +71,7 @@ impl AppState {
             .timer_state
             .lock()
             .map_err(|e| format!("Failed to lock timer state: {}", e))?;
-        Ok(f(&*state))
+        Ok(f(&state))
     }
 
     pub fn with_timer_state_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -82,7 +82,7 @@ impl AppState {
             .timer_state
             .lock()
             .map_err(|e| format!("Failed to lock timer state: {}", e))?;
-        Ok(f(&mut *state))
+        Ok(f(&mut state))
     }
 
     pub fn with_tasks<T, F>(&self, f: F) -> Result<T, String>
@@ -93,7 +93,7 @@ impl AppState {
             .tasks
             .lock()
             .map_err(|e| format!("Failed to lock tasks: {}", e))?;
-        Ok(f(&*tasks))
+        Ok(f(&tasks))
     }
 
     pub fn with_tasks_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -104,7 +104,7 @@ impl AppState {
             .tasks
             .lock()
             .map_err(|e| format!("Failed to lock tasks: {}", e))?;
-        Ok(f(&mut *tasks))
+        Ok(f(&mut tasks))
     }
 
     pub fn with_tray_icon<T, F>(&self, f: F) -> Result<T, String>
@@ -115,7 +115,7 @@ impl AppState {
             .tray_icon
             .lock()
             .map_err(|e| format!("Failed to lock tray icon: {}", e))?;
-        Ok(f(&*tray))
+        Ok(f(&tray))
     }
 
     pub fn with_tray_icon_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -126,7 +126,7 @@ impl AppState {
             .tray_icon
             .lock()
             .map_err(|e| format!("Failed to lock tray icon: {}", e))?;
-        Ok(f(&mut *tray))
+        Ok(f(&mut tray))
     }
 
     // Task sessions methods
@@ -138,7 +138,7 @@ impl AppState {
             .task_sessions
             .lock()
             .map_err(|e| format!("Failed to lock task sessions: {}", e))?;
-        Ok(f(&*sessions))
+        Ok(f(&sessions))
     }
 
     pub fn with_task_sessions_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -149,7 +149,7 @@ impl AppState {
             .task_sessions
             .lock()
             .map_err(|e| format!("Failed to lock task sessions: {}", e))?;
-        Ok(f(&mut *sessions))
+        Ok(f(&mut sessions))
     }
 
     // Work-log store methods
@@ -161,7 +161,7 @@ impl AppState {
             .work_logs
             .lock()
             .map_err(|e| format!("Failed to lock work logs: {}", e))?;
-        Ok(f(&*work_logs))
+        Ok(f(&work_logs))
     }
 
     pub fn with_work_logs_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -172,7 +172,7 @@ impl AppState {
             .work_logs
             .lock()
             .map_err(|e| format!("Failed to lock work logs: {}", e))?;
-        Ok(f(&mut *work_logs))
+        Ok(f(&mut work_logs))
     }
 
     // Browser-capture methods
@@ -184,7 +184,7 @@ impl AppState {
             .pending_work_log_capture
             .lock()
             .map_err(|e| format!("Failed to lock pending work log capture: {}", e))?;
-        Ok(f(&*capture))
+        Ok(f(&capture))
     }
 
     pub fn with_pending_work_log_capture_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -195,7 +195,7 @@ impl AppState {
             .pending_work_log_capture
             .lock()
             .map_err(|e| format!("Failed to lock pending work log capture: {}", e))?;
-        Ok(f(&mut *capture))
+        Ok(f(&mut capture))
     }
 
     pub fn with_capture_server_status<T, F>(&self, f: F) -> Result<T, String>
@@ -206,7 +206,7 @@ impl AppState {
             .capture_server_status
             .lock()
             .map_err(|e| format!("Failed to lock capture server status: {}", e))?;
-        Ok(f(&*status))
+        Ok(f(&status))
     }
 
     pub fn with_capture_server_status_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -217,7 +217,7 @@ impl AppState {
             .capture_server_status
             .lock()
             .map_err(|e| format!("Failed to lock capture server status: {}", e))?;
-        Ok(f(&mut *status))
+        Ok(f(&mut status))
     }
 
     pub fn with_work_log_load_warning<T, F>(&self, f: F) -> Result<T, String>
@@ -228,7 +228,7 @@ impl AppState {
             .work_log_load_warning
             .lock()
             .map_err(|e| format!("Failed to lock work log load warning: {}", e))?;
-        Ok(f(&*warning))
+        Ok(f(&warning))
     }
 
     pub fn with_work_log_load_warning_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -239,7 +239,7 @@ impl AppState {
             .work_log_load_warning
             .lock()
             .map_err(|e| format!("Failed to lock work log load warning: {}", e))?;
-        Ok(f(&mut *warning))
+        Ok(f(&mut warning))
     }
 
     pub fn with_session_load_warning<T, F>(&self, f: F) -> Result<T, String>
@@ -250,7 +250,7 @@ impl AppState {
             .session_load_warning
             .lock()
             .map_err(|e| format!("Failed to lock session load warning: {}", e))?;
-        Ok(f(&*warning))
+        Ok(f(&warning))
     }
 
     pub fn with_session_load_warning_mut<T, F>(&self, f: F) -> Result<T, String>
@@ -261,7 +261,7 @@ impl AppState {
             .session_load_warning
             .lock()
             .map_err(|e| format!("Failed to lock session load warning: {}", e))?;
-        Ok(f(&mut *warning))
+        Ok(f(&mut warning))
     }
 }
 

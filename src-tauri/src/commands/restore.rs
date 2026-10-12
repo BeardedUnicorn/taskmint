@@ -52,12 +52,15 @@ pub struct RestoreSummary {
     pub records_skipped: usize,
 }
 
+/// Tolerant per-record parser: (records read, records skipped).
+type SectionParser<T> = fn(&serde_json::Value) -> Result<(Vec<T>, usize), String>;
+
 /// A section missing from the file (null) leaves that store untouched, even in
 /// replace mode: v1 exports have no work logs, and restoring one must not wipe
 /// the ledger.
 fn parse_section<T>(
     value: &serde_json::Value,
-    parse: fn(&serde_json::Value) -> Result<(Vec<T>, usize), String>,
+    parse: SectionParser<T>,
 ) -> Result<(Option<Vec<T>>, usize), String> {
     if value.is_null() {
         return Ok((None, 0));
@@ -184,38 +187,42 @@ pub async fn restore_backup_data(
 
     // Lock order: sessions → worklogs (same as apply_work_log_import and
     // reset_all_app_data).
-    let summary = app_state.with_task_sessions_mut(|store| -> Result<RestoreSummary, String> {
-        app_state.with_work_logs_mut(|work_logs| -> Result<RestoreSummary, String> {
-            // Never restore without a safety copy of what is being changed.
-            storage::backup_store_file(&app)
-                .map_err(|e| format!("Restore cancelled: {}", e))?;
-            storage::backup_store_file_named(&app, storage::WORKLOG_STORE_FILENAME)
-                .map_err(|e| format!("Restore cancelled: {}", e))?;
+    let summary =
+        app_state.with_task_sessions_mut(|store| -> Result<RestoreSummary, String> {
+            app_state.with_work_logs_mut(|work_logs| -> Result<RestoreSummary, String> {
+                // Never restore without a safety copy of what is being changed.
+                storage::backup_store_file(&app)
+                    .map_err(|e| format!("Restore cancelled: {}", e))?;
+                storage::backup_store_file_named(&app, storage::WORKLOG_STORE_FILENAME)
+                    .map_err(|e| format!("Restore cancelled: {}", e))?;
 
-            let mut summary = RestoreSummary::default();
-            if let Some(sessions) = sessions {
-                let (restored, already_present) =
-                    restore_sessions(store, sessions, payload.mode, finalize_at);
-                summary.sessions_restored = restored;
-                summary.sessions_already_present = already_present;
-                storage::save_sessions(&app, store)?;
-            }
-            if entries.is_some() || mappings.is_some() {
-                if let Some(entries) = entries {
-                    summary.work_log_entries_restored =
-                        restore_work_log_entries(&mut work_logs.entries, entries, payload.mode);
+                let mut summary = RestoreSummary::default();
+                if let Some(sessions) = sessions {
+                    let (restored, already_present) =
+                        restore_sessions(store, sessions, payload.mode, finalize_at);
+                    summary.sessions_restored = restored;
+                    summary.sessions_already_present = already_present;
+                    storage::save_sessions(&app, store)?;
                 }
-                if let Some(mappings) = mappings {
-                    summary.work_log_mappings_restored =
-                        restore_project_mappings(&mut work_logs.mappings, mappings, payload.mode);
+                if entries.is_some() || mappings.is_some() {
+                    if let Some(entries) = entries {
+                        summary.work_log_entries_restored =
+                            restore_work_log_entries(&mut work_logs.entries, entries, payload.mode);
+                    }
+                    if let Some(mappings) = mappings {
+                        summary.work_log_mappings_restored = restore_project_mappings(
+                            &mut work_logs.mappings,
+                            mappings,
+                            payload.mode,
+                        );
+                    }
+                    storage::save_work_logs(&app, &work_logs.entries, &work_logs.mappings)?;
                 }
-                storage::save_work_logs(&app, &work_logs.entries, &work_logs.mappings)?;
-            }
-            summary.records_skipped = sessions_skipped + entries_skipped + mappings_skipped;
+                summary.records_skipped = sessions_skipped + entries_skipped + mappings_skipped;
 
-            Ok(summary)
-        })?
-    })??;
+                Ok(summary)
+            })?
+        })??;
 
     Ok(summary)
 }
@@ -303,7 +310,8 @@ mod tests {
             session("b", vec![finished("b1", 100, 30)], false),
         ];
 
-        let (restored, present) = restore_sessions(&mut store, incoming, RestoreMode::Merge, ts(1000));
+        let (restored, present) =
+            restore_sessions(&mut store, incoming, RestoreMode::Merge, ts(1000));
 
         assert_eq!((restored, present), (1, 1));
         assert_eq!(store.len(), 2);
@@ -366,7 +374,10 @@ mod tests {
 
         let entries_added = restore_work_log_entries(
             &mut entries,
-            vec![entry("e1", "Pending Approval"), entry("e2", "Pending Approval")],
+            vec![
+                entry("e1", "Pending Approval"),
+                entry("e2", "Pending Approval"),
+            ],
             RestoreMode::Merge,
         );
         let mappings_added = restore_project_mappings(
@@ -388,9 +399,13 @@ mod tests {
         let mut entries = vec![entry("e1", "Paid")];
         let mut mappings = vec![mapping("p1", "t")];
 
-        let entries_restored =
-            restore_work_log_entries(&mut entries, vec![entry("e9", "Paid")], RestoreMode::Replace);
-        let mappings_restored = restore_project_mappings(&mut mappings, vec![], RestoreMode::Replace);
+        let entries_restored = restore_work_log_entries(
+            &mut entries,
+            vec![entry("e9", "Paid")],
+            RestoreMode::Replace,
+        );
+        let mappings_restored =
+            restore_project_mappings(&mut mappings, vec![], RestoreMode::Replace);
 
         assert_eq!((entries_restored, mappings_restored), (1, 0));
         assert_eq!(entries[0].id, "e9");
