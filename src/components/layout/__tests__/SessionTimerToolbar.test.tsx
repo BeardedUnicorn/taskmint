@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { SessionTimerToolbar } from '../SessionTimerToolbar';
@@ -57,8 +58,8 @@ describe('SessionTimerToolbar', () => {
 
   const mockProps = {
     activeSession: null as TaskSession | null,
-    predefinedTasks: mockTasks,
-    onStartSession: vi.fn(),
+    startOptions: mockTasks,
+    onStartTask: vi.fn().mockResolvedValue(null),
     onEndSession: vi.fn(),
     onPauseAll: vi.fn(),
     onResumeAll: vi.fn(),
@@ -75,53 +76,54 @@ describe('SessionTimerToolbar', () => {
   });
 
   describe('No Active Session State', () => {
-    it('should render start session controls when no active session', () => {
+    const picker = () => screen.getByPlaceholderText('Choose a task…');
+
+    it('should render the start form when no session is active', () => {
       render(<SessionTimerToolbar {...mockProps} />);
 
-      expect(screen.getByText('Start New Session')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Select or enter task name...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /start session/i })).toBeInTheDocument();
+      expect(screen.getByText('Start Work')).toBeInTheDocument();
+      expect(picker()).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     });
 
-    it('should disable start button when no task is selected', () => {
+    it('starts the chosen task in one step', () => {
       render(<SessionTimerToolbar {...mockProps} />);
 
-      const startButton = screen.getByRole('button', { name: /start session/i });
-      expect(startButton).toBeDisabled();
-    });
-
-    it('should enable start button when task is selected', () => {
-      render(<SessionTimerToolbar {...mockProps} />);
-
-      const taskInput = screen.getByPlaceholderText('Select or enter task name...');
-      fireEvent.change(taskInput, { target: { value: 'Development Work' } });
-
-      const startButton = screen.getByRole('button', { name: /start session/i });
+      fireEvent.change(picker(), { target: { value: 'Dev' } });
+      fireEvent.click(screen.getByRole('option', { name: 'Development Work' }));
+      const startButton = screen.getByRole('button', { name: 'Start' });
       expect(startButton).not.toBeDisabled();
-    });
-
-    it('should call onStartSession when start button is clicked with selected task', () => {
-      render(<SessionTimerToolbar {...mockProps} />);
-
-      const taskInput = screen.getByPlaceholderText('Select or enter task name...');
-      fireEvent.change(taskInput, { target: { value: 'Development Work' } });
-
-      const startButton = screen.getByRole('button', { name: /start session/i });
       fireEvent.click(startButton);
 
-      expect(mockProps.onStartSession).toHaveBeenCalledWith('task-1', 'Development Work');
+      expect(mockProps.onStartTask).toHaveBeenCalledWith('task-1', 'Development Work');
     });
 
-    it('should handle custom task name input', () => {
+    it('does not start from a typed name that is not a task', async () => {
+      const user = userEvent.setup();
       render(<SessionTimerToolbar {...mockProps} />);
 
-      const taskInput = screen.getByPlaceholderText('Select or enter task name...');
-      fireEvent.change(taskInput, { target: { value: 'Custom Task Name' } });
+      await user.type(picker(), 'Custom Task Name{Enter}');
 
-      const startButton = screen.getByRole('button', { name: /start session/i });
-      fireEvent.click(startButton);
+      expect(screen.getByText('No options')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+      expect(mockProps.onStartTask).not.toHaveBeenCalled();
+    });
 
-      expect(mockProps.onStartSession).toHaveBeenCalledWith('', 'Custom Task Name');
+    it('lists tasks in the order given, starring favorites', () => {
+      const favorite: Task = { ...mockTasks[1], isFavorite: true };
+      render(<SessionTimerToolbar {...mockProps} startOptions={[favorite, mockTasks[0]]} />);
+
+      fireEvent.mouseDown(picker());
+      const options = screen.getAllByRole('option').map(option => option.textContent);
+      expect(options).toEqual(['★ Code Review', 'Development Work']);
+    });
+
+    it('points to the Tasks page when there are no tasks to start', () => {
+      render(<SessionTimerToolbar {...mockProps} startOptions={[]} />);
+
+      const input = screen.getByPlaceholderText('Add a task on the Tasks page to start');
+      expect(input).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     });
   });
 

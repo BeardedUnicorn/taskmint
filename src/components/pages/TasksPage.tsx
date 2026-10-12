@@ -24,6 +24,7 @@ interface TasksPageProps {
   onDeleteTask?: (taskId: string) => Promise<void>;
   onArchiveTask?: (taskId: string) => Promise<Task | null>;
   onUnarchiveTask?: (taskId: string) => Promise<Task | null>;
+  onToggleFavorite?: (taskId: string) => Promise<Task | null>;
   onUpdateEntry?: (data: EditTimeEntryData) => void;
   onDeleteEntry?: (entryId: string) => void;
 }
@@ -36,6 +37,7 @@ export function TasksPage({
   onDeleteTask,
   onArchiveTask,
   onUnarchiveTask,
+  onToggleFavorite,
   onUpdateEntry,
   onDeleteEntry,
 }: TasksPageProps) {
@@ -199,7 +201,7 @@ export function TasksPage({
               <TaskDetailPane
                 task={selectedTask}
                 timeEntries={timeEntries}
-                allTasks={tasks}
+                onToggleFavorite={onToggleFavorite ? (taskId) => { void onToggleFavorite(taskId); } : undefined}
                 onEditEntry={onUpdateEntry ? handleEditEntry : () => {}}
                 onDeleteEntry={onDeleteEntry ? handleDeleteEntry : () => {}}
               />

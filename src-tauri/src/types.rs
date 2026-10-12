@@ -15,6 +15,9 @@ pub struct Task {
     // rejects their payloads wholesale.
     #[serde(default)]
     pub is_archived: bool,
+    // Starred tasks lead the tray's Start submenu. Defaults like is_archived.
+    #[serde(default)]
+    pub is_favorite: bool,
     pub created_at: String,
     pub updated_at: String,
 }

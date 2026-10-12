@@ -10,6 +10,7 @@ import { Task, TaskDeletionStrategy, TaskHierarchy } from '../types/task';
 import { IStorageService } from './StorageService';
 import { createTaskError, TaskErrorClass } from '../types/errors';
 import { validateTaskName } from '../utils/validation';
+import { STORAGE_KEYS } from '../constants';
 import {
   buildTaskHierarchy,
   getChildTasks,
@@ -325,7 +326,7 @@ export class TaskService implements ITaskService {
    */
   async getAllTasks(): Promise<Task[]> {
     try {
-      const tasks = await this.storageService.getTasks();
+      const tasks = await this.migrateLegacyFavorites(await this.storageService.getTasks());
       
       // Update cache
       tasks.forEach(task => {
@@ -343,6 +344,47 @@ export class TaskService implements ITaskService {
         'getAllTasks'
       );
     }
+  }
+
+  /**
+   * One-time move of the old favorites list (a separate localStorage key the
+   * Rust tray couldn't see) onto the tasks' isFavorite flag, which the tray
+   * receives with the task list. The key is removed once the tasks are saved;
+   * if saving fails it stays, and the move is retried on the next load.
+   */
+  private async migrateLegacyFavorites(tasks: Task[]): Promise<Task[]> {
+    let raw: string | null;
+    try {
+      raw = window.localStorage.getItem(STORAGE_KEYS.FAVORITE_TASKS);
+    } catch {
+      return tasks;
+    }
+    if (raw === null) return tasks;
+
+    let favoriteIds = new Set<string>();
+    try {
+      const parsed = JSON.parse(raw);
+      const data = parsed?.version ? parsed.data : parsed;
+      if (Array.isArray(data?.favoriteTaskIds)) {
+        favoriteIds = new Set(data.favoriteTaskIds.filter((id: unknown) => typeof id === 'string'));
+      }
+    } catch {
+      // Unreadable legacy value: nothing to carry over
+    }
+
+    const migrated = tasks.map(task =>
+      favoriteIds.has(task.id) && !task.isFavorite ? { ...task, isFavorite: true } : task
+    );
+    if (migrated.some((task, index) => task !== tasks[index])) {
+      try {
+        await this.storageService.setTasks(migrated);
+      } catch (error) {
+        console.error('Failed to save migrated favorites; will retry:', error);
+        return tasks;
+      }
+    }
+    window.localStorage.removeItem(STORAGE_KEYS.FAVORITE_TASKS);
+    return migrated;
   }
 
   /**

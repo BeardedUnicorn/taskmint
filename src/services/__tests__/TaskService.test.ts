@@ -141,6 +141,55 @@ describe('TaskService', () => {
     });
   });
 
+  describe('legacy favorites migration', () => {
+    const otherTask: Task = { ...baseTask, id: 'task2', name: 'Other Task' };
+
+    beforeEach(() => {
+      window.localStorage.clear();
+    });
+
+    const storeLegacyFavorites = (ids: string[]) =>
+      window.localStorage.setItem(
+        'favoriteTasks',
+        JSON.stringify({ version: 1, data: { favoriteTaskIds: ids, maxRecentTasks: 5 } })
+      );
+
+    it('moves the old favorites list onto the tasks once, then removes it', async () => {
+      storeLegacyFavorites(['task2']);
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }, { ...otherTask }]);
+
+      const tasks = await service.getAllTasks();
+
+      expect(tasks.find(t => t.id === 'task2')?.isFavorite).toBe(true);
+      expect(tasks.find(t => t.id === 'task1')?.isFavorite).toBeFalsy();
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([
+        { ...baseTask },
+        { ...otherTask, isFavorite: true },
+      ]);
+      expect(window.localStorage.getItem('favoriteTasks')).toBeNull();
+    });
+
+    it('does nothing when there is no old favorites list', async () => {
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }]);
+
+      await service.getAllTasks();
+
+      expect(mockStorageService.setTasks).not.toHaveBeenCalled();
+    });
+
+    it('keeps the old list to retry when saving the tasks fails', async () => {
+      storeLegacyFavorites(['task1']);
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }]);
+      mockStorageService.setTasks = vi.fn().mockRejectedValue(new Error('disk full'));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const tasks = await service.getAllTasks();
+
+      expect(tasks[0].isFavorite).toBeFalsy();
+      expect(window.localStorage.getItem('favoriteTasks')).not.toBeNull();
+    });
+  });
+
   describe('CRUD error handling', () => {
     it('should reject creating task when validation fails', async () => {
       await expect(service.createTask({ name: '' } as any)).rejects.toMatchObject({

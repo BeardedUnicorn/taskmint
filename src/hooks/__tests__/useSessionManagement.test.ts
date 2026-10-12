@@ -34,10 +34,12 @@ const mockInvoke = vi.mocked(invoke);
 // Mock notification context
 const mockShowError = vi.fn();
 const mockShowSuccess = vi.fn();
+const mockShowInfo = vi.fn();
 vi.mock('../../contexts/NotificationContext', () => ({
   useNotification: () => ({
     showError: mockShowError,
     showSuccess: mockShowSuccess,
+    showInfo: mockShowInfo,
   }),
 }));
 
@@ -187,66 +189,126 @@ describe('useSessionManagement', () => {
     });
   });
 
-  describe('session creation', () => {
-    it('should create a new session', async () => {
-      const newSession = { ...mockSession, id: 'new-session' };
-      primeCommand('get_sessions', [], [newSession]); // initial load, reload after create
-      primeCommand('create_session', newSession);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
+  describe('starting work', () => {
+    async function renderReady() {
+      const hook = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
       await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+        expect(hook.result.current.isLoading).toBe(false);
       });
+      return hook;
+    }
+
+    it('starts the task through start_task, reloads, and announces it', async () => {
+      const started = { ...mockSession, id: 'new-session' };
+      primeCommand('get_sessions', [], [started]); // initial load, reload after start
+      primeCommand('start_task', { outcome: 'started', instanceId: 'i-1', stoppedTaskName: null });
+      const { result } = await renderReady();
 
       await act(async () => {
-        const created = await result.current.createSession('task-1', 'New Task');
-        expect(created).toEqual(newSession);
+        const outcome = await result.current.startTask('task-1', 'Annotation');
+        expect(outcome?.outcome).toBe('started');
       });
 
-      expect(mockInvoke).toHaveBeenCalledWith('create_session', {
-        taskId: 'task-1',
-        taskName: 'New Task',
-      });
-      expect(mockShowSuccess).toHaveBeenCalledWith('Session started for "New Task"');
+      expect(mockInvoke).toHaveBeenCalledWith('start_task', { taskId: 'task-1', taskName: 'Annotation' });
+      expect(result.current.sessions).toEqual([started]);
+      expect(mockShowSuccess).toHaveBeenCalledWith('Started "Annotation"');
     });
 
-    it('should handle session creation errors', async () => {
-      primeCommand('create_session', new Error('Creation failed'));
+    it('announces the hand-off when another task was running', async () => {
+      primeCommand('start_task', { outcome: 'started', instanceId: 'i-1', stoppedTaskName: 'Review' });
+      const { result } = await renderReady();
 
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      await act(async () => {
+        await result.current.startTask('task-1', 'Annotation');
       });
+
+      expect(mockShowSuccess).toHaveBeenCalledWith(
+        'Started "Annotation" — stopped the running timer for "Review"'
+      );
+    });
+
+    it('says when it resumed the task instead', async () => {
+      primeCommand('start_task', { outcome: 'resumed', instanceId: 'i-1', stoppedTaskName: null });
+      const { result } = await renderReady();
+
+      await act(async () => {
+        await result.current.startTask('task-1', 'Annotation');
+      });
+
+      expect(mockShowSuccess).toHaveBeenCalledWith('Resumed "Annotation"');
+    });
+
+    it('says when the task is already running', async () => {
+      primeCommand('start_task', { outcome: 'alreadyRunning', instanceId: null, stoppedTaskName: null });
+      const { result } = await renderReady();
+
+      await act(async () => {
+        await result.current.startTask('task-1', 'Annotation');
+      });
+
+      expect(mockShowInfo).toHaveBeenCalledWith('"Annotation" is already running');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a backend error and returns null', async () => {
+      primeCommand('start_task', new Error('Choose a task to start'));
+      const { result } = await renderReady();
+
+      let outcome: unknown = 'unset';
+      await act(async () => {
+        outcome = await result.current.startTask('task-1', 'Annotation');
+      });
+
+      expect(outcome).toBeNull();
+      expect(mockShowError).toHaveBeenCalledWith('Choose a task to start');
+      expect(result.current.error).toBe('Choose a task to start');
+    });
+  });
+
+  describe('adding time after the fact', () => {
+    it('sends the entry to add_manual_time and announces it', async () => {
+      const manual = { ...mockSession, id: 'manual-1', source: 'manual', isActive: false };
+      primeCommand('get_sessions', [], [manual]);
+      primeCommand('add_manual_time', manual);
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      const startTime = new Date(2026, 9, 10, 9, 0, 0);
+      await act(async () => {
+        await result.current.addManualTime({
+          taskId: 'task-1',
+          taskName: 'Annotation',
+          startTime,
+          durationMs: 90 * 60_000,
+        });
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith('add_manual_time', {
+        taskId: 'task-1',
+        taskName: 'Annotation',
+        startTime: startTime.toISOString(),
+        durationMs: 90 * 60_000,
+      });
+      expect(result.current.sessions).toEqual([manual]);
+      expect(mockShowSuccess).toHaveBeenCalledWith('Added 1h 30m to "Annotation" on Oct 10');
+    });
+
+    it('rejects with the backend reason so the dialog can show it', async () => {
+      primeCommand('add_manual_time', new Error('This overlaps time already tracked for "Review"'));
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       await act(async () => {
         await expect(
-          result.current.createSession('task-1', 'New Task')
-        ).rejects.toThrow('Creation failed');
+          result.current.addManualTime({
+            taskId: 'task-1',
+            taskName: 'Annotation',
+            startTime: new Date(2026, 9, 10, 9, 0, 0),
+            durationMs: 60_000,
+          })
+        ).rejects.toThrow('This overlaps time already tracked for "Review"');
       });
-
-      expect(mockShowError).toHaveBeenCalledWith('Creation failed');
-    });
-
-    it('should trim task names when creating sessions', async () => {
-      const newSession = { ...mockSession, taskName: 'Trimmed Task' };
-      primeCommand('create_session', newSession);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      await act(async () => {
-        await result.current.createSession('task-1', '  Trimmed Task  ');
-      });
-
-      expect(mockInvoke).toHaveBeenCalledWith('create_session', {
-        taskId: 'task-1',
-        taskName: 'Trimmed Task',
-      });
+      expect(mockShowError).not.toHaveBeenCalled();
     });
   });
 

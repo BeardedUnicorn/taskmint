@@ -4,7 +4,7 @@ use crate::state::AppState;
 use crate::storage;
 use crate::types::{TaskSession, TimerInstance};
 use chrono::{DateTime, Local, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
@@ -137,6 +137,15 @@ fn resume_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
     instance.updated_at = now.to_rfc3339();
 }
 
+/// Pause a validated, running instance; `paused_at` starts the pause stretch
+/// that resume (or stop) folds into `paused_duration`.
+fn pause_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+    instance.is_running = false;
+    instance.is_paused = true;
+    instance.paused_at = Some(now);
+    instance.updated_at = now.to_rfc3339();
+}
+
 /// Finalize one running or paused instance with the same math as
 /// `stop_timer_instance`: clear the state flags, stamp `end_time`, and store
 /// the net duration. A live pause stretch is folded into `paused_duration`,
@@ -213,36 +222,6 @@ fn emit_stopped_events(app: &AppHandle, instance_ids: &[String], now: DateTime<U
             }),
         );
     }
-}
-
-#[tauri::command]
-pub fn create_session(
-    app: AppHandle,
-    app_state: State<'_, AppState>,
-    task_id: String,
-    task_name: String,
-) -> Result<TaskSession, String> {
-    let now = Utc::now();
-
-    let new_session = new_task_session(task_id, task_name, now);
-
-    let stopped_instance_ids =
-        app_state.with_task_sessions_mut(|sessions| -> Result<Vec<String>, String> {
-            let mut stopped = Vec::new();
-            for session in sessions.iter_mut() {
-                if session.is_active {
-                    stopped.extend(stop_active_instances(session, now));
-                }
-                session.is_active = false;
-            }
-            sessions.push(new_session.clone());
-            storage::save_sessions(&app, sessions)?;
-            Ok(stopped)
-        })??;
-
-    emit_stopped_events(&app, &stopped_instance_ids, now);
-
-    Ok(new_session)
 }
 
 #[tauri::command]
@@ -640,10 +619,7 @@ pub async fn pause_timer_instance(
                         return Err("Cannot pause timer: timer is not running".to_string());
                     }
 
-                    instance.is_running = false;
-                    instance.is_paused = true;
-                    instance.paused_at = Some(now);
-                    instance.updated_at = now.to_rfc3339();
+                    pause_instance(instance, now);
                 }
 
                 session.updated_at = now.to_rfc3339();
@@ -824,13 +800,15 @@ pub fn get_session_load_warning(app_state: State<'_, AppState>) -> Result<Option
 }
 
 // ============================================================================
-// SYSTEM TRAY OPERATIONS
+// STARTING WORK AND SYSTEM TRAY OPERATIONS
 // ============================================================================
 //
-// The tray drives sessions directly in Rust (no webview round trip), so it
-// works whatever state the window is in. Each operation upholds the same
-// invariants as the commands above and emits the same timer-instance events,
-// which the frontend's session context reloads on.
+// Starting a task is one operation shared by the app (start_task) and the
+// tray, so every start path behaves the same. The tray drives sessions
+// directly in Rust (no webview round trip), so it works whatever state the
+// window is in. Each operation upholds the same invariants as the commands
+// above and emits the same timer-instance events, which the frontend's
+// session context reloads on.
 
 /// The timer the tray shows: the running instance, else a paused one.
 #[derive(Debug, Clone, PartialEq)]
@@ -881,11 +859,11 @@ pub enum TrayStart {
     Started(String),
 }
 
-/// "Start <task>" from the tray, mirroring the Sessions page: if the task's
-/// session is already the active one, continue it (resume a paused timer, or
-/// start a new timer in it); otherwise open a new active session for the task
-/// with a running timer, finalizing the previous session's live timers the
-/// way create_session does. Returns the outcome and any finalized instance ids.
+/// "Start <task>", from the app or the tray: if the task's session is already
+/// the active one, continue it (resume a paused timer, or start a new timer in
+/// it); otherwise open a new active session for the task with a running timer,
+/// finalizing the previous active session's live timers (a deactivated
+/// session must not keep one). Returns the outcome and any finalized ids.
 pub fn start_task_timer(
     sessions: &mut Vec<TaskSession>,
     task_id: &str,
@@ -953,17 +931,47 @@ pub fn stop_live_timer(sessions: &mut [TaskSession], now: DateTime<Utc>) -> Opti
     Some(instance_id)
 }
 
-/// Tray entry point for starting a task's timer: mutate, persist, notify.
-pub fn tray_start_task(
+/// Pause the running timer (a paused or absent one is left alone), like
+/// pause_timer_instance. Returns its id, or None when nothing was running.
+pub fn pause_live_timer(sessions: &mut [TaskSession], now: DateTime<Utc>) -> Option<String> {
+    let session = sessions
+        .iter_mut()
+        .find(|s| s.timer_instances.iter().any(|i| i.is_running))?;
+    let instance = session.timer_instances.iter_mut().find(|i| i.is_running)?;
+    pause_instance(instance, now);
+    let instance_id = instance.id.clone();
+    session.updated_at = now.to_rfc3339();
+    Some(instance_id)
+}
+
+/// start_task_timer plus the name of the task whose live timer the start
+/// finalized, so callers can announce the hand-off instead of it being silent.
+pub fn start_task_with_handoff(
+    sessions: &mut Vec<TaskSession>,
+    task_id: &str,
+    task_name: &str,
+    now: DateTime<Utc>,
+) -> Result<(TrayStart, Vec<String>, Option<String>), String> {
+    let previous = live_timer(sessions, now);
+    let (outcome, stopped) = start_task_timer(sessions, task_id, task_name, now)?;
+    let handoff = previous
+        .filter(|live| stopped.contains(&live.instance_id))
+        .map(|live| live.task_name);
+    Ok((outcome, stopped, handoff))
+}
+
+/// Start a task's timer: mutate, persist, notify. Shared by the start_task
+/// command and the tray. Returns the outcome and the hand-off task name.
+pub fn start_task_now(
     app: &AppHandle,
     app_state: &AppState,
     task_id: &str,
     task_name: &str,
-) -> Result<TrayStart, String> {
+) -> Result<(TrayStart, Option<String>), String> {
     let now = Utc::now();
-    let (outcome, stopped) = app_state.with_task_sessions_mut(
-        |sessions| -> Result<(TrayStart, Vec<String>), String> {
-            let result = start_task_timer(sessions, task_id, task_name, now)?;
+    let (outcome, stopped, handoff) = app_state.with_task_sessions_mut(
+        |sessions| -> Result<(TrayStart, Vec<String>, Option<String>), String> {
+            let result = start_task_with_handoff(sessions, task_id, task_name, now)?;
             if result.0 != TrayStart::AlreadyRunning {
                 storage::save_sessions(app, sessions)?;
             }
@@ -988,7 +996,72 @@ pub fn tray_start_task(
         }
         TrayStart::AlreadyRunning => {}
     }
-    Ok(outcome)
+    Ok((outcome, handoff))
+}
+
+/// What start_task reports back to the app (camelCase for the frontend).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartTaskResult {
+    /// "started" | "resumed" | "alreadyRunning"
+    pub outcome: String,
+    pub instance_id: Option<String>,
+    /// Task whose live timer this start finalized, if any.
+    pub stopped_task_name: Option<String>,
+}
+
+impl StartTaskResult {
+    fn new(outcome: TrayStart, stopped_task_name: Option<String>) -> Self {
+        let (outcome, instance_id) = match outcome {
+            TrayStart::Started(id) => ("started", Some(id)),
+            TrayStart::Resumed(id) => ("resumed", Some(id)),
+            TrayStart::AlreadyRunning => ("alreadyRunning", None),
+        };
+        Self {
+            outcome: outcome.to_string(),
+            instance_id,
+            stopped_task_name,
+        }
+    }
+}
+
+/// Start (or continue) work on an existing task: the app's single start path,
+/// with the same semantics as the tray's Start submenu.
+#[tauri::command]
+pub fn start_task(
+    app: AppHandle,
+    app_state: State<'_, AppState>,
+    task_id: String,
+    task_name: String,
+) -> Result<StartTaskResult, String> {
+    let task_id = task_id.trim();
+    let task_name = task_name.trim();
+    if task_id.is_empty() || task_name.is_empty() {
+        return Err("Choose a task to start".to_string());
+    }
+    let (outcome, handoff) = start_task_now(&app, &app_state, task_id, task_name)?;
+    crate::tray::sync_tray(&app, &app_state);
+    Ok(StartTaskResult::new(outcome, handoff))
+}
+
+/// Tray entry point for Pause: pause the running timer, persist, notify.
+pub fn tray_pause_timer(app: &AppHandle, app_state: &AppState) -> Result<Option<String>, String> {
+    let now = Utc::now();
+    let paused =
+        app_state.with_task_sessions_mut(|sessions| -> Result<Option<String>, String> {
+            let paused = pause_live_timer(sessions, now);
+            if paused.is_some() {
+                storage::save_sessions(app, sessions)?;
+            }
+            Ok(paused)
+        })??;
+    if let Some(instance_id) = &paused {
+        let _ = app.emit(
+            "timer-instance-paused",
+            serde_json::json!({ "instanceId": instance_id, "pausedAt": now.to_rfc3339() }),
+        );
+    }
+    Ok(paused)
 }
 
 /// Tray entry point for Stop: finalize the live timer, persist, notify.
@@ -1006,6 +1079,130 @@ pub fn tray_stop_timer(app: &AppHandle, app_state: &AppState) -> Result<Option<S
         emit_stopped_events(app, std::slice::from_ref(instance_id), now);
     }
     Ok(stopped)
+}
+
+// ============================================================================
+// MANUAL TIME ENTRIES
+// ============================================================================
+
+/// `source` of sessions created by "Add time" (must match MANUAL_SOURCE in
+/// src/types/timer.ts).
+pub const MANUAL_SOURCE: &str = "manual";
+
+const MAX_MANUAL_DURATION_MS: u64 = 24 * 60 * 60 * 1000;
+
+/// Clock skew allowed between the dialog computing "ends now" and this check.
+const MANUAL_FUTURE_TOLERANCE_MS: i64 = 60_000;
+
+/// The wall-clock span an instance occupies, or None for an idle (never run)
+/// one. Live timers occupy up to `now`.
+fn instance_span(
+    instance: &TimerInstance,
+    now: DateTime<Utc>,
+) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+    if instance.is_running || instance.is_paused {
+        return Some((instance.start_time, now));
+    }
+    instance.end_time.map(|end| (instance.start_time, end))
+}
+
+fn local_time_label(at: DateTime<Utc>) -> String {
+    at.with_timezone(&Local).format("%-I:%M %p").to_string()
+}
+
+/// Validate a manual entry and build its session: inactive, sourced "manual",
+/// dated by the local day of its start (as the frontend buckets instances),
+/// holding one finished timer. Time already tracked can't be overlapped, or
+/// the same minutes would count twice.
+pub fn build_manual_session(
+    sessions: &[TaskSession],
+    task_id: &str,
+    task_name: &str,
+    start: DateTime<Utc>,
+    duration_ms: u64,
+    now: DateTime<Utc>,
+) -> Result<TaskSession, String> {
+    if task_id.trim().is_empty() || task_name.trim().is_empty() {
+        return Err("Choose a task for the time entry".to_string());
+    }
+    if duration_ms == 0 {
+        return Err("Duration must be greater than zero".to_string());
+    }
+    if duration_ms > MAX_MANUAL_DURATION_MS {
+        return Err("A time entry can be at most 24 hours".to_string());
+    }
+    let end = start + chrono::Duration::milliseconds(duration_ms as i64);
+    if end.timestamp_millis() > now.timestamp_millis() + MANUAL_FUTURE_TOLERANCE_MS {
+        return Err("The time entry can't end in the future".to_string());
+    }
+
+    for session in sessions {
+        for instance in &session.timer_instances {
+            if let Some((other_start, other_end)) = instance_span(instance, now) {
+                if start < other_end && other_start < end {
+                    return Err(format!(
+                        "This overlaps time already tracked for \"{}\" ({}–{} on {}). Adjust the start time or duration.",
+                        session.task_name,
+                        local_time_label(other_start),
+                        local_time_label(other_end),
+                        other_start.with_timezone(&Local).format("%b %-d"),
+                    ));
+                }
+            }
+        }
+    }
+
+    let mut session = new_task_session(task_id.to_string(), task_name.to_string(), now);
+    session.is_active = false;
+    session.source = Some(MANUAL_SOURCE.to_string());
+    session.date = start.with_timezone(&Local).format("%Y-%m-%d").to_string();
+
+    let mut instance = new_timer_instance(&session.id, now);
+    instance.start_time = start;
+    instance.end_time = Some(end);
+    instance.duration = Some(duration_ms);
+    instance.paused_duration = Some(0);
+    session.timer_instances.push(instance);
+    recalculate_total_duration(&mut session);
+    Ok(session)
+}
+
+/// Log time after the fact ("Add time"): a finished timer in its own session
+/// on the day it started.
+#[tauri::command]
+pub fn add_manual_time(
+    app: AppHandle,
+    app_state: State<'_, AppState>,
+    task_id: String,
+    task_name: String,
+    start_time: String,
+    duration_ms: u64,
+) -> Result<TaskSession, String> {
+    let now = Utc::now();
+    let start = DateTime::parse_from_rfc3339(&start_time)
+        .map_err(|e| format!("Invalid start time: {}", e))?
+        .with_timezone(&Utc);
+
+    let session =
+        app_state.with_task_sessions_mut(|sessions| -> Result<TaskSession, String> {
+            let session = build_manual_session(
+                sessions,
+                task_id.trim(),
+                task_name.trim(),
+                start,
+                duration_ms,
+                now,
+            )?;
+            sessions.push(session.clone());
+            storage::save_sessions(&app, sessions)?;
+            Ok(session)
+        })??;
+
+    // Persisted already; the event only prompts listeners to reload.
+    if let Some(instance) = session.timer_instances.first() {
+        emit_stopped_events(&app, std::slice::from_ref(&instance.id), now);
+    }
+    Ok(session)
 }
 
 #[cfg(test)]
@@ -1478,5 +1675,193 @@ mod tests {
         assert_eq!(stopped.duration, Some(60_000));
         assert_eq!(sessions[0].total_duration, 60_000);
         assert_eq!(stop_live_timer(&mut sessions, ts(80)), None);
+    }
+
+    // --- start_task, pause and manual time -------------------------------
+
+    #[test]
+    fn start_reports_the_task_whose_timer_it_handed_off_from() {
+        let mut running = tray_instance("r", "cur", 0);
+        running.is_running = true;
+        running.paused_duration = Some(0);
+        let mut cur = tray_session("cur", "a", true);
+        cur.timer_instances = vec![running];
+        let mut sessions = vec![cur];
+
+        let (outcome, stopped, handoff) =
+            start_task_with_handoff(&mut sessions, "b", "Task b", ts(60)).unwrap();
+
+        assert!(matches!(outcome, TrayStart::Started(_)));
+        assert_eq!(stopped, vec!["r".to_string()]);
+        assert_eq!(handoff.as_deref(), Some("Task a"));
+    }
+
+    #[test]
+    fn start_has_no_handoff_when_continuing_the_same_task() {
+        let mut paused = tray_instance("p", "cur", 0);
+        paused.is_paused = true;
+        paused.paused_at = Some(ts(30));
+        paused.paused_duration = Some(0);
+        let mut cur = tray_session("cur", "a", true);
+        cur.timer_instances = vec![paused];
+        let mut sessions = vec![cur];
+
+        let (outcome, _, handoff) =
+            start_task_with_handoff(&mut sessions, "a", "Task a", ts(90)).unwrap();
+
+        assert_eq!(outcome, TrayStart::Resumed("p".to_string()));
+        assert_eq!(handoff, None);
+    }
+
+    #[test]
+    fn start_has_no_handoff_when_nothing_was_live() {
+        let mut sessions = vec![tray_session("old", "a", false)];
+        let (_, stopped, handoff) =
+            start_task_with_handoff(&mut sessions, "b", "Task b", ts(10)).unwrap();
+        assert!(stopped.is_empty());
+        assert_eq!(handoff, None);
+    }
+
+    #[test]
+    fn start_task_result_maps_each_outcome() {
+        assert_eq!(
+            StartTaskResult::new(TrayStart::Started("i".into()), Some("Old".into())),
+            StartTaskResult {
+                outcome: "started".into(),
+                instance_id: Some("i".into()),
+                stopped_task_name: Some("Old".into()),
+            }
+        );
+        assert_eq!(
+            StartTaskResult::new(TrayStart::Resumed("i".into()), None).outcome,
+            "resumed"
+        );
+        let already = StartTaskResult::new(TrayStart::AlreadyRunning, None);
+        assert_eq!(already.outcome, "alreadyRunning");
+        assert_eq!(already.instance_id, None);
+        // The frontend reads camelCase keys
+        let json = serde_json::to_value(&already).unwrap();
+        assert!(json.get("stoppedTaskName").is_some());
+        assert!(json.get("instanceId").is_some());
+    }
+
+    #[test]
+    fn pause_live_timer_pauses_only_a_running_timer() {
+        let mut running = tray_instance("r", "cur", 0);
+        running.is_running = true;
+        running.paused_duration = Some(0);
+        let mut cur = tray_session("cur", "a", true);
+        cur.timer_instances = vec![running];
+        let mut sessions = vec![cur];
+
+        assert_eq!(
+            pause_live_timer(&mut sessions, ts(40)),
+            Some("r".to_string())
+        );
+        let paused = &sessions[0].timer_instances[0];
+        assert!(paused.is_paused && !paused.is_running);
+        assert_eq!(paused.paused_at, Some(ts(40)));
+        // Already paused: nothing to do
+        assert_eq!(pause_live_timer(&mut sessions, ts(50)), None);
+        assert_eq!(sessions[0].timer_instances[0].paused_at, Some(ts(40)));
+        // Nothing live at all
+        assert_eq!(
+            pause_live_timer(&mut [tray_session("x", "a", true)], ts(50)),
+            None
+        );
+    }
+
+    fn finished(id: &str, session_id: &str, start: i64, end: i64) -> TimerInstance {
+        TimerInstance {
+            end_time: Some(ts(end)),
+            duration: Some(((end - start) * 1000) as u64),
+            paused_duration: Some(0),
+            ..tray_instance(id, session_id, start)
+        }
+    }
+
+    const HOUR_MS: u64 = 3_600_000;
+
+    #[test]
+    fn manual_time_rejects_invalid_entries() {
+        let now = ts(100_000);
+        let start = ts(10_000);
+        assert!(build_manual_session(&[], "", "Task", start, HOUR_MS, now).is_err());
+        assert_eq!(
+            build_manual_session(&[], "a", "Task a", start, 0, now).unwrap_err(),
+            "Duration must be greater than zero"
+        );
+        assert_eq!(
+            build_manual_session(&[], "a", "Task a", start, 24 * HOUR_MS + 1, now).unwrap_err(),
+            "A time entry can be at most 24 hours"
+        );
+        // Ends 30 minutes after "now"
+        assert_eq!(
+            build_manual_session(&[], "a", "Task a", ts(98_000), HOUR_MS, now).unwrap_err(),
+            "The time entry can't end in the future"
+        );
+        // Ending within the clock-skew tolerance is fine
+        assert!(build_manual_session(&[], "a", "Task a", ts(96_430), HOUR_MS, now).is_ok());
+    }
+
+    #[test]
+    fn manual_time_rejects_overlap_with_tracked_time() {
+        let now = ts(100_000);
+        let mut done = tray_session("done", "x", false);
+        done.task_name = "Earlier work".to_string();
+        done.timer_instances = vec![finished("f", "done", 10_000, 13_600)];
+
+        // Starts inside the finished timer
+        let err = build_manual_session(&[done.clone()], "a", "Task a", ts(12_000), HOUR_MS, now)
+            .unwrap_err();
+        assert!(err.contains("Earlier work"), "{}", err);
+        // Touching end to start is not an overlap
+        assert!(
+            build_manual_session(&[done.clone()], "a", "Task a", ts(13_600), HOUR_MS, now).is_ok()
+        );
+        assert!(build_manual_session(&[done], "a", "Task a", ts(6_400), HOUR_MS, now).is_ok());
+
+        // A live timer occupies its start up to now
+        let mut live = tray_instance("r", "cur", 90_000);
+        live.is_running = true;
+        let mut cur = tray_session("cur", "b", true);
+        cur.timer_instances = vec![live];
+        assert!(
+            build_manual_session(&[cur.clone()], "a", "Task a", ts(88_000), HOUR_MS, now).is_err()
+        );
+        // Idle (never run) timers occupy nothing
+        let mut idle_session = tray_session("idle", "c", true);
+        idle_session.timer_instances = vec![tray_instance("i", "idle", 88_000)];
+        assert!(
+            build_manual_session(&[idle_session], "a", "Task a", ts(88_000), HOUR_MS, now).is_ok()
+        );
+    }
+
+    #[test]
+    fn manual_time_builds_an_inactive_manual_session_on_the_local_start_day() {
+        let now = ts(100_000);
+        let start = ts(20_000);
+
+        let session = build_manual_session(&[], "a", "Task a", start, 90 * 60_000, now).unwrap();
+
+        assert!(!session.is_active);
+        assert_eq!(session.source.as_deref(), Some(MANUAL_SOURCE));
+        assert_eq!(session.task_id, "a");
+        assert_eq!(session.task_name, "Task a");
+        assert_eq!(
+            session.date,
+            start.with_timezone(&Local).format("%Y-%m-%d").to_string()
+        );
+        assert_eq!(session.total_duration, 90 * 60_000);
+        let instance = &session.timer_instances[0];
+        assert_eq!(instance.session_id, session.id);
+        assert_eq!(instance.start_time, start);
+        assert_eq!(
+            instance.end_time,
+            Some(start + chrono::Duration::minutes(90))
+        );
+        assert_eq!(instance.duration, Some(90 * 60_000));
+        assert_eq!(instance.paused_duration, Some(0));
+        assert!(!instance.is_running && !instance.is_paused);
     }
 }

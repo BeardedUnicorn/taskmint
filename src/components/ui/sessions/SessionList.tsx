@@ -40,7 +40,7 @@ import {
   Today as DateIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import { TaskSession, TimerState } from '../../../types/timer';
+import { TaskSession, TimerState, MANUAL_SOURCE } from '../../../types/timer';
 import { formatTime, formatDuration, formatDate } from '../../../utils/formatters';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { getSessionElapsedMs } from '../../../utils/timerHelpers';
@@ -522,6 +522,14 @@ function SessionCard({
                   label="Imported"
                   size="small"
                   color="secondary"
+                  variant="outlined"
+                />
+              )}
+
+              {session.source === MANUAL_SOURCE && (
+                <Chip
+                  label="Manual"
+                  size="small"
                   variant="outlined"
                 />
               )}

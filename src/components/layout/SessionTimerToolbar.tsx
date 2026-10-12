@@ -3,8 +3,9 @@
  *
  * Compact status bar for the active session: task name, timer count, and
  * session-level actions (Pause All / Resume All, notes, End Session). With
- * no active session it renders the Start New Session form instead. Per-timer
- * detail and controls live in the "Active Session" panel (SessionTimerDisplay).
+ * no active session it renders the start form instead: pick an existing task
+ * and its timer starts. Per-timer detail and controls live in the "Active
+ * Session" panel (SessionTimerDisplay).
  */
 
 import React, { useState, memo, useCallback, useMemo } from 'react';
@@ -36,8 +37,9 @@ import { Task } from '../../types/task';
 
 interface SessionTimerToolbarProps {
   activeSession: TaskSession | null;
-  predefinedTasks: Task[];
-  onStartSession: (taskId: string, taskName: string) => Promise<TaskSession | null>;
+  /** Tasks to offer, already in start order (orderTasksForStart). */
+  startOptions: Task[];
+  onStartTask: (taskId: string, taskName: string) => Promise<unknown>;
   onEndSession: () => Promise<void>;
   onPauseAll: () => Promise<void>;
   onResumeAll: () => Promise<void>;
@@ -46,15 +48,14 @@ interface SessionTimerToolbarProps {
 
 export const SessionTimerToolbar = memo(function SessionTimerToolbar({
   activeSession,
-  predefinedTasks,
-  onStartSession,
+  startOptions,
+  onStartTask,
   onEndSession,
   onPauseAll,
   onResumeAll,
   onOpenSessionNotes,
 }: SessionTimerToolbarProps) {
-  const [selectedTask, setSelectedTask] = useState<string>('');
-  const [inputValue, setInputValue] = useState<string>('');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const sessionStatus = useMemo(() => {
@@ -65,35 +66,11 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
     };
   }, [activeSession?.timerInstances]);
 
-  const taskOptions = useMemo(() =>
-    predefinedTasks.map(task => ({ label: task.name, id: task.id })),
-    [predefinedTasks]
-  );
-
-  const handleStartSession = async () => {
-    let taskName = '';
-    let taskId = '';
-
-    const selectedTaskObj = predefinedTasks.find(t => t.name === selectedTask || t.name === inputValue);
-    if (selectedTaskObj) {
-        taskName = selectedTaskObj.name;
-        taskId = selectedTaskObj.id;
-    } else {
-        taskName = (inputValue || selectedTask).trim();
-    }
-
-    if (!taskName) {
-      console.error('Cannot start session: task name is empty');
-      return;
-    }
-
-    try {
-      await onStartSession(taskId, taskName);
-      setSelectedTask('');
-      setInputValue('');
-    } catch (error) {
-      console.error('Failed to start session:', error);
-    }
+  // Work starts from existing tasks only: the picker takes no free text.
+  const handleStart = async () => {
+    if (!selectedTask) return;
+    await onStartTask(selectedTask.id, selectedTask.name);
+    setSelectedTask(null);
   };
 
   const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
@@ -119,22 +96,27 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <SessionIcon color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-            Start New Session
+            Start Work
           </Typography>
 
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
             <Autocomplete
               value={selectedTask}
-              onChange={(_, newValue) => setSelectedTask(typeof newValue === 'string' ? newValue : newValue?.label || '')}
-              inputValue={inputValue}
-              onInputChange={(_, newInputValue) => setInputValue(newInputValue)}
-              options={taskOptions}
-              freeSolo
+              onChange={(_, task) => setSelectedTask(task)}
+              options={startOptions}
+              getOptionLabel={(task) => (task.isFavorite ? `★ ${task.name}` : task.name)}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              disabled={startOptions.length === 0}
               sx={{ minWidth: 300, flex: 1 }}
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  placeholder="Select or enter task name..."
+                  aria-label="Task to start"
+                  placeholder={
+                    startOptions.length === 0
+                      ? 'Add a task on the Tasks page to start'
+                      : 'Choose a task…'
+                  }
                   variant="outlined"
                   size="small"
                 />
@@ -145,11 +127,11 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
               variant="contained"
               color="primary"
               startIcon={<PlayIcon />}
-              onClick={handleStartSession}
-              disabled={!selectedTask.trim() && !inputValue.trim()}
+              onClick={handleStart}
+              disabled={!selectedTask}
               sx={{ minWidth: 120 }}
             >
-              Start Session
+              Start
             </Button>
           </Box>
         </Box>

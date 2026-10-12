@@ -57,7 +57,8 @@ const mockSessionManagement = {
   activeSession: null,
   isLoading: false,
   error: null,
-  createSession: vi.fn(),
+  startTask: vi.fn(),
+  addManualTime: vi.fn(),
   updateSession: vi.fn(),
   deleteSession: vi.fn(),
   setActiveSession: vi.fn(),
@@ -197,50 +198,41 @@ describe('Session System Integration', () => {
     vi.restoreAllMocks();
   });
 
-  describe('Session Creation Flow', () => {
-    it('should create a new session and start timer', async () => {
-      // Mock the createSession function to simulate successful creation
-      mockSessionManagement.createSession.mockResolvedValue(mockSession);
+  describe('Starting work', () => {
+    it('starts the chosen task from the toolbar in one step', async () => {
+      mockSessionManagement.startTask.mockResolvedValue({ outcome: 'started', instanceId: 'i-1' });
 
       renderDashboard();
 
-      // Wait for initial load
       await waitFor(() => {
-        expect(screen.getByText('Start New Session')).toBeInTheDocument();
+        expect(screen.getByText('Start Work')).toBeInTheDocument();
       });
 
-      // Enter task name
-      const taskInput = screen.getByPlaceholderText('Select or enter task name...');
-      fireEvent.change(taskInput, { target: { value: 'Development Work' } });
-
-      // Start session
-      const startButton = screen.getByText('Start Session');
-      fireEvent.click(startButton);
+      const taskInput = screen.getByPlaceholderText('Choose a task…');
+      fireEvent.change(taskInput, { target: { value: 'Dev' } });
+      fireEvent.click(await screen.findByRole('option', { name: 'Development Work' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }));
 
       await waitFor(() => {
-        expect(mockSessionManagement.createSession).toHaveBeenCalledWith('task-1', 'Development Work');
+        expect(mockSessionManagement.startTask).toHaveBeenCalledWith('task-1', 'Development Work');
       });
     });
 
-    it('should handle session creation errors gracefully', async () => {
-      // Mock the createSession function to simulate failure
-      mockSessionManagement.createSession.mockRejectedValue(new Error('Creation failed'));
+    it('keeps the dashboard usable when starting fails', async () => {
+      // startTask reports failures itself (toast + inline error) and resolves null
+      mockSessionManagement.startTask.mockResolvedValue(null);
 
       renderDashboard();
 
-      await waitFor(() => {
-        expect(screen.getByText('Start New Session')).toBeInTheDocument();
-      });
-
-      const taskInput = screen.getByPlaceholderText('Select or enter task name...');
-      fireEvent.change(taskInput, { target: { value: 'Development Work' } });
-
-      const startButton = screen.getByText('Start Session');
-      fireEvent.click(startButton);
+      const taskInput = await screen.findByPlaceholderText('Choose a task…');
+      fireEvent.change(taskInput, { target: { value: 'Dev' } });
+      fireEvent.click(await screen.findByRole('option', { name: 'Development Work' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }));
 
       await waitFor(() => {
-        expect(mockSessionManagement.createSession).toHaveBeenCalledWith('task-1', 'Development Work');
+        expect(mockSessionManagement.startTask).toHaveBeenCalledWith('task-1', 'Development Work');
       });
+      expect(screen.getByText('All Sessions')).toBeInTheDocument();
     });
   });
 
@@ -384,16 +376,16 @@ describe('Session System Integration', () => {
       render(
         <SessionTimerToolbar
           activeSession={null}
-          predefinedTasks={mockTasks}
-          onStartSession={vi.fn()}
+          startOptions={mockTasks}
+          onStartTask={vi.fn()}
           onEndSession={vi.fn()}
           onPauseAll={vi.fn()}
           onResumeAll={vi.fn()}
         />
       );
 
-      expect(screen.getByText('Start New Session')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Select or enter task name...')).toBeInTheDocument();
+      expect(screen.getByText('Start Work')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Choose a task…')).toBeInTheDocument();
     });
 
     it('should render timer bar with active session', () => {
@@ -407,8 +399,8 @@ describe('Session System Integration', () => {
       render(
         <SessionTimerToolbar
           activeSession={activeSession}
-          predefinedTasks={mockTasks}
-          onStartSession={vi.fn()}
+          startOptions={mockTasks}
+          onStartTask={vi.fn()}
           onEndSession={vi.fn()}
           onPauseAll={vi.fn()}
           onResumeAll={vi.fn()}

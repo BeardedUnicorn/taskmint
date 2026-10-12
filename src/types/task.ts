@@ -16,6 +16,7 @@ export interface Task {
   childOrder?: number; // Order within parent's children
   isArchived?: boolean; // Archive status (defaults to false)
   archivedAt?: string | null; // ISO string when archived
+  isFavorite?: boolean; // Starred: listed first in the tray and start pickers
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
 }
@@ -30,6 +31,7 @@ export const TaskSchema = z.object({
   childOrder: z.number().min(0).optional(),
   isArchived: z.boolean().default(false),
   archivedAt: z.iso.datetime().nullable().optional(),
+  isFavorite: z.boolean().default(false),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 });
@@ -47,13 +49,6 @@ export interface TaskManagementProps {
   onAddTask: (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Task | null>;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => Promise<Task | null>;
   onDeleteTask: (taskId: string) => Promise<void>;
-}
-
-export interface StartTaskDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onStartTask: (taskName: string) => Promise<void>;
-  existingTasks: string[];
 }
 
 // Hierarchical task types
@@ -83,6 +78,8 @@ export interface UseTaskManagementReturn {
   deleteTask: (taskId: string, strategy?: TaskDeletionStrategy) => Promise<void>;
   archiveTask: (taskId: string) => Promise<Task | null>;
   unarchiveTask: (taskId: string) => Promise<Task | null>;
+  /** Star or unstar a task (no toast: the star itself shows the change). */
+  toggleFavorite: (taskId: string) => Promise<Task | null>;
   getTaskById: (taskId: string) => Task | undefined;
   getTaskByName: (taskName: string) => Task | undefined;
   getTaskNames: () => string[];

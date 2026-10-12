@@ -7,5 +7,6 @@ export { ConfirmDialog } from './ConfirmDialog';
 export { EditTimeEntryDialog } from './EditTimeEntryDialog';
 export { EnhancedNotesDialog } from './EnhancedNotesDialog';
 export { InactivityWarningDialog } from './InactivityWarningDialog';
-export { QuickSessionDialog } from './QuickSessionDialog';
+export { StartWorkDialog } from './StartWorkDialog';
+export { AddTimeDialog } from './AddTimeDialog';
 export { EditSessionDialog } from './EditSessionDialog';

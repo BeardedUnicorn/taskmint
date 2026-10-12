@@ -29,25 +29,23 @@ import { TimeEntry } from '../../../types/timer';
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { formatLocalTime, formatLocalDate, formatLocalDateTimeForDisplay } from '../../../utils/dateHelpers';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
-import { useFavoriteTasks } from '../../../hooks/useFavoriteTasks';
 
 interface TaskDetailPaneProps {
   task: Task;
   timeEntries: TimeEntry[];
-  allTasks: Task[];
   onEditEntry: (entry: TimeEntry) => void;
   onDeleteEntry: (entryId: string) => void;
+  /** Stars or unstars the task; favorites lead the tray and start pickers. */
+  onToggleFavorite?: (taskId: string) => void;
 }
 
 export function TaskDetailPane({
   task,
   timeEntries,
-  allTasks,
   onEditEntry,
   onDeleteEntry,
+  onToggleFavorite,
 }: TaskDetailPaneProps) {
-  // Favorite tasks functionality
-  const { toggleFavorite, isFavorite } = useFavoriteTasks(allTasks, timeEntries);
 
   // Filter time entries for this task
   const taskEntries = useMemo(() => {
@@ -90,15 +88,25 @@ export function TaskDetailPane({
               <Chip label="Archived" size="small" color="warning" variant="outlined" />
             )}
           </Box>
-          <Tooltip title={isFavorite(task.id) ? 'Remove from favorites' : 'Add to favorites'}>
-            <IconButton
-              onClick={() => toggleFavorite(task.id)}
-              color={isFavorite(task.id) ? 'warning' : 'default'}
-              size="large"
+          {onToggleFavorite && (
+            <Tooltip
+              title={
+                task.isFavorite
+                  ? 'Remove from favorites'
+                  : 'Add to favorites (listed first in the tray and when starting work)'
+              }
             >
-              {isFavorite(task.id) ? <StarIcon /> : <StarBorderIcon />}
-            </IconButton>
-          </Tooltip>
+              <IconButton
+                onClick={() => onToggleFavorite(task.id)}
+                color={task.isFavorite ? 'warning' : 'default'}
+                size="large"
+                aria-label={task.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                aria-pressed={!!task.isFavorite}
+              >
+                {task.isFavorite ? <StarIcon /> : <StarBorderIcon />}
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
 
         {/* Task Info */}

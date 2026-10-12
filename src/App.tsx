@@ -7,7 +7,8 @@ import {
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
-import { StartTaskDialog } from './components/pages/StartTaskDialog';
+import { StartWorkDialog } from './components/ui/dialogs/StartWorkDialog';
+import { AddTimeDialog } from './components/ui/dialogs/AddTimeDialog';
 import { Sidebar, type SidebarView } from './components/layout';
 
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
@@ -34,7 +35,8 @@ import { TaskManagementProvider, useTaskManagementContext } from './contexts/Tas
 // It is wrapped by all necessary context providers in the App component.
 function AppContent() {
   const [activeView, setActiveView] = useState<SidebarView>('sessions');
-  const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [addTimeDialogOpen, setAddTimeDialogOpen] = useState(false);
 
   const appErrorHandler = useMemo(() => createServiceErrorHandler('AppContent'), []);
 
@@ -42,7 +44,7 @@ function AppContent() {
   const sessionManager = useSessionManagementContext();
 
   // Task management context
-  const { tasks, activeTasks, addTask, updateTask, deleteTask, archiveTask, unarchiveTask } = useTaskManagementContext();
+  const { tasks, activeTasks, addTask, updateTask, deleteTask, archiveTask, unarchiveTask, toggleFavorite } = useTaskManagementContext();
 
   const { activeTimer } = useActiveTimer();
   // Derived global active entry for backward compatibility with older pages
@@ -66,22 +68,25 @@ function AppContent() {
     [sessionManager.sessions]
   );
 
-  // System tray: task-list mirror + the tray's New Task request
-  const showNewTaskDialog = useCallback(() => setNewTaskDialogOpen(true), []);
-  useEnhancedSystemTray({ tasks, onShowNewTaskDialog: showNewTaskDialog });
+  // System tray: task-list mirror + the tray's "Choose Task…" / "Add a
+  // Task…". Work starts from existing tasks only, so with none to start the
+  // tray's request lands on the Tasks page instead of an empty picker.
+  const hasActiveTasks = activeTasks.length > 0;
+  const showStartDialog = useCallback(() => {
+    if (hasActiveTasks) {
+      setStartDialogOpen(true);
+    } else {
+      setActiveView('tasks');
+    }
+  }, [hasActiveTasks]);
+  useEnhancedSystemTray({ tasks, onShowStartDialog: showStartDialog });
+  const openTasksPage = useCallback(() => setActiveView('tasks'), []);
 
   // Daily goal monitoring
   useDailyGoalProgressMonitor({
     timeEntries: allTimeEntries,
     tasks,
   });
-
-  const handleStartNewTask = async (taskName: string) => {
-    await appErrorHandler.handleAsync(async () => {
-      const task = tasks.find(t => t.name === taskName);
-      await sessionManager.createSession(task?.id ?? 'new-task', taskName);
-    }, 'startNewTask', { taskName });
-  };
 
   const handleViewChange = (view: SidebarView) => {
     setActiveView(view);
@@ -138,7 +143,7 @@ function AppContent() {
                 <CircularProgress />
               </Box>
             }>
-              {activeView === 'sessions' && <SessionDashboard />}
+              {activeView === 'sessions' && <SessionDashboard onOpenTasks={openTasksPage} />}
               {activeView === 'tasks' && (
                 <TasksPage
                   tasks={tasks}
@@ -148,6 +153,7 @@ function AppContent() {
                   onDeleteTask={deleteTask}
                   onArchiveTask={archiveTask}
                   onUnarchiveTask={unarchiveTask}
+                  onToggleFavorite={toggleFavorite}
                   onUpdateEntry={handleUpdateEntry}
                   onDeleteEntry={handleDeleteEntry}
                 />
@@ -164,6 +170,7 @@ function AppContent() {
                   tasks={tasks}
                   onUpdateEntry={handleUpdateEntry}
                   onDeleteEntry={handleDeleteEntry}
+                  onAddTime={() => setAddTimeDialogOpen(true)}
                 />
               )}
               {activeView === 'reports' && (
@@ -180,11 +187,20 @@ function AppContent() {
             </Suspense>
           </Box>
         </Box>
-        <StartTaskDialog
-          open={newTaskDialogOpen}
-          onClose={() => setNewTaskDialogOpen(false)}
-          onStartTask={handleStartNewTask}
-          existingTasks={activeTasks.map(t => t.name)}
+        <StartWorkDialog
+          open={startDialogOpen}
+          onClose={() => setStartDialogOpen(false)}
+          tasks={tasks}
+          sessions={sessionManager.sessions}
+          onStart={sessionManager.startTask}
+          onAddTask={openTasksPage}
+        />
+        <AddTimeDialog
+          open={addTimeDialogOpen}
+          onClose={() => setAddTimeDialogOpen(false)}
+          tasks={tasks}
+          sessions={sessionManager.sessions}
+          onAdd={sessionManager.addManualTime}
         />
       </Box>
     </>

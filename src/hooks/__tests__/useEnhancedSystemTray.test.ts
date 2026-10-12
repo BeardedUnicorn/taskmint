@@ -34,36 +34,36 @@ describe('useEnhancedSystemTray', () => {
   it('mirrors the task list to the backend for the tray menu', async () => {
     const tasks = [task('a'), task('b')];
     const { rerender } = renderHook(props => useEnhancedSystemTray(props), {
-      initialProps: { tasks, onShowNewTaskDialog: vi.fn() },
+      initialProps: { tasks, onShowStartDialog: vi.fn() },
     });
 
     expect(safeInvoke).toHaveBeenCalledWith('update_tasks', { tasks });
 
     const updated = [...tasks, task('c')];
-    rerender({ tasks: updated, onShowNewTaskDialog: vi.fn() });
+    rerender({ tasks: updated, onShowStartDialog: vi.fn() });
     expect(safeInvoke).toHaveBeenLastCalledWith('update_tasks', { tasks: updated });
   });
 
-  it("opens the new-task dialog when the tray asks, and stops listening on unmount", async () => {
-    const onShowNewTaskDialog = vi.fn();
+  it("opens the start dialog when the tray asks, and stops listening on unmount", async () => {
+    const onShowStartDialog = vi.fn();
     const { unmount } = renderHook(() =>
-      useEnhancedSystemTray({ tasks: [], onShowNewTaskDialog })
+      useEnhancedSystemTray({ tasks: [], onShowStartDialog })
     );
 
     await waitFor(() => expect(trayHandler).toBeDefined());
-    expect(safeListen).toHaveBeenCalledWith('show-new-task-dialog', expect.any(Function));
+    expect(safeListen).toHaveBeenCalledWith('show-start-task-dialog', expect.any(Function));
     trayHandler!();
-    expect(onShowNewTaskDialog).toHaveBeenCalledTimes(1);
+    expect(onShowStartDialog).toHaveBeenCalledTimes(1);
 
     unmount();
     expect(unlisten).toHaveBeenCalled();
   });
 
   it('no longer drives timers from the frontend', () => {
-    renderHook(() => useEnhancedSystemTray({ tasks: [], onShowNewTaskDialog: vi.fn() }));
+    renderHook(() => useEnhancedSystemTray({ tasks: [], onShowStartDialog: vi.fn() }));
     const commands = vi.mocked(safeInvoke).mock.calls.map(([command]) => command);
     expect(commands).toEqual(['update_tasks']);
     const events = vi.mocked(safeListen).mock.calls.map(([event]) => event);
-    expect(events).toEqual(['show-new-task-dialog']);
+    expect(events).toEqual(['show-start-task-dialog']);
   });
 });

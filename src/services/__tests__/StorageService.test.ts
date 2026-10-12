@@ -34,8 +34,8 @@ describe('StorageService', () => {
 
       await service.setTasks(tasks);
       const result = await service.getTasks();
-      // The schema materializes isArchived on read (the archiving backfill)
-      expect(result).toEqual([{ ...tasks[0], isArchived: false }]);
+      // The schema materializes isArchived and isFavorite on read
+      expect(result).toEqual([{ ...tasks[0], isArchived: false, isFavorite: false }]);
     });
 
     it('should return empty array when key is missing', async () => {

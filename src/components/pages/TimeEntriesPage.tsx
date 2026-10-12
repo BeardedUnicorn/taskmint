@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import {
   Download as DownloadIcon,
-  // Add as AddIcon, // Commented out unused import
+  MoreTime as AddTimeIcon,
 } from '@mui/icons-material';
 import { TimeEntry } from '../../types/timer';
 import { Task } from '../../types/task';
@@ -38,6 +38,8 @@ interface TimeEntriesPageProps {
   onDeleteEntry: (entryId: string) => void;
   onBulkDeleteEntries?: (entryIds: string[]) => void;
   onExportEntries?: (entries: TimeEntry[]) => void;
+  /** Opens the Add Time dialog (time logged after the fact). */
+  onAddTime?: () => void;
 }
 
 const ENTRIES_PER_PAGE_OPTIONS = [10, 25, 50, 100];
@@ -49,6 +51,7 @@ export function TimeEntriesPage({
   onDeleteEntry,
   onBulkDeleteEntries,
   onExportEntries,
+  onAddTime,
 }: TimeEntriesPageProps) {
   // State management
   const [filters, setFilters] = useLocalStorage<TimeEntriesFiltersState>(
@@ -195,6 +198,11 @@ export function TimeEntriesPage({
         </Box>
 
         <Stack direction="row" spacing={2}>
+          {onAddTime && (
+            <Button variant="contained" startIcon={<AddTimeIcon />} onClick={onAddTime}>
+              Add time
+            </Button>
+          )}
           {onExportEntries && (
             <Button
               variant="outlined"

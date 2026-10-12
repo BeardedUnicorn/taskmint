@@ -3,17 +3,15 @@ import { Stack, TextField, Alert, Typography } from '@mui/material';
 import { FormDialog } from './FormDialog';
 import { EditTimeEntryDialogProps } from '../../../types/form';
 import { formatDuration } from '../../../utils/formatters';
-
-const MS_PER_HOUR = 3_600_000;
-const MS_PER_MINUTE = 60_000;
-
-function splitDuration(durationMs: number): { hours: number; minutes: number } {
-  const safe = Math.max(0, durationMs);
-  return {
-    hours: Math.floor(safe / MS_PER_HOUR),
-    minutes: Math.floor((safe % MS_PER_HOUR) / MS_PER_MINUTE),
-  };
-}
+import {
+  DurationFields,
+  durationInputToMs,
+  parseDuration,
+  splitDuration,
+  validateDuration,
+  MS_PER_HOUR,
+  MS_PER_MINUTE,
+} from '../forms/DurationFields';
 
 /**
  * Dialog for editing a time entry's task name and tracked duration.
@@ -52,23 +50,13 @@ export function EditTimeEntryDialog({
     });
   };
 
-  const parsedHours = hours.trim() === '' ? 0 : Number(hours);
-  const parsedMinutes = minutes.trim() === '' ? 0 : Number(minutes);
+  const { hours: parsedHours, minutes: parsedMinutes } = parseDuration({ hours, minutes });
 
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
+    const newErrors: Record<string, string> = { ...validateDuration({ hours, minutes }) };
 
     if (!taskName.trim()) {
       newErrors.taskName = 'Task name is required';
-    }
-    if (!Number.isInteger(parsedHours) || parsedHours < 0) {
-      newErrors.hours = 'Hours must be a whole number of 0 or more';
-    }
-    if (!Number.isInteger(parsedMinutes) || parsedMinutes < 0 || parsedMinutes > 59) {
-      newErrors.minutes = 'Minutes must be a whole number between 0 and 59';
-    }
-    if (!newErrors.hours && !newErrors.minutes && parsedHours === 0 && parsedMinutes === 0) {
-      newErrors.duration = 'Duration must be greater than zero';
     }
 
     setErrors(newErrors);
@@ -98,10 +86,7 @@ export function EditTimeEntryDialog({
     onClose();
   };
 
-  const previewMs =
-    Number.isFinite(parsedHours) && Number.isFinite(parsedMinutes)
-      ? Math.max(0, parsedHours) * MS_PER_HOUR + Math.max(0, parsedMinutes) * MS_PER_MINUTE
-      : 0;
+  const previewMs = durationInputToMs({ hours, minutes });
 
   return (
     <FormDialog
@@ -125,38 +110,16 @@ export function EditTimeEntryDialog({
           helperText={errors.taskName}
         />
 
-        <Stack direction="row" spacing={2}>
-          <TextField
-            label="Hours"
-            type="number"
-            fullWidth
-            value={hours}
-            onChange={(e) => {
-              setHours(e.target.value);
-              clearError('hours');
-            }}
-            error={!!errors.hours}
-            helperText={errors.hours}
-            slotProps={{
-              htmlInput: { min: 0, step: 1 },
-            }}
-          />
-          <TextField
-            label="Minutes"
-            type="number"
-            fullWidth
-            value={minutes}
-            onChange={(e) => {
-              setMinutes(e.target.value);
-              clearError('minutes');
-            }}
-            error={!!errors.minutes}
-            helperText={errors.minutes}
-            slotProps={{
-              htmlInput: { min: 0, max: 59, step: 1 },
-            }}
-          />
-        </Stack>
+        <DurationFields
+          value={{ hours, minutes }}
+          onChange={(next) => {
+            if (next.hours !== hours) clearError('hours');
+            if (next.minutes !== minutes) clearError('minutes');
+            setHours(next.hours);
+            setMinutes(next.minutes);
+          }}
+          errors={errors}
+        />
 
         {errors.duration && <Alert severity="error">{errors.duration}</Alert>}
 
