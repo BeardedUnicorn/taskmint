@@ -1,7 +1,7 @@
 {
   "name": "taskmint",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "packageManager": "pnpm@12.8.1+sha512.f64ba907507f5ceafe06c8d38e6052d0179444580ec1279ddd5bfc11cb48aa8a2644b66598e07e761da84872a9fc57d5f902b87fa49d024198d558612aabbe45",
   "engines": {
@@ -38,9 +38,7 @@
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tauri-apps/plugin-store": "^2.4.4",
-    "date-fns": "^4.4.0",
     "dayjs": "^1.11.23",
-    "moment": "^2.30.1",
     "react": "^19.2.8",
     "react-big-calendar": "^1.20.0",
     "react-dom": "^19.2.8",

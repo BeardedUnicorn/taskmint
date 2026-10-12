@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
-import { format, subDays, addMonths, subMonths } from 'date-fns';
+import dayjs from 'dayjs';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import CalendarPage from '../CalendarPage';
@@ -45,17 +45,11 @@ vi.mock('react-big-calendar', () => ({
       </div>
     );
   },
-  momentLocalizer: () => ({}),
+  dayjsLocalizer: () => ({}),
   Views: {
     MONTH: 'month',
   },
 }));
-
-// Mock moment
-vi.mock('moment', () => {
-  const actualMoment = vi.importActual('moment');
-  return actualMoment;
-});
 
 const mockUseFundsReleaseSettings = useFundsReleaseSettings as any;
 
@@ -193,7 +187,7 @@ describe('CalendarPage', () => {
       });
 
       const currentDate = new Date();
-      const expectedTitle = format(currentDate, 'MMMM yyyy');
+      const expectedTitle = dayjs(currentDate).format('MMMM YYYY');
       expect(screen.getByText(expectedTitle)).toBeInTheDocument();
     });
 
@@ -224,7 +218,7 @@ describe('CalendarPage', () => {
     it('should display earnings for days with time entries', async () => {
       // Use current month data for testing
       const currentDate = new Date();
-      const currentMonth = format(currentDate, 'yyyy-MM');
+      const currentMonth = dayjs(currentDate).format('YYYY-MM');
       const testEntries: TimeEntry[] = [
         {
           id: '1',
@@ -269,7 +263,7 @@ describe('CalendarPage', () => {
     it('should calculate correct earnings based on hourly rates', async () => {
       // Use current month data for testing
       const currentDate = new Date();
-      const currentMonth = format(currentDate, 'yyyy-MM');
+      const currentMonth = dayjs(currentDate).format('YYYY-MM');
       const testEntries: TimeEntry[] = [
         {
           id: '1',
@@ -323,9 +317,9 @@ describe('CalendarPage', () => {
     it('should show transferable amounts when there are earnings from previous days', async () => {
       // Create test data with earnings from 7 days ago
       const currentDate = new Date();
-      const currentMonth = format(currentDate, 'yyyy-MM');
-      const sevenDaysAgo = subDays(new Date(`${currentMonth}-08`), 7);
-      const sevenDaysAgoStr = format(sevenDaysAgo, 'yyyy-MM-dd');
+      const currentMonth = dayjs(currentDate).format('YYYY-MM');
+      const sevenDaysAgo = dayjs(`${currentMonth}-08`).subtract(7, 'day').toDate();
+      const sevenDaysAgoStr = dayjs(sevenDaysAgo).format('YYYY-MM-DD');
 
       const testEntries: TimeEntry[] = [
         {
@@ -376,7 +370,7 @@ describe('CalendarPage', () => {
 
       fireEvent.click(prevButton);
 
-      const expectedTitle = format(subMonths(currentDate, 1), 'MMMM yyyy');
+      const expectedTitle = dayjs(currentDate).subtract(1, 'month').format('MMMM YYYY');
       expect(screen.getByText(expectedTitle)).toBeInTheDocument();
     });
 
@@ -392,7 +386,7 @@ describe('CalendarPage', () => {
 
       fireEvent.click(nextButton);
 
-      const expectedTitle = format(addMonths(currentDate, 1), 'MMMM yyyy');
+      const expectedTitle = dayjs(currentDate).add(1, 'month').format('MMMM YYYY');
       expect(screen.getByText(expectedTitle)).toBeInTheDocument();
     });
 
@@ -411,7 +405,7 @@ describe('CalendarPage', () => {
       const todayButton = screen.getByText('Today');
       fireEvent.click(todayButton);
 
-      const expectedTitle = format(new Date(), 'MMMM yyyy');
+      const expectedTitle = dayjs(new Date()).format('MMMM YYYY');
       expect(screen.getByText(expectedTitle)).toBeInTheDocument();
     });
   });
@@ -514,7 +508,7 @@ describe('CalendarPage', () => {
     it('should display earnings and transferable amounts in event component', async () => {
       // Use current month data for testing
       const currentDate = new Date();
-      const currentMonth = format(currentDate, 'yyyy-MM');
+      const currentMonth = dayjs(currentDate).format('YYYY-MM');
       const testEntries: TimeEntry[] = [
         {
           id: '1',
