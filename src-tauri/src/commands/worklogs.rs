@@ -30,7 +30,9 @@ pub struct WorkLogsResponse {
 }
 
 /// One (task, workDay) rewrite: delete the listed finalized instances and
-/// insert the replacement session built from the ledger.
+/// insert the replacement session built from the ledger. A remap that leaves
+/// a day with nothing left to import for this task sends no replacement: the
+/// group only removes that day's imported time.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RewriteGroup {
@@ -42,7 +44,8 @@ pub struct RewriteGroup {
     // presence skips the group; the backend re-checks regardless.
     #[serde(default)]
     pub blocking_instance_ids: Vec<String>,
-    pub replacement_session: TaskSession,
+    #[serde(default)]
+    pub replacement_session: Option<TaskSession>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -54,6 +57,10 @@ pub struct WorkLogImportPayload {
     pub mappings: Vec<ProjectTaskMapping>,
     #[serde(default)]
     pub rewrite_groups: Vec<RewriteGroup>,
+    /// A project moved to another task: the entries are re-pointed, not new
+    /// from the site, so they keep their `updated_at` (Payouts' "Last import").
+    #[serde(default)]
+    pub is_remap: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -62,7 +69,8 @@ pub struct AppliedGroup {
     pub task_id: String,
     pub work_day: String,
     pub deleted_instances: usize,
-    pub session_id: String,
+    /// The replacement session; None for a group that only removed time.
+    pub session_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -118,6 +126,7 @@ pub fn upsert_entries(
     store: &mut Vec<WorkLogEntry>,
     incoming: Vec<WorkLogEntry>,
     now_iso: &str,
+    keep_updated_at: bool,
 ) -> (usize, usize) {
     let mut added = 0;
     let mut updated = 0;
@@ -130,6 +139,9 @@ pub fn upsert_entries(
                 } else {
                     existing.imported_at.clone()
                 };
+                if keep_updated_at && !existing.updated_at.is_empty() {
+                    entry.updated_at = existing.updated_at.clone();
+                }
                 *existing = entry;
                 updated += 1;
             }
@@ -222,7 +234,10 @@ pub fn validate_rewrite_group(
         }
     }
 
-    let replacement = &group.replacement_session;
+    let Some(replacement) = &group.replacement_session else {
+        // Removal only: the deletions were checked above.
+        return Ok(());
+    };
     if replacement.task_id != group.task_id || replacement.date != group.work_day {
         return Err("replacement session does not match the import group".to_string());
     }
@@ -319,15 +334,17 @@ pub fn apply_rewrite_group(
     }
     sessions.retain(|s| !emptied_session_ids.contains(&s.id));
 
-    let mut replacement = group.replacement_session;
-    // The backend owns provenance and totals regardless of what was sent.
-    replacement.source = Some(WORKLOG_IMPORT_SOURCE.to_string());
-    replacement.is_active = false;
-    replacement.created_at = now.to_rfc3339();
-    replacement.updated_at = now.to_rfc3339();
-    recalculate_total_duration(&mut replacement);
-    let session_id = replacement.id.clone();
-    sessions.push(replacement);
+    let session_id = group.replacement_session.map(|mut replacement| {
+        // The backend owns provenance and totals regardless of what was sent.
+        replacement.source = Some(WORKLOG_IMPORT_SOURCE.to_string());
+        replacement.is_active = false;
+        replacement.created_at = now.to_rfc3339();
+        replacement.updated_at = now.to_rfc3339();
+        recalculate_total_duration(&mut replacement);
+        let id = replacement.id.clone();
+        sessions.push(replacement);
+        id
+    });
 
     AppliedGroup {
         task_id: group.task_id,
@@ -366,8 +383,12 @@ pub async fn apply_work_log_import(
     let summary = app_state.with_task_sessions_mut(
         |sessions| -> Result<WorkLogImportSummary, String> {
             app_state.with_work_logs_mut(|work_logs| -> Result<WorkLogImportSummary, String> {
-                let (entries_added, entries_updated) =
-                    upsert_entries(&mut work_logs.entries, payload.entries, &now_iso);
+                let (entries_added, entries_updated) = upsert_entries(
+                    &mut work_logs.entries,
+                    payload.entries,
+                    &now_iso,
+                    payload.is_remap,
+                );
                 let mappings_saved =
                     upsert_mappings(&mut work_logs.mappings, payload.mappings, &now_iso);
 
@@ -518,7 +539,7 @@ mod tests {
             work_day: replacement.date.clone(),
             delete_instance_ids: delete.into_iter().map(String::from).collect(),
             blocking_instance_ids: Vec::new(),
-            replacement_session: replacement,
+            replacement_session: Some(replacement),
         }
     }
 
@@ -527,7 +548,7 @@ mod tests {
     #[test]
     fn upsert_entries_adds_then_updates_preserving_imported_at() {
         let mut store = Vec::new();
-        let (added, updated) = upsert_entries(&mut store, vec![entry("e1")], "T1");
+        let (added, updated) = upsert_entries(&mut store, vec![entry("e1")], "T1", false);
         assert_eq!((added, updated), (1, 0));
         assert_eq!(store[0].imported_at, "T1");
         assert_eq!(store[0].updated_at, "T1");
@@ -535,7 +556,7 @@ mod tests {
         let mut revised = entry("e1");
         revised.amount_cents = 9999;
         revised.status = "Approved".to_string();
-        let (added, updated) = upsert_entries(&mut store, vec![revised], "T2");
+        let (added, updated) = upsert_entries(&mut store, vec![revised], "T2", false);
         assert_eq!((added, updated), (0, 1));
         assert_eq!(store.len(), 1);
         assert_eq!(store[0].amount_cents, 9999);
@@ -547,8 +568,9 @@ mod tests {
     #[test]
     fn upsert_entries_is_idempotent() {
         let mut store = Vec::new();
-        upsert_entries(&mut store, vec![entry("e1"), entry("e2")], "T1");
-        let (added, updated) = upsert_entries(&mut store, vec![entry("e1"), entry("e2")], "T2");
+        upsert_entries(&mut store, vec![entry("e1"), entry("e2")], "T1", false);
+        let (added, updated) =
+            upsert_entries(&mut store, vec![entry("e1"), entry("e2")], "T2", false);
         assert_eq!((added, updated), (0, 2));
         assert_eq!(store.len(), 2);
     }
@@ -920,5 +942,60 @@ mod tests {
             &mut mappings,
             &[task]
         ));
+    }
+    #[test]
+    fn a_removal_only_group_validates_and_drops_the_imported_day() {
+        let mut imported = session_with(
+            "imp",
+            "task-1",
+            vec![finalized_instance("i1", "imp", 0, 60_000)],
+        );
+        imported.source = Some(WORKLOG_IMPORT_SOURCE.to_string());
+        let mut sessions = vec![imported];
+        let removal = RewriteGroup {
+            task_id: "task-1".to_string(),
+            work_day: "2026-08-25".to_string(),
+            delete_instance_ids: vec!["i1".to_string()],
+            blocking_instance_ids: Vec::new(),
+            replacement_session: None,
+        };
+
+        assert!(validate_rewrite_group(&sessions, &removal).is_ok());
+        let applied = apply_rewrite_group(&mut sessions, removal, ts(100));
+
+        assert_eq!(applied.deleted_instances, 1);
+        assert_eq!(applied.session_id, None);
+        assert!(sessions.is_empty());
+    }
+
+    #[test]
+    fn a_removal_only_group_still_refuses_another_tasks_time() {
+        let sessions = vec![session_with(
+            "other",
+            "task-2",
+            vec![finalized_instance("x", "other", 0, 60_000)],
+        )];
+        let removal = RewriteGroup {
+            task_id: "task-1".to_string(),
+            work_day: "2026-08-25".to_string(),
+            delete_instance_ids: vec!["x".to_string()],
+            blocking_instance_ids: Vec::new(),
+            replacement_session: None,
+        };
+        assert!(validate_rewrite_group(&sessions, &removal).is_err());
+    }
+
+    #[test]
+    fn a_remap_keeps_when_the_entries_were_last_imported() {
+        let mut store = Vec::new();
+        upsert_entries(&mut store, vec![entry("e1")], "T1", false);
+        let mut moved = entry("e1");
+        moved.task_id = "task-2".to_string();
+
+        upsert_entries(&mut store, vec![moved], "T2", true);
+
+        assert_eq!(store[0].task_id, "task-2");
+        assert_eq!(store[0].updated_at, "T1");
+        assert_eq!(store[0].imported_at, "T1");
     }
 }

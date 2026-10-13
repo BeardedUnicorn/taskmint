@@ -13,6 +13,7 @@ import { ProjectTaskMapping, WORKLOG_IMPORT_SOURCE, WorkLogEntry } from '../../t
 import {
   buildImportPreview,
   buildLedgerEntries,
+  buildRemapPlan,
   buildRewriteGroups,
   buildSynthesizedSession,
   computeImpliedRates,
@@ -605,5 +606,111 @@ describe('computeImpliedRates', () => {
       amountCents: 1_000_000,
     });
     expect(computeImpliedRates([absurd])[0].impliedHourlyRate).toBe(1000);
+  });
+});
+
+describe('buildRemapPlan', () => {
+  const other = makeTask({ id: 'task-2', name: 'Other task' });
+  const day = (h: number) => localIso(2026, 8, 26, h, 0);
+  const moving = makeTimedEntry({ id: 'p1-a', createdAt: day(14), timeInMinutes: 60 });
+  const workDay = moving.workDay;
+  const imported = (taskId: string, entries: WorkLogEntry[], id: string) =>
+    buildSynthesizedSession(taskId, 'x', workDay, entries, NOW_ISO, () => id);
+
+  const plan = (args: { ledger: WorkLogEntry[]; sessions: TaskSession[] }) =>
+    buildRemapPlan({
+      projectId: 'proj-1',
+      newTask: other,
+      ledger: args.ledger,
+      sessions: args.sessions,
+      mappings: [makeMapping()],
+      nowIso: NOW_ISO,
+      idFactory: () => 'new',
+    });
+
+  it('moves a day the project had to itself', () => {
+    const result = plan({ ledger: [moving], sessions: [imported('task-1', [moving], 'old')] });
+    if ('error' in result) throw new Error(result.error);
+
+    expect(result.entries.map(e => e.taskId)).toEqual(['task-2']);
+    expect(result.mappings[0]).toMatchObject({ projectId: 'proj-1', taskId: 'task-2', taskName: 'Other task' });
+    expect(result.days).toEqual([workDay]);
+    const [removal, rebuilt] = result.groups;
+    expect(removal).toMatchObject({ taskId: 'task-1', replacementSession: null });
+    expect(removal.deleteInstanceIds).toHaveLength(1);
+    expect(rebuilt.taskId).toBe('task-2');
+    expect(rebuilt.replacementSession!.timerInstances).toHaveLength(1);
+    expect(result.replacedTrackedMs).toBe(0);
+  });
+
+  it("keeps another project's entries on the old task for a shared day", () => {
+    const staying = makeTimedEntry({
+      id: 'p2-a',
+      projectId: 'proj-2',
+      createdAt: day(9),
+      timeInMinutes: 30,
+    });
+    const result = plan({
+      ledger: [moving, staying],
+      sessions: [imported('task-1', [moving, staying], 'old')],
+    });
+    if ('error' in result) throw new Error(result.error);
+
+    const removal = result.groups.find(g => g.taskId === 'task-1')!;
+    expect(removal.deleteInstanceIds).toHaveLength(2);
+    expect(removal.replacementSession!.timerInstances.map(i => i.externalId)).toEqual(['p2-a']);
+  });
+
+  it("leaves the old task's tracked time alone and counts the new task's it replaces", () => {
+    const oldTracked = makeSession({
+      id: 'old-tracked',
+      timerInstances: [makeInstance({ id: 'mine', startTime: new Date(2026, 7, 26, 8, 0) })],
+    });
+    const newTracked = makeSession({
+      id: 'new-tracked',
+      taskId: 'task-2',
+      timerInstances: [makeInstance({ id: 'theirs', startTime: new Date(2026, 7, 26, 16, 0), duration: 1_800_000 })],
+    });
+    const result = plan({
+      ledger: [moving],
+      sessions: [oldTracked, newTracked, imported('task-1', [moving], 'old')],
+    });
+    if ('error' in result) throw new Error(result.error);
+
+    const ids = result.groups.flatMap(g => g.deleteInstanceIds);
+    expect(ids).not.toContain('mine');
+    expect(ids).toContain('theirs');
+    expect(result.replacedTrackedMs).toBe(1_800_000);
+  });
+
+  it('refuses while a timer runs on an affected day', () => {
+    const running = makeSession({
+      taskId: 'task-2',
+      isActive: true,
+      timerInstances: [
+        makeInstance({
+          id: 'live',
+          startTime: new Date(2026, 7, 26, 15, 0),
+          state: TimerState.running,
+          isRunning: true,
+          endTime: undefined,
+          duration: undefined,
+        }),
+      ],
+    });
+    const result = plan({ ledger: [moving], sessions: [running] });
+    expect(result).toEqual({ error: expect.stringContaining('Stop the running timer first') });
+  });
+
+  it('refuses a move to the task it already maps to', () => {
+    const result = buildRemapPlan({
+      projectId: 'proj-1',
+      newTask: makeTask(),
+      ledger: [moving],
+      sessions: [],
+      mappings: [makeMapping()],
+      nowIso: NOW_ISO,
+    });
+    expect(result).toEqual({ error: 'Already mapped to "Raccoon - SWE"' });
   });
 });

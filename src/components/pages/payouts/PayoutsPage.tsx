@@ -54,8 +54,22 @@ import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { formatDateString } from '../../../utils/dateHelpers';
 import { StatsCard } from '../../ui/display/StatsCard';
 import { ImportWorkLogsDialog } from './ImportWorkLogsDialog';
+import { ProjectMappingsCard } from './ProjectMappingsCard';
 
 const MONO = { fontFamily: '"Roboto Mono", monospace' } as const;
+
+/** After this long without an import, Payouts says its numbers may be out of date. */
+const STALE_IMPORT_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** When the ledger was last refreshed from the site (newest entry update). */
+export function lastImportMs(entries: { updatedAt: string }[]): number | null {
+  let latest: number | null = null;
+  for (const entry of entries) {
+    const ms = Date.parse(entry.updatedAt);
+    if (!Number.isNaN(ms) && (latest === null || ms > latest)) latest = ms;
+  }
+  return latest;
+}
 
 function deltaLabel(cell: PayoutDayCell): { text: string; color: string } {
   const deltaMinutes = cell.importedMinutes - cell.trackedMs / 60_000;
@@ -138,6 +152,8 @@ export function PayoutsPage() {
   };
 
   const isEmpty = workLogs.entries.length === 0 && cells.length === 0;
+  const lastImport = lastImportMs(workLogs.entries);
+  const importIsStale = lastImport !== null && nowMs - lastImport > STALE_IMPORT_MS;
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
@@ -160,6 +176,21 @@ export function PayoutsPage() {
             {fundsReleaseDays === 1 ? '' : 's'} later. Imported site amounts are
             authoritative; other days are estimated from tracked time.
           </Typography>
+          {lastImport !== null && (
+            <Typography
+              variant="body2"
+              sx={{ mt: 0.5, color: importIsStale ? 'warning.main' : 'text.secondary' }}
+            >
+              Last import:{' '}
+              {new Date(lastImport).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              })}
+              {importIsStale && ' — visit the payments page to refresh'}
+            </Typography>
+          )}
         </Box>
         <Button
           variant="contained"
@@ -435,6 +466,14 @@ export function PayoutsPage() {
           </Paper>
         </>
       )}
+
+      <ProjectMappingsCard
+        mappings={workLogs.mappings}
+        entries={workLogs.entries}
+        sessions={sessions}
+        tasks={tasks}
+        onApply={workLogs.applyImport}
+      />
 
       <ImportWorkLogsDialog
         open={importOpen}

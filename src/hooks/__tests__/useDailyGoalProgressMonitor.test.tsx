@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ReactNode } from 'react';
 import { useDailyGoalProgressMonitor } from '../useDailyGoalProgressMonitor';
 import { useDailyGoals } from '../useDailyGoals';
@@ -67,6 +67,17 @@ const wrapper = ({ children }: { children: ReactNode }) => <DailyGoalProvider>{c
 describe('useDailyGoalProgressMonitor', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    // Local noon: a timer started an hour or two "ago" is still today's,
+    // whatever time the suite runs (it failed just after midnight). Only Date
+    // is faked, so the hook's interval and waitFor keep real timers.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const noon = new Date();
+    noon.setHours(12, 0, 0, 0);
+    vi.setSystemTime(noon);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("counts the running timer in today's earnings", () => {

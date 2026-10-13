@@ -13,9 +13,11 @@ import { TaskSession, TimerState } from '../../../../types/timer';
 import { WorkLogContextValue } from '../../../../contexts/WorkLogContext';
 import { formatDateString } from '../../../../utils/dateHelpers';
 import {
+  createMockProjectTaskMapping,
   createMockTask,
   createMockWorkLogEntry,
 } from '../../../../__tests__/setup/session-test-utils';
+import userEvent from '@testing-library/user-event';
 import { invoke } from '@tauri-apps/api/core';
 
 const mockInvoke = vi.mocked(invoke);
@@ -351,5 +353,72 @@ describe('PayoutsPage', () => {
   it('renders no capture-server alert when the server is healthy', async () => {
     render(<PayoutsPage />);
     expect(screen.queryByText(/Browser capture server/)).not.toBeInTheDocument();
+  });
+  describe('Last import', () => {
+    it('says when the work logs were last imported', () => {
+      const recent = new Date(Date.now() - 60 * 60 * 1000);
+      mockWorkLogsReturn.entries = [
+        createMockWorkLogEntry({ id: 'a', workDay: dayOffset(-1), updatedAt: new Date(Date.now() - 5 * 86_400_000).toISOString() }),
+        createMockWorkLogEntry({ id: 'b', workDay: dayOffset(-1), updatedAt: recent.toISOString() }),
+      ];
+
+      render(<PayoutsPage />);
+
+      const line = screen.getByText(/^Last import:/);
+      expect(line).toHaveTextContent(recent.toLocaleString('en-US', { month: 'short', day: 'numeric' }));
+      expect(line).not.toHaveTextContent('visit the payments page');
+    });
+
+    it('asks for a refresh once the last import is over 3 days old', () => {
+      mockWorkLogsReturn.entries = [
+        createMockWorkLogEntry({ workDay: dayOffset(-6), updatedAt: new Date(Date.now() - 4 * 86_400_000).toISOString() }),
+      ];
+
+      render(<PayoutsPage />);
+
+      expect(screen.getByText(/^Last import:/)).toHaveTextContent('visit the payments page to refresh');
+    });
+
+    it('is hidden with no imported work logs', () => {
+      render(<PayoutsPage />);
+      expect(screen.queryByText(/^Last import:/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Project mappings', () => {
+    it("moves a project to another task, past imported days included", async () => {
+      mockTaskContext.tasks = [
+        createMockTask({ id: 'task-1', name: 'Test Task' }),
+        createMockTask({ id: 'task-2', name: 'Other Task' }),
+      ];
+      mockWorkLogsReturn.entries = [createMockWorkLogEntry({ workDay: dayOffset(-2) })];
+      mockWorkLogsReturn.mappings = [createMockProjectTaskMapping()];
+      vi.mocked(mockWorkLogsReturn.applyImport).mockResolvedValue({
+        entriesAdded: 0,
+        entriesUpdated: 1,
+        mappingsSaved: 1,
+        groupsApplied: [],
+        groupsSkipped: [],
+      });
+
+      render(<PayoutsPage />);
+      await userEvent.click(screen.getByRole('button', { name: 'Show project mappings' }));
+      await userEvent.click(screen.getByRole('combobox', { name: 'Task for Test Project' }));
+      await userEvent.click(screen.getByRole('option', { name: 'Other Task' }));
+
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveTextContent('Move "Test Project" to "Other Task"?');
+      expect(dialog).toHaveTextContent('1 imported entry from "Test Project" moves to "Other Task"');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Move' }));
+
+      expect(mockWorkLogsReturn.applyImport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isRemap: true,
+          entries: [expect.objectContaining({ id: 'worklog-entry-1', taskId: 'task-2', taskName: 'Other Task' })],
+          mappings: [expect.objectContaining({ projectId: 'project-1', taskId: 'task-2' })],
+        })
+      );
+      expect(await screen.findByText('"Test Project" now goes to "Other Task".')).toBeInTheDocument();
+    });
   });
 });
