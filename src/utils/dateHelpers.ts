@@ -56,13 +56,6 @@ export function formatLocalDateWithDay(date: Date | string): string {
 }
 
 /**
- * Format a date to full local date and time string
- */
-export function formatLocalDateTime(date: Date | string): string {
-  return dayjs(date).local().format('MMM DD, YYYY [at] h:mm A');
-}
-
-/**
  * Format a date for display with relative time logic (Today, Yesterday, etc.)
  */
 export function formatRelativeDate(date: Date | string): string {
@@ -82,13 +75,6 @@ export function formatRelativeDate(date: Date | string): string {
 }
 
 /**
- * Format a date for table display (uses browser's locale)
- */
-export function formatLocalDateForTable(date: Date | string): string {
-  return dayjs(date).local().toDate().toLocaleDateString();
-}
-
-/**
  * Format a date and time for detailed display (uses browser's locale)
  */
 export function formatLocalDateTimeForDisplay(date: Date | string): string {
@@ -102,107 +88,8 @@ export function formatLocalDateTimeForDisplay(date: Date | string): string {
 }
 
 /**
- * Get the start of the current day
- */
-export function getStartOfDay(date?: Date | string): Date {
-  return dayjs(date).startOf('day').toDate();
-}
-
-/**
- * Get the end of the current day
- */
-export function getEndOfDay(date?: Date | string): Date {
-  return dayjs(date).endOf('day').toDate();
-}
-
-/**
- * Get the start of the current week
- */
-export function getStartOfWeek(date?: Date | string): Date {
-  return dayjs(date).startOf('week').toDate();
-}
-
-/**
- * Get the end of the current week
- */
-export function getEndOfWeek(date?: Date | string): Date {
-  return dayjs(date).endOf('week').toDate();
-}
-
-/**
- * Get the start of the current month
- */
-export function getStartOfMonth(date?: Date | string): Date {
-  return dayjs(date).startOf('month').toDate();
-}
-
-/**
- * Get the end of the current month
- */
-export function getEndOfMonth(date?: Date | string): Date {
-  return dayjs(date).endOf('month').toDate();
-}
-
-/**
  * Check if a date is today
  */
 export function isToday(date: Date | string): boolean {
   return dayjs(date).isSame(dayjs(), 'day');
-}
-
-/**
- * Check if a date is within the last week
- */
-export function isWithinLastWeek(date: Date | string): boolean {
-  const weekAgo = dayjs().subtract(1, 'week');
-  return dayjs(date).isAfter(weekAgo);
-}
-
-/**
- * Check if a date is within the last month
- */
-export function isWithinLastMonth(date: Date | string): boolean {
-  const monthAgo = dayjs().subtract(1, 'month');
-  return dayjs(date).isAfter(monthAgo);
-}
-
-/**
- * Check if a date is within the last quarter
- */
-export function isWithinLastQuarter(date: Date | string): boolean {
-  const quarterAgo = dayjs().subtract(3, 'month');
-  return dayjs(date).isAfter(quarterAgo);
-}
-
-/**
- * Get a human-readable relative time string
- */
-export function getRelativeTime(date: Date | string): string {
-  return dayjs(date).fromNow();
-}
-
-/**
- * Calculate the difference between two dates in milliseconds
- */
-export function getTimeDifference(startDate: Date | string, endDate: Date | string): number {
-  return dayjs(endDate).diff(dayjs(startDate));
-}
-
-/**
- * Convert time entry date strings back to Date objects
- * This is needed when loading time entries from localStorage where dates are serialized as strings
- */
-export function convertTimeEntryDates<T extends { startTime: any; endTime?: any }>(entry: T): T {
-  return {
-    ...entry,
-    startTime: entry.startTime instanceof Date ? entry.startTime : new Date(entry.startTime),
-    endTime: entry.endTime ? (entry.endTime instanceof Date ? entry.endTime : new Date(entry.endTime)) : undefined,
-  };
-}
-
-/**
- * Convert an array of time entries, ensuring all date fields are proper Date objects
- */
-export function convertTimeEntriesDates<T extends { startTime: any; endTime?: any }>(entries: T[]): T[] {
-  return entries.map(convertTimeEntryDates);
 }

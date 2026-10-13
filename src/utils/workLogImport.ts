@@ -291,7 +291,7 @@ function isRunningOrPaused(instance: TimerInstance): boolean {
 }
 
 function groupKey(taskId: string, workDay: string): string {
-  return `${taskId} ${workDay}`;
+  return `${taskId}\u0000${workDay}`;
 }
 
 function reconstructedStartMs(entry: WorkLogEntry): number {

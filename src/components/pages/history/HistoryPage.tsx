@@ -58,7 +58,6 @@ interface HistoryPageProps {
   tasks: Task[];
   onUpdateEntry: (data: EditTimeEntryData) => void;
   onDeleteEntry: (entryId: string) => void;
-  onBulkDeleteEntries?: (entryIds: string[]) => void;
   /** Opens the Add Time dialog (time logged after the fact). */
   onAddTime?: () => void;
   /** Open on all of this task's entries (from the Tasks page), then forget it. */
@@ -73,7 +72,6 @@ export function HistoryPage({
   tasks,
   onUpdateEntry,
   onDeleteEntry,
-  onBulkDeleteEntries,
   onAddTime,
   focusTask = null,
   onFocusApplied,
@@ -98,7 +96,6 @@ export function HistoryPage({
   // Dialog states
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
-  const [bulkDeletingIds, setBulkDeletingIds] = useState<string[]>([]);
   
   // Arriving from a task's "View all in History": that task, all time
   React.useEffect(() => {
@@ -170,17 +167,6 @@ export function HistoryPage({
     if (deletingEntryId) {
       onDeleteEntry(deletingEntryId);
       setDeletingEntryId(null);
-    }
-  };
-
-  const handleBulkDelete = (entryIds: string[]) => {
-    setBulkDeletingIds(entryIds);
-  };
-
-  const handleConfirmBulkDelete = () => {
-    if (onBulkDeleteEntries && bulkDeletingIds.length > 0) {
-      onBulkDeleteEntries(bulkDeletingIds);
-      setBulkDeletingIds([]);
     }
   };
 
@@ -295,11 +281,9 @@ export function HistoryPage({
         tasks={tasks}
         onEdit={handleEditEntry}
         onDelete={handleDeleteEntry}
-        onBulkDelete={onBulkDeleteEntries ? handleBulkDelete : undefined}
         sortField={sortField}
         sortDirection={sortDirection}
         onSort={handleSort}
-        showBulkActions={!!onBulkDeleteEntries}
         showEarnings={true}
         showNotes={false}
         maxHeight={600}
@@ -362,17 +346,6 @@ export function HistoryPage({
         onCancel={() => setDeletingEntryId(null)}
       />
 
-      {/* Bulk Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={bulkDeletingIds.length > 0}
-        title="Delete Multiple Time Entries"
-        message={`Are you sure you want to delete ${bulkDeletingIds.length} time entries? This action cannot be undone.`}
-        confirmLabel="Delete All"
-        confirmColor="error"
-        onConfirm={handleConfirmBulkDelete}
-        onClose={() => setBulkDeletingIds([])}
-        onCancel={() => setBulkDeletingIds([])}
-      />
 
     </Box>
   );

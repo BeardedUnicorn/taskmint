@@ -16,8 +16,6 @@ import {
   formatLocalTime,
   formatDateString,
   formatLocalDate,
-  getStartOfDay,
-  getEndOfDay,
 } from '../dateHelpers';
 
 // Extend dayjs with plugins
@@ -149,36 +147,6 @@ describe('Timezone Handling', () => {
   });
 
   describe('Date Calculations in Local Timezone', () => {
-    it('should calculate start of day in local timezone', () => {
-      const date = new Date('2024-01-15T14:30:00.000Z'); // 2:30 PM UTC, 7:30 AM MST
-
-      const startOfDay = getStartOfDay(date);
-
-      // Start of day should be midnight in local timezone
-      const expected = dayjs
-        .utc(date)
-        .tz(currentTimezone)
-        .startOf('day')
-        .utc()
-        .toISOString();
-      expect(startOfDay.toISOString()).toBe(expected);
-    });
-
-    it('should calculate end of day in local timezone', () => {
-      const date = new Date('2024-01-15T14:30:00.000Z'); // 2:30 PM UTC, 7:30 AM MST
-
-      const endOfDay = getEndOfDay(date);
-
-      // End of day should be 23:59:59.999 in local timezone
-      const expected = dayjs
-        .utc(date)
-        .tz(currentTimezone)
-        .endOf('day')
-        .utc()
-        .toISOString();
-      expect(endOfDay.toISOString()).toBe(expected);
-    });
-
     it('should filter entries by date correctly in local timezone', () => {
       const entries: TimeEntry[] = [
         {

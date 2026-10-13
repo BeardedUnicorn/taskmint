@@ -95,7 +95,7 @@ describe('TaskService', () => {
     it('should reject archiving a non-existent task', async () => {
       mockStorageService.getTasks = vi.fn().mockResolvedValue([]);
       await expect(service.archiveTask('missing')).rejects.toMatchObject({
-        code: 'TASK_UPDATE_FAILED',
+        code: 'TASK_NOT_FOUND',
       });
     });
   });
@@ -152,21 +152,23 @@ describe('TaskService', () => {
   describe('CRUD error handling', () => {
     it('should reject creating task when validation fails', async () => {
       await expect(service.createTask({ name: '' } as any)).rejects.toMatchObject({
-        code: 'TASK_CREATE_FAILED',
+        code: 'TASK_VALIDATION_FAILED',
+        message: expect.stringContaining('Task name is required'),
       });
     });
 
     it('should reject creating task with duplicate name', async () => {
       mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask]);
       await expect(service.createTask({ name: 'Existing Task' } as any)).rejects.toMatchObject({
-        code: 'TASK_CREATE_FAILED',
+        code: 'TASK_DUPLICATE_NAME',
+        message: 'A task with the name "Existing Task" already exists',
       });
     });
 
     it('should reject updating non-existent task', async () => {
       mockStorageService.getTasks = vi.fn().mockResolvedValue([]);
       await expect(service.updateTask('missing', { name: 'Updated' })).rejects.toMatchObject({
-        code: 'TASK_UPDATE_FAILED',
+        code: 'TASK_NOT_FOUND',
       });
     });
 
@@ -182,7 +184,7 @@ describe('TaskService', () => {
     it('should reject deleting a task that does not exist', async () => {
       mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask]);
 
-      await expect(service.deleteTask('missing')).rejects.toMatchObject({ code: 'TASK_DELETE_FAILED' });
+      await expect(service.deleteTask('missing')).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
       expect(mockStorageService.setTasks).not.toHaveBeenCalled();
     });
 

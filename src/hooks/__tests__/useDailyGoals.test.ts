@@ -4,7 +4,7 @@
 
 import { renderHook, act } from '@testing-library/react';
 import { useDailyGoalsState as useDailyGoals } from '../useDailyGoals';
-import { DailyGoal, DailyGoalAchievement } from '../../types';
+import { DailyGoal, DailyGoalAchievement } from '../../types/goal';
 import { useLocalStorage } from '../useLocalStorage'; // Import the actual module
 
 const mockSetCurrentGoal = vi.fn();

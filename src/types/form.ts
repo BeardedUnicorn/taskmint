@@ -24,19 +24,6 @@ export interface TaskSelectorProps {
   timeEntries?: TimeEntry[];
 }
 
-export interface TimeInputProps {
-  value: string;
-  onChange: (value: string) => void;
-  label?: string;
-  placeholder?: string;
-  error?: boolean;
-  helperText?: string;
-  disabled?: boolean;
-  fullWidth?: boolean;
-  size?: 'small' | 'medium';
-  sx?: SxProps<Theme>;
-}
-
 export interface CurrencyInputProps {
   value: string | number;
   onChange: (value: string) => void;
@@ -98,16 +85,4 @@ export interface EditTimeEntryData {
   taskId: string;      // the entry's task; a different one on save moves it
   durationMs: number;  // net tracked duration: prefill in, edited value out
   startTime?: string;  // ISO, display-only caption; never written back
-}
-
-export interface FormValidation {
-  isValid: boolean;
-  errors: Record<string, string>;
-}
-
-export interface FormState<T = any> {
-  data: T;
-  validation: FormValidation;
-  isSubmitting: boolean;
-  isDirty: boolean;
 }

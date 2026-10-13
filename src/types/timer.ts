@@ -5,9 +5,6 @@
  * including time entries, timer state, and time-related utilities.
  */
 
-import { z } from 'zod';
-import { Task } from './task';
-
 // Timer state machine
 export enum TimerState {
   idle = 'idle',
@@ -27,61 +24,6 @@ export interface TimeEntry {
   date: string; // YYYY-MM-DD format
   hourlyRate?: number | null; // The session's rate (see TaskSession.hourlyRate)
   source?: string; // The session's source (manual / imported); absent for tracked time
-}
-
-// Zod validation schemas
-export const TimeEntrySchema = z.object({
-  id: z.string().min(1),
-  taskName: z.string().min(1),
-  taskId: z.string().optional(),
-  startTime: z.coerce.date(),
-  endTime: z.coerce.date().optional(),
-  duration: z.number().min(0).optional(),
-  isRunning: z.boolean(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
-  hourlyRate: z.number().nullable().optional(),
-  source: z.string().optional(),
-});
-
-export interface EarningsData {
-  taskName: string;
-  duration: number;
-  hourlyRate?: number;
-  earnings?: number;
-}
-
-// Props interfaces for timer-related components
-export interface TimeEntryFormProps {
-  onSave: (entry: TimeEntry) => void;
-  predefinedTasks: Array<{
-    id: string;
-    name: string;
-    hourlyRate?: number;
-    createdAt: string;
-    updatedAt: string;
-  }>;
-  activeEntry?: TimeEntry | null;
-  onUpdateActiveEntry: (entry: TimeEntry | null) => void;
-  onCreateNewTask: (taskName: string) => Promise<{
-    id: string;
-    name: string;
-    hourlyRate?: number;
-    createdAt: string;
-    updatedAt: string;
-  }>;
-}
-
-export interface CalendarViewProps {
-  entries: TimeEntry[];
-  tasks: Array<{
-    id: string;
-    name: string;
-    hourlyRate?: number;
-    createdAt: string;
-    updatedAt: string;
-  }>;
-  onUpdateEntry: (entry: TimeEntry) => void;
-  onDeleteEntry: (entryId: string) => void;
 }
 
 // ============================================================================
@@ -153,59 +95,6 @@ export interface IdlePause {
 
 export type IdleChoice = 'discardResume' | 'keepResume' | 'stayPaused';
 
-// Session Statistics
-export interface SessionStats {
-  totalSessions: number;
-  activeSessions: number;
-  totalTimerInstances: number;
-  totalDuration: number;
-  averageSessionDuration: number;
-  longestSession: number;
-  shortestSession: number;
-}
-
-// ============================================================================
-// ZOD VALIDATION SCHEMAS FOR NEW TYPES
-// ============================================================================
-
-export const TimerInstanceSchema = z.object({
-  id: z.string().min(1),
-  sessionId: z.string().min(1),
-  startTime: z.coerce.date(),
-  endTime: z.coerce.date().optional(),
-  duration: z.number().min(0).optional(),
-  state: z.enum(['idle', 'running', 'paused', 'stopped']),
-  isRunning: z.boolean().optional(),
-  isPaused: z.boolean().optional(),
-  pausedAt: z.coerce.date().optional(),
-  pausedDuration: z.number().min(0).optional(),
-  resumedAt: z.coerce.date().optional(),
-  externalId: z.string().optional(),
-  notes: z.string().optional(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
-});
-
-export const TaskSessionSchema = z.object({
-  id: z.string().min(1),
-  taskId: z.string().min(1),
-  taskName: z.string().min(1),
-  timerInstances: z.array(TimerInstanceSchema),
-  totalDuration: z.number().min(0),
-  notes: z.string().optional(),
-  isActive: z.boolean(),
-  source: z.string().optional(),
-  hourlyRate: z.number().nullable().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
-});
-
-export const InactivitySettingsSchema = z.object({
-  enabled: z.boolean(),
-  thresholdMinutes: z.number().min(1).max(120), // 1 minute to 2 hours
-});
-
 // ============================================================================
 // DEFAULT VALUES
 // ============================================================================
@@ -218,50 +107,6 @@ export const DEFAULT_INACTIVITY_SETTINGS: InactivitySettings = {
   thresholdMinutes: 15,
   longRunHours: 4,
 };
-
-
-
-
-// ============================================================================
-// COMPONENT PROPS INTERFACES FOR SESSION SYSTEM
-// ============================================================================
-
-export interface SessionTimerToolbarProps {
-  activeSession: TaskSession | null;
-  predefinedTasks: Task[];
-  onStartSession: (taskId: string, taskName: string) => Promise<TaskSession | null>;
-  onEndSession: () => Promise<void>;
-  onPauseAll: () => Promise<void>;
-  onResumeAll: () => Promise<void>;
-  onCreateTimerInstance: (sessionId: string) => Promise<TimerInstance | null>;
-  onStartTimer: (instanceId: string) => Promise<void>;
-  onStopTimer: (instanceId: string) => Promise<void>;
-  onPauseTimer: (instanceId: string) => Promise<void>;
-  onResumeTimer: (instanceId: string) => Promise<void>;
-  onDeleteTimer?: (instanceId: string) => Promise<void>;
-  onEditTimer?: (instance: TimerInstance) => void;
-  onOpenSessionNotes?: (sessionId: string) => void;
-  onOpenTimerNotes?: (instanceId: string) => void;
-}
-
-export interface SessionListProps {
-  sessions: TaskSession[];
-  tasks: Task[];
-  onSelectSession: (session: TaskSession) => void;
-  onDeleteSession: (sessionId: string) => void;
-  onUpdateSession: (sessionId: string, updates: Partial<TaskSession>) => void;
-  selectedSessionId?: string;
-}
-
-export interface TimerInstanceListProps {
-  session: TaskSession;
-  onStartTimer: (sessionId: string) => Promise<TimerInstance>;
-  onStopTimer: (instanceId: string) => Promise<void>;
-  onPauseTimer: (instanceId: string) => Promise<void>;
-  onResumeTimer: (instanceId: string) => Promise<void>;
-  onDeleteTimer: (instanceId: string) => Promise<void>;
-  onUpdateTimerNotes: (instanceId: string, notes: string) => Promise<void>;
-}
 
 // ============================================================================
 // HOOK RETURN TYPES FOR SESSION SYSTEM
@@ -327,25 +172,4 @@ export interface UseSessionManagementReturn {
   isLoading: boolean;
   error: string | null;
   clearError: () => void;
-}
-
-export interface UseTimerInstanceReturn {
-  instances: TimerInstance[];
-  activeInstance: TimerInstance | null;
-  createInstance: (sessionId: string) => Promise<TimerInstance>;
-  updateInstance: (instanceId: string, updates: Partial<TimerInstance>) => Promise<TimerInstance>;
-  deleteInstance: (instanceId: string) => Promise<void>;
-  startTimer: (instanceId: string) => Promise<void>;
-  stopTimer: (instanceId: string) => Promise<void>;
-  pauseTimer: (instanceId: string) => Promise<void>;
-  resumeTimer: (instanceId: string) => Promise<void>;
-  getInstanceById: (instanceId: string) => TimerInstance | undefined;
-  getInstancesBySessionId: (sessionId: string) => TimerInstance[];
-  isLoading: boolean;
-  error: string | null;
-}
-
-// Timer Sync Event Type
-export interface TimerSyncEvent<T> {
-  payload: T;
 }

@@ -68,37 +68,8 @@ export async function safeListen(
 }
 
 /**
- * Safe wrapper for Tauri emit function
- */
-export async function safeEmit(event: string, payload?: any): Promise<void> {
-  if (!isTauriEnvironment()) {
-    console.warn(`Tauri emit '${event}' called in non-Tauri environment, skipping`);
-    return;
-  }
-  
-  try {
-    const { emit } = await import('@tauri-apps/api/event');
-    await emit(event, payload);
-  } catch (error) {
-    console.warn(`Failed to emit Tauri event '${event}':`, error);
-  }
-}
-
-/**
  * Get environment type
  */
 export function getEnvironmentType(): 'tauri' | 'web' {
   return isTauriEnvironment() ? 'tauri' : 'web';
-}
-
-/**
- * Log environment information
- */
-export function logEnvironmentInfo(): void {
-  const envType = getEnvironmentType();
-  console.log(`Running in ${envType} environment`);
-  
-  if (envType === 'web') {
-    console.log('Tauri APIs will be mocked or skipped');
-  }
 }

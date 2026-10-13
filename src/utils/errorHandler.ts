@@ -89,9 +89,10 @@ export class ServiceErrorHandler {
       ...context,
     };
 
-    // Create enhanced error with properly formatted message
+    // The message stays the original one (it may be shown to the user); the
+    // service and method travel in the context.
     const appError = new AppError(
-      `${this.serviceName}.${method}: ${errorMessage}`,
+      errorMessage,
       fullContext,
       this.determineSeverity(errorObj, method)
     );
@@ -151,20 +152,6 @@ export class ServiceErrorHandler {
     }
   }
 
-  /**
-   * Handle sync operations with automatic error capture
-   */
-  handleSync<T>(
-    operation: () => T,
-    method: string,
-    context: Omit<ErrorContext, 'service' | 'method'> = {}
-  ): T {
-    try {
-      return operation();
-    } catch (error) {
-      throw this.handleError(error, method, context);
-    }
-  }
 
   /**
    * Log info message with breadcrumb
@@ -226,45 +213,8 @@ export class ServiceErrorHandler {
 }
 
 /**
- * Global error handler for unhandled errors
- */
-export const globalErrorHandler = new ServiceErrorHandler('Global');
-
-/**
  * Create a service error handler for a specific service
  */
 export function createServiceErrorHandler(serviceName: string): ServiceErrorHandler {
   return new ServiceErrorHandler(serviceName);
-}
-
-/**
- * Utility function to safely execute async operations with error handling
- */
-export async function safeAsync<T>(
-  operation: () => Promise<T>,
-  fallback: T,
-  context: ErrorContext = {}
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    globalErrorHandler.handleError(error, 'safeAsync', context);
-    return fallback;
-  }
-}
-
-/**
- * Utility function to safely execute sync operations with error handling
- */
-export function safeSync<T>(
-  operation: () => T,
-  fallback: T,
-  context: ErrorContext = {}
-): T {
-  try {
-    return operation();
-  } catch (error) {
-    globalErrorHandler.handleError(error, 'safeSync', context);
-    return fallback;
-  }
 }

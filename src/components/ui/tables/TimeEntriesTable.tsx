@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -8,7 +7,6 @@ import {
   TableRow,
   TableSortLabel,
   Paper,
-  Checkbox,
   IconButton,
   Tooltip,
   Typography,
@@ -94,11 +92,9 @@ export interface TimeEntriesTableProps {
   onEdit: (entry: TimeEntry) => void;
   onDelete: (entryId: string) => void;
   onViewNotes?: (entry: TimeEntry) => void;
-  onBulkDelete?: (entryIds: string[]) => void;
   sortField?: SortField;
   sortDirection?: SortDirection;
   onSort?: (field: SortField, direction: SortDirection) => void;
-  showBulkActions?: boolean;
   showEarnings?: boolean;
   showNotes?: boolean;
   maxHeight?: string | number;
@@ -110,39 +106,16 @@ export function TimeEntriesTable({
   onEdit,
   onDelete,
   onViewNotes,
-  onBulkDelete,
   sortField = 'startTime',
   sortDirection = 'desc',
   onSort,
-  showBulkActions = false,
   showEarnings = true,
   showNotes = false,
   maxHeight = 600,
 }: TimeEntriesTableProps) {
-  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
-
   // Rows render in the order given: the page sorts the full filtered list
   // (sortTimeEntries) before paginating, and the header only reports clicks.
   const calculateEarnings = (entry: TimeEntry): number => entryEarnings(entry, tasks);
-
-  // Selection handlers
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedEntries(new Set(entries.map(entry => entry.id)));
-    } else {
-      setSelectedEntries(new Set());
-    }
-  };
-
-  const handleSelectEntry = (entryId: string, checked: boolean) => {
-    const newSelected = new Set(selectedEntries);
-    if (checked) {
-      newSelected.add(entryId);
-    } else {
-      newSelected.delete(entryId);
-    }
-    setSelectedEntries(newSelected);
-  };
 
   const handleSort = (field: SortField) => {
     if (!onSort) return;
@@ -151,51 +124,12 @@ export function TimeEntriesTable({
     onSort(field, newDirection);
   };
 
-  const handleBulkDelete = () => {
-    if (onBulkDelete && selectedEntries.size > 0) {
-      onBulkDelete(Array.from(selectedEntries));
-      setSelectedEntries(new Set());
-    }
-  };
-
-  const isAllSelected = selectedEntries.size === entries.length && entries.length > 0;
-  const isIndeterminate = selectedEntries.size > 0 && selectedEntries.size < entries.length;
-
   return (
     <Paper variant="outlined">
-      {/* Bulk Actions Bar */}
-      {showBulkActions && selectedEntries.size > 0 && (
-        <Box sx={{ p: 2, bgcolor: 'action.selected' }}>
-          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="subtitle2">
-              {selectedEntries.size} entries selected
-            </Typography>
-            <IconButton
-              color="error"
-              onClick={handleBulkDelete}
-              disabled={!onBulkDelete}
-              aria-label="Delete selected entries"
-            >
-              <DeleteIcon />
-            </IconButton>
-          </Stack>
-        </Box>
-      )}
-
       <TableContainer sx={{ maxHeight }}>
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {showBulkActions && (
-                <TableCell padding="checkbox">
-                  <Checkbox
-                    indeterminate={isIndeterminate}
-                    checked={isAllSelected}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </TableCell>
-              )}
-              
               <TableCell>
                 <TableSortLabel
                   active={sortField === 'taskName'}
@@ -293,22 +227,12 @@ export function TimeEntriesTable({
           <TableBody>
             {entries.map((entry) => {
               const earnings = calculateEarnings(entry);
-              const isSelected = selectedEntries.has(entry.id);
               // Imported days are rebuilt by every import, so they're read-only
               const isImported = entry.source === WORKLOG_IMPORT_SOURCE;
               const entryDate = dayjs(entry.startTime).format('MMM DD, YYYY');
 
               return (
-                <TableRow key={entry.id} hover selected={isSelected}>
-                  {showBulkActions && (
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        checked={isSelected}
-                        onChange={(e) => handleSelectEntry(entry.id, e.target.checked)}
-                      />
-                    </TableCell>
-                  )}
-
+                <TableRow key={entry.id} hover>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
                       {entry.taskName}

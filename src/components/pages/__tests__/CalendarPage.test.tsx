@@ -6,7 +6,8 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import CalendarPage from '../CalendarPage';
 import { useFundsReleaseSettings } from '../../../hooks/useFundsReleaseSettings';
-import { TimeEntry, Task } from '../../../types';
+import { TimeEntry } from '../../../types/timer';
+import { Task } from '../../../types/task';
 import { TaskSession, TimerState } from '../../../types/timer';
 import { createLightTheme } from '../../../theme';
 

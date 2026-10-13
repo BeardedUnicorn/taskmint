@@ -114,96 +114,10 @@ export function useNoteTemplates(): UseNoteTemplatesReturn {
   }, [templates]);
 
   /**
-   * Duplicate a template
-   */
-  const duplicateTemplate = useCallback(async (
-    templateId: string,
-    newName?: string
-  ): Promise<NoteTemplate> => {
-    return executeAsync(async () => {
-      setError(null);
-
-      const duplicatedTemplate = await templateService.duplicateTemplate(templateId, newName);
-
-      // Update local state
-      setTemplates(prev => [...prev, duplicatedTemplate]);
-
-      return duplicatedTemplate;
-    });
-  }, [templateService, executeAsync]);
-
-  /**
-   * Toggle template active status
-   */
-  const toggleTemplateActive = useCallback(async (templateId: string): Promise<NoteTemplate> => {
-    const template = getTemplateById(templateId);
-    if (!template) {
-      throw new Error('Template not found');
-    }
-
-    return updateTemplate(templateId, { isActive: !template.isActive });
-  }, [getTemplateById, updateTemplate]);
-
-  /**
    * Get active templates only
    */
   const getActiveTemplates = useCallback((): NoteTemplate[] => {
     return templates.filter(template => template.isActive);
-  }, [templates]);
-
-  /**
-   * Get template statistics
-   */
-  const getTemplateStats = useCallback(() => {
-    return {
-      totalTemplates: templates.length,
-      activeTemplates: templates.filter(template => template.isActive).length,
-      inactiveTemplates: templates.filter(template => !template.isActive).length,
-    };
-  }, [templates]);
-
-  /**
-   * Search templates by name
-   */
-  const searchTemplates = useCallback((query: string): NoteTemplate[] => {
-    if (!query.trim()) return templates;
-    
-    const lowercaseQuery = query.toLowerCase();
-    return templates.filter(template => 
-      template.name.toLowerCase().includes(lowercaseQuery) ||
-      template.description?.toLowerCase().includes(lowercaseQuery)
-    );
-  }, [templates]);
-
-  /**
-   * Sort templates by various criteria
-   */
-  const sortTemplates = useCallback((
-    sortBy: 'name' | 'createdAt' | 'updatedAt' | 'fieldCount',
-    order: 'asc' | 'desc' = 'asc'
-  ): NoteTemplate[] => {
-    const sorted = [...templates].sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortBy) {
-        case 'name':
-          comparison = a.name.localeCompare(b.name);
-          break;
-        case 'createdAt':
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          break;
-        case 'updatedAt':
-          comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-          break;
-        case 'fieldCount':
-          comparison = a.fields.length - b.fields.length;
-          break;
-      }
-      
-      return order === 'desc' ? -comparison : comparison;
-    });
-    
-    return sorted;
   }, [templates]);
 
   // Load templates on mount
@@ -217,23 +131,8 @@ export function useNoteTemplates(): UseNoteTemplatesReturn {
     updateTemplate,
     deleteTemplate,
     getTemplateById,
+    getActiveTemplates,
     isLoading,
     error,
-    // Additional utility methods
-    duplicateTemplate,
-    toggleTemplateActive,
-    getActiveTemplates,
-    getTemplateStats,
-    searchTemplates,
-    sortTemplates,
-    refreshTemplates: loadTemplates,
-  } as UseNoteTemplatesReturn & {
-    duplicateTemplate: (templateId: string, newName?: string) => Promise<NoteTemplate>;
-    toggleTemplateActive: (templateId: string) => Promise<NoteTemplate>;
-    getActiveTemplates: () => NoteTemplate[];
-    getTemplateStats: () => { totalTemplates: number; activeTemplates: number; inactiveTemplates: number };
-    searchTemplates: (query: string) => NoteTemplate[];
-    sortTemplates: (sortBy: 'name' | 'createdAt' | 'updatedAt' | 'fieldCount', order?: 'asc' | 'desc') => NoteTemplate[];
-    refreshTemplates: () => Promise<void>;
   };
 }

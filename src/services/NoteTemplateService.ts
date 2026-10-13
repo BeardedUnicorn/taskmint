@@ -186,43 +186,6 @@ export class NoteTemplateService {
   }
 
   /**
-   * Get active templates only
-   */
-  async getActiveTemplates(): Promise<NoteTemplate[]> {
-    const templates = await this.getAllTemplates();
-    return templates.filter(template => template.isActive);
-  }
-
-  /**
-   * Duplicate a template
-   */
-  async duplicateTemplate(templateId: string, newName?: string): Promise<NoteTemplate> {
-    try {
-      const originalTemplate = await this.getTemplateById(templateId);
-      if (!originalTemplate) {
-        throw new Error(`Template with ID ${templateId} not found`);
-      }
-
-      const duplicatedTemplate = {
-        ...originalTemplate,
-        name: newName || `${originalTemplate.name} (Copy)`,
-        fields: originalTemplate.fields.map(field => ({
-          ...field,
-          id: `field_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        })),
-      };
-
-      // Remove id, createdAt, updatedAt to let createTemplate generate new ones
-      const { id, createdAt, updatedAt, ...templateData } = duplicatedTemplate;
-      
-      return await this.createTemplate(templateData);
-    } catch (error) {
-      console.error(`Failed to duplicate template ${templateId}:`, error);
-      throw new Error('Failed to duplicate note template');
-    }
-  }
-
-  /**
    * Normalize field order to ensure sequential ordering
    */
   private normalizeFieldOrder(fields: TemplateField[]): TemplateField[] {
@@ -235,13 +198,6 @@ export class NoteTemplateService {
   }
 
   /**
-   * Generate a unique field ID
-   */
-  generateFieldId(): string {
-    return `field_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  /**
    * Validate template name uniqueness
    */
   async isTemplateNameUnique(name: string, excludeId?: string): Promise<boolean> {
@@ -250,16 +206,5 @@ export class NoteTemplateService {
       template.name.toLowerCase() === name.toLowerCase() && 
       template.id !== excludeId
     );
-  }
-
-  /**
-   * Get template statistics
-   */
-  async getTemplateStats(): Promise<{ totalTemplates: number; activeTemplates: number }> {
-    const templates = await this.getAllTemplates();
-    return {
-      totalTemplates: templates.length,
-      activeTemplates: templates.filter(template => template.isActive).length,
-    };
   }
 }
