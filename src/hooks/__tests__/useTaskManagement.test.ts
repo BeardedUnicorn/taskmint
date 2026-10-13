@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTaskManagement } from '../useTaskManagement';
-import { Task, TaskHierarchy } from '../../types';
+import { Task } from '../../types';
 
 // Mock ServiceFactory
 const mockTaskService = {
@@ -16,10 +16,6 @@ const mockTaskService = {
   unarchiveTask: vi.fn(),
   getTask: vi.fn(),
   getTaskByName: vi.fn(),
-  getTaskHierarchy: vi.fn(),
-  getChildTasks: vi.fn(),
-  getParentTask: vi.fn(),
-  getTaskPath: vi.fn(),
 };
 
 vi.mock('../../services', () => ({
@@ -75,32 +71,9 @@ describe('useTaskManagement', () => {
     },
   ];
 
-  const sampleHierarchy: TaskHierarchy[] = [
-    {
-      task: sampleTasks[0],
-      children: [
-        {
-          task: sampleTasks[1],
-          children: [],
-          depth: 1,
-          path: ['Development'],
-        },
-        {
-          task: sampleTasks[2],
-          children: [],
-          depth: 1,
-          path: ['Development'],
-        },
-      ],
-      depth: 0,
-      path: [],
-    },
-  ];
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockTaskService.getAllTasks.mockResolvedValue(sampleTasks);
-    mockTaskService.getTaskHierarchy.mockResolvedValue(sampleHierarchy);
     mockExecuteAsync.mockImplementation(async (fn, options) => {
       try {
         return await fn();
@@ -346,7 +319,7 @@ describe('useTaskManagement', () => {
   });
 
   describe('deleteTask', () => {
-    it('should delete task with default strategy', async () => {
+    it('should delete a task', async () => {
       mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
 
       const { result } = renderHook(() => useTaskManagement());
@@ -359,42 +332,9 @@ describe('useTaskManagement', () => {
         await result.current.deleteTask('task-1');
       });
 
-      // Orphan by default: hidden child tasks never block deleting a parent
-      expect(mockTaskService.deleteTask).toHaveBeenCalledWith('task-1', 'orphan');
+      expect(mockTaskService.deleteTask).toHaveBeenCalledWith('task-1');
+      expect(result.current.tasks).toEqual(sampleTasks.slice(1));
       expect(mockShowSuccess).toHaveBeenCalledWith('Task "Development" deleted successfully!');
-    });
-
-    it('should delete task with cascade strategy', async () => {
-      mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
-
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      mockTaskService.deleteTask.mockResolvedValue(undefined);
-      mockTaskService.getAllTasks.mockResolvedValue([]);
-
-      await act(async () => {
-        await result.current.deleteTask('task-1', 'cascade');
-      });
-
-      expect(mockTaskService.deleteTask).toHaveBeenCalledWith('task-1', 'cascade');
-    });
-
-    it('should delete task with orphan strategy', async () => {
-      mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
-      const orphanedTasks = sampleTasks.slice(1).map(task => ({ ...task, parentId: undefined }));
-
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      mockTaskService.deleteTask.mockResolvedValue(undefined);
-      mockTaskService.getAllTasks.mockResolvedValue(orphanedTasks);
-
-      await act(async () => {
-        await result.current.deleteTask('task-1', 'orphan');
-      });
-
-      expect(mockTaskService.deleteTask).toHaveBeenCalledWith('task-1', 'orphan');
     });
 
     it('should handle delete task error', async () => {
@@ -450,80 +390,6 @@ describe('useTaskManagement', () => {
     });
   });
 
-  describe('hierarchical methods', () => {
-    it('should get task hierarchy', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      let hierarchy: TaskHierarchy[] = [];
-      await act(async () => {
-        hierarchy = await result.current.getTaskHierarchy();
-      });
-
-      expect(mockTaskService.getTaskHierarchy).toHaveBeenCalled();
-      expect(hierarchy).toEqual(sampleHierarchy);
-    });
-
-    it('should get child tasks', async () => {
-      const childTasks = [sampleTasks[1], sampleTasks[2]];
-      mockTaskService.getChildTasks.mockResolvedValue(childTasks);
-
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      let children: Task[] = [];
-      await act(async () => {
-        children = await result.current.getChildTasks('task-1');
-      });
-
-      expect(mockTaskService.getChildTasks).toHaveBeenCalledWith('task-1');
-      expect(children).toEqual(childTasks);
-    });
-
-    it('should get parent task', async () => {
-      mockTaskService.getParentTask.mockResolvedValue(sampleTasks[0]);
-
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      let parent: Task | undefined;
-      await act(async () => {
-        parent = await result.current.getParentTask('task-2');
-      });
-
-      expect(mockTaskService.getParentTask).toHaveBeenCalledWith('task-2');
-      expect(parent).toEqual(sampleTasks[0]);
-    });
-
-    it('should get task path', async () => {
-      const taskPath = [sampleTasks[0], sampleTasks[1]];
-      mockTaskService.getTaskPath.mockResolvedValue(taskPath);
-
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      let path: Task[] = [];
-      await act(async () => {
-        path = await result.current.getTaskPath('task-2');
-      });
-
-      expect(mockTaskService.getTaskPath).toHaveBeenCalledWith('task-2');
-      expect(path).toEqual(taskPath);
-    });
-
-    it('should handle hierarchical method errors', async () => {
-      const error = new Error('Hierarchy error');
-      mockTaskService.getTaskHierarchy.mockRejectedValue(error);
-
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      await expect(result.current.getTaskHierarchy()).rejects.toThrow('Hierarchy error');
-
-      expect(mockShowError).toHaveBeenCalledWith('Failed to load task hierarchy. Please try again.');
-    });
-  });
-
   describe('return values', () => {
     it('should return all expected properties and methods', async () => {
       const { result } = renderHook(() => useTaskManagement());
@@ -549,11 +415,6 @@ describe('useTaskManagement', () => {
       expect(result.current).toHaveProperty('getTaskByName');
       expect(result.current).toHaveProperty('getTaskNames');
 
-      // Hierarchical methods
-      expect(result.current).toHaveProperty('getTaskHierarchy');
-      expect(result.current).toHaveProperty('getChildTasks');
-      expect(result.current).toHaveProperty('getParentTask');
-      expect(result.current).toHaveProperty('getTaskPath');
 
       // Verify all methods are functions
       expect(typeof result.current.addTask).toBe('function');
@@ -562,10 +423,6 @@ describe('useTaskManagement', () => {
       expect(typeof result.current.getTaskById).toBe('function');
       expect(typeof result.current.getTaskByName).toBe('function');
       expect(typeof result.current.getTaskNames).toBe('function');
-      expect(typeof result.current.getTaskHierarchy).toBe('function');
-      expect(typeof result.current.getChildTasks).toBe('function');
-      expect(typeof result.current.getParentTask).toBe('function');
-      expect(typeof result.current.getTaskPath).toBe('function');
     });
   });
 });

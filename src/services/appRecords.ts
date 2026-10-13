@@ -69,6 +69,31 @@ function readLegacyRecords(): { records: Record<string, unknown>; keys: string[]
   return { records, keys };
 }
 
+/** Keys earlier versions kept in localStorage that nothing reads anymore. */
+const RETIRED_LOCAL_KEYS = ['timeEntries', 'dashboardWidgetPrefs'];
+
+/**
+ * Removes what earlier versions left in this webview's localStorage: the
+ * retired keys, and the `<key>_backup_<time>` copies an old format upgrade
+ * made of the records (which now live in appdata.json, with their own .bak
+ * copies) and of the retired keys.
+ */
+export function removeRetiredLocalKeys(): void {
+  try {
+    const prefixes = [...APP_RECORD_KEYS, ...RETIRED_LOCAL_KEYS].map(key => `${key}_backup_`);
+    const retired: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key && (RETIRED_LOCAL_KEYS.includes(key) || prefixes.some(prefix => key.startsWith(prefix)))) {
+        retired.push(key);
+      }
+    }
+    retired.forEach(key => window.localStorage.removeItem(key));
+  } catch (error) {
+    console.error('Failed to remove retired localStorage keys:', error);
+  }
+}
+
 interface LoadOptions {
   /**
    * Move in records left in this webview's localStorage. Off in development
@@ -100,6 +125,7 @@ export async function loadAppRecords({ importLegacy = !import.meta.env.DEV }: Lo
   for (const key of legacy.keys) {
     window.localStorage.removeItem(key);
   }
+  if (importLegacy) removeRetiredLocalKeys();
   cache = new Map(Object.entries(response.records ?? {}));
 }
 

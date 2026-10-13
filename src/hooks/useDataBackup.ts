@@ -30,7 +30,6 @@ export const useDataBackup = ({
     
     try {
       const [
-        timeEntries,
         tasks,
         noteTemplates,
         taskNotes,
@@ -39,7 +38,6 @@ export const useDataBackup = ({
         sessions,
         workLogs
       ] = await Promise.all([
-        storageService.getTimeEntries(),
         storageService.getTasks(),
         storageService.getNoteTemplates(),
         storageService.getTaskNotes(),
@@ -56,7 +54,6 @@ export const useDataBackup = ({
         version: BACKUP_FORMAT_VERSION,
         exportDate: new Date().toISOString(),
         data: {
-          timeEntries,
           tasks,
           noteTemplates,
           taskNotes,
@@ -160,21 +157,10 @@ export const useDataBackup = ({
       });
 
       const storageService = StorageService.getInstance();
-      
-      // Handle time entries
-      if (data.timeEntries && Array.isArray(data.timeEntries)) {
-        if (mode === 'replace') {
-          await storageService.setTimeEntries(data.timeEntries);
-        } else {
-          // Merge mode: get existing entries and merge
-          const existingEntries = await storageService.getTimeEntries();
-          const mergedEntries = [...existingEntries, ...data.timeEntries];
-          await storageService.setTimeEntries(mergedEntries);
-        }
-      } else if (mode === 'replace') {
-        await storageService.setTimeEntries([]);
-      }
-      
+
+      // A file's timeEntries section (from versions that kept time entries
+      // in localStorage) is ignored: tracked time is the sessions above.
+
       // Handle tasks
       if (data.tasks && Array.isArray(data.tasks)) {
         if (mode === 'replace') {
@@ -250,7 +236,6 @@ export const useDataBackup = ({
       onImportSuccess?.({ 
         mode,
         importedCounts: {
-          timeEntries: data.timeEntries?.length || 0,
           tasks: data.tasks?.length || 0,
           noteTemplates: data.noteTemplates?.length || 0,
           taskNotes: data.taskNotes?.length || 0,

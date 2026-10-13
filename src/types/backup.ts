@@ -148,6 +148,7 @@ export const BackupFileSchema = z.object({
   version: z.string().optional(),
   exportDate: z.string().optional(),
   data: z.object({
+    // Older files only; ignored on import (tracked time is in `sessions`)
     timeEntries: recordList.optional(),
     tasks: recordList.optional(),
     noteTemplates: recordList.optional(),

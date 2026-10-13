@@ -16,13 +16,11 @@ import { safeInvoke } from '../../utils/tauri';
 // Mock the StorageService
 vi.mock('../../services/StorageService');
 const mockStorageService = {
-  getTimeEntries: vi.fn(),
   getTasks: vi.fn(),
   getNoteTemplates: vi.fn(),
   getTaskNotes: vi.fn(),
   getDailyGoal: vi.fn(),
   getGoalAchievements: vi.fn(),
-  setTimeEntries: vi.fn(),
   setTasks: vi.fn(),
   setNoteTemplates: vi.fn(),
   setTaskNotes: vi.fn(),
@@ -77,18 +75,6 @@ describe('useDataBackup', () => {
     vi.mocked(StorageService.getInstance).mockReturnValue(mockStorageService);
     
     // Set up default mock data
-    mockStorageService.getTimeEntries.mockResolvedValue([
-      {
-        id: 'entry-1',
-        taskName: 'Test Task',
-        startTime: new Date('2023-01-01T10:00:00Z'),
-        endTime: new Date('2023-01-01T11:00:00Z'),
-        duration: 3600000,
-        isRunning: false,
-        date: '2023-01-01',
-      },
-    ]);
-    
     mockStorageService.getTasks.mockResolvedValue([
       {
         id: 'task-1',
@@ -177,7 +163,7 @@ describe('useDataBackup', () => {
       expect(backupData).toHaveProperty('version', '2');
       expect(backupData).toHaveProperty('exportDate');
       expect(backupData).toHaveProperty('data');
-      expect(backupData.data).toHaveProperty('timeEntries');
+      expect(backupData.data).not.toHaveProperty('timeEntries');
       expect(backupData.data).toHaveProperty('tasks');
       expect(backupData.data).toHaveProperty('noteTemplates');
       expect(backupData.data).toHaveProperty('taskNotes');
@@ -205,7 +191,6 @@ describe('useDataBackup', () => {
 
       await result.current.createBackupData();
 
-      expect(mockStorageService.getTimeEntries).toHaveBeenCalledTimes(1);
       expect(mockStorageService.getTasks).toHaveBeenCalledTimes(1);
       expect(mockStorageService.getNoteTemplates).toHaveBeenCalledTimes(1);
       expect(mockStorageService.getTaskNotes).toHaveBeenCalledTimes(1);
@@ -214,7 +199,7 @@ describe('useDataBackup', () => {
     });
 
     it('should handle storage service errors', async () => {
-      mockStorageService.getTimeEntries.mockRejectedValue(new Error('Storage error'));
+      mockStorageService.getTasks.mockRejectedValue(new Error('Storage error'));
       
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -364,7 +349,6 @@ describe('useDataBackup', () => {
 
       expect(parsedData.version).toBe('2');
       expect(parsedData.exportDate).toBeDefined();
-      expect(parsedData.data.timeEntries).toHaveLength(1);
       expect(parsedData.data.tasks).toHaveLength(1);
       expect(parsedData.data.noteTemplates).toHaveLength(1);
       expect(parsedData.data.taskNotes).toHaveLength(1);
@@ -403,7 +387,6 @@ describe('useDataBackup', () => {
       expect(mockCallbacks.onImportSuccess).toHaveBeenCalledWith({
         mode: 'merge',
         importedCounts: {
-          timeEntries: 0,
           tasks: 0,
           noteTemplates: 0,
           taskNotes: 0,
@@ -532,7 +515,7 @@ describe('useDataBackup', () => {
 
   describe('error handling', () => {
     it('should handle createBackupData errors during export', async () => {
-      mockStorageService.getTimeEntries.mockRejectedValue(new Error('Database error'));
+      mockStorageService.getTasks.mockRejectedValue(new Error('Database error'));
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 

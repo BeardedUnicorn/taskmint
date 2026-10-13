@@ -139,6 +139,33 @@ describe('appRecords', () => {
     expect(window.localStorage.getItem('predefinedTasks')).not.toBeNull();
   });
 
+  it('removes keys earlier versions left behind, and keeps settings', async () => {
+    const left = {
+      'predefinedTasks_backup_1791001697839': '{}',
+      'noteTemplates_backup_1791001712854': '{}',
+      timeEntries: '[]',
+      'timeEntries_backup_1700000000000': '[]',
+      dashboardWidgetPrefs: '{}',
+    };
+    for (const [key, value] of Object.entries(left)) window.localStorage.setItem(key, value);
+    window.localStorage.setItem('inactivitySettings', '{}');
+    fakeBackend({ predefinedTasks: tasks });
+
+    await loadAppRecords({ importLegacy: true });
+
+    for (const key of Object.keys(left)) expect(window.localStorage.getItem(key)).toBeNull();
+    expect(window.localStorage.getItem('inactivitySettings')).toBe('{}');
+  });
+
+  it('leaves a development build’s leftovers alone', async () => {
+    window.localStorage.setItem('predefinedTasks_backup_1', '{}');
+    fakeBackend({ predefinedTasks: tasks });
+
+    await loadAppRecords();
+
+    expect(window.localStorage.getItem('predefinedTasks_backup_1')).toBe('{}');
+  });
+
   it('hands out copies, so callers changing them leave the cache alone', async () => {
     fakeBackend({ predefinedTasks: tasks });
     await loadAppRecords();

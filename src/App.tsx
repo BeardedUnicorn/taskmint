@@ -154,7 +154,12 @@ function AppContent() {
                 <CircularProgress />
               </Box>
             }>
-              {activeView === 'sessions' && <SessionDashboard onOpenTasks={openTasksPage} />}
+              {activeView === 'sessions' && (
+                <SessionDashboard
+                  onStartWork={showStartDialog}
+                  onAddTime={() => setAddTimeDialogOpen(true)}
+                />
+              )}
               {activeView === 'tasks' && (
                 <TasksPage
                   tasks={tasks}
