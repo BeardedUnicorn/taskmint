@@ -14,7 +14,7 @@ import { CurrencyInput } from '../../ui/forms/CurrencyInput';
 import { useDailyGoals } from '../../../hooks/useDailyGoals';
 
 interface DailyGoalSettingsProps {
-  onSuccess?: () => void;
+  onSuccess?: (message: string) => void;
   onError?: (error: string) => void;
 }
 
@@ -71,7 +71,7 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
       setIsDirty(false);
       setGoalSuccess(true);
       setTimeout(() => setGoalSuccess(false), 3000);
-      onSuccess?.();
+      onSuccess?.('Daily goal saved');
     } catch (error) {
       console.error('Failed to save goal:', error);
       const errorMessage = 'Failed to save goal. Please try again.';

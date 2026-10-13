@@ -94,3 +94,50 @@ describe('TaskDetailPane earnings', () => {
   });
 });
 
+
+describe('TaskDetailPane start and history', () => {
+  const entries = (count: number): TimeEntry[] =>
+    Array.from({ length: count }, (_, i) => ({
+      id: `e${i}`,
+      taskId: 'task-1',
+      taskName: 'Annotation',
+      startTime: new Date(2026, 9, 1 + i, 9, 0),
+      endTime: new Date(2026, 9, 1 + i, 10, 0),
+      duration: 3_600_000,
+      isRunning: false,
+      date: `2026-10-${String(1 + i).padStart(2, '0')}`,
+    }));
+
+  it('starts the task, and says when it is already running', () => {
+    const onStart = vi.fn();
+    const { rerender } = render(
+      <TaskDetailPane task={task} timeEntries={[]} onEditEntry={() => {}} onDeleteEntry={() => {}} onStart={onStart} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(onStart).toHaveBeenCalledWith(task);
+
+    rerender(
+      <TaskDetailPane task={task} timeEntries={[]} onEditEntry={() => {}} onDeleteEntry={() => {}} onStart={onStart} isRunning />
+    );
+    expect(screen.getByRole('button', { name: 'Running' })).toBeDisabled();
+  });
+
+  it('offers no Start for an archived task', () => {
+    render(
+      <TaskDetailPane task={{ ...task, isArchived: true }} timeEntries={[]} onEditEntry={() => {}} onDeleteEntry={() => {}} onStart={vi.fn()} />
+    );
+    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+  });
+
+  it('lists the newest 10 entries and opens History for the rest', () => {
+    const onViewHistory = vi.fn();
+    render(
+      <TaskDetailPane task={task} timeEntries={entries(12)} onEditEntry={() => {}} onDeleteEntry={() => {}} onViewHistory={onViewHistory} />
+    );
+
+    expect(screen.getAllByRole('row')).toHaveLength(11); // header + 10
+    expect(screen.getByText('The newest 10 of 12')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View all in History (12)' }));
+    expect(onViewHistory).toHaveBeenCalledWith(task);
+  });
+});

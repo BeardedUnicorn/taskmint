@@ -57,19 +57,32 @@ describe('InactivitySettingsSection', () => {
     expect(screen.queryByText(/Testing Mode/)).not.toBeInTheDocument();
   });
 
-  it('sends the saved settings to the backend monitor', async () => {
+  it('applies a change right away and sends it to the backend monitor', async () => {
     renderSection();
 
     fireEvent.click(screen.getByRole('switch', { name: /Enable Inactivity Detection/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Save Changes/ }));
 
     await waitFor(() =>
       expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: true, thresholdMinutes: 15 },
+        settings: { enabled: true, thresholdMinutes: 15, longRunHours: 4 },
       })
     );
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.INACTIVITY_SETTINGS)!);
-    expect(stored.data).toEqual({ enabled: true, thresholdMinutes: 15 });
+    expect(stored.data).toEqual({ enabled: true, thresholdMinutes: 15, longRunHours: 4 });
+    expect(screen.queryByRole('button', { name: /Save/ })).not.toBeInTheDocument();
+  });
+
+  it('sets the long-run reminder, which works with detection off', async () => {
+    renderSection();
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Remind me after a timer runs' }));
+    fireEvent.click(screen.getByRole('option', { name: '2 hours straight' }));
+
+    await waitFor(() =>
+      expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
+        settings: { enabled: false, thresholdMinutes: 15, longRunHours: 2 },
+      })
+    );
   });
 
   it('says so, and stays off, where the system reports no idle time', async () => {

@@ -106,7 +106,7 @@ export function NoteTemplates() {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 3 }}>
       {/* Page Header */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" gutterBottom>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
           Note Templates
         </Typography>
         <Typography variant="body1" color="text.secondary">

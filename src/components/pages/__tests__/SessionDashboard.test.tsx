@@ -26,14 +26,6 @@ vi.mock('../../../contexts/NotificationContext', () => ({
   }),
 }));
 
-// Dashboard widget settings: all widgets enabled unless a test says otherwise
-const mockIsWidgetEnabled = vi.fn(() => true);
-vi.mock('../../../hooks/useDashboardSettings', () => ({
-  useDashboardSettings: () => ({
-    isWidgetEnabled: mockIsWidgetEnabled,
-  }),
-}));
-
 // Mock session management hook
 const mockStartTask = vi.fn();
 const mockAddManualTime = vi.fn();
@@ -196,7 +188,6 @@ describe('SessionDashboard', () => {
     vi.clearAllMocks();
     mockActiveTimer = null;
     // clearAllMocks keeps implementations; undo any per-test override
-    mockIsWidgetEnabled.mockImplementation(() => true);
     // Reset mock state
     Object.assign(mockSessionManagement, {
       sessions: [],
@@ -930,15 +921,6 @@ describe('SessionDashboard', () => {
       expect(screen.getByText('Session Time')).toBeInTheDocument();
       expect(screen.getByText('Session Earnings')).toBeInTheDocument();
       expect(screen.queryByText('Tasks Worked On')).not.toBeInTheDocument();
-    });
-
-    it('hides a scorecard when its dashboard widget setting is disabled', () => {
-      mockIsWidgetEnabled.mockImplementation(((id: string) => id !== 'earnings-today') as never);
-
-      renderDashboard();
-
-      expect(screen.getByText('Session Time')).toBeInTheDocument();
-      expect(screen.queryByText('Session Earnings')).not.toBeInTheDocument();
     });
   });
 });

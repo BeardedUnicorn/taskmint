@@ -9,13 +9,13 @@ you've earned and when it pays out.
 
 | Page | What it's for |
 |---|---|
-| **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session (each day's work gets its own session). Live totals for the active session. **Add time** logs a finished timer after the fact (a "Manual" session). |
-| **Tasks** | Tasks with hourly rates and default note templates; star favorites; archive tasks you're done with. Time keeps the rate it was tracked at, so changing a rate only affects new time. |
-| **Notes** | Free-form or template-based notes on a task (pick it on the Notes page), a session or a timer. A session's notes open from its row, which previews the newest one. |
+| **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session (each day's work gets its own session). Live totals for the active session. The list shows the last 30 days (older ones a click away) and filters by source. **Add time** logs a finished timer after the fact (a "Manual" session). |
+| **Tasks** | Tasks with hourly rates and default note templates; start one, star favorites, archive tasks you're done with. Each task lists its newest entries and opens History for the rest. Time keeps the rate it was tracked at, so changing a rate only affects new time. |
+| **Notes** | Free-form or template-based notes on a task (pick it on the Notes page), a session or a timer. A session's notes open from its row, which previews the newest one. Note templates have their own tab. |
 | **History** | Every tracked, added and imported entry: quick ranges (remembered), search and task filters, totals and charts, the sortable entries table (edit, move an entry to another task, delete, CSV export; imported days are read-only, since each import rebuilds them), and the daily goal's results over the range. |
 | **Calendar** | Earnings, hours and released amounts per day, and the month's totals; click a day for its tasks and releases. |
 | **Payouts** | Import DataAnnotation work logs and see available, pending and upcoming releases, when the last import was, and a daily reconciliation grouped by month. **Project mappings** lists which task each project goes to; moving a project moves its past imported days too. |
-| **Settings** | Appearance, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
+| **Settings** | Appearance, funds-release delay, idle detection and the long-run reminder, daily goal, backups, data export/import/reset, privacy. |
 
 The **system tray** (menu-bar item on macOS) shows the running or paused
 timer and can pause, resume or stop it, start a task's timer, or open the app.
@@ -33,13 +33,17 @@ it started; imported days carry the rate the site's pay implies, so they match
 Payouts). With a **daily goal** set, the sidebar shows today's progress live,
 and notifications fire at 50%, 75% and 100% as you cross them.
 
-**Inactivity detection** (off by default; Settings → Inactivity Detection)
+**Inactivity detection** (off by default; Settings → Idle & Reminders)
 uses the system idle time, so work in any app counts. When there's been no
 keyboard or mouse input for the threshold, the running timer pauses as of when
 input stopped, so the away time isn't counted. When you're back, TaskMint comes
 to the front and asks whether to discard the away time and resume, keep it and
 resume, or stay paused; the tray offers the same choices. This works on macOS
 and Windows.
+
+The **long-run reminder** (on by default, after 4 hours) sends a notification
+when a timer has run that long without a pause, for the timer you forgot to
+stop. It works with inactivity detection off.
 
 ## Where data lives
 

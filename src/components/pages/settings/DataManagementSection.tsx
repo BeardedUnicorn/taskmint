@@ -29,7 +29,7 @@ import { flushAppRecords } from '../../../services/appRecords';
 export const RESET_CONFIRMATION_WORD = 'RESET';
 
 interface DataManagementSectionProps {
-  onSuccess?: () => void;
+  onSuccess?: (message: string) => void;
   onError?: (error: string) => void;
   onImportSuccess?: () => void;
   onImportError?: (error: string) => void;
@@ -41,7 +41,7 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
 
   const { exportData, importData, isExporting, isImporting } = useDataBackup({
     onExportSuccess: () => {
-      onSuccess?.();
+      onSuccess?.('Your data was exported');
     },
     onExportError: (error: unknown) => {
       onError?.(error as string);

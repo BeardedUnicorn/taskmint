@@ -28,6 +28,12 @@ interface TasksPageProps {
   onToggleFavorite?: (taskId: string) => Promise<Task | null>;
   onUpdateEntry?: (data: EditTimeEntryData) => void;
   onDeleteEntry?: (entryId: string) => void;
+  /** Starts (or continues) work on a task. */
+  onStartTask?: (task: Task) => void;
+  /** The task whose timer is running, if any. */
+  runningTaskId?: string | null;
+  /** Opens History filtered to a task. */
+  onViewHistory?: (task: Task) => void;
 }
 
 export function TasksPage({
@@ -41,6 +47,9 @@ export function TasksPage({
   onToggleFavorite,
   onUpdateEntry,
   onDeleteEntry,
+  onStartTask,
+  runningTaskId = null,
+  onViewHistory,
 }: TasksPageProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(
     () => tasks.find(t => !t.isArchived) ?? tasks[0] ?? null
@@ -205,6 +214,9 @@ export function TasksPage({
                 onToggleFavorite={onToggleFavorite ? (taskId) => { void onToggleFavorite(taskId); } : undefined}
                 onEditEntry={onUpdateEntry ? handleEditEntry : () => {}}
                 onDeleteEntry={onDeleteEntry ? handleDeleteEntry : () => {}}
+                onStart={onStartTask}
+                isRunning={runningTaskId === selectedTask.id}
+                onViewHistory={onViewHistory}
               />
             ) : (
               <Box

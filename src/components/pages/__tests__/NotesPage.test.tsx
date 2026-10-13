@@ -146,10 +146,20 @@ describe('NotesPage', () => {
   it('renders the notes page with header and controls', () => {
     render(<NotesPage tasks={mockTasks} activeEntry={null} />);
 
-    expect(screen.getByText('Notes')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Notes' })).toBeInTheDocument();
     expect(screen.getByText('Manage all your notes across tasks in one place')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search notes...')).toBeInTheDocument();
     expect(screen.getByText('Add Note')).toBeInTheDocument();
+  });
+
+  it('keeps note templates on their own tab', () => {
+    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+
+    expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Templates' }));
+
+    expect(screen.getByText(/Create and manage templates for structured task notes/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Search notes...')).not.toBeInTheDocument();
   });
 
   it('shows active timer information when there is an active entry', () => {

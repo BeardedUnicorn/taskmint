@@ -23,7 +23,7 @@ import { useBackupSettingsContext } from '../../../contexts/BackupSettingsContex
 import { BackupFrequency, getBackupFrequencyLabel } from '../../../types/backup';
 
 interface BackupSettingsSectionProps {
-  onSuccess?: () => void;
+  onSuccess?: (message: string) => void;
   onError?: (error: string) => void;
 }
 
@@ -59,7 +59,7 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
     try {
       const result = await performManualBackup();
       if (result.success) {
-        onSuccess?.();
+        onSuccess?.(result.filePath ? `Backed up to ${result.filePath}` : 'Backup saved');
       } else {
         const errorMessage = result.error || 'Backup failed';
         onError?.(errorMessage);

@@ -83,10 +83,14 @@ export function prepareInactivitySettings(): void {
   turnInactivityDetectionOffOnce();
 }
 
-/** Mirror detection settings to the backend's idle monitor. */
+/** Mirror detection and reminder settings to the backend's idle monitor. */
 export function sendIdleSettings(settings: InactivitySettings): Promise<unknown> {
   return safeInvoke('set_idle_settings', {
-    settings: { enabled: settings.enabled, thresholdMinutes: settings.thresholdMinutes },
+    settings: {
+      enabled: settings.enabled,
+      thresholdMinutes: settings.thresholdMinutes,
+      longRunHours: settings.longRunHours,
+    },
   });
 }
 
@@ -104,9 +108,10 @@ export function useEnhancedTimerSettings() {
   const enabled = inactivitySettings?.enabled ?? DEFAULT_INACTIVITY_SETTINGS.enabled;
   const thresholdMinutes =
     inactivitySettings?.thresholdMinutes ?? DEFAULT_INACTIVITY_SETTINGS.thresholdMinutes;
+  const longRunHours = inactivitySettings?.longRunHours ?? DEFAULT_INACTIVITY_SETTINGS.longRunHours;
   const current = useMemo<InactivitySettings>(
-    () => ({ enabled, thresholdMinutes }),
-    [enabled, thresholdMinutes]
+    () => ({ enabled, thresholdMinutes, longRunHours }),
+    [enabled, thresholdMinutes, longRunHours]
   );
 
   const updateInactivitySettings = (updates: Partial<InactivitySettings>) => {

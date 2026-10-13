@@ -26,6 +26,7 @@ const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(m
 import { SessionDashboard } from './components/pages/SessionDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
+import { Task } from './types/task';
 import { EditTimeEntryData } from './types/form';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
@@ -43,6 +44,8 @@ function AppContent() {
   const [activeView, setActiveView] = useState<SidebarView>('sessions');
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [addTimeDialogOpen, setAddTimeDialogOpen] = useState(false);
+  // A task whose entries History should open on (Tasks → View all in History)
+  const [historyFocusTask, setHistoryFocusTask] = useState<Task | null>(null);
 
   const appErrorHandler = useMemo(() => createServiceErrorHandler('AppContent'), []);
 
@@ -164,6 +167,12 @@ function AppContent() {
                   onToggleFavorite={toggleFavorite}
                   onUpdateEntry={handleUpdateEntry}
                   onDeleteEntry={handleDeleteEntry}
+                  onStartTask={(task) => { void sessionManager.startTask(task.id, task.name); }}
+                  runningTaskId={activeEntry?.taskId ?? null}
+                  onViewHistory={(task) => {
+                    setHistoryFocusTask(task);
+                    setActiveView('history');
+                  }}
                 />
               )}
               {activeView === 'notes' && (
@@ -180,6 +189,8 @@ function AppContent() {
                   onUpdateEntry={handleUpdateEntry}
                   onDeleteEntry={handleDeleteEntry}
                   onAddTime={() => setAddTimeDialogOpen(true)}
+                  focusTask={historyFocusTask}
+                  onFocusApplied={() => setHistoryFocusTask(null)}
                 />
               )}
               {activeView === 'calendar' && <CalendarPage />}
