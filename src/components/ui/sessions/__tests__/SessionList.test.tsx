@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionList } from '../SessionList';
 import { TaskSession, TimerInstance, TimerState } from '../../../../types/timer';
 import { formatDate } from '../../../../utils/formatters';
@@ -91,6 +91,14 @@ describe('SessionList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // The fixtures are from Jan 15 2024; the list opens on the last 30 days.
+    // Only Date is faked, so durations still use the nowMs prop.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2024, 0, 16, 12, 0));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('Rendering', () => {
@@ -541,6 +549,54 @@ describe('SessionList', () => {
       expect(within(menu).getByText('Notes')).toBeInTheDocument();
       expect(within(menu).queryByText('Activate Session')).not.toBeInTheDocument();
       expect(within(menu).queryByText('Delete Session')).not.toBeInTheDocument();
+    });
+  });
+  describe('Recent days and source', () => {
+    const old: TaskSession = {
+      ...mockSessions[0],
+      id: 'session-old',
+      taskName: 'Old Work',
+      date: '2023-11-01',
+      timerInstances: [
+        { ...mockTimerInstance, id: 'old-1', sessionId: 'session-old', startTime: new Date(2023, 10, 1, 9) },
+      ],
+    };
+    const imported: TaskSession = {
+      ...mockSessions[0],
+      id: 'session-imported',
+      taskName: 'Imported Day',
+      source: 'worklog-import',
+    };
+
+    it('opens on the last 30 days, with older sessions a click away', () => {
+      render(<SessionList {...mockProps} sessions={[...mockSessions, old]} />);
+
+      expect(screen.queryByRole('heading', { name: 'Old Work' })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Show older (1)' }));
+      expect(screen.getByRole('heading', { name: 'Old Work' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Show the last 30 days only' })).toBeInTheDocument();
+    });
+
+    it('says so when only older sessions exist', () => {
+      render(<SessionList {...mockProps} sessions={[old]} />);
+
+      expect(screen.getByText('Nothing in the last 30 days')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Show older (1)' }));
+      expect(screen.getByRole('heading', { name: 'Old Work' })).toBeInTheDocument();
+    });
+
+    it('filters by where the time came from', () => {
+      render(<SessionList {...mockProps} sessions={[mockSessions[0], imported]} />);
+
+      fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Source' }));
+      fireEvent.click(within(screen.getByRole('listbox')).getByText('Imported'));
+      expect(screen.queryByRole('heading', { name: 'Development Work' })).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Imported Day' })).toBeInTheDocument();
+
+      fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Source' }));
+      fireEvent.click(within(screen.getByRole('listbox')).getByText('Tracked'));
+      expect(screen.getByRole('heading', { name: 'Development Work' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Imported Day' })).not.toBeInTheDocument();
     });
   });
 });

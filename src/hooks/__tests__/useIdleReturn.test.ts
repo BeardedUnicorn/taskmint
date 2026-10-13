@@ -51,7 +51,7 @@ describe('useIdleReturn', () => {
 
     await waitFor(() =>
       expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: true, thresholdMinutes: 10 },
+        settings: { enabled: true, thresholdMinutes: 10, longRunHours: 4 },
       })
     );
   });

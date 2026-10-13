@@ -14,6 +14,7 @@ import {
   Stack,
   IconButton,
   Tooltip,
+  Button,
 } from '@mui/material';
 import {
   AttachMoney as MoneyIcon,
@@ -24,6 +25,8 @@ import {
   Star as StarIcon,
   StarBorder as StarBorderIcon,
   Lock as LockIcon,
+  PlayArrow as PlayIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';
@@ -33,6 +36,9 @@ import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import { entryEarnings, entryRate } from '../../../utils/earnings';
 import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 
+/** The pane lists this many of the newest entries; History has them all. */
+export const RECENT_ENTRY_COUNT = 10;
+
 interface TaskDetailPaneProps {
   task: Task;
   timeEntries: TimeEntry[];
@@ -40,6 +46,12 @@ interface TaskDetailPaneProps {
   onDeleteEntry: (entryId: string) => void;
   /** Stars or unstars the task; favorites lead the tray and start pickers. */
   onToggleFavorite?: (taskId: string) => void;
+  /** Starts (or continues) work on the task, like the tray and Sessions do. */
+  onStart?: (task: Task) => void;
+  /** This task's timer is running right now. */
+  isRunning?: boolean;
+  /** Opens History filtered to this task. */
+  onViewHistory?: (task: Task) => void;
 }
 
 export function TaskDetailPane({
@@ -48,6 +60,9 @@ export function TaskDetailPane({
   onEditEntry,
   onDeleteEntry,
   onToggleFavorite,
+  onStart,
+  isRunning = false,
+  onViewHistory,
 }: TaskDetailPaneProps) {
 
   // Filter time entries for this task
@@ -90,6 +105,16 @@ export function TaskDetailPane({
               <Chip label="Archived" size="small" color="warning" variant="outlined" />
             )}
           </Box>
+          {onStart && !task.isArchived && (
+            <Button
+              variant="contained"
+              startIcon={<PlayIcon />}
+              onClick={() => onStart(task)}
+              disabled={isRunning}
+            >
+              {isRunning ? 'Running' : 'Start'}
+            </Button>
+          )}
           {onToggleFavorite && (
             <Tooltip
               title={
@@ -205,7 +230,7 @@ export function TaskDetailPane({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {taskEntries.map((entry) => {
+                {taskEntries.slice(0, RECENT_ENTRY_COUNT).map((entry) => {
                   const earnings = entryEarnings(entry, allTasks);
 
                   return (
@@ -275,6 +300,19 @@ export function TaskDetailPane({
               </TableBody>
             </Table>
           </TableContainer>
+        )}
+
+        {onViewHistory && taskEntries.length > 0 && (
+          <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+            {taskEntries.length > RECENT_ENTRY_COUNT && (
+              <Typography variant="body2" color="text.secondary">
+                The newest {RECENT_ENTRY_COUNT} of {taskEntries.length}
+              </Typography>
+            )}
+            <Button size="small" startIcon={<HistoryIcon />} onClick={() => onViewHistory(task)}>
+              View all in History ({taskEntries.length})
+            </Button>
+          </Box>
         )}
       </Box>
     </Box>

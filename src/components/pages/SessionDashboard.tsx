@@ -32,7 +32,6 @@ import { AddTimeDialog } from '../ui/dialogs/AddTimeDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
-import { useDashboardSettings } from '../../hooks/useDashboardSettings';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
@@ -90,7 +89,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
 
   const { tasks, archivedTasks, isLoading: tasksLoading } = useTaskManagementContext();
   const { showError } = useNotification();
-  const { isWidgetEnabled } = useDashboardSettings();
 
   // Every start surface lists tasks the same way (and as the tray does):
   // favorites, then most recently used, then the rest; never archived ones.
@@ -259,35 +257,29 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
         />
       </Box>
 
-      {/* Overview Stats — visibility follows the dashboard widget settings */}
-      {(isWidgetEnabled('total-time-today') || isWidgetEnabled('earnings-today')) && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
-          {isWidgetEnabled('total-time-today') && (
-            <StatsCard
-              title="Session Time"
-              value={activeSession ? formatTime(stats.totalTime) : '—'}
-              subtitle={activeSession ? activeSession.taskName : 'No active session'}
-              icon={<TimerIcon sx={{ fontSize: 40 }} />}
-              color="primary"
-            />
-          )}
-          {isWidgetEnabled('earnings-today') && (
-            <StatsCard
-              title="Session Earnings"
-              value={activeSession ? formatCurrency(stats.totalEarnings) : '—'}
-              subtitle={
-                activeSession
-                  ? stats.hourlyRate > 0
-                    ? `At ${formatCurrency(stats.hourlyRate)}/hr`
-                    : 'Set an hourly rate on this task'
-                  : 'Start a session to track earnings'
-              }
-              icon={<MoneyIcon sx={{ fontSize: 40 }} />}
-              color="success"
-            />
-          )}
-        </Box>
-      )}
+      {/* Overview Stats: the active session's time and earnings */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
+        <StatsCard
+          title="Session Time"
+          value={activeSession ? formatTime(stats.totalTime) : '—'}
+          subtitle={activeSession ? activeSession.taskName : 'No active session'}
+          icon={<TimerIcon sx={{ fontSize: 40 }} />}
+          color="primary"
+        />
+        <StatsCard
+          title="Session Earnings"
+          value={activeSession ? formatCurrency(stats.totalEarnings) : '—'}
+          subtitle={
+            activeSession
+              ? stats.hourlyRate > 0
+                ? `At ${formatCurrency(stats.hourlyRate)}/hr`
+                : 'Set an hourly rate on this task'
+              : 'Start a session to track earnings'
+          }
+          icon={<MoneyIcon sx={{ fontSize: 40 }} />}
+          color="success"
+        />
+      </Box>
 
       <Box sx={{ display: 'flex', gap: 4, flexDirection: { xs: 'column', md: 'row' } }}>
         {/* Active Session Display */}

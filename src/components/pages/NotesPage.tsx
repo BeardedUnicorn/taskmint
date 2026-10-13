@@ -25,6 +25,8 @@ import {
   InputAdornment,
   Chip,
   Stack,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -38,6 +40,7 @@ import { NotesList, NoteEditor } from '../features/notes';
 import { useTaskNotes } from '../../hooks/useTaskNotes';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
 import { orderTasksForStart } from '../../utils/taskOrdering';
+import { NoteTemplates } from './NoteTemplates';
 
 interface NotesPageProps {
   tasks: Task[];
@@ -49,6 +52,9 @@ interface NotesPageProps {
 const NO_SESSIONS: TaskSession[] = [];
 
 export function NotesPage({ tasks, sessions = NO_SESSIONS, activeEntry }: NotesPageProps) {
+  // Notes, or the templates they're written from (which used to sit at the
+  // bottom of Settings)
+  const [tab, setTab] = useState<'notes' | 'templates'>('notes');
   // State for note management
   const [editingNote, setEditingNote] = useState<TaskNote | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
@@ -209,187 +215,199 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, activeEntry }: NotesP
         <Typography variant="body1" color="text.secondary">
           Manage all your notes across tasks in one place
         </Typography>
+        <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mt: 2 }}>
+          <Tab label="Notes" value="notes" />
+          <Tab label="Templates" value="templates" />
+        </Tabs>
       </Box>
 
-      {/* Active Timer Info */}
-      {activeEntry && (
-        <Box sx={{ px: 3, pb: 2 }}>
-          <Alert severity="info" sx={{ mb: 1 }}>
-            <Typography variant="body2">
-              <strong>Active Timer:</strong> {activeEntry.taskName}
-              {(() => {
-                const defaultTemplate = activeTask?.defaultNoteTemplateId 
-                  ? templates.find(t => t.id === activeTask.defaultNoteTemplateId)
-                  : null;
-                return defaultTemplate 
-                  ? ` • New notes will use "${defaultTemplate.name}" template`
-                  : ' • No default template set';
-              })()}
-            </Typography>
-          </Alert>
+      {tab === 'templates' ? (
+        <Box sx={{ px: 3, pb: 3, flex: 1, overflow: 'auto' }}>
+          <NoteTemplates />
         </Box>
-      )}
-
-      {/* Controls */}
-      <Box sx={{ px: 3, pb: 2 }}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Search */}
-          <TextField
-            size="small"
-            label="Search notes"
-            placeholder="Search notes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ minWidth: 250 }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }
-            }}
-          />
-
-          {/* Task Filter */}
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Filter by Task</InputLabel>
-            <Select
-              value={selectedTaskFilter}
-              label="Filter by Task"
-              onChange={(e) => setSelectedTaskFilter(e.target.value)}
-            >
-              <MenuItem value="all">All Tasks</MenuItem>
-              {tasks.map((task) => (
-                <MenuItem key={task.id} value={task.id}>
-                  {task.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Template Filter */}
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Filter by Template</InputLabel>
-            <Select
-              value={selectedTemplateFilter}
-              label="Filter by Template"
-              onChange={(e) => setSelectedTemplateFilter(e.target.value)}
-            >
-              <MenuItem value="all">All Templates</MenuItem>
-              {usedTemplates.map((template) => (
-                <MenuItem key={template.id} value={template.id}>
-                  {template.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Add Note Button */}
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateNote}
-            disabled={pickerTasks.length === 0}
-          >
-            Add Note
-          </Button>
-        </Stack>
-      </Box>
-
-      {/* Main Content */}
-      <Box sx={{ flex: 1, overflow: 'hidden', px: 3, pb: 3 }}>
-        <Paper
-          elevation={1}
-          sx={{
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
-            {/* Note Editor - Show when editing or creating */}
-            {(editingNote || selectedTemplate || isCreatingNewNote) && (
-              <Box sx={{ mb: 3 }}>
-                <NoteEditor
-                  key={editingNote?.id ?? 'new'}
-                  tasks={editorTasks}
-                  taskId={editingNote?.taskId || getDefaultTaskId()}
-                  template={selectedTemplate}
-                  existingNote={editingNote}
-                  noteLevel="task"
-                  onSaveNote={handleSaveNote}
-                  onUpdateNote={handleUpdateNote}
-                  onDeleteNote={handleDeleteNote}
-                  isCollapsed={isEditorCollapsed}
-                  onToggleCollapse={handleToggleEditor}
-                  onCloseEditor={handleCloseEditor}
-                />
-              </Box>
-            )}
-
-            {/* Active Notes List */}
-            {tasks.length === 0 ? (
-              <Alert severity="info" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-                <Typography variant="h6" gutterBottom>
-                  No Tasks Available
-                </Typography>
+      ) : (
+        <>
+          {/* Active Timer Info */}
+          {activeEntry && (
+            <Box sx={{ px: 3, pb: 2 }}>
+              <Alert severity="info" sx={{ mb: 1 }}>
                 <Typography variant="body2">
-                  Create some tasks first to start adding notes.
+                  <strong>Active Timer:</strong> {activeEntry.taskName}
+                  {(() => {
+                    const defaultTemplate = activeTask?.defaultNoteTemplateId 
+                      ? templates.find(t => t.id === activeTask.defaultNoteTemplateId)
+                      : null;
+                    return defaultTemplate 
+                      ? ` • New notes will use "${defaultTemplate.name}" template`
+                      : ' • No default template set';
+                  })()}
                 </Typography>
               </Alert>
-            ) : filteredActiveNotes.length === 0 && filteredArchivedNotes.length === 0 ? (
-              <Alert severity="info" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-                <Typography variant="h6" gutterBottom>
-                  No Notes Found
-                </Typography>
-                <Typography variant="body2">
-                  {searchQuery || selectedTaskFilter !== 'all' || selectedTemplateFilter !== 'all'
-                    ? 'No notes match your current filters. Try adjusting your search or filters.'
-                    : 'Start by creating your first note using the "Add Note" button above.'}
-                </Typography>
-              </Alert>
-            ) : (
-              <>
-                {/* Active Notes */}
-                {filteredActiveNotes.length > 0 && (
-                  <NotesList
-                    taskId="" // Empty string since we're showing notes from all tasks
-                    taskNames={taskNames}
-                    notes={filteredActiveNotes}
-                    onEditNote={handleEditNote}
-                    onDeleteNote={handleDeleteNote}
-                    onCreateNote={handleCreateNote}
-                    onArchiveNote={archiveNote}
-                    onUnarchiveNote={unarchiveNote}
-                  />
-                )}
+            </Box>
+          )}
 
-                {/* Archived Notes Section */}
-                {filteredArchivedNotes.length > 0 && (
-                  <Box sx={{ mt: 4 }}>
-                    <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary' }}>
-                      Archived Notes ({filteredArchivedNotes.length})
-                    </Typography>
-                    <NotesList
-                      taskId="" // Empty string since we're showing notes from all tasks
-                      taskNames={taskNames}
-                      notes={filteredArchivedNotes}
-                      onEditNote={handleEditNote}
+          {/* Controls */}
+          <Box sx={{ px: 3, pb: 2 }}>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Search */}
+              <TextField
+                size="small"
+                label="Search notes"
+                placeholder="Search notes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                sx={{ minWidth: 250 }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }
+                }}
+              />
+
+              {/* Task Filter */}
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Filter by Task</InputLabel>
+                <Select
+                  value={selectedTaskFilter}
+                  label="Filter by Task"
+                  onChange={(e) => setSelectedTaskFilter(e.target.value)}
+                >
+                  <MenuItem value="all">All Tasks</MenuItem>
+                  {tasks.map((task) => (
+                    <MenuItem key={task.id} value={task.id}>
+                      {task.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Template Filter */}
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Filter by Template</InputLabel>
+                <Select
+                  value={selectedTemplateFilter}
+                  label="Filter by Template"
+                  onChange={(e) => setSelectedTemplateFilter(e.target.value)}
+                >
+                  <MenuItem value="all">All Templates</MenuItem>
+                  {usedTemplates.map((template) => (
+                    <MenuItem key={template.id} value={template.id}>
+                      {template.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Add Note Button */}
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleCreateNote}
+                disabled={pickerTasks.length === 0}
+              >
+                Add Note
+              </Button>
+            </Stack>
+          </Box>
+
+          {/* Main Content */}
+          <Box sx={{ flex: 1, overflow: 'hidden', px: 3, pb: 3 }}>
+            <Paper
+              elevation={1}
+              sx={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
+              <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+                {/* Note Editor - Show when editing or creating */}
+                {(editingNote || selectedTemplate || isCreatingNewNote) && (
+                  <Box sx={{ mb: 3 }}>
+                    <NoteEditor
+                      key={editingNote?.id ?? 'new'}
+                      tasks={editorTasks}
+                      taskId={editingNote?.taskId || getDefaultTaskId()}
+                      template={selectedTemplate}
+                      existingNote={editingNote}
+                      noteLevel="task"
+                      onSaveNote={handleSaveNote}
+                      onUpdateNote={handleUpdateNote}
                       onDeleteNote={handleDeleteNote}
-                      onCreateNote={handleCreateNote}
-                      onArchiveNote={archiveNote}
-                      onUnarchiveNote={unarchiveNote}
+                      isCollapsed={isEditorCollapsed}
+                      onToggleCollapse={handleToggleEditor}
+                      onCloseEditor={handleCloseEditor}
                     />
                   </Box>
                 )}
-              </>
-            )}
+
+                {/* Active Notes List */}
+                {tasks.length === 0 ? (
+                  <Alert severity="info" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+                    <Typography variant="h6" gutterBottom>
+                      No Tasks Available
+                    </Typography>
+                    <Typography variant="body2">
+                      Create some tasks first to start adding notes.
+                    </Typography>
+                  </Alert>
+                ) : filteredActiveNotes.length === 0 && filteredArchivedNotes.length === 0 ? (
+                  <Alert severity="info" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+                    <Typography variant="h6" gutterBottom>
+                      No Notes Found
+                    </Typography>
+                    <Typography variant="body2">
+                      {searchQuery || selectedTaskFilter !== 'all' || selectedTemplateFilter !== 'all'
+                        ? 'No notes match your current filters. Try adjusting your search or filters.'
+                        : 'Start by creating your first note using the "Add Note" button above.'}
+                    </Typography>
+                  </Alert>
+                ) : (
+                  <>
+                    {/* Active Notes */}
+                    {filteredActiveNotes.length > 0 && (
+                      <NotesList
+                        taskId="" // Empty string since we're showing notes from all tasks
+                        taskNames={taskNames}
+                        notes={filteredActiveNotes}
+                        onEditNote={handleEditNote}
+                        onDeleteNote={handleDeleteNote}
+                        onCreateNote={handleCreateNote}
+                        onArchiveNote={archiveNote}
+                        onUnarchiveNote={unarchiveNote}
+                      />
+                    )}
+
+                    {/* Archived Notes Section */}
+                    {filteredArchivedNotes.length > 0 && (
+                      <Box sx={{ mt: 4 }}>
+                        <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary' }}>
+                          Archived Notes ({filteredArchivedNotes.length})
+                        </Typography>
+                        <NotesList
+                          taskId="" // Empty string since we're showing notes from all tasks
+                          taskNames={taskNames}
+                          notes={filteredArchivedNotes}
+                          onEditNote={handleEditNote}
+                          onDeleteNote={handleDeleteNote}
+                          onCreateNote={handleCreateNote}
+                          onArchiveNote={archiveNote}
+                          onUnarchiveNote={unarchiveNote}
+                        />
+                      </Box>
+                    )}
+                  </>
+                )}
+              </Box>
+            </Paper>
           </Box>
-        </Paper>
-      </Box>
+        </>
+      )}
     </Box>
   );
 }

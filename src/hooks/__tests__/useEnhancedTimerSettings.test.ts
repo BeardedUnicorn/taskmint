@@ -31,9 +31,9 @@ describe('useEnhancedTimerSettings', () => {
   });
 
   it('defaults to off with a 15-minute threshold', () => {
-    expect(DEFAULT_INACTIVITY_SETTINGS).toEqual({ enabled: false, thresholdMinutes: 15 });
+    expect(DEFAULT_INACTIVITY_SETTINGS).toEqual({ enabled: false, thresholdMinutes: 15, longRunHours: 4 });
     const { result } = renderHook(() => useEnhancedTimerSettings());
-    expect(result.current.inactivitySettings).toEqual({ enabled: false, thresholdMinutes: 15 });
+    expect(result.current.inactivitySettings).toEqual({ enabled: false, thresholdMinutes: 15, longRunHours: 4 });
   });
 
   describe('one-time switch to off by default', () => {
@@ -76,7 +76,7 @@ describe('useEnhancedTimerSettings', () => {
 
       const { result } = renderHook(() => useEnhancedTimerSettings());
 
-      expect(result.current.inactivitySettings).toEqual({ enabled: false, thresholdMinutes: 45 });
+      expect(result.current.inactivitySettings).toEqual({ enabled: false, thresholdMinutes: 45, longRunHours: 4 });
     });
   });
 
@@ -93,9 +93,9 @@ describe('useEnhancedTimerSettings', () => {
       });
 
       expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: true, thresholdMinutes: 5 },
+        settings: { enabled: true, thresholdMinutes: 5, longRunHours: 4 },
       });
-      expect(result.current.inactivitySettings).toEqual({ enabled: true, thresholdMinutes: 5 });
+      expect(result.current.inactivitySettings).toEqual({ enabled: true, thresholdMinutes: 5, longRunHours: 4 });
     });
 
     it('drops keys older builds saved (warning, auto-resume, testing mode) on the next save', () => {
@@ -109,12 +109,12 @@ describe('useEnhancedTimerSettings', () => {
       });
       const { result } = renderHook(() => useEnhancedTimerSettings());
 
-      expect(result.current.inactivitySettings).toEqual({ enabled: true, thresholdMinutes: 15 });
+      expect(result.current.inactivitySettings).toEqual({ enabled: true, thresholdMinutes: 15, longRunHours: 4 });
       act(() => {
         result.current.updateInactivitySettings({ thresholdMinutes: 10 });
       });
 
-      expect(storedSettings()).toEqual({ enabled: true, thresholdMinutes: 10 });
+      expect(storedSettings()).toEqual({ enabled: true, thresholdMinutes: 10, longRunHours: 4 });
     });
 
     it('resetting also resets the backend', () => {
@@ -125,7 +125,7 @@ describe('useEnhancedTimerSettings', () => {
       });
 
       expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: false, thresholdMinutes: 15 },
+        settings: { enabled: false, thresholdMinutes: 15, longRunHours: 4 },
       });
     });
   });

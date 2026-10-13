@@ -1,10 +1,16 @@
 /**
- * Inactivity Settings Section
+ * Idle & Reminders Settings Section
  *
- * Turns idle detection on or off and sets how long without input counts as
- * away. Detection runs in the backend on the system idle time (any app), and
+ * Idle detection: on or off, and how long without input counts as away.
+ * Detection runs in the backend on the system idle time (any app), and
  * pauses the running timer as of when input stopped; on return the app asks
  * whether to keep or discard the away time.
+ *
+ * The long-run reminder: a notification once a timer has run for a set
+ * number of hours straight, for the timer that got forgotten. It works with
+ * detection off.
+ *
+ * Changes apply as they're made, like the other sections.
  */
 
 import { useState, useEffect } from 'react';
@@ -19,22 +25,27 @@ import {
   Stack,
   Divider,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Timer as TimerIcon,
-  Save as SaveIcon,
   RestartAlt as ResetIcon,
 } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { useEnhancedTimerSettings } from '../../../hooks/useEnhancedTimerSettings';
 import { INACTIVITY_CONSTANTS } from '../../../constants';
-import { InactivitySettings } from '../../../types/timer';
 import { isTauriEnvironment, safeInvoke } from '../../../utils/tauri';
 
 interface InactivitySettingsSectionProps {
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 }
+
+/** Hours offered for the long-run reminder (0 = off). */
+export const LONG_RUN_HOUR_OPTIONS = [0, 2, 3, 4, 6, 8] as const;
 
 const formatTime = (minutes: number): string => {
   if (minutes < 60) {
@@ -54,13 +65,14 @@ export function InactivitySettingsSection({
 }: InactivitySettingsSectionProps) {
   const { inactivitySettings, updateInactivitySettings, resetToDefaults } = useEnhancedTimerSettings();
 
-  const [localSettings, setLocalSettings] = useState<InactivitySettings>(inactivitySettings);
+  // The slider moves freely while dragged and saves when let go
+  const [threshold, setThreshold] = useState(inactivitySettings.thresholdMinutes);
   // The desktop app reports whether this OS exposes system idle time
   const [supported, setSupported] = useState(true);
 
   useEffect(() => {
-    setLocalSettings(inactivitySettings);
-  }, [inactivitySettings]);
+    setThreshold(inactivitySettings.thresholdMinutes);
+  }, [inactivitySettings.thresholdMinutes]);
 
   useEffect(() => {
     if (!isTauriEnvironment()) return;
@@ -69,36 +81,22 @@ export function InactivitySettingsSection({
     });
   }, []);
 
-  const hasChanges =
-    localSettings.enabled !== inactivitySettings.enabled ||
-    localSettings.thresholdMinutes !== inactivitySettings.thresholdMinutes;
-
-  const handleSave = () => {
-    try {
-      updateInactivitySettings(localSettings);
-      onSuccess('Inactivity settings saved successfully!');
-    } catch (error) {
-      console.error('Failed to save inactivity settings:', error);
-      onError('Failed to save inactivity settings. Please try again.');
-    }
-  };
-
   const handleReset = () => {
     try {
       resetToDefaults();
-      onSuccess('Inactivity settings reset to defaults!');
+      onSuccess('Idle and reminder settings are back to their defaults');
     } catch (error) {
       console.error('Failed to reset inactivity settings:', error);
-      onError('Failed to reset inactivity settings. Please try again.');
+      onError("Couldn't reset the idle settings. Please try again.");
     }
   };
 
   return (
     <SettingsSection
-      title="Inactivity Detection"
+      title="Idle & Reminders"
       icon={<TimerIcon color="primary" />}
       headerChildren={
-        inactivitySettings.enabled && <Chip label="Enabled" color="success" size="small" />
+        inactivitySettings.enabled && <Chip label="Idle detection on" color="success" size="small" />
       }
       paperProps={{ sx: { mb: 0 } }}
     >
@@ -118,8 +116,8 @@ export function InactivitySettingsSection({
         <FormControlLabel
           control={
             <Switch
-              checked={localSettings.enabled}
-              onChange={(e) => setLocalSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+              checked={inactivitySettings.enabled}
+              onChange={(e) => updateInactivitySettings({ enabled: e.target.checked })}
               disabled={!supported}
             />
           }
@@ -130,18 +128,18 @@ export function InactivitySettingsSection({
           }
         />
 
-        {localSettings.enabled && (
+        {inactivitySettings.enabled && (
           <>
-            <Divider />
             <Box>
               <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
-                Pause after {formatTime(localSettings.thresholdMinutes)} without input
+                Pause after {formatTime(threshold)} without input
               </Typography>
               <Slider
                 aria-label="Inactivity threshold"
-                value={localSettings.thresholdMinutes}
-                onChange={(_, value) =>
-                  setLocalSettings(prev => ({ ...prev, thresholdMinutes: value as number }))
+                value={threshold}
+                onChange={(_, value) => setThreshold(value as number)}
+                onChangeCommitted={(_, value) =>
+                  updateInactivitySettings({ thresholdMinutes: value as number })
                 }
                 min={INACTIVITY_CONSTANTS.MIN_THRESHOLD_MINUTES}
                 max={INACTIVITY_CONSTANTS.MAX_THRESHOLD_MINUTES}
@@ -165,17 +163,32 @@ export function InactivitySettingsSection({
           </>
         )}
 
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', pt: 2 }}>
+        <Divider />
+
+        <Box>
+          <FormControl size="small" sx={{ minWidth: 260 }}>
+            <InputLabel id="long-run-label">Remind me after a timer runs</InputLabel>
+            <Select
+              labelId="long-run-label"
+              label="Remind me after a timer runs"
+              value={inactivitySettings.longRunHours}
+              onChange={(e) => updateInactivitySettings({ longRunHours: Number(e.target.value) })}
+            >
+              {LONG_RUN_HOUR_OPTIONS.map(hours => (
+                <MenuItem key={hours} value={hours}>
+                  {hours === 0 ? 'Never' : `${hours} hours straight`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            A notification for the timer you forgot to stop. It works with idle detection off.
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button variant="outlined" startIcon={<ResetIcon />} onClick={handleReset}>
             Reset to Defaults
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<SaveIcon />}
-            onClick={handleSave}
-            disabled={!hasChanges}
-          >
-            Save Changes
           </Button>
         </Box>
       </Stack>

@@ -30,6 +30,11 @@ const RETURN_INPUT_MS: u64 = 10_000;
 pub struct IdleSettings {
     pub enabled: bool,
     pub threshold_minutes: u32,
+    /// Remind after a timer has run this many hours straight (0 = off).
+    /// Independent of `enabled`: it's the reminder for when idle detection
+    /// is off and a timer gets forgotten.
+    #[serde(default)]
+    pub long_run_hours: u32,
 }
 
 /// A timer the monitor paused, awaiting the user's keep/discard answer.
@@ -47,6 +52,8 @@ pub struct IdlePause {
 pub struct IdleState {
     pub settings: IdleSettings,
     pub pause: Option<IdlePause>,
+    /// The run the long-run reminder last fired for (see long_run_tick).
+    pub long_run_reminded: Option<String>,
 }
 
 /// What the app shows in its "welcome back" question.
@@ -128,6 +135,49 @@ pub fn is_supported() -> bool {
 // ============================================================================
 // DECISIONS
 // ============================================================================
+
+/// A timer that has run long enough to remind about.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LongRun {
+    /// `<instance id>@<when the run began>`: one reminder per run.
+    pub key: String,
+    pub task_name: String,
+    pub run_ms: u64,
+}
+
+/// The long-run reminder, as a pure function: the running timer whose
+/// current run (since it started or last resumed) has lasted `hours`, unless
+/// this run was already reminded about.
+pub fn long_run_tick(
+    sessions: &[TaskSession],
+    reminded: Option<&str>,
+    hours: u32,
+    now: DateTime<Utc>,
+) -> Option<LongRun> {
+    if hours == 0 {
+        return None;
+    }
+    let (session, instance) = sessions.iter().find_map(|s| {
+        s.timer_instances
+            .iter()
+            .find(|i| i.is_running)
+            .map(|i| (s, i))
+    })?;
+    let run_began = instance.resumed_at.unwrap_or(instance.start_time);
+    let run_ms = (now - run_began).num_milliseconds();
+    if run_ms < hours as i64 * 3_600_000 {
+        return None;
+    }
+    let key = format!("{}@{}", instance.id, run_began.to_rfc3339());
+    if reminded == Some(key.as_str()) {
+        return None;
+    }
+    Some(LongRun {
+        key,
+        task_name: session.task_name.clone(),
+        run_ms: run_ms as u64,
+    })
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IdleAction {
@@ -382,22 +432,55 @@ pub fn resolve(app: &AppHandle, state: &AppState, choice: IdleChoice) -> Result<
     clear_pending(app, state)
 }
 
-/// Sample the system idle time every few seconds and act on it. Does
-/// nothing on platforms without an idle-time source.
+/// Remind once per run, with a native notification.
+fn apply_long_run(app: &AppHandle, state: &AppState, long_run: LongRun) -> Result<(), String> {
+    state.with_idle_mut(|idle| idle.long_run_reminded = Some(long_run.key.clone()))?;
+    log::info!("Long-run reminder for '{}'", long_run.task_name);
+    notify(
+        app,
+        "Still working?",
+        &format!(
+            "{}'s timer has been running for {}.",
+            long_run.task_name,
+            crate::utils::format_duration_hm(long_run.run_ms)
+        ),
+    );
+    Ok(())
+}
+
+/// Every few seconds: the long-run reminder, and (where the system reports
+/// idle time) idle detection.
 pub fn start_idle_monitor(app: &AppHandle, state: &AppState) {
     if !is_supported() {
         log::info!("Idle detection is not supported on this platform");
-        return;
     }
     let app = app.clone();
     let state = state.clone();
     std::thread::spawn(move || loop {
         std::thread::sleep(POLL_INTERVAL);
-        let Some(idle_ms) = system_idle_ms() else {
-            continue;
-        };
         let now = Utc::now();
         let Ok(idle_state) = state.with_idle(|idle| idle.clone()) else {
+            continue;
+        };
+
+        let long_run = state
+            .with_task_sessions(|sessions| {
+                long_run_tick(
+                    sessions,
+                    idle_state.long_run_reminded.as_deref(),
+                    idle_state.settings.long_run_hours,
+                    now,
+                )
+            })
+            .ok()
+            .flatten();
+        if let Some(long_run) = long_run {
+            if let Err(e) = apply_long_run(&app, &state, long_run) {
+                log::error!("Long-run reminder: {}", e);
+            }
+        }
+
+        let Some(idle_ms) = system_idle_ms() else {
             continue;
         };
         let action = state
@@ -477,8 +560,10 @@ mod tests {
             settings: IdleSettings {
                 enabled: true,
                 threshold_minutes,
+                long_run_hours: 0,
             },
             pause: None,
+            long_run_reminded: None,
         }
     }
 
@@ -679,5 +764,58 @@ mod tests {
         assert_eq!(IdleChoice::parse("keepResume"), Ok(IdleChoice::KeepResume));
         assert_eq!(IdleChoice::parse("stayPaused"), Ok(IdleChoice::StayPaused));
         assert!(IdleChoice::parse("nope").is_err());
+    }
+    // --- long-run reminder ---------------------------------------------------
+
+    const HOUR: i64 = 3_600;
+
+    #[test]
+    fn reminds_once_a_run_reaches_the_setting() {
+        let sessions = vec![session(true, vec![running("r", 0)])];
+
+        assert_eq!(long_run_tick(&sessions, None, 4, ts(4 * HOUR - 1)), None);
+        let reminder = long_run_tick(&sessions, None, 4, ts(4 * HOUR)).unwrap();
+        assert_eq!(reminder.run_ms, 4 * 3_600_000);
+        assert!(reminder.key.starts_with("r@"));
+    }
+
+    #[test]
+    fn the_same_run_is_reminded_about_once() {
+        let sessions = vec![session(true, vec![running("r", 0)])];
+        let first = long_run_tick(&sessions, None, 4, ts(4 * HOUR)).unwrap();
+
+        assert_eq!(
+            long_run_tick(&sessions, Some(&first.key), 4, ts(9 * HOUR)),
+            None
+        );
+    }
+
+    #[test]
+    fn a_resumed_run_counts_from_the_resume_and_can_remind_again() {
+        let mut resumed = running("r", 0);
+        resumed.resumed_at = Some(ts(5 * HOUR));
+        let sessions = vec![session(true, vec![resumed])];
+        let earlier_key = format!("r@{}", ts(0).to_rfc3339());
+
+        assert_eq!(
+            long_run_tick(&sessions, Some(&earlier_key), 4, ts(8 * HOUR)),
+            None
+        );
+        assert!(long_run_tick(&sessions, Some(&earlier_key), 4, ts(9 * HOUR)).is_some());
+    }
+
+    #[test]
+    fn no_reminder_when_off_or_nothing_runs() {
+        let sessions = vec![session(true, vec![running("r", 0)])];
+        assert_eq!(long_run_tick(&sessions, None, 0, ts(10 * HOUR)), None);
+        assert_eq!(
+            long_run_tick(
+                &[session(true, vec![instance("i", 0)])],
+                None,
+                4,
+                ts(10 * HOUR)
+            ),
+            None
+        );
     }
 }

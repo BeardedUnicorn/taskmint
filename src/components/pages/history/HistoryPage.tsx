@@ -61,6 +61,9 @@ interface HistoryPageProps {
   onBulkDeleteEntries?: (entryIds: string[]) => void;
   /** Opens the Add Time dialog (time logged after the fact). */
   onAddTime?: () => void;
+  /** Open on all of this task's entries (from the Tasks page), then forget it. */
+  focusTask?: Task | null;
+  onFocusApplied?: () => void;
 }
 
 const ENTRIES_PER_PAGE_OPTIONS = [10, 25, 50, 100];
@@ -72,6 +75,8 @@ export function HistoryPage({
   onDeleteEntry,
   onBulkDeleteEntries,
   onAddTime,
+  focusTask = null,
+  onFocusApplied,
 }: HistoryPageProps) {
   // State management (the key predates History: Time Entries' saved filters carry over)
   const [storedFilters, setFilters] = useLocalStorage<TimeEntriesFiltersState>(
@@ -95,6 +100,20 @@ export function HistoryPage({
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [bulkDeletingIds, setBulkDeletingIds] = useState<string[]>([]);
   
+  // Arriving from a task's "View all in History": that task, all time
+  React.useEffect(() => {
+    if (!focusTask) return;
+    setFilters({
+      ...defaultFilters,
+      selectedTasks: [focusTask],
+      datePreset: 'all',
+      startDate: null,
+      endDate: null,
+    });
+    onFocusApplied?.();
+    // Once per focus request: setFilters and the callback aren't stable
+  }, [focusTask]);
+
   // Filter, then sort the whole list, then paginate — sorting after the
   // slice would only order the visible page.
   const filteredEntries = useMemo(() => {

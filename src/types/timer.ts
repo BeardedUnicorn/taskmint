@@ -138,6 +138,8 @@ export interface TaskSession {
 export interface InactivitySettings {
   enabled: boolean;
   thresholdMinutes: number; // Minutes without keyboard/mouse input before pausing
+  /** Remind after a timer has run this many hours straight (0 = off); works with detection off too. */
+  longRunHours: number;
 }
 
 /** The backend's pending "you were away" question (get_idle_pause / idle-returned). */
@@ -214,6 +216,7 @@ export const InactivitySettingsSchema = z.object({
 export const DEFAULT_INACTIVITY_SETTINGS: InactivitySettings = {
   enabled: false,
   thresholdMinutes: 15,
+  longRunHours: 4,
 };
 
 

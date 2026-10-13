@@ -5,7 +5,8 @@
  * filtering, and detailed session information.
  */
 
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, memo, useCallback } from 'react';
+import dayjs from 'dayjs';
 import {
   Box,
   Card,
@@ -70,6 +71,19 @@ function isImportedSession(session: TaskSession | null): boolean {
   return session?.source === WORKLOG_IMPORT_SOURCE;
 }
 
+/** The list opens on this many days; older sessions are a click away (and in History). */
+export const RECENT_SESSION_DAYS = 30;
+
+type SourceFilter = 'all' | 'tracked' | 'imported';
+
+/** Active, or worked on (dated, or a timer started) on or after `cutoff`. */
+function isRecent(session: TaskSession, cutoff: string): boolean {
+  if (session.isActive || session.date >= cutoff) return true;
+  return (session.timerInstances ?? []).some(
+    instance => dayjs(instance.startTime).format('YYYY-MM-DD') >= cutoff
+  );
+}
+
 /**
  * A session's note texts, newest first. Text a session still carries itself
  * (old notes that couldn't be moved to the notes store) shows as a fallback.
@@ -99,6 +113,8 @@ export const SessionList = memo(function SessionList({
 }: SessionListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [showOlder, setShowOlder] = useState(false);
   const [taskFilters, setTaskFilters] = useState<string[]>([]);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedSession, setSelectedSession] = useState<TaskSession | null>(null);
@@ -139,12 +155,28 @@ export const SessionList = memo(function SessionList({
       result = result.filter(session => taskFilters.includes(session.taskName));
     }
 
+    if (sourceFilter !== 'all') {
+      result = result.filter(session =>
+        sourceFilter === 'imported' ? isImportedSession(session) : !isImportedSession(session)
+      );
+    }
+
     return result;
-  }, [sessions, searchQuery, statusFilter, taskFilters, sessionNotes]);
+  }, [sessions, searchQuery, statusFilter, taskFilters, sourceFilter, sessionNotes]);
+
+  // The last RECENT_SESSION_DAYS days, unless older ones were asked for
+  const { visibleSessions, olderCount } = useMemo(() => {
+    const cutoff = dayjs().subtract(RECENT_SESSION_DAYS - 1, 'day').format('YYYY-MM-DD');
+    const recent = filteredSessions.filter(session => isRecent(session, cutoff));
+    return {
+      visibleSessions: showOlder ? filteredSessions : recent,
+      olderCount: filteredSessions.length - recent.length,
+    };
+  }, [filteredSessions, showOlder]);
 
   // Group sessions by date
   const sessionsByDate = useMemo(() => {
-    const grouped = filteredSessions.reduce((acc, session) => {
+    const grouped = visibleSessions.reduce((acc, session) => {
       const date = session.date;
       if (!acc[date]) {
         acc[date] = [];
@@ -162,13 +194,13 @@ export const SessionList = memo(function SessionList({
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       )
     }));
-  }, [filteredSessions]);
+  }, [visibleSessions]);
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, session: TaskSession) => {
+  const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>, session: TaskSession) => {
     event.stopPropagation();
     setMenuAnchor(event.currentTarget);
     setSelectedSession(session);
-  };
+  }, []);
 
   const handleMenuClose = () => {
     setMenuAnchor(null);
@@ -297,6 +329,20 @@ export const SessionList = memo(function SessionList({
             <MenuItem value="completed">Completed</MenuItem>
           </Select>
         </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 130 }}>
+          <InputLabel id="session-source-label">Source</InputLabel>
+          <Select
+            labelId="session-source-label"
+            value={sourceFilter}
+            label="Source"
+            onChange={(e: SelectChangeEvent) => setSourceFilter(e.target.value as SourceFilter)}
+          >
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="tracked">Tracked</MenuItem>
+            <MenuItem value="imported">Imported</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
 
       {uniqueTaskNames.length > 0 && (
@@ -331,22 +377,35 @@ export const SessionList = memo(function SessionList({
 
       {/* Sessions grouped by date */}
       {sessionsByDate.length === 0 ? (
-        <EmptyState
-          title="No matching sessions"
-          description="Nothing matches your current search and filters."
-          action={
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setSearchQuery('');
-                setStatusFilter('all');
-                setTaskFilters([]);
-              }}
-            >
-              Clear filters
-            </Button>
-          }
-        />
+        olderCount > 0 && !showOlder ? (
+          <EmptyState
+            title={`Nothing in the last ${RECENT_SESSION_DAYS} days`}
+            description="Older sessions are still here, and in History."
+            action={
+              <Button variant="outlined" onClick={() => setShowOlder(true)}>
+                Show older ({olderCount})
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="No matching sessions"
+            description="Nothing matches your current search and filters."
+            action={
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                  setSourceFilter('all');
+                  setTaskFilters([]);
+                }}
+              >
+                Clear filters
+              </Button>
+            }
+          />
+        )
       ) : (
         <Stack spacing={3}>
           {sessionsByDate.map(({ date, sessions: dateSessions }) => (
@@ -373,13 +432,19 @@ export const SessionList = memo(function SessionList({
                   <SessionCard
                     key={session.id}
                     session={session}
-                    nowMs={nowMs}
+                    // Only the active session's time moves; the others keep a
+                    // fixed clock so their memoized cards skip the tick.
+                    nowMs={
+                      session.isActive || session.timerInstances?.some(i => i.state === TimerState.running)
+                        ? nowMs
+                        : 0
+                    }
                     isSelected={session.id === selectedSessionId}
-                    onSelect={() => onSelectSession(session)}
-                    onMenuOpen={(e) => handleMenuOpen(e, session)}
-                    onStart={() => onStartSession(session)}
-                    onStop={() => onStopSession()}
-                    onOpenNotes={() => onOpenNotes(session.id)}
+                    onSelect={onSelectSession}
+                    onMenuOpen={handleMenuOpen}
+                    onStart={onStartSession}
+                    onStop={onStopSession}
+                    onOpenNotes={onOpenNotes}
                     notePreview={notesFor(session, sessionNotes)[0]}
                   />
                 ))}
@@ -387,6 +452,14 @@ export const SessionList = memo(function SessionList({
             </Box>
           ))}
         </Stack>
+      )}
+
+      {sessionsByDate.length > 0 && (olderCount > 0 || showOlder) && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+          <Button variant="text" onClick={() => setShowOlder(prev => !prev)}>
+            {showOlder ? `Show the last ${RECENT_SESSION_DAYS} days only` : `Show older (${olderCount})`}
+          </Button>
+        </Box>
       )}
 
       {/* Context menu */}
@@ -448,16 +521,17 @@ interface SessionCardProps {
   /** Timestamp the duration is rendered at, ticked by the list while timers run */
   nowMs: number;
   isSelected: boolean;
-  onSelect: () => void;
-  onMenuOpen: (event: React.MouseEvent<HTMLElement>) => void;
-  onStart: () => void;
+  // Stable handlers taking the session, so memo can skip unchanged cards
+  onSelect: (session: TaskSession) => void;
+  onMenuOpen: (event: React.MouseEvent<HTMLElement>, session: TaskSession) => void;
+  onStart: (session: TaskSession) => void;
   onStop: () => void;
-  onOpenNotes: () => void;
+  onOpenNotes: (sessionId: string) => void;
   /** The newest note's text, previewed under the title. */
   notePreview?: string;
 }
 
-function SessionCard({
+const SessionCard = memo(function SessionCard({
   session,
   nowMs,
   isSelected,
@@ -483,7 +557,7 @@ function SessionCard({
           bgcolor: 'action.hover',
         },
       }}
-      onClick={onSelect}
+      onClick={() => onSelect(session)}
     >
       <CardContent sx={{ pb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
@@ -570,7 +644,7 @@ function SessionCard({
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
-                  session.isActive ? onStop() : onStart();
+                  session.isActive ? onStop() : onStart(session);
                 }}
                 size="small"
                 startIcon={session.isActive ? <StopIcon /> : <PlayIcon />}
@@ -582,7 +656,7 @@ function SessionCard({
             <Button
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenNotes();
+                onOpenNotes(session.id);
               }}
               size="small"
               startIcon={<NotesIcon />}
@@ -591,7 +665,7 @@ function SessionCard({
               Notes
             </Button>
             <IconButton
-              onClick={onMenuOpen}
+              onClick={(event) => onMenuOpen(event, session)}
               size="small"
               aria-label="More options"
             >
@@ -602,4 +676,4 @@ function SessionCard({
       </CardContent>
     </Card>
   );
-}
+});

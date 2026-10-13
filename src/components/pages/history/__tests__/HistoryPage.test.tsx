@@ -240,3 +240,31 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Reports')).not.toBeInTheDocument();
   });
 });
+
+describe('HistoryPage opened from a task', () => {
+  it("shows all of that task's entries, then forgets the request", () => {
+    const other: Task = { id: 'task-2', name: 'Other', createdAt: '', updatedAt: '' };
+    const onFocusApplied = vi.fn();
+    const old = { ...entryDaysAgo(90, 'Annotation'), taskId: 'task-1' };
+    const otherTask = { ...entryDaysAgo(1, 'Other'), id: 'other', taskId: 'task-2' };
+    render(
+      <ThemeProvider theme={createLightTheme()}>
+        <NotificationProvider>
+          <HistoryPage
+            timeEntries={[old, otherTask]}
+            tasks={[...tasks, other]}
+            onUpdateEntry={() => {}}
+            onDeleteEntry={() => {}}
+            focusTask={tasks[0]}
+            onFocusApplied={onFocusApplied}
+          />
+        </NotificationProvider>
+      </ThemeProvider>
+    );
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('Annotation')).toBeInTheDocument(); // 90 days ago: all time
+    expect(within(table).queryByText('Other')).not.toBeInTheDocument();
+    expect(onFocusApplied).toHaveBeenCalledTimes(1);
+  });
+});
