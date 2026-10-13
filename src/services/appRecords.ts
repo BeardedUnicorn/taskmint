@@ -4,8 +4,9 @@
  * In the desktop app they live in appdata.json, owned by the Rust backend
  * next to sessions.json. loadAppRecords() reads them once, before the first
  * render, into this in-memory cache, so every reader stays synchronous.
- * Writes update the cache and go to the backend, in order per record. The
- * first launch moves the records in from the webview's localStorage.
+ * Writes update the cache and go to the backend, in order per record.
+ * Records an older version left in the webview's localStorage are moved in
+ * at startup.
  *
  * Outside the app (the web preview, tests) the cache stays inactive and
  * callers keep using localStorage.
@@ -28,7 +29,6 @@ export type AppRecordKey = (typeof APP_RECORD_KEYS)[number];
 
 interface AppRecordsResponse {
   records: Record<string, unknown>;
-  initialized: boolean;
 }
 
 let cache: Map<string, unknown> | null = null;
@@ -44,43 +44,61 @@ export function appRecordsActive(): boolean {
   return cache !== null;
 }
 
-/** A localStorage value as plain data: parsed, any {version, data} wrapper removed. */
-function readLocalStorageRecord(key: string): unknown {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (raw === null) return undefined;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && typeof parsed.version === 'number' && 'data' in parsed) {
-      return parsed.data;
+/**
+ * The records an older version kept in this webview's localStorage, as plain
+ * data (any {version, data} wrapper removed), and the keys they came from.
+ * An unreadable value is left where it is rather than moved as garbage.
+ */
+function readLegacyRecords(): { records: Record<string, unknown>; keys: string[] } {
+  const records: Record<string, unknown> = {};
+  const keys: string[] = [];
+  for (const key of APP_RECORD_KEYS) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw === null) continue;
+      let value = JSON.parse(raw);
+      if (value && typeof value === 'object' && typeof value.version === 'number' && 'data' in value) {
+        value = value.data;
+      }
+      keys.push(key);
+      if (value !== null && value !== undefined) records[key] = value;
+    } catch {
+      // Unreadable: leave it
     }
-    return parsed;
-  } catch {
-    // Unreadable: leave it where it is rather than move garbage
-    return undefined;
   }
+  return { records, keys };
+}
+
+interface LoadOptions {
+  /**
+   * Move in records left in this webview's localStorage. Off in development
+   * builds: their webview storage is separate from the installed app's (and
+   * often stale), but appdata.json is shared, so they'd mix old test data
+   * into the real records.
+   */
+  importLegacy?: boolean;
 }
 
 /**
- * Loads the records into the cache (desktop app only). On the first launch
- * after the move, copies them over from localStorage, then removes the
- * localStorage copies so there's one source of truth. Throws if the data
- * file can't be read; nothing is written in that case.
+ * Loads the records into the cache (desktop app only). Records still in
+ * localStorage from before the move are added to the file first (never
+ * replacing what's there, with a copy kept beside it), then removed from
+ * localStorage so there's one source of truth. Throws if the data file
+ * can't be read or the move fails; localStorage is untouched then.
  */
-export async function loadAppRecords(): Promise<void> {
+export async function loadAppRecords({ importLegacy = !import.meta.env.DEV }: LoadOptions = {}): Promise<void> {
   if (!isTauriEnvironment()) return;
 
-  let response = await invoke<AppRecordsResponse>('get_app_records');
-  if (!response.initialized) {
-    const fromWebview: Record<string, unknown> = {};
-    for (const key of APP_RECORD_KEYS) {
-      const value = readLocalStorageRecord(key);
-      if (value !== undefined && value !== null) fromWebview[key] = value;
-    }
-    // Stores only records the file doesn't have yet, so this is safe to repeat
-    response = await invoke<AppRecordsResponse>('import_app_records', { records: fromWebview });
-    for (const key of Object.keys(fromWebview)) {
-      window.localStorage.removeItem(key);
-    }
+  const legacy = importLegacy ? readLegacyRecords() : { records: {}, keys: [] };
+  let response: AppRecordsResponse;
+  if (Object.keys(legacy.records).length > 0) {
+    response = await invoke<AppRecordsResponse>('import_app_records', { records: legacy.records });
+    console.info(`Moved ${Object.keys(legacy.records).join(', ')} into appdata.json`);
+  } else {
+    response = await invoke<AppRecordsResponse>('get_app_records');
+  }
+  for (const key of legacy.keys) {
+    window.localStorage.removeItem(key);
   }
   cache = new Map(Object.entries(response.records ?? {}));
 }

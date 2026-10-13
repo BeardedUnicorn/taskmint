@@ -40,7 +40,7 @@ describe('StorageService with app records', () => {
     window.localStorage.clear();
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === 'get_app_records') {
-        return { records: { predefinedTasks: [task], taskNotes: [note] }, initialized: true };
+        return { records: { predefinedTasks: [task], taskNotes: [note] } };
       }
       return null;
     });
