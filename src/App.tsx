@@ -32,7 +32,8 @@ import { SessionManagementProvider, useSessionManagementContext } from './contex
 import { WorkLogProvider } from './contexts/WorkLogContext';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
 import { useDailyGoalProgressMonitor } from './hooks/useDailyGoalProgressMonitor';
-import { sessionsToTimeEntries, buildTimerEditUpdates, getInstanceDateString } from './utils/timerHelpers';
+import { sessionsToTimeEntries, getInstanceDateString } from './utils/timerHelpers';
+import { useTimerEntryEdit } from './hooks/useTimerEntryEdit';
 import { createServiceErrorHandler } from './utils/errorHandler';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
 
@@ -110,28 +111,10 @@ function AppContent() {
     setActiveView(view);
   };
 
+  // Duration edits, and moves to another task when one was picked
+  const saveTimerEdit = useTimerEntryEdit();
   const handleUpdateEntry = async (data: EditTimeEntryData) => {
-    // Entry ids are raw timer-instance ids (the "session_" prefix is only
-    // used by the derived activeEntry).
-    const instanceId = data.id.replace(/^session_/, '');
-    const session = sessionManager.sessions.find(s =>
-      s.timerInstances.some(i => i.id === instanceId)
-    );
-    if (!session) return;
-    const instance = session.timerInstances.find(i => i.id === instanceId);
-    if (!instance) return;
-
-    await sessionManager.updateTimerInstance(
-      instanceId,
-      buildTimerEditUpdates(instance, data.durationMs)
-    );
-
-    // Task name lives on the session, so renaming applies to every entry of
-    // the session — only send it when it actually changed.
-    const name = data.taskName.trim();
-    if (name && name !== session.taskName) {
-      await sessionManager.updateSession(session.id, { taskName: name });
-    }
+    await saveTimerEdit(data);
   };
 
   const handleDeleteEntry = async (entryId: string) => {

@@ -7,7 +7,7 @@
 import dayjs from 'dayjs';
 import { TimeEntry } from '../types/timer';
 import { Task } from '../types/task';
-import { entryEarnings } from './earnings';
+import { entryEarnings, findTaskFor } from './earnings';
 
 export interface TaskTimeData {
   taskName: string;
@@ -44,7 +44,9 @@ export interface MonthlyData {
 const calculateEarnings = entryEarnings;
 
 /**
- * Aggregate time entries by task for bar chart
+ * Aggregate time entries by task for bar chart. Entries group by task id (by
+ * name only for old entries without one) and show the task's current name,
+ * so a renamed task stays one bar.
  */
 export function aggregateByTask(entries: TimeEntry[], tasks: Task[]): TaskTimeData[] {
   const taskMap = new Map<string, TaskTimeData>();
@@ -52,16 +54,18 @@ export function aggregateByTask(entries: TimeEntry[], tasks: Task[]): TaskTimeDa
   entries.forEach(entry => {
     if (!entry.duration) return;
     
-    const taskName = entry.taskName;
+    const task = findTaskFor(entry, tasks);
+    const key = task?.id ?? entry.taskId ?? `name:${entry.taskName}`;
+    const taskName = task?.name ?? entry.taskName;
     const earnings = calculateEarnings(entry, tasks);
     
-    if (taskMap.has(taskName)) {
-      const existing = taskMap.get(taskName)!;
+    if (taskMap.has(key)) {
+      const existing = taskMap.get(key)!;
       existing.totalTime += entry.duration;
       existing.totalEarnings += earnings;
       existing.entryCount += 1;
     } else {
-      taskMap.set(taskName, {
+      taskMap.set(key, {
         taskName,
         totalTime: entry.duration,
         totalEarnings: earnings,
@@ -224,12 +228,12 @@ export function getChartTheme(isDarkMode: boolean) {
 /**
  * Prepare data for pie chart showing task distribution
  */
-export function prepareTaskDistributionData(entries: TimeEntry[]): Array<{
+export function prepareTaskDistributionData(entries: TimeEntry[], tasks: Task[] = []): Array<{
   name: string;
   value: number;
   percentage: number;
 }> {
-  const taskData = aggregateByTask(entries, []);
+  const taskData = aggregateByTask(entries, tasks);
   const totalTime = taskData.reduce((sum, task) => sum + task.totalTime, 0);
   
   return taskData.map(task => ({

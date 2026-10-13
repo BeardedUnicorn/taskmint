@@ -143,6 +143,19 @@ describe('chartDataHelpers', () => {
       expect(devTask!.entryCount).toBe(2); // 2 completed entries (running entry excluded)
     });
 
+    it('keeps a renamed task as one bar under its current name', () => {
+      const renamed: TimeEntry[] = [
+        { ...mockTimeEntries[0], taskId: 'task-1', taskName: 'Old name' },
+        { ...mockTimeEntries[0], id: 'renamed-2', taskId: 'task-1', taskName: 'Development' },
+      ];
+
+      const result = aggregateByTask(renamed, mockTasks);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].taskName).toBe('Development');
+      expect(result[0].entryCount).toBe(2);
+    });
+
     it('should sort tasks by total time descending', () => {
       const result = aggregateByTask(mockTimeEntries, mockTasks);
       

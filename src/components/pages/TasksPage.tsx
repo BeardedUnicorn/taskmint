@@ -15,6 +15,7 @@ import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui';
 import { EditTimeEntryData } from '../../types/form';
 import { getEntryElapsedMs } from '../../utils/timerHelpers';
+import { findTaskFor } from '../../utils/earnings';
 
 interface TasksPageProps {
   tasks: Task[];
@@ -261,7 +262,7 @@ export function TasksPage({
           open={true}
           entry={{
             id: editingEntry.id,
-            taskName: editingEntry.taskName,
+            taskId: findTaskFor(editingEntry, tasks)?.id ?? editingEntry.taskId ?? '',
             durationMs: getEntryElapsedMs(editingEntry),
             startTime: editingEntry.startTime
               ? new Date(editingEntry.startTime).toISOString()
@@ -269,6 +270,7 @@ export function TasksPage({
           }}
           onSave={handleSaveEntryEdit}
           onClose={() => setEditingEntry(null)}
+          tasks={tasks}
         />
       )}
 

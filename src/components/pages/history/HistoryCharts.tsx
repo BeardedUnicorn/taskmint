@@ -61,7 +61,7 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
       timelineView === 'weekly' ? aggregateByWeek : timelineView === 'monthly' ? aggregateByMonth : aggregateByDay;
     return {
       taskTimeData: aggregateByTask(entries, tasks),
-      taskDistributionData: prepareTaskDistributionData(entries),
+      taskDistributionData: prepareTaskDistributionData(entries, tasks),
       timelineData: aggregateTimeline(entries, tasks),
     };
   }, [open, entries, tasks, timelineView]);

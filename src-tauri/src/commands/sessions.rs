@@ -74,6 +74,35 @@ pub(crate) fn recalculate_total_duration(session: &mut TaskSession) {
         .sum();
 }
 
+/// The local calendar day of an instant, as the YYYY-MM-DD the sessions use.
+fn local_day(at: DateTime<Utc>) -> String {
+    at.with_timezone(&Local).format("%Y-%m-%d").to_string()
+}
+
+/// Imported days are rebuilt from the work-log ledger on every import, so an
+/// edit made here would silently vanish later: they change only by importing.
+fn ensure_not_imported(session: &TaskSession) -> Result<(), String> {
+    if session.source.as_deref() == Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE) {
+        return Err("Imported time changes only through a work-log import".to_string());
+    }
+    Ok(())
+}
+
+/// Sessions keep a copy of their task's name; bring every copy up to date
+/// after a task is renamed. Returns whether any session changed.
+pub fn sync_session_task_names(sessions: &mut [TaskSession], tasks: &[Task]) -> bool {
+    let mut changed = false;
+    for session in sessions.iter_mut() {
+        if let Some(task) = tasks.iter().find(|t| t.id == session.task_id) {
+            if session.task_name != task.name {
+                session.task_name = task.name.clone();
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
 /// A new, active session for a task, carrying the task's current rate.
 /// Callers deactivate the others first.
 fn new_task_session(
@@ -94,7 +123,7 @@ fn new_task_session(
         hourly_rate,
         // Local day, not UTC: the dashboard's today-filter and the calendar
         // compare this string against the user's local date.
-        date: Local::now().format("%Y-%m-%d").to_string(),
+        date: local_day(now),
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
     }
@@ -260,11 +289,11 @@ pub fn get_sessions(app_state: State<'_, AppState>) -> Result<Vec<TaskSession>, 
 
 /// Session fields the frontend may patch. camelCase to match the TS
 /// `Partial<TaskSession>` shape; snake_case aliases keep old callers working.
+/// The task name isn't one: it follows the task (`sync_session_task_names`),
+/// and moving time to another task is `move_timer_instance`.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUpdates {
-    #[serde(default, alias = "task_name")]
-    pub task_name: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
     #[serde(default, alias = "is_active")]
@@ -287,9 +316,6 @@ pub async fn update_session(
                 .find(|s| s.id == session_id)
                 .ok_or_else(|| format!("Session with ID {} not found", session_id))?;
 
-            if let Some(task_name) = updates.task_name.as_ref() {
-                session.task_name = task_name.clone();
-            }
             if let Some(notes) = updates.notes.as_ref() {
                 session.notes = Some(notes.clone());
             }
@@ -312,12 +338,12 @@ pub async fn delete_session(
     session_id: String,
 ) -> Result<(), String> {
     app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
-        let initial_len = sessions.len();
+        let session = sessions
+            .iter()
+            .find(|s| s.id == session_id)
+            .ok_or_else(|| format!("Session with ID {} not found", session_id))?;
+        ensure_not_imported(session)?;
         sessions.retain(|s| s.id != session_id);
-
-        if sessions.len() == initial_len {
-            return Err(format!("Session with ID {} not found", session_id));
-        }
 
         storage::save_sessions(&app, sessions)
     })??;
@@ -373,6 +399,7 @@ pub async fn create_timer_instance(
                 .iter_mut()
                 .find(|s| s.id == session_id)
                 .ok_or_else(|| format!("Session with ID {} not found", session_id))?;
+            ensure_not_imported(session)?;
 
             if session.timer_instances.len() >= MAX_TIMER_INSTANCES_PER_SESSION {
                 return Err(format!(
@@ -514,6 +541,7 @@ pub async fn update_timer_instance(
                 .iter_mut()
                 .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                 .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+            ensure_not_imported(session)?;
 
             {
                 let instance = session
@@ -786,6 +814,7 @@ pub async fn delete_timer_instance(
                     .iter_mut()
                     .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
                     .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+                ensure_not_imported(session)?;
 
                 {
                     let instance = session
@@ -820,6 +849,119 @@ pub async fn delete_timer_instance(
     Ok(updated_session)
 }
 
+/// Move one finished timer to another task: the time keeps its start and
+/// duration, and earns at the new task's rate. A timer that is its session's
+/// only one (in an inactive session) re-points the session; otherwise it
+/// moves into a new inactive session for the task, dated by the day the timer
+/// started, and an inactive session it leaves empty is removed. Returns the
+/// session the timer ends up in, and whether anything changed.
+pub fn move_instance_to_task(
+    sessions: &mut Vec<TaskSession>,
+    instance_id: &str,
+    task_id: &str,
+    task_name: &str,
+    hourly_rate: Option<f64>,
+    now: DateTime<Utc>,
+) -> Result<(String, bool), String> {
+    let index = sessions
+        .iter()
+        .position(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
+        .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+    let session = &mut sessions[index];
+    ensure_not_imported(session)?;
+    let position = session
+        .timer_instances
+        .iter()
+        .position(|i| i.id == instance_id)
+        .ok_or_else(|| format!("Timer instance with ID {} not found", instance_id))?;
+    let instance = &session.timer_instances[position];
+    if instance.is_running || instance.is_paused {
+        return Err("Stop this timer before moving it to another task".to_string());
+    }
+    if instance.duration.is_none() {
+        return Err("This timer hasn't tracked any time yet".to_string());
+    }
+    if session.task_id == task_id {
+        return Ok((session.id.clone(), false));
+    }
+
+    if session.timer_instances.len() == 1 && !session.is_active {
+        session.task_id = task_id.to_string();
+        session.task_name = task_name.to_string();
+        session.hourly_rate = hourly_rate;
+        session.updated_at = now.to_rfc3339();
+        return Ok((session.id.clone(), true));
+    }
+
+    let mut instance = session.timer_instances.remove(position);
+    recalculate_total_duration(session);
+    session.updated_at = now.to_rfc3339();
+    let source = session.source.clone();
+    let left_empty = session.timer_instances.is_empty()
+        && !session.is_active
+        && session.notes.as_deref().is_none_or(|n| n.trim().is_empty());
+    if left_empty {
+        sessions.remove(index);
+    }
+
+    let mut moved = new_task_session(task_id.to_string(), task_name.to_string(), hourly_rate, now);
+    moved.is_active = false;
+    moved.source = source;
+    moved.date = local_day(instance.start_time);
+    instance.session_id = moved.id.clone();
+    instance.updated_at = now.to_rfc3339();
+    moved.timer_instances.push(instance);
+    recalculate_total_duration(&mut moved);
+    let moved_id = moved.id.clone();
+    sessions.push(moved);
+    Ok((moved_id, true))
+}
+
+#[tauri::command]
+pub fn move_timer_instance(
+    app: AppHandle,
+    app_state: State<'_, AppState>,
+    instance_id: String,
+    task_id: String,
+    task_name: String,
+) -> Result<String, String> {
+    let task_id = task_id.trim();
+    let task_name = task_name.trim();
+    if task_id.is_empty() || task_name.is_empty() {
+        return Err("Choose a task to move this time to".to_string());
+    }
+    let known = app_state.with_tasks(|tasks| tasks.iter().any(|t| t.id == task_id))?;
+    if !known {
+        return Err("That task no longer exists".to_string());
+    }
+    // Read before taking the sessions lock (the two locks are never nested)
+    let hourly_rate = task_rate(&app_state, task_id);
+    let now = Utc::now();
+    let (session_id, changed) =
+        app_state.with_task_sessions_mut(|sessions| -> Result<(String, bool), String> {
+            let result = move_instance_to_task(
+                sessions,
+                &instance_id,
+                task_id,
+                task_name,
+                hourly_rate,
+                now,
+            )?;
+            if result.1 {
+                storage::save_sessions(&app, sessions)?;
+            }
+            Ok(result)
+        })??;
+    if changed {
+        let _ = app.emit(SESSIONS_CHANGED_EVENT, ());
+    }
+    Ok(session_id)
+}
+
+/// Emitted when sessions change outside a timer action (a task rename or a
+/// moved timer); the frontend reloads its sessions on it.
+pub const SESSIONS_CHANGED_EVENT: &str = "sessions-changed";
+
 #[tauri::command]
 pub async fn set_active_session(
     app: AppHandle,
@@ -830,6 +972,13 @@ pub async fn set_active_session(
 
     let (updated_sessions, stopped_instance_ids) = app_state.with_task_sessions_mut(
         |sessions| -> Result<(Vec<TaskSession>, Vec<String>), String> {
+            if let Some(id) = &session_id {
+                let target = sessions
+                    .iter()
+                    .find(|s| &s.id == id)
+                    .ok_or_else(|| format!("Session with ID {} not found", id))?;
+                ensure_not_imported(target)?;
+            }
             let mut stopped = Vec::new();
             for session in sessions.iter_mut() {
                 let should_be_active = match &session_id {
@@ -925,6 +1074,11 @@ pub enum TrayStart {
 /// it); otherwise open a new active session for the task with a running timer,
 /// finalizing the previous active session's live timers (a deactivated
 /// session must not keep one). Returns the outcome and any finalized ids.
+///
+/// Sessions are per day: an active session from an earlier local day is only
+/// continued while its timer is still running. Otherwise today's work gets a
+/// new session (at the task's current rate), and a timer left paused there is
+/// finalized like any other deactivation.
 pub fn start_task_timer(
     sessions: &mut Vec<TaskSession>,
     task_id: &str,
@@ -932,10 +1086,12 @@ pub fn start_task_timer(
     hourly_rate: Option<f64>,
     now: DateTime<Utc>,
 ) -> Result<(TrayStart, Vec<String>), String> {
-    if let Some(session) = sessions
-        .iter_mut()
-        .find(|s| s.is_active && s.task_id == task_id)
-    {
+    let today = local_day(now);
+    if let Some(session) = sessions.iter_mut().find(|s| {
+        s.is_active
+            && s.task_id == task_id
+            && (s.date >= today || s.timer_instances.iter().any(|i| i.is_running))
+    }) {
         if session.timer_instances.iter().any(|i| i.is_running) {
             return Ok((TrayStart::AlreadyRunning, Vec::new()));
         }
@@ -2176,5 +2332,199 @@ mod tests {
         assert_eq!(sessions[3].notes.as_deref(), Some("not asked for"));
         // Nothing left to clear the second time
         assert_eq!(clear_notes(&mut sessions, &ids), 0);
+    }
+    // --- task names, day rollover, moving time --------------------------------
+
+    #[test]
+    fn a_rename_reaches_every_session_of_that_task_only() {
+        let mut sessions = vec![
+            tray_session("s1", "a", false),
+            tray_session("s2", "b", false),
+            tray_session("s3", "a", true),
+        ];
+        let mut renamed = rated_task("a", None);
+        renamed.name = "Renamed".to_string();
+        let tasks = vec![renamed, rated_task("b", None)];
+
+        assert!(sync_session_task_names(&mut sessions, &tasks));
+        assert_eq!(sessions[0].task_name, "Renamed");
+        assert_eq!(sessions[1].task_name, "Task b");
+        assert_eq!(sessions[2].task_name, "Renamed");
+        // Already in sync: nothing to save the second time
+        assert!(!sync_session_task_names(&mut sessions, &tasks));
+    }
+
+    #[test]
+    fn starting_a_task_whose_active_session_is_from_an_earlier_day_opens_a_new_one() {
+        let now = ts(1_800_000_000);
+        let mut old = tray_session("old", "a", true);
+        old.date = "2000-01-01".to_string();
+        old.hourly_rate = Some(20.0);
+        old.timer_instances = vec![finished("done", "old", 0, 60)];
+        let mut sessions = vec![old];
+
+        let (outcome, stopped) =
+            start_task_timer(&mut sessions, "a", "Task a", Some(30.0), now).unwrap();
+
+        assert!(stopped.is_empty());
+        assert!(!sessions[0].is_active);
+        let today = &sessions[1];
+        assert!(today.is_active);
+        assert_eq!(today.date, local_day(now));
+        assert_eq!(today.hourly_rate, Some(30.0));
+        assert_eq!(
+            outcome,
+            TrayStart::Started(today.timer_instances[0].id.clone())
+        );
+    }
+
+    #[test]
+    fn a_timer_left_paused_on_an_earlier_day_is_finalized_by_the_rollover() {
+        let now = ts(1_800_000_000);
+        let mut paused = tray_instance("p", "old", 0);
+        paused.is_paused = true;
+        paused.paused_at = Some(ts(60));
+        paused.paused_duration = Some(0);
+        let mut old = tray_session("old", "a", true);
+        old.date = "2000-01-01".to_string();
+        old.timer_instances = vec![paused];
+        let mut sessions = vec![old];
+
+        let (_, stopped) = start_task_timer(&mut sessions, "a", "Task a", None, now).unwrap();
+
+        assert_eq!(stopped, vec!["p".to_string()]);
+        assert_eq!(sessions[0].timer_instances[0].duration, Some(60_000));
+        assert_eq!(sessions.len(), 2);
+    }
+
+    #[test]
+    fn a_timer_still_running_from_an_earlier_day_keeps_its_session() {
+        let now = ts(1_800_000_000);
+        let mut running = tray_instance("r", "old", 0);
+        running.is_running = true;
+        let mut old = tray_session("old", "a", true);
+        old.date = "2000-01-01".to_string();
+        old.timer_instances = vec![running];
+        let mut sessions = vec![old];
+
+        let (outcome, _) = start_task_timer(&mut sessions, "a", "Task a", None, now).unwrap();
+        assert_eq!(outcome, TrayStart::AlreadyRunning);
+        assert_eq!(sessions.len(), 1);
+    }
+
+    #[test]
+    fn a_same_day_session_is_continued() {
+        let now = ts(1_800_000_000);
+        let mut cur = tray_session("cur", "a", true);
+        cur.date = local_day(now);
+        cur.timer_instances = vec![finished("done", "cur", 0, 60)];
+        let mut sessions = vec![cur];
+
+        start_task_timer(&mut sessions, "a", "Task a", None, now).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].timer_instances.len(), 2);
+    }
+
+    #[test]
+    fn moving_a_sessions_only_timer_repoints_the_session() {
+        let mut only = tray_session("s", "a", false);
+        only.hourly_rate = Some(20.0);
+        only.timer_instances = vec![finished("t", "s", 0, 60)];
+        let mut sessions = vec![only];
+
+        let (id, changed) =
+            move_instance_to_task(&mut sessions, "t", "b", "Task b", Some(50.0), ts(100)).unwrap();
+
+        assert!(changed);
+        assert_eq!(id, "s");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].task_id, "b");
+        assert_eq!(sessions[0].task_name, "Task b");
+        assert_eq!(sessions[0].hourly_rate, Some(50.0));
+    }
+
+    #[test]
+    fn moving_one_of_several_timers_splits_it_into_its_own_session() {
+        let start = 1_800_000_000;
+        let mut cur = tray_session("s", "a", true);
+        cur.source = Some(MANUAL_SOURCE.to_string());
+        cur.timer_instances = vec![
+            finished("keep", "s", start, start + 60),
+            finished("move", "s", start + 100, start + 400),
+        ];
+        recalculate_total_duration(&mut cur);
+        let mut sessions = vec![cur];
+
+        let (id, changed) =
+            move_instance_to_task(&mut sessions, "move", "b", "Task b", None, ts(start + 500))
+                .unwrap();
+
+        assert!(changed);
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0].timer_instances.len(), 1);
+        assert_eq!(sessions[0].total_duration, 60_000);
+        let moved = &sessions[1];
+        assert_eq!(moved.id, id);
+        assert!(!moved.is_active);
+        assert_eq!(moved.task_id, "b");
+        assert_eq!(moved.source.as_deref(), Some(MANUAL_SOURCE));
+        assert_eq!(moved.date, local_day(ts(start + 100)));
+        assert_eq!(moved.total_duration, 300_000);
+        assert_eq!(moved.timer_instances[0].session_id, id);
+    }
+
+    #[test]
+    fn an_inactive_session_a_move_leaves_empty_is_removed() {
+        let mut two = tray_session("s", "a", false);
+        two.timer_instances = vec![finished("x", "s", 0, 60), finished("y", "s", 100, 160)];
+        let mut sessions = vec![two];
+
+        move_instance_to_task(&mut sessions, "x", "b", "Task b", None, ts(200)).unwrap();
+        move_instance_to_task(&mut sessions, "y", "b", "Task b", None, ts(200)).unwrap();
+
+        assert!(sessions.iter().all(|s| s.task_id == "b"));
+        assert!(sessions.iter().all(|s| !s.timer_instances.is_empty()));
+    }
+
+    #[test]
+    fn moves_refuse_live_timers_and_imported_time_and_skip_the_same_task() {
+        let mut running = tray_instance("r", "s", 0);
+        running.is_running = true;
+        let mut live = tray_session("s", "a", true);
+        live.timer_instances = vec![running];
+        let mut sessions = vec![live];
+        assert!(
+            move_instance_to_task(&mut sessions, "r", "b", "Task b", None, ts(10))
+                .unwrap_err()
+                .contains("Stop this timer")
+        );
+
+        let mut imported = tray_session("i", "a", false);
+        imported.source = Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE.to_string());
+        imported.timer_instances = vec![finished("t", "i", 0, 60)];
+        let mut sessions = vec![imported];
+        assert!(
+            move_instance_to_task(&mut sessions, "t", "b", "Task b", None, ts(100))
+                .unwrap_err()
+                .contains("work-log import")
+        );
+
+        let mut mine = tray_session("m", "a", false);
+        mine.timer_instances = vec![finished("t", "m", 0, 60)];
+        let mut sessions = vec![mine];
+        let (id, changed) =
+            move_instance_to_task(&mut sessions, "t", "a", "Task a", None, ts(100)).unwrap();
+        assert_eq!((id.as_str(), changed), ("m", false));
+    }
+
+    #[test]
+    fn imported_sessions_are_read_only() {
+        let mut imported = fresh_session();
+        imported.source = Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE.to_string());
+        assert!(ensure_not_imported(&imported).is_err());
+        let mut manual = fresh_session();
+        manual.source = Some(MANUAL_SOURCE.to_string());
+        assert!(ensure_not_imported(&manual).is_ok());
+        assert!(ensure_not_imported(&fresh_session()).is_ok());
     }
 }

@@ -316,6 +316,11 @@ export interface UseSessionManagementReturn {
   resumeTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
   deleteTimerInstance: (instanceId: string) => Promise<void>;
   updateTimerInstance: (instanceId: string, updates: Record<string, any>) => Promise<void>;
+  /** Saves a finished timer's edit (duration and/or task); resolves to its session id, or null on failure. */
+  editTimerEntry: (
+    instanceId: string,
+    edit: { updates?: Record<string, any>; moveTo?: { taskId: string; taskName: string } }
+  ) => Promise<string | null>;
   isLoading: boolean;
   error: string | null;
   clearError: () => void;

@@ -418,6 +418,75 @@ describe('useSessionManagement', () => {
     });
   });
 
+  describe('editing a finished timer', () => {
+    const finished = {
+      ...mockTimerInstance,
+      state: TimerState.stopped,
+      duration: 60_000,
+      endTime: new Date('2024-01-15T10:01:00Z'),
+    };
+    const withTimer = { ...mockSession, timerInstances: [finished] };
+    const updates = { duration: 90_000, isRunning: false, isPaused: false };
+
+    it('saves a duration edit and reports its session', async () => {
+      primeCommand('get_sessions', [withTimer], [withTimer]);
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+
+      let sessionId: string | null = null;
+      await act(async () => {
+        sessionId = await result.current.editTimerEntry('instance-1', { updates });
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith('update_timer_instance', { instanceId: 'instance-1', updates });
+      expect(mockInvoke).not.toHaveBeenCalledWith('move_timer_instance', expect.anything());
+      expect(sessionId).toBe('session-1');
+      expect(mockShowSuccess).toHaveBeenCalledWith('Timer updated');
+    });
+
+    it('moves the timer to another task after saving its duration', async () => {
+      primeCommand('get_sessions', [withTimer], [withTimer]);
+      primeCommand('move_timer_instance', 'session-new');
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+
+      let sessionId: string | null = null;
+      await act(async () => {
+        sessionId = await result.current.editTimerEntry('instance-1', {
+          updates,
+          moveTo: { taskId: 'task-2', taskName: 'Other' },
+        });
+      });
+
+      const commands = mockInvoke.mock.calls.map(([cmd]) => cmd);
+      expect(commands.indexOf('update_timer_instance')).toBeLessThan(commands.indexOf('move_timer_instance'));
+      expect(mockInvoke).toHaveBeenCalledWith('move_timer_instance', {
+        instanceId: 'instance-1',
+        taskId: 'task-2',
+        taskName: 'Other',
+      });
+      expect(sessionId).toBe('session-new');
+      expect(mockShowSuccess).toHaveBeenCalledWith('Moved to "Other"');
+    });
+
+    it('shows the error and resolves to null when the move is refused', async () => {
+      primeCommand('get_sessions', [withTimer], [withTimer]);
+      primeCommand('move_timer_instance', new Error('Imported time changes only through a work-log import'));
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+
+      let sessionId: string | null = 'unset';
+      await act(async () => {
+        sessionId = await result.current.editTimerEntry('instance-1', {
+          moveTo: { taskId: 'task-2', taskName: 'Other' },
+        });
+      });
+
+      expect(sessionId).toBeNull();
+      expect(mockShowError).toHaveBeenCalledWith('Imported time changes only through a work-log import');
+    });
+  });
+
   describe('session deletion', () => {
     it('should delete a session', async () => {
       primeCommand('get_sessions', [mockSession]);
@@ -768,7 +837,7 @@ describe('useSessionManagement', () => {
         };
       });
 
-      const expectedListenerCount = 6; // timer-instance started/stopped/paused/resumed/deleted + work-logs-imported
+      const expectedListenerCount = 7; // timer-instance started/stopped/paused/resumed/deleted + work-logs-imported + sessions-changed
 
       const { unmount } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
       await waitFor(() => expect(activeListeners).toBe(expectedListenerCount));

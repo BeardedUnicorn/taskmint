@@ -20,6 +20,7 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Notes as NotesIcon,
+  Lock as LockIcon,
 } from '@mui/icons-material';
 import { TimeEntry } from '../../../types/timer';
 import { Task } from '../../../types/task';
@@ -27,9 +28,11 @@ import { EarningsDisplay } from '../display/EarningsDisplay';
 import { formatDuration } from '../../../utils/formatters';
 import { formatLocalTime } from '../../../utils/dateHelpers';
 import { entryEarnings } from '../../../utils/earnings';
+import { sourceLabel } from '../../../utils/csvExport';
+import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 import dayjs from 'dayjs';
 
-export type SortField = 'taskName' | 'startTime' | 'endTime' | 'duration' | 'date' | 'earnings';
+export type SortField = 'taskName' | 'startTime' | 'endTime' | 'duration' | 'date' | 'earnings' | 'source';
 export type SortDirection = 'asc' | 'desc';
 
 /**
@@ -70,6 +73,10 @@ export function sortTimeEntries(
       case 'earnings':
         aValue = entryEarnings(a, tasks);
         bValue = entryEarnings(b, tasks);
+        break;
+      case 'source':
+        aValue = sourceLabel(a.source);
+        bValue = sourceLabel(b.source);
         break;
       default:
         return 0;
@@ -249,6 +256,18 @@ export function TimeEntriesTable({
                 </TableSortLabel>
               </TableCell>
 
+              <TableCell>
+                <TableSortLabel
+                  active={sortField === 'source'}
+                  direction={sortField === 'source' ? sortDirection : 'asc'}
+                  onClick={() => handleSort('source')}
+                >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                    Source
+                  </Typography>
+                </TableSortLabel>
+              </TableCell>
+
               {showEarnings && (
                 <TableCell>
                   <TableSortLabel
@@ -275,6 +294,8 @@ export function TimeEntriesTable({
             {entries.map((entry) => {
               const earnings = calculateEarnings(entry);
               const isSelected = selectedEntries.has(entry.id);
+              // Imported days are rebuilt by every import, so they're read-only
+              const isImported = entry.source === WORKLOG_IMPORT_SOURCE;
               const entryDate = dayjs(entry.startTime).format('MMM DD, YYYY');
 
               return (
@@ -320,6 +341,15 @@ export function TimeEntriesTable({
                     </Typography>
                   </TableCell>
 
+                  <TableCell>
+                    <Chip
+                      label={sourceLabel(entry.source)}
+                      size="small"
+                      variant="outlined"
+                      color={isImported ? 'secondary' : 'default'}
+                    />
+                  </TableCell>
+
                   {showEarnings && (
                     <TableCell>
                       <EarningsDisplay amount={earnings} />
@@ -339,24 +369,38 @@ export function TimeEntriesTable({
                         </Tooltip>
                       )}
                       
-                      <Tooltip title="Edit">
-                        <IconButton
-                          size="small"
-                          onClick={() => onEdit(entry)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      
-                      <Tooltip title="Delete">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => onDelete(entry.id)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      {isImported ? (
+                        <Tooltip title="Set by the work-log import. Re-import to change it.">
+                          <Box
+                            component="span"
+                            aria-label="Imported entries are read-only"
+                            sx={{ display: 'inline-flex', p: 0.625, color: 'text.disabled' }}
+                          >
+                            <LockIcon fontSize="small" />
+                          </Box>
+                        </Tooltip>
+                      ) : (
+                        <>
+                          <Tooltip title="Edit">
+                            <IconButton
+                              size="small"
+                              onClick={() => onEdit(entry)}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => onDelete(entry.id)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
                     </Stack>
                   </TableCell>
                 </TableRow>
