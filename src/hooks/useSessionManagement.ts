@@ -26,7 +26,8 @@ import { measurePerformance } from '../utils/performance';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
 
 // Backend events that signal session data changed outside this hook's own
-// calls (timer-instance changes and work-log imports that rewrite sessions)
+// calls (timer-instance changes, work-log imports that rewrite sessions, and
+// task renames or moved timers)
 const TIMER_INSTANCE_EVENTS = [
   'timer-instance-started',
   'timer-instance-stopped',
@@ -34,6 +35,7 @@ const TIMER_INSTANCE_EVENTS = [
   'timer-instance-resumed',
   'timer-instance-deleted',
   'work-logs-imported',
+  'sessions-changed',
 ] as const;
 
 // Helper to ensure timer instances always have a state value. The Rust
@@ -363,6 +365,47 @@ export function useSessionManagement(): UseSessionManagementReturn {
     });
   }, [loadSessions, showError, showSuccess]);
 
+  // Save an edit of a finished timer: its duration, and/or the task it
+  // belongs to (moved with its time; it earns at that task's rate). Returns
+  // the session the timer ends up in, or null when the save failed (the error
+  // is shown).
+  const editTimerEntry = useCallback(async (
+    instanceId: string,
+    edit: { updates?: Record<string, any>; moveTo?: { taskId: string; taskName: string } }
+  ): Promise<string | null> => {
+    return measurePerformance('useSessionManagement.editTimerEntry', async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        if (edit.updates) {
+          await invoke('update_timer_instance', { instanceId, updates: edit.updates });
+        }
+        let sessionId =
+          sessionsRef.current.find(s => s.timerInstances.some(i => i.id === instanceId))?.id ?? null;
+        if (edit.moveTo) {
+          sessionId = await invoke<string>('move_timer_instance', {
+            instanceId,
+            taskId: edit.moveTo.taskId,
+            taskName: edit.moveTo.taskName,
+          });
+        }
+        await loadSessions({ silent: true });
+        showSuccess(edit.moveTo ? `Moved to "${edit.moveTo.taskName}"` : 'Timer updated');
+        return sessionId;
+      } catch (err) {
+        // A failed move after a saved duration still changed something
+        await loadSessions({ silent: true });
+        const errorMessage = errorText(err, 'Failed to update timer');
+        setError(errorMessage);
+        showError(errorMessage);
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    });
+  }, [loadSessions, showError, showSuccess]);
+
   // Initialize sessions on mount, and surface any startup load problems the
   // backend recorded (skipped/unreadable records in sessions.json).
   const loadWarningShownRef = useRef(false);
@@ -675,6 +718,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     resumeTimerInstance,
     deleteTimerInstance,
     updateTimerInstance,
+    editTimerEntry,
     isLoading,
     error,
     clearError,

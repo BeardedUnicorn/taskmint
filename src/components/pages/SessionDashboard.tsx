@@ -39,7 +39,8 @@ import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatCurrency, formatDuration, formatTime } from '../../utils/formatters';
-import { getInstanceElapsedMs, getSessionElapsedMs, buildTimerEditUpdates } from '../../utils/timerHelpers';
+import { getInstanceElapsedMs, getSessionElapsedMs } from '../../utils/timerHelpers';
+import { useTimerEntryEdit } from '../../hooks/useTimerEntryEdit';
 import { orderTasksForStart } from '../../utils/taskOrdering';
 import { sessionEarnings, sessionRate } from '../../utils/earnings';
 import { newestFirst, noteText } from '../../utils/notes';
@@ -71,7 +72,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
     activeSession,
     startTask,
     addManualTime,
-    updateSession,
     deleteSession,
     setActiveSession,
     endActiveSession,
@@ -83,7 +83,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
     pauseTimerInstance,
     resumeTimerInstance,
     deleteTimerInstance,
-    updateTimerInstance,
     isLoading: sessionsLoading,
     error: sessionsError,
     clearError: clearSessionsError,
@@ -138,7 +137,7 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
     setEditingTimerInstanceId(instance.id);
     setEditingTimerData({
       id: instance.id,
-      taskName: session.taskName,
+      taskId: session.taskId,
       durationMs: getInstanceElapsedMs(instance),
       startTime: new Date(instance.startTime).toISOString(),
     });
@@ -176,28 +175,14 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
     setEditingTimerInstanceId(null);
   }, []);
 
+  // Saves the duration, and moves the timer when another task was picked
+  const saveTimerEdit = useTimerEntryEdit();
   const handleSaveTimerEdit = useCallback(async (data: EditTimeEntryData) => {
     if (!editingTimerInstanceId) return;
-    const parentSession = sessions.find(s =>
-      s.timerInstances.some(i => i.id === editingTimerInstanceId)
-    );
-    const instance = parentSession?.timerInstances.find(i => i.id === editingTimerInstanceId);
-    if (!instance) return;
-
-    await updateTimerInstance(
-      editingTimerInstanceId,
-      buildTimerEditUpdates(instance, data.durationMs)
-    );
-
-    // The dialog renders Task Name as editable (and requires it) — the name
-    // lives on the session, so persist a change there.
-    const editedName = data.taskName.trim();
-    if (parentSession && editedName && editedName !== parentSession.taskName) {
-      await updateSession(parentSession.id, { taskName: editedName });
+    if (await saveTimerEdit({ ...data, id: editingTimerInstanceId })) {
+      handleCloseEditTimerDialog();
     }
-
-    handleCloseEditTimerDialog();
-  }, [editingTimerInstanceId, sessions, updateTimerInstance, updateSession, handleCloseEditTimerDialog]);
+  }, [editingTimerInstanceId, saveTimerEdit, handleCloseEditTimerDialog]);
 
   // Notes handlers - memoized to prevent re-renders
   const handleOpenSessionNotes = useCallback((sessionId: string) => {
@@ -376,6 +361,7 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
         onClose={handleCloseEditTimerDialog}
         onSave={handleSaveTimerEdit}
         entry={editingTimerData}
+        tasks={tasks}
       />
 
       <ConfirmDialog

@@ -9,12 +9,14 @@
 
 use crate::state::AppState;
 use crate::storage;
-use crate::types::{ProjectTaskMapping, TaskSession, WorkLogEntry};
+use crate::types::{ProjectTaskMapping, Task, TaskSession, WorkLogEntry};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
-use super::sessions::{recalculate_total_duration, MAX_TIMER_INSTANCES_PER_SESSION};
+use super::sessions::{
+    recalculate_total_duration, sync_session_task_names, MAX_TIMER_INSTANCES_PER_SESSION,
+};
 
 // Must match WORKLOG_IMPORT_SOURCE in src/types/workLog.ts.
 pub(crate) const WORKLOG_IMPORT_SOURCE: &str = "worklog-import";
@@ -79,6 +81,34 @@ pub struct WorkLogImportSummary {
     pub mappings_saved: usize,
     pub groups_applied: Vec<AppliedGroup>,
     pub groups_skipped: Vec<SkippedGroup>,
+}
+
+/// The ledger and the mappings keep a copy of each mapped task's name; bring
+/// them up to date after a task is renamed. Returns whether anything changed.
+pub fn sync_work_log_task_names(
+    entries: &mut [WorkLogEntry],
+    mappings: &mut [ProjectTaskMapping],
+    tasks: &[Task],
+) -> bool {
+    let mut changed = false;
+    let name_of = |task_id: &str| tasks.iter().find(|t| t.id == task_id).map(|t| &t.name);
+    for entry in entries.iter_mut() {
+        if let Some(name) = name_of(&entry.task_id) {
+            if &entry.task_name != name {
+                entry.task_name = name.clone();
+                changed = true;
+            }
+        }
+    }
+    for mapping in mappings.iter_mut() {
+        if let Some(name) = name_of(&mapping.task_id) {
+            if &mapping.task_name != name {
+                mapping.task_name = name.clone();
+                changed = true;
+            }
+        }
+    }
+    changed
 }
 
 /// Upsert ledger entries by id. An existing entry is replaced wholesale (the
@@ -327,6 +357,9 @@ pub async fn apply_work_log_import(
 ) -> Result<WorkLogImportSummary, String> {
     let now = Utc::now();
     let now_iso = now.to_rfc3339();
+    // Replacement sessions carry the name the ledger had at import time;
+    // read the current task names first (the tasks lock is never nested).
+    let tasks = app_state.with_tasks(|tasks| tasks.clone())?;
 
     // Lock order: sessions → worklogs (also upheld by reset_all_app_data);
     // any future command touching both stores must lock in the same order.
@@ -361,6 +394,7 @@ pub async fn apply_work_log_import(
                 }
 
                 if !groups_applied.is_empty() {
+                    sync_session_task_names(sessions, &tasks);
                     storage::save_sessions(&app, sessions)?;
                 }
                 storage::save_work_logs(&app, &work_logs.entries, &work_logs.mappings)?;
@@ -854,5 +888,37 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, "session_repl_2");
         assert_eq!(sessions[0].total_duration, 90_000);
+    }
+    #[test]
+    fn a_rename_reaches_ledger_entries_and_mappings() {
+        let task = Task {
+            id: "task-1".to_string(),
+            name: "Renamed".to_string(),
+            hourly_rate: None,
+            default_note_template_id: None,
+            is_archived: false,
+            is_favorite: false,
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        let mut entries = vec![entry("e1")];
+        let mut other = entry("e2");
+        other.task_id = "task-2".to_string();
+        entries.push(other);
+        let mut mappings = vec![mapping("proj-1", "task-1")];
+
+        assert!(sync_work_log_task_names(
+            &mut entries,
+            &mut mappings,
+            std::slice::from_ref(&task)
+        ));
+        assert_eq!(entries[0].task_name, "Renamed");
+        assert_eq!(entries[1].task_name, "Raccoon - SWE");
+        assert_eq!(mappings[0].task_name, "Renamed");
+        assert!(!sync_work_log_task_names(
+            &mut entries,
+            &mut mappings,
+            &[task]
+        ));
     }
 }

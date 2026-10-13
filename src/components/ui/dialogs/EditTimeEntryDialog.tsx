@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Stack, TextField, Alert, Typography } from '@mui/material';
+import { useState, useEffect, useMemo } from 'react';
+import { Stack, TextField, Alert, Typography, Autocomplete } from '@mui/material';
 import { FormDialog } from './FormDialog';
 import { EditTimeEntryDialogProps } from '../../../types/form';
+import { Task } from '../../../types/task';
 import { formatDuration } from '../../../utils/formatters';
+import { orderTasksForStart } from '../../../utils/taskOrdering';
 import {
   DurationFields,
   durationInputToMs,
@@ -13,8 +15,11 @@ import {
   MS_PER_MINUTE,
 } from '../forms/DurationFields';
 
+const NO_SESSIONS: never[] = [];
+
 /**
- * Dialog for editing a time entry's task name and tracked duration.
+ * Dialog for editing a time entry's task and tracked duration. Picking
+ * another task moves the entry there (it earns at that task's rate).
  * Duration is edited as hours + minutes; the entry's start time stays as
  * recorded and is shown for reference only.
  */
@@ -23,8 +28,9 @@ export function EditTimeEntryDialog({
   onClose,
   onSave,
   entry,
+  tasks,
 }: EditTimeEntryDialogProps) {
-  const [taskName, setTaskName] = useState('');
+  const [taskId, setTaskId] = useState('');
   // Strings so the fields can be transiently empty while typing.
   const [hours, setHours] = useState('0');
   const [minutes, setMinutes] = useState('0');
@@ -33,12 +39,21 @@ export function EditTimeEntryDialog({
   useEffect(() => {
     if (entry) {
       const { hours: h, minutes: m } = splitDuration(entry.durationMs);
-      setTaskName(entry.taskName);
+      setTaskId(entry.taskId);
       setHours(String(h));
       setMinutes(String(m));
       setErrors({});
     }
   }, [entry]);
+
+  // Active tasks, favorites first; the entry's own task stays listed even
+  // when it's archived, so the picker can show where the time is now.
+  const taskOptions = useMemo(() => {
+    const options = orderTasksForStart(tasks, NO_SESSIONS);
+    const current = tasks.find(t => t.id === entry?.taskId);
+    return current && !options.some(t => t.id === current.id) ? [current, ...options] : options;
+  }, [tasks, entry?.taskId]);
+  const selectedTask = taskOptions.find(t => t.id === taskId) ?? null;
 
   const clearError = (field: string) => {
     setErrors(prev => {
@@ -55,8 +70,8 @@ export function EditTimeEntryDialog({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = { ...validateDuration({ hours, minutes }) };
 
-    if (!taskName.trim()) {
-      newErrors.taskName = 'Task name is required';
+    if (!taskId) {
+      newErrors.taskId = 'Choose a task';
     }
 
     setErrors(newErrors);
@@ -66,7 +81,7 @@ export function EditTimeEntryDialog({
   const handleSubmit = () => {
     if (!entry || !validateForm()) return;
 
-    // A name-only edit keeps the original duration so the sub-minute
+    // A task-only edit keeps the original duration so the sub-minute
     // remainder isn't truncated; typed values mean exact whole minutes.
     const initial = splitDuration(entry.durationMs);
     const unchanged = parsedHours === initial.hours && parsedMinutes === initial.minutes;
@@ -76,7 +91,7 @@ export function EditTimeEntryDialog({
 
     onSave({
       id: entry.id,
-      taskName: taskName.trim(),
+      taskId,
       durationMs,
     });
   };
@@ -87,6 +102,7 @@ export function EditTimeEntryDialog({
   };
 
   const previewMs = durationInputToMs({ hours, minutes });
+  const moving = !!entry && taskId !== entry.taskId;
 
   return (
     <FormDialog
@@ -98,16 +114,27 @@ export function EditTimeEntryDialog({
       cancelLabel="Cancel"
     >
       <Stack spacing={2}>
-        <TextField
-          label="Task Name"
-          fullWidth
-          value={taskName}
-          onChange={(e) => {
-            setTaskName(e.target.value);
-            clearError('taskName');
+        <Autocomplete<Task, false, true>
+          value={selectedTask ?? undefined}
+          onChange={(_, task) => {
+            setTaskId(task.id);
+            clearError('taskId');
           }}
-          error={!!errors.taskName}
-          helperText={errors.taskName}
+          options={taskOptions}
+          getOptionLabel={(task) => (task.isFavorite ? `★ ${task.name}` : task.name)}
+          isOptionEqualToValue={(option, value) => option.id === value.id}
+          disableClearable
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Task"
+              error={!!errors.taskId}
+              helperText={
+                errors.taskId ??
+                (moving ? `Moves this entry to "${selectedTask?.name}", at its hourly rate` : undefined)
+              }
+            />
+          )}
         />
 
         <DurationFields

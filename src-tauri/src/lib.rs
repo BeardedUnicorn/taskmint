@@ -297,6 +297,7 @@ pub fn run() {
             commands::sessions::pause_timer_instance,
             commands::sessions::resume_timer_instance,
             commands::sessions::delete_timer_instance,
+            commands::sessions::move_timer_instance,
             commands::sessions::set_active_session,
             commands::sessions::get_session_load_warning,
             // Idle-detection commands

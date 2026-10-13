@@ -23,6 +23,7 @@ import {
   Delete as DeleteIcon,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
+  Lock as LockIcon,
 } from '@mui/icons-material';
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';
@@ -30,6 +31,7 @@ import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { formatLocalTime, formatLocalDate, formatLocalDateTimeForDisplay } from '../../../utils/dateHelpers';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import { entryEarnings, entryRate } from '../../../utils/earnings';
+import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 
 interface TaskDetailPaneProps {
   task: Task;
@@ -234,23 +236,38 @@ export function TaskDetailPane({
                         </TableCell>
                       )}
                       <TableCell align="right">
-                        <Tooltip title="Edit Entry">
-                          <IconButton
-                            size="small"
-                            onClick={() => onEditEntry(entry)}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete Entry">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => onDeleteEntry(entry.id)}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {entry.source === WORKLOG_IMPORT_SOURCE ? (
+                          // Imported days are rebuilt by every import
+                          <Tooltip title="Set by the work-log import. Re-import to change it.">
+                            <Box
+                              component="span"
+                              aria-label="Imported entries are read-only"
+                              sx={{ display: 'inline-flex', p: 0.625, color: 'text.disabled' }}
+                            >
+                              <LockIcon fontSize="small" />
+                            </Box>
+                          </Tooltip>
+                        ) : (
+                          <>
+                            <Tooltip title="Edit Entry">
+                              <IconButton
+                                size="small"
+                                onClick={() => onEditEntry(entry)}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete Entry">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => onDeleteEntry(entry.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

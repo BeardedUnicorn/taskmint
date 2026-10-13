@@ -1,10 +1,14 @@
 // Task-related command handlers
 
-use crate::commands::sessions::{fill_imported_session_rates, fill_missing_session_rates};
+use crate::commands::sessions::{
+    fill_imported_session_rates, fill_missing_session_rates, sync_session_task_names,
+    SESSIONS_CHANGED_EVENT,
+};
+use crate::commands::worklogs::sync_work_log_task_names;
 use crate::state::AppState;
 use crate::storage;
 use crate::types::Task;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
 pub fn update_tasks(
@@ -16,18 +20,32 @@ pub fn update_tasks(
     // had one) get one: imported days the rate the site's pay implies, others
     // the task's current rate. Sessions keep the rate they were given, so
     // later rate changes never rewrite past earnings.
+    //
+    // Sessions, ledger entries and mappings also keep a copy of their task's
+    // name, which follows a rename here.
     let ledger = app_state.with_work_logs(|work_logs| work_logs.entries.clone())?;
-    let rates_filled = app_state.with_task_sessions_mut(|sessions| -> Result<bool, String> {
-        let imported = fill_imported_session_rates(sessions, &ledger);
-        let changed = fill_missing_session_rates(sessions, &tasks) || imported;
-        if changed {
-            storage::save_sessions(&app, sessions)?;
-        }
-        Ok(changed)
-    })??;
+    let (rates_filled, renamed) =
+        app_state.with_task_sessions_mut(|sessions| -> Result<(bool, bool), String> {
+            let imported = fill_imported_session_rates(sessions, &ledger);
+            let rates = fill_missing_session_rates(sessions, &tasks) || imported;
+            let renamed = sync_session_task_names(sessions, &tasks);
+            if rates || renamed {
+                storage::save_sessions(&app, sessions)?;
+            }
+            Ok((rates, renamed))
+        })??;
     if rates_filled {
         log::info!("Filled in hourly rates on sessions that had none");
     }
+    if renamed {
+        let _ = app.emit(SESSIONS_CHANGED_EVENT, ());
+    }
+    app_state.with_work_logs_mut(|work_logs| -> Result<(), String> {
+        if sync_work_log_task_names(&mut work_logs.entries, &mut work_logs.mappings, &tasks) {
+            storage::save_work_logs(&app, &work_logs.entries, &work_logs.mappings)?;
+        }
+        Ok(())
+    })??;
 
     let tasks_changed = app_state.with_tasks_mut(|stored_tasks| {
         let changed = *stored_tasks != tasks;

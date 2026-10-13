@@ -40,6 +40,7 @@ import {
   Add as AddIcon,
 } from '@mui/icons-material';
 import { TaskSession, TimerState, MANUAL_SOURCE } from '../../../types/timer';
+import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 import { formatTime, formatDuration, formatDate } from '../../../utils/formatters';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { getSessionElapsedMs } from '../../../utils/timerHelpers';
@@ -63,6 +64,10 @@ interface SessionListProps {
   sessionNotes?: Map<string, string[]>;
   /** Task names hidden from the filter chips (their sessions still render) */
   archivedTaskNames?: string[];
+}
+
+function isImportedSession(session: TaskSession | null): boolean {
+  return session?.source === WORKLOG_IMPORT_SOURCE;
 }
 
 /**
@@ -214,6 +219,9 @@ export const SessionList = memo(function SessionList({
       handleMenuClose();
     }
   };
+
+  // Imported days are rebuilt by every import: notes only, no activate/delete
+  const selectedIsImported = isImportedSession(selectedSession);
 
   if (isLoading) {
     return (
@@ -387,32 +395,36 @@ export const SessionList = memo(function SessionList({
         open={Boolean(menuAnchor)}
         onClose={handleMenuClose}
       >
-        <MenuItem onClick={handleToggleActive}>
-          <ListItemIcon>
-            {selectedSession?.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}
-          </ListItemIcon>
-          <ListItemText>
-            {/* "Activate" is honest: it makes the session current (finalizing
-                any timer running elsewhere) without starting a timer. */}
-            {selectedSession?.isActive ? 'End Session' : 'Activate Session'}
-          </ListItemText>
-        </MenuItem>
-        
+        {!selectedIsImported && (
+          <MenuItem onClick={handleToggleActive}>
+            <ListItemIcon>
+              {selectedSession?.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}
+            </ListItemIcon>
+            <ListItemText>
+              {/* "Activate" is honest: it makes the session current (finalizing
+                  any timer running elsewhere) without starting a timer. */}
+              {selectedSession?.isActive ? 'End Session' : 'Activate Session'}
+            </ListItemText>
+          </MenuItem>
+        )}
+
         <MenuItem onClick={handleOpenNotes}>
           <ListItemIcon>
             <NotesIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>Notes</ListItemText>
         </MenuItem>
-        
-        <Divider />
-        
-        <MenuItem onClick={handleDeleteSession} sx={{ color: 'error.main' }}>
-          <ListItemIcon>
-            <DeleteIcon color="error" fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Delete Session</ListItemText>
-        </MenuItem>
+
+        {!selectedIsImported && <Divider />}
+
+        {!selectedIsImported && (
+          <MenuItem onClick={handleDeleteSession} sx={{ color: 'error.main' }}>
+            <ListItemIcon>
+              <DeleteIcon color="error" fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Delete Session</ListItemText>
+          </MenuItem>
+        )}
       </Menu>
 
       <ConfirmDialog
@@ -517,7 +529,7 @@ function SessionCard({
                 />
               )}
 
-              {session.source === 'worklog-import' && (
+              {isImportedSession(session) && (
                 <Chip
                   label="Imported"
                   size="small"
@@ -553,17 +565,20 @@ function SessionCard({
           </Box>
           
           <Stack direction="row" spacing={1} sx={{ mt: -1, mr: -1 }}>
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                session.isActive ? onStop() : onStart();
-              }}
-              size="small"
-              startIcon={session.isActive ? <StopIcon /> : <PlayIcon />}
-              aria-label={session.isActive ? 'End session' : 'Activate session'}
-            >
-              {session.isActive ? 'End' : 'Activate'}
-            </Button>
+            {/* Imported days change only by importing again */}
+            {!isImportedSession(session) && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  session.isActive ? onStop() : onStart();
+                }}
+                size="small"
+                startIcon={session.isActive ? <StopIcon /> : <PlayIcon />}
+                aria-label={session.isActive ? 'End session' : 'Activate session'}
+              >
+                {session.isActive ? 'End' : 'Activate'}
+              </Button>
+            )}
             <Button
               onClick={(e) => {
                 e.stopPropagation();

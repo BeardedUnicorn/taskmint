@@ -522,4 +522,25 @@ describe('SessionList', () => {
       expect(screen.getByText('0h 15m')).toBeInTheDocument();
     });
   });
+  describe('Imported days', () => {
+    const imported: TaskSession = {
+      ...mockSessions[0],
+      id: 'session-imported',
+      taskName: 'Imported Project',
+      source: 'worklog-import',
+    };
+
+    it('offers no Activate and keeps only Notes in the menu', () => {
+      render(<SessionList {...mockProps} sessions={[imported]} />);
+
+      expect(screen.getByText('Imported')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Activate session' })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+      const menu = screen.getByRole('menu');
+      expect(within(menu).getByText('Notes')).toBeInTheDocument();
+      expect(within(menu).queryByText('Activate Session')).not.toBeInTheDocument();
+      expect(within(menu).queryByText('Delete Session')).not.toBeInTheDocument();
+    });
+  });
 });

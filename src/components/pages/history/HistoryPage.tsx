@@ -18,9 +18,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Alert,
   Paper,
-  Snackbar,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -43,6 +41,7 @@ import { EditTimeEntryDialog } from '../../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
 import { useLocalStorage } from '../../../hooks/useLocalStorage';
 import { getEntryElapsedMs } from '../../../utils/timerHelpers';
+import { findTaskFor } from '../../../utils/earnings';
 import { DateRangePreset } from '../../../utils/dateRanges';
 import { buildGoalHistory } from '../../../utils/goalHistory';
 import { useDailyGoals } from '../../../hooks/useDailyGoals';
@@ -96,17 +95,6 @@ export function HistoryPage({
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [bulkDeletingIds, setBulkDeletingIds] = useState<string[]>([]);
   
-  // Notification state
-  const [notification, setNotification] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error' | 'info';
-  }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
-
   // Filter, then sort the whole list, then paginate — sorting after the
   // slice would only order the visible page.
   const filteredEntries = useMemo(() => {
@@ -150,13 +138,9 @@ export function HistoryPage({
   const handleSaveEdit = (data: EditTimeEntryData) => {
     if (!editingEntry) return;
 
+    // The session hook reports how the save went (success or the error)
     onUpdateEntry(data);
     setEditingEntry(null);
-    setNotification({
-      open: true,
-      message: 'Time entry updated successfully',
-      severity: 'success',
-    });
   };
 
   const handleDeleteEntry = (entryId: string) => {
@@ -167,11 +151,6 @@ export function HistoryPage({
     if (deletingEntryId) {
       onDeleteEntry(deletingEntryId);
       setDeletingEntryId(null);
-      setNotification({
-        open: true,
-        message: 'Time entry deleted successfully',
-        severity: 'success',
-      });
     }
   };
 
@@ -183,11 +162,6 @@ export function HistoryPage({
     if (onBulkDeleteEntries && bulkDeletingIds.length > 0) {
       onBulkDeleteEntries(bulkDeletingIds);
       setBulkDeletingIds([]);
-      setNotification({
-        open: true,
-        message: `${bulkDeletingIds.length} time entries deleted successfully`,
-        severity: 'success',
-      });
     }
   };
 
@@ -345,7 +319,7 @@ export function HistoryPage({
           open={true}
           entry={{
             id: editingEntry.id,
-            taskName: editingEntry.taskName,
+            taskId: findTaskFor(editingEntry, tasks)?.id ?? editingEntry.taskId ?? '',
             durationMs: getEntryElapsedMs(editingEntry),
             startTime: editingEntry.startTime
               ? new Date(editingEntry.startTime).toISOString()
@@ -353,6 +327,7 @@ export function HistoryPage({
           }}
           onSave={handleSaveEdit}
           onClose={() => setEditingEntry(null)}
+          tasks={tasks}
         />
       )}
 
@@ -380,20 +355,6 @@ export function HistoryPage({
         onCancel={() => setBulkDeletingIds([])}
       />
 
-      {/* Notification Snackbar */}
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={4000}
-        onClose={() => setNotification(prev => ({ ...prev, open: false }))}
-      >
-        <Alert
-          onClose={() => setNotification(prev => ({ ...prev, open: false }))}
-          severity={notification.severity}
-          sx={{ width: '100%' }}
-        >
-          {notification.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }
