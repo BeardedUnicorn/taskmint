@@ -1,8 +1,9 @@
 use crate::types::{ProjectTaskMapping, TaskSession, WorkLogEntry};
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::Wry;
 use tauri::{AppHandle, Manager};
+use tauri::{Runtime, Wry};
 use tauri_plugin_store::{Store, StoreBuilder};
 
 const STORE_FILENAME: &str = "sessions.json";
@@ -24,8 +25,6 @@ pub const APP_RECORD_KEYS: [&str; 5] = [
     "dailyGoal",
     "dailyGoalAchievements",
 ];
-/// Set once the records have been moved in from the webview's localStorage.
-const APP_RECORDS_INITIALIZED_KEY: &str = "initialized";
 
 fn get_store_named(app: &AppHandle, filename: &str) -> Result<Arc<Store<Wry>>, String> {
     let path = filename
@@ -34,6 +33,19 @@ fn get_store_named(app: &AppHandle, filename: &str) -> Result<Arc<Store<Wry>>, S
     StoreBuilder::new(app, path)
         .build()
         .map_err(|e| format!("Failed to open {} store: {}", filename, e))
+}
+
+fn is_missing_file(error: &tauri_plugin_store::Error) -> bool {
+    matches!(error, tauri_plugin_store::Error::Io(e) if e.kind() == std::io::ErrorKind::NotFound)
+}
+
+/// Re-reads a store from disk. A file that doesn't exist yet (a fresh
+/// install, or nothing saved so far) is an empty store, not an error.
+fn reload_store<R: Runtime>(store: &Store<R>) -> Result<(), String> {
+    match store.reload() {
+        Err(e) if !is_missing_file(&e) => Err(e.to_string()),
+        _ => Ok(()),
+    }
 }
 
 fn get_store(app: &AppHandle) -> Result<Arc<Store<Wry>>, String> {
@@ -76,7 +88,7 @@ pub fn parse_sessions(value: &serde_json::Value) -> Result<LoadedSessions, Strin
 
 pub fn load_sessions(app: &AppHandle) -> Result<LoadedSessions, String> {
     let store = get_store(app)?;
-    store.reload().map_err(|e| e.to_string())?;
+    reload_store(&store)?;
     match store.get(SESSIONS_KEY) {
         Some(sessions_value) => parse_sessions(&sessions_value),
         None => Ok(LoadedSessions {
@@ -224,7 +236,7 @@ pub fn parse_project_mappings(
 
 pub fn load_work_logs(app: &AppHandle) -> Result<LoadedWorkLogs, String> {
     let store = get_store_named(app, WORKLOG_STORE_FILENAME)?;
-    store.reload().map_err(|e| e.to_string())?;
+    reload_store(&store)?;
 
     let (entries, entries_skipped) = match store.get(WORKLOG_ENTRIES_KEY) {
         Some(value) => parse_work_log_entries(&value)?,
@@ -261,54 +273,107 @@ pub fn save_work_logs(
 
 pub type RecordMap = serde_json::Map<String, serde_json::Value>;
 
-pub struct LoadedAppRecords {
-    pub records: RecordMap,
-    pub initialized: bool,
-}
-
 pub fn is_app_record_key(key: &str) -> bool {
     APP_RECORD_KEYS.contains(&key)
 }
 
-/// Adds imported records only where the key is absent (or null), so moving
-/// records in can never overwrite what's already stored. Unknown keys are
-/// ignored. Returns the keys that were set.
+/// A list item's identity when merging: its id, or the whole item if it
+/// has none.
+fn record_item_identity(item: &serde_json::Value) -> String {
+    match item.get("id").and_then(serde_json::Value::as_str) {
+        Some(id) => format!("id:{}", id),
+        None => format!("value:{}", item),
+    }
+}
+
+/// Adds imported records without overwriting anything stored. A list (tasks,
+/// notes, templates, goal history) gains the imported items whose id it
+/// doesn't have; any other record (the goal) is set only where none is
+/// stored. Unknown keys and null values are ignored. Returns the keys that
+/// changed.
 pub fn merge_imported_records(existing: &mut RecordMap, imported: RecordMap) -> Vec<String> {
-    let mut set = Vec::new();
+    let mut changed = Vec::new();
     for (key, value) in imported {
         if !is_app_record_key(&key) || value.is_null() {
             continue;
         }
-        if existing.get(&key).is_some_and(|current| !current.is_null()) {
-            continue;
+        match existing.get_mut(&key) {
+            None | Some(serde_json::Value::Null) => {
+                existing.insert(key.clone(), value);
+                changed.push(key);
+            }
+            Some(serde_json::Value::Array(items)) => {
+                let serde_json::Value::Array(imported_items) = value else {
+                    continue;
+                };
+                let mut seen: HashSet<String> = items.iter().map(record_item_identity).collect();
+                let before = items.len();
+                for item in imported_items {
+                    if seen.insert(record_item_identity(&item)) {
+                        items.push(item);
+                    }
+                }
+                if items.len() > before {
+                    changed.push(key);
+                }
+            }
+            // A stored goal stays as it is
+            Some(_) => {}
         }
-        existing.insert(key.clone(), value);
-        set.push(key);
     }
-    set
+    changed
 }
 
-fn records_from_store(store: &Store<Wry>) -> LoadedAppRecords {
+fn records_from_store<R: Runtime>(store: &Store<R>) -> RecordMap {
     let mut records = RecordMap::new();
     for key in APP_RECORD_KEYS {
         if let Some(value) = store.get(key) {
             records.insert(key.to_string(), value);
         }
     }
-    let initialized = store
-        .get(APP_RECORDS_INITIALIZED_KEY)
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    LoadedAppRecords {
-        records,
-        initialized,
-    }
+    records
 }
 
-pub fn load_app_records(app: &AppHandle) -> Result<LoadedAppRecords, String> {
+fn load_records_from_store<R: Runtime>(store: &Store<R>) -> Result<RecordMap, String> {
+    reload_store(store)?;
+    Ok(records_from_store(store))
+}
+
+/// Merges imported records into the store (see merge_imported_records),
+/// saves if anything changed, and returns every record now stored.
+fn import_records_into_store<R: Runtime>(
+    store: &Store<R>,
+    imported: RecordMap,
+) -> Result<RecordMap, String> {
+    let mut records = load_records_from_store(store)?;
+    let changed = merge_imported_records(&mut records, imported);
+    if !changed.is_empty() {
+        for key in &changed {
+            if let Some(value) = records.get(key) {
+                store.set(key.clone(), value.clone());
+            }
+        }
+        store.save().map_err(|e| e.to_string())?;
+    }
+    Ok(records)
+}
+
+/// Writes the records being moved in, as they were, to
+/// appdata.json.bak-<stamp> in `dir` before anything is merged, so the move
+/// can always be undone by hand. The file has appdata.json's own shape.
+fn write_import_copy(dir: &Path, records: &RecordMap) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("Failed to create the data folder: {}", e))?;
+    let stamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+    let path = dir.join(format!("{}.bak-{}", APP_RECORDS_STORE_FILENAME, stamp));
+    let bytes = serde_json::to_vec_pretty(records).map_err(|e| e.to_string())?;
+    std::fs::write(&path, bytes)
+        .map_err(|e| format!("Failed to save a copy of the records being moved: {}", e))?;
+    Ok(path)
+}
+
+pub fn load_app_records(app: &AppHandle) -> Result<RecordMap, String> {
     let store = get_store_named(app, APP_RECORDS_STORE_FILENAME)?;
-    store.reload().map_err(|e| e.to_string())?;
-    Ok(records_from_store(&store))
+    load_records_from_store(&store)
 }
 
 /// Saves one record; null removes it.
@@ -325,29 +390,28 @@ pub fn save_app_record(app: &AppHandle, key: &str, value: serde_json::Value) -> 
     store.save().map_err(|e| e.to_string())
 }
 
-/// The one-time move from localStorage: stores the imported records where
-/// none exist yet, marks the store initialized, and returns what's stored.
-pub fn import_app_records(
-    app: &AppHandle,
-    imported: RecordMap,
-) -> Result<LoadedAppRecords, String> {
-    let store = get_store_named(app, APP_RECORDS_STORE_FILENAME)?;
-    store.reload().map_err(|e| e.to_string())?;
-    let mut records = records_from_store(&store).records;
-    for key in merge_imported_records(&mut records, imported) {
-        if let Some(value) = records.get(&key) {
-            store.set(key.clone(), value.clone());
-        }
+/// Moves in records kept by an older version in the webview's localStorage:
+/// saves a copy of them beside appdata.json, merges them in without
+/// overwriting anything stored, and returns every record now stored.
+pub fn import_app_records(app: &AppHandle, imported: RecordMap) -> Result<RecordMap, String> {
+    let imported: RecordMap = imported
+        .into_iter()
+        .filter(|(key, value)| is_app_record_key(key) && !value.is_null())
+        .collect();
+    if !imported.is_empty() {
+        let data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to resolve app data dir: {}", e))?;
+        let copy = write_import_copy(&data_dir, &imported)?;
+        log::info!(
+            "Moving {} record(s) in from the webview; a copy is at {}",
+            imported.len(),
+            copy.display()
+        );
     }
-    store.set(
-        APP_RECORDS_INITIALIZED_KEY.to_string(),
-        serde_json::Value::Bool(true),
-    );
-    store.save().map_err(|e| e.to_string())?;
-    Ok(LoadedAppRecords {
-        records,
-        initialized: true,
-    })
+    let store = get_store_named(app, APP_RECORDS_STORE_FILENAME)?;
+    import_records_into_store(&store, imported)
 }
 
 #[cfg(test)]
@@ -479,34 +543,163 @@ mod tests {
             assert!(is_app_record_key(key));
         }
         assert!(!is_app_record_key("sessions"));
-        assert!(!is_app_record_key("initialized"));
         assert!(!is_app_record_key("theme-mode"));
     }
 
     #[test]
-    fn importing_records_never_overwrites_stored_ones() {
+    fn importing_records_adds_to_them_and_never_overwrites() {
         let mut existing = RecordMap::new();
-        existing.insert("predefinedTasks".into(), json!([{ "id": "kept" }]));
-        existing.insert("dailyGoal".into(), serde_json::Value::Null);
+        existing.insert(
+            "predefinedTasks".into(),
+            json!([{ "id": "shared", "name": "Stored" }, { "id": "stored-only" }]),
+        );
+        existing.insert("dailyGoal".into(), json!({ "targetAmount": 50 }));
+        existing.insert("noteTemplates".into(), serde_json::Value::Null);
 
         let mut imported = RecordMap::new();
-        imported.insert("predefinedTasks".into(), json!([{ "id": "from-webview" }]));
+        imported.insert(
+            "predefinedTasks".into(),
+            json!([{ "id": "shared", "name": "From webview" }, { "id": "webview-only" }]),
+        );
         imported.insert("taskNotes".into(), json!([{ "id": "note" }]));
         imported.insert("dailyGoal".into(), json!({ "targetAmount": 100 }));
-        imported.insert("noteTemplates".into(), serde_json::Value::Null);
+        imported.insert("noteTemplates".into(), json!([{ "id": "template" }]));
+        imported.insert("dailyGoalAchievements".into(), serde_json::Value::Null);
         imported.insert("theme-mode".into(), json!("dark"));
 
-        let mut set = merge_imported_records(&mut existing, imported.clone());
-        set.sort();
+        let mut changed = merge_imported_records(&mut existing, imported.clone());
+        changed.sort();
 
-        assert_eq!(set, vec!["dailyGoal", "taskNotes"]);
-        assert_eq!(existing["predefinedTasks"], json!([{ "id": "kept" }]));
-        assert_eq!(existing["dailyGoal"], json!({ "targetAmount": 100 }));
-        assert!(!existing.contains_key("noteTemplates"));
+        assert_eq!(
+            changed,
+            vec!["noteTemplates", "predefinedTasks", "taskNotes"]
+        );
+        // Stored items win on a shared id; new ones are added after them
+        assert_eq!(
+            existing["predefinedTasks"],
+            json!([
+                { "id": "shared", "name": "Stored" },
+                { "id": "stored-only" },
+                { "id": "webview-only" }
+            ])
+        );
+        assert_eq!(existing["taskNotes"], json!([{ "id": "note" }]));
+        assert_eq!(existing["noteTemplates"], json!([{ "id": "template" }]));
+        // A stored goal stays
+        assert_eq!(existing["dailyGoal"], json!({ "targetAmount": 50 }));
+        assert!(!existing.contains_key("dailyGoalAchievements"));
         assert!(!existing.contains_key("theme-mode"));
 
         // A second import changes nothing
         assert!(merge_imported_records(&mut existing, imported).is_empty());
+    }
+
+    #[test]
+    fn list_items_without_an_id_are_merged_by_their_whole_value() {
+        let mut existing = RecordMap::new();
+        existing.insert("taskNotes".into(), json!([{ "text": "a" }]));
+        let mut imported = RecordMap::new();
+        imported.insert(
+            "taskNotes".into(),
+            json!([{ "text": "a" }, { "text": "b" }]),
+        );
+
+        merge_imported_records(&mut existing, imported);
+
+        assert_eq!(
+            existing["taskNotes"],
+            json!([{ "text": "a" }, { "text": "b" }])
+        );
+    }
+
+    #[test]
+    fn only_a_missing_file_counts_as_an_empty_store() {
+        let missing = std::io::Error::from(std::io::ErrorKind::NotFound);
+        assert!(is_missing_file(&tauri_plugin_store::Error::Io(missing)));
+        let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert!(!is_missing_file(&tauri_plugin_store::Error::Io(denied)));
+    }
+
+    /// A fresh folder under the system temp dir, removed when dropped.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let dir =
+                std::env::temp_dir().join(format!("taskmint-{}-{}", name, uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn mock_app() -> tauri::App<tauri::test::MockRuntime> {
+        tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::default().build())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap()
+    }
+
+    // The real store plugin, on a file that doesn't exist yet: what every
+    // existing user has on the first launch after the move.
+    #[test]
+    fn records_load_and_move_in_when_appdata_json_does_not_exist_yet() {
+        let app = mock_app();
+        let dir = TempDir::new("records");
+        let path = dir.0.join(APP_RECORDS_STORE_FILENAME);
+        let store = StoreBuilder::new(app.handle(), &path).build().unwrap();
+
+        assert!(load_records_from_store(&store).unwrap().is_empty());
+        assert!(!path.exists());
+
+        let mut imported = RecordMap::new();
+        imported.insert("predefinedTasks".into(), json!([{ "id": "t1" }]));
+        imported.insert("dailyGoal".into(), json!({ "targetAmount": 100 }));
+        let records = import_records_into_store(&store, imported.clone()).unwrap();
+
+        assert_eq!(records["predefinedTasks"], json!([{ "id": "t1" }]));
+        let on_disk: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(on_disk["predefinedTasks"], json!([{ "id": "t1" }]));
+        assert_eq!(on_disk["dailyGoal"], json!({ "targetAmount": 100 }));
+
+        // Again (say the webview copies couldn't be removed): nothing doubles
+        let again = import_records_into_store(&store, imported).unwrap();
+        assert_eq!(again["predefinedTasks"], json!([{ "id": "t1" }]));
+    }
+
+    #[test]
+    fn a_store_file_that_cannot_be_read_is_still_an_error() {
+        let app = mock_app();
+        let dir = TempDir::new("corrupt");
+        let path = dir.0.join(APP_RECORDS_STORE_FILENAME);
+        std::fs::write(&path, b"{ not json").unwrap();
+        let store = StoreBuilder::new(app.handle(), &path).build().unwrap();
+
+        assert!(load_records_from_store(&store).is_err());
+    }
+
+    #[test]
+    fn the_records_being_moved_in_are_copied_aside_first() {
+        let dir = TempDir::new("import-copy");
+        // The data folder may not exist yet on a fresh install
+        let data_dir = dir.0.join("com.taskmint.app");
+        let mut records = RecordMap::new();
+        records.insert("predefinedTasks".into(), json!([{ "id": "t1" }]));
+
+        let copy = write_import_copy(&data_dir, &records).unwrap();
+
+        let name = copy.file_name().unwrap().to_str().unwrap();
+        // So Reset All Data deletes it with the other .bak files
+        assert!(is_store_backup_filename(name));
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&copy).unwrap()).unwrap();
+        assert_eq!(saved, json!({ "predefinedTasks": [{ "id": "t1" }] }));
     }
 
     #[test]

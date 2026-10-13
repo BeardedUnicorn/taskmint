@@ -42,3 +42,5 @@ flate2 = "1"
 
 [dev-dependencies]
 sha2 = "0.10"
+# A mock app, so storage tests run the real store plugin
+tauri = { version = "2", features = ["test"] }

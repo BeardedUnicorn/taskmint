@@ -37,9 +37,9 @@ pub async fn reset_all_app_data(
             storage::clear_work_logs_store(&app)
         })?
     })??;
-    // Tasks, notes, templates and the goal (appdata.json). Clearing it also
-    // drops the "initialized" marker; the next launch finds localStorage
-    // empty (the caller clears it) and starts fresh.
+    // Tasks, notes, templates and the goal (appdata.json). The caller then
+    // clears localStorage, so the next launch has nothing to move in and
+    // starts fresh.
     storage::clear_app_records_store(&app)?;
 
     // Remaining in-memory state: the tasks mirror (its source of truth is

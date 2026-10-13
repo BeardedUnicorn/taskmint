@@ -49,12 +49,20 @@ TaskMint stores everything locally. Nothing is synced anywhere.
 |---|---|
 | Sessions and timer instances | `sessions.json` in the app data dir, owned by the Rust backend |
 | Imported work logs and project→task mappings | `worklogs.json` in the app data dir, owned by the Rust backend |
-| Tasks, notes, note templates, the daily goal and its history | `appdata.json` in the app data dir, owned by the Rust backend (moved in from `localStorage` on first launch) |
+| Tasks, notes, note templates, the daily goal and its history | `appdata.json` in the app data dir, owned by the Rust backend (see below for data from older versions) |
 | Settings and UI preferences | The webview's `localStorage` |
 
 App data dir on macOS: `~/Library/Application Support/com.taskmint.app/`.
 Before risky operations (a skipped-record load, an import that rewrites days, a
 restore), the backend writes timestamped `*.bak-*` copies next to the stores.
+
+**Data from older versions.** Earlier versions kept tasks, notes, templates
+and the goal in the webview's `localStorage`. On launch, an installed build
+moves any it finds into `appdata.json`: list items are added by id, nothing
+already in the file is replaced, a copy of what was moved is saved as
+`appdata.json.bak-<time>`, and the `localStorage` copies are then removed.
+Development builds (`pnpm tauri dev`) skip this: their webview storage is
+separate from the installed app's, but the data folder is shared.
 
 **Backups.** Settings → Data Management exports everything above to one JSON
 file (format v2) and imports it back. Import adds what isn't already present

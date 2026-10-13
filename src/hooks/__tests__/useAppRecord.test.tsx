@@ -15,7 +15,7 @@ const mockInvoke = vi.mocked(invoke);
 
 async function loadWith(records: Record<string, unknown>) {
   mockInvoke.mockImplementation(async (command: string) =>
-    command === 'get_app_records' ? { records, initialized: true } : null
+    command === 'get_app_records' ? { records } : null
   );
   await loadAppRecords();
 }
