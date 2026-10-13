@@ -9,12 +9,12 @@ you've earned and when it pays out.
 
 | Page | What it's for |
 |---|---|
-| **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session. Live totals for the active session. **Add time** logs a finished timer after the fact (a "Manual" session). |
+| **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session (each day's work gets its own session). Live totals for the active session. **Add time** logs a finished timer after the fact (a "Manual" session). |
 | **Tasks** | Tasks with hourly rates and default note templates; star favorites; archive tasks you're done with. Time keeps the rate it was tracked at, so changing a rate only affects new time. |
 | **Notes** | Free-form or template-based notes on a task (pick it on the Notes page), a session or a timer. A session's notes open from its row, which previews the newest one. |
-| **History** | Every tracked, added and imported entry: quick ranges (remembered), search and task filters, totals and charts, the sortable entries table (edit, delete, CSV export), and the daily goal's results over the range. |
+| **History** | Every tracked, added and imported entry: quick ranges (remembered), search and task filters, totals and charts, the sortable entries table (edit, move an entry to another task, delete, CSV export; imported days are read-only, since each import rebuilds them), and the daily goal's results over the range. |
 | **Calendar** | Earnings, hours and released amounts per day, and the month's totals; click a day for its tasks and releases. |
-| **Payouts** | Import DataAnnotation work logs, map projects to tasks, and see available, pending and upcoming releases; daily reconciliation grouped by month. |
+| **Payouts** | Import DataAnnotation work logs and see available, pending and upcoming releases, when the last import was, and a daily reconciliation grouped by month. **Project mappings** lists which task each project goes to; moving a project moves its past imported days too. |
 | **Settings** | Appearance, funds-release delay, inactivity detection, daily goal, backups, data export/import/reset, privacy, note templates. |
 
 The **system tray** (menu-bar item on macOS) shows the running or paused
@@ -54,7 +54,8 @@ TaskMint stores everything locally. Nothing is synced anywhere.
 
 App data dir on macOS: `~/Library/Application Support/com.taskmint.app/`.
 Before risky operations (a skipped-record load, an import that rewrites days, a
-restore), the backend writes timestamped `*.bak-*` copies next to the stores.
+restore), the backend writes timestamped `*.bak-*` copies next to the stores,
+keeping the newest 10 of each.
 
 **Data from older versions.** Earlier versions kept tasks, notes, templates
 and the goal in the webview's `localStorage`. On launch, an installed build
@@ -67,7 +68,9 @@ separate from the installed app's, but the data folder is shared.
 **Backups.** Settings → Data Management exports everything above to one JSON
 file (format v2) and imports it back. Import adds what isn't already present
 (existing data wins), then the app reloads. Settings → Automatic Backups writes
-the same file to a folder daily, weekly or monthly, keeping the newest N.
+the same file to a folder daily, weekly or monthly, keeping the newest N. They
+start on (weekly, into `Documents/TaskMint Backups`; macOS asks once for access
+to Documents) unless you've saved a backup setting before.
 
 **Reset.** Settings → Data Management → Reset All Data wipes all three data
 files, their `.bak` copies and `localStorage`.

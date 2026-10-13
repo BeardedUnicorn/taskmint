@@ -124,20 +124,24 @@ export interface RewriteGroup {
   deleteInstanceIds: string[];
   /** Running/paused instances found in the bucket; their presence skips the group. */
   blockingInstanceIds: string[];
-  replacementSession: TaskSession;
+  /** Null when a remap leaves the day nothing to import for this task: the group only removes. */
+  replacementSession: TaskSession | null;
 }
 
 export interface WorkLogImportPayload {
   entries: WorkLogEntry[];
   mappings: ProjectTaskMapping[];
   rewriteGroups: RewriteGroup[];
+  /** A project moved to another task: entries keep their last-import time. */
+  isRemap?: boolean;
 }
 
 export interface AppliedGroup {
   taskId: string;
   workDay: string;
   deletedInstances: number;
-  sessionId: string;
+  /** The replacement session; null for a group that only removed time. */
+  sessionId: string | null;
 }
 
 export interface SkippedGroup {

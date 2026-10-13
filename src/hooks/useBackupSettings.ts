@@ -5,7 +5,7 @@
  * backup path selection, and backup status monitoring.
  */
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useDataBackup } from './useDataBackup';
 import {
@@ -18,12 +18,52 @@ import {
   getNextBackupTime
 } from '../types/backup';
 import { invoke } from '@tauri-apps/api/core';
+import { isTauriEnvironment } from '../utils/tauri';
+
+export const BACKUP_CONFIG_KEY = 'automaticBackupConfig';
+export const DEFAULT_BACKUP_FOLDER_NAME = 'TaskMint Backups';
+
+/**
+ * Automatic backups start on in the desktop app: weekly, the newest 10 kept,
+ * in Documents/TaskMint Backups. Only when no backup settings were ever saved
+ * (a fresh install, or after Reset All Data); a saved choice, including
+ * "off", is never touched. Resolves to the config to save, or null.
+ */
+export async function firstRunBackupConfig(): Promise<BackupConfig | null> {
+  if (!isTauriEnvironment()) return null;
+  try {
+    if (window.localStorage.getItem(BACKUP_CONFIG_KEY) !== null) return null;
+  } catch {
+    return null;
+  }
+  const { documentDir, join } = await import('@tauri-apps/api/path');
+  const documents = await documentDir();
+  if (!documents) return null;
+  const backupPath = await join(documents, DEFAULT_BACKUP_FOLDER_NAME);
+  return { ...DEFAULT_BACKUP_CONFIG, enabled: true, frequency: 'weekly', backupPath, maxBackups: 10 };
+}
 
 export function useBackupSettings() {
   const [config, setConfig] = useLocalStorage<BackupConfig>(
-    'automaticBackupConfig',
+    BACKUP_CONFIG_KEY,
     DEFAULT_BACKUP_CONFIG
   );
+
+  // Backups on by default (see firstRunBackupConfig). Once, on mount: the
+  // setter changes identity every render.
+  const setConfigRef = useRef(setConfig);
+  setConfigRef.current = setConfig;
+  useEffect(() => {
+    let cancelled = false;
+    firstRunBackupConfig()
+      .then(initial => {
+        if (initial && !cancelled) setConfigRef.current(initial);
+      })
+      .catch(error => console.error('Failed to set up automatic backups:', error));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [status, setStatus] = useState<BackupStatus>({
     isRunning: false,

@@ -115,7 +115,42 @@ pub fn backup_store_file_named(app: &AppHandle, filename: &str) -> Result<Option
     let backup_path = data_dir.join(format!("{}.bak-{}", filename, stamp));
     std::fs::copy(&store_path, &backup_path)
         .map_err(|e| format!("Failed to back up {} store: {}", filename, e))?;
+    prune_store_backups(&data_dir, filename);
     Ok(Some(backup_path))
+}
+
+/// How many `.bak-*` copies of each store are kept. Every import writes one,
+/// so without a limit they pile up; older ones are deleted when a new copy
+/// is written.
+pub const STORE_BACKUPS_KEPT: usize = 10;
+
+/// The copies of `store` to delete so the newest `keep` remain. Their names
+/// end in a sortable UTC stamp, so name order is age order.
+pub fn backups_to_prune(names: &[String], store: &str, keep: usize) -> Vec<String> {
+    let prefix = format!("{}.bak-", store);
+    let mut copies: Vec<&String> = names.iter().filter(|n| n.starts_with(&prefix)).collect();
+    copies.sort();
+    let excess = copies.len().saturating_sub(keep);
+    copies.into_iter().take(excess).cloned().collect()
+}
+
+/// Best effort: a copy that can't be deleted stays, and the save goes on.
+fn prune_store_backups(dir: &Path, store: &str) {
+    let names: Vec<String> = match std::fs::read_dir(dir) {
+        Ok(entries) => entries
+            .flatten()
+            .filter_map(|e| e.file_name().to_str().map(String::from))
+            .collect(),
+        Err(e) => {
+            log::warn!("Couldn't list old {} copies: {}", store, e);
+            return;
+        }
+    };
+    for name in backups_to_prune(&names, store, STORE_BACKUPS_KEPT) {
+        if let Err(e) = std::fs::remove_file(dir.join(&name)) {
+            log::warn!("Couldn't delete old copy {}: {}", name, e);
+        }
+    }
 }
 
 pub fn backup_store_file(app: &AppHandle) -> Result<Option<PathBuf>, String> {
@@ -368,6 +403,7 @@ fn write_import_copy(dir: &Path, records: &RecordMap) -> Result<PathBuf, String>
     let bytes = serde_json::to_vec_pretty(records).map_err(|e| e.to_string())?;
     std::fs::write(&path, bytes)
         .map_err(|e| format!("Failed to save a copy of the records being moved: {}", e))?;
+    prune_store_backups(dir, APP_RECORDS_STORE_FILENAME);
     Ok(path)
 }
 
@@ -507,6 +543,28 @@ mod tests {
     #[test]
     fn parse_work_log_entries_rejects_non_array_value() {
         assert!(parse_work_log_entries(&json!({"not": "an array"})).is_err());
+    }
+
+    #[test]
+    fn pruning_keeps_the_newest_copies_of_one_store_only() {
+        let names: Vec<String> = [
+            "sessions.json.bak-20261001000000",
+            "sessions.json.bak-20261003000000",
+            "sessions.json.bak-20261002000000",
+            "sessions.json.pre-fix-backup-20260831164110",
+            "worklogs.json.bak-20260101000000",
+            "sessions.json",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+        assert_eq!(
+            backups_to_prune(&names, "sessions.json", 2),
+            vec!["sessions.json.bak-20261001000000".to_string()]
+        );
+        assert!(backups_to_prune(&names, "sessions.json", 10).is_empty());
+        assert!(backups_to_prune(&names, "worklogs.json", 1).is_empty());
     }
 
     #[test]
