@@ -1,7 +1,7 @@
 import { Typography } from '@mui/material';
 import { Palette as AppearanceIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
-import { ThemeSelector } from '../../../contexts/ThemeContext';
+import { ThemeSelector } from './ThemeSelector';
 
 export function AppearanceSettingsSection() {
   return (
@@ -9,7 +9,7 @@ export function AppearanceSettingsSection() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         System follows your operating system's light or dark setting.
       </Typography>
-      <ThemeSelector variant="buttons" />
+      <ThemeSelector />
     </SettingsSection>
   );
 }

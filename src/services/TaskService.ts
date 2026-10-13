@@ -1,44 +1,19 @@
 /**
  * Task Service
- * 
- * Centralized task management business logic
- * Handles CRUD operations, validation, and Tauri backend synchronization
+ *
+ * Task CRUD and validation over the app-records store. The tray's copy of the
+ * task list is kept current by useEnhancedSystemTray (update_tasks on every
+ * change), so the service doesn't sync it itself.
  */
 
-import { invoke } from '@tauri-apps/api/core';
 import { Task } from '../types/task';
 import { IStorageService } from './StorageService';
 import { createTaskError, TaskErrorClass } from '../types/errors';
 import { validateTaskName } from '../utils/validation';
 import { STORAGE_KEYS } from '../constants';
 
-export interface ITaskService {
-  // CRUD operations
-  createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task>;
-  updateTask(taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task>;
-  deleteTask(taskId: string): Promise<void>;
-  archiveTask(taskId: string): Promise<Task>;
-  unarchiveTask(taskId: string): Promise<Task>;
-  getTask(taskId: string): Promise<Task | null>;
-  getAllTasks(): Promise<Task[]>;
-
-  // Search and filtering
-  searchTasks(query: string): Promise<Task[]>;
-  getTasksByHourlyRate(minRate?: number, maxRate?: number): Promise<Task[]>;
-
-  // Validation
-  validateTask(task: Partial<Task>): Promise<{ isValid: boolean; errors: string[] }>;
-  isTaskNameUnique(name: string, excludeId?: string): Promise<boolean>;
-
-  // Tauri backend synchronization
-  syncWithTauriBackend(): Promise<void>;
-}
-
-export class TaskService implements ITaskService {
+export class TaskService {
   private storageService: IStorageService;
-  private taskCache: Map<string, Task> = new Map();
-  private lastSyncTime: number = 0;
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(storageService: IStorageService) {
     this.storageService = storageService;
@@ -84,12 +59,6 @@ export class TaskService implements ITaskService {
       const tasks = await this.getAllTasks();
       tasks.push(newTask);
       await this.storageService.setTasks(tasks);
-
-      // Update cache
-      this.taskCache.set(newTask.id, newTask);
-
-      // Sync with Tauri backend
-      await this.syncWithTauriBackend();
 
       return newTask;
     } catch (error) {
@@ -172,14 +141,11 @@ export class TaskService implements ITaskService {
       tasks[taskIndex] = updatedTask;
       await this.storageService.setTasks(tasks);
 
-      // Update cache
-      this.taskCache.set(taskId, updatedTask);
-
-      // Sync with Tauri backend
-      await this.syncWithTauriBackend();
-
       return updatedTask;
     } catch (error) {
+      if (error instanceof TaskErrorClass) {
+        throw error;
+      }
       console.error('Failed to update task:', error);
       throw createTaskError(
         'TASK_UPDATE_FAILED',
@@ -223,12 +189,10 @@ export class TaskService implements ITaskService {
       }
 
       await this.storageService.setTasks(tasks.filter(t => t.id !== taskId));
-      this.taskCache.delete(taskId);
-
-      // Sync with Tauri backend
-      await this.syncWithTauriBackend();
-
     } catch (error) {
+      if (error instanceof TaskErrorClass) {
+        throw error;
+      }
       console.error('Failed to delete task:', error);
       throw createTaskError(
         'TASK_DELETE_FAILED',
@@ -244,20 +208,8 @@ export class TaskService implements ITaskService {
    */
   async getTask(taskId: string): Promise<Task | null> {
     try {
-      // Check cache first
-      if (this.taskCache.has(taskId) && this.isCacheValid()) {
-        return this.taskCache.get(taskId) || null;
-      }
-
-      // Load from storage
       const tasks = await this.getAllTasks();
-      const task = tasks.find(t => t.id === taskId) || null;
-      
-      if (task) {
-        this.taskCache.set(taskId, task);
-      }
-      
-      return task;
+      return tasks.find(t => t.id === taskId) || null;
     } catch (error) {
       console.error('Failed to get task:', error);
       throw createTaskError(
@@ -274,15 +226,7 @@ export class TaskService implements ITaskService {
    */
   async getAllTasks(): Promise<Task[]> {
     try {
-      const tasks = await this.migrateLegacyFavorites(await this.storageService.getTasks());
-      
-      // Update cache
-      tasks.forEach(task => {
-        this.taskCache.set(task.id, task);
-      });
-      this.lastSyncTime = Date.now();
-      
-      return tasks;
+      return await this.migrateLegacyFavorites(await this.storageService.getTasks());
     } catch (error) {
       console.error('Failed to get all tasks:', error);
       throw createTaskError(
@@ -333,61 +277,6 @@ export class TaskService implements ITaskService {
     }
     window.localStorage.removeItem(STORAGE_KEYS.FAVORITE_TASKS);
     return migrated;
-  }
-
-  /**
-   * Search tasks by name
-   */
-  async searchTasks(query: string): Promise<Task[]> {
-    try {
-      const tasks = await this.getAllTasks();
-      const searchTerm = query.toLowerCase().trim();
-      
-      if (!searchTerm) {
-        return tasks;
-      }
-      
-      return tasks.filter(task => 
-        task.name.toLowerCase().includes(searchTerm)
-      );
-    } catch (error) {
-      console.error('Failed to search tasks:', error);
-      throw createTaskError(
-        'TASK_NOT_FOUND',
-        'Failed to search tasks',
-        { originalError: error, query },
-        'searchTasks'
-      );
-    }
-  }
-
-  /**
-   * Get tasks by hourly rate range
-   */
-  async getTasksByHourlyRate(minRate?: number, maxRate?: number): Promise<Task[]> {
-    try {
-      const tasks = await this.getAllTasks();
-      
-      return tasks.filter(task => {
-        if (task.hourlyRate === undefined) {
-          return minRate === undefined && maxRate === undefined;
-        }
-        
-        const rate = task.hourlyRate;
-        const meetsMin = minRate === undefined || rate >= minRate;
-        const meetsMax = maxRate === undefined || rate <= maxRate;
-        
-        return meetsMin && meetsMax;
-      });
-    } catch (error) {
-      console.error('Failed to get tasks by hourly rate:', error);
-      throw createTaskError(
-        'TASK_NOT_FOUND',
-        'Failed to retrieve tasks by hourly rate',
-        { originalError: error, minRate, maxRate },
-        'getTasksByHourlyRate'
-      );
-    }
   }
 
   /**
@@ -445,25 +334,5 @@ export class TaskService implements ITaskService {
       console.error('Failed to check task name uniqueness:', error);
       return false;
     }
-  }
-
-  /**
-   * Sync tasks with Tauri backend
-   */
-  async syncWithTauriBackend(): Promise<void> {
-    try {
-      const tasks = await this.getAllTasks();
-      await invoke('update_tasks', { tasks });
-    } catch (error) {
-      console.error('Failed to sync tasks with Tauri backend:', error);
-      // Don't throw error for backend sync to avoid breaking main functionality
-    }
-  }
-
-  /**
-   * Check if cache is still valid
-   */
-  private isCacheValid(): boolean {
-    return Date.now() - this.lastSyncTime < this.CACHE_TTL;
   }
 }

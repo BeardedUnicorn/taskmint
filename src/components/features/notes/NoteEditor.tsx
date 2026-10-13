@@ -34,7 +34,7 @@ import {
   Notes as NotesIcon,
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
-import {NoteEditorProps, TemplateField, NoteTemplate, TaskNote} from '../../../types';
+import { NoteEditorProps, TemplateField, NoteTemplate, TaskNote } from '../../../types/notes';
 import { FREE_FORM_TEMPLATE_ID, FREE_FORM_TEMPLATE_NAME } from '../../../utils/notes';
 
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';

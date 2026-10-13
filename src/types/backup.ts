@@ -37,33 +37,6 @@ export interface BackupResult {
   fileSize?: number;
 }
 
-// Zod schemas for validation
-export const BackupFrequencySchema = z.enum(['daily', 'weekly', 'monthly']);
-
-export const BackupConfigSchema = z.object({
-  enabled: z.boolean(),
-  frequency: BackupFrequencySchema,
-  backupPath: z.string(),
-  maxBackups: z.number().min(1).max(100),
-  lastBackupTime: z.string().optional(),
-});
-
-export const BackupStatusSchema = z.object({
-  isRunning: z.boolean(),
-  lastBackupTime: z.string().optional(),
-  lastBackupSuccess: z.boolean().optional(),
-  lastBackupError: z.string().optional(),
-  nextScheduledBackup: z.string().optional(),
-});
-
-export const BackupResultSchema = z.object({
-  success: z.boolean(),
-  filePath: z.string().optional(),
-  error: z.string().optional(),
-  timestamp: z.string(),
-  fileSize: z.number().optional(),
-});
-
 // Default backup configuration
 export const DEFAULT_BACKUP_CONFIG: BackupConfig = {
   enabled: false,
@@ -83,19 +56,6 @@ export function getBackupFrequencyLabel(frequency: BackupFrequency): string {
       return 'Monthly';
     default:
       return 'Unknown';
-  }
-}
-
-export function getBackupFrequencyDescription(frequency: BackupFrequency): string {
-  switch (frequency) {
-    case 'daily':
-      return 'Create a backup every day';
-    case 'weekly':
-      return 'Create a backup every week';
-    case 'monthly':
-      return 'Create a backup every month';
-    default:
-      return 'Unknown frequency';
   }
 }
 
@@ -164,8 +124,6 @@ export const BackupFileSchema = z.object({
       .optional(),
   }),
 });
-
-export type BackupFile = z.infer<typeof BackupFileSchema>;
 
 /** Mirrors RestoreSummary in src-tauri/src/commands/restore.rs. */
 export interface RestoreSummary {

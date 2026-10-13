@@ -45,17 +45,6 @@ export function formatDate(date: Date): string {
 }
 
 /**
- * Parse time input string (HH:MM:SS) to milliseconds
- */
-export function parseTimeInput(timeStr: string): number {
-  const parts = timeStr.split(':');
-  const hours = parseInt(parts[0] || '0', 10);
-  const minutes = parseInt(parts[1] || '0', 10);
-  const seconds = parseInt(parts[2] || '0', 10);
-  return (hours * 3600 + minutes * 60 + seconds) * 1000;
-}
-
-/**
  * Format currency amount with proper symbol and formatting
  */
 export function formatCurrency(amount: string | number): string {
@@ -71,29 +60,6 @@ export function formatCurrency(amount: string | number): string {
     style: 'currency',
     currency: 'USD',
   }).format(numericAmount);
-}
-
-/**
- * Format percentage with specified decimal places
- */
-export function formatPercentage(value: number, decimals: number = 1): string {
-  return `${value.toFixed(decimals)}%`;
-}
-
-/**
- * Format large numbers with appropriate suffixes (K, M, B)
- */
-export function formatLargeNumber(num: number): string {
-  if (num >= 1000000000) {
-    return (num / 1000000000).toFixed(1) + 'B';
-  }
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M';
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
-  }
-  return num.toString();
 }
 
 /**
@@ -133,32 +99,4 @@ export function createTextPreview(text: string, maxLength: number = 100): string
   }
 
   return singleLinePreview;
-}
-
-/**
- * Count the number of lines in a text string
- */
-export function countTextLines(text: string): number {
-  if (!text || typeof text !== 'string') {
-    return 0;
-  }
-
-  return text.split(/\r\n|\r|\n/).length;
-}
-
-/**
- * Truncate text to a specific number of lines
- */
-export function truncateToLines(text: string, maxLines: number): string {
-  if (!text || typeof text !== 'string' || maxLines <= 0) {
-    return '';
-  }
-
-  const lines = text.split(/\r\n|\r|\n/);
-
-  if (lines.length <= maxLines) {
-    return text;
-  }
-
-  return lines.slice(0, maxLines).join('\n') + '...';
 }

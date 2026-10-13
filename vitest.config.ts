@@ -19,6 +19,8 @@ export default defineConfig({
       exclude: [
         'node_modules/',
         'src/__tests__/',
+        'src/**/__mocks__/**',
+        'src/setupTests.ts',
         '**/*.d.ts',
         '**/*.config.*',
         '**/dist/**',
@@ -31,15 +33,14 @@ export default defineConfig({
         '!src/**/*.test.{ts,tsx}',
         '!src/**/*.spec.{ts,tsx}',
       ],
-      // The pre-vitest-4 config nested these under `thresholds.global`, which
-      // vitest treated as a file glob and never enforced. These floors sit just
-      // under actual coverage (ratcheted 2026-10 after dead-code removal);
-      // raise them as coverage improves.
+      // Floors a little under actual coverage (ratcheted 2026-10-13 after the
+      // third dead-code sweep: 75.6 / 67.5 / 72.9 / 76.4); raise them as
+      // coverage improves.
       thresholds: {
-        branches: 40,
-        functions: 43,
-        lines: 48,
-        statements: 48,
+        branches: 65,
+        functions: 70,
+        lines: 74,
+        statements: 73,
       },
     },
 
@@ -54,8 +55,6 @@ export default defineConfig({
       'build/',
       'src-tauri/',
       'src/__tests__/setup/**',
-      'src/__tests__/manual/**',
-      'src/__tests__/integration/test-setup.ts',
     ],
 
     // Test timeout

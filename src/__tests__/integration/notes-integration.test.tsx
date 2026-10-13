@@ -147,7 +147,7 @@ describe('Notes Integration', () => {
       expect(note.fieldValues.field2).toBe(5);
     });
 
-    it('should retrieve notes by task ID', async () => {
+    it('keeps each note with its task', async () => {
       // Create two notes for the same task
       await notesService.createNote({
         taskId,
@@ -171,7 +171,7 @@ describe('Notes Integration', () => {
         fieldValues: { field1: 'Other note' },
       });
 
-      const taskNotes = await notesService.getNotesByTaskId(taskId);
+      const taskNotes = (await notesService.getAllNotes()).filter(note => note.taskId === taskId);
       expect(taskNotes).toHaveLength(2);
       expect(taskNotes.every(note => note.taskId === taskId)).toBe(true);
     });
@@ -202,30 +202,8 @@ describe('Notes Integration', () => {
 
       await notesService.deleteNote(note.id);
 
-      const notes = await notesService.getNotesByTaskId(taskId);
-      expect(notes).toHaveLength(0);
-    });
-
-    it('should delete all notes for a task', async () => {
-      // Create multiple notes for the task
-      await notesService.createNote({
-        taskId,
-        templateId,
-        templateName: 'Note Template',
-        fieldValues: { field1: 'Note 1' },
-      });
-
-      await notesService.createNote({
-        taskId,
-        templateId,
-        templateName: 'Note Template',
-        fieldValues: { field1: 'Note 2' },
-      });
-
-      await notesService.deleteNotesByTaskId(taskId);
-
-      const notes = await notesService.getNotesByTaskId(taskId);
-      expect(notes).toHaveLength(0);
+      const notes = await notesService.getAllNotes();
+      expect(notes.some(n => n.id === note.id)).toBe(false);
     });
   });
 

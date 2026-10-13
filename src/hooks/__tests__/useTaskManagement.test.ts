@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTaskManagement } from '../useTaskManagement';
-import { Task } from '../../types';
+import { Task } from '../../types/task';
 
 // Mock ServiceFactory
 const mockTaskService = {

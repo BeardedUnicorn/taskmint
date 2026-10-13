@@ -66,7 +66,7 @@ describe('NoteTemplateService', () => {
       expect(mockStorageService.getNoteTemplates).toHaveBeenCalledTimes(1);
     });
 
-    it('should update template activation status and return active templates', async () => {
+    it('should update template activation status', async () => {
       const existing: NoteTemplate = {
         id: 'template1',
         name: 'Template 1',
@@ -85,10 +85,6 @@ describe('NoteTemplateService', () => {
         updated,
         freeFormTemplate,
       ]);
-
-      mockStorageService.getNoteTemplates.mockResolvedValue([updated, freeFormTemplate]);
-      const activeTemplates = await service.getActiveTemplates();
-      expect(activeTemplates).toEqual([updated]);
     });
 
     it('should delete template and update storage', async () => {

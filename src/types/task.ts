@@ -38,20 +38,6 @@ export const TaskSchema = z.object({
   updatedAt: z.iso.datetime()
 });
 
-export interface TaskFormData {
-  name: string;
-  hourlyRate: string; // String for form input, converted to number
-  defaultNoteTemplateId?: string | null; // Optional default note template
-}
-
-// Props interfaces for task-related components
-export interface TaskManagementProps {
-  tasks: Task[];
-  onAddTask: (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Task | null>;
-  onUpdateTask: (taskId: string, updates: Partial<Task>) => Promise<Task | null>;
-  onDeleteTask: (taskId: string) => Promise<void>;
-}
-
 // Task management hook return type
 export interface UseTaskManagementReturn {
   tasks: Task[];

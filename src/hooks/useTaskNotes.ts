@@ -5,10 +5,11 @@
  * including CRUD operations, validation, and note management.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { TaskNote, UseTaskNotesReturn } from '../types/notes';
 import { TaskNotesService } from '../services/TaskNotesService';
 import { useAsyncError } from './useAsyncError';
+import { errorMessage } from '../utils/errors';
 
 export const TaskNotesContext = createContext<UseTaskNotesReturn | null>(null);
 
@@ -25,56 +26,39 @@ export function useTaskNotes(): UseTaskNotesReturn {
 }
 
 /** The notes state itself. Use once, in TaskNotesProvider. */
-export function useTaskNotesState(taskId?: string): UseTaskNotesReturn {
+export function useTaskNotesState(): UseTaskNotesReturn {
   const [notes, setNotes] = useState<TaskNote[]>([]);
   // Loading until the first load finishes, so nothing mistakes "not loaded
   // yet" for "no notes".
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const { executeAsync } = useAsyncError();
   const notesService = TaskNotesService.getInstance();
 
-  /**
-   * Load all notes or notes for a specific task
-   */
   const loadNotes = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    
     try {
-      const loadedNotes = taskId 
-        ? await notesService.getNotesByTaskId(taskId)
-        : await notesService.getAllNotes();
-      setNotes(loadedNotes);
+      setNotes(await notesService.getAllNotes());
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load notes';
-      setError(errorMessage);
+      setError(errorMessage(err, 'Failed to load notes'));
       console.error('Failed to load notes:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [notesService, taskId]);
+  }, [notesService]);
 
-  /**
-   * Create a new note
-   */
   const createNote = useCallback(async (
     noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<TaskNote> => {
     return executeAsync(async () => {
       setError(null);
-      
       const newNote = await notesService.createNote(noteData);
-      
-      // Update local state if this note belongs to our current task filter
-      if (!taskId || newNote.taskId === taskId) {
-        setNotes(prev => [...prev, newNote]);
-      }
-      
+      setNotes(prev => [...prev, newNote]);
       return newNote;
     });
-  }, [notesService, executeAsync, taskId]);
+  }, [notesService, executeAsync]);
 
   /**
    * Add finished notes in one write (notes moved in from elsewhere); notes
@@ -85,193 +69,63 @@ export function useTaskNotesState(taskId?: string): UseTaskNotesReturn {
       setError(null);
       const added = await notesService.addNotes(newNotes);
       if (added.length > 0) {
-        setNotes(prev => [...prev, ...added.filter(note => !taskId || note.taskId === taskId)]);
+        setNotes(prev => [...prev, ...added]);
       }
       return added;
     });
-  }, [notesService, executeAsync, taskId]);
+  }, [notesService, executeAsync]);
 
-  /**
-   * Update an existing note
-   */
+  const replaceNote = useCallback((updated: TaskNote) => {
+    setNotes(prev => prev.map(note => (note.id === updated.id ? updated : note)));
+  }, []);
+
   const updateNote = useCallback(async (
-    noteId: string, 
+    noteId: string,
     updates: Partial<TaskNote>
   ): Promise<TaskNote> => {
     return executeAsync(async () => {
       setError(null);
-      
       const updatedNote = await notesService.updateNote(noteId, updates);
-      
-      // Update local state
-      setNotes(prev => 
-        prev.map(note => 
-          note.id === noteId ? updatedNote : note
-        )
-      );
-      
+      replaceNote(updatedNote);
       return updatedNote;
     });
-  }, [notesService, executeAsync]);
+  }, [notesService, executeAsync, replaceNote]);
 
-  /**
-   * Delete a note
-   */
   const deleteNote = useCallback(async (noteId: string): Promise<void> => {
     return executeAsync(async () => {
       setError(null);
-      
       await notesService.deleteNote(noteId);
-      
-      // Update local state
       setNotes(prev => prev.filter(note => note.id !== noteId));
     });
   }, [notesService, executeAsync]);
 
-  /**
-   * Archive a note
-   */
   const archiveNote = useCallback(async (noteId: string): Promise<TaskNote> => {
     return executeAsync(async () => {
       setError(null);
-      
       const archivedNote = await notesService.archiveNote(noteId);
-      
-      // Update local state
-      setNotes(prev => 
-        prev.map(note => 
-          note.id === noteId ? archivedNote : note
-        )
-      );
-      
+      replaceNote(archivedNote);
       return archivedNote;
     });
-  }, [notesService, executeAsync]);
+  }, [notesService, executeAsync, replaceNote]);
 
-  /**
-   * Unarchive a note
-   */
   const unarchiveNote = useCallback(async (noteId: string): Promise<TaskNote> => {
     return executeAsync(async () => {
       setError(null);
-      
       const unarchivedNote = await notesService.unarchiveNote(noteId);
-      
-      // Update local state
-      setNotes(prev => 
-        prev.map(note => 
-          note.id === noteId ? unarchivedNote : note
-        )
-      );
-      
+      replaceNote(unarchivedNote);
       return unarchivedNote;
     });
-  }, [notesService, executeAsync]);
+  }, [notesService, executeAsync, replaceNote]);
 
-  /**
-   * Get notes by task ID
-   */
-  const getNotesByTaskId = useCallback((targetTaskId: string): TaskNote[] => {
-    return notes.filter(note => note.taskId === targetTaskId);
-  }, [notes]);
-
-  /**
-   * Get notes by time entry ID
-   */
-  const getNotesByTimeEntryId = useCallback((timeEntryId: string): TaskNote[] => {
-    return notes.filter(note => note.timeEntryId === timeEntryId);
-  }, [notes]);
-
-  /**
-   * Get notes by session ID
-   */
-  const getNotesBySessionId = useCallback((sessionId: string): TaskNote[] => {
-    return notes.filter(note => note.sessionId === sessionId);
-  }, [notes]);
-
-  /**
-   * Get notes by timer instance ID
-   */
-  const getNotesByTimerInstanceId = useCallback(
-    (timerInstanceId: string): TaskNote[] => {
-      return notes.filter(note => note.timerInstanceId === timerInstanceId);
-    },
-    [notes]
-  );
-
-  /**
-   * Get notes by note level
-   */
-  const getNotesByLevel = useCallback(
-    (level: 'task' | 'session' | 'timer'): TaskNote[] => {
-      return notes.filter(note => (note.noteLevel ?? 'task') === level);
-    },
-    [notes]
-  );
-
-  /**
-   * Get note by ID
-   */
-  const getNoteById = useCallback((noteId: string): TaskNote | undefined => {
-    return notes.find(note => note.id === noteId);
-  }, [notes]);
-
-  /**
-   * Delete all notes for a specific task
-   */
-  const deleteNotesByTaskId = useCallback(async (targetTaskId: string): Promise<void> => {
-    return executeAsync(async () => {
-      setError(null);
-      
-      await notesService.deleteNotesByTaskId(targetTaskId);
-      
-      // Update local state
-      setNotes(prev => prev.filter(note => note.taskId !== targetTaskId));
-    });
-  }, [notesService, executeAsync]);
-
-  /**
-   * Get notes by template ID
-   */
-  const getNotesByTemplateId = useCallback((templateId: string): TaskNote[] => {
-    return notes.filter(note => note.templateId === templateId);
-  }, [notes]);
-
-  /**
-   * Get notes statistics for current task or all tasks
-   */
-  const getNotesStats = useCallback(() => {
-    const relevantNotes = taskId ? getNotesByTaskId(taskId) : notes;
-    const templatesUsed = [...new Set(relevantNotes.map(note => note.templateName))];
-    // Sort a copy to avoid mutating the original array
-    const lastNote = [...relevantNotes]
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-
-    return {
-      totalNotes: relevantNotes.length,
-      templatesUsed,
-      lastNoteDate: lastNote?.updatedAt,
-      notesByTemplate: templatesUsed.reduce((acc, templateName) => {
-        acc[templateName] = relevantNotes.filter(note => note.templateName === templateName).length;
-        return acc;
-      }, {} as Record<string, number>),
-    };
-  }, [notes, taskId, getNotesByTaskId]);
-
-  /**
-   * Search notes by content
-   */
+  /** Notes whose template name or any text/number field contains the query. */
   const searchNotes = useCallback((query: string): TaskNote[] => {
     if (!query.trim()) return notes;
-    
+
     const lowercaseQuery = query.toLowerCase();
     return notes.filter(note => {
-      // Search in template name
       if (note.templateName.toLowerCase().includes(lowercaseQuery)) {
         return true;
       }
-      
-      // Search in field values
       return Object.values(note.fieldValues).some(value => {
         if (typeof value === 'string') {
           return value.toLowerCase().includes(lowercaseQuery);
@@ -284,117 +138,11 @@ export function useTaskNotesState(taskId?: string): UseTaskNotesReturn {
     });
   }, [notes]);
 
-  /**
-   * Sort notes by various criteria
-   */
-  const sortNotes = useCallback((
-    sortBy: 'createdAt' | 'updatedAt' | 'templateName',
-    order: 'asc' | 'desc' = 'desc'
-  ): TaskNote[] => {
-    const sorted = [...notes].sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortBy) {
-        case 'createdAt':
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          break;
-        case 'updatedAt':
-          comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-          break;
-        case 'templateName':
-          comparison = a.templateName.localeCompare(b.templateName);
-          break;
-      }
-      
-      return order === 'desc' ? -comparison : comparison;
-    });
-    
-    return sorted;
-  }, [notes]);
-
-  /**
-   * Get recent notes (last 7 days)
-   */
-  const getRecentNotes = useCallback((days: number = 7): TaskNote[] => {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - days);
-    
-    return notes.filter(note => 
-      new Date(note.updatedAt) >= cutoffDate
-    ).sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
-  }, [notes]);
-
-  /**
-   * Get active (non-archived) notes
-   */
-  const getActiveNotes = useCallback((): TaskNote[] => {
-    return notes.filter(note => !note.isArchived);
-  }, [notes]);
-
-  /**
-   * Get archived notes
-   */
-  const getArchivedNotes = useCallback((): TaskNote[] => {
-    return notes.filter(note => note.isArchived);
-  }, [notes]);
-
-  /**
-   * Get active notes by task ID
-   */
-  const getActiveNotesByTaskId = useCallback((targetTaskId: string): TaskNote[] => {
-    return notes.filter(note => note.taskId === targetTaskId && !note.isArchived);
-  }, [notes]);
-
-  /**
-   * Get archived notes by task ID
-   */
-  const getArchivedNotesByTaskId = useCallback((targetTaskId: string): TaskNote[] => {
-    return notes.filter(note => note.taskId === targetTaskId && note.isArchived);
-  }, [notes]);
-
-  /**
-   * Validate note field values
-   */
-  const validateNoteData = useCallback(async (
-    noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>
-  ): Promise<{ isValid: boolean; errors: Record<string, string> }> => {
-    try {
-      // This would typically call the service validation method
-      // For now, we'll do basic validation
-      const errors: Record<string, string> = {};
-      
-      if (!noteData.taskId) {
-        errors.taskId = 'Task ID is required';
-      }
-      
-      if (!noteData.templateId) {
-        errors.templateId = 'Template ID is required';
-      }
-      
-      if (!noteData.fieldValues || Object.keys(noteData.fieldValues).length === 0) {
-        errors.fieldValues = 'At least one field value is required';
-      }
-      
-      return {
-        isValid: Object.keys(errors).length === 0,
-        errors,
-      };
-    } catch (err) {
-      return {
-        isValid: false,
-        errors: { general: 'Validation failed' },
-      };
-    }
-  }, []);
-
-  // Load notes on mount or when taskId changes
   useEffect(() => {
-    loadNotes();
+    void loadNotes();
   }, [loadNotes]);
 
-  return {
+  return useMemo(() => ({
     notes,
     createNote,
     addNotes,
@@ -402,43 +150,8 @@ export function useTaskNotesState(taskId?: string): UseTaskNotesReturn {
     deleteNote,
     archiveNote,
     unarchiveNote,
-    getNotesByTaskId,
-    getNotesByTimeEntryId,
-    getNotesBySessionId,
-    getNotesByTimerInstanceId,
-    getNotesByLevel,
-    getNoteById,
+    searchNotes,
     isLoading,
     error,
-    // Additional utility methods
-    deleteNotesByTaskId,
-    getNotesByTemplateId,
-    getNotesStats,
-    searchNotes,
-    sortNotes,
-    getRecentNotes,
-    getActiveNotes,
-    getArchivedNotes,
-    getActiveNotesByTaskId,
-    getArchivedNotesByTaskId,
-    validateNoteData,
-    refreshNotes: loadNotes,
-  } as UseTaskNotesReturn & {
-    deleteNotesByTaskId: (taskId: string) => Promise<void>;
-    getNotesByTemplateId: (templateId: string) => TaskNote[];
-    getNotesStats: () => {
-      totalNotes: number;
-      templatesUsed: string[];
-      lastNoteDate?: string;
-      notesByTemplate: Record<string, number>;
-    };
-    sortNotes: (sortBy: 'createdAt' | 'updatedAt' | 'templateName', order?: 'asc' | 'desc') => TaskNote[];
-    getRecentNotes: (days?: number) => TaskNote[];
-    getActiveNotes: () => TaskNote[];
-    getArchivedNotes: () => TaskNote[];
-    getActiveNotesByTaskId: (taskId: string) => TaskNote[];
-    getArchivedNotesByTaskId: (taskId: string) => TaskNote[];
-    validateNoteData: (noteData: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ isValid: boolean; errors: Record<string, string> }>;
-    refreshNotes: () => Promise<void>;
-  };
+  }), [notes, createNote, addNotes, updateNote, deleteNote, archiveNote, unarchiveNote, searchNotes, isLoading, error]);
 }

@@ -51,32 +51,3 @@ export const DailyGoalAchievementSchema = z.object({
   difference: z.number(),
   recordedAt: z.iso.datetime(),
 });
-
-// Form data types for goal configuration
-export interface DailyGoalFormData {
-  targetAmount: number;
-  currency: string;
-  isEnabled: boolean;
-}
-
-// Progress tracking types
-export interface DailyGoalProgress {
-  currentEarnings: number;
-  targetAmount: number;
-  currency: string;
-  percentageAchieved: number;
-  status: 'on-track' | 'behind' | 'achieved' | 'exceeded';
-  remainingAmount: number;
-  isGoalEnabled: boolean;
-}
-
-// Notification types
-export type GoalNotificationType = 'halfway' | 'three-quarters' | 'achieved' | 'exceeded';
-
-export interface GoalNotificationData {
-  type: GoalNotificationType;
-  currentEarnings: number;
-  targetAmount: number;
-  percentageAchieved: number;
-  currency: string;
-}

@@ -31,9 +31,7 @@ export interface IStorageService {
   // Generic storage operations
   getItem<T>(key: string, defaultValue: T, schema?: z.ZodType<T>): Promise<T>;
   setItem<T>(key: string, value: T, schema?: z.ZodType<T>): Promise<void>;
-  removeItem(key: string): Promise<void>;
-  clear(): Promise<void>;
-  
+
   // Typed storage operations
   getTasks(): Promise<Task[]>;
   setTasks(tasks: Task[]): Promise<void>;
@@ -45,18 +43,10 @@ export interface IStorageService {
   setDailyGoal(goal: DailyGoal): Promise<void>;
   getGoalAchievements(): Promise<DailyGoalAchievement[]>;
   setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void>;
-
-  // Backup and migration
-  createBackup(key: string): Promise<void>;
-  needsMigration(key: string): Promise<boolean>;
 }
 
 export class StorageService implements IStorageService {
   private static instance: StorageService;
-
-  constructor() {
-    // Private constructor for singleton pattern
-  }
 
   static getInstance(): StorageService {
     if (!StorageService.instance) {
@@ -214,40 +204,6 @@ export class StorageService implements IStorageService {
     }
   }
 
-  /**
-   * Remove item from localStorage
-   */
-  async removeItem(key: string): Promise<void> {
-    try {
-      if (this.usesAppRecords(key)) {
-        await writeAppRecord(key, null);
-        return;
-      }
-      localStorage.removeItem(key);
-    } catch (error) {
-      console.error(`Failed to remove data for key "${key}":`, error);
-      throw createStorageError('STORAGE_DELETE_FAILED', 
-        `Failed to delete data for key "${key}"`, 
-        { key, originalError: error }
-      );
-    }
-  }
-
-  /**
-   * Clear all localStorage data
-   */
-  async clear(): Promise<void> {
-    try {
-      localStorage.clear();
-    } catch (error) {
-      console.error('Failed to clear localStorage:', error);
-      throw createStorageError('STORAGE_CLEAR_FAILED', 
-        'Failed to clear all storage data', 
-        { originalError: error }
-      );
-    }
-  }
-
   // Typed storage operations
 
   async getTasks(): Promise<Task[]> {
@@ -395,7 +351,7 @@ export class StorageService implements IStorageService {
   // localStorage copies of sessions/timer instances were removed with
   // SessionService.
 
-  async createBackup(key: string): Promise<void> {
+  private async createBackup(key: string): Promise<void> {
     try {
       const data = localStorage.getItem(key);
       if (data) {
@@ -407,19 +363,6 @@ export class StorageService implements IStorageService {
         `Failed to create backup for key "${key}"`, 
         { key, originalError: error }
       );
-    }
-  }
-
-  async needsMigration(key: string): Promise<boolean> {
-    try {
-      const item = localStorage.getItem(key);
-      if (!item) return false;
-      
-      const parsedData = JSON.parse(item);
-      return needsMigration(parsedData);
-    } catch (error) {
-      console.error(`Failed to check migration status for key "${key}":`, error);
-      return false;
     }
   }
 }

@@ -125,25 +125,6 @@ export const TaskNoteSchema = z.object({
   updatedAt: z.iso.datetime(),
 });
 
-// Form Data Types
-export interface TemplateFormData {
-  name: string;
-  description: string;
-  fields: TemplateField[];
-}
-
-export interface FieldFormData {
-  label: string;
-  type: FieldType;
-  required: boolean;
-  placeholder: string;
-  validation: {
-    min: string;
-    max: string;
-    pattern: string;
-  };
-}
-
 // Component Props Interfaces
 export interface NoteTemplateBuilderProps {
   templates: NoteTemplate[];
@@ -222,33 +203,6 @@ export interface UseTaskNotesReturn {
   archiveNote: (noteId: string) => Promise<TaskNote>;
   unarchiveNote: (noteId: string) => Promise<TaskNote>;
   searchNotes: (query: string) => TaskNote[];
-  getNotesByTaskId: (taskId: string) => TaskNote[];
-  getNotesByTimeEntryId: (timeEntryId: string) => TaskNote[];
-  getNotesBySessionId: (sessionId: string) => TaskNote[];
-  getNotesByTimerInstanceId: (timerInstanceId: string) => TaskNote[];
-  getNotesByLevel: (level: 'task' | 'session' | 'timer') => TaskNote[];
-  getNoteById: (noteId: string) => TaskNote | undefined;
-  getNotesStats: () => {
-    totalNotes: number;
-    templatesUsed: string[];
-    lastNoteDate?: string;
-    notesByTemplate: Record<string, number>;
-    notesByLevel: Record<'task' | 'session' | 'timer', number>;
-  };
   isLoading: boolean;
   error: string | null;
-}
-
-// Utility Types
-export interface TemplateStats {
-  totalTemplates: number;
-  activeTemplates: number;
-  totalNotes: number;
-  templatesWithNotes: number;
-}
-
-export interface NoteValidationResult {
-  isValid: boolean;
-  errors: Record<string, string>;
-  warnings: Record<string, string>;
 }

@@ -1,12 +1,18 @@
 /**
  * Global Mocks
  *
- * This file contains global mocks for dependencies that are used across multiple
- * test files. This helps to ensure consistency and reduce boilerplate.
+ * Mocks for the Tauri APIs every test environment lacks, so tests that don't
+ * care about the backend can render without one.
  */
 import { vi } from 'vitest';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 
-// Mock Tauri API
+// Production code extends dayjs with utc (utils/dateHelpers); do it here too
+// so a module under test doesn't depend on dateHelpers being imported first.
+// Not `timezone`: the app never loads it (see dateHelpers).
+dayjs.extend(utc);
+
 vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn(),
   listen: vi.fn(() => Promise.resolve(() => {})),
@@ -23,67 +29,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 }));
 
 vi.mock('@tauri-apps/plugin-notification', () => ({
+  isPermissionGranted: vi.fn(() => Promise.resolve(true)),
   requestPermission: vi.fn(() => Promise.resolve('granted')),
-  send: vi.fn(),
+  sendNotification: vi.fn(),
 }));
-
-vi.mock('@tauri-apps/plugin-store', () => {
-  const storeData: Record<string, any> = {};
-  return {
-    Store: vi.fn().mockImplementation(() => ({
-      get: (key: string) => Promise.resolve(storeData[key] || null),
-      set: (key: string, value: any) => {
-        storeData[key] = value;
-        return Promise.resolve();
-      },
-      save: () => Promise.resolve(),
-    })),
-  };
-});
-
-// Mock dayjs
-vi.mock('dayjs', async () => {
-  const dayjs = await vi.importActual<typeof import('dayjs')>('dayjs');
-  const utc = await vi.importActual<typeof import('dayjs/plugin/utc')>('dayjs/plugin/utc');
-  const timezone = await vi.importActual<typeof import('dayjs/plugin/timezone')>('dayjs/plugin/timezone');
-  const customParseFormat = await vi.importActual<typeof import('dayjs/plugin/customParseFormat')>('dayjs/plugin/customParseFormat');
-  
-  dayjs.default.extend(utc.default);
-  dayjs.default.extend(timezone.default);
-  dayjs.default.extend(customParseFormat.default);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockDayjs = (...args: any[]) => dayjs.default(...args);
-  
-  Object.assign(mockDayjs, dayjs.default);
-
-  return {
-    ...dayjs,
-    default: mockDayjs,
-    __esModule: true,
-  };
-});
-
-vi.mock('./global-mocks', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    isToday: vi.fn(() => true),
-  };
-});
-
-vi.mock('../../utils/dateHelpers', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/dateHelpers')>('../../utils/dateHelpers');
-  return {
-    ...actual,
-    isToday: vi.fn((date: Date | string) => {
-      const today = new Date();
-      const d = new Date(date);
-      return d.getFullYear() === today.getFullYear() &&
-             d.getMonth() === today.getMonth() &&
-             d.getDate() === today.getDate();
-    }),
-  };
-});
-
-
