@@ -11,7 +11,6 @@
  */
 
 import { z } from 'zod';
-import { TimeEntry, TimeEntrySchema } from '../types/timer';
 import { Task, TaskSchema } from '../types/task';
 import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../types/notes';
 import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
@@ -36,8 +35,6 @@ export interface IStorageService {
   clear(): Promise<void>;
   
   // Typed storage operations
-  getTimeEntries(): Promise<TimeEntry[]>;
-  setTimeEntries(entries: TimeEntry[]): Promise<void>;
   getTasks(): Promise<Task[]>;
   setTasks(tasks: Task[]): Promise<void>;
   getNoteTemplates(): Promise<NoteTemplate[]>;
@@ -252,29 +249,6 @@ export class StorageService implements IStorageService {
   }
 
   // Typed storage operations
-
-  async getTimeEntries(): Promise<TimeEntry[]> {
-    const entries = await this.getItem(
-      STORAGE_KEYS.TIME_ENTRIES, 
-      [], 
-      z.array(TimeEntrySchema)
-    );
-    
-    // Convert stored entries back to proper Date objects
-    return entries.map(entry => ({
-      ...entry,
-      startTime: new Date(entry.startTime),
-      endTime: entry.endTime ? new Date(entry.endTime) : undefined,
-    }));
-  }
-
-  async setTimeEntries(entries: TimeEntry[]): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.TIME_ENTRIES, 
-      entries, 
-      z.array(TimeEntrySchema)
-    );
-  }
 
   async getTasks(): Promise<Task[]> {
     return await this.getItem(

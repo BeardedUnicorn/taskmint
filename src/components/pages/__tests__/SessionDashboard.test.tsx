@@ -104,10 +104,6 @@ const mockTaskManagement = {
   getTaskById: vi.fn(),
   getTaskByName: vi.fn(),
   getTaskNames: vi.fn(),
-  getTaskHierarchy: vi.fn(),
-  getChildTasks: vi.fn(),
-  getParentTask: vi.fn(),
-  getTaskPath: vi.fn(),
   isLoading: false,
 };
 
@@ -132,7 +128,12 @@ vi.mock('../../layout/SessionTimerToolbar', () => ({
   SessionTimerToolbar: () => <div data-testid="session-timer-bar" />,
 }));
 
-const renderDashboard = () => render(<SessionDashboard />, { wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider> });
+const mockOnStartWork = vi.fn();
+const mockOnAddTime = vi.fn();
+const renderDashboard = () =>
+  render(<SessionDashboard onStartWork={mockOnStartWork} onAddTime={mockOnAddTime} />, {
+    wrapper: ({ children }) => <ActiveTimerProvider>{children}</ActiveTimerProvider>,
+  });
 
 vi.mock('../../ui/sessions/SessionList', () => ({
   SessionList: ({ sessions, archivedTaskNames, isLoading }: { sessions: TaskSession[]; archivedTaskNames?: string[]; isLoading?: boolean }) => (
@@ -245,30 +246,21 @@ describe('SessionDashboard', () => {
   });
 
   describe('Starting work', () => {
-    it('starts the chosen task from the + button in one step', async () => {
-      mockStartTask.mockResolvedValue({ outcome: 'started', instanceId: 'i-1' });
+    // The Start Work and Add Time dialogs belong to the app (one of each)
+    it("opens the app's Start Work dialog from the + button", () => {
       renderDashboard();
 
       fireEvent.click(screen.getByLabelText('start work'));
-      const dialog = await screen.findByRole('dialog');
-      expect(within(dialog).getByText('Start Work')).toBeInTheDocument();
 
-      fireEvent.change(within(dialog).getByLabelText('Task'), { target: { value: 'Dev' } });
-      fireEvent.click(await screen.findByRole('option', { name: 'Development Work' }));
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Start' }));
-
-      await waitFor(() => {
-        expect(mockStartTask).toHaveBeenCalledWith('task-1', 'Development Work');
-      });
+      expect(mockOnStartWork).toHaveBeenCalledTimes(1);
     });
 
-    it('opens Add Time from the All Sessions header', async () => {
+    it("opens the app's Add Time dialog from the All Sessions header", () => {
       renderDashboard();
 
       fireEvent.click(screen.getByRole('button', { name: 'Add time' }));
 
-      const dialog = await screen.findByRole('dialog');
-      expect(within(dialog).getByRole('heading', { name: 'Add Time' })).toBeInTheDocument();
+      expect(mockOnAddTime).toHaveBeenCalledTimes(1);
     });
   });
 

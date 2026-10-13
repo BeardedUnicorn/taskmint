@@ -27,8 +27,6 @@ import { SessionTimerToolbar } from '../layout/SessionTimerToolbar';
 import { SessionList } from '../ui/sessions/SessionList';
 import { SessionTimerDisplay } from '../ui/display/SessionTimerDisplay';
 import { SessionNotesDialog } from '../ui/dialogs/SessionNotesDialog';
-import { StartWorkDialog } from '../ui/dialogs/StartWorkDialog';
-import { AddTimeDialog } from '../ui/dialogs/AddTimeDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
@@ -46,19 +44,19 @@ import { newestFirst, noteText } from '../../utils/notes';
 import { useTaskNotes } from '../../hooks/useTaskNotes';
 
 interface SessionDashboardProps {
-  /** Opens the Tasks page (work starts from existing tasks only). */
-  onOpenTasks?: () => void;
+  /** Opens the app's Start Work dialog (the + button, an empty list). */
+  onStartWork?: () => void;
+  /** Opens the app's Add Time dialog. */
+  onAddTime?: () => void;
 }
 
-export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
+export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardProps = {}) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   // Whose notes are open: a session, or one of its timers
   const [notesTarget, setNotesTarget] = useState<{
     sessionId: string;
     timerInstanceId?: string;
   } | null>(null);
-  const [startDialogOpen, setStartDialogOpen] = useState(false);
-  const [addTimeDialogOpen, setAddTimeDialogOpen] = useState(false);
   const [editingTimerData, setEditingTimerData] = useState<EditTimeEntryData | null>(null);
   const [editingTimerInstanceId, setEditingTimerInstanceId] = useState<string | null>(null);
   // A finished timer holds tracked time, so deleting one waits for a confirm
@@ -70,7 +68,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
     sessions,
     activeSession,
     startTask,
-    addManualTime,
     deleteSession,
     setActiveSession,
     endActiveSession,
@@ -216,11 +213,9 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
     }
   }, [setActiveSession, showError]);
 
-  // Memoized dialog close callbacks
+  // Memoized dialog callbacks (the start and add-time dialogs are the app's)
   const handleCloseNotesDialog = useCallback(() => setNotesTarget(null), []);
-  const handleCloseStartDialog = useCallback(() => setStartDialogOpen(false), []);
-  const handleOpenStartDialog = useCallback(() => setStartDialogOpen(true), []);
-  const handleOpenTasks = useCallback(() => onOpenTasks?.(), [onOpenTasks]);
+  const handleOpenStartDialog = useCallback(() => onStartWork?.(), [onStartWork]);
 
   // Show the blocking loader only for the initial load — every timer action
   // toggles isLoading briefly, and a full-screen backdrop on each start/stop
@@ -316,7 +311,7 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
               size="small"
               variant="outlined"
               startIcon={<AddTimeIcon />}
-              onClick={() => setAddTimeDialogOpen(true)}
+              onClick={() => onAddTime?.()}
             >
               Add time
             </Button>
@@ -368,23 +363,6 @@ export function SessionDashboard({ onOpenTasks }: SessionDashboardProps = {}) {
         severity="error"
         onConfirm={handleConfirmDeleteTimer}
         onClose={() => setTimerPendingDelete(null)}
-      />
-
-      <StartWorkDialog
-        open={startDialogOpen}
-        onClose={handleCloseStartDialog}
-        tasks={tasks}
-        sessions={sessions}
-        onStart={startTask}
-        onAddTask={handleOpenTasks}
-      />
-
-      <AddTimeDialog
-        open={addTimeDialogOpen}
-        onClose={() => setAddTimeDialogOpen(false)}
-        tasks={tasks}
-        sessions={sessions}
-        onAdd={addManualTime}
       />
 
       {/* Floating Action Button: start work on a task */}

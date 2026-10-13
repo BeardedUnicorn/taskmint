@@ -5,8 +5,6 @@
  * of the application to ensure backward compatibility and data integrity.
  */
 
-import { validateTimeEntries, validateTasks } from './validation';
-
 // Current data version
 export const CURRENT_DATA_VERSION = 1;
 
@@ -136,60 +134,6 @@ export function migrateData(key: string, data: any): any {
 }
 
 /**
- * Migrate and validate time entries data
- */
-export function migrateTimeEntries(data: any): any {
-  try {
-    // First migrate the data structure
-    const migratedData = migrateData('timeEntries', data);
-    
-    // Extract the actual entries from the versioned data structure
-    const entries = migratedData.version ? migratedData.data : migratedData;
-    
-    // Validate the migrated data
-    const validationResult = validateTimeEntries(entries);
-    
-    if (!validationResult.success) {
-      console.warn('Time entries validation failed after migration:', validationResult.error);
-      // Return empty array if validation fails
-      return migratedData.version ? { ...migratedData, data: [] } : [];
-    }
-
-    return migratedData.version ? { ...migratedData, data: validationResult.data } : validationResult.data;
-  } catch (error) {
-    console.error('Time entries migration failed:', error);
-    return [];
-  }
-}
-
-/**
- * Migrate and validate tasks data
- */
-export function migrateTasks(data: any): any {
-  try {
-    // First migrate the data structure
-    const migratedData = migrateData('tasks', data);
-    
-    // Extract the actual tasks from the versioned data structure
-    const tasks = migratedData.version ? migratedData.data : migratedData;
-    
-    // Validate the migrated data
-    const validationResult = validateTasks(tasks);
-    
-    if (!validationResult.success) {
-      console.warn('Tasks validation failed after migration:', validationResult.error);
-      // Return empty array if validation fails
-      return migratedData.version ? { ...migratedData, data: [] } : [];
-    }
-
-    return migratedData.version ? { ...migratedData, data: validationResult.data } : validationResult.data;
-  } catch (error) {
-    console.error('Tasks migration failed:', error);
-    return [];
-  }
-}
-
-/**
  * Migrate and validate task notes data
  */
 export function migrateTaskNotes(data: any): any {
@@ -302,55 +246,5 @@ function cleanupOldBackups(key: string): void {
     }
   } catch (error) {
     console.error('Failed to cleanup old backups:', error);
-  }
-}
-
-/**
- * Get available backups for a data key
- */
-export function getAvailableBackups(key: string): Array<{ key: string; timestamp: number; date: string }> {
-  const backups: Array<{ key: string; timestamp: number; date: string }> = [];
-  
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const storageKey = localStorage.key(i);
-      if (storageKey && storageKey.startsWith(`${key}_backup_`)) {
-        const timestamp = parseInt(storageKey.split('_backup_')[1] || '0');
-        backups.push({
-          key: storageKey,
-          timestamp,
-          date: new Date(timestamp).toISOString(),
-        });
-      }
-    }
-    
-    // Sort by timestamp (newest first)
-    backups.sort((a, b) => b.timestamp - a.timestamp);
-  } catch (error) {
-    console.error('Failed to get available backups:', error);
-  }
-  
-  return backups;
-}
-
-/**
- * Restore data from a backup
- */
-export function restoreFromBackup(backupKey: string): any {
-  try {
-    const backupData = localStorage.getItem(backupKey);
-    if (!backupData) {
-      throw new Error(`Backup not found: ${backupKey}`);
-    }
-    
-    const parsed = JSON.parse(backupData);
-    // Only log restore in non-test environments
-    if (process.env.NODE_ENV !== 'test') {
-      console.log(`Restored data from backup: ${backupKey}`);
-    }
-    return parsed.data;
-  } catch (error) {
-    console.error(`Failed to restore from backup "${backupKey}":`, error);
-    throw error;
   }
 }

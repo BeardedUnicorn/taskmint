@@ -12,22 +12,14 @@ struct TrayConfig {
 }
 
 #[derive(Debug, Deserialize)]
-struct RetryConfig {
-    max_attempts: u32,
-    base_delay_ms: u64,
-}
-
-#[derive(Debug, Deserialize)]
 struct TimeConfig {
     ms_per_second: u64,
     seconds_per_minute: u64,
     seconds_per_hour: u64,
-    minutes_per_hour: u64,
 }
 
 #[derive(Debug, Deserialize)]
 struct BackupConfig {
-    default_max_backups: u32,
     filename_prefix: String,
     filename_extension: String,
     write_test_filename: String,
@@ -54,7 +46,6 @@ struct IconConfig {
 #[derive(Debug, Deserialize)]
 struct BuildTimeConfig {
     tray: TrayConfig,
-    retry: RetryConfig,
     time: TimeConfig,
     backup: BackupConfig,
     validation: ValidationConfig,
@@ -84,18 +75,12 @@ pub const TRAY_MENU_REFRESH_INTERVAL: u64 = {};
 pub const TRAY_TOOLTIP_APP_NAME: &str = "{}";
 pub const TRAY_MAX_RECENT_TASKS: usize = {};
 
-// Retry Configuration
-pub const RETRY_MAX_ATTEMPTS: u32 = {};
-pub const RETRY_BASE_DELAY_MS: u64 = {};
-
 // Time Configuration
 pub const MS_PER_SECOND: u64 = {};
 pub const SECONDS_PER_MINUTE: u64 = {};
 pub const SECONDS_PER_HOUR: u64 = {};
-pub const MINUTES_PER_HOUR: u64 = {};
 
 // Backup Configuration
-pub const BACKUP_DEFAULT_MAX_BACKUPS: u32 = {};
 pub const BACKUP_FILENAME_PREFIX: &str = "{}";
 pub const BACKUP_FILENAME_EXTENSION: &str = "{}";
 pub const BACKUP_WRITE_TEST_FILENAME: &str = "{}";
@@ -118,13 +103,9 @@ pub const ICON_TRAY_FALLBACK: &str = "{}";
         config.tray.menu_refresh_interval,
         config.tray.tooltip_app_name,
         config.tray.max_recent_tasks,
-        config.retry.max_attempts,
-        config.retry.base_delay_ms,
         config.time.ms_per_second,
         config.time.seconds_per_minute,
         config.time.seconds_per_hour,
-        config.time.minutes_per_hour,
-        config.backup.default_max_backups,
         config.backup.filename_prefix,
         config.backup.filename_extension,
         config.backup.write_test_filename,

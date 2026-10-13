@@ -371,7 +371,26 @@ fn records_from_store<R: Runtime>(store: &Store<R>) -> RecordMap {
 
 fn load_records_from_store<R: Runtime>(store: &Store<R>) -> Result<RecordMap, String> {
     reload_store(store)?;
+    drop_stray_keys(store)?;
     Ok(records_from_store(store))
+}
+
+/// appdata.json holds the record keys only; anything else (an `initialized`
+/// marker an earlier build wrote) is removed.
+fn drop_stray_keys<R: Runtime>(store: &Store<R>) -> Result<(), String> {
+    let stray: Vec<String> = store
+        .keys()
+        .into_iter()
+        .filter(|key| !is_app_record_key(key))
+        .collect();
+    if stray.is_empty() {
+        return Ok(());
+    }
+    for key in &stray {
+        store.delete(key);
+    }
+    log::info!("Removed stray keys from appdata.json: {}", stray.join(", "));
+    store.save().map_err(|e| e.to_string())
 }
 
 /// Merges imported records into the store (see merge_imported_records),
@@ -729,6 +748,30 @@ mod tests {
         // Again (say the webview copies couldn't be removed): nothing doubles
         let again = import_records_into_store(&store, imported).unwrap();
         assert_eq!(again["predefinedTasks"], json!([{ "id": "t1" }]));
+    }
+
+    #[test]
+    fn loading_drops_keys_that_are_not_records() {
+        let app = mock_app();
+        let dir = TempDir::new("stray");
+        let path = dir.0.join(APP_RECORDS_STORE_FILENAME);
+        std::fs::write(
+            &path,
+            serde_json::to_vec(
+                &json!({ "initialized": true, "predefinedTasks": [{ "id": "t1" }] }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let store = StoreBuilder::new(app.handle(), &path).build().unwrap();
+
+        let records = load_records_from_store(&store).unwrap();
+
+        assert_eq!(records["predefinedTasks"], json!([{ "id": "t1" }]));
+        let on_disk: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(on_disk.get("initialized").is_none());
+        assert_eq!(on_disk["predefinedTasks"], json!([{ "id": "t1" }]));
     }
 
     #[test]

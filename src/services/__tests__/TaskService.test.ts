@@ -1,7 +1,7 @@
 /**
  * TaskService Tests
  *
- * Tests validation, name uniqueness, hierarchy operations,
+ * Tests validation, name uniqueness, archiving, the favorites migration,
  * and CRUD error handling.
  */
 
@@ -9,19 +9,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TaskService } from '../TaskService';
 import { IStorageService } from '../StorageService';
 import { Task } from '../../types/task';
-import * as hierarchyUtils from '../../utils/taskHierarchy';
-
-// Mock task hierarchy utilities
-vi.mock('../../utils/taskHierarchy', () => ({
-  buildTaskHierarchy: vi.fn(),
-  getChildTasks: vi.fn(),
-  getParentTask: vi.fn(),
-  getTaskPath: vi.fn(),
-  canDeleteTask: vi.fn(),
-  prepareTaskDeletion: vi.fn(),
-  validateTaskHierarchy: vi.fn(),
-  getNextChildOrder: vi.fn(),
-}));
 
 describe('TaskService', () => {
   let service: TaskService;
@@ -41,8 +28,6 @@ describe('TaskService', () => {
     mockStorageService = {
       getTasks: vi.fn().mockResolvedValue([]),
       setTasks: vi.fn().mockResolvedValue(undefined),
-      getTimeEntries: vi.fn().mockResolvedValue([]),
-      setTimeEntries: vi.fn().mockResolvedValue(undefined),
     } as unknown as IStorageService;
 
     service = new TaskService(mockStorageService);
@@ -63,32 +48,6 @@ describe('TaskService', () => {
 
       expect(await service.isTaskNameUnique('New Task')).toBe(true);
       expect(await service.isTaskNameUnique('Existing Task')).toBe(false);
-    });
-  });
-
-  describe('hierarchy operations', () => {
-    it('should return task hierarchy using utility function', async () => {
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask]);
-      const mockHierarchy = [{ task: baseTask, children: [], depth: 0, path: [] }];
-      vi.mocked(hierarchyUtils.buildTaskHierarchy).mockReturnValue(mockHierarchy as any);
-
-      const result = await service.getTaskHierarchy();
-
-      expect(hierarchyUtils.buildTaskHierarchy).toHaveBeenCalledWith([baseTask]);
-      expect(result).toEqual(mockHierarchy);
-    });
-
-    it('should throw when moving task creates invalid hierarchy', async () => {
-      const tasks = [baseTask];
-      mockStorageService.getTasks = vi.fn().mockResolvedValue(tasks);
-      vi.mocked(hierarchyUtils.validateTaskHierarchy).mockReturnValue(false);
-      const updateSpy = vi.spyOn(service, 'updateTask');
-
-      await expect(service.moveTask('task1', 'parent')).rejects.toMatchObject({
-        code: 'TASK_UPDATE_FAILED',
-      });
-      expect(hierarchyUtils.validateTaskHierarchy).toHaveBeenCalledWith(tasks, 'task1', 'parent');
-      expect(updateSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -211,31 +170,20 @@ describe('TaskService', () => {
       });
     });
 
-    it('should reject deleting task when deletion is prevented', async () => {
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask]);
-      vi.mocked(hierarchyUtils.canDeleteTask).mockReturnValue({ canDelete: false, reason: 'Cannot delete' });
-      const prepareSpy = vi.mocked(hierarchyUtils.prepareTaskDeletion);
-
-      await expect(service.deleteTask('task1', 'prevent')).rejects.toMatchObject({
-        code: 'TASK_DELETE_FAILED',
-      });
-      expect(hierarchyUtils.canDeleteTask).toHaveBeenCalled();
-      expect(prepareSpy).not.toHaveBeenCalled();
-    });
-
-    it('orphans child tasks by default instead of refusing the delete', async () => {
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask]);
-      vi.mocked(hierarchyUtils.canDeleteTask).mockReturnValue({ canDelete: true });
-      vi.mocked(hierarchyUtils.prepareTaskDeletion).mockReturnValue({
-        tasksToDelete: ['task1'],
-        tasksToUpdate: [],
-      });
+    it('deletes just that task, keeping the others (and any parentId they carry)', async () => {
+      const child: Task = { ...baseTask, id: 'task2', name: 'Child', parentId: 'task1' };
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask, child]);
 
       await service.deleteTask('task1');
 
-      expect(hierarchyUtils.canDeleteTask).toHaveBeenCalledWith(expect.any(Array), 'task1', 'orphan');
-      expect(hierarchyUtils.prepareTaskDeletion).toHaveBeenCalledWith(expect.any(Array), 'task1', 'orphan');
-      expect(mockStorageService.setTasks).toHaveBeenCalledWith([]);
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([child]);
+    });
+
+    it('should reject deleting a task that does not exist', async () => {
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask]);
+
+      await expect(service.deleteTask('missing')).rejects.toMatchObject({ code: 'TASK_DELETE_FAILED' });
+      expect(mockStorageService.setTasks).not.toHaveBeenCalled();
     });
 
     it('should throw when getTask encounters storage error', async () => {

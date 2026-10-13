@@ -17,18 +17,12 @@ pub struct Config {
     /// Maximum number of recent tasks to show in tray menu
     pub tray_max_recent_tasks: usize,
 
-    /// Retry configuration
-    pub retry_max_attempts: u32,
-    pub retry_base_delay_ms: u64,
-
     /// Time configuration
     pub ms_per_second: u64,
     pub seconds_per_minute: u64,
     pub seconds_per_hour: u64,
-    pub minutes_per_hour: u64,
 
     /// Backup configuration
-    pub backup_default_max_backups: u32,
     pub backup_filename_prefix: String,
     pub backup_filename_extension: String,
     pub backup_write_test_filename: String,
@@ -46,14 +40,6 @@ pub struct Config {
     /// Icon configuration
     pub icon_tray_primary: String,
     pub icon_tray_fallback: String,
-
-    /// Inactivity detection configuration
-
-    /// Session management configuration
-    pub sessions_max_timer_instances_per_session: usize,
-    pub sessions_max_session_name_length: usize,
-    pub sessions_max_session_notes_length: usize,
-    pub sessions_max_timer_notes_length: usize,
 }
 
 impl Default for Config {
@@ -63,13 +49,9 @@ impl Default for Config {
             tray_menu_refresh_interval: TRAY_MENU_REFRESH_INTERVAL,
             tray_tooltip_app_name: TRAY_TOOLTIP_APP_NAME.to_string(),
             tray_max_recent_tasks: TRAY_MAX_RECENT_TASKS,
-            retry_max_attempts: RETRY_MAX_ATTEMPTS,
-            retry_base_delay_ms: RETRY_BASE_DELAY_MS,
             ms_per_second: MS_PER_SECOND,
             seconds_per_minute: SECONDS_PER_MINUTE,
             seconds_per_hour: SECONDS_PER_HOUR,
-            minutes_per_hour: MINUTES_PER_HOUR,
-            backup_default_max_backups: BACKUP_DEFAULT_MAX_BACKUPS,
             backup_filename_prefix: BACKUP_FILENAME_PREFIX.to_string(),
             backup_filename_extension: BACKUP_FILENAME_EXTENSION.to_string(),
             backup_write_test_filename: BACKUP_WRITE_TEST_FILENAME.to_string(),
@@ -83,21 +65,11 @@ impl Default for Config {
             validation_max_second: VALIDATION_MAX_SECOND,
             icon_tray_primary: ICON_TRAY_PRIMARY.to_string(),
             icon_tray_fallback: ICON_TRAY_FALLBACK.to_string(),
-            // Default values for new configuration options (constants will be generated from config.toml)
-            sessions_max_timer_instances_per_session: 50,
-            sessions_max_session_name_length: 100,
-            sessions_max_session_notes_length: 1000,
-            sessions_max_timer_notes_length: 500,
         }
     }
 }
 
 impl Config {
-    /// Create a new configuration instance with default values
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Get tray status update duration
     pub fn tray_status_update_duration(&self) -> Duration {
         Duration::from_secs(self.tray_status_update_interval)
@@ -106,11 +78,6 @@ impl Config {
     /// Get tray menu refresh duration
     pub fn tray_menu_refresh_duration(&self) -> Duration {
         Duration::from_secs(self.tray_menu_refresh_interval)
-    }
-
-    /// Get retry delay duration for a given attempt number
-    pub fn retry_delay_duration(&self, attempt: u32) -> Duration {
-        Duration::from_millis(self.retry_base_delay_ms * attempt as u64)
     }
 }
 
