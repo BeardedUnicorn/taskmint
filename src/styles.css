@@ -93,16 +93,16 @@ body {
 
 /* Off-range (other month) dates */
 .rbc-off-range {
-    background: var(--mui-palette-action-disabled, rgba(0, 0, 0, 0.04)) !important;
+    background: var(--mui-palette-action-hover, rgba(0, 0, 0, 0.04)) !important;
 }
 
 .rbc-off-range .rbc-date-cell {
-    background: var(--mui-palette-action-disabled, rgba(0, 0, 0, 0.04)) !important;
+    background: var(--mui-palette-action-hover, rgba(0, 0, 0, 0.04)) !important;
     color: var(--mui-palette-text-disabled, rgba(0, 0, 0, 0.38)) !important;
 }
 
 .rbc-off-range-bg {
-    background: var(--mui-palette-action-disabled, rgba(0, 0, 0, 0.04)) !important;
+    background: var(--mui-palette-action-hover, rgba(0, 0, 0, 0.04)) !important;
 }
 
 /* Month Row */
@@ -246,19 +246,6 @@ body {
         padding: 6px 2px !important;
         font-size: 0.7rem !important;
         letter-spacing: 0.3px;
-    }
-}
-
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --mui-palette-background-default: #121212;
-        --mui-palette-background-paper: #1e1e1e;
-        --mui-palette-text-primary: #fafafa;
-        --mui-palette-text-secondary: #b0b0b0;
-        --mui-palette-text-disabled: rgba(255, 255, 255, 0.38);
-        --mui-palette-divider: rgba(255, 255, 255, 0.12);
-        --mui-palette-action-disabled: rgba(255, 255, 255, 0.04);
     }
 }
 

@@ -9,7 +9,7 @@ import { useFundsReleaseSettings } from '../../../hooks/useFundsReleaseSettings'
 import { TimeEntry } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { TaskSession, TimerState } from '../../../types/timer';
-import { createLightTheme } from '../../../theme';
+import { createAppTheme } from '../../../theme';
 
 // The page reads sessions and tasks from the shared contexts
 vi.mock('../../../hooks/useFundsReleaseSettings');
@@ -170,7 +170,7 @@ describe('CalendarPage', () => {
     });
   });
 
-  const lightTheme = createLightTheme();
+  const lightTheme = createAppTheme('light');
 
   const renderCalendarPage = () => {
     return render(

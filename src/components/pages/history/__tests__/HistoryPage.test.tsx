@@ -12,7 +12,7 @@ import { HistoryPage } from '../HistoryPage';
 import { Sidebar } from '../../../layout/Sidebar';
 import { TimeEntry } from '../../../../types/timer';
 import { Task } from '../../../../types/task';
-import { createLightTheme } from '../../../../theme';
+import { createAppTheme } from '../../../../theme';
 import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import { defaultFilters } from '../../../ui/filters/TimeEntriesFilters';
 
@@ -79,7 +79,7 @@ const saveFilters = (filters: Record<string, unknown>) =>
 
 function renderPage(entries: TimeEntry[], onDeleteEntry: (id: string) => void = () => {}) {
   return render(
-    <ThemeProvider theme={createLightTheme()}>
+    <ThemeProvider theme={createAppTheme('light')}>
       <NotificationProvider>
         <HistoryPage
           timeEntries={entries}
@@ -237,7 +237,7 @@ describe('HistoryPage opened from a task', () => {
     const old = { ...entryDaysAgo(90, 'Annotation'), taskId: 'task-1' };
     const otherTask = { ...entryDaysAgo(1, 'Other'), id: 'other', taskId: 'task-2' };
     render(
-      <ThemeProvider theme={createLightTheme()}>
+      <ThemeProvider theme={createAppTheme('light')}>
         <NotificationProvider>
           <HistoryPage
             timeEntries={[old, otherTask]}
