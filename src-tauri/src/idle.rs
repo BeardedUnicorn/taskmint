@@ -10,12 +10,13 @@
 // simply stays paused.
 
 use crate::commands::sessions::{keep_idle_time, pause_instance_at, resume_instance};
+use crate::events;
 use crate::state::AppState;
 use crate::storage;
 use crate::types::TaskSession;
 use chrono::{DateTime, Local, Utc};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 /// How often the monitor samples the system idle time.
 const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
@@ -370,9 +371,12 @@ fn apply_pause(
         task_name,
         idle_since.to_rfc3339()
     );
-    let _ = app.emit(
-        "timer-instance-paused",
-        serde_json::json!({ "instanceId": instance_id, "pausedAt": idle_since.to_rfc3339() }),
+    events::emit_instance_event(
+        app,
+        events::TIMER_INSTANCE_PAUSED,
+        instance_id,
+        "pausedAt",
+        idle_since,
     );
     notify(
         app,
@@ -396,7 +400,7 @@ fn apply_return(app: &AppHandle, state: &AppState, now: DateTime<Utc>) -> Result
     })?;
     if let Some(payload) = payload {
         log::info!("Idle: input returned after {} ms away", payload.away_ms);
-        let _ = app.emit("idle-returned", &payload);
+        events::emit_quiet(app, events::IDLE_RETURNED, &payload);
         crate::tray::show_main_window(app);
         crate::tray::sync_tray(app, state);
     }
@@ -405,7 +409,7 @@ fn apply_return(app: &AppHandle, state: &AppState, now: DateTime<Utc>) -> Result
 
 fn clear_pending(app: &AppHandle, state: &AppState) -> Result<(), String> {
     state.with_idle_mut(|idle| idle.pause = None)?;
-    let _ = app.emit("idle-resolved", ());
+    events::emit_quiet(app, events::IDLE_RESOLVED, ());
     crate::tray::sync_tray(app, state);
     Ok(())
 }
@@ -424,9 +428,12 @@ pub fn resolve(app: &AppHandle, state: &AppState, choice: IdleChoice) -> Result<
         Ok(resumed)
     })??;
     if resumed {
-        let _ = app.emit(
-            "timer-instance-resumed",
-            serde_json::json!({ "instanceId": pause.instance_id, "resumedAt": now.to_rfc3339() }),
+        events::emit_instance_event(
+            app,
+            events::TIMER_INSTANCE_RESUMED,
+            &pause.instance_id,
+            "resumedAt",
+            now,
         );
     }
     clear_pending(app, state)

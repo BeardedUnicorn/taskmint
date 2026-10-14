@@ -1,13 +1,10 @@
 // Utility functions used throughout the application
 
-use crate::config::get_config;
+use chrono::{Datelike, NaiveDateTime};
 
 pub fn format_duration_hm(ms: u64) -> String {
-    let config = get_config();
-    let total_seconds = ms / config.ms_per_second;
-    let hours = total_seconds / config.seconds_per_hour;
-    let minutes = (total_seconds % config.seconds_per_hour) / config.seconds_per_minute;
-    format!("{:02}:{:02}", hours, minutes)
+    let total_minutes = ms / 60_000;
+    format!("{:02}:{:02}", total_minutes / 60, total_minutes % 60)
 }
 
 // Platform detection
@@ -15,47 +12,33 @@ pub fn is_macos() -> bool {
     cfg!(target_os = "macos")
 }
 
-// Validation utilities
+/// Whether a backup file's stamp is a real `YYYYMMDD_HHMMSS` time (in a
+/// plausible year), so only TaskMint's own backups are ever pruned.
 pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
-    let config = get_config();
+    timestamp.len() == 15
+        && NaiveDateTime::parse_from_str(timestamp, "%Y%m%d_%H%M%S")
+            .is_ok_and(|at| (2020..=2100).contains(&at.year()))
+}
 
-    if timestamp.len() != config.validation_timestamp_length {
-        return false;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_hours_and_minutes() {
+        assert_eq!(format_duration_hm(0), "00:00");
+        assert_eq!(format_duration_hm(59_999), "00:00");
+        assert_eq!(format_duration_hm(90 * 60_000), "01:30");
+        assert_eq!(format_duration_hm(26 * 3_600_000 + 5 * 60_000), "26:05");
     }
 
-    let parts: Vec<&str> = timestamp.split('_').collect();
-    if parts.len() != 2 {
-        return false;
+    #[test]
+    fn accepts_only_real_backup_stamps() {
+        assert!(is_valid_backup_timestamp("20261013_235959"));
+        assert!(!is_valid_backup_timestamp("20261313_120000")); // month 13
+        assert!(!is_valid_backup_timestamp("20260230_120000")); // Feb 30
+        assert!(!is_valid_backup_timestamp("19991013_120000")); // too early
+        assert!(!is_valid_backup_timestamp("20261013-120000"));
+        assert!(!is_valid_backup_timestamp("20261013_1200"));
     }
-
-    let date_part = parts[0];
-    let time_part = parts[1];
-
-    // Check date part (YYYYMMDD)
-    if date_part.len() != 8 || !date_part.chars().all(|c| c.is_ascii_digit()) {
-        return false;
-    }
-
-    // Check time part (HHMMSS)
-    if time_part.len() != 6 || !time_part.chars().all(|c| c.is_ascii_digit()) {
-        return false;
-    }
-
-    // Basic range validation
-    let year: u32 = date_part[0..4].parse().unwrap_or(0);
-    let month: u32 = date_part[4..6].parse().unwrap_or(0);
-    let day: u32 = date_part[6..8].parse().unwrap_or(0);
-    let hour: u32 = time_part[0..2].parse().unwrap_or(0);
-    let minute: u32 = time_part[2..4].parse().unwrap_or(0);
-    let second: u32 = time_part[4..6].parse().unwrap_or(0);
-
-    year >= config.validation_min_year
-        && year <= config.validation_max_year
-        && month >= 1
-        && month <= config.validation_max_month
-        && day >= 1
-        && day <= config.validation_max_day
-        && hour <= config.validation_max_hour
-        && minute <= config.validation_max_minute
-        && second <= config.validation_max_second
 }

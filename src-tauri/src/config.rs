@@ -1,87 +1,26 @@
-use serde::{Deserialize, Serialize};
+//! Fixed values the backend uses. (They used to be generated from a
+//! config.toml at build time, though nothing ever changed them at run time.)
 
-include!(concat!(env!("OUT_DIR"), "/generated_config.rs"));
 use std::time::Duration;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Config {
-    /// Interval in seconds for updating the tray tooltip status
-    pub tray_status_update_interval: u64,
+/// How often the tray re-reads the live timer to update its title and tooltip.
+pub const TRAY_STATUS_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
+/// How often the tray menu is rebuilt while a timer runs (its elapsed label).
+pub const TRAY_MENU_REFRESH_INTERVAL: Duration = Duration::from_secs(60);
+/// Shown in the tray tooltip.
+pub const TRAY_TOOLTIP_APP_NAME: &str = "TaskMint";
+/// Most tasks listed in the tray's Start submenu.
+pub const TRAY_MAX_RECENT_TASKS: usize = 5;
 
-    /// Interval in seconds for refreshing the tray menu
-    pub tray_menu_refresh_interval: u64,
+/// Backup file names: `<prefix><YYYYMMDD_HHMMSS><extension>`. The prefix
+/// predates the TaskMint name; existing backups are found (and pruned) by it,
+/// so it stays.
+pub const BACKUP_FILENAME_PREFIX: &str = "time_tracker_backup_";
+pub const BACKUP_FILENAME_EXTENSION: &str = ".json";
+/// Written and removed to check a backup folder is writable.
+pub const BACKUP_WRITE_TEST_FILENAME: &str = ".taskmint_write_test";
 
-    /// Application name shown in tray tooltip
-    pub tray_tooltip_app_name: String,
-
-    /// Maximum number of recent tasks to show in tray menu
-    pub tray_max_recent_tasks: usize,
-
-    /// Time configuration
-    pub ms_per_second: u64,
-    pub seconds_per_minute: u64,
-    pub seconds_per_hour: u64,
-
-    /// Backup configuration
-    pub backup_filename_prefix: String,
-    pub backup_filename_extension: String,
-    pub backup_write_test_filename: String,
-
-    /// Validation configuration
-    pub validation_timestamp_length: usize,
-    pub validation_min_year: u32,
-    pub validation_max_year: u32,
-    pub validation_max_month: u32,
-    pub validation_max_day: u32,
-    pub validation_max_hour: u32,
-    pub validation_max_minute: u32,
-    pub validation_max_second: u32,
-
-    /// Icon configuration
-    pub icon_tray_primary: String,
-    pub icon_tray_fallback: String,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            tray_status_update_interval: TRAY_STATUS_UPDATE_INTERVAL,
-            tray_menu_refresh_interval: TRAY_MENU_REFRESH_INTERVAL,
-            tray_tooltip_app_name: TRAY_TOOLTIP_APP_NAME.to_string(),
-            tray_max_recent_tasks: TRAY_MAX_RECENT_TASKS,
-            ms_per_second: MS_PER_SECOND,
-            seconds_per_minute: SECONDS_PER_MINUTE,
-            seconds_per_hour: SECONDS_PER_HOUR,
-            backup_filename_prefix: BACKUP_FILENAME_PREFIX.to_string(),
-            backup_filename_extension: BACKUP_FILENAME_EXTENSION.to_string(),
-            backup_write_test_filename: BACKUP_WRITE_TEST_FILENAME.to_string(),
-            validation_timestamp_length: VALIDATION_TIMESTAMP_LENGTH,
-            validation_min_year: VALIDATION_MIN_YEAR,
-            validation_max_year: VALIDATION_MAX_YEAR,
-            validation_max_month: VALIDATION_MAX_MONTH,
-            validation_max_day: VALIDATION_MAX_DAY,
-            validation_max_hour: VALIDATION_MAX_HOUR,
-            validation_max_minute: VALIDATION_MAX_MINUTE,
-            validation_max_second: VALIDATION_MAX_SECOND,
-            icon_tray_primary: ICON_TRAY_PRIMARY.to_string(),
-            icon_tray_fallback: ICON_TRAY_FALLBACK.to_string(),
-        }
-    }
-}
-
-impl Config {
-    /// Get tray status update duration
-    pub fn tray_status_update_duration(&self) -> Duration {
-        Duration::from_secs(self.tray_status_update_interval)
-    }
-
-    /// Get tray menu refresh duration
-    pub fn tray_menu_refresh_duration(&self) -> Duration {
-        Duration::from_secs(self.tray_menu_refresh_interval)
-    }
-}
-
-/// Get the global configuration instance
-pub fn get_config() -> Config {
-    Config::default()
-}
+/// Tray icon files (relative to the binary in dev builds; the bundled icon is
+/// used when neither loads).
+pub const ICON_TRAY_PRIMARY: &str = "../icons/32x32.png";
+pub const ICON_TRAY_FALLBACK: &str = "../icons/icon.png";

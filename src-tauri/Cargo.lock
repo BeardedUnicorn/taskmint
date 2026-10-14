@@ -3624,7 +3624,6 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-store",
  "tiny_http",
- "toml 0.8.23",
  "url",
  "uuid",
 ]

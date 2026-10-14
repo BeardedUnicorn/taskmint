@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 import { Task } from '../types/task';
 import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
 import { useTauriEvent } from './useTauriEvent';
+import { BACKEND_EVENTS } from '../constants/events';
 
 export interface UseEnhancedSystemTrayProps {
   tasks: Task[];
@@ -29,5 +30,5 @@ export function useEnhancedSystemTray({ tasks, onShowStartDialog }: UseEnhancedS
     safeInvoke('update_tasks', { tasks });
   }, [tasks]);
 
-  useTauriEvent('show-start-task-dialog', () => onShowStartDialog());
+  useTauriEvent(BACKEND_EVENTS.SHOW_START_TASK_DIALOG, () => onShowStartDialog());
 }

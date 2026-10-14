@@ -12,7 +12,7 @@ use crate::storage;
 use crate::types::{ProjectTaskMapping, Task, TaskSession, WorkLogEntry};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 use super::sessions::{
     recalculate_total_duration, sync_session_task_names, MAX_TIMER_INSTANCES_PER_SESSION,
@@ -434,8 +434,9 @@ pub async fn apply_work_log_import(
     if !summary.groups_applied.is_empty() {
         // Refreshes the frontend session context (same debounced reload path
         // as the timer-instance events). Non-fatal: the import is persisted.
-        let _ = app.emit(
-            "work-logs-imported",
+        crate::events::emit_quiet(
+            &app,
+            crate::events::WORK_LOGS_IMPORTED,
             serde_json::json!({ "groupsApplied": summary.groups_applied.len() }),
         );
     }

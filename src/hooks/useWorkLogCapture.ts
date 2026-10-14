@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTauriEvent } from './useTauriEvent';
+import { BACKEND_EVENTS } from '../constants/events';
 import { Task } from '../types/task';
 import { TaskSession } from '../types/timer';
 import {
@@ -45,7 +46,7 @@ function notifyIfAway(title: string, body: string) {
   if (!isAppFocused()) void notifyDesktop(title, body);
 }
 
-export const WORK_LOG_CAPTURED_EVENT = 'work-log-payload-captured';
+export const WORK_LOG_CAPTURED_EVENT = BACKEND_EVENTS.WORK_LOG_PAYLOAD_CAPTURED;
 
 export type StagedCaptureReason = 'unmapped-project' | 'unverified-link';
 
