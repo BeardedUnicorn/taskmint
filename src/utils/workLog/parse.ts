@@ -15,8 +15,9 @@ export interface ParsedSitePayload {
 
 /**
  * Parse the pasted site JSON leniently: unknown extra fields are stripped by
- * the schemas, and a single bad record is skipped (counted) instead of
- * failing the whole paste. Only structural problems are fatal.
+ * the schemas, a work log with no project (a referral bonus) gets a stand-in
+ * project from its type, and a single bad record is skipped (counted) instead
+ * of failing the whole paste. Only structural problems are fatal.
  */
 export function parseWorkLogPayload(rawText: string): ParsedSitePayload {
   const empty: ParsedSitePayload = {

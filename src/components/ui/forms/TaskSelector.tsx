@@ -74,8 +74,10 @@ export function TaskSelector({
   };
 
   const handleInputChange = (_event: any, newInputValue: string) => {
-    // Handle typing in freeSolo mode
-    onChange(newInputValue);
+    // Handle typing in freeSolo mode. Typing a task's exact name shows that task
+    // as selected (selectedTask below), and picking its option is then a no-op
+    // for Autocomplete, so report the task here too.
+    onChange(newInputValue, sortedTasks.find(task => task.name === newInputValue));
   };
 
   const handleCreateNewTask = async () => {

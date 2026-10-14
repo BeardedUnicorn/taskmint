@@ -105,6 +105,15 @@ const SAMPLE_PAYLOAD = {
   ],
 };
 
+// The site's referral bonus: money with no project.
+const REFERRAL_WORKLOG = {
+  type: 'ReferralWorkLog',
+  id: 'cf8d0c15-0817-4d17-b1e7-7f6cea9ed6b1',
+  amountInCents: 10000,
+  createdAt: '2026-10-13T22:25:30.543Z',
+  status: 'Pending Approval',
+};
+
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
     id: 'task-1',
@@ -210,6 +219,42 @@ describe('parseWorkLogPayload', () => {
     expect(result.timedEntries).toHaveLength(1);
     expect(result.skippedRecords).toBe(1);
     expect(result.workLogs).toHaveLength(0);
+  });
+
+  it('gives a project-less referral bonus a stand-in project instead of skipping it', () => {
+    const result = parseWorkLogPayload(JSON.stringify({ workLogs: [REFERRAL_WORKLOG] }));
+    expect(result.skippedRecords).toBe(0);
+    expect(result.workLogs).toEqual([
+      {
+        id: REFERRAL_WORKLOG.id,
+        createdAt: REFERRAL_WORKLOG.createdAt,
+        status: 'Pending Approval',
+        amountInCents: 10000,
+        project: { id: 'site-type:ReferralWorkLog', name: 'Referral bonus' },
+      },
+    ]);
+  });
+
+  it('names an unfamiliar project-less work-log type after the type itself', () => {
+    const result = parseWorkLogPayload(
+      JSON.stringify({ workLogs: [{ ...REFERRAL_WORKLOG, type: 'BonusWorkLog' }] })
+    );
+    expect(result.workLogs[0].project).toEqual({ id: 'site-type:BonusWorkLog', name: 'BonusWorkLog' });
+  });
+
+  it('keeps the site project of a work log that has one', () => {
+    const result = parseWorkLogPayload(JSON.stringify(SAMPLE_PAYLOAD));
+    expect(result.workLogs[0].project.id).toBe('8be5970c-ba16-43a7-bcd8-ca224a050790');
+    expect('type' in result.workLogs[0]).toBe(false);
+  });
+
+  it.each([
+    ['no type', { id: 'w1', createdAt: REFERRAL_WORKLOG.createdAt, amountInCents: 100 }],
+    ['a blank type', { ...REFERRAL_WORKLOG, type: '  ' }],
+  ])('still skips a project-less work log with %s', (_label, record) => {
+    const result = parseWorkLogPayload(JSON.stringify({ workLogs: [record] }));
+    expect(result.workLogs).toHaveLength(0);
+    expect(result.skippedRecords).toBe(1);
   });
 
   it('treats a non-array collection as fatal', () => {
@@ -333,6 +378,30 @@ describe('buildLedgerEntries', () => {
     const parsed = parseWorkLogPayload(JSON.stringify(SAMPLE_PAYLOAD));
     const entries = buildLedgerEntries(parsed, [], NOW_ISO);
     expect(entries).toHaveLength(0);
+  });
+
+  it('books a referral bonus to the task its stand-in project maps to', () => {
+    const parsed = parseWorkLogPayload(JSON.stringify({ workLogs: [REFERRAL_WORKLOG] }));
+    const mapping = makeMapping({
+      projectId: 'site-type:ReferralWorkLog',
+      projectName: 'Referral bonus',
+      taskId: 'task-referrals',
+      taskName: 'Referrals',
+    });
+
+    expect(buildLedgerEntries(parsed, [mapping], NOW_ISO)).toEqual([
+      expect.objectContaining({
+        id: REFERRAL_WORKLOG.id,
+        kind: 'workLog',
+        workDay: deriveWorkLogWorkDay(REFERRAL_WORKLOG.createdAt),
+        projectId: 'site-type:ReferralWorkLog',
+        projectName: 'Referral bonus',
+        taskId: 'task-referrals',
+        timeInMinutes: null,
+        amountCents: 10000,
+        status: 'Pending Approval',
+      }),
+    ]);
   });
 });
 

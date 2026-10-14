@@ -22,6 +22,15 @@ function timedEntry(id: string, project: { id: string; name: string }, minutes =
 const codeReview = { id: 'p-code', name: 'Code Review' };
 const newProject = { id: 'p-new', name: 'Brand New' };
 
+// A referral bonus: a work log with money but no project.
+const referral = {
+  type: 'ReferralWorkLog',
+  id: 'ref-1',
+  amountInCents: 10000,
+  createdAt: new Date(2026, 9, 13, 18, 0).toISOString(),
+  status: 'Pending Approval',
+};
+
 const tasks: Task[] = [
   { id: 'task-code', name: 'Code Review', hourlyRate: 25, createdAt: '', updatedAt: '' },
   { id: 'task-other', name: 'Other', hourlyRate: 40, createdAt: '', updatedAt: '' },
@@ -42,6 +51,30 @@ describe('planWorkLogImport', () => {
 
   it('has nothing to do for a payload with no records', () => {
     expect(planWorkLogImport(parse([]), context)).toEqual({ status: 'empty' });
+  });
+
+  it('asks for a task for a referral bonus like any unmatched project', () => {
+    const plan = planWorkLogImport(parse([], [referral]), context);
+
+    expect(plan.status).toBe('needs-mapping');
+    if (plan.status !== 'needs-mapping') return;
+    expect(plan.unresolved).toEqual([{ projectId: 'site-type:ReferralWorkLog', projectName: 'Referral bonus' }]);
+  });
+
+  it('books a referral bonus to a same-named task without touching sessions or rates', () => {
+    const withReferrals = [...tasks, { id: 'task-ref', name: 'Referral bonus', createdAt: '', updatedAt: '' }];
+    const plan = planWorkLogImport(parse([], [referral]), { ...context, tasks: withReferrals });
+
+    expect(plan.status).toBe('ready');
+    if (plan.status !== 'ready') return;
+    expect(plan.payload.entries).toEqual([
+      expect.objectContaining({ id: 'ref-1', kind: 'workLog', taskId: 'task-ref', amountCents: 10000 }),
+    ]);
+    expect(plan.payload.mappings).toEqual([
+      expect.objectContaining({ projectId: 'site-type:ReferralWorkLog', taskId: 'task-ref' }),
+    ]);
+    expect(plan.payload.rewriteGroups).toEqual([]);
+    expect(plan.impliedRates).toEqual([]);
   });
 
   it('matches projects to same-named tasks and is ready to apply', () => {
@@ -104,6 +137,14 @@ describe('payloadProjects', () => {
     expect(payloadProjects(parsed)).toEqual([
       expect.objectContaining({ id: 'p-code' }),
       expect.objectContaining({ id: 'p-new' }),
+    ]);
+  });
+
+  it('lists a referral bonus under its stand-in project', () => {
+    const parsed = parse([timedEntry('a', codeReview)], [referral]);
+    expect(payloadProjects(parsed)).toEqual([
+      expect.objectContaining({ id: 'p-code' }),
+      { id: 'site-type:ReferralWorkLog', name: 'Referral bonus' },
     ]);
   });
 });
