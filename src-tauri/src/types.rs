@@ -22,8 +22,10 @@ pub struct Task {
     pub updated_at: String,
 }
 
-// Backup result structure
+// Backup result structure. camelCase like every type the frontend reads
+// (BackupResult in src/types/backup.ts).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BackupResult {
     pub success: bool,
     pub file_path: Option<String>,
@@ -32,8 +34,10 @@ pub struct BackupResult {
     pub file_size: Option<u64>,
 }
 
-// Path validation result
+// Path validation result: `isValid` to the frontend (useBackupSettings
+// rejected every folder while this went out as `is_valid`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PathValidationResult {
     pub is_valid: bool,
     pub error: Option<String>,
