@@ -188,6 +188,25 @@ describe('TaskService', () => {
       expect(mockStorageService.setTasks).not.toHaveBeenCalled();
     });
 
+    it('puts a deleted task back at its old place', async () => {
+      const other: Task = { ...baseTask, id: 'task2', name: 'Other' };
+      const third: Task = { ...baseTask, id: 'task3', name: 'Third' };
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([other, third]);
+
+      await service.restoreTask(baseTask, 1);
+
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([other, baseTask, third]);
+    });
+
+    it("won't restore a task that's back already or whose name was taken since", async () => {
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask]);
+      await expect(service.restoreTask(baseTask, 0)).rejects.toThrow(/already back/);
+
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask, id: 'new-id' }]);
+      await expect(service.restoreTask(baseTask, 0)).rejects.toMatchObject({ code: 'TASK_DUPLICATE_NAME' });
+      expect(mockStorageService.setTasks).not.toHaveBeenCalled();
+    });
+
     it('should throw when getTask encounters storage error', async () => {
       mockStorageService.getTasks = vi.fn().mockRejectedValue(new Error('failure'));
       await expect(service.getTask('task1')).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });

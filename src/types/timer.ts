@@ -147,7 +147,8 @@ export interface UseSessionManagementReturn {
   addManualTime: (input: AddManualTimeInput) => Promise<TaskSession>;
   /** Clears sessions' old plain-text notes once they've moved to the notes store; returns how many had text. */
   clearSessionNotes: (sessionIds: string[]) => Promise<number>;
-  deleteSession: (sessionId: string) => Promise<void>;
+  /** Resolves to whether it was deleted (an Undo toast follows). */
+  deleteSession: (sessionId: string) => Promise<boolean>;
   setActiveSession: (session: TaskSession | null) => Promise<boolean>;
   endActiveSession: () => Promise<void>;
   pauseAllTimersInActiveSession: () => Promise<void>;
@@ -158,7 +159,8 @@ export interface UseSessionManagementReturn {
   stopTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
   pauseTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
   resumeTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
-  deleteTimerInstance: (instanceId: string) => Promise<void>;
+  /** Resolves to whether it was deleted (a stopped timer gets an Undo toast). */
+  deleteTimerInstance: (instanceId: string) => Promise<boolean>;
   /** Saves a finished timer's edit (duration and/or task); resolves to its session id, or null on failure. */
   editTimerEntry: (
     instanceId: string,

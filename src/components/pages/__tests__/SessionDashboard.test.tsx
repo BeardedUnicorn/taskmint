@@ -551,26 +551,13 @@ describe('SessionDashboard', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('asks before deleting a finished timer and names its tracked time', () => {
+    it('deletes a finished timer straight away (its toast offers Undo)', () => {
       renderDashboard();
 
       fireEvent.click(screen.getByText('Delete Finished Timer'));
 
-      expect(mockSessionManagement.deleteTimerInstance).not.toHaveBeenCalled();
-      const dialog = screen.getByRole('dialog');
-      expect(within(dialog).getByText(/1h 30m of tracked time/)).toBeInTheDocument();
-
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
       expect(mockSessionManagement.deleteTimerInstance).toHaveBeenCalledWith('timer-done');
-    });
-
-    it('keeps a finished timer when the confirmation is cancelled', () => {
-      renderDashboard();
-
-      fireEvent.click(screen.getByText('Delete Finished Timer'));
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
-
-      expect(mockSessionManagement.deleteTimerInstance).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 

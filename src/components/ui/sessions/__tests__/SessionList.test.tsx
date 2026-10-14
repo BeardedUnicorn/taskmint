@@ -333,36 +333,13 @@ describe('SessionList', () => {
       fireEvent.click(screen.getByText('Delete Session'));
     }
 
-    it('asks for confirmation, naming the tracked time, before deleting a session', () => {
+    it('deletes a session straight away (its toast offers Undo)', () => {
       render(<SessionList {...mockProps} />);
 
       openDeleteFor('Development Work');
 
-      expect(mockProps.onDeleteSession).not.toHaveBeenCalled();
-      const dialog = screen.getByRole('dialog');
-      expect(within(dialog).getByText(/1 timer and 1h 0m of tracked time/)).toBeInTheDocument();
-
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
       expect(mockProps.onDeleteSession).toHaveBeenCalledWith('session-1');
-    });
-
-    it('does not delete the session when the confirmation is cancelled', () => {
-      render(<SessionList {...mockProps} />);
-
-      openDeleteFor('Development Work');
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
-
-      expect(mockProps.onDeleteSession).not.toHaveBeenCalled();
-    });
-
-    it('warns that deleting the active session takes its running timer with it', () => {
-      render(<SessionList {...mockProps} />);
-
-      openDeleteFor('Code Review');
-
-      expect(
-        within(screen.getByRole('dialog')).getByText(/This is the active session/)
-      ).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 

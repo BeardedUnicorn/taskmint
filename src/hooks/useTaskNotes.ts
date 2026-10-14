@@ -5,11 +5,12 @@
  * including CRUD operations, validation, and note management.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { TaskNote, UseTaskNotesReturn } from '../types/notes';
 import { TaskNotesService } from '../services/TaskNotesService';
 import { useAsyncError } from './useAsyncError';
 import { errorMessage } from '../utils/errors';
+import { useNotification } from '../contexts/NotificationContext';
 
 export const TaskNotesContext = createContext<UseTaskNotesReturn | null>(null);
 
@@ -34,7 +35,13 @@ export function useTaskNotesState(): UseTaskNotesReturn {
   const [error, setError] = useState<string | null>(null);
 
   const { executeAsync } = useAsyncError();
+  const { showInfo, showError } = useNotification();
   const notesService = TaskNotesService.getInstance();
+  // The note as it was, for a delete's Undo
+  const notesRef = useRef(notes);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
 
   const loadNotes = useCallback(async () => {
     setIsLoading(true);
@@ -91,13 +98,30 @@ export function useTaskNotesState(): UseTaskNotesReturn {
     });
   }, [notesService, executeAsync, replaceNote]);
 
+  // Undo of a delete: the saved note goes back as it was
+  const restoreNote = useCallback(async (note: TaskNote) => {
+    try {
+      const added = await notesService.addNotes([note]);
+      if (added.length > 0) setNotes(prev => [...prev, ...added]);
+    } catch (err) {
+      showError(errorMessage(err, "Couldn't restore the note"), { category: 'note' });
+    }
+  }, [notesService, showError]);
+
   const deleteNote = useCallback(async (noteId: string): Promise<void> => {
+    const snapshot = notesRef.current.find(note => note.id === noteId);
     return executeAsync(async () => {
       setError(null);
       await notesService.deleteNote(noteId);
       setNotes(prev => prev.filter(note => note.id !== noteId));
+      if (snapshot) {
+        showInfo(`Deleted the "${snapshot.templateName}" note`, {
+          category: 'note',
+          actions: [{ label: 'Undo', onClick: () => void restoreNote(snapshot) }],
+        });
+      }
     });
-  }, [notesService, executeAsync]);
+  }, [notesService, executeAsync, showInfo, restoreNote]);
 
   const archiveNote = useCallback(async (noteId: string): Promise<TaskNote> => {
     return executeAsync(async () => {

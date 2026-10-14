@@ -19,7 +19,7 @@ import {
   StartTaskResult,
   AddManualTimeInput,
 } from '../types/timer';
-import { formatDuration } from '../utils/formatters';
+import { formatDurationCompact } from '../utils/formatters';
 import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
@@ -286,12 +286,38 @@ export function useSessionManagement(): UseSessionManagementReturn {
     [timerCommand]
   );
 
-  const deleteTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
-    await runCommand('Failed to delete timer', async () => {
+  // Undo puts a deleted timer back where it was. The session may have gone
+  // in the meantime; the backend says so.
+  const restoreTimerInstance = useCallback(
+    (sessionId: string, instance: TimerInstance, index: number) =>
+      runCommand("Couldn't restore the timer", async () => {
+        const session = await invoke<TaskSession>('restore_timer_instance', { sessionId, instance, index });
+        updateLocalSession(session);
+      }),
+    [runCommand, updateLocalSession]
+  );
+
+  const deleteTimerInstance = useCallback(async (instanceId: string): Promise<boolean> => {
+    const owner = sessionsRef.current.find(s => s.timerInstances.some(i => i.id === instanceId));
+    const index = owner?.timerInstances.findIndex(i => i.id === instanceId) ?? -1;
+    const snapshot = owner && index >= 0 ? owner.timerInstances[index] : undefined;
+
+    const done = await runCommand('Failed to delete timer', async () => {
       const updatedSession = await invoke<TaskSession>('delete_timer_instance', { instanceId });
       updateLocalSession(updatedSession);
-    }, 'Timer deleted');
-  }, [runCommand, updateLocalSession]);
+      return true;
+    });
+    if (!done) return false;
+
+    // A timer that never ran held no time: nothing to undo
+    if (owner && snapshot && normalizeTimerInstance(snapshot).state === TimerState.stopped) {
+      showInfo(`Deleted ${formatDurationCompact(snapshot.duration ?? 0)} from "${owner.taskName}"`, {
+        category: 'timer',
+        actions: [{ label: 'Undo', onClick: () => void restoreTimerInstance(owner.id, snapshot, index) }],
+      });
+    }
+    return true;
+  }, [runCommand, updateLocalSession, restoreTimerInstance, showInfo]);
 
   // Save an edit of a finished timer: its duration, and/or the task it
   // belongs to (moved with its time; it earns at that task's rate). Returns
@@ -392,7 +418,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
       });
       await loadSessions({ silent: true });
       const day = input.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      showSuccess(`Added ${formatDuration(input.durationMs)} to "${input.taskName}" on ${day}`);
+      showSuccess(`Added ${formatDurationCompact(input.durationMs)} to "${input.taskName}" on ${day}`);
       return session;
     } catch (err) {
       throw new Error(errorMessage(err, 'Failed to add the time entry'));
@@ -407,10 +433,22 @@ export function useSessionManagement(): UseSessionManagementReturn {
     return cleared;
   }, [loadSessions]);
 
-  const deleteSession = useCallback(async (sessionId: string): Promise<void> => {
-    await runCommand('Failed to delete session', async () => {
+  // Undo brings a deleted session back as history: inactive, any timer that
+  // was running when it was deleted stopped at that moment.
+  const restoreSession = useCallback(
+    (snapshot: TaskSession) =>
+      runCommand("Couldn't restore the session", async () => {
+        const restored = normalizeSession(await invoke<TaskSession>('restore_session', { session: snapshot }));
+        setSessions(prev => (prev.some(s => s.id === restored.id) ? prev : [...prev, restored]));
+      }),
+    [runCommand]
+  );
+
+  const deleteSession = useCallback(async (sessionId: string): Promise<boolean> => {
+    const removed = await runCommand('Failed to delete session', async () => {
       const removedSession = sessionsRef.current.find(s => s.id === sessionId);
-      await invoke('delete_session', { sessionId });
+      // What was deleted, live timers stopped: what Undo puts back
+      const snapshot = await invoke<TaskSession>('delete_session', { sessionId });
 
       setSessions(prev => prev.filter(s => s.id !== sessionId));
       setActiveSessionState(current => (current?.id === sessionId ? null : current));
@@ -419,8 +457,21 @@ export function useSessionManagement(): UseSessionManagementReturn {
       if (current && removedSession?.timerInstances.some(i => i.id === current.id)) {
         setActiveTimer(null);
       }
-    }, 'Session deleted successfully');
-  }, [runCommand, setActiveTimer]);
+      return snapshot;
+    });
+    if (!removed) return false;
+
+    const timers = removed.timerInstances.length;
+    const detail =
+      timers > 0
+        ? ` (${timers} timer${timers === 1 ? '' : 's'}, ${formatDurationCompact(removed.totalDuration ?? 0)})`
+        : '';
+    showInfo(`Deleted the "${removed.taskName}" session${detail}`, {
+      category: 'session',
+      actions: [{ label: 'Undo', onClick: () => void restoreSession(removed) }],
+    });
+    return true;
+  }, [runCommand, setActiveTimer, restoreSession, showInfo]);
 
   // Returns whether the backend accepted the change, so callers like
   // endActiveSession don't report success after a failed deactivation.

@@ -16,7 +16,7 @@ import { DailyGoal } from '../types/goal';
 import { getSessionElapsedMsOnDate, hasRunningTimer } from '../utils/timerHelpers';
 import { earningsOnDate } from '../utils/earnings';
 import { formatDateString } from '../utils/dateHelpers';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDurationCompact } from '../utils/formatters';
 import { readLocal, writeLocal } from '../utils/localStore';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNotificationPreferences } from '../notifications/preferences';
@@ -36,11 +36,7 @@ export function isDailySummaryDue(now: Date, time: string, lastSent: string | nu
 
 /** "6h 12m", "45m", or "under a minute". */
 function trackedText(ms: number): string {
-  const totalMinutes = Math.floor(ms / 60_000);
-  if (totalMinutes === 0) return 'under a minute';
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  return ms < 60_000 ? 'under a minute' : formatDurationCompact(ms);
 }
 
 export interface DailySummary {

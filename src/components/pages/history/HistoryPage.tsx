@@ -38,7 +38,6 @@ import {
 import { useCsvExport } from '../../../hooks/useCsvExport';
 import { csvFileName, exportableEntries, timeEntriesToCsv } from '../../../utils/csvExport';
 import { EditTimeEntryDialog } from '../../ui/dialogs/EditTimeEntryDialog';
-import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
 import { useLocalStorage } from '../../../hooks/useLocalStorage';
 import { getEntryElapsedMs } from '../../../utils/timerHelpers';
 import { findTaskFor } from '../../../utils/earnings';
@@ -95,7 +94,6 @@ export function HistoryPage({
   
   // Dialog states
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
-  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   
   // Arriving from a task's "View all in History": that task, all time (once
   // per request, however often the page re-renders before it's cleared)
@@ -163,17 +161,6 @@ export function HistoryPage({
     // The session hook reports how the save went (success or the error)
     onUpdateEntry(data);
     setEditingEntry(null);
-  };
-
-  const handleDeleteEntry = (entryId: string) => {
-    setDeletingEntryId(entryId);
-  };
-
-  const handleConfirmDelete = () => {
-    if (deletingEntryId) {
-      onDeleteEntry(deletingEntryId);
-      setDeletingEntryId(null);
-    }
   };
 
   // Finished entries (a running timer has no end yet): the summary, charts and CSV
@@ -288,7 +275,7 @@ export function HistoryPage({
         entries={paginatedEntries}
         tasks={tasks}
         onEdit={handleEditEntry}
-        onDelete={handleDeleteEntry}
+        onDelete={onDeleteEntry}
         sortField={sortField}
         sortDirection={sortDirection}
         onSort={handleSort}
@@ -342,17 +329,6 @@ export function HistoryPage({
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={!!deletingEntryId}
-        title="Delete Time Entry"
-        message="Are you sure you want to delete this time entry? This action cannot be undone."
-        confirmLabel="Delete"
-        confirmColor="error"
-        onConfirm={handleConfirmDelete}
-        onClose={() => setDeletingEntryId(null)}
-        onCancel={() => setDeletingEntryId(null)}
-      />
 
 
     </Box>

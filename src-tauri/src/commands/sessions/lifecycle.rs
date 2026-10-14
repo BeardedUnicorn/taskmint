@@ -63,26 +63,6 @@ pub async fn update_session(
     })?
 }
 
-#[tauri::command]
-pub async fn delete_session(
-    app: AppHandle,
-    app_state: State<'_, AppState>,
-    session_id: String,
-) -> Result<(), String> {
-    app_state.with_task_sessions_mut(|sessions| -> Result<(), String> {
-        let session = sessions
-            .iter()
-            .find(|s| s.id == session_id)
-            .ok_or_else(|| session_not_found(&session_id))?;
-        ensure_not_imported(session)?;
-        sessions.retain(|s| s.id != session_id);
-
-        storage::save_sessions(&app, sessions)
-    })??;
-
-    Ok(())
-}
-
 /// Clears the plain-text notes of the given sessions; returns how many had
 /// text. Session notes now live in the app's notes store, which copies the
 /// text first (see `sessionNotesToTaskNotes`), so this is the second half of

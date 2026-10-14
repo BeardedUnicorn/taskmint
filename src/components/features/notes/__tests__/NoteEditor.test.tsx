@@ -474,4 +474,38 @@ describe('NoteEditor', () => {
     await new Promise(resolve => setTimeout(resolve, 1500));
     expect(onUpdateNote).not.toHaveBeenCalled();
   });
+
+  it('puts the cleared text back with Undo', async () => {
+    const existingNote: TaskNote = {
+      id: 'note1',
+      taskId: 'task1',
+      templateId: 'template1',
+      templateName: 'Test Template',
+      fieldValues: { field1: 'Important text', field2: 3 },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        existingNote={existingNote}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={vi.fn().mockResolvedValue({})}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        noteLevel="task"
+      />
+    );
+    await waitFor(() => expect(screen.getByLabelText('Text Field')).toHaveValue('Important text'));
+
+    fireEvent.click(screen.getByRole('button', { name: /clear/i }));
+    expect(screen.getByLabelText('Text Field')).toHaveValue('');
+    expect(screen.getByText('Cleared the note')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(screen.getByLabelText('Text Field')).toHaveValue('Important text'));
+  });
 });

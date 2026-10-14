@@ -41,7 +41,7 @@ export function DeleteTaskDialog({ task, history, onDelete, onArchive, onClose }
     ? `"${task.name}" has ${entries} (${formatDuration(history.trackedMs)}). They stay in your ` +
       'history, but without the task they lose its hourly rate, so their earnings show as $0.' +
       (canArchive ? ' Archive it instead to keep the rate and hide it from task pickers.' : '')
-    : `Delete "${task.name}"? This can't be undone.`;
+    : `Delete "${task.name}"?`;
 
   const handleDelete = () => {
     onDelete(task.id);
