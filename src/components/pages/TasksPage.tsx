@@ -31,6 +31,10 @@ interface TasksPageProps {
   runningTaskId?: string | null;
   /** Opens History filtered to a task. */
   onViewHistory?: (task: Task) => void;
+  /** Open the new-task form (⌘N, the command palette). */
+  newTaskRequested?: boolean;
+  /** Called once the form has opened for that request. */
+  onNewTaskRequestHandled?: () => void;
 }
 
 export function TasksPage({
@@ -47,6 +51,8 @@ export function TasksPage({
   onStartTask,
   runningTaskId = null,
   onViewHistory,
+  newTaskRequested = false,
+  onNewTaskRequestHandled,
 }: TasksPageProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(
     () => tasks.find(t => !t.isArchived) ?? tasks[0] ?? null
@@ -55,6 +61,12 @@ export function TasksPage({
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+
+  useEffect(() => {
+    if (!newTaskRequested) return;
+    setShowNewTaskDialog(true);
+    onNewTaskRequestHandled?.();
+  }, [newTaskRequested, onNewTaskRequestHandled]);
 
   // Keep the selection in sync with the task list
   useEffect(() => {

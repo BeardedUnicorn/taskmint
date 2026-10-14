@@ -393,6 +393,16 @@ describe('TasksPage - Task List Layout', () => {
     expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
   });
 
+  it('opens the new-task form when asked to (⌘N, the command palette)', async () => {
+    const onHandled = vi.fn();
+    render(<TasksPage {...mockProps} newTaskRequested onNewTaskRequestHandled={onHandled} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('add-task-dialog')).toBeInTheDocument();
+    });
+    expect(onHandled).toHaveBeenCalledTimes(1);
+  });
+
   it('lets you add a task past the old 10-task free limit with no upgrade prompt', async () => {
     const manyTasks: Task[] = Array.from({ length: 12 }, (_, i) => ({
       ...mockTasks[0],
