@@ -6,6 +6,7 @@
 import { useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useNotification } from '../contexts/NotificationContext';
+import { errorMessage } from '../utils/errors';
 import { isTauriEnvironment } from '../utils/tauri';
 
 /** Paired with EXPORT_CANCELLED in src-tauri/src/commands/backup.rs. */
@@ -39,7 +40,7 @@ export function useCsvExport() {
           showSuccess(`Downloaded ${fileName}`);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = errorMessage(err, 'Unknown error');
         if (message !== EXPORT_CANCELLED) {
           showError(`Couldn't export the CSV: ${message}`);
         }

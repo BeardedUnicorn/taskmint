@@ -35,10 +35,22 @@ import {
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import { NoteEditorProps, TemplateField, NoteTemplate, TaskNote } from '../../../types/notes';
+import { errorMessage } from '../../../utils/errors';
 import { FREE_FORM_TEMPLATE_ID, FREE_FORM_TEMPLATE_NAME } from '../../../utils/notes';
 
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 import { ConfirmDialog } from '../../ui';
+
+/** No field holds anything: blank text, no number or date, unchecked. */
+function isDraftEmpty(values: Record<string, unknown>): boolean {
+  return Object.values(values).every(value =>
+    value === undefined ||
+    value === null ||
+    value === false ||
+    (typeof value === 'string' && value.trim() === '') ||
+    (Array.isArray(value) && value.length === 0)
+  );
+}
 
 export function NoteEditor({
                              taskId,
@@ -245,6 +257,12 @@ export function NoteEditor({
         }
 
         if (currentNote) {
+          // Emptying a saved note (Clear, or deleting every field) would
+          // overwrite its content with nothing; deleting is the way to do that.
+          if (isDraftEmpty(processedValues)) {
+            setSaveError('This note is empty — delete it instead');
+            return;
+          }
           if (selectedTemplate && !validateFields()) return;
           // Content and task only: the note keeps its own session/timer link
           // wherever it's edited from.
@@ -307,7 +325,7 @@ export function NoteEditor({
         if (closeEditor) onCloseEditor?.();
       } catch (error) {
         console.error('Failed to save note:', error);
-        const message = error instanceof Error ? error.message : 'Failed to save note';
+        const message = errorMessage(error, 'Failed to save note');
         setSaveError(message);
       } finally {
         setIsSaving(false);
@@ -386,13 +404,15 @@ export function NoteEditor({
   // skipped, and each attempt would re-arm this timer every second.
   const isEmptyNewNote =
     !currentNote && !selectedTemplate && !String(fieldValues.content ?? '').trim();
+  // A saved note emptied by Clear isn't auto-saved over (see handleSave).
+  const isEmptiedNote = !!currentNote && isDraftEmpty(fieldValues);
   const hasErrors = Object.keys(errors).length > 0;
 
   useEffect(() => {
     if (autoSaveDisabled) return;
     if (!hasUnsavedChanges) return;
     if (isSaving) return;
-    if (isEmptyNewNote || hasErrors) return;
+    if (isEmptyNewNote || isEmptiedNote || hasErrors) return;
 
     const timeout = setTimeout(() => {
       // Persist changes but keep the editor open
@@ -400,7 +420,7 @@ export function NoteEditor({
     }, 1000);
 
     return () => clearTimeout(timeout);
-  }, [fieldValues, hasUnsavedChanges, isSaving, handleSave, autoSaveDisabled, isEmptyNewNote, hasErrors]);
+  }, [fieldValues, hasUnsavedChanges, isSaving, handleSave, autoSaveDisabled, isEmptyNewNote, isEmptiedNote, hasErrors]);
 
   const renderField = useCallback((field: TemplateField) => {
     const value = fieldValues[field.id];
@@ -665,6 +685,15 @@ export function NoteEditor({
             </Box>
           </Stack>
         </Paper>
+        <Snackbar
+          open={!!saveError}
+          autoHideDuration={6000}
+          onClose={() => setSaveError(null)}
+        >
+          <Alert severity="error" onClose={() => setSaveError(null)}>
+            {saveError}
+          </Alert>
+        </Snackbar>
         <ConfirmDialog
           open={showDiscardDialog}
           onClose={() => setShowDiscardDialog(false)}
@@ -734,7 +763,7 @@ export function NoteEditor({
             {/* Form Fields */}
             {selectedTemplate && (
               <Stack spacing={2}>
-                {selectedTemplate.fields
+                {[...selectedTemplate.fields]
                   .sort((a: TemplateField, b: TemplateField) => a.order - b.order)
                   .map((field: TemplateField) => (
                     <Box key={field.id} sx={{ position: 'relative' }}>

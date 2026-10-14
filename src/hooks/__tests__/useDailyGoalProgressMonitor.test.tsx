@@ -1,7 +1,8 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ReactNode } from 'react';
-import { useDailyGoalProgressMonitor } from '../useDailyGoalProgressMonitor';
+import { useDailyGoalProgressMonitor, nextGoalMilestone, EXCEEDED_TIER } from '../useDailyGoalProgressMonitor';
+import * as desktopNotification from '../../utils/desktopNotification';
 import { useDailyGoals } from '../useDailyGoals';
 import { DailyGoalProvider } from '../../contexts/DailyGoalContext';
 import { STORAGE_KEYS } from '../../constants';
@@ -162,5 +163,80 @@ describe('useDailyGoalProgressMonitor', () => {
 describe('useDailyGoals', () => {
   it('needs the provider', () => {
     expect(() => renderHook(() => useDailyGoals())).toThrow(/DailyGoalProvider/);
+  });
+});
+
+describe('nextGoalMilestone', () => {
+  const at = (percent: number) => ({ percent, earned: percent, target: 100, currency: 'USD' });
+
+  it('announces each tier once, as it is crossed', () => {
+    expect(nextGoalMilestone(at(40), 0)).toBeNull();
+    expect(nextGoalMilestone(at(55), 0)?.tier).toBe(50);
+    expect(nextGoalMilestone(at(60), 50)).toBeNull();
+    expect(nextGoalMilestone(at(80), 50)?.tier).toBe(75);
+    expect(nextGoalMilestone(at(100), 75)?.title).toBe('Goal Achieved!');
+    expect(nextGoalMilestone(at(110), 100)).toBeNull();
+    expect(nextGoalMilestone(at(130), 100)?.title).toBe('Goal CRUSHED!');
+    expect(nextGoalMilestone(at(200), EXCEEDED_TIER)).toBeNull();
+  });
+
+  it('sends only the highest tier on a jump, and "achieved" alone past 125%', () => {
+    expect(nextGoalMilestone(at(90), 0)?.tier).toBe(75);
+    const jump = nextGoalMilestone(at(140), 0);
+    expect(jump?.title).toBe('Goal Achieved!');
+    expect(jump?.tier).toBe(EXCEEDED_TIER);
+  });
+
+  it("treats an older build's 101 as exceeded already sent", () => {
+    expect(nextGoalMilestone(at(150), 101)).toBeNull();
+  });
+
+  it("formats amounts in the goal's currency", () => {
+    const milestone = nextGoalMilestone({ percent: 50, earned: 50, target: 100, currency: 'EUR' }, 0);
+    expect(milestone?.body).toContain('€50.00');
+    expect(milestone?.body).toContain('€100.00');
+  });
+});
+
+describe('goal notifications', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const noon = new Date();
+    noon.setHours(12, 0, 0, 0);
+    vi.setSystemTime(noon);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("doesn't send a milestone twice while the first send is still pending", async () => {
+    let finish!: () => void;
+    const notify = vi
+      .spyOn(desktopNotification, 'notifyDesktop')
+      .mockImplementation(() => new Promise<void>(resolve => (finish = resolve)));
+    storeGoal(100);
+
+    const { rerender, result } = renderHook(
+      ({ sessions }) => ({
+        progress: useDailyGoalProgressMonitor({ sessions, tasks }),
+        goals: useDailyGoals(),
+      }),
+      { wrapper, initialProps: { sessions: runningFor(1) } }
+    );
+    await waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
+
+    // New session data while the notification is still awaiting
+    rerender({ sessions: runningFor(1) });
+    rerender({ sessions: runningFor(1) });
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finish();
+    });
+    await waitFor(() => expect(result.current.goals.currentGoal?.lastNotifiedPercent).toBe(50));
+    expect(notify).toHaveBeenCalledTimes(1);
   });
 });

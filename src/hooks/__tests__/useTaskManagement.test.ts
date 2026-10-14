@@ -163,7 +163,19 @@ describe('useTaskManagement', () => {
         result.current.addTask({ name: 'Test Task', hourlyRate: 50 })
       ).rejects.toThrow('Failed to create task');
 
-      expect(mockShowError).toHaveBeenCalledWith('Failed to create task. Please try again.');
+      expect(mockShowError).toHaveBeenCalledWith('Failed to create task');
+    });
+
+    it('shows why a create failed (e.g. a duplicate name)', async () => {
+      mockTaskService.createTask.mockRejectedValue(
+        new Error('A task with the name "Development" already exists')
+      );
+
+      const { result } = renderHook(() => useTaskManagement());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await expect(result.current.addTask({ name: 'Development', hourlyRate: 50 })).rejects.toThrow();
+      expect(mockShowError).toHaveBeenCalledWith('A task with the name "Development" already exists');
     });
   });
 
@@ -197,7 +209,7 @@ describe('useTaskManagement', () => {
 
       await expect(result.current.updateTask('task-1', { name: 'Updated' })).rejects.toThrow('Failed to update task');
 
-      expect(mockShowError).toHaveBeenCalledWith('Failed to update task. Please try again.');
+      expect(mockShowError).toHaveBeenCalledWith('Failed to update task');
     });
   });
 
@@ -314,7 +326,7 @@ describe('useTaskManagement', () => {
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       await expect(result.current.archiveTask('task-1')).rejects.toThrow('Failed to archive task');
-      expect(mockShowError).toHaveBeenCalledWith('Failed to archive task. Please try again.');
+      expect(mockShowError).toHaveBeenCalledWith('Failed to archive task');
     });
   });
 

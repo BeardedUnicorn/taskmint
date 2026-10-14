@@ -38,6 +38,7 @@ import {
 } from '../utils/workLogImport';
 import { useNotification } from '../contexts/NotificationContext';
 import { isAppFocused, notifyDesktop } from '../utils/desktopNotification';
+import { errorMessage } from '../utils/errors';
 
 /** A desktop notification too, when the window isn't where you're looking. */
 function notifyIfAway(title: string, body: string) {
@@ -206,8 +207,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
         }
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : typeof err === 'string' && err.trim() ? err : '';
+      const message = errorMessage(err, '');
       showError(
         `Failed to process captured work logs${message ? `: ${message}` : ''}`
       );

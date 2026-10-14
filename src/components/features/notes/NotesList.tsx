@@ -660,7 +660,7 @@ export function NotesList({
       <ConfirmDialog
         open={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        onConfirm={() => deleteConfirm && handleDeleteNote(deleteConfirm)}
+        onConfirm={() => (deleteConfirm ? handleDeleteNote(deleteConfirm) : undefined)}
         title="Delete Note"
         message="Are you sure you want to delete this note? This action cannot be undone."
         confirmLabel="Delete"

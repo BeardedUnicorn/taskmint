@@ -16,6 +16,7 @@ import {
 import { NoteTemplate } from '../../types/notes';
 import { NoteTemplateBuilder } from '../features/notes/NoteTemplateBuilder';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
+import { errorMessage } from '../../utils/errors';
 
 export function NoteTemplates() {
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
@@ -53,7 +54,7 @@ export function NoteTemplates() {
       showSnackbar('Template created successfully');
       return newTemplate;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create template';
+      const message = errorMessage(error, 'Failed to create template');
       showSnackbar(message, 'error');
       throw error;
     }
@@ -68,7 +69,7 @@ export function NoteTemplates() {
       showSnackbar('Template updated successfully');
       return updatedTemplate;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update template';
+      const message = errorMessage(error, 'Failed to update template');
       showSnackbar(message, 'error');
       throw error;
     }
@@ -79,7 +80,7 @@ export function NoteTemplates() {
       await deleteTemplate(templateId);
       showSnackbar('Template deleted successfully');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete template';
+      const message = errorMessage(error, 'Failed to delete template');
       showSnackbar(message, 'error');
       throw error;
     }

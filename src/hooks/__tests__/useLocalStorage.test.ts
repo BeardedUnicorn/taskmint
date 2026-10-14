@@ -263,3 +263,67 @@ describe('useLocalStorage', () => {
     expect(result.current[0]).toBe('migrated-value');
   });
 });
+
+describe('useLocalStorage as a shared store', () => {
+  const KEY = 'shared-key';
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('applies two functional updates in one tick (neither is lost)', () => {
+    const { result } = renderHook(() => useLocalStorage(KEY, 0));
+
+    act(() => {
+      result.current[1](n => n + 1);
+      result.current[1](n => n + 1);
+    });
+
+    expect(result.current[0]).toBe(2);
+  });
+
+  it('keeps every component using the key in sync', () => {
+    const first = renderHook(() => useLocalStorage(KEY, 'a'));
+    const second = renderHook(() => useLocalStorage(KEY, 'a'));
+
+    act(() => {
+      first.result.current[1]('b');
+    });
+
+    expect(second.result.current[0]).toBe('b');
+  });
+
+  it('has a setter that keeps its identity across renders', () => {
+    const { result, rerender } = renderHook(() => useLocalStorage(KEY, { n: 1 }));
+    const setter = result.current[1];
+
+    act(() => {
+      result.current[1]({ n: 2 });
+    });
+    rerender();
+
+    expect(result.current[1]).toBe(setter);
+  });
+
+  it('returns the same object between reads until the value changes', () => {
+    localStorage.setItem(KEY, JSON.stringify({ version: 1, data: { n: 1 } }));
+    const { result, rerender } = renderHook(() => useLocalStorage(KEY, { n: 0 }));
+    const firstRead = result.current[0];
+
+    rerender();
+
+    expect(result.current[0]).toBe(firstRead);
+  });
+
+  it('falls back to the initial value after the storage is cleared', () => {
+    const { result, rerender } = renderHook(() => useLocalStorage(KEY, 'initial'));
+    act(() => {
+      result.current[1]('saved');
+    });
+
+    localStorage.clear();
+    rerender();
+
+    expect(result.current[0]).toBe('initial');
+  });
+});

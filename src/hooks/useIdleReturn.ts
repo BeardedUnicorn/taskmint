@@ -12,6 +12,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { IdleChoice, IdlePause } from '../types/timer';
 import { isTauriEnvironment, safeInvoke, safeListen } from '../utils/tauri';
 import { sendIdleSettings, useEnhancedTimerSettings } from './useEnhancedTimerSettings';
+import { errorMessage } from '../utils/errors';
 
 export interface UseIdleReturnResult {
   /** The pending question, once the user is back; null otherwise. */
@@ -70,7 +71,7 @@ export function useIdleReturn(): UseIdleReturnResult {
       await invoke('resolve_idle_pause', { choice });
       setPending(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, "Couldn't apply that choice"));
     } finally {
       setIsResolving(false);
     }

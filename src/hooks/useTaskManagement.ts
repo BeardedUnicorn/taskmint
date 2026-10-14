@@ -39,7 +39,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'addTask',
-        errorHandler: () => showError('Failed to create task. Please try again.')
+        errorHandler: error => showError(error.message || 'Failed to create task.')
       }
     );
   }, [taskService, executeAsync, showSuccess, showError]);
@@ -81,7 +81,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'updateTask',
-        errorHandler: () => showError('Failed to update task. Please try again.')
+        errorHandler: error => showError(error.message || 'Failed to update task.')
       }
     );
   }, [taskService, executeAsync, showSuccess, showError]);
@@ -98,7 +98,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'archiveTask',
-        errorHandler: () => showError('Failed to archive task. Please try again.')
+        errorHandler: error => showError(error.message || 'Failed to archive task.')
       }
     );
   }, [taskService, executeAsync, showSuccess, showError]);
@@ -115,7 +115,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'unarchiveTask',
-        errorHandler: () => showError('Failed to unarchive task. Please try again.')
+        errorHandler: error => showError(error.message || 'Failed to unarchive task.')
       }
     );
   }, [taskService, executeAsync, showSuccess, showError]);
@@ -132,7 +132,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'toggleFavorite',
-        errorHandler: () => showError('Failed to update the favorite. Please try again.')
+        errorHandler: error => showError(error.message || 'Failed to update the favorite.')
       }
     );
   }, [tasks, taskService, executeAsync, showError]);
@@ -148,7 +148,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'deleteTask',
-        errorHandler: () => showError('Failed to delete task. Please try again.')
+        errorHandler: error => showError(error.message || 'Failed to delete task.')
       }
     );
   }, [taskService, executeAsync, tasks, showSuccess, showError]);

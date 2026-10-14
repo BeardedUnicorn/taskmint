@@ -8,13 +8,14 @@
  * later. Used once, in App; the sidebar shows the progress it returns.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDailyGoals } from './useDailyGoals';
 import { TaskSession, TimerState } from '../types/timer';
 import { Task } from '../types/task';
 import { earningsOnDate } from '../utils/earnings';
 import { formatDateString } from '../utils/dateHelpers';
 import { notifyDesktop } from '../utils/desktopNotification';
+import { formatCurrency } from '../utils/formatters';
 
 /** How often today's total refreshes while a timer runs. */
 const LIVE_TICK_MS = 10_000;
@@ -31,6 +32,60 @@ export interface DailyGoalProgressData {
   target: number;
   percent: number;
   currency: string;
+}
+
+/** Stored tier once the goal is beaten by a wide margin (older builds stored 101). */
+export const EXCEEDED_TIER = 125;
+
+export interface GoalMilestone {
+  tier: number;
+  title: string;
+  body: string;
+}
+
+/**
+ * The milestone to announce now, if any: the highest tier reached that is
+ * above the last one announced today. Jumping straight past several tiers
+ * sends only the highest (and reaching 100% and 125% at once sends only
+ * "achieved", so "crushed" doesn't follow a second later).
+ */
+export function nextGoalMilestone(
+  progress: Pick<DailyGoalProgressData, 'percent' | 'earned' | 'target' | 'currency'>,
+  lastNotifiedPercent: number
+): GoalMilestone | null {
+  const last = lastNotifiedPercent > 100 ? EXCEEDED_TIER : lastNotifiedPercent;
+  const { percent, earned, target, currency } = progress;
+  const money = (amount: number) => formatCurrency(amount, currency);
+
+  if (percent >= 100 && last < 100) {
+    return {
+      tier: percent >= EXCEEDED_TIER ? EXCEEDED_TIER : 100,
+      title: 'Goal Achieved!',
+      body: `Fantastic job! You've reached your daily target of ${money(target)}!`,
+    };
+  }
+  if (percent >= EXCEEDED_TIER && last < EXCEEDED_TIER) {
+    return {
+      tier: EXCEEDED_TIER,
+      title: 'Goal CRUSHED!',
+      body: `Amazing! You've exceeded your daily target by ${money(earned - target)}. You're on fire today!`,
+    };
+  }
+  if (percent >= 75 && percent < 100 && last < 75) {
+    return {
+      tier: 75,
+      title: "You're 75% there!",
+      body: `You've earned ${money(earned)} of your ${money(target)} daily target. Almost at your goal!`,
+    };
+  }
+  if (percent >= 50 && percent < 75 && last < 50) {
+    return {
+      tier: 50,
+      title: 'Halfway to your goal!',
+      body: `You've earned ${money(earned)} of your ${money(target)} daily target. Keep up the great work!`,
+    };
+  }
+  return null;
 }
 
 export function useDailyGoalProgressMonitor({
@@ -67,7 +122,10 @@ export function useDailyGoalProgressMonitor({
     };
   }, [sessions, tasks, today, nowMs, currentGoal]);
 
-  // Milestone notifications, as each one is crossed
+  // Milestone notifications, as each one is crossed. The tier being sent is
+  // remembered synchronously, so a re-run while the first send is still
+  // awaiting (the live tick, a session change) can't send it twice.
+  const sendingRef = useRef<string | null>(null);
   useEffect(() => {
     if (!currentGoal || !progress.enabled) return;
 
@@ -77,39 +135,20 @@ export function useDailyGoalProgressMonitor({
       return;
     }
 
-    const { percent, earned, target } = progress;
-    const notify = async () => {
+    const milestone = nextGoalMilestone(progress, currentGoal.lastNotifiedPercent);
+    if (!milestone) return;
+    const key = `${today}:${milestone.tier}`;
+    if (sendingRef.current === key) return;
+    sendingRef.current = key;
+
+    void (async () => {
       try {
-        if (percent >= 50 && currentGoal.lastNotifiedPercent < 50 && percent < 75) {
-          await notifyDesktop(
-            'Halfway to your goal!',
-            `You've earned $${earned.toFixed(2)} of your $${target.toFixed(2)} daily target. Keep up the great work!`
-          );
-          await updateNotificationState(50, today);
-        } else if (percent >= 75 && currentGoal.lastNotifiedPercent < 75 && percent < 100) {
-          await notifyDesktop(
-            "You're 75% there!",
-            `You've earned $${earned.toFixed(2)} of your $${target.toFixed(2)} daily target. Almost at your goal!`
-          );
-          await updateNotificationState(75, today);
-        } else if (percent >= 100 && currentGoal.lastNotifiedPercent < 100) {
-          await notifyDesktop(
-            'Goal Achieved!',
-            `Fantastic job! You've reached your daily target of $${target.toFixed(2)}!`
-          );
-          await updateNotificationState(100, today);
-        } else if (percent > 100 && currentGoal.lastNotifiedPercent === 100) {
-          await notifyDesktop(
-            'Goal CRUSHED!',
-            `Amazing! You've exceeded your daily target by $${(earned - target).toFixed(2)}. You're on fire today!`
-          );
-          await updateNotificationState(101, today);
-        }
+        await notifyDesktop(milestone.title, milestone.body);
+        await updateNotificationState(milestone.tier, today);
       } catch (error) {
-        console.error('Error checking notifications:', error);
+        console.error('Error sending the goal notification:', error);
       }
-    };
-    void notify();
+    })();
   }, [progress, currentGoal, today, updateNotificationState]);
 
   // Save today's target (again if it changes today), so later goal changes

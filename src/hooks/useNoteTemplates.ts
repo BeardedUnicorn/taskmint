@@ -1,18 +1,32 @@
 /**
  * Note Templates Hook
- * 
- * This hook provides state management and operations for note templates
- * including CRUD operations, validation, and template management.
+ *
+ * The note templates every page shares (Notes, the Templates tab, the task
+ * form, session notes), held once in NoteTemplatesProvider so a template
+ * saved in one place shows everywhere.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { NoteTemplate, UseNoteTemplatesReturn } from '../types/notes';
 import { NoteTemplateService } from '../services/NoteTemplateService';
 import { useAsyncError } from './useAsyncError';
+import { errorMessage } from '../utils/errors';
+
+export const NoteTemplatesContext = createContext<UseNoteTemplatesReturn | null>(null);
 
 export function useNoteTemplates(): UseNoteTemplatesReturn {
+  const context = useContext(NoteTemplatesContext);
+  if (!context) {
+    throw new Error('useNoteTemplates must be used within a NoteTemplatesProvider');
+  }
+  return context;
+}
+
+/** The templates state itself. Use once, in NoteTemplatesProvider. */
+export function useNoteTemplatesState(): UseNoteTemplatesReturn {
   const [templates, setTemplates] = useState<NoteTemplate[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Loading until the first load finishes ("not loaded yet" isn't "none")
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   const { executeAsync } = useAsyncError();
@@ -29,8 +43,7 @@ export function useNoteTemplates(): UseNoteTemplatesReturn {
       const loadedTemplates = await templateService.getAllTemplates();
       setTemplates(loadedTemplates);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load templates';
-      setError(errorMessage);
+      setError(errorMessage(err, 'Failed to load templates'));
       console.error('Failed to load templates:', err);
     } finally {
       setIsLoading(false);
@@ -125,7 +138,7 @@ export function useNoteTemplates(): UseNoteTemplatesReturn {
     loadTemplates();
   }, [loadTemplates]);
 
-  return {
+  return useMemo(() => ({
     templates,
     createTemplate,
     updateTemplate,
@@ -134,5 +147,5 @@ export function useNoteTemplates(): UseNoteTemplatesReturn {
     getActiveTemplates,
     isLoading,
     error,
-  };
+  }), [templates, createTemplate, updateTemplate, deleteTemplate, getTemplateById, getActiveTemplates, isLoading, error]);
 }

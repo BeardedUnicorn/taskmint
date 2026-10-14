@@ -59,7 +59,8 @@ export interface FormDialogProps {
 export interface ConfirmDialogProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  /** May return a promise: the dialog waits for it, closing when it resolves and staying open if it rejects. */
+  onConfirm: () => void | Promise<void>;
   onCancel?: () => void;
   title: string;
   message: string;

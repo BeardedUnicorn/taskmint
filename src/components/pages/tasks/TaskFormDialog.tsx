@@ -16,6 +16,7 @@ import {
 import { Task } from '../../../types/task';
 import { CurrencyInput } from '../../ui';
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
+import { errorMessage } from '../../../utils/errors';
 
 interface TaskFormDialogProps {
   open: boolean;
@@ -42,6 +43,8 @@ export function TaskFormDialog({
   const [hourlyRate, setHourlyRate] = useState('');
   const [defaultNoteTemplateId, setDefaultNoteTemplateId] = useState<string>('');
   const [errors, setErrors] = useState<{ taskName?: string; hourlyRate?: string }>({});
+  // Disables Save while the task is written, so a double click can't add it twice
+  const [submitting, setSubmitting] = useState(false);
 
   const { getActiveTemplates, isLoading: templatesLoading } = useNoteTemplates();
   const activeTemplates = getActiveTemplates();
@@ -85,11 +88,12 @@ export function TaskFormDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (submitting || !validateForm()) return;
 
     const hourlyRateValue = hourlyRate.trim() ? parseFloat(hourlyRate) : undefined;
     const templateId = defaultNoteTemplateId || null;
 
+    setSubmitting(true);
     try {
       const result = await onSubmit({
         name: taskName.trim(),
@@ -102,6 +106,12 @@ export function TaskFormDialog({
       }
     } catch (error) {
       console.error('Failed to submit task:', error);
+      // A taken name belongs next to the name field (it's also in the toast)
+      if ((error as { code?: string } | null)?.code === 'TASK_DUPLICATE_NAME') {
+        setErrors({ taskName: errorMessage(error, 'A task with this name already exists') });
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -184,7 +194,12 @@ export function TaskFormDialog({
           <Button onClick={handleClose} color="secondary">
             Cancel
           </Button>
-          <Button type="submit" variant="contained" color="primary" disabled={!taskName.trim()}>
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            disabled={!taskName.trim() || submitting}
+          >
             {submitLabel}
           </Button>
         </DialogActions>

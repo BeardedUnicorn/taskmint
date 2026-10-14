@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -39,6 +40,19 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
     performManualBackup,
     getStatusSummary,
   } = useBackupSettingsContext();
+
+  // Typed freely, saved (clamped to 1–100) when the field is left; clearing
+  // it no longer snaps straight to 10 mid-edit.
+  const [maxBackupsText, setMaxBackupsText] = useState(String(backupConfig.maxBackups));
+  useEffect(() => {
+    setMaxBackupsText(String(backupConfig.maxBackups));
+  }, [backupConfig.maxBackups]);
+  const commitMaxBackups = () => {
+    const parsed = parseInt(maxBackupsText, 10);
+    const clamped = Number.isNaN(parsed) ? backupConfig.maxBackups : Math.min(100, Math.max(1, parsed));
+    setMaxBackupsText(String(clamped));
+    if (clamped !== backupConfig.maxBackups) updateMaxBackups(clamped);
+  };
 
   const backupFrequencies: BackupFrequency[] = ['daily', 'weekly', 'monthly'];
 
@@ -145,8 +159,12 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
           <TextField
             label="Maximum Backups to Keep"
             type="number"
-            value={backupConfig.maxBackups}
-            onChange={(e) => updateMaxBackups(parseInt(e.target.value) || 10)}
+            value={maxBackupsText}
+            onChange={(e) => setMaxBackupsText(e.target.value)}
+            onBlur={commitMaxBackups}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitMaxBackups();
+            }}
             size="small"
             sx={{ maxWidth: 250 }}
             helperText="Older backups will be automatically deleted"

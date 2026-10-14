@@ -34,6 +34,7 @@ import {
 import { NoteTemplateBuilderProps, NoteTemplate, TemplateField } from '../../../types/notes';
 import { FieldEditor } from './FieldEditor';
 import { ConfirmDialog } from '../../ui';
+import { errorMessage } from '../../../utils/errors';
 
 export function NoteTemplateBuilder({
   templates,
@@ -101,7 +102,7 @@ export function NoteTemplateBuilder({
       
       setIsEditing(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save template';
+      const message = errorMessage(error, 'Failed to save template');
       showSnackbar(message, 'error');
     }
   }, [
@@ -123,7 +124,7 @@ export function NoteTemplateBuilder({
       }
       showSnackbar('Template deleted successfully');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete template';
+      const message = errorMessage(error, 'Failed to delete template');
       showSnackbar(message, 'error');
     }
     setDeleteConfirm(null);
@@ -134,7 +135,7 @@ export function NoteTemplateBuilder({
       await onUpdateTemplate(template.id, { isActive: !template.isActive });
       showSnackbar(`Template ${template.isActive ? 'deactivated' : 'activated'} successfully`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update template';
+      const message = errorMessage(error, 'Failed to update template');
       showSnackbar(message, 'error');
     }
   }, [onUpdateTemplate, showSnackbar]);
@@ -388,7 +389,7 @@ export function NoteTemplateBuilder({
       <ConfirmDialog
         open={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        onConfirm={() => deleteConfirm && handleDeleteTemplate(deleteConfirm)}
+        onConfirm={() => (deleteConfirm ? handleDeleteTemplate(deleteConfirm) : undefined)}
         title="Delete Template"
         message="Are you sure you want to delete this template? This action cannot be undone and will affect any existing notes using this template."
         confirmLabel="Delete"

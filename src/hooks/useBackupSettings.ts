@@ -5,7 +5,7 @@
  * backup path selection, and backup status monitoring.
  */
 
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useDataBackup } from './useDataBackup';
 import {
@@ -19,6 +19,7 @@ import {
 } from '../types/backup';
 import { invoke } from '@tauri-apps/api/core';
 import { isTauriEnvironment } from '../utils/tauri';
+import { errorMessage } from '../utils/errors';
 
 export const BACKUP_CONFIG_KEY = 'automaticBackupConfig';
 export const DEFAULT_BACKUP_FOLDER_NAME = 'TaskMint Backups';
@@ -49,21 +50,18 @@ export function useBackupSettings() {
     DEFAULT_BACKUP_CONFIG
   );
 
-  // Backups on by default (see firstRunBackupConfig). Once, on mount: the
-  // setter changes identity every render.
-  const setConfigRef = useRef(setConfig);
-  setConfigRef.current = setConfig;
+  // Backups on by default (see firstRunBackupConfig), once on mount.
   useEffect(() => {
     let cancelled = false;
     firstRunBackupConfig()
       .then(initial => {
-        if (initial && !cancelled) setConfigRef.current(initial);
+        if (initial && !cancelled) setConfig(initial);
       })
       .catch(error => console.error('Failed to set up automatic backups:', error));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setConfig]);
 
   const [status, setStatus] = useState<BackupStatus>({
     isRunning: false,
@@ -107,9 +105,9 @@ export function useBackupSettings() {
       return selected as string | null;
     } catch (error) {
       // Propagate specific error message from Tauri dialog
-      const errorMessage = error instanceof Error ? error.message : 'Failed to open directory selection dialog';
+      const message = errorMessage(error, 'Failed to open directory selection dialog');
       console.error('Failed to open directory dialog:', error);
-      showError(`Directory selection failed: ${errorMessage}`);
+      showError(`Directory selection failed: ${message}`);
       return null;
     }
   }, [showError]);
@@ -152,20 +150,18 @@ export function useBackupSettings() {
       });
       return result;
     } catch (error) {
-      // If the Tauri command doesn't exist or fails, do basic validation
-      const errorMessage = error instanceof Error ? error.message : 'Failed to validate backup path';
-      return { isValid: false, error: errorMessage };
+      return { isValid: false, error: errorMessage(error, 'Failed to validate backup path') };
     }
   }, []);
 
   // Perform manual backup
   const performManualBackup = useCallback(async (): Promise<BackupResult> => {
     if (!config.backupPath) {
-      const errorMessage = 'No backup directory selected';
-      showError(errorMessage);
+      const message = 'No backup directory selected';
+      showError(message);
       return {
         success: false,
-        error: errorMessage,
+        error: message,
         timestamp: new Date().toISOString(),
       };
     }
@@ -173,11 +169,11 @@ export function useBackupSettings() {
     // Validate backup path before proceeding
     const validation = await validateBackupPath(config.backupPath);
     if (!validation.isValid) {
-      const errorMessage = validation.error || 'Invalid backup directory';
-      showError(`Backup path validation failed: ${errorMessage}`);
+      const message = validation.error || 'Invalid backup directory';
+      showError(`Backup path validation failed: ${message}`);
       return {
         success: false,
-        error: errorMessage,
+        error: message,
         timestamp: new Date().toISOString(),
       };
     }
@@ -228,21 +224,21 @@ export function useBackupSettings() {
       return result;
     } catch (error) {
       // Extract specific error message from Tauri invoke call
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred during backup';
+      const message = errorMessage(error, 'Unknown error occurred during backup');
 
       setStatus(prev => ({
         ...prev,
         isRunning: false,
         lastBackupSuccess: false,
-        lastBackupError: errorMessage,
+        lastBackupError: message,
       }));
 
       // Show specific error message to user
-      showError(`Backup failed: ${errorMessage}`);
+      showError(`Backup failed: ${message}`);
 
       return {
         success: false,
-        error: errorMessage,
+        error: message,
         timestamp: new Date().toISOString(),
       };
     }

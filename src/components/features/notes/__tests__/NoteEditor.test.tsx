@@ -4,7 +4,12 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { NoteTemplatesProvider } from '../../../../contexts/NoteTemplatesContext';
+
+// NoteEditor reads the shared templates
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: NoteTemplatesProvider });
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate, TaskNote } from '../../../../types/notes';
 import { invoke } from '@tauri-apps/api/core';
@@ -425,5 +430,40 @@ describe('NoteEditor', () => {
     expect(screen.getByLabelText('Note Content')).toBe(field);
     expect(field).toHaveValue('first thoughts');
     expect(screen.queryByLabelText('Select Template')).not.toBeInTheDocument();
+  });
+
+  it("doesn't auto-save a cleared note over its saved content", async () => {
+    const onUpdateNote = vi.fn().mockResolvedValue({});
+    const existingNote: TaskNote = {
+      id: 'note1',
+      taskId: 'task1',
+      templateId: 'template1',
+      templateName: 'Test Template',
+      fieldValues: { field1: 'Important text', field2: 3 },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        existingNote={existingNote}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={onUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        noteLevel="task"
+      />
+    );
+    await waitFor(() => expect(screen.getByLabelText('Text Field')).toHaveValue('Important text'));
+
+    fireEvent.click(screen.getByRole('button', { name: /clear/i }));
+    expect(screen.getByLabelText('Text Field')).toHaveValue('');
+
+    // Well past the 1s auto-save delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    expect(onUpdateNote).not.toHaveBeenCalled();
   });
 });

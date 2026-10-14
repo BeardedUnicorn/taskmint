@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { NoteTemplatesProvider } from '../../../../contexts/NoteTemplatesContext';
+
+// NoteEditor reads the shared templates
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: NoteTemplatesProvider });
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate, TaskNote } from '../../../../types/notes';
 
