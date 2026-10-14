@@ -114,6 +114,43 @@ describe('ImportWorkLogsDialog', () => {
     expect(screen.getByRole('button', { name: /apply import/i })).toBeDisabled();
   });
 
+  it('asks for a task for a referral bonus instead of skipping it', async () => {
+    const referralPayload = JSON.stringify({
+      workLogs: [
+        {
+          type: 'ReferralWorkLog',
+          id: 'ref-1',
+          amountInCents: 10000,
+          createdAt: CREATED_AT,
+          status: 'Pending Approval',
+        },
+      ],
+    });
+    const referrals = createMockTask({ id: 'task-ref', name: 'Referrals' });
+    const { props } = renderDialog({ tasks: [referrals] });
+    pasteText(referralPayload);
+
+    expect(screen.queryByText(/could not be read/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/match site projects to tasks/i)).toBeInTheDocument();
+    expect(screen.getByText('Referral bonus')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /apply import/i })).toBeDisabled();
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Referrals' } });
+    fireEvent.click(await screen.findByRole('option', { name: 'Referrals' }));
+    expect(screen.getByText('$100.00')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
+    await waitFor(() => expect(props.onApply).toHaveBeenCalledTimes(1));
+    const payload = props.onApply.mock.calls[0][0] as WorkLogImportPayload;
+    expect(payload.entries).toEqual([
+      expect.objectContaining({ id: 'ref-1', kind: 'workLog', taskId: 'task-ref', amountCents: 10000 }),
+    ]);
+    expect(payload.mappings).toEqual([
+      expect.objectContaining({ projectId: 'site-type:ReferralWorkLog', taskId: 'task-ref' }),
+    ]);
+    expect(payload.rewriteGroups).toEqual([]);
+  });
+
   it('shows backend skip reasons in the result view', async () => {
     const summary: WorkLogImportSummary = {
       ...emptySummary,

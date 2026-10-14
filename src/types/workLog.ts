@@ -19,11 +19,28 @@ export const WORKLOG_IMPORT_SOURCE = 'worklog-import';
 // zod v4 objects strip unknown keys by default, which gives the required
 // tolerance for the site's extra fields (type, hasHourlyPrice, isDeleted,
 // hasUnpaidWorkLogs, requiresAdminApproval, editableBySurger, taskIdShort, …).
+// Work logs are the exception for `type`: some (referral bonuses) carry money
+// but no project, and their type stands in for one.
 
 export const SiteProjectSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
 });
+export type SiteProject = z.infer<typeof SiteProjectSchema>;
+
+/** Names for the project-less work-log types; others show their raw type. */
+const UNASSIGNED_WORK_LOG_NAMES: Record<string, string> = {
+  ReferralWorkLog: 'Referral bonus',
+};
+
+/**
+ * The stand-in project for a work log that has none (a referral bonus), keyed
+ * by the site's record type so its task mapping is stored and reused like any
+ * project's. The `site-type:` prefix keeps it clear of the site's uuid ids.
+ */
+export function unassignedWorkLogProject(type: string): SiteProject {
+  return { id: `site-type:${type}`, name: UNASSIGNED_WORK_LOG_NAMES[type] ?? type };
+}
 
 export const SiteTimedWorkEntrySchema = z.object({
   id: z.string().min(1),
@@ -36,13 +53,24 @@ export const SiteTimedWorkEntrySchema = z.object({
 });
 export type SiteTimedWorkEntry = z.infer<typeof SiteTimedWorkEntrySchema>;
 
-export const SiteWorkLogSchema = z.object({
-  id: z.string().min(1),
-  createdAt: z.iso.datetime({ offset: true }),
-  status: z.string().default(''),
-  amountInCents: z.number(),
-  project: SiteProjectSchema,
-});
+export const SiteWorkLogSchema = z
+  .object({
+    id: z.string().min(1),
+    type: z.string().optional(),
+    createdAt: z.iso.datetime({ offset: true }),
+    status: z.string().default(''),
+    amountInCents: z.number(),
+    project: SiteProjectSchema.optional(),
+  })
+  .refine(log => log.project !== undefined || Boolean(log.type?.trim()), {
+    message: 'A work log needs a project or a type',
+    path: ['project'],
+  })
+  .transform(({ type, project, ...log }) => ({
+    ...log,
+    // The refine guarantees a type whenever the project is missing.
+    project: project ?? unassignedWorkLogProject(type!.trim()),
+  }));
 export type SiteWorkLog = z.infer<typeof SiteWorkLogSchema>;
 
 // ============================================================================
