@@ -9,6 +9,7 @@ import { TaskNote, TaskNoteSchema, NoteTemplate } from '../types/notes';
 import { StorageService } from './StorageService';
 import { NoteTemplateService } from './NoteTemplateService';
 import { validateWithSchema } from '../utils/validation';
+import { validateFieldValues } from '../utils/noteFields';
 import { createServiceErrorHandler } from '../utils/errorHandler';
 
 export class TaskNotesService {
@@ -222,69 +223,9 @@ export class TaskNotesService {
     errors: Record<string, string>;
     warnings: Record<string, string>;
   } {
-    const errors: Record<string, string> = {};
+    // The editor applies the same rules (utils/noteFields)
+    const errors = validateFieldValues(template.fields, fieldValues);
     const warnings: Record<string, string> = {};
-
-    // Check required fields
-    template.fields.forEach(field => {
-      const value = fieldValues[field.id];
-      
-      if (field.required && (value === undefined || value === null || value === '')) {
-        errors[field.id] = `${field.label} is required`;
-      }
-
-      // Type-specific validation
-      if (value !== undefined && value !== null && value !== '') {
-        switch (field.type) {
-          case 'number':
-            if (isNaN(Number(value))) {
-              errors[field.id] = `${field.label} must be a valid number`;
-            } else {
-              const numValue = Number(value);
-              if (field.validation?.min !== undefined && numValue < field.validation.min) {
-                errors[field.id] = `${field.label} must be at least ${field.validation.min}`;
-              }
-              if (field.validation?.max !== undefined && numValue > field.validation.max) {
-                errors[field.id] = `${field.label} must be at most ${field.validation.max}`;
-              }
-            }
-            break;
-          case 'date':
-            if (!(value instanceof Date) && isNaN(Date.parse(value))) {
-              errors[field.id] = `${field.label} must be a valid date`;
-            }
-            break;
-          case 'text':
-            if (typeof value !== 'string') {
-              errors[field.id] = `${field.label} must be text`;
-            } else {
-              if (field.validation?.min !== undefined && value.length < field.validation.min) {
-                errors[field.id] = `${field.label} must be at least ${field.validation.min} characters`;
-              }
-              if (field.validation?.max !== undefined && value.length > field.validation.max) {
-                errors[field.id] = `${field.label} must be at most ${field.validation.max} characters`;
-              }
-              if (field.validation?.pattern && !new RegExp(field.validation.pattern).test(value)) {
-                errors[field.id] = `${field.label} format is invalid`;
-              }
-            }
-            break;
-          case 'checkbox':
-            if (typeof value !== 'boolean') {
-              errors[field.id] = `${field.label} must be a boolean`;
-            }
-            break;
-          case 'select':
-            if (
-              typeof value !== 'string' ||
-              !field.options?.some(option => option.value === value)
-            ) {
-              errors[field.id] = `${field.label} must be one of the available options`;
-            }
-            break;
-        }
-      }
-    });
 
     // Check for orphaned field values (fields that don't exist in template)
     Object.keys(fieldValues).forEach(fieldId => {

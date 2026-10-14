@@ -100,22 +100,10 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
       filtered = filtered.filter((note: TaskNote) => note.templateId === selectedTemplateFilter);
     }
 
-    // Separate active and archived notes
-    const activeNotes = filtered.filter((note: TaskNote) => !note.isArchived);
-    const archivedNotes = filtered.filter((note: TaskNote) => note.isArchived);
-
-    // Sort both by most recent first
-    const sortedActive = [...activeNotes].sort((a: TaskNote, b: TaskNote) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
-    
-    const sortedArchived = [...archivedNotes].sort((a: TaskNote, b: TaskNote) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
-
+    // Active and archived apart (NotesList sorts each)
     return {
-      filteredActiveNotes: sortedActive,
-      filteredArchivedNotes: sortedArchived,
+      filteredActiveNotes: filtered.filter((note: TaskNote) => !note.isArchived),
+      filteredArchivedNotes: filtered.filter((note: TaskNote) => note.isArchived),
     };
   }, [notes, searchQuery, selectedTaskFilter, selectedTemplateFilter, searchNotes]);
 
@@ -371,12 +359,10 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                     {/* Active Notes */}
                     {filteredActiveNotes.length > 0 && (
                       <NotesList
-                        taskId="" // Empty string since we're showing notes from all tasks
                         taskNames={taskNames}
                         notes={filteredActiveNotes}
                         onEditNote={handleEditNote}
                         onDeleteNote={handleDeleteNote}
-                        onCreateNote={handleCreateNote}
                         onArchiveNote={archiveNote}
                         onUnarchiveNote={unarchiveNote}
                       />
@@ -385,16 +371,12 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                     {/* Archived Notes Section */}
                     {filteredArchivedNotes.length > 0 && (
                       <Box sx={{ mt: 4 }}>
-                        <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary' }}>
-                          Archived Notes ({filteredArchivedNotes.length})
-                        </Typography>
                         <NotesList
-                          taskId="" // Empty string since we're showing notes from all tasks
+                          title="Archived"
                           taskNames={taskNames}
                           notes={filteredArchivedNotes}
                           onEditNote={handleEditNote}
                           onDeleteNote={handleDeleteNote}
-                          onCreateNote={handleCreateNote}
                           onArchiveNote={archiveNote}
                           onUnarchiveNote={unarchiveNote}
                         />

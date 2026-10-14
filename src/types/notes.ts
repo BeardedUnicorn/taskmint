@@ -159,16 +159,18 @@ export interface NoteEditorProps {
 }
 
 export interface NotesListProps {
-  taskId: string;
+  /** Already searched and filtered by the caller. */
   notes: TaskNote[];
+  /** The heading ("Notes", "Archived"); the count follows it. */
+  title?: string;
   /** Task names by id; when given, each note shows its task. */
   taskNames?: Record<string, string>;
   onEditNote: (note: TaskNote) => void;
   onDeleteNote: (noteId: string) => void;
-  onCreateNote: () => void;
+  /** An Add Note button, where the list is the place to add from. */
+  onCreateNote?: () => void;
   onArchiveNote?: (noteId: string) => void;
   onUnarchiveNote?: (noteId: string) => void;
-  searchQuery?: string;
 }
 
 export interface FieldEditorProps {
