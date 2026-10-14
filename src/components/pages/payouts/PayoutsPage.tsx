@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
 import {
   AccountBalanceWallet as WalletIcon,
   Schedule as ScheduleIcon,
@@ -25,11 +25,14 @@ import { CaptureServerStatus, WorkLogImportPayload } from '../../../types/workLo
 import { centsToDollars } from '../../../utils/payoutCalculator';
 import { formatCurrency } from '../../../utils/formatters';
 import { StatsCard } from '../../ui/display/StatsCard';
+import { EmptyState } from '../../ui/display/EmptyState';
+import { PageContainer, PageHeader } from '../../layout/PageLayout';
 import { ImportWorkLogsDialog } from './ImportWorkLogsDialog';
 import { ProjectMappingsCard } from './ProjectMappingsCard';
 import { ReconciliationTable } from './ReconciliationTable';
 import { ReleaseScheduleTable } from './ReleaseScheduleTable';
 import { usePayoutData } from './usePayoutData';
+import { formatShortDateTime } from '../../../utils/locale';
 
 export function PayoutsPage() {
   const { sessions } = useSessionManagementContext();
@@ -63,50 +66,26 @@ export function PayoutsPage() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          mb: 3,
-          gap: 2,
-          flexWrap: 'wrap',
-        }}
+    <PageContainer>
+      <PageHeader
+        title="Payouts"
+        subtitle={`Money earned on a day becomes available ${fundsReleaseDays} day${
+          fundsReleaseDays === 1 ? '' : 's'
+        } later. Imported site amounts are authoritative; other days are estimated from tracked time.`}
+        actions={
+          <Button variant="contained" startIcon={<UploadIcon />} onClick={() => setImportOpen(true)}>
+            Import work logs
+          </Button>
+        }
       >
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 600 }}>
-            Payouts
+        {lastImport !== null && (
+          <Typography variant="body2" sx={{ mt: 0.5, color: importIsStale ? 'warning.main' : 'text.secondary' }}>
+            Last import:{' '}
+            {formatShortDateTime(lastImport)}
+            {importIsStale && ' — visit the payments page to refresh'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Money earned on a day becomes available {fundsReleaseDays} day
-            {fundsReleaseDays === 1 ? '' : 's'} later. Imported site amounts are
-            authoritative; other days are estimated from tracked time.
-          </Typography>
-          {lastImport !== null && (
-            <Typography
-              variant="body2"
-              sx={{ mt: 0.5, color: importIsStale ? 'warning.main' : 'text.secondary' }}
-            >
-              Last import:{' '}
-              {new Date(lastImport).toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })}
-              {importIsStale && ' — visit the payments page to refresh'}
-            </Typography>
-          )}
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<UploadIcon />}
-          onClick={() => setImportOpen(true)}
-        >
-          Import work logs
-        </Button>
-      </Box>
+        )}
+      </PageHeader>
 
       {workLogs.stagedCapture && (
         <Alert
@@ -152,18 +131,16 @@ export function PayoutsPage() {
           <CircularProgress />
         </Box>
       ) : isEmpty ? (
-        <Paper sx={{ p: 6, textAlign: 'center' }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            No payout data yet
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Track time on a task with an hourly rate to see estimates, or paste the
-            payment site's JSON to import your reported work.
-          </Typography>
-          <Button variant="contained" startIcon={<UploadIcon />} onClick={() => setImportOpen(true)}>
-            Import work logs
-          </Button>
-        </Paper>
+        <EmptyState
+          icon={<WalletIcon />}
+          title="No payout data yet"
+          description="Track time on a task with an hourly rate to see estimates, or import your reported work from the payment site."
+          action={
+            <Button variant="contained" startIcon={<UploadIcon />} onClick={() => setImportOpen(true)}>
+              Import work logs
+            </Button>
+          }
+        />
       ) : (
         <>
           <Box
@@ -228,6 +205,6 @@ export function PayoutsPage() {
         onCreateTask={handleCreateTask}
         onUpdateTaskRate={(taskId, rate) => updateTask(taskId, { hourlyRate: rate })}
       />
-    </Box>
+    </PageContainer>
   );
 }

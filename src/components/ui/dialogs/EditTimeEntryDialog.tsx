@@ -14,6 +14,7 @@ import {
   MS_PER_HOUR,
   MS_PER_MINUTE,
 } from '../forms/DurationFields';
+import { formatDateTime } from '../../../utils/locale';
 
 const NO_SESSIONS: never[] = [];
 
@@ -154,7 +155,7 @@ export function EditTimeEntryDialog({
 
         {entry?.startTime && (
           <Typography variant="caption" color="text.secondary">
-            Started {new Date(entry.startTime).toLocaleString()} — the start
+            Started {formatDateTime(entry.startTime)} — the start
             time stays as recorded.
           </Typography>
         )}

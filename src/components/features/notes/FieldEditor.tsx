@@ -22,6 +22,7 @@ import {
   Stack,
   Divider,
   Button,
+  Tooltip,
 } from '@mui/material';
 import {
   DragIndicator as DragIcon,
@@ -176,37 +177,46 @@ export function FieldEditor({
 
         {/* Field Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton
-            size="small"
-            onClick={() => onMoveField(localField.id, 'up')}
-            disabled={isFirst}
-            title="Move Up"
-          >
-            <UpIcon />
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={() => onMoveField(localField.id, 'down')}
-            disabled={isLast}
-            title="Move Down"
-          >
-            <DownIcon />
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={() => setExpanded(!expanded)}
-            title={expanded ? 'Collapse' : 'Expand'}
-          >
-            {expanded ? <CollapseIcon /> : <ExpandIcon />}
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={() => onDeleteField(localField.id)}
-            color="error"
-            title="Delete Field"
-          >
-            <DeleteIcon />
-          </IconButton>
+          {/* (A disabled button gets no hover events: the span carries the tooltip) */}
+          <Tooltip title="Move Up">
+            <span>
+              <IconButton
+                size="small"
+                aria-label="Move Up"
+                onClick={() => onMoveField(localField.id, 'up')}
+                disabled={isFirst}
+              >
+                <UpIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Move Down">
+            <span>
+              <IconButton
+                size="small"
+                aria-label="Move Down"
+                onClick={() => onMoveField(localField.id, 'down')}
+                disabled={isLast}
+              >
+                <DownIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title={expanded ? 'Collapse' : 'Expand'}>
+            <IconButton
+              size="small"
+              aria-label={expanded ? 'Collapse' : 'Expand'}
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? <CollapseIcon /> : <ExpandIcon />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Delete Field">
+            <IconButton size="small" aria-label="Delete Field" onClick={() => onDeleteField(localField.id)} color="error">
+              <DeleteIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 

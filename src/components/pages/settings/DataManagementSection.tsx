@@ -127,15 +127,11 @@ export function DataManagementSection() {
         </Button>
       </Stack>
 
-      <Alert severity="info" sx={{ mt: 2 }}>
-        <Typography variant="body2">
-          <strong>Export:</strong> Saves your tasks, sessions and tracked time, imported work logs,
-          notes, note templates and goals to a JSON file.
-          <br />
-          <strong>Import:</strong> Adds anything from an export file that isn&apos;t already here;
-          existing data is kept. The app reloads afterwards.
-        </Typography>
-      </Alert>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+        Export saves your tasks, sessions and tracked time, imported work logs, notes, note
+        templates and goals to a JSON file. Import adds anything from an export file that
+        isn&apos;t already here, keeping what you have; the app reloads afterwards.
+      </Typography>
 
       <Divider sx={{ my: 3 }} />
 

@@ -23,6 +23,7 @@ import {
 import {
   Download as DownloadIcon,
   MoreTime as AddTimeIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { TimeEntry } from '../../../types/timer';
 import { Task } from '../../../types/task';
@@ -47,6 +48,8 @@ import { useDailyGoals } from '../../../hooks/useDailyGoals';
 import { GoalAchievementsTable } from '../../ui/tables/GoalAchievementsTable';
 import { HistorySummary } from './HistorySummary';
 import { HistoryCharts } from './HistoryCharts';
+import { PageContainer, PageHeader } from '../../layout/PageLayout';
+import { EmptyState } from '../../ui/display/EmptyState';
 
 /** The range History opens on until you choose another. */
 const DEFAULT_DATE_PRESET: DateRangePreset = 'last7';
@@ -197,34 +200,28 @@ export function HistoryPage({
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Page Header */}
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-            History
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Everything you've tracked, added and imported, with totals and charts
-          </Typography>
-        </Box>
-
-        <Stack direction="row" spacing={2}>
-          {onAddTime && (
-            <Button variant="contained" startIcon={<AddTimeIcon />} onClick={onAddTime}>
-              Add time
+    <PageContainer>
+      <PageHeader
+        title="History"
+        subtitle="Everything you've tracked, added and imported, with totals and charts"
+        actions={
+          <>
+            {onAddTime && (
+              <Button variant="contained" startIcon={<AddTimeIcon />} onClick={onAddTime}>
+                Add time
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={handleExport}
+              disabled={finishedEntries.length === 0 || isExporting}
+            >
+              Export CSV ({finishedEntries.length})
             </Button>
-          )}
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={handleExport}
-            disabled={finishedEntries.length === 0 || isExporting}
-          >
-            Export CSV ({finishedEntries.length})
-          </Button>
-        </Stack>
-      </Stack>
+          </>
+        }
+      />
 
       {/* Filters */}
       <TimeEntriesFilters
@@ -240,62 +237,81 @@ export function HistoryPage({
       <HistorySummary entries={finishedEntries} tasks={tasks} />
       <HistoryCharts entries={finishedEntries} tasks={tasks} />
 
-      {/* Results Summary */}
-      <Stack
-        direction="row"
-        sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}
-      >
-        <Typography variant="body2" color="text.secondary">
-          {filteredEntries.length === 0
-            ? 'No entries'
-            : `Showing ${startIndex + 1}-${Math.min(endIndex, filteredEntries.length)} of ${filteredEntries.length} ${filteredEntries.length === 1 ? 'entry' : 'entries'}`}
-          {filteredEntries.length !== timeEntries.length && (
-            <> (filtered from {timeEntries.length} total)</>
-          )}
-        </Typography>
-
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>Per page</InputLabel>
-          <Select
-            value={entriesPerPage}
-            label="Per page"
-            onChange={handleEntriesPerPageChange}
+      {filteredEntries.length === 0 ? (
+        <EmptyState
+          icon={<HistoryIcon />}
+          title={timeEntries.length === 0 ? 'Nothing tracked yet' : 'No entries match'}
+          description={
+            timeEntries.length === 0
+              ? 'Time you track, add or import shows up here.'
+              : 'Try another date range, or clear the filters.'
+          }
+          action={
+            timeEntries.length > 0 && (
+              <Button variant="outlined" onClick={handleClearFilters}>
+                Clear filters
+              </Button>
+            )
+          }
+        />
+      ) : (
+        <>
+          {/* Results Summary */}
+          <Stack
+            direction="row"
+            sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}
           >
-            {ENTRIES_PER_PAGE_OPTIONS.map(option => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Stack>
+            <Typography variant="body2" color="text.secondary">
+              {`Showing ${startIndex + 1}-${Math.min(endIndex, filteredEntries.length)} of ${filteredEntries.length} ${filteredEntries.length === 1 ? 'entry' : 'entries'}`}
+              {filteredEntries.length !== timeEntries.length && (
+                <> (filtered from {timeEntries.length} total)</>
+              )}
+            </Typography>
 
-      {/* Time Entries Table */}
-      <TimeEntriesTable
-        entries={paginatedEntries}
-        tasks={tasks}
-        onEdit={handleEditEntry}
-        onDelete={onDeleteEntry}
-        sortField={sortField}
-        sortDirection={sortDirection}
-        onSort={handleSort}
-        showEarnings={true}
-        showNotes={false}
-        maxHeight={600}
-      />
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Per page</InputLabel>
+              <Select
+                value={entriesPerPage}
+                label="Per page"
+                onChange={handleEntriesPerPageChange}
+              >
+                {ENTRIES_PER_PAGE_OPTIONS.map(option => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-          <Pagination
-            count={totalPages}
-            page={currentPage}
-            onChange={handlePageChange}
-            color="primary"
-            showFirstButton
-            showLastButton
+          {/* Time Entries Table */}
+          <TimeEntriesTable
+            entries={paginatedEntries}
+            tasks={tasks}
+            onEdit={handleEditEntry}
+            onDelete={onDeleteEntry}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            showEarnings={true}
+            showNotes={false}
+            maxHeight={600}
           />
-        </Box>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+              <Pagination
+                count={totalPages}
+                page={currentPage}
+                onChange={handlePageChange}
+                color="primary"
+                showFirstButton
+                showLastButton
+              />
+            </Box>
+          )}
+        </>
       )}
 
       {/* Daily goal results over the range */}
@@ -331,6 +347,6 @@ export function HistoryPage({
 
 
 
-    </Box>
+    </PageContainer>
   );
 }

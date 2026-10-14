@@ -10,7 +10,6 @@ import {
   Button,
   Divider,
   Chip,
-  Alert,
   Tooltip,
 } from '@mui/material';
 import {
@@ -19,8 +18,10 @@ import {
   Delete as DeleteIcon,
   Archive as ArchiveIcon,
   Unarchive as UnarchiveIcon,
+  Assignment as TaskIcon,
 } from '@mui/icons-material';
 import { Task } from '../../../types/task';
+import { EmptyState } from '../../ui/display/EmptyState';
 import { formatCurrency } from '../../../utils/formatters';
 import { SearchListHeader } from '../../ui';
 
@@ -208,21 +209,11 @@ export function TaskListPane({
       {/* Task List */}
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         {filteredTasks.length === 0 ? (
-          <Box sx={{ p: 3 }}>
-            {tasks.length === 0 ? (
-              <Alert severity="info">
-                <Typography variant="body2">
-                  No tasks created yet. Click "Add Task" to get started!
-                </Typography>
-              </Alert>
-            ) : (
-              <Alert severity="info">
-                <Typography variant="body2">
-                  No tasks match your search criteria.
-                </Typography>
-              </Alert>
-            )}
-          </Box>
+          tasks.length === 0 ? (
+            <EmptyState plain icon={<TaskIcon />} title="No tasks created yet" description="Add one to start tracking time." />
+          ) : (
+            <EmptyState plain title="No tasks match your search criteria" description="Try another search." />
+          )
         ) : (
           <List sx={{ py: 0 }}>
             {activeTasks.map((task, index) =>

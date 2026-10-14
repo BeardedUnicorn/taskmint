@@ -38,6 +38,8 @@ export interface CurrencyInputProps {
   max?: number;
   step?: number;
   sx?: SxProps<Theme>;
+  onBlur?: () => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 // Dialog Types

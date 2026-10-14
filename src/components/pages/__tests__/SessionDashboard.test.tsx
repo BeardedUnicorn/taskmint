@@ -228,7 +228,7 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      expect(screen.getByRole('progressbar', { hidden: true })).toBeInTheDocument();
+      expect(screen.getByLabelText('Loading sessions')).toHaveAttribute('aria-busy', 'true');
 
       // Reset for other tests
       mockSessionManagement.isLoading = false;

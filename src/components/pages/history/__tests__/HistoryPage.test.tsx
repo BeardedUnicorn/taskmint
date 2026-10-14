@@ -127,7 +127,7 @@ describe('HistoryPage date range', () => {
     renderPage([entryDaysAgo(40, 'Long ago')]);
     expect(screen.getByRole('combobox', { name: 'Range' })).toHaveTextContent('All time');
 
-    fireEvent.click(screen.getByTitle('Clear all filters'));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
     expect(screen.getByRole('combobox', { name: 'Range' })).toHaveTextContent('Last 7 days');
     expect(screen.queryByText('Long ago')).not.toBeInTheDocument();
   });

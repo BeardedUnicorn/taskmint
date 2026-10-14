@@ -13,6 +13,7 @@ import { useTheme } from '@mui/material/styles';
 import { Box, Typography } from '@mui/material';
 import { DailyData, WeeklyData, MonthlyData, millisecondsToHours, formatTimeForChart } from '../../../utils/chartDataHelpers';
 import { formatCurrency } from '../../../utils/formatters';
+import { formatShortDate } from '../../../utils/locale';
 
 type TimelineData = DailyData | WeeklyData | MonthlyData;
 
@@ -52,7 +53,7 @@ export function TimelineChart({
 
   const formatPeriodLabel = (period: string) => {
     if (dataType === 'daily') {
-      return new Date(period).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return formatShortDate(period);
     }
     return period;
   };

@@ -28,6 +28,7 @@ import { TaskSession } from '../../../types/timer';
 import { TaskNote } from '../../../types/notes';
 import { formatDate } from '../../../utils/formatters';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
+import { formatClockTime } from '../../../utils/locale';
 
 interface SessionNotesDialogProps {
   open: boolean;
@@ -105,10 +106,7 @@ export function SessionNotesDialog({
         {timer && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             New notes are for the timer started at{' '}
-            {new Date(timer.startTime).toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-            })}
+            {formatClockTime(timer.startTime)}
             .
           </Typography>
         )}

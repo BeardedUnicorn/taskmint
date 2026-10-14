@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Box, Typography, Paper, CircularProgress, IconButton, useTheme, Button } from '@mui/material';
+import { Box, Typography, Paper, Skeleton, IconButton, useTheme, Button } from '@mui/material';
+import { PageContainer, PageHeader } from '../layout/PageLayout';
 import dayjs from 'dayjs';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { Calendar, View, Views } from 'react-big-calendar';
@@ -252,16 +253,20 @@ const CalendarPage: React.FC = () => {
     // All styling is now handled by CSS to prevent theme conflicts
   }), []);
 
+  const header = <PageHeader title="Calendar" subtitle="Tracked time and earnings, day by day" />;
+
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-        <CircularProgress />
-      </Box>
+      <PageContainer>
+        {header}
+        <Skeleton variant="rounded" height={680} aria-label="Loading calendar" />
+      </PageContainer>
     );
   }
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
+    <PageContainer>
+      {header}
       <Paper elevation={3} sx={{ p: { xs: 1, sm: 2 }, borderRadius: 2 }}>
         <CalendarControls
           currentDate={currentDate}
@@ -311,7 +316,7 @@ const CalendarPage: React.FC = () => {
         </Box>
       </Paper>
       <CalendarDayDialog date={openDay} cells={cells} onClose={() => setOpenDay(null)} />
-    </Box>
+    </PageContainer>
   );
 };
 

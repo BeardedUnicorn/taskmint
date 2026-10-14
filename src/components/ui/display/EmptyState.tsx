@@ -14,11 +14,16 @@ export interface EmptyStateProps {
   title: string;
   description?: string;
   action?: ReactNode;
+  /** No panel of its own: for use inside a pane or card. */
+  plain?: boolean;
 }
 
-export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
+export function EmptyState({ icon, title, description, action, plain = false }: EmptyStateProps) {
   return (
-    <Paper sx={{ p: 6, textAlign: 'center' }}>
+    <Paper
+      elevation={plain ? 0 : 1}
+      sx={{ p: plain ? 4 : 6, textAlign: 'center', ...(plain && { bgcolor: 'transparent' }) }}
+    >
       {icon && (
         <Box sx={{ color: 'text.secondary', mb: 1, '& svg': { fontSize: 48 } }}>
           {icon}

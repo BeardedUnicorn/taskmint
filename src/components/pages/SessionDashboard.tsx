@@ -7,20 +7,14 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import {
-  Box,
-  Container,
-  Typography,
-  Button,
-  Backdrop,
-  CircularProgress,
-} from '@mui/material';
+import { Box, Typography, Button, Skeleton, Stack } from '@mui/material';
 import {
   Timer as TimerIcon,
   AttachMoney as MoneyIcon,
   MoreTime as AddTimeIcon,
 } from '@mui/icons-material';
 import { SessionTimerToolbar } from '../layout/SessionTimerToolbar';
+import { PageContainer } from '../layout/PageLayout';
 import { SessionList } from '../ui/sessions/SessionList';
 import { SessionTimerDisplay } from '../ui/display/SessionTimerDisplay';
 import { SessionNotesDialog } from '../ui/dialogs/SessionNotesDialog';
@@ -179,19 +173,37 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   const handleCloseNotesDialog = useCallback(() => setNotesTarget(null), []);
   const handleOpenStartDialog = useCallback(() => onStartWork?.(), [onStartWork]);
 
-  // Show the blocking loader only for the initial load — every timer action
-  // toggles isLoading briefly, and a full-screen backdrop on each start/stop
-  // would flash and unmount the ticking timers.
+  // The page's shape while it first loads. Only the first load: every timer
+  // action toggles isLoading briefly, and swapping the page out on each
+  // start/stop would flash and unmount the ticking timers.
   if ((sessionsLoading && sessions.length === 0) || tasksLoading) {
     return (
-      <Backdrop open sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <CircularProgress color="inherit" />
-      </Backdrop>
+      <PageContainer>
+        <Box aria-busy="true" aria-label="Loading sessions">
+          <Skeleton variant="rounded" height={64} sx={{ mb: 4 }} />
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
+            <Skeleton variant="rounded" height={120} />
+            <Skeleton variant="rounded" height={120} />
+          </Box>
+          <Stack spacing={2}>
+            {[0, 1, 2].map(i => (
+              <Skeleton key={i} variant="rounded" height={110} />
+            ))}
+          </Stack>
+        </Box>
+      </PageContainer>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <PageContainer>
+      {/* The toolbar is the page's visible header; the title is for screen readers */}
+      <Typography
+        component="h1"
+        sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}
+      >
+        Sessions
+      </Typography>
       {/* Session Timer Bar */}
       <Box sx={{ mb: 4 }}>
         <SessionTimerToolbar
@@ -305,6 +317,6 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
         tasks={tasks}
       />
 
-    </Container>
+    </PageContainer>
   );
 }

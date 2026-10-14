@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, Suspense } from 'react';
-import { CssBaseline, Box, CircularProgress } from '@mui/material';
+import { CssBaseline, Box } from '@mui/material';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ActiveTimerProvider } from './contexts/ActiveTimerContext';
@@ -9,6 +9,7 @@ import { IdleReturnDialog } from './components/ui/dialogs/IdleReturnDialog';
 import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar } from './components/layout';
 import { GoalFooter } from './components/layout/GoalFooter';
+import { PageSkeleton } from './components/layout/PageLayout';
 import { NotificationBell } from './components/notifications/NotificationBell';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { DailyGoalProvider } from './contexts/DailyGoalContext';
@@ -89,11 +90,7 @@ function GlobalDialogs({
   );
 }
 
-const pageFallback = (
-  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-    <CircularProgress />
-  </Box>
-);
+const pageFallback = <PageSkeleton />;
 
 /** The window: sidebar, the current page, and the app-wide dialogs. */
 function AppContent() {
@@ -165,7 +162,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <NavigationProvider>
+        <NavigationProvider persist>
           <NotificationProvider>
             <TaskManagementProvider>
               <DailyGoalProvider>

@@ -64,20 +64,20 @@ describe('DailyGoalSettings', () => {
     expect(screen.queryByRole('combobox', { name: 'Currency' })).not.toBeInTheDocument();
   });
 
-  it('keeps a stored currency when the goal is saved', async () => {
+  it('saves the switch at once, keeping a stored currency', async () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockResolvedValue(undefined);
     setupMocks({ targetAmount: 150, currency: 'EUR', isEnabled: false });
     render(<DailyGoalSettings />, { wrapper: TestWrapper });
 
     await user.click(await screen.findByRole('switch', { name: /enable daily earnings goal/i }));
-    await user.click(screen.getByRole('button', { name: 'Save Goal' }));
 
     expect(mockUpdateDailyGoal).toHaveBeenCalledWith({
       targetAmount: 150,
       currency: 'EUR',
       isEnabled: true,
     });
+    expect(screen.queryByRole('button', { name: 'Save Goal' })).not.toBeInTheDocument();
   }, 30000);
 
   it('should handle enabled goal state', () => {
@@ -94,25 +94,37 @@ describe('DailyGoalSettings', () => {
     expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).not.toBeChecked();
   });
 
-  it('should call updateDailyGoal when save button is clicked', async () => {
+  it('saves a new amount when typing pauses', async () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockResolvedValue(undefined);
+    setupMocks({ targetAmount: 100, currency: 'USD', isEnabled: true });
     render(<DailyGoalSettings />, { wrapper: TestWrapper });
 
-    const toggle = await screen.findByRole('switch', { name: /enable daily earnings goal/i });
-    await user.click(toggle);
+    const amount = screen.getByLabelText(/daily target amount/i);
+    await user.clear(amount);
+    await user.type(amount, '250');
 
-    const saveButton = screen.getByRole('button', { name: 'Save Goal' });
-    await user.click(saveButton);
+    await waitFor(() =>
+      expect(mockUpdateDailyGoal).toHaveBeenCalledWith({ targetAmount: 250, currency: 'USD', isEnabled: true })
+    );
+    expect(mockUpdateDailyGoal).toHaveBeenCalledTimes(1);
+  }, 30000);
 
-    expect(mockUpdateDailyGoal).toHaveBeenCalledWith({
-      targetAmount: 100,
-      currency: 'USD',
-      isEnabled: true, // Should be true now
-    });
+  it('saves on Enter, and asks for an amount above zero', async () => {
+    const user = userEvent.setup();
+    mockUpdateDailyGoal.mockResolvedValue(undefined);
+    setupMocks({ targetAmount: 100, currency: 'USD', isEnabled: true });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
 
-    // One confirmation, as a toast
-    expect(await screen.findByRole('status')).toHaveTextContent('Daily goal saved');
+    const amount = screen.getByLabelText(/daily target amount/i);
+    await user.clear(amount);
+    await user.type(amount, '0{Enter}');
+    expect(await screen.findByText('Enter an amount above zero')).toBeInTheDocument();
+    expect(mockUpdateDailyGoal).not.toHaveBeenCalled();
+
+    await user.clear(amount);
+    await user.type(amount, '120{Enter}');
+    expect(mockUpdateDailyGoal).toHaveBeenCalledWith({ targetAmount: 120, currency: 'USD', isEnabled: true });
   }, 30000);
 
   it('should handle updateDailyGoal errors', async () => {
@@ -124,7 +136,6 @@ describe('DailyGoalSettings', () => {
     render(<DailyGoalSettings />, { wrapper: TestWrapper });
 
     await user.click(await screen.findByRole('switch', { name: /enable daily earnings goal/i }));
-    await user.click(screen.getByRole('button', { name: 'Save Goal' }));
 
     // The reason, as an error toast
     expect(await screen.findByText('Save failed')).toBeInTheDocument();

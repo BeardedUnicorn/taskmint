@@ -1,5 +1,6 @@
 
-import { useState, ReactNode } from 'react';
+import { ReactNode } from 'react';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 import {
   Drawer,
   List,
@@ -53,7 +54,8 @@ const VIEW_ICONS: Record<SidebarView, typeof TaskIcon> = {
 const navigationItems = VIEWS.map(id => ({ id, label: VIEW_LABELS[id], icon: VIEW_ICONS[id] }));
 
 export function Sidebar({ activeView, onViewChange, footer, headerAction }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Remembered across launches
+  const [isCollapsed, setIsCollapsed] = useLocalStorage('sidebarCollapsed', false);
 
   return (
     <Drawer
@@ -109,6 +111,7 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
             <ListItemButton
               key={item.id}
               selected={isSelected}
+              aria-current={isSelected ? 'page' : undefined}
               onClick={() => onViewChange(item.id)}
               aria-label={item.label}
               sx={{

@@ -181,13 +181,14 @@ describe('CalendarPage', () => {
   };
 
   describe('Loading State', () => {
-    it('should show loading spinner while sessions are loading', () => {
+    it('shows a placeholder while sessions are loading', () => {
       mockSessionContext.sessions = [];
       mockSessionContext.isLoading = true;
 
       renderCalendarPage();
 
-      expect(screen.getByRole('progressbar')).toBeInTheDocument();
+      expect(screen.getByLabelText('Loading calendar')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Calendar' })).toBeInTheDocument();
     });
   });
 

@@ -13,7 +13,7 @@ import {
   Paper,
   Collapse,
   IconButton,
-  // Grid, // Removed unused import
+  Tooltip,
 } from '@mui/material';
 import {
   FilterList as FilterIcon,
@@ -102,23 +102,24 @@ export function TimeEntriesFilters({
 
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             {hasActiveFilters && (
-              <IconButton
-                size="small"
-                onClick={onClearFilters}
-                title="Clear all filters"
-              >
-                <ClearIcon />
-              </IconButton>
+              <Tooltip title="Clear all filters">
+                <IconButton size="small" aria-label="Clear all filters" onClick={onClearFilters}>
+                  <ClearIcon />
+                </IconButton>
+              </Tooltip>
             )}
             
             {onToggleExpanded && (
-              <IconButton
-                size="small"
-                onClick={onToggleExpanded}
-                title={isExpanded ? "Collapse filters" : "Expand filters"}
-              >
-                {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              </IconButton>
+              <Tooltip title={isExpanded ? 'Collapse filters' : 'Expand filters'}>
+                <IconButton
+                  size="small"
+                  aria-label={isExpanded ? 'Collapse filters' : 'Expand filters'}
+                  aria-expanded={isExpanded}
+                  onClick={onToggleExpanded}
+                >
+                  {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
+              </Tooltip>
             )}
           </Stack>
         </Stack>

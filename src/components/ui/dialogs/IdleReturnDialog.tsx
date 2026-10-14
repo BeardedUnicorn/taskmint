@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { IdleChoice, IdlePause } from '../../../types/timer';
 import { formatDuration } from '../../../utils/formatters';
+import { formatClockTime } from '../../../utils/locale';
 
 interface IdleReturnDialogProps {
   pending: IdlePause | null;
@@ -35,10 +36,7 @@ function awayLabel(ms: number): string {
 export function IdleReturnDialog({ pending, onResolve, isResolving = false, error }: IdleReturnDialogProps) {
   if (!pending) return null;
 
-  const pausedAt = new Date(pending.idleSince).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const pausedAt = formatClockTime(pending.idleSince);
   const away = awayLabel(pending.awayMs);
 
   return (
