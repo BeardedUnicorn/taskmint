@@ -8,7 +8,7 @@
 import { createContext, useCallback, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { ThemeProvider as MuiThemeProvider, Theme } from '@mui/material/styles';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { darkTheme, createLightTheme } from '../theme';
+import { createAppTheme } from '../theme';
 
 // Theme mode type
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -22,6 +22,9 @@ interface ThemeContextType {
   setMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
 }
+
+// Built once: switching modes swaps between these
+const THEMES = { light: createAppTheme('light'), dark: createAppTheme('dark') };
 
 // Create context
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -96,10 +99,7 @@ export function ThemeProvider({ children, defaultMode = 'dark' }: ThemeProviderP
     }
   }, [mode, systemTheme]);
 
-  // Get the appropriate theme
-  const theme = useMemo(() => {
-    return isDark ? darkTheme : createLightTheme();
-  }, [isDark]);
+  const theme = isDark ? THEMES.dark : THEMES.light;
 
   const setMode = setStoredMode;
 

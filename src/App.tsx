@@ -135,7 +135,7 @@ function AppContent() {
 
   return (
     <>
-      <CssBaseline />
+      <CssBaseline enableColorScheme />
       <BackgroundJobs onShowStartDialog={showStartDialog} />
       <Box sx={{ height: '100vh', display: 'flex' }}>
         <Sidebar

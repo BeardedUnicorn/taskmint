@@ -273,18 +273,6 @@ const CalendarPage: React.FC = () => {
         <Box 
           sx={{
             ...calendarStyle,
-            // Set CSS custom properties for theme integration
-            '--mui-palette-background-default': theme.palette.background.default,
-            '--mui-palette-background-paper': theme.palette.background.paper,
-            '--mui-palette-text-primary': theme.palette.text.primary,
-            '--mui-palette-text-secondary': theme.palette.text.secondary,
-            '--mui-palette-text-disabled': theme.palette.text.disabled,
-            '--mui-palette-divider': theme.palette.divider,
-            // Off-range (other month) cells are tinted with this; action.hover
-            // is the faint tint styles.css intends (action.disabled is a text
-            // color and turned those cells into heavy grey blocks).
-            '--mui-palette-action-disabled': theme.palette.action.hover,
-            '--mui-palette-primary-main': theme.palette.primary.main,
           }}
         >
           <Calendar
