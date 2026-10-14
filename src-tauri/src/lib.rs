@@ -8,6 +8,7 @@ pub mod commands;
 pub mod config;
 pub mod events;
 pub mod idle;
+pub mod notifications;
 pub mod startup;
 pub mod state;
 pub mod storage;
@@ -105,6 +106,9 @@ pub fn run() {
             commands::idle::get_idle_support,
             commands::idle::get_idle_pause,
             commands::idle::resolve_idle_pause,
+            // OS notifications
+            commands::notifications::set_notification_preferences,
+            commands::notifications::show_desktop_notification,
             // Work-log commands
             commands::worklogs::get_work_logs,
             commands::worklogs::apply_work_log_import,

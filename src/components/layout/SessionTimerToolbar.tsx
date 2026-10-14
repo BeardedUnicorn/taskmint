@@ -31,6 +31,7 @@ import {
   MoreVert as MoreIcon,
   FolderOpen as SessionIcon,
   Replay as ResumeIcon,
+  SwapHoriz as SwitchIcon,
 } from '@mui/icons-material';
 import { TaskSession, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
@@ -44,6 +45,8 @@ interface SessionTimerToolbarProps {
   onPauseAll: () => Promise<void>;
   onResumeAll: () => Promise<void>;
   onOpenSessionNotes?: (sessionId: string) => void;
+  /** Start work on another task (opens the start dialog). */
+  onSwitchTask?: () => void;
 }
 
 export const SessionTimerToolbar = memo(function SessionTimerToolbar({
@@ -54,6 +57,7 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
   onPauseAll,
   onResumeAll,
   onOpenSessionNotes,
+  onSwitchTask,
 }: SessionTimerToolbarProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
@@ -166,6 +170,12 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
             {sessionStatus.running > 0 && <Button variant="outlined" color="warning" size="small" onClick={onPauseAll} startIcon={<PauseIcon />}>Pause All</Button>}
             {sessionStatus.paused > 0 && <Button variant="outlined" color="success" size="small" onClick={onResumeAll} startIcon={<ResumeIcon />}>Resume All</Button>}
         </Box>
+
+        {onSwitchTask && (
+          <Button variant="outlined" startIcon={<SwitchIcon />} onClick={onSwitchTask}>
+            Switch task
+          </Button>
+        )}
 
         <IconButton
           onClick={handleMenuOpen}

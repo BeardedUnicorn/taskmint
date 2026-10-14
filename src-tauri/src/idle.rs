@@ -11,6 +11,7 @@
 
 use crate::commands::sessions::{keep_idle_time, pause_instance_at, resume_instance};
 use crate::events;
+use crate::notifications::{self, NotificationKind, Origin};
 use crate::state::AppState;
 use crate::storage;
 use crate::types::TaskSession;
@@ -318,13 +319,6 @@ fn local_time_label(at: DateTime<Utc>) -> String {
     at.with_timezone(&Local).format("%-I:%M %p").to_string()
 }
 
-fn notify(app: &AppHandle, title: &str, body: &str) {
-    use tauri_plugin_notification::NotificationExt;
-    if let Err(e) = app.notification().builder().title(title).body(body).show() {
-        log::warn!("Failed to show idle notification: {}", e);
-    }
-}
-
 /// Pause the running timer as of `idle_since`, persist, and record the
 /// pending question.
 fn apply_pause(
@@ -378,14 +372,17 @@ fn apply_pause(
         "pausedAt",
         idle_since,
     );
-    notify(
+    notifications::post(
         app,
+        state,
+        NotificationKind::IdlePause,
         "Timer paused",
         &format!(
             "{} — no activity since {}. The away time isn't counted unless you keep it.",
             task_name,
             local_time_label(idle_since)
         ),
+        Origin::Backend,
     );
     crate::tray::sync_tray(app, state);
     Ok(())
@@ -443,14 +440,17 @@ pub fn resolve(app: &AppHandle, state: &AppState, choice: IdleChoice) -> Result<
 fn apply_long_run(app: &AppHandle, state: &AppState, long_run: LongRun) -> Result<(), String> {
     state.with_idle_mut(|idle| idle.long_run_reminded = Some(long_run.key.clone()))?;
     log::info!("Long-run reminder for '{}'", long_run.task_name);
-    notify(
+    notifications::post(
         app,
+        state,
+        NotificationKind::LongRun,
         "Still working?",
         &format!(
             "{}'s timer has been running for {}.",
             long_run.task_name,
             crate::utils::format_duration_hm(long_run.run_ms)
         ),
+        Origin::Backend,
     );
     Ok(())
 }

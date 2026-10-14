@@ -136,7 +136,7 @@ export function useDailyGoalProgressMonitor({
 
     void (async () => {
       try {
-        await notifyDesktop(milestone.title, milestone.body);
+        await notifyDesktop(milestone.title, milestone.body, 'goalMilestone');
         await updateNotificationState(milestone.tier, today);
       } catch (error) {
         console.error('Error sending the goal notification:', error);

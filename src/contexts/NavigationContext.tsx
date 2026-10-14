@@ -53,3 +53,8 @@ export function useNavigation(): NavigationValue {
   }
   return context;
 }
+
+/** The navigation when there is one (code that can do without, e.g. toast buttons in tests). */
+export function useOptionalNavigation(): NavigationValue | null {
+  return useContext(NavigationContext);
+}

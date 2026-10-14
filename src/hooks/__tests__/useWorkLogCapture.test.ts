@@ -343,7 +343,8 @@ describe('useWorkLogCapture', () => {
       await waitFor(() =>
         expect(mockNotifyDesktop).toHaveBeenCalledWith(
           'Work logs imported',
-          '1 new, 0 updated, 1 day rewritten.'
+          '1 new, 0 updated, 1 day rewritten.',
+          'workLogCapture'
         )
       );
     });
@@ -356,7 +357,11 @@ describe('useWorkLogCapture', () => {
       renderHook(() => useWorkLogCapture(deps));
 
       await waitFor(() =>
-        expect(mockNotifyDesktop).toHaveBeenCalledWith('Work logs to review', expect.stringContaining('Payouts'))
+        expect(mockNotifyDesktop).toHaveBeenCalledWith(
+          'Work logs to review',
+          expect.stringContaining('Payouts'),
+          'workLogCapture'
+        )
       );
       expect(deps.applyImport).not.toHaveBeenCalled();
     });

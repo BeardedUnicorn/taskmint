@@ -33,14 +33,14 @@ export default defineConfig({
         '!src/**/*.test.{ts,tsx}',
         '!src/**/*.spec.{ts,tsx}',
       ],
-      // Floors a little under actual coverage (ratcheted 2026-10-13 after the
-      // third dead-code sweep: 75.6 / 67.5 / 72.9 / 76.4); raise them as
-      // coverage improves.
+      // Floors a little under actual coverage (ratcheted 2026-10-13 with the
+      // notification core: 77.3 / 70.3 / 74.4 / 78.2); raise them as coverage
+      // improves.
       thresholds: {
-        branches: 65,
-        functions: 70,
-        lines: 74,
-        statements: 73,
+        branches: 68,
+        functions: 72,
+        lines: 76,
+        statements: 75,
       },
     },
 

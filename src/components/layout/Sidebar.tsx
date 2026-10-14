@@ -33,6 +33,8 @@ interface SidebarProps {
   onViewChange: (view: SidebarView) => void;
   /** Pinned to the bottom of the sidebar (e.g. today's goal progress). */
   footer?: (collapsed: boolean) => ReactNode;
+  /** Beside the title (the notifications bell); below the toggle when collapsed. */
+  headerAction?: (collapsed: boolean) => ReactNode;
 }
 
 const SIDEBAR_WIDTH = 240;
@@ -50,7 +52,7 @@ const VIEW_ICONS: Record<SidebarView, typeof TaskIcon> = {
 
 const navigationItems = VIEWS.map(id => ({ id, label: VIEW_LABELS[id], icon: VIEW_ICONS[id] }));
 
-export function Sidebar({ activeView, onViewChange, footer }: SidebarProps) {
+export function Sidebar({ activeView, onViewChange, footer, headerAction }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
@@ -76,24 +78,24 @@ export function Sidebar({ activeView, onViewChange, footer }: SidebarProps) {
       <Box sx={{
         p: 2,
         display: 'flex',
+        flexDirection: isCollapsed ? 'column' : 'row',
         alignItems: 'center',
-        justifyContent: isCollapsed ? 'center' : 'space-between'
+        gap: isCollapsed ? 1 : 0.5,
       }}>
         {!isCollapsed && (
-          <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600, flex: 1 }}>
             TaskMint
           </Typography>
         )}
+        {!isCollapsed && headerAction?.(false)}
         <IconButton
           onClick={() => setIsCollapsed(!isCollapsed)}
           size="small"
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          sx={{
-            ml: isCollapsed ? 0 : 1,
-          }}
         >
           {isCollapsed ? <MenuIcon /> : <ChevronLeftIcon />}
         </IconButton>
+        {isCollapsed && headerAction?.(true)}
       </Box>
 
       <Divider />
