@@ -439,38 +439,17 @@ describe('Session System Integration', () => {
   });
 
   describe('Error Handling', () => {
-    it('should render without crashing when backend calls fail', async () => {
-      // Set up the mock to return an error state
+    it('keeps the dashboard usable when sessions could not be loaded', async () => {
+      // The session context reports the failure as a toast; the page still works
       Object.assign(mockSessionManagement, {
         sessions: [],
         activeSession: null,
         isLoading: false,
-        error: 'Backend unavailable',
       });
 
       renderDashboard();
 
-      // Just verify the component renders without crashing and shows error
-      await waitFor(() => {
-        expect(screen.getByText('Backend unavailable')).toBeInTheDocument();
-      });
-    });
-
-    it('should handle network timeouts gracefully', async () => {
-      // Set up the mock to return an error state
-      Object.assign(mockSessionManagement, {
-        sessions: [],
-        activeSession: null,
-        isLoading: false,
-        error: 'Request timeout',
-      });
-
-      renderDashboard();
-
-      // Just verify the component renders without crashing and shows error
-      await waitFor(() => {
-        expect(screen.getByText('Request timeout')).toBeInTheDocument();
-      });
+      expect(await screen.findByText('All Sessions')).toBeInTheDocument();
     });
   });
 

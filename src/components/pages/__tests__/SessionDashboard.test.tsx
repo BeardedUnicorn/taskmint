@@ -233,21 +233,6 @@ describe('SessionDashboard', () => {
       // Reset for other tests
       mockSessionManagement.isLoading = false;
     });
-
-    it('should show error state when there is an error', () => {
-      const errorMessage = 'Failed to load sessions';
-      // Update the mock to return error state
-      (mockSessionManagement as any).error = errorMessage;
-
-      renderDashboard();
-
-      // The error message may be rendered in a Snackbar or Alert, so use a flexible matcher
-      const errorNodes = screen.queryAllByText((content) => content.includes(errorMessage));
-      expect(errorNodes.length).toBeGreaterThan(0);
-
-      // Reset for other tests
-      (mockSessionManagement as any).error = null;
-    });
   });
 
   describe('Starting work', () => {
@@ -432,8 +417,8 @@ describe('SessionDashboard', () => {
       expect(mockStartTimer).not.toHaveBeenCalled();
     });
 
-    it('should surface an error notification when adding a timer fails', async () => {
-      mockCreateTimerInstance.mockRejectedValue(new Error('Add failed'));
+    it('asks the session context to add a timer (which reports any failure)', async () => {
+      mockCreateTimerInstance.mockResolvedValue(null);
 
       renderDashboard();
 
@@ -441,7 +426,6 @@ describe('SessionDashboard', () => {
 
       await waitFor(() => {
         expect(mockCreateTimerInstance).toHaveBeenCalledWith('session-1');
-        expect(mockShowError).toHaveBeenCalledWith('Add failed');
       });
     });
 

@@ -35,11 +35,13 @@ const mockInvoke = vi.mocked(invoke);
 const mockShowError = vi.fn();
 const mockShowSuccess = vi.fn();
 const mockShowInfo = vi.fn();
+const mockShowWarning = vi.fn();
 vi.mock('../../contexts/NotificationContext', () => ({
   useNotification: () => ({
     showError: mockShowError,
     showSuccess: mockShowSuccess,
     showInfo: mockShowInfo,
+    showWarning: mockShowWarning,
   }),
 }));
 
@@ -131,11 +133,14 @@ describe('useSessionManagement', () => {
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
-        expect(result.current.error).toBe('Failed to load sessions');
         expect(result.current.isLoading).toBe(false);
       });
 
-      expect(mockShowError).toHaveBeenCalledWith('Failed to load sessions');
+      // A failed load stays up until dismissed
+      expect(mockShowError).toHaveBeenCalledWith(
+        'Failed to load sessions',
+        expect.objectContaining({ duration: null })
+      );
     });
 
     it('should surface a session load warning recorded by the backend', async () => {
@@ -144,8 +149,9 @@ describe('useSessionManagement', () => {
       renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
       await waitFor(() => {
-        expect(mockShowError).toHaveBeenCalledWith(
-          '2 saved session record(s) could not be read and were skipped.'
+        expect(mockShowWarning).toHaveBeenCalledWith(
+          '2 saved session record(s) could not be read and were skipped.',
+          expect.objectContaining({ duration: null })
         );
       });
     });
@@ -206,7 +212,9 @@ describe('useSessionManagement', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith('start_task', { taskId: 'task-1', taskName: 'Annotation' });
       expect(result.current.sessions).toEqual([started]);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Started "Annotation"');
+      // The running timer shows on screen: no toast
+      expect(mockShowSuccess).not.toHaveBeenCalled();
+      expect(mockShowInfo).not.toHaveBeenCalled();
     });
 
     it('announces the hand-off when another task was running', async () => {
@@ -217,8 +225,9 @@ describe('useSessionManagement', () => {
         await result.current.startTask('task-1', 'Annotation');
       });
 
-      expect(mockShowSuccess).toHaveBeenCalledWith(
-        'Started "Annotation" — stopped the running timer for "Review"'
+      expect(mockShowInfo).toHaveBeenCalledWith(
+        'Started "Annotation" — stopped the running timer for "Review"',
+        expect.anything()
       );
     });
 
@@ -230,7 +239,8 @@ describe('useSessionManagement', () => {
         await result.current.startTask('task-1', 'Annotation');
       });
 
-      expect(mockShowSuccess).toHaveBeenCalledWith('Resumed "Annotation"');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
+      expect(mockShowInfo).not.toHaveBeenCalled();
     });
 
     it('says when the task is already running', async () => {
@@ -241,7 +251,7 @@ describe('useSessionManagement', () => {
         await result.current.startTask('task-1', 'Annotation');
       });
 
-      expect(mockShowInfo).toHaveBeenCalledWith('"Annotation" is already running');
+      expect(mockShowInfo).toHaveBeenCalledWith('"Annotation" is already running', expect.anything());
       expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
@@ -255,8 +265,7 @@ describe('useSessionManagement', () => {
       });
 
       expect(outcome).toBeNull();
-      expect(mockShowError).toHaveBeenCalledWith('Choose a task to start');
-      expect(result.current.error).toBe('Choose a task to start');
+      expect(mockShowError).toHaveBeenCalledWith('Choose a task to start', expect.anything());
     });
   });
 
@@ -330,7 +339,7 @@ describe('useSessionManagement', () => {
       expect(mockInvoke).toHaveBeenCalledWith('update_timer_instance', { instanceId: 'instance-1', updates });
       expect(mockInvoke).not.toHaveBeenCalledWith('move_timer_instance', expect.anything());
       expect(sessionId).toBe('session-1');
-      expect(mockShowSuccess).toHaveBeenCalledWith('Timer updated');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
     it('moves the timer to another task after saving its duration', async () => {
@@ -355,7 +364,7 @@ describe('useSessionManagement', () => {
         taskName: 'Other',
       });
       expect(sessionId).toBe('session-new');
-      expect(mockShowSuccess).toHaveBeenCalledWith('Moved to "Other"');
+      expect(mockShowSuccess).toHaveBeenCalledWith('Moved to "Other"', expect.anything());
     });
 
     it('shows the error and resolves to null when the move is refused', async () => {
@@ -372,7 +381,10 @@ describe('useSessionManagement', () => {
       });
 
       expect(sessionId).toBeNull();
-      expect(mockShowError).toHaveBeenCalledWith('Imported time changes only through a work-log import');
+      expect(mockShowError).toHaveBeenCalledWith(
+        'Imported time changes only through a work-log import',
+        expect.anything()
+      );
     });
   });
 
@@ -393,7 +405,7 @@ describe('useSessionManagement', () => {
       expect(mockInvoke).toHaveBeenCalledWith('delete_session', {
         sessionId: 'session-1',
       });
-      expect(mockShowSuccess).toHaveBeenCalledWith('Session deleted successfully');
+      expect(mockShowSuccess).toHaveBeenCalledWith('Session deleted successfully', expect.anything());
       expect(result.current.sessions).toEqual([]);
     });
 
@@ -434,7 +446,7 @@ describe('useSessionManagement', () => {
       expect(mockInvoke).toHaveBeenCalledWith('create_timer_instance', {
         sessionId: 'session-1',
       });
-      expect(mockShowSuccess).toHaveBeenCalledWith('New timer instance created');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
     it('should start a timer instance', async () => {
@@ -455,7 +467,7 @@ describe('useSessionManagement', () => {
       expect(mockInvoke).toHaveBeenCalledWith('start_timer_instance', {
         instanceId: 'instance-1',
       });
-      expect(mockShowSuccess).toHaveBeenCalledWith('Timer started');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
     it('keeps its actions stable when the running timer changes', async () => {
@@ -535,7 +547,7 @@ describe('useSessionManagement', () => {
       expect(mockInvoke).toHaveBeenCalledWith('stop_timer_instance', {
         instanceId: 'instance-1',
       });
-      expect(mockShowSuccess).toHaveBeenCalledWith('Timer stopped');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
     it('should surface an error when starting a completed timer', async () => {
@@ -558,7 +570,7 @@ describe('useSessionManagement', () => {
         await result.current.startTimerInstance('instance-1');
       });
 
-      expect(mockShowError).toHaveBeenCalledWith(errorMessage);
+      expect(mockShowError).toHaveBeenCalledWith(errorMessage, expect.anything());
       const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
       expect(startCalls).toHaveLength(1);
     });
@@ -589,7 +601,7 @@ describe('useSessionManagement', () => {
       expect(mockInvoke).toHaveBeenCalledWith('set_active_session', { sessionId: 'session-1' });
       const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
       expect(startCalls).toHaveLength(2);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Timer started');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
     it('should stop an existing timer before starting another', async () => {
@@ -620,8 +632,9 @@ describe('useSessionManagement', () => {
       const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
       expect(startCalls).toHaveLength(2);
       // The hand-off is explicit: the toast names the timer that was stopped.
-      expect(mockShowSuccess).toHaveBeenCalledWith(
-        'Timer started — stopped the running timer for "Test Task"'
+      expect(mockShowInfo).toHaveBeenCalledWith(
+        'Stopped the running timer for "Test Task"',
+        expect.anything()
       );
     });
 
@@ -714,7 +727,10 @@ describe('useSessionManagement', () => {
       });
 
       expect(mockShowError).not.toHaveBeenCalled();
-      expect(mockShowSuccess).toHaveBeenCalledWith(expect.stringContaining('Timer started'));
+      expect(mockShowInfo).toHaveBeenCalledWith(
+        expect.stringContaining('Stopped the running timer'),
+        expect.anything()
+      );
       const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
       expect(startCalls).toHaveLength(2);
     });
@@ -747,8 +763,9 @@ describe('useSessionManagement', () => {
       // The backend finalized session A's runner; the shared slot must not
       // keep pointing at it until the debounced reload.
       expect(result.current.timer.activeTimer).toBeNull();
-      expect(mockShowSuccess).toHaveBeenCalledWith(
-        'Activated session for "Task B" — stopped the running timer for "Test Task"'
+      expect(mockShowInfo).toHaveBeenCalledWith(
+        'Stopped the running timer for "Test Task"',
+        expect.anything()
       );
     });
 
@@ -831,7 +848,7 @@ describe('useSessionManagement', () => {
         expect(mockInvoke).toHaveBeenCalledWith('pause_timer_instance', {
           instanceId: 'instance-1',
         });
-        expect(mockShowSuccess).toHaveBeenCalledWith('Timer paused');
+        expect(mockShowSuccess).not.toHaveBeenCalled();
       });
 
       it('should handle pause errors gracefully', async () => {
@@ -849,7 +866,7 @@ describe('useSessionManagement', () => {
           await result.current.pauseTimerInstance('instance-1');
         });
 
-        expect(mockShowError).toHaveBeenCalledWith(errorMessage);
+        expect(mockShowError).toHaveBeenCalledWith(errorMessage, expect.anything());
       });
     });
 
@@ -879,7 +896,7 @@ describe('useSessionManagement', () => {
         expect(mockInvoke).toHaveBeenCalledWith('resume_timer_instance', {
           instanceId: 'instance-1',
         });
-        expect(mockShowSuccess).toHaveBeenCalledWith('Timer resumed');
+        expect(mockShowSuccess).not.toHaveBeenCalled();
       });
 
       it('should handle resume errors gracefully', async () => {
@@ -897,7 +914,7 @@ describe('useSessionManagement', () => {
           await result.current.resumeTimerInstance('instance-1');
         });
 
-        expect(mockShowError).toHaveBeenCalledWith(errorMessage);
+        expect(mockShowError).toHaveBeenCalledWith(errorMessage, expect.anything());
       });
     });
 

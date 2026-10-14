@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
 import { isTauriEnvironment } from '../utils/tauri';
+import { revealAction } from '../utils/reveal';
 
 /** Paired with EXPORT_CANCELLED in src-tauri/src/commands/backup.rs. */
 export const EXPORT_CANCELLED = 'Export cancelled by user';
@@ -34,10 +35,10 @@ export function useCsvExport() {
       try {
         if (isTauriEnvironment()) {
           const path = await invoke<string>('export_csv_file', { csv, suggestedFilename: fileName });
-          showSuccess(`Saved to ${path}`);
+          showSuccess(`Saved to ${path}`, { category: 'export', actions: revealAction(path) });
         } else {
           downloadInBrowser(csv, fileName);
-          showSuccess(`Downloaded ${fileName}`);
+          showSuccess(`Downloaded ${fileName}`, { category: 'export' });
         }
       } catch (err) {
         const message = errorMessage(err, 'Unknown error');

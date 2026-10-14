@@ -17,6 +17,7 @@ import { NoteTemplatesProvider } from './contexts/NoteTemplatesContext';
 import { useSessionNotesMigration } from './hooks/useSessionNotesMigration';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
+import { useDailySummary } from './hooks/useDailySummary';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
 import { WorkLogProvider } from './contexts/WorkLogContext';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
@@ -28,7 +29,7 @@ import { PAGES } from './app/routes';
  * Task…"), and moving sessions' old plain-text notes into the notes store.
  */
 function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }) {
-  const { sessions, isLoading: sessionsLoading, clearSessionNotes } = useSessionManagementContext();
+  const { sessions, isLoading: sessionsLoading, hasLoaded, clearSessionNotes } = useSessionManagementContext();
   const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
 
   useSessionNotesMigration({
@@ -38,6 +39,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
     clearSessionNotes,
   });
   useEnhancedSystemTray({ tasks, onShowStartDialog });
+  useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });
   return null;
 }
 

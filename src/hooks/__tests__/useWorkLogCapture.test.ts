@@ -27,26 +27,17 @@ import { listen } from '@tauri-apps/api/event';
 const mockInvoke = vi.mocked(invoke);
 const mockListen = vi.mocked(listen);
 
-const mockShowSuccess = vi.fn();
-const mockShowError = vi.fn();
-const mockShowWarning = vi.fn();
-const mockShowInfo = vi.fn();
+const notifications = vi.hoisted(() => ({ notify: vi.fn(), showWarning: vi.fn() }));
 vi.mock('../../contexts/NotificationContext', () => ({
-  useNotification: () => ({
-    showSuccess: mockShowSuccess,
-    showError: mockShowError,
-    showWarning: mockShowWarning,
-    showInfo: mockShowInfo,
-  }),
+  useNotification: () => notifications,
 }));
+const mockNotify = notifications.notify;
+const mockShowWarning = notifications.showWarning;
 
-// The window is focused unless a test says otherwise
-const mockNotifyDesktop = vi.fn();
-let mockAppFocused = true;
-vi.mock('../../utils/desktopNotification', () => ({
-  notifyDesktop: (...args: unknown[]) => mockNotifyDesktop(...args),
-  isAppFocused: () => mockAppFocused,
-}));
+/** The notify() calls of one severity. */
+function notified(severity: string) {
+  return mockNotify.mock.calls.map(([options]) => options).filter(options => options.severity === severity);
+}
 
 const CREATED_AT = '2026-08-26T20:00:00.000Z';
 const WORK_DAY = deriveTimedWorkDay(CREATED_AT, 240);
@@ -111,7 +102,6 @@ async function fireCaptureEvent() {
 describe('useWorkLogCapture', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAppFocused = true;
     takeQueue = [];
     eventHandlers = {};
     mockInvoke.mockImplementation(async (command: string) => {
@@ -149,15 +139,21 @@ describe('useWorkLogCapture', () => {
     expect(payload.rewriteGroups).toHaveLength(1);
     expect(payload.rewriteGroups[0]).toMatchObject({ taskId: 'task-1', workDay: WORK_DAY });
 
-    expect(mockShowSuccess).toHaveBeenCalledWith(
-      expect.stringContaining('1 new, 0 updated, 1 day rewritten')
-    );
     // 30000¢ over 240min ⇒ $75/hr, task currently $50.
     await waitFor(() =>
       expect(deps.updateTask).toHaveBeenCalledWith('task-1', { hourlyRate: 75 })
     );
+    await waitFor(() =>
+      expect(mockNotify).toHaveBeenCalledWith({
+        category: 'workLog',
+        severity: 'success',
+        title: 'Work logs imported',
+        message: '1 new, 0 updated, 1 day rewritten · rates updated for 1 task.',
+        actions: [{ label: 'View in Payouts', view: 'payouts' }],
+      })
+    );
     expect(deps.stageCapture).not.toHaveBeenCalled();
-    expect(mockShowError).not.toHaveBeenCalled();
+    expect(notified('error')).toHaveLength(0);
   });
 
   it('leaves the rate alone when it already matches', async () => {
@@ -168,8 +164,20 @@ describe('useWorkLogCapture', () => {
 
     renderHook(() => useWorkLogCapture(deps));
 
-    await waitFor(() => expect(deps.applyImport).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(notified('success')).toHaveLength(1));
     expect(deps.updateTask).not.toHaveBeenCalled();
+    expect(notified('success')[0].message).toBe('1 new, 0 updated, 1 day rewritten.');
+  });
+
+  it('still reports the import when a rate update fails', async () => {
+    takeQueue.push(capture(samplePayloadText));
+    const deps = makeDeps({ updateTask: vi.fn(async () => Promise.reject(new Error('disk full'))) });
+
+    renderHook(() => useWorkLogCapture(deps));
+
+    await waitFor(() => expect(notified('success')).toHaveLength(1));
+    expect(notified('success')[0].message).toBe('1 new, 0 updated, 1 day rewritten.');
+    expect(notified('error')).toHaveLength(0);
   });
 
   it('stages the capture when a project has no task match', async () => {
@@ -187,7 +195,14 @@ describe('useWorkLogCapture', () => {
         reason: 'unmapped-project',
       })
     );
-    expect(mockShowInfo).toHaveBeenCalledWith(expect.stringContaining('Review in Payouts'));
+    expect(notified('info')).toEqual([
+      expect.objectContaining({
+        category: 'workLog',
+        title: 'Work logs to review',
+        message: expect.stringContaining('needs a task match'),
+        actions: [{ label: 'Review in Payouts', view: 'payouts' }],
+      }),
+    ]);
     expect(deps.applyImport).not.toHaveBeenCalled();
   });
 
@@ -204,7 +219,12 @@ describe('useWorkLogCapture', () => {
         reason: 'unverified-link',
       })
     );
-    expect(mockShowInfo).toHaveBeenCalledWith(expect.stringContaining('taskmint:// link'));
+    expect(notified('info')).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('taskmint:// link'),
+        actions: [{ label: 'Review in Payouts', view: 'payouts' }],
+      }),
+    ]);
     expect(deps.applyImport).not.toHaveBeenCalled();
   });
 
@@ -246,7 +266,9 @@ describe('useWorkLogCapture', () => {
     renderHook(() => useWorkLogCapture(deps));
 
     await waitFor(() =>
-      expect(mockShowError).toHaveBeenCalledWith(expect.stringContaining('could not be read'))
+      expect(notified('error')).toEqual([
+        expect.objectContaining({ category: 'workLog', title: "Couldn't read captured work logs" }),
+      ])
     );
     expect(deps.applyImport).not.toHaveBeenCalled();
     expect(deps.stageCapture).not.toHaveBeenCalled();
@@ -264,7 +286,7 @@ describe('useWorkLogCapture', () => {
 
     await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
     expect(deps.applyImport).toHaveBeenCalledTimes(1);
-    expect(mockShowSuccess).toHaveBeenCalledTimes(1);
+    expect(notified('success')).toHaveLength(1);
   });
 
   it('lets an identical payload retry after a failed apply', async () => {
@@ -277,13 +299,13 @@ describe('useWorkLogCapture', () => {
 
     renderHook(() => useWorkLogCapture(deps));
     await waitFor(() => expect(applyImport).toHaveBeenCalledTimes(1));
-    expect(mockShowSuccess).not.toHaveBeenCalled();
+    expect(notified('success')).toHaveLength(0);
 
     takeQueue.push(capture(samplePayloadText));
     await fireCaptureEvent();
 
     await waitFor(() => expect(applyImport).toHaveBeenCalledTimes(2));
-    expect(mockShowSuccess).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(notified('success')).toHaveLength(1));
   });
 
   it('processes payloads that arrive via the captured event', async () => {
@@ -317,7 +339,10 @@ describe('useWorkLogCapture', () => {
     renderHook(() => useWorkLogCapture(deps));
 
     await waitFor(() =>
-      expect(mockShowWarning).toHaveBeenCalledWith(expect.stringContaining('stop it first'))
+      expect(mockShowWarning).toHaveBeenCalledWith(expect.stringContaining('stop it first'), {
+        category: 'workLog',
+        desktop: 'never',
+      })
     );
   });
 
@@ -329,51 +354,24 @@ describe('useWorkLogCapture', () => {
 
     await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
     expect(deps.applyImport).not.toHaveBeenCalled();
-    expect(mockShowError).not.toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
   });
 
-  describe('desktop notifications', () => {
-    it('announces an import on the desktop when the window is in the background', async () => {
-      mockAppFocused = false;
-      takeQueue.push(capture(samplePayloadText));
-      const deps = makeDeps();
+  it('reports a failure while processing, with a way to Payouts', async () => {
+    takeQueue.push(capture(samplePayloadText));
+    const deps = makeDeps({ applyImport: vi.fn(async () => Promise.reject(new Error('locked'))) });
 
-      renderHook(() => useWorkLogCapture(deps));
+    renderHook(() => useWorkLogCapture(deps));
 
-      await waitFor(() =>
-        expect(mockNotifyDesktop).toHaveBeenCalledWith(
-          'Work logs imported',
-          '1 new, 0 updated, 1 day rewritten.',
-          'workLogCapture'
-        )
-      );
-    });
-
-    it('says when a background capture needs review', async () => {
-      mockAppFocused = false;
-      takeQueue.push(capture(samplePayloadText));
-      const deps = makeDeps({ tasks: [createMockTask({ id: 'other', name: 'Unrelated Task' })] });
-
-      renderHook(() => useWorkLogCapture(deps));
-
-      await waitFor(() =>
-        expect(mockNotifyDesktop).toHaveBeenCalledWith(
-          'Work logs to review',
-          expect.stringContaining('Payouts'),
-          'workLogCapture'
-        )
-      );
-      expect(deps.applyImport).not.toHaveBeenCalled();
-    });
-
-    it('stays in the app when the window is focused', async () => {
-      takeQueue.push(capture(samplePayloadText));
-      const deps = makeDeps();
-
-      renderHook(() => useWorkLogCapture(deps));
-
-      await waitFor(() => expect(mockShowSuccess).toHaveBeenCalled());
-      expect(mockNotifyDesktop).not.toHaveBeenCalled();
-    });
+    await waitFor(() =>
+      expect(notified('error')).toEqual([
+        expect.objectContaining({
+          category: 'workLog',
+          title: "Couldn't import captured work logs",
+          message: 'locked',
+          actions: [{ label: 'View in Payouts', view: 'payouts' }],
+        }),
+      ])
+    );
   });
 });

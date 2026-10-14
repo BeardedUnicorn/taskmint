@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Frontend permissions for the main window. Grant only what the webview's JS calls: everything else (tray, menus, deep links, file I/O) runs Rust-side and needs no capability.",
+  "description": "Frontend permissions for the main window. Grant only what the webview's JS calls: everything else (tray, menus, deep links, file I/O, notifications) runs Rust-side and needs no capability. Revealing a just-written export or backup in the file manager is the one opener call.",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
-    "dialog:default"
+    "dialog:default",
+    "opener:allow-reveal-item-in-dir"
   ]
 }

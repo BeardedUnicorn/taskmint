@@ -7,9 +7,17 @@ import '@testing-library/jest-dom/vitest';
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { NoteTemplatesProvider } from '../../../../contexts/NoteTemplatesContext';
+import { NotificationProvider } from '../../../../contexts/NotificationContext';
 
-// NoteEditor reads the shared templates
-const render = (ui: ReactElement) => rtlRender(ui, { wrapper: NoteTemplatesProvider });
+// NoteEditor reads the shared templates and reports through toasts
+const render = (ui: ReactElement) =>
+  rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <NotificationProvider>
+        <NoteTemplatesProvider>{children}</NoteTemplatesProvider>
+      </NotificationProvider>
+    ),
+  });
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate, TaskNote } from '../../../../types/notes';
 import { invoke } from '@tauri-apps/api/core';

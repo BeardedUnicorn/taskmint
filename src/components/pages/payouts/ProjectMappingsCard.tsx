@@ -8,7 +8,6 @@
 
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   Box,
   Collapse,
   IconButton,
@@ -29,6 +28,7 @@ import { ProjectTaskMapping, WorkLogEntry, WorkLogImportPayload, WorkLogImportSu
 import { buildRemapPlan, RemapPlan } from '../../../utils/workLogImport';
 import { formatDuration } from '../../../utils/formatters';
 import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
+import { useNotification } from '../../../contexts/NotificationContext';
 
 interface ProjectMappingsCardProps {
   mappings: ProjectTaskMapping[];
@@ -61,7 +61,7 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<PendingRemap | null>(null);
   // The outcome of the last change, shown in the card
-  const [notice, setNotice] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
+  const { showError, showSuccess, showWarning } = useNotification();
 
   const entryCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -82,7 +82,6 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
       .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleChange = (mapping: ProjectTaskMapping, taskId: string) => {
-    setNotice(null);
     const task = tasks.find(t => t.id === taskId);
     if (!task || task.id === mapping.taskId) return;
     const plan = buildRemapPlan({
@@ -94,7 +93,7 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
       nowIso: new Date().toISOString(),
     });
     if ('error' in plan) {
-      setNotice({ severity: 'error', text: plan.error });
+      showError(plan.error);
       return;
     }
     setPending({ mapping, task, plan });
@@ -111,12 +110,12 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
     if (!summary) return; // the failure is already shown
     const { mapping, task } = pending;
     if (summary.groupsSkipped.length > 0) {
-      setNotice({
-        severity: 'error',
-        text: `Some days weren't moved: ${summary.groupsSkipped.map(g => `${g.workDay} (${g.reason})`).join('; ')}`,
-      });
+      showWarning(
+        `Some days weren't moved: ${summary.groupsSkipped.map(g => `${g.workDay} (${g.reason})`).join('; ')}`,
+        { category: 'workLog', duration: null }
+      );
     } else {
-      setNotice({ severity: 'success', text: `"${mapping.projectName}" now goes to "${task.name}".` });
+      showSuccess(`"${mapping.projectName}" now goes to "${task.name}".`, { category: 'workLog' });
     }
   };
 
@@ -138,11 +137,6 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
       </Box>
 
       <Collapse in={open} unmountOnExit>
-        {notice && (
-          <Alert severity={notice.severity} sx={{ mt: 2 }} onClose={() => setNotice(null)}>
-            {notice.text}
-          </Alert>
-        )}
         <Table size="small" sx={{ mt: 2 }}>
           <TableHead>
             <TableRow>

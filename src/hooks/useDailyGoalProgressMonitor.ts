@@ -4,8 +4,9 @@
  * Today's earnings against the daily goal, live: computed from the sessions
  * (including a running timer) with the shared earnings rules, ticking while a
  * timer runs. Sends the 50% / 75% / 100% / exceeded notifications as they're
- * crossed, and saves today's target so the day keeps it if the goal changes
- * later. Used once, in App; the sidebar shows the progress it returns.
+ * crossed (reminders: they reach the OS even while TaskMint is in front), and
+ * saves today's target so the day keeps it if the goal changes later. Used
+ * once, in the sidebar's GoalFooter, which shows the progress it returns.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -16,7 +17,7 @@ import { useNowMs } from './useNowMs';
 import { Task } from '../types/task';
 import { earningsOnDate } from '../utils/earnings';
 import { formatDateString } from '../utils/dateHelpers';
-import { notifyDesktop } from '../utils/desktopNotification';
+import { useNotification } from '../contexts/NotificationContext';
 import { formatCurrency } from '../utils/formatters';
 
 /** How often today's total refreshes while a timer runs. */
@@ -95,6 +96,7 @@ export function useDailyGoalProgressMonitor({
   tasks,
 }: UseDailyGoalProgressMonitorProps): DailyGoalProgressData {
   const { currentGoal, achievements, updateNotificationState, recordAchievement } = useDailyGoals();
+  const { notify } = useNotification();
 
   // Today's total only moves while a timer runs; otherwise it changes with
   // the sessions themselves (stops, edits, Add time, imports).
@@ -116,8 +118,8 @@ export function useDailyGoalProgressMonitor({
   }, [sessions, tasks, today, nowMs, currentGoal]);
 
   // Milestone notifications, as each one is crossed. The tier being sent is
-  // remembered synchronously, so a re-run while the first send is still
-  // awaiting (the live tick, a session change) can't send it twice.
+  // remembered synchronously, so a re-run while it's still being saved (the
+  // live tick, a session change) can't send it twice.
   const sendingRef = useRef<string | null>(null);
   useEffect(() => {
     if (!currentGoal || !progress.enabled) return;
@@ -134,15 +136,16 @@ export function useDailyGoalProgressMonitor({
     if (sendingRef.current === key) return;
     sendingRef.current = key;
 
-    void (async () => {
-      try {
-        await notifyDesktop(milestone.title, milestone.body, 'goalMilestone');
-        await updateNotificationState(milestone.tier, today);
-      } catch (error) {
-        console.error('Error sending the goal notification:', error);
-      }
-    })();
-  }, [progress, currentGoal, today, updateNotificationState]);
+    notify({
+      category: 'goal',
+      severity: 'success',
+      title: milestone.title,
+      message: milestone.body,
+    });
+    updateNotificationState(milestone.tier, today).catch(error =>
+      console.error('Failed to save the goal notification state:', error)
+    );
+  }, [progress, currentGoal, today, updateNotificationState, notify]);
 
   // Save today's target (again if it changes today), so later goal changes
   // don't rewrite what this day was measured against.

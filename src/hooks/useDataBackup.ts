@@ -8,9 +8,12 @@ import { TaskSession } from '../types/timer';
 import { WorkLogsResponse } from '../types/workLog';
 import { BACKUP_FORMAT_VERSION, BackupFileSchema, RestoreSummary } from '../types/backup';
 import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
+import { errorMessage } from '../utils/errors';
+import { EXPORT_CANCELLED } from './useCsvExport';
 
 interface UseDataBackupProps {
-  onExportSuccess?: () => void;
+  /** Called with where the file was saved. */
+  onExportSuccess?: (path?: string) => void;
   onExportError?: (error: string) => void;
   onImportSuccess?: (result: any) => void;
   onImportError?: (error: string) => void;
@@ -94,28 +97,24 @@ export const useDataBackup = ({
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const suggestedFilename = `taskmint_export_${timestamp}.json`;
 
-      // Call Tauri command to show save dialog and export
-      const exportPath = await safeInvoke<string>('export_data_to_file', {
-        dataJson,
-        suggestedFilename
-      });
-
-      if (!exportPath) {
-        throw new Error('Export was cancelled or failed');
+      // Shows the save dialog, then writes the file. Dismissing the dialog
+      // is not an error: nothing to report.
+      let exportPath: string;
+      try {
+        exportPath = await invoke<string>('export_data_to_file', { dataJson, suggestedFilename });
+      } catch (error) {
+        if (errorMessage(error, '') === EXPORT_CANCELLED) return;
+        throw error;
       }
 
-      if (process.env.NODE_ENV !== 'test') {
-        console.log('Data exported successfully to:', exportPath);
-      }
-      onExportSuccess?.();
+      onExportSuccess?.(exportPath);
 
     } catch (error) {
       // Only log in non-test environments
       if (process.env.NODE_ENV !== 'test') {
         console.error('Export failed:', error);
       }
-      const errorMessage = error instanceof Error ? error.message : 'Failed to export data';
-      onExportError?.(errorMessage);
+      onExportError?.(errorMessage(error, 'Failed to export data'));
     } finally {
       setIsExporting(false);
     }

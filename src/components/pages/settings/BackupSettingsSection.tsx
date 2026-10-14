@@ -23,12 +23,7 @@ import { SettingsSection } from './SettingsSection';
 import { useBackupSettingsContext } from '../../../contexts/BackupSettingsContext';
 import { BackupFrequency, getBackupFrequencyLabel } from '../../../types/backup';
 
-interface BackupSettingsSectionProps {
-  onSuccess?: (message: string) => void;
-  onError?: (error: string) => void;
-}
-
-export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSectionProps) {
+export function BackupSettingsSection() {
   const {
     config: backupConfig,
     status: backupStatus,
@@ -56,33 +51,16 @@ export function BackupSettingsSection({ onSuccess, onError }: BackupSettingsSect
 
   const backupFrequencies: BackupFrequency[] = ['daily', 'weekly', 'monthly'];
 
+  // Both report their own outcome (see useBackupSettings)
   const handleSelectBackupDirectory = async () => {
-    try {
-      const selectedPath = await selectBackupDirectory();
-      if (selectedPath) {
-        updateBackupPath(selectedPath);
-      }
-    } catch (error) {
-      console.error('Failed to select backup directory:', error);
-      const errorMessage = 'Failed to select backup directory. Please try again.';
-      onError?.(errorMessage);
+    const selectedPath = await selectBackupDirectory();
+    if (selectedPath) {
+      updateBackupPath(selectedPath);
     }
   };
 
-  const handleManualBackup = async () => {
-    try {
-      const result = await performManualBackup();
-      if (result.success) {
-        onSuccess?.(result.filePath ? `Backed up to ${result.filePath}` : 'Backup saved');
-      } else {
-        const errorMessage = result.error || 'Backup failed';
-        onError?.(errorMessage);
-      }
-    } catch (error) {
-      console.error('Manual backup failed:', error);
-      const errorMessage = 'Manual backup failed. Please try again.';
-      onError?.(errorMessage);
-    }
+  const handleManualBackup = () => {
+    void performManualBackup();
   };
 
   return (

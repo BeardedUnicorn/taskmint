@@ -24,43 +24,45 @@ import { useDataBackup } from '../../../hooks/useDataBackup';
 import { useResetAppData } from '../../../hooks/useResetAppData';
 import { reloadApp } from '../../../utils/appReload';
 import { flushAppRecords } from '../../../services/appRecords';
+import { useNotification } from '../../../contexts/NotificationContext';
+import { errorMessage } from '../../../utils/errors';
+import { revealAction } from '../../../utils/reveal';
 
 // Typed confirmation guarding the full app-data reset.
 export const RESET_CONFIRMATION_WORD = 'RESET';
 
-interface DataManagementSectionProps {
-  onSuccess?: (message: string) => void;
-  onError?: (error: string) => void;
-  onImportSuccess?: () => void;
-  onImportError?: (error: string) => void;
-}
-
-export function DataManagementSection({ onSuccess, onError, onImportSuccess, onImportError }: DataManagementSectionProps) {
+export function DataManagementSection() {
+  const { notify, showError } = useNotification();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
 
   const { exportData, importData, isExporting, isImporting } = useDataBackup({
-    onExportSuccess: () => {
-      onSuccess?.('Your data was exported');
+    onExportSuccess: (path?: string) => {
+      notify({
+        severity: 'success',
+        category: 'export',
+        message: path ? `Exported to ${path}` : 'Your data was exported',
+        actions: revealAction(path),
+      });
     },
     onExportError: (error: unknown) => {
-      onError?.(error as string);
+      showError(errorMessage(error, "Couldn't export your data"));
     },
     onImportSuccess: () => {
-      onImportSuccess?.();
+      notify({ severity: 'success', category: 'settings', message: 'Data imported. Reloading…', history: false });
       // Every provider (tasks, sessions, work logs, notes) re-reads the
       // restored stores, same as after a reset, once pending record writes
       // have landed.
       void flushAppRecords().finally(reloadApp);
     },
     onImportError: (error: unknown) => {
-      onImportError?.(error as string);
+      showError(errorMessage(error, "Couldn't import that file"));
     },
   });
 
   const { resetAllData, isResetting } = useResetAppData({
     onError: (error: string) => {
-      onError?.(error);
+      showError(error);
     },
   });
 
@@ -69,8 +71,7 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
       await exportData();
     } catch (error) {
       console.error('Export failed:', error);
-      const errorMessage = 'Failed to export data. Please try again.';
-      onError?.(errorMessage);
+      showError('Failed to export data. Please try again.');
     }
   };
 
@@ -79,8 +80,7 @@ export function DataManagementSection({ onSuccess, onError, onImportSuccess, onI
       await importData('merge'); // Default to merge mode
     } catch (error) {
       console.error('Import failed:', error);
-      const errorMessage = 'Failed to import data. Please try again.';
-      onImportError?.(errorMessage);
+      showError('Failed to import data. Please try again.');
     }
   };
 

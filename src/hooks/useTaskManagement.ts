@@ -40,7 +40,6 @@ export function useTaskManagement(): UseTaskManagementReturn {
       async () => {
         const newTask = await taskService.createTask(taskData);
         setTasks(prev => [...prev, newTask]);
-        showSuccess(`Task "${newTask.name}" created successfully!`);
         return newTask;
       },
       {
@@ -62,7 +61,6 @@ export function useTaskManagement(): UseTaskManagementReturn {
         setTasks(prev => prev.map(task =>
           task.id === taskId ? updatedTask : task
         ));
-        showSuccess(`Task "${updatedTask.name}" updated successfully!`);
         return updatedTask;
       },
       {
@@ -70,7 +68,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
         errorHandler: error => showError(error.message || 'Failed to update task.')
       }
     );
-  }, [taskService, executeAsync, showSuccess, showError]);
+  }, [taskService, executeAsync, showError]);
 
   const archiveTask = useCallback(async (taskId: string) => {
     return executeAsync(
@@ -79,7 +77,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
         setTasks(prev => prev.map(task =>
           task.id === taskId ? archivedTask : task
         ));
-        showSuccess(`Task "${archivedTask.name}" archived successfully!`);
+        showSuccess(`Archived "${archivedTask.name}"`, { category: 'task' });
         return archivedTask;
       },
       {
@@ -96,7 +94,6 @@ export function useTaskManagement(): UseTaskManagementReturn {
         setTasks(prev => prev.map(task =>
           task.id === taskId ? unarchivedTask : task
         ));
-        showSuccess(`Task "${unarchivedTask.name}" unarchived successfully!`);
         return unarchivedTask;
       },
       {
@@ -130,7 +127,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
         await taskService.deleteTask(taskId);
         const updatedTasks = await taskService.getAllTasks();
         setTasks(updatedTasks);
-        showSuccess(`Task "${taskToDelete?.name || 'Unknown'}" deleted successfully!`);
+        showSuccess(`Deleted "${taskToDelete?.name || 'the task'}"`, { category: 'task' });
       },
       {
         operation: 'deleteTask',

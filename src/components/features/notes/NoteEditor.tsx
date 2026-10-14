@@ -18,7 +18,6 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  Snackbar,
   FormControl,
   InputLabel,
   Select,
@@ -36,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import { NoteEditorProps, TemplateField, NoteTemplate, TaskNote } from '../../../types/notes';
 import { errorMessage } from '../../../utils/errors';
+import { useNotification } from '../../../contexts/NotificationContext';
 import { FREE_FORM_TEMPLATE_ID, FREE_FORM_TEMPLATE_NAME } from '../../../utils/notes';
 
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
@@ -87,11 +87,11 @@ export function NoteEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [copySnackbar, setCopySnackbar] = useState<{ open: boolean; message: string }>({
-    open: false,
-    message: '',
-  });
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const { showSuccess, showError, showInfo } = useNotification();
+  const setSaveError = useCallback(
+    (message: string) => showError(message, { category: 'note', title: "Couldn't save the note" }),
+    [showError]
+  );
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   // Initialize field values from existing note or template defaults
@@ -375,27 +375,18 @@ export function NoteEditor({
   const handleCopyFieldValue = useCallback(async (fieldId: string, fieldLabel: string) => {
     const value = fieldValues[fieldId];
     if (value === undefined || value === null || value === '') {
-      setCopySnackbar({
-        open: true,
-        message: `No content to copy from ${fieldLabel}`,
-      });
+      showInfo(`No content to copy from ${fieldLabel}`, { category: 'note', duration: 2500, history: false });
       return;
     }
 
     try {
       await navigator.clipboard.writeText(String(value));
-      setCopySnackbar({
-        open: true,
-        message: `Copied ${fieldLabel} content to clipboard`,
-      });
+      showSuccess(`Copied ${fieldLabel} to the clipboard`, { category: 'note', duration: 2000, history: false });
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
-      setCopySnackbar({
-        open: true,
-        message: `Failed to copy ${fieldLabel} content`,
-      });
+      showError(`Couldn't copy ${fieldLabel}`, { category: 'note', history: false });
     }
-  }, [fieldValues]);
+  }, [fieldValues, showInfo, showSuccess, showError]);
 
   // Auto-save note changes after a short period of inactivity. This prevents
   // data loss and keeps notes in sync without manual interaction.
@@ -685,15 +676,6 @@ export function NoteEditor({
             </Box>
           </Stack>
         </Paper>
-        <Snackbar
-          open={!!saveError}
-          autoHideDuration={6000}
-          onClose={() => setSaveError(null)}
-        >
-          <Alert severity="error" onClose={() => setSaveError(null)}>
-            {saveError}
-          </Alert>
-        </Snackbar>
         <ConfirmDialog
           open={showDiscardDialog}
           onClose={() => setShowDiscardDialog(false)}
@@ -842,24 +824,7 @@ export function NoteEditor({
         </Box>
       </Collapse>
 
-      {/* Copy Snackbar */}
-      <Snackbar
-        open={copySnackbar.open}
-        autoHideDuration={3000}
-        onClose={() => setCopySnackbar({ open: false, message: '' })}
-        message={copySnackbar.message}
-      />
 
-      {/* Save Error Snackbar */}
-      <Snackbar
-        open={!!saveError}
-        autoHideDuration={6000}
-        onClose={() => setSaveError(null)}
-      >
-        <Alert severity="error" onClose={() => setSaveError(null)}>
-          {saveError}
-        </Alert>
-      </Snackbar>
     </Paper>
     <ConfirmDialog
       open={showDiscardDialog}
