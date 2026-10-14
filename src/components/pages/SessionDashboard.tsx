@@ -6,7 +6,7 @@
  * the backend; its "you were away" question is an app-level dialog.)
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Container,
@@ -36,7 +36,8 @@ import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatCurrency, formatDuration, formatTime } from '../../utils/formatters';
-import { getInstanceElapsedMs, getSessionElapsedMs } from '../../utils/timerHelpers';
+import { getInstanceElapsedMs, getSessionElapsedMs, hasRunningTimer } from '../../utils/timerHelpers';
+import { useNowMs } from '../../hooks/useNowMs';
 import { useTimerEntryEdit } from '../../hooks/useTimerEntryEdit';
 import { orderTasksForStart } from '../../utils/taskOrdering';
 import { sessionEarnings, sessionRate } from '../../utils/earnings';
@@ -101,20 +102,9 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   // instance state via getSessionElapsedMs. This nowMs feeds the score cards,
   // the Active Session panel, and the session list so they never disagree on
   // the displayed second; it ticks only while a timer is running.
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
-  const hasRunningTimer = sessions.some((session) =>
-    session.timerInstances?.some((instance) => instance.state === TimerState.running)
-  );
-
   // Totals only accrue while a timer runs (paused time is frozen, idle time
   // is stored), so the clock only needs to tick during a run.
-  useEffect(() => {
-    setNowMs(Date.now()); // catch up immediately when the rate changes
-    if (!hasRunningTimer) return;
-    const interval = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [hasRunningTimer]);
+  const nowMs = useNowMs(hasRunningTimer(sessions), 1000);
 
   const stats = useMemo(() => {
     // Totals cover every timer in the active session, regardless of the day

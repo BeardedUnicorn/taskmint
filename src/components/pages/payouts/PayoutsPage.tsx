@@ -38,7 +38,8 @@ import { useSessionManagementContext } from '../../../contexts/SessionManagement
 import { useTaskManagementContext } from '../../../contexts/TaskManagementContext';
 import { useWorkLogContext } from '../../../contexts/WorkLogContext';
 import { useFundsReleaseSettings } from '../../../hooks/useFundsReleaseSettings';
-import { TimerState } from '../../../types/timer';
+import { hasRunningTimer } from '../../../utils/timerHelpers';
+import { useNowMs } from '../../../hooks/useNowMs';
 import { Task } from '../../../types/task';
 import { CaptureServerStatus, WorkLogImportPayload } from '../../../types/workLog';
 import {
@@ -98,14 +99,7 @@ export function PayoutsPage() {
 
   // Same live-tick pattern as the Sessions dashboard: 1s while a timer runs
   // (estimates track live time), 60s otherwise so "today" still rolls over.
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const hasRunningTimer = sessions.some(s =>
-    s.timerInstances.some(i => i.state === TimerState.running)
-  );
-  useEffect(() => {
-    const interval = setInterval(() => setNowMs(Date.now()), hasRunningTimer ? 1000 : 60_000);
-    return () => clearInterval(interval);
-  }, [hasRunningTimer]);
+  const nowMs = useNowMs(true, hasRunningTimer(sessions) ? 1000 : 60_000);
 
   const today = formatDateString(new Date(nowMs));
   const cells = useMemo(

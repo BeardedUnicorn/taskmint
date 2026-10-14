@@ -2,7 +2,8 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { useIdleReturn } from '../useIdleReturn';
-import { safeInvoke, safeListen } from '../../utils/tauri';
+import { listen } from '@tauri-apps/api/event';
+import { safeInvoke } from '../../utils/tauri';
 import { IdlePause } from '../../types/timer';
 import { STORAGE_KEYS } from '../../constants';
 
@@ -10,12 +11,12 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../../utils/tauri', () => ({
   isTauriEnvironment: vi.fn(() => true),
   safeInvoke: vi.fn(),
-  safeListen: vi.fn(),
 }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 
 const mockInvoke = vi.mocked(invoke);
 const mockSafeInvoke = vi.mocked(safeInvoke);
-const mockSafeListen = vi.mocked(safeListen);
+const mockListen = vi.mocked(listen);
 
 const away: IdlePause = {
   instanceId: 'i-1',
@@ -34,8 +35,8 @@ describe('useIdleReturn', () => {
     window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_DEFAULT_OFF_APPLIED, 'true');
     vi.clearAllMocks();
     handlers = {};
-    mockSafeListen.mockImplementation(async (event, handler) => {
-      handlers[event] = handler;
+    mockListen.mockImplementation(async (event, handler) => {
+      handlers[event as string] = handler as (event: { payload?: unknown }) => void;
       return unlisten;
     });
     mockSafeInvoke.mockResolvedValue(null);

@@ -11,7 +11,7 @@
  * WorkLogContext.tsx). Pages read the shared instance via useWorkLogContext.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   ProjectTaskMapping,
@@ -89,5 +89,8 @@ export function useWorkLogs(): UseWorkLogsReturn {
     }
   }, [loadWarning, showError]);
 
-  return { entries, mappings, isLoading, error, loadWarning, reload, applyImport };
+  return useMemo(
+    () => ({ entries, mappings, isLoading, error, loadWarning, reload, applyImport }),
+    [entries, mappings, isLoading, error, loadWarning, reload, applyImport]
+  );
 }

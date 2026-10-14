@@ -34,7 +34,7 @@ import {
   Notes as NotesIcon,
 } from '@mui/icons-material';
 import { Task } from '../../types/task';
-import { TaskSession, TimeEntry } from '../../types/timer';
+import { TaskSession } from '../../types/timer';
 import { TaskNote, NoteTemplate } from '../../types/notes';
 import { NotesList, NoteEditor } from '../features/notes';
 import { useTaskNotes } from '../../hooks/useTaskNotes';
@@ -46,12 +46,13 @@ interface NotesPageProps {
   tasks: Task[];
   /** For ordering the Task picker by recent use */
   sessions?: TaskSession[];
-  activeEntry: TimeEntry | null;
+  /** The task whose timer is running, if any (offers its default template). */
+  runningTask: { taskId: string; taskName: string } | null;
 }
 
 const NO_SESSIONS: TaskSession[] = [];
 
-export function NotesPage({ tasks, sessions = NO_SESSIONS, activeEntry }: NotesPageProps) {
+export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesPageProps) {
   // Notes, or the templates they're written from (which used to sit at the
   // bottom of Settings)
   const [tab, setTab] = useState<'notes' | 'templates'>('notes');
@@ -129,9 +130,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, activeEntry }: NotesP
     const noteTask = editingNote && tasks.find(task => task.id === editingNote.taskId);
     return noteTask && !pickerTasks.includes(noteTask) ? [...pickerTasks, noteTask] : pickerTasks;
   }, [editingNote, tasks, pickerTasks]);
-  const activeTask = activeEntry?.taskId
-    ? tasks.find(task => task.id === activeEntry.taskId)
-    : undefined;
+  const activeTask = runningTask ? tasks.find(task => task.id === runningTask.taskId) : undefined;
 
   // Get unique templates used in notes for filter dropdown
   const usedTemplates = useMemo(() => {
@@ -228,11 +227,11 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, activeEntry }: NotesP
       ) : (
         <>
           {/* Active Timer Info */}
-          {activeEntry && (
+          {runningTask && (
             <Box sx={{ px: 3, pb: 2 }}>
               <Alert severity="info" sx={{ mb: 1 }}>
                 <Typography variant="body2">
-                  <strong>Active Timer:</strong> {activeEntry.taskName}
+                  <strong>Active Timer:</strong> {runningTask.taskName}
                   {(() => {
                     const defaultTemplate = activeTask?.defaultNoteTemplateId 
                       ? templates.find(t => t.id === activeTask.defaultNoteTemplateId)

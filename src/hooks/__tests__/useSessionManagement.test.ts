@@ -43,11 +43,6 @@ vi.mock('../../contexts/NotificationContext', () => ({
   }),
 }));
 
-// Mock performance utilities
-vi.mock('../../utils/performance', () => ({
-  measurePerformance: vi.fn((name, fn) => fn()),
-}));
-
 // Command-keyed invoke queues: prime per-command results; unprimed commands
 // fall back to sensible defaults.
 let commandQueues: Record<string, unknown[]>;
@@ -312,112 +307,6 @@ describe('useSessionManagement', () => {
     });
   });
 
-  describe('session updates', () => {
-    it('should update a session', async () => {
-      const updatedSession = { ...mockSession, taskName: 'Updated Task' };
-      primeCommand('get_sessions', [mockSession]);
-      primeCommand('update_session', updatedSession);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.sessions).toEqual([mockSession]);
-      });
-
-      await act(async () => {
-        const updated = await result.current.updateSession('session-1', {
-          taskName: 'Updated Task',
-        });
-        expect(updated).toEqual(updatedSession);
-      });
-
-      expect(mockInvoke).toHaveBeenCalledWith('update_session', {
-        sessionId: 'session-1',
-        updates: { taskName: 'Updated Task' },
-      });
-      expect(result.current.sessions[0]).toEqual(updatedSession);
-    });
-
-    it('should update active session when it is modified', async () => {
-      const activeSession = { ...mockSession, isActive: true };
-      const updatedSession = { ...activeSession, taskName: 'Updated Active Task' };
-
-      primeCommand('get_sessions', [activeSession]);
-      primeCommand('update_session', updatedSession);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.activeSession).toEqual(activeSession);
-      });
-
-      await act(async () => {
-        await result.current.updateSession('session-1', {
-          taskName: 'Updated Active Task',
-        });
-      });
-
-      expect(result.current.activeSession).toEqual(updatedSession);
-    });
-  });
-
-  describe('timer instance updates', () => {
-    it('should update a timer instance and reload sessions', async () => {
-      const sessionWithInstance = {
-        ...mockSession,
-        timerInstances: [mockTimerInstance],
-      };
-      primeCommand('get_sessions', [sessionWithInstance], [sessionWithInstance]);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.sessions).toHaveLength(1);
-      });
-      const getSessionsCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'get_sessions').length;
-
-      // The edit-save payload every page sends: net duration + derived
-      // endTime, and the stop flags cleared.
-      const updates = {
-        duration: 90_000,
-        endTime: '2024-01-15T10:01:30.000Z',
-        isRunning: false,
-        isPaused: false,
-      };
-      await act(async () => {
-        await result.current.updateTimerInstance('instance-1', updates);
-      });
-
-      expect(mockInvoke).toHaveBeenCalledWith('update_timer_instance', {
-        instanceId: 'instance-1',
-        updates,
-      });
-      // The command emits no event, so the hook must reload sessions itself.
-      expect(
-        mockInvoke.mock.calls.filter(([cmd]) => cmd === 'get_sessions').length
-      ).toBeGreaterThan(getSessionsCalls);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Timer updated');
-    });
-
-    it('should surface backend errors without throwing', async () => {
-      primeCommand('get_sessions', [mockSession]);
-      primeCommand('update_timer_instance', new Error('Timer instance with ID missing not found'));
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.sessions).toEqual([mockSession]);
-      });
-
-      await act(async () => {
-        await result.current.updateTimerInstance('missing', { duration: 1_000 });
-      });
-
-      expect(mockShowError).toHaveBeenCalledWith('Timer instance with ID missing not found');
-      expect(result.current.error).toBe('Timer instance with ID missing not found');
-    });
-  });
-
   describe('editing a finished timer', () => {
     const finished = {
       ...mockTimerInstance,
@@ -567,6 +456,65 @@ describe('useSessionManagement', () => {
         instanceId: 'instance-1',
       });
       expect(mockShowSuccess).toHaveBeenCalledWith('Timer started');
+    });
+
+    it('keeps its actions stable when the running timer changes', async () => {
+      const running = { ...mockSession, isActive: true, timerInstances: [{ ...mockTimerInstance, state: TimerState.running }] };
+      primeCommand('get_sessions', [{ ...mockSession, isActive: true, timerInstances: [mockTimerInstance] }]);
+      primeCommand('start_timer_instance', running);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      const before = result.current;
+
+      await act(async () => {
+        await result.current.startTimerInstance('instance-1');
+      });
+
+      expect(result.current.sessions).not.toBe(before.sessions);
+      expect(result.current.deleteSession).toBe(before.deleteSession);
+      expect(result.current.stopTimerInstance).toBe(before.stopTimerInstance);
+      expect(result.current.endActiveSession).toBe(before.endActiveSession);
+      expect(result.current.startTask).toBe(before.startTask);
+    });
+
+    it('stays busy until every timer of an ending session has stopped', async () => {
+      const active = {
+        ...mockSession,
+        isActive: true,
+        timerInstances: [
+          { ...mockTimerInstance, id: 'a', state: TimerState.running, isRunning: true },
+          { ...mockTimerInstance, id: 'b', state: TimerState.paused, isPaused: true },
+        ],
+      };
+      primeCommand('get_sessions', [active]);
+      let releaseSecondStop!: () => void;
+      primeCommand('stop_timer_instance', { ...active });
+      primeCommand('set_active_session', [{ ...active, isActive: false }]);
+      const loadingDuringEnd: boolean[] = [];
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('session-1'));
+
+      mockInvoke.mockImplementationOnce(async () => ({ ...active }));
+      mockInvoke.mockImplementationOnce(
+        () => new Promise(resolve => (releaseSecondStop = () => resolve({ ...active })))
+      );
+      let ending!: Promise<void>;
+      act(() => {
+        ending = result.current.endActiveSession();
+      });
+      await waitFor(() => expect(releaseSecondStop).toBeDefined());
+      loadingDuringEnd.push(result.current.isLoading);
+      installInvokeMock();
+      primeCommand('set_active_session', [{ ...active, isActive: false }]);
+      await act(async () => {
+        releaseSecondStop();
+        await ending;
+      });
+
+      expect(loadingDuringEnd).toEqual([true]);
+      expect(result.current.isLoading).toBe(false);
     });
 
     it('should stop a timer instance', async () => {
@@ -860,53 +808,6 @@ describe('useSessionManagement', () => {
       });
 
       expect(mockInvoke).not.toHaveBeenCalledWith('pause_timer_instance', expect.anything());
-    });
-  });
-
-  describe('utility methods', () => {
-    it('should get session by ID', async () => {
-      primeCommand('get_sessions', [mockSession]);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.sessions).toEqual([mockSession]);
-      });
-
-      const found = result.current.getSessionById('session-1');
-      expect(found).toEqual(mockSession);
-
-      const notFound = result.current.getSessionById('nonexistent');
-      expect(notFound).toBeUndefined();
-    });
-
-    it('should get sessions by task ID', async () => {
-      const session2 = { ...mockSession, id: 'session-2', taskId: 'task-2' };
-      const sessions = [mockSession, session2];
-      primeCommand('get_sessions', sessions);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.sessions).toEqual(sessions);
-      });
-
-      const taskSessions = result.current.getSessionsByTaskId('task-1');
-      expect(taskSessions).toEqual([mockSession]);
-    });
-
-    it('should get active session', async () => {
-      const activeSession = { ...mockSession, isActive: true };
-      primeCommand('get_sessions', [activeSession]);
-
-      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-
-      await waitFor(() => {
-        expect(result.current.activeSession).toEqual(activeSession);
-      });
-
-      const active = result.current.getActiveSession();
-      expect(active).toEqual(activeSession);
     });
   });
 

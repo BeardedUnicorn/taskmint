@@ -360,48 +360,6 @@ describe('useTaskManagement', () => {
     });
   });
 
-  describe('task lookup methods', () => {
-    it('should get task by id', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      const task = result.current.getTaskById('task-1');
-      expect(task).toEqual(sampleTasks[0]);
-    });
-
-    it('should return undefined for non-existent task id', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      const task = result.current.getTaskById('non-existent');
-      expect(task).toBeUndefined();
-    });
-
-    it('should get task by name', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      const task = result.current.getTaskByName('Development');
-      expect(task).toEqual(sampleTasks[0]);
-    });
-
-    it('should return undefined for non-existent task name', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      const task = result.current.getTaskByName('Non-existent');
-      expect(task).toBeUndefined();
-    });
-
-    it('should get all task names', async () => {
-      const { result } = renderHook(() => useTaskManagement());
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-      const names = result.current.getTaskNames();
-      expect(names).toEqual(['Design', 'Development', 'Testing']);
-    });
-  });
-
   describe('return values', () => {
     it('should return all expected properties and methods', async () => {
       const { result } = renderHook(() => useTaskManagement());
@@ -422,19 +380,27 @@ describe('useTaskManagement', () => {
       expect(typeof result.current.archiveTask).toBe('function');
       expect(typeof result.current.unarchiveTask).toBe('function');
 
-      // Lookup methods
-      expect(result.current).toHaveProperty('getTaskById');
-      expect(result.current).toHaveProperty('getTaskByName');
-      expect(result.current).toHaveProperty('getTaskNames');
-
 
       // Verify all methods are functions
       expect(typeof result.current.addTask).toBe('function');
       expect(typeof result.current.updateTask).toBe('function');
       expect(typeof result.current.deleteTask).toBe('function');
-      expect(typeof result.current.getTaskById).toBe('function');
-      expect(typeof result.current.getTaskByName).toBe('function');
-      expect(typeof result.current.getTaskNames).toBe('function');
+    });
+
+    it('keeps its actions stable across task edits', async () => {
+      const { result } = renderHook(() => useTaskManagement());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      const before = result.current;
+
+      mockTaskService.updateTask.mockResolvedValue({ ...sampleTasks[0], name: 'Renamed' });
+      mockTaskService.getAllTasks.mockResolvedValue([{ ...sampleTasks[0], name: 'Renamed' }, ...sampleTasks.slice(1)]);
+      await act(async () => {
+        await result.current.updateTask('task-1', { name: 'Renamed' });
+      });
+
+      expect(result.current.tasks).not.toBe(before.tasks);
+      expect(result.current.deleteTask).toBe(before.deleteTask);
+      expect(result.current.toggleFavorite).toBe(before.toggleFavorite);
     });
   });
 });

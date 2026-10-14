@@ -8,9 +8,11 @@
  * later. Used once, in App; the sidebar shows the progress it returns.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useDailyGoals } from './useDailyGoals';
-import { TaskSession, TimerState } from '../types/timer';
+import { TaskSession } from '../types/timer';
+import { hasRunningTimer } from '../utils/timerHelpers';
+import { useNowMs } from './useNowMs';
 import { Task } from '../types/task';
 import { earningsOnDate } from '../utils/earnings';
 import { formatDateString } from '../utils/dateHelpers';
@@ -96,16 +98,7 @@ export function useDailyGoalProgressMonitor({
 
   // Today's total only moves while a timer runs; otherwise it changes with
   // the sessions themselves (stops, edits, Add time, imports).
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const hasRunningTimer = sessions.some(session =>
-    session.timerInstances?.some(instance => instance.state === TimerState.running)
-  );
-  useEffect(() => {
-    setNowMs(Date.now());
-    if (!hasRunningTimer) return;
-    const interval = setInterval(() => setNowMs(Date.now()), LIVE_TICK_MS);
-    return () => clearInterval(interval);
-  }, [hasRunningTimer, sessions]);
+  const nowMs = useNowMs(hasRunningTimer(sessions), LIVE_TICK_MS, sessions);
 
   const today = formatDateString(new Date(nowMs));
 

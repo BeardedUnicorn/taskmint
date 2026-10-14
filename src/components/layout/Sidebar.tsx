@@ -159,6 +159,8 @@ export function Sidebar({ activeView, onViewChange, footer }: SidebarProps) {
             display: 'flex',
             flexDirection: 'column',
             alignItems: isCollapsed ? 'center' : 'stretch',
+            // Nothing to show (no goal set): no padding either
+            '&:empty': { p: 0 },
           }}
         >
           {footer(isCollapsed)}

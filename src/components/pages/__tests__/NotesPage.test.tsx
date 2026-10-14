@@ -7,7 +7,6 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { NotesPage } from '../NotesPage';
 import { Task } from '../../../types/task';
-import { TimeEntry } from '../../../types/timer';
 import { TaskNote, NoteTemplate } from '../../../types/notes';
 
 // Mock the hooks
@@ -78,14 +77,7 @@ describe('NotesPage', () => {
     },
   ];
 
-  const mockActiveEntry: TimeEntry = {
-    id: 'entry1',
-    taskName: 'Task 1',
-    taskId: 'task1',
-    startTime: new Date(),
-    isRunning: true,
-    date: '2024-01-01',
-  };
+  const mockActiveEntry = { taskName: 'Task 1', taskId: 'task1' };
 
   const mockNotes: TaskNote[] = [
     {
@@ -144,7 +136,7 @@ describe('NotesPage', () => {
   });
 
   it('renders the notes page with header and controls', () => {
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     expect(screen.getByRole('heading', { name: 'Notes' })).toBeInTheDocument();
     expect(screen.getByText('Manage all your notes across tasks in one place')).toBeInTheDocument();
@@ -153,7 +145,7 @@ describe('NotesPage', () => {
   });
 
   it('keeps note templates on their own tab', () => {
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true');
     fireEvent.click(screen.getByRole('tab', { name: 'Templates' }));
@@ -174,7 +166,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={mockActiveEntry} />);
+    render(<NotesPage tasks={mockTasks} runningTask={mockActiveEntry} />);
 
     expect(screen.getByText(/Active Timer:/)).toBeInTheDocument();
     expect(screen.getByText(/Task 1/)).toBeInTheDocument();
@@ -182,13 +174,13 @@ describe('NotesPage', () => {
   });
 
   it('shows no default template message when active task has no default template', () => {
-    const mockActiveEntryNoTemplate: TimeEntry = {
+    const mockActiveEntryNoTemplate = {
       ...mockActiveEntry,
       taskName: 'Task 2', // Task 2 has no default template
       taskId: 'task2',
     };
 
-    render(<NotesPage tasks={mockTasks} activeEntry={mockActiveEntryNoTemplate} />);
+    render(<NotesPage tasks={mockTasks} runningTask={mockActiveEntryNoTemplate} />);
 
     expect(screen.getByText(/No default template set/)).toBeInTheDocument();
   });
@@ -207,7 +199,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     expect(screen.getByText('2 notes')).toBeInTheDocument();
   });
@@ -228,7 +220,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     // Find the task filter by looking for the combobox with "All Tasks" text
     const taskFilterElements = screen.getAllByRole('combobox');
@@ -246,7 +238,7 @@ describe('NotesPage', () => {
   });
 
   it('shows note editor when creating a new note', async () => {
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     const addButton = screen.getByText('Add Note');
     fireEvent.click(addButton);
@@ -270,7 +262,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     const editButton = screen.getByText('Edit Note');
     fireEvent.click(editButton);
@@ -295,7 +287,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     const addButton = screen.getByText('Add Note');
     fireEvent.click(addButton);
@@ -332,7 +324,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     const editButton = screen.getByText('Edit Note');
     fireEvent.click(editButton);
@@ -366,7 +358,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     const deleteButton = screen.getByText('Delete Note');
     fireEvent.click(deleteButton);
@@ -377,7 +369,7 @@ describe('NotesPage', () => {
   });
 
   it('closes note editor when close button is clicked', async () => {
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     const addButton = screen.getByText('Add Note');
     fireEvent.click(addButton);
@@ -405,7 +397,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
     fireEvent.click(screen.getByText('Add Note'));
     fireEvent.click(await screen.findByText('Save Note'));
 
@@ -423,7 +415,7 @@ describe('NotesPage', () => {
     // A running timer on Task 2, renamed since: matched by id, not name
     const entry = { ...mockActiveEntry, taskId: 'task2', taskName: 'Renamed' };
 
-    render(<NotesPage tasks={tasks} activeEntry={entry} />);
+    render(<NotesPage tasks={tasks} runningTask={entry} />);
     fireEvent.click(screen.getByText('Add Note'));
     await screen.findByTestId('note-editor');
 
@@ -444,7 +436,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     expect(vi.mocked(NotesList).mock.calls.at(-1)![0].taskNames).toEqual({
       task1: 'Task 1',
@@ -453,14 +445,14 @@ describe('NotesPage', () => {
   });
 
   it('shows no tasks message when no tasks are available', () => {
-    render(<NotesPage tasks={[]} activeEntry={null} />);
+    render(<NotesPage tasks={[]} runningTask={null} />);
 
     expect(screen.getByText('No Tasks Available')).toBeInTheDocument();
     expect(screen.getByText('Create some tasks first to start adding notes.')).toBeInTheDocument();
   });
 
   it('disables add note button when no tasks are available', () => {
-    render(<NotesPage tasks={[]} activeEntry={null} />);
+    render(<NotesPage tasks={[]} runningTask={null} />);
 
     const addButton = screen.getByText('Add Note');
     expect(addButton).toBeDisabled();
@@ -480,7 +472,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     expect(screen.getByText('No Notes Found')).toBeInTheDocument();
     expect(screen.getByText('Start by creating your first note using the "Add Note" button above.')).toBeInTheDocument();
@@ -503,7 +495,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={null} />);
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
     const searchInput = screen.getByPlaceholderText('Search notes...');
     fireEvent.change(searchInput, { target: { value: 'test search' } });
@@ -539,7 +531,7 @@ describe('NotesPage', () => {
       error: null,
     });
 
-    render(<NotesPage tasks={mockTasks} activeEntry={mockActiveEntry} />);
+    render(<NotesPage tasks={mockTasks} runningTask={mockActiveEntry} />);
 
     const addButton = screen.getByText('Add Note');
     fireEvent.click(addButton);

@@ -22,6 +22,13 @@ function toMs(value: Date | string | undefined): number | null {
  * - paused:  (pausedAt - startTime) - pausedDuration (frozen)
  * - otherwise: the stored duration
  */
+/** Whether any session has a timer running right now. */
+export function hasRunningTimer(sessions: TaskSession[]): boolean {
+  return sessions.some(session =>
+    session.timerInstances?.some(instance => instance.state === TimerState.running)
+  );
+}
+
 export function getInstanceElapsedMs(instance: TimerInstance, nowMs: number = Date.now()): number {
   const pausedMs = instance.pausedDuration || 0;
 

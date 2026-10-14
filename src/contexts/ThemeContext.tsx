@@ -5,7 +5,7 @@
  * with persistence and system preference detection.
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { createContext, useCallback, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { ThemeProvider as MuiThemeProvider, Theme } from '@mui/material/styles';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { darkTheme, createLightTheme } from '../theme';
@@ -101,31 +101,18 @@ export function ThemeProvider({ children, defaultMode = 'dark' }: ThemeProviderP
     return isDark ? darkTheme : createLightTheme();
   }, [isDark]);
 
-  // Set mode function
-  const setMode = (newMode: ThemeMode) => {
-    setStoredMode(newMode);
-  };
+  const setMode = setStoredMode;
 
-  // Toggle between light and dark (ignores system mode)
-  const toggleTheme = () => {
-    if (mode === 'system') {
-      // If currently on system, toggle to opposite of current system theme
-      setMode(systemTheme === 'dark' ? 'light' : 'dark');
-    } else {
-      // Toggle between light and dark
-      setMode(mode === 'dark' ? 'light' : 'dark');
-    }
-  };
+  // Toggle between light and dark (from System: the opposite of what the
+  // system shows now)
+  const toggleTheme = useCallback(() => {
+    setMode(isDark ? 'light' : 'dark');
+  }, [isDark, setMode]);
 
-  // Context value
-  const contextValue: ThemeContextType = {
-    mode,
-    isDark,
-    theme,
-    systemTheme,
-    setMode,
-    toggleTheme,
-  };
+  const contextValue = useMemo<ThemeContextType>(
+    () => ({ mode, isDark, theme, systemTheme, setMode, toggleTheme }),
+    [mode, isDark, theme, systemTheme, setMode, toggleTheme]
+  );
 
   return (
     <ThemeContext.Provider value={contextValue}>

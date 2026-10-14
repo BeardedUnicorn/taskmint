@@ -50,8 +50,5 @@ export interface UseTaskManagementReturn {
   unarchiveTask: (taskId: string) => Promise<Task | null>;
   /** Star or unstar a task (no toast: the star itself shows the change). */
   toggleFavorite: (taskId: string) => Promise<Task | null>;
-  getTaskById: (taskId: string) => Task | undefined;
-  getTaskByName: (taskName: string) => Task | undefined;
-  getTaskNames: () => string[];
   isLoading: boolean;
 }

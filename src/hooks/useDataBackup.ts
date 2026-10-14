@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { StorageService } from '../services/StorageService';
 import { Task } from '../types/task';
@@ -25,7 +25,8 @@ export const useDataBackup = ({
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  const createBackupData = async () => {
+  // Reads everything fresh each call; stable so schedules can depend on it
+  const createBackupData = useCallback(async () => {
     const storageService = StorageService.getInstance();
     
     try {
@@ -73,7 +74,7 @@ export const useDataBackup = ({
       }
       throw new Error('Failed to gather data for export');
     }
-  };
+  }, []);
 
   const exportData = async () => {
     if (isExporting) return;

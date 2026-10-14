@@ -252,11 +252,11 @@ export function TimeEntriesTable({
                   </TableCell>
 
                   <TableCell>
-                    <Typography variant="body2">
-                      {entry.endTime ? formatLocalTime(entry.endTime) : (
-                        <Chip label="Running" size="small" color="primary" />
-                      )}
-                    </Typography>
+                    {entry.endTime ? (
+                      <Typography variant="body2">{formatLocalTime(entry.endTime)}</Typography>
+                    ) : (
+                      <Chip label="Running" size="small" color="primary" />
+                    )}
                   </TableCell>
 
                   <TableCell>

@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { useTauriEvent } from './useTauriEvent';
 import { Task } from '../types/task';
 import { TaskSession } from '../types/timer';
 import {
@@ -222,15 +222,12 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showError, showInfo, showSuccess, showWarning]);
 
+  // A payload may have arrived before the frontend mounted (deep-link cold
+  // start) — the take-on-mount call and the event handler share one path.
   useEffect(() => {
-    // A payload may have arrived before the frontend mounted (deep-link cold
-    // start) — the take-on-mount call and the event handler share one path.
     void processPending();
-    const unlistenPromise = listen(WORK_LOG_CAPTURED_EVENT, () => {
-      void processPending();
-    });
-    return () => {
-      unlistenPromise.then(unlisten => unlisten()).catch(() => {});
-    };
   }, [processPending]);
+  useTauriEvent(WORK_LOG_CAPTURED_EVENT, () => {
+    void processPending();
+  });
 }

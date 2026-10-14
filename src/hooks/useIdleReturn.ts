@@ -10,7 +10,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { IdleChoice, IdlePause } from '../types/timer';
-import { isTauriEnvironment, safeInvoke, safeListen } from '../utils/tauri';
+import { isTauriEnvironment, safeInvoke } from '../utils/tauri';
+import { useTauriEvent } from './useTauriEvent';
 import { sendIdleSettings, useEnhancedTimerSettings } from './useEnhancedTimerSettings';
 import { errorMessage } from '../utils/errors';
 
@@ -34,33 +35,24 @@ export function useIdleReturn(): UseIdleReturnResult {
     void sendIdleSettings(inactivitySettings);
   }, [inactivitySettings]);
 
+  useTauriEvent<IdlePause>('idle-returned', event => {
+    setError(null);
+    setPending(event.payload);
+  });
+  useTauriEvent('idle-resolved', () => {
+    setPending(null);
+    setError(null);
+  });
+
+  // A question raised before the listeners existed (e.g. a reload)
   useEffect(() => {
     if (!isTauriEnvironment()) return;
     let cancelled = false;
-    const unlisteners: Array<() => void> = [];
-    const keep = (unlisten: (() => void) | null) => {
-      if (!unlisten) return;
-      if (cancelled) unlisten();
-      else unlisteners.push(unlisten);
-    };
-
-    safeListen('idle-returned', event => {
-      setError(null);
-      setPending(event.payload as IdlePause);
-    }).then(keep);
-    safeListen('idle-resolved', () => {
-      setPending(null);
-      setError(null);
-    }).then(keep);
-
-    // A question raised before this listener existed (e.g. a reload)
     safeInvoke<IdlePause | null>('get_idle_pause').then(existing => {
       if (!cancelled && existing?.returned) setPending(existing);
     });
-
     return () => {
       cancelled = true;
-      unlisteners.forEach(unlisten => unlisten());
     };
   }, []);
 
