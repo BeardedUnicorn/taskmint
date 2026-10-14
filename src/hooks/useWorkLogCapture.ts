@@ -5,7 +5,7 @@
  * taskmint:// deep link). The backend stores the latest payload and emits
  * `work-log-payload-captured`; this hook takes it (take semantics — processed
  * at most once) and either auto-applies it through the same pipeline as the
- * import dialog, or stages it for review in Payouts. Staged: anything that
+ * import dialog (planWorkLogImport), or stages it for review in Payouts. Staged: anything that
  * arrived by taskmint:// link (any web page can open one, and an import
  * rewrites tracked days), and payloads with a project that has no task match.
  *
@@ -29,14 +29,7 @@ import {
   WorkLogImportPayload,
   WorkLogImportSummary,
 } from '../types/workLog';
-import {
-  buildLedgerEntries,
-  buildRewriteGroups,
-  computeImpliedRates,
-  mergeLedger,
-  parseWorkLogPayload,
-  resolveProjectMappings,
-} from '../utils/workLogImport';
+import { applyImpliedRates, parseWorkLogPayload, planWorkLogImport } from '../utils/workLogImport';
 import { useNotification, NotificationAction } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
 
@@ -132,15 +125,6 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
       lastProcessedRef.current = { payload: capture.payload, outcome: 'handled' };
 
       const parsed = parseWorkLogPayload(capture.payload);
-      if (parsed.error) {
-        notify({
-          category: 'workLog',
-          severity: 'error',
-          title: "Couldn't read captured work logs",
-          message: parsed.error,
-        });
-        return;
-      }
       if (parsed.skippedRecords > 0) {
         showWarning(
           `${parsed.skippedRecords} captured record${
@@ -149,22 +133,25 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
           { category: 'workLog', desktop: 'never' }
         );
       }
-      if (parsed.timedEntries.length === 0 && parsed.workLogs.length === 0) return;
 
-      // Distinct projects, same derivation as the import dialog.
-      const projectsById = new Map<string, { id: string; name: string }>();
-      for (const record of [...parsed.timedEntries, ...parsed.workLogs]) {
-        projectsById.set(record.project.id, record.project);
+      const plan = planWorkLogImport(parsed, {
+        entries: d.entries,
+        mappings: d.mappings,
+        tasks: d.tasks,
+        sessions: d.sessions,
+        nowIso: new Date().toISOString(),
+      });
+      if (plan.status === 'error') {
+        notify({
+          category: 'workLog',
+          severity: 'error',
+          title: "Couldn't read captured work logs",
+          message: plan.error,
+        });
+        return;
       }
-      const nowIso = new Date().toISOString();
-      const resolution = resolveProjectMappings(
-        [...projectsById.values()],
-        d.mappings,
-        d.tasks,
-        nowIso
-      );
-
-      if (resolution.unresolved.length > 0) {
+      if (plan.status === 'empty') return;
+      if (plan.status === 'needs-mapping') {
         d.stageCapture({
           payloadText: capture.payload,
           receivedAt: capture.receivedAt,
@@ -180,16 +167,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
         return;
       }
 
-      // Auto-apply: the import dialog's exact sequence.
-      const pasteLedger = buildLedgerEntries(parsed, resolution.resolved, nowIso);
-      if (pasteLedger.length === 0) return;
-      const { merged } = mergeLedger(d.entries, pasteLedger);
-      const groupBuild = buildRewriteGroups(pasteLedger, merged, d.sessions, { nowIso });
-      const summary = await d.applyImport({
-        entries: pasteLedger,
-        mappings: resolution.resolved,
-        rewriteGroups: groupBuild.groups,
-      });
+      const summary = await d.applyImport(plan.payload);
       if (!summary) {
         // applyImport already toasted; allow an identical re-delivery to
         // retry after what may have been a transient failure.
@@ -204,18 +182,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
 
       // Keep task rates aligned with real pay (the dialog's default-on
       // checkbox, fixed on for automatic imports).
-      let ratesUpdated = 0;
-      for (const implied of computeImpliedRates(pasteLedger)) {
-        const task = d.tasks.find(t => t.id === implied.taskId);
-        if (task && task.hourlyRate !== implied.impliedHourlyRate) {
-          try {
-            await d.updateTask(implied.taskId, { hourlyRate: implied.impliedHourlyRate });
-            ratesUpdated += 1;
-          } catch {
-            // updateTask reported it; the import itself went through
-          }
-        }
-      }
+      const ratesUpdated = await applyImpliedRates(d.tasks, plan.impliedRates, d.updateTask);
 
       const days = summary.groupsApplied.length;
       const rates =

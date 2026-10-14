@@ -8,27 +8,10 @@
  * days without imported data show rate-based estimates.
  */
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import dayjs from 'dayjs';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  IconButton,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material';
+import { useEffect, useState } from 'react';
+import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material';
 import {
   AccountBalanceWallet as WalletIcon,
-  ExpandLess as ExpandLessIcon,
-  ExpandMore as ExpandMoreIcon,
   Schedule as ScheduleIcon,
   TrendingUp as TrendingUpIcon,
   Upload as UploadIcon,
@@ -37,54 +20,23 @@ import { invoke } from '@tauri-apps/api/core';
 import { useSessionManagementContext } from '../../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../../contexts/TaskManagementContext';
 import { useWorkLogContext } from '../../../contexts/WorkLogContext';
-import { useFundsReleaseSettings } from '../../../hooks/useFundsReleaseSettings';
-import { hasRunningTimer } from '../../../utils/timerHelpers';
-import { useNowMs } from '../../../hooks/useNowMs';
 import { Task } from '../../../types/task';
 import { CaptureServerStatus, WorkLogImportPayload } from '../../../types/workLog';
-import {
-  buildPayoutCells,
-  buildReleaseSchedule,
-  centsToDollars,
-  formatPayoutAmount,
-  groupCellsByMonth,
-  summarizePayouts,
-  PayoutDayCell,
-} from '../../../utils/payoutCalculator';
-import { formatCurrency, formatDuration } from '../../../utils/formatters';
-import { formatDateString } from '../../../utils/dateHelpers';
+import { centsToDollars } from '../../../utils/payoutCalculator';
+import { formatCurrency } from '../../../utils/formatters';
 import { StatsCard } from '../../ui/display/StatsCard';
 import { ImportWorkLogsDialog } from './ImportWorkLogsDialog';
 import { ProjectMappingsCard } from './ProjectMappingsCard';
-
-const MONO = { fontFamily: '"Roboto Mono", monospace' } as const;
-
-/** After this long without an import, Payouts says its numbers may be out of date. */
-const STALE_IMPORT_MS = 3 * 24 * 60 * 60 * 1000;
-
-/** When the ledger was last refreshed from the site (newest entry update). */
-export function lastImportMs(entries: { updatedAt: string }[]): number | null {
-  let latest: number | null = null;
-  for (const entry of entries) {
-    const ms = Date.parse(entry.updatedAt);
-    if (!Number.isNaN(ms) && (latest === null || ms > latest)) latest = ms;
-  }
-  return latest;
-}
-
-function deltaLabel(cell: PayoutDayCell): { text: string; color: string } {
-  const deltaMinutes = cell.importedMinutes - cell.trackedMs / 60_000;
-  const rounded = Math.round(deltaMinutes);
-  if (rounded === 0) return { text: '±0m', color: 'text.secondary' };
-  const text = `${rounded > 0 ? '+' : '−'}${formatDuration(Math.abs(rounded) * 60_000)}`;
-  return { text, color: rounded > 0 ? 'success.main' : 'error.main' };
-}
+import { ReconciliationTable } from './ReconciliationTable';
+import { ReleaseScheduleTable } from './ReleaseScheduleTable';
+import { usePayoutData } from './usePayoutData';
 
 export function PayoutsPage() {
   const { sessions } = useSessionManagementContext();
   const { tasks, addTask, updateTask } = useTaskManagementContext();
   const workLogs = useWorkLogContext();
-  const { days: fundsReleaseDays } = useFundsReleaseSettings();
+  const { fundsReleaseDays, today, schedule, summary, monthGroups, lastImport, importIsStale, isEmpty } =
+    usePayoutData();
   const [importOpen, setImportOpen] = useState(false);
 
   // One-shot status of the localhost capture server (port conflicts etc.).
@@ -96,41 +48,6 @@ export function PayoutsPage() {
         // Older backend without the command: nothing to surface.
       });
   }, []);
-
-  // Same live-tick pattern as the Sessions dashboard: 1s while a timer runs
-  // (estimates track live time), 60s otherwise so "today" still rolls over.
-  const nowMs = useNowMs(true, hasRunningTimer(sessions) ? 1000 : 60_000);
-
-  const today = formatDateString(new Date(nowMs));
-  const cells = useMemo(
-    () => buildPayoutCells(workLogs.entries, sessions, tasks, fundsReleaseDays, nowMs),
-    [workLogs.entries, sessions, tasks, fundsReleaseDays, nowMs]
-  );
-  const schedule = useMemo(
-    () => buildReleaseSchedule(cells, today, workLogs.entries, fundsReleaseDays, nowMs),
-    [cells, today, workLogs.entries, fundsReleaseDays, nowMs]
-  );
-  const summary = useMemo(
-    () => summarizePayouts(cells, today, schedule, nowMs),
-    [cells, today, schedule, nowMs]
-  );
-
-  // Reconciliation by month: the current month starts open (or the newest,
-  // when this month has nothing yet); clicking a month flips it.
-  const monthGroups = useMemo(() => groupCellsByMonth(cells), [cells]);
-  const currentMonth = today.slice(0, 7);
-  const defaultOpenMonth = monthGroups.some(group => group.month === currentMonth)
-    ? currentMonth
-    : monthGroups[0]?.month;
-  const [toggledMonths, setToggledMonths] = useState<Set<string>>(() => new Set());
-  const isMonthOpen = (month: string) => (month === defaultOpenMonth) !== toggledMonths.has(month);
-  const toggleMonth = (month: string) =>
-    setToggledMonths(prev => {
-      const next = new Set(prev);
-      if (next.has(month)) next.delete(month);
-      else next.add(month);
-      return next;
-    });
 
   const handleCreateTask = async (name: string): Promise<Task> => {
     const task = await addTask({ name });
@@ -144,10 +61,6 @@ export function PayoutsPage() {
     if (summary) workLogs.clearStagedCapture();
     return summary;
   };
-
-  const isEmpty = workLogs.entries.length === 0 && cells.length === 0;
-  const lastImport = lastImportMs(workLogs.entries);
-  const importIsStale = lastImport !== null && nowMs - lastImport > STALE_IMPORT_MS;
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
@@ -290,174 +203,8 @@ export function PayoutsPage() {
             />
           </Box>
 
-          {schedule.length > 0 && (
-            <Paper sx={{ p: 3, mb: 4 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Upcoming releases
-              </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Release date</TableCell>
-                    <TableCell align="right">Imported</TableCell>
-                    <TableCell align="right">Estimated</TableCell>
-                    <TableCell align="right">Total</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {schedule.map((row, idx) => (
-                    <TableRow key={row.releaseIso ?? `${row.releaseDay}-${row.releaseTime ?? ''}-${idx}`}>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2">{row.releaseDay}</Typography>
-                        {row.releaseTime && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            {row.releaseTime}
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell align="right" sx={MONO}>
-                        {row.actualCents > 0
-                          ? formatCurrency(centsToDollars(row.actualCents))
-                          : '—'}
-                      </TableCell>
-                      <TableCell align="right" sx={{ ...MONO, color: 'text.secondary' }}>
-                        {row.estimatedCents > 0
-                          ? `~${formatCurrency(centsToDollars(row.estimatedCents))}`
-                          : '—'}
-                      </TableCell>
-                      <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                        {formatCurrency(centsToDollars(row.actualCents + row.estimatedCents))}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Paper>
-          )}
-
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              Daily reconciliation
-            </Typography>
-            <Box sx={{ overflowX: 'auto' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Task</TableCell>
-                    <TableCell align="right">Tracked</TableCell>
-                    <TableCell align="right">Reported</TableCell>
-                    <TableCell align="right">Δ</TableCell>
-                    <TableCell align="right">Amount</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Available on</TableCell>
-                    <TableCell>Source</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {monthGroups.map(group => {
-                    const open = isMonthOpen(group.month);
-                    const label = dayjs(`${group.month}-01`).format('MMMM YYYY');
-                    return (
-                      <Fragment key={group.month}>
-                        <TableRow
-                          hover
-                          onClick={() => toggleMonth(group.month)}
-                          sx={{ cursor: 'pointer', bgcolor: 'action.hover' }}
-                        >
-                          <TableCell colSpan={2} sx={{ whiteSpace: 'nowrap' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <IconButton
-                                size="small"
-                                aria-expanded={open}
-                                aria-label={`${open ? 'Hide' : 'Show'} ${label}`}
-                              >
-                                {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                              </IconButton>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                {label}
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                            {group.trackedMs > 0 ? formatDuration(group.trackedMs) : '—'}
-                          </TableCell>
-                          <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                            {group.importedMinutes > 0
-                              ? formatDuration(group.importedMinutes * 60_000)
-                              : '—'}
-                          </TableCell>
-                          <TableCell />
-                          <TableCell align="right" sx={{ ...MONO, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            {formatPayoutAmount(group.actualCents, group.estimatedCents)}
-                          </TableCell>
-                          <TableCell colSpan={3} />
-                        </TableRow>
-                        {open &&
-                          group.cells.map(cell => {
-                            const hasImportedTime = cell.importedMinutes > 0;
-                            const delta = deltaLabel(cell);
-                            return (
-                              <TableRow key={`${cell.taskId}-${cell.workDay}`}>
-                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{cell.workDay}</TableCell>
-                                <TableCell>{cell.taskName}</TableCell>
-                                <TableCell align="right" sx={MONO}>
-                                  {cell.trackedMs > 0 ? formatDuration(cell.trackedMs) : '—'}
-                                </TableCell>
-                                <TableCell align="right" sx={MONO}>
-                                  {hasImportedTime
-                                    ? formatDuration(cell.importedMinutes * 60_000)
-                                    : '—'}
-                                </TableCell>
-                                <TableCell
-                                  align="right"
-                                  sx={{ ...MONO, color: hasImportedTime ? delta.color : 'text.secondary' }}
-                                >
-                                  {hasImportedTime ? delta.text : '—'}
-                                </TableCell>
-                                <TableCell align="right" sx={{ ...MONO, whiteSpace: 'nowrap' }}>
-                                  {formatPayoutAmount(cell.actualCents, cell.estimatedCents)}
-                                </TableCell>
-                                <TableCell>
-                                  {cell.statuses.map(status => (
-                                    <Chip
-                                      key={status}
-                                      label={status}
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{ mr: 0.5 }}
-                                    />
-                                  ))}
-                                </TableCell>
-                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                  {cell.actualCents > 0 || cell.estimatedCents > 0
-                                    ? cell.releaseDay
-                                    : '—'}
-                                </TableCell>
-                                <TableCell>
-                                  {cell.actualCents > 0 ? (
-                                    <Chip label="Actual" size="small" color="success" />
-                                  ) : cell.isEstimate ? (
-                                    <Chip label="Estimate" size="small" color="warning" variant="outlined" />
-                                  ) : (
-                                    <Chip label="Tracked only" size="small" variant="outlined" />
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                      </Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-              Statuses are shown as the site reported them; all imported amounts count toward
-              availability by work day. Estimates use the rate each session was tracked at, the
-              same amounts History and the Calendar show.
-            </Typography>
-          </Paper>
+          <ReleaseScheduleTable schedule={schedule} />
+          <ReconciliationTable monthGroups={monthGroups} today={today} />
         </>
       )}
 
