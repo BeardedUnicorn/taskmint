@@ -20,6 +20,8 @@ export function CurrencyInput({
   max = 999999,
   step = 0.01,
   sx,
+  onBlur,
+  onKeyDown,
 }: CurrencyInputProps) {
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     let inputValue = event.target.value;
@@ -61,6 +63,8 @@ export function CurrencyInput({
       label={label}
       value={displayValue}
       onChange={handleChange}
+      onBlur={onBlur}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       error={error}
       helperText={helperText}

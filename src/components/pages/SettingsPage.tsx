@@ -1,131 +1,128 @@
-import { useEffect } from 'react';
+/**
+ * Settings: one scrolling page of sections, with a list of them alongside
+ * that jumps to each and follows where you are. Opening Settings for a
+ * section (a toast's "Backup settings") scrolls to it.
+ */
+
+import { ComponentType, useCallback, useEffect, useRef, useState } from 'react';
+import { Box, List, ListItemButton, ListItemText } from '@mui/material';
 import {
-  Box,
-  Typography,
-  Paper,
-  Divider,
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-} from '@mui/material';
-import { AccountBalanceWallet as PayoutsIcon } from '@mui/icons-material';
-import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
-import {
-  DailyGoalSettings,
+  AppearanceSettingsSection,
   BackupSettingsSection,
+  DailyGoalSettings,
   DataManagementSection,
   PrivacySettingsSection,
-  AppearanceSettingsSection,
 } from './settings';
 import { InactivitySettingsSection } from './settings/InactivitySettingsSection';
 import { NotificationSettingsSection } from './settings/NotificationSettingsSection';
+import { PayoutSettingsSection } from './settings/PayoutSettingsSection';
+import { PageContainer, PageHeader } from '../layout/PageLayout';
 import { useOptionalNavigation } from '../../contexts/NavigationContext';
+import type { SettingsSectionId } from '../../navigation/views';
+
+export const SETTINGS_SECTIONS: { id: SettingsSectionId; label: string; Section: ComponentType }[] = [
+  { id: 'appearance', label: 'Appearance', Section: AppearanceSettingsSection },
+  { id: 'payouts', label: 'Payouts', Section: PayoutSettingsSection },
+  { id: 'idle', label: 'Idle & Reminders', Section: InactivitySettingsSection },
+  { id: 'goal', label: 'Daily Goal', Section: DailyGoalSettings },
+  { id: 'notifications', label: 'Notifications', Section: NotificationSettingsSection },
+  { id: 'backups', label: 'Backups', Section: BackupSettingsSection },
+  { id: 'data', label: 'Data', Section: DataManagementSection },
+  { id: 'privacy', label: 'Privacy', Section: PrivacySettingsSection },
+];
+
+const sectionElement = (id: SettingsSectionId) => document.getElementById(`settings-${id}`);
+
+/** A section is "current" once its top is this close to the top of the window. */
+const CURRENT_LINE_PX = 120;
+/** After a click in the list, scrolling there doesn't move the highlight. */
+const CLICK_HOLD_MS = 1000;
+
+/** The section you're reading: the last one whose top has reached the line (the last one at the bottom). */
+export function currentSection(tops: number[], atBottom: boolean): number {
+  if (atBottom) return tops.length - 1;
+  let current = 0;
+  tops.forEach((top, index) => {
+    if (top <= CURRENT_LINE_PX) current = index;
+  });
+  return current;
+}
 
 export function SettingsPage() {
-  const { days, updateDays } = useFundsReleaseSettings();
+  const [active, setActive] = useState<SettingsSectionId>('appearance');
+  const clickedAtRef = useRef(0);
 
-  // Opened for a section (a toast's "Backup settings"): scroll to it
+  const goTo = useCallback((id: SettingsSectionId) => {
+    clickedAtRef.current = Date.now();
+    setActive(id);
+    sectionElement(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  // Opened for a section: scroll to it
   const navigation = useOptionalNavigation();
   const section = navigation?.params.section;
   useEffect(() => {
     if (!section) return;
-    document.getElementById(`settings-${section}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    goTo(section);
     navigation?.clearParams();
-  }, [section, navigation]);
+  }, [section, navigation, goTo]);
 
+  // The list follows the section you're reading (the page scrolls inside
+  // the app's content area, so this listens to scrolls anywhere)
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = (event: Event) => {
+      if (Date.now() - clickedAtRef.current < CLICK_HOLD_MS) return;
+      const scroller = event.target instanceof Element ? event.target : document.scrollingElement;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const tops = SETTINGS_SECTIONS.map(({ id }) => sectionElement(id)?.getBoundingClientRect().top ?? Infinity);
+        const atBottom = !!scroller && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+        setActive(SETTINGS_SECTIONS[currentSection(tops, atBottom)].id);
+      });
+    };
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Page Header */}
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-        Settings
-      </Typography>
-      
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Appearance, payouts, idle detection, your daily goal, notifications, backups and data
-      </Typography>
-
-      <Box id="settings-appearance">
-        <AppearanceSettingsSection />
-      </Box>
-
-      <Divider sx={{ my: 4 }} />
-
-      {/* Payout Settings Section */}
-      <Paper id="settings-payouts" sx={{ p: 3, mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <PayoutsIcon color="primary" />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Payouts
-          </Typography>
+    <PageContainer>
+      <PageHeader
+        title="Settings"
+        subtitle="Appearance, payouts, idle detection, your daily goal, notifications, backups and data"
+      />
+      <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+        <Box
+          component="nav"
+          aria-label="Settings sections"
+          sx={{ display: { xs: 'none', md: 'block' }, width: 200, flexShrink: 0, position: 'sticky', top: 24 }}
+        >
+          <List dense disablePadding>
+            {SETTINGS_SECTIONS.map(({ id, label }) => (
+              <ListItemButton
+                key={id}
+                selected={active === id}
+                aria-current={active === id ? 'location' : undefined}
+                onClick={() => goTo(id)}
+                sx={{ borderRadius: 1, minHeight: 36 }}
+              >
+                <ListItemText primary={label} />
+              </ListItemButton>
+            ))}
+          </List>
         </Box>
 
-        <FormControl sx={{ minWidth: 250 }}>
-          <InputLabel id="funds-release-label">Days Before Funds Released</InputLabel>
-          <Select
-            labelId="funds-release-label"
-            value={days}
-            label="Days Before Funds Released"
-            onChange={(e) => updateDays(Number(e.target.value))}
-          >
-            {[...Array(31).keys()].map((day) => (
-              <MenuItem key={day} value={day}>
-                {day}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <Alert severity="info" sx={{ mt: 2 }}>
-          <Typography variant="body2">
-            <strong>Days Before Funds Released:</strong> Set the number of days before earned funds become transferable.
-          </Typography>
-        </Alert>
-      </Paper>
-
-      <Divider sx={{ my: 4 }} />
-
-      {/* Inactivity Detection Settings Section */}
-      <Box id="settings-idle">
-        <InactivitySettingsSection />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          {SETTINGS_SECTIONS.map(({ id, Section }) => (
+            <Box key={id} id={`settings-${id}`} sx={{ scrollMarginTop: 24 }}>
+              <Section />
+            </Box>
+          ))}
+        </Box>
       </Box>
-
-      <Divider sx={{ my: 4 }} />
-
-      {/* Daily Earnings Goal Section */}
-      <Box id="settings-goal">
-        <DailyGoalSettings />
-      </Box>
-
-      <Divider sx={{ my: 4 }} />
-
-      <Box id="settings-notifications">
-        <NotificationSettingsSection />
-      </Box>
-
-      <Divider sx={{ my: 4 }} />
-
-      {/* Automatic Backup Settings Section */}
-      <Box id="settings-backups">
-        <BackupSettingsSection />
-      </Box>
-
-      <Divider sx={{ my: 4 }} />
-
-      {/* Data Management Section */}
-      <Box id="settings-data">
-        <DataManagementSection />
-      </Box>
-
-      <Divider sx={{ my: 4 }} />
-
-      {/* Privacy Section */}
-      <Box id="settings-privacy">
-        <PrivacySettingsSection />
-      </Box>
-
-    </Box>
+    </PageContainer>
   );
 }

@@ -142,8 +142,8 @@ describe('TasksPage - Task List Layout', () => {
   it('renders the tasks page with header, task list, and controls', () => {
     render(<TasksPage {...mockProps} />);
 
-    expect(screen.getByText('Tasks')).toBeInTheDocument();
-    expect(screen.getByText('Manage your tasks and view detailed time tracking information')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Tasks' })).toBeInTheDocument();
+    expect(screen.getByText('Your tasks, their rates, and the time tracked on each')).toBeInTheDocument();
     expect(screen.getByText('Task List')).toBeInTheDocument();
     expect(screen.getByText('Task 1')).toBeInTheDocument();
     expect(screen.getByText('Task 2')).toBeInTheDocument();
@@ -415,9 +415,8 @@ describe('TasksPage - Task List Layout', () => {
     render(<TasksPage {...mockProps} tasks={[]} />);
 
     expect(screen.getByText(/No tasks created yet/)).toBeInTheDocument();
-    expect(screen.getByText('Select a Task')).toBeInTheDocument();
-    expect(screen.getByText(/Select a task to view details and time entries/)).toBeInTheDocument();
-    expect(screen.getByText(/For notes management, visit the Notes page/)).toBeInTheDocument();
+    expect(screen.getByText('Select a task')).toBeInTheDocument();
+    expect(screen.getByText('Its rate, totals and time entries show here.')).toBeInTheDocument();
   });
 
   it('auto-selects newly created task', async () => {

@@ -18,9 +18,9 @@ import {
   Button,
   TextField,
   Stack,
-
   Chip,
   Alert,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -213,11 +213,38 @@ export function NoteTemplateBuilder({
             </ListItem>
           ) : (
             templates.map((template) => (
-              <ListItem key={template.id} disablePadding>
+              <ListItem
+                key={template.id}
+                disablePadding
+                // Beside the row, not inside its button: a button can't hold buttons
+                secondaryAction={
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Tooltip title={template.isActive ? 'Deactivate' : 'Activate'} placement="left">
+                      <IconButton
+                        size="small"
+                        aria-label={`${template.isActive ? 'Deactivate' : 'Activate'} ${template.name}`}
+                        onClick={() => handleToggleActive(template)}
+                      >
+                        {template.isActive ? <ActiveIcon /> : <InactiveIcon />}
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete" placement="left">
+                      <IconButton
+                        size="small"
+                        aria-label={`Delete ${template.name}`}
+                        onClick={() => setDeleteConfirm(template.id)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                }
+              >
                 <ListItemButton
                   selected={selectedTemplate?.id === template.id}
                   onClick={() => handleSelectTemplate(template)}
-                  sx={{ pr: 1 }}
+                  sx={{ pr: 7 }}
                 >
                   <ListItemText
                     primary={
@@ -243,29 +270,6 @@ export function NoteTemplateBuilder({
                     }
                     secondary={template.description || 'No description'}
                   />
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleActive(template);
-                      }}
-                      title={template.isActive ? 'Deactivate' : 'Activate'}
-                    >
-                      {template.isActive ? <ActiveIcon /> : <InactiveIcon />}
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteConfirm(template.id);
-                      }}
-                      color="error"
-                      title="Delete"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Box>
                 </ListItemButton>
               </ListItem>
             ))

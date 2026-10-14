@@ -149,11 +149,11 @@ export function InactivitySettingsSection() {
                 valueLabelFormat={formatTime}
               />
             </Box>
-            <Alert severity="info">
+            <Typography variant="body2" color="text.secondary">
               When you're back, TaskMint comes to the front and asks whether to discard the
               away time and resume, keep it and resume, or stay paused. The tray offers the
               same choices.
-            </Alert>
+            </Typography>
           </>
         )}
 

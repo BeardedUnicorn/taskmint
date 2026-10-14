@@ -1,11 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Alert,
-} from '@mui/material';
+import { Box, Paper } from '@mui/material';
+import { Assignment as TaskIcon } from '@mui/icons-material';
 import { Task } from '../../types/task';
+import { PageContainer, PageHeader } from '../layout/PageLayout';
+import { EmptyState } from '../ui/display/EmptyState';
 import { TimeEntry } from '../../types/timer';
 import { TaskDetailPane } from './tasks/TaskDetailPane';
 import { TaskListPane } from './tasks/TaskListPane';
@@ -150,19 +148,11 @@ export function TasksPage({
 
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Page Header */}
-      <Box sx={{ p: 3, pb: 2 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-          Tasks
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Manage your tasks and view detailed time tracking information
-        </Typography>
-      </Box>
+    <PageContainer fill>
+      <PageHeader title="Tasks" subtitle="Your tasks, their rates, and the time tracked on each" />
 
-      {/* Main Content - Task List + Details */}
-      <Box sx={{ flex: 1, overflow: 'hidden', px: 3, pb: 3 }}>
+      {/* Task List + Details */}
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <Paper
           elevation={1}
           sx={{
@@ -206,23 +196,13 @@ export function TasksPage({
                 onViewHistory={onViewHistory}
               />
             ) : (
-              <Box
-                sx={{
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  p: 4,
-                }}
-              >
-                <Alert severity="info" sx={{ maxWidth: 400 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Select a Task
-                  </Typography>
-                  <Typography variant="body2">
-                    Select a task to view details and time entries. For notes management, visit the Notes page.
-                  </Typography>
-                </Alert>
+              <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <EmptyState
+                  plain
+                  icon={<TaskIcon />}
+                  title="Select a task"
+                  description="Its rate, totals and time entries show here."
+                />
               </Box>
             )}
           </Box>
@@ -272,6 +252,6 @@ export function TasksPage({
           tasks={tasks}
         />
       )}
-    </Box>
+    </PageContainer>
   );
 }

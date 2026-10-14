@@ -25,6 +25,7 @@ import { errorMessage } from '../utils/errors';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
 import { useTauriEvent } from './useTauriEvent';
 import { BACKEND_EVENTS } from '../constants/events';
+import { formatShortDate } from '../utils/locale';
 
 // Backend events that signal session data changed outside this hook's own
 // calls (timer-instance changes, work-log imports that rewrite sessions, and
@@ -417,7 +418,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         durationMs: input.durationMs,
       });
       await loadSessions({ silent: true });
-      const day = input.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const day = formatShortDate(input.startTime);
       showSuccess(`Added ${formatDurationCompact(input.durationMs)} to "${input.taskName}" on ${day}`);
       return session;
     } catch (err) {

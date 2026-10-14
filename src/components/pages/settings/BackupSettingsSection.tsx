@@ -4,7 +4,6 @@ import {
   Typography,
   Button,
   Stack,
-  Alert,
   FormControl,
   InputLabel,
   Select,
@@ -183,12 +182,9 @@ export function BackupSettingsSection() {
         />
       </Box>
 
-      <Alert severity="info" sx={{ mt: 2 }}>
-        <Typography variant="body2">
-          <strong>Automatic Backups:</strong> When enabled, backups will be created automatically based on your selected frequency.
-          Manual backups can be created at any time using the "Backup Now" button.
-        </Typography>
-      </Alert>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+        Backups run on their own at the frequency you choose; Backup Now makes one any time.
+      </Typography>
     </SettingsSection>
   );
 }

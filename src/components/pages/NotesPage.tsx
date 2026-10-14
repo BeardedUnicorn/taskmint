@@ -37,6 +37,8 @@ import { Task } from '../../types/task';
 import { TaskSession } from '../../types/timer';
 import { TaskNote, NoteTemplate } from '../../types/notes';
 import { NotesList, NoteEditor } from '../features/notes';
+import { PageContainer, PageHeader } from '../layout/PageLayout';
+import { EmptyState } from '../ui/display/EmptyState';
 import { useTaskNotes } from '../../hooks/useTaskNotes';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
 import { orderTasksForStart } from '../../utils/taskOrdering';
@@ -184,39 +186,34 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Page Header */}
-      <Box sx={{ p: 3, pb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <NotesIcon color="primary" />
-          <Typography variant="h4" sx={{ fontWeight: 600 }}>
-            Notes
-          </Typography>
+    <PageContainer fill>
+      <PageHeader
+        title="Notes"
+        titleAdornment={
           <Chip
             label={`${filteredActiveNotes.length + filteredArchivedNotes.length} notes`}
             size="small"
             color="primary"
             variant="outlined"
           />
-        </Box>
-        <Typography variant="body1" color="text.secondary">
-          Manage all your notes across tasks in one place
-        </Typography>
-        <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mt: 2 }}>
+        }
+        subtitle="Manage all your notes across tasks in one place"
+      >
+        <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mt: 1 }}>
           <Tab label="Notes" value="notes" />
           <Tab label="Templates" value="templates" />
         </Tabs>
-      </Box>
+      </PageHeader>
 
       {tab === 'templates' ? (
-        <Box sx={{ px: 3, pb: 3, flex: 1, overflow: 'auto' }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           <NoteTemplates />
         </Box>
       ) : (
         <>
           {/* Active Timer Info */}
           {runningTask && (
-            <Box sx={{ px: 3, pb: 2 }}>
+            <Box sx={{ pb: 2 }}>
               <Alert severity="info" sx={{ mb: 1 }}>
                 <Typography variant="body2">
                   <strong>Active Timer:</strong> {runningTask.taskName}
@@ -234,7 +231,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
           )}
 
           {/* Controls */}
-          <Box sx={{ px: 3, pb: 2 }}>
+          <Box sx={{ pb: 2 }}>
             <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
               {/* Search */}
               <TextField
@@ -302,7 +299,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
           </Box>
 
           {/* Main Content */}
-          <Box sx={{ flex: 1, overflow: 'hidden', px: 3, pb: 3 }}>
+          <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
             <Paper
               elevation={1}
               sx={{
@@ -335,25 +332,27 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
 
                 {/* Active Notes List */}
                 {tasks.length === 0 ? (
-                  <Alert severity="info" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-                    <Typography variant="h6" gutterBottom>
-                      No Tasks Available
-                    </Typography>
-                    <Typography variant="body2">
-                      Create some tasks first to start adding notes.
-                    </Typography>
-                  </Alert>
+                  <EmptyState
+                    plain
+                    icon={<NotesIcon />}
+                    title="No tasks yet"
+                    description="Notes belong to a task: create one on the Tasks page first."
+                  />
                 ) : filteredActiveNotes.length === 0 && filteredArchivedNotes.length === 0 ? (
-                  <Alert severity="info" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-                    <Typography variant="h6" gutterBottom>
-                      No Notes Found
-                    </Typography>
-                    <Typography variant="body2">
-                      {searchQuery || selectedTaskFilter !== 'all' || selectedTemplateFilter !== 'all'
-                        ? 'No notes match your current filters. Try adjusting your search or filters.'
-                        : 'Start by creating your first note using the "Add Note" button above.'}
-                    </Typography>
-                  </Alert>
+                  searchQuery || selectedTaskFilter !== 'all' || selectedTemplateFilter !== 'all' ? (
+                    <EmptyState
+                      plain
+                      title="No notes match your filters"
+                      description="Try another search, task or template."
+                    />
+                  ) : (
+                    <EmptyState
+                      plain
+                      icon={<NotesIcon />}
+                      title="No notes yet"
+                      description="Use Add Note to write your first."
+                    />
+                  )
                 ) : (
                   <>
                     {/* Active Notes */}
@@ -389,6 +388,6 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
           </Box>
         </>
       )}
-    </Box>
+    </PageContainer>
   );
 }

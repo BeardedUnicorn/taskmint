@@ -5,6 +5,8 @@
  * including time, currency, and other display formats.
  */
 
+import { formattingLocale } from './locale';
+
 /**
  * Format time duration from milliseconds to HH:MM:SS format
  */
@@ -46,7 +48,7 @@ export function formatDurationCompact(milliseconds: number): string {
  * Format date to human-readable format
  */
 export function formatDate(date: Date): string {
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(formattingLocale(), {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -63,7 +65,7 @@ export function formatCurrency(amount: string | number, currency = 'USD'): strin
     : amount;
 
   const format = (value: number, code: string) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: code }).format(value);
+    new Intl.NumberFormat(formattingLocale(), { style: 'currency', currency: code }).format(value);
   const value = isNaN(numericAmount) ? 0 : numericAmount;
   try {
     return format(value, currency);

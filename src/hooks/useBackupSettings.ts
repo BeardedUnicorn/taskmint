@@ -24,6 +24,7 @@ import { readLocal, writeLocal } from '../utils/localStore';
 import { revealAction } from '../utils/reveal';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNotificationPreferences } from '../notifications/preferences';
+import { formatDateTime } from '../utils/locale';
 
 export const BACKUP_CONFIG_KEY = 'automaticBackupConfig';
 export const DEFAULT_BACKUP_FOLDER_NAME = 'TaskMint Backups';
@@ -355,7 +356,7 @@ export function useBackupSettings() {
       return 'Backup is due';
     }
 
-    return `Last backup: ${lastBackup.toLocaleDateString()} ${lastBackup.toLocaleTimeString()}`;
+    return `Last backup: ${formatDateTime(lastBackup)}`;
   }, [config, status]);
 
   return useMemo(() => ({

@@ -6,6 +6,11 @@
  */
 
 import '@testing-library/jest-dom/vitest';
+import { setFormattingLocale } from './utils/locale';
+
+// The app writes dates and money in the system's locale; tests expect US
+// English text whatever machine runs them
+setFormattingLocale('en-US');
 
 // Mock localStorage
 const localStorageMock = (() => {

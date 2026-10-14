@@ -9,6 +9,7 @@ import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import utc from 'dayjs/plugin/utc';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { formattingLocale } from './locale';
 
 // Extend dayjs with required plugins. Not `timezone`: nothing here needs
 // named zones, and when dayjs.tz exists react-big-calendar's localizer
@@ -78,7 +79,7 @@ export function formatRelativeDate(date: Date | string): string {
  * Format a date and time for detailed display (uses browser's locale)
  */
 export function formatLocalDateTimeForDisplay(date: Date | string): string {
-  return dayjs(date).local().toDate().toLocaleDateString('en-US', {
+  return dayjs(date).local().toDate().toLocaleDateString(formattingLocale(), {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

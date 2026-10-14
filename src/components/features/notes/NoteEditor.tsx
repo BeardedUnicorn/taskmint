@@ -46,6 +46,7 @@ import {
 } from '../../../utils/noteFields';
 import { ConfirmDialog } from '../../ui';
 import { NoteFieldInput } from './NoteFieldInput';
+import { formatClockTime } from '../../../utils/locale';
 
 const isFilled = (value: unknown) => value !== undefined && value !== null && value !== '' && value !== false;
 
@@ -55,7 +56,7 @@ function SaveStatusText({ status, onRetry }: { status: SaveStatus; onRetry: () =
       case 'saving':
         return 'Saving…';
       case 'saved':
-        return `Saved · ${status.at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+        return `Saved · ${formatClockTime(status.at)}`;
       case 'dirty':
         return 'Unsaved changes';
       case 'error':

@@ -10,7 +10,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Alert,
   Stack,
   IconButton,
   Tooltip,
@@ -27,8 +26,10 @@ import {
   Lock as LockIcon,
   PlayArrow as PlayIcon,
   History as HistoryIcon,
+  Timer as TimerIcon,
 } from '@mui/icons-material';
 import { Task } from '../../../types/task';
+import { EmptyState } from '../../ui/display/EmptyState';
 import { TimeEntry } from '../../../types/timer';
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { formatLocalTime, formatLocalDate, formatLocalDateTimeForDisplay } from '../../../utils/dateHelpers';
@@ -185,11 +186,12 @@ export function TaskDetailPane({
         </Typography>
 
         {taskEntries.length === 0 ? (
-          <Alert severity="info">
-            <Typography variant="body2">
-              No time entries recorded for this task yet. Start a timer to begin tracking time!
-            </Typography>
-          </Alert>
+          <EmptyState
+            plain
+            icon={<TimerIcon />}
+            title="No time entries recorded for this task yet"
+            description="Start it to begin tracking time."
+          />
         ) : (
           <TableContainer component={Paper} sx={{ mt: 2 }}>
             <Table size="small">

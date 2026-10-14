@@ -1,6 +1,7 @@
 
 import { Card, CardContent, Typography, Box } from '@mui/material';
 import { StatsCardProps } from '../../../types/ui';
+import { formatNumber } from '../../../utils/locale';
 
 /**
  * Statistics card component for displaying key metrics
@@ -42,7 +43,7 @@ export function StatsCard({
       if (val >= 1000) {
         return `${(val / 1000).toFixed(1)}K`;
       }
-      return val.toLocaleString();
+      return formatNumber(val);
     }
     return val;
   };

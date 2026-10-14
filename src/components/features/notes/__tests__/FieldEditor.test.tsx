@@ -43,10 +43,10 @@ describe('FieldEditor', () => {
     );
 
     // Check that the new icons are used
-    expect(screen.getByTitle('Move Up')).toBeInTheDocument();
-    expect(screen.getByTitle('Move Down')).toBeInTheDocument();
-    expect(screen.getByTitle('Expand')).toBeInTheDocument();
-    expect(screen.getByTitle('Delete Field')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Move Up' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Move Down' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete Field' })).toBeInTheDocument();
   });
 
   it('uses different icons for move up/down vs expand/collapse', () => {
@@ -61,8 +61,8 @@ describe('FieldEditor', () => {
       />
     );
 
-    const moveUpButton = screen.getByTitle('Move Up');
-    const expandButton = screen.getByTitle('Expand');
+    const moveUpButton = screen.getByRole('button', { name: 'Move Up' });
+    const expandButton = screen.getByRole('button', { name: 'Expand' });
 
     // Verify different icons are used by checking their SVG content
     const moveUpIcon = moveUpButton.querySelector('svg');
@@ -83,10 +83,10 @@ describe('FieldEditor', () => {
       />
     );
 
-    fireEvent.click(screen.getByTitle('Move Up'));
+    fireEvent.click(screen.getByRole('button', { name: 'Move Up' }));
     expect(mockOnMoveField).toHaveBeenCalledWith('field1', 'up');
 
-    fireEvent.click(screen.getByTitle('Move Down'));
+    fireEvent.click(screen.getByRole('button', { name: 'Move Down' }));
     expect(mockOnMoveField).toHaveBeenCalledWith('field1', 'down');
   });
 
@@ -102,8 +102,8 @@ describe('FieldEditor', () => {
       />
     );
 
-    expect(screen.getByTitle('Move Up')).toBeDisabled();
-    expect(screen.getByTitle('Move Down')).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move Up' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move Down' })).not.toBeDisabled();
   });
 
   it('disables move down button when isLast is true', () => {
@@ -118,8 +118,8 @@ describe('FieldEditor', () => {
       />
     );
 
-    expect(screen.getByTitle('Move Up')).not.toBeDisabled();
-    expect(screen.getByTitle('Move Down')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move Up' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move Down' })).toBeDisabled();
   });
 
   it('expands and collapses field configuration', async () => {
@@ -138,7 +138,7 @@ describe('FieldEditor', () => {
     expect(screen.queryByTestId('field-config')).not.toBeInTheDocument();
 
     // Find and click the expand button (should have "Expand" title)
-    const expandButton = screen.getByTitle('Expand');
+    const expandButton = screen.getByRole('button', { name: 'Expand' });
     fireEvent.click(expandButton);
 
     // After expanding, field config should be visible
@@ -147,10 +147,10 @@ describe('FieldEditor', () => {
     });
 
     // The button should now have "Collapse" title
-    expect(screen.getByTitle('Collapse')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument();
 
     // Click collapse button
-    const collapseButton = screen.getByTitle('Collapse');
+    const collapseButton = screen.getByRole('button', { name: 'Collapse' });
     fireEvent.click(collapseButton);
 
     // After collapsing, field config should not be visible
@@ -171,7 +171,7 @@ describe('FieldEditor', () => {
       />
     );
 
-    fireEvent.click(screen.getByTitle('Delete Field'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Field' }));
     expect(mockOnDeleteField).toHaveBeenCalledWith('field1');
   });
 

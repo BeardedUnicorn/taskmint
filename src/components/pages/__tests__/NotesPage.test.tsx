@@ -453,8 +453,8 @@ describe('NotesPage', () => {
   it('shows no tasks message when no tasks are available', () => {
     render(<NotesPage tasks={[]} runningTask={null} />);
 
-    expect(screen.getByText('No Tasks Available')).toBeInTheDocument();
-    expect(screen.getByText('Create some tasks first to start adding notes.')).toBeInTheDocument();
+    expect(screen.getByText('No tasks yet')).toBeInTheDocument();
+    expect(screen.getByText('Notes belong to a task: create one on the Tasks page first.')).toBeInTheDocument();
   });
 
   it('disables add note button when no tasks are available', () => {
@@ -480,8 +480,8 @@ describe('NotesPage', () => {
 
     render(<NotesPage tasks={mockTasks} runningTask={null} />);
 
-    expect(screen.getByText('No Notes Found')).toBeInTheDocument();
-    expect(screen.getByText('Start by creating your first note using the "Add Note" button above.')).toBeInTheDocument();
+    expect(screen.getByText('No notes yet')).toBeInTheDocument();
+    expect(screen.getByText('Use Add Note to write your first.')).toBeInTheDocument();
   });
 
   it('performs search when search input changes', async () => {

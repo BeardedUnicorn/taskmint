@@ -1,13 +1,5 @@
-import { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  Stack,
-  Alert,
-  Switch,
-  FormControlLabel,
-} from '@mui/material';
+import { useEffect, useRef, useState } from 'react';
+import { Typography, Stack, Switch, FormControlLabel } from '@mui/material';
 import { TrendingUp as GoalIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { CurrencyInput } from '../../ui/forms/CurrencyInput';
@@ -15,117 +7,100 @@ import { useDailyGoals } from '../../../hooks/useDailyGoals';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { errorMessage } from '../../../utils/errors';
 
+/** How long typing pauses before the amount saves. */
+export const GOAL_SAVE_DELAY_MS = 800;
+
+/**
+ * The daily earnings goal. Changes save as you make them: the switch at
+ * once, the amount when you pause, leave the field or press Enter (if it's
+ * a number above zero).
+ */
 export function DailyGoalSettings() {
-  const { showSuccess, showError } = useNotification();
-  // Local state for form management
-  const [goalError, setGoalError] = useState<string | null>(null);
-  const [goalTargetAmount, setGoalTargetAmount] = useState('');
-  // Every amount in the app is shown in dollars, so there's no currency
-  // picker; a goal's stored currency is carried through unchanged on save.
-  const [goalCurrency, setGoalCurrency] = useState('USD');
-  const [goalEnabled, setGoalEnabled] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-
+  const { showError } = useNotification();
   const { currentGoal, updateDailyGoal } = useDailyGoals();
+  const enabled = currentGoal?.isEnabled ?? false;
+  const savedAmount = currentGoal?.targetAmount;
 
-  // Initialize goal form fields when currentGoal changes
+  const [amountText, setAmountText] = useState(savedAmount !== undefined ? String(savedAmount) : '');
+  const [amountError, setAmountError] = useState<string | null>(null);
+
+  // Follow the saved amount (another window, a reset)
   useEffect(() => {
-    if (currentGoal) {
-      setGoalTargetAmount(currentGoal.targetAmount.toString());
-      setGoalCurrency(currentGoal.currency);
-      setGoalEnabled(currentGoal.isEnabled);
-    } else {
-      setGoalTargetAmount('');
-      setGoalCurrency('USD');
-      setGoalEnabled(false);
-    }
-    setIsDirty(false); // Reset dirty state on load
-  }, [currentGoal]);
+    setAmountText(savedAmount !== undefined ? String(savedAmount) : '');
+    setAmountError(null);
+  }, [savedAmount]);
 
-  const handleFieldChange = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
-    setter(value);
-    setIsDirty(true);
-  };
-
-  const handleSaveGoal = async () => {
+  const save = async (changes: { isEnabled?: boolean; targetAmount?: number }) => {
     try {
-      setGoalError(null);
-
-      const targetAmount = parseFloat(goalTargetAmount);
-      if (isNaN(targetAmount) || targetAmount < 0) {
-        const error = 'Please enter a valid target amount';
-        setGoalError(error);
-        return;
-      }
-
       await updateDailyGoal({
-        targetAmount,
-        currency: goalCurrency,
-        isEnabled: goalEnabled,
+        targetAmount: changes.targetAmount ?? savedAmount ?? 0,
+        // Every amount in the app is shown in dollars, so there's no currency
+        // picker; a stored currency is carried through unchanged
+        currency: currentGoal?.currency ?? 'USD',
+        isEnabled: changes.isEnabled ?? enabled,
       });
-
-      setIsDirty(false);
-      showSuccess('Daily goal saved');
     } catch (error) {
       console.error('Failed to save goal:', error);
-      showError(errorMessage(error, 'Failed to save the goal. Please try again.'));
+      showError(errorMessage(error, "Couldn't save the goal"), { category: 'settings' });
     }
   };
 
-  return (
-      <SettingsSection title="Daily Earnings Goal" icon={<GoalIcon color="primary" />}>
+  const commitAmount = (text = amountText) => {
+    const trimmed = text.trim();
+    const amount = Number(trimmed);
+    if (trimmed === '' || !Number.isFinite(amount) || amount <= 0) {
+      setAmountError('Enter an amount above zero');
+      return;
+    }
+    setAmountError(null);
+    if (amount !== savedAmount) void save({ targetAmount: amount });
+  };
+  const commitRef = useRef(commitAmount);
+  useEffect(() => {
+    commitRef.current = commitAmount;
+  });
 
+  // Saves when typing pauses
+  useEffect(() => {
+    if (!enabled || amountText.trim() === String(savedAmount ?? '')) return;
+    const timeout = setTimeout(() => commitRef.current(amountText), GOAL_SAVE_DELAY_MS);
+    return () => clearTimeout(timeout);
+  }, [amountText, enabled, savedAmount]);
+
+  return (
+    <SettingsSection title="Daily Earnings Goal" icon={<GoalIcon color="primary" />}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Set a daily earnings target to track your progress and receive notifications when you reach milestones.
+        A daily earnings target, with notifications at 50%, 75%, when you reach it, and when you're
+        well past it (choose which reach your desktop under Notifications). It starts over each day.
       </Typography>
 
       <Stack spacing={3}>
-        {/* Enable/Disable Toggle */}
         <FormControlLabel
           control={
-            <Switch
-              checked={goalEnabled}
-              onChange={(e) => handleFieldChange(setGoalEnabled, e.target.checked)}
-              color="primary"
-            />
+            <Switch checked={enabled} onChange={event => void save({ isEnabled: event.target.checked })} color="primary" />
           }
           label="Enable daily earnings goal"
         />
 
-        {/* Goal Configuration */}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <CurrencyInput
-            label="Daily Target Amount"
-            value={goalTargetAmount}
-            onChange={(value) => handleFieldChange(setGoalTargetAmount, value)}
-            currency="$"
-            placeholder="0.00"
-            disabled={!goalEnabled}
-            error={!!goalError}
-            helperText={goalError ?? 'Set your daily earnings target'}
-            sx={{ minWidth: 200 }}
-          />
-        </Stack>
-
-        {/* Save Button */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-          <Button
-            variant="contained"
-            onClick={handleSaveGoal}
-            disabled={!isDirty || (goalEnabled && !goalTargetAmount)}
-            sx={{ minWidth: 120 }}
-          >
-            Save Goal
-          </Button>
-        </Box>
+        <CurrencyInput
+          label="Daily Target Amount"
+          value={amountText}
+          onChange={value => {
+            setAmountText(value);
+            setAmountError(null);
+          }}
+          onBlur={() => enabled && commitAmount()}
+          onKeyDown={event => {
+            if (event.key === 'Enter') commitAmount();
+          }}
+          currency="$"
+          placeholder="0.00"
+          disabled={!enabled}
+          error={!!amountError}
+          helperText={amountError ?? 'Saved as you type'}
+          sx={{ minWidth: 200, maxWidth: 280 }}
+        />
       </Stack>
-
-      <Alert severity="info" sx={{ mt: 2 }}>
-        <Typography variant="body2">
-          <strong>Daily Goal Notifications:</strong> You'll be notified at 50%, 75%, when you reach your target, and when you're well past it (choose which reach your desktop under Notifications).
-          The goal resets automatically each day.
-        </Typography>
-      </Alert>
     </SettingsSection>
   );
 }
