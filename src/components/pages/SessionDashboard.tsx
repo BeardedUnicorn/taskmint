@@ -13,12 +13,10 @@ import {
   Typography,
   Alert,
   Button,
-  Fab,
   Backdrop,
   CircularProgress,
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Timer as TimerIcon,
   AttachMoney as MoneyIcon,
   MoreTime as AddTimeIcon,
@@ -236,6 +234,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
           startOptions={startOptions}
           onStartTask={startTask}
           onEndSession={endActiveSession}
+          onSwitchTask={handleOpenStartDialog}
           onPauseAll={pauseAllTimersInActiveSession}
           onResumeAll={resumeAllTimersInActiveSession}
           onOpenSessionNotes={handleOpenSessionNotes}
@@ -355,19 +354,6 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
         onClose={() => setTimerPendingDelete(null)}
       />
 
-      {/* Floating Action Button: start work on a task */}
-      <Fab
-        color="primary"
-        aria-label="start work"
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-        }}
-        onClick={handleOpenStartDialog}
-      >
-        <AddIcon />
-      </Fab>
     </Container>
   );
 }

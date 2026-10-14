@@ -125,7 +125,11 @@ vi.mock('../../../contexts/ActiveTimerContext', () => ({
 // a session-level status bar now — per-timer actions (including Add Timer)
 // come through SessionTimerDisplay.
 vi.mock('../../layout/SessionTimerToolbar', () => ({
-  SessionTimerToolbar: () => <div data-testid="session-timer-bar" />,
+  SessionTimerToolbar: ({ onSwitchTask }: { onSwitchTask?: () => void }) => (
+    <div data-testid="session-timer-bar">
+      <button onClick={onSwitchTask}>Switch task</button>
+    </div>
+  ),
 }));
 
 const mockOnStartWork = vi.fn();
@@ -213,8 +217,9 @@ describe('SessionDashboard', () => {
       renderDashboard();
       
       expect(screen.getByText('All Sessions')).toBeInTheDocument();
-      // The FAB starts work on a task
-      expect(screen.getByLabelText('start work')).toBeInTheDocument();
+      // No floating + button (it covered the toasts): the toolbar, the empty
+      // state and the tray start work
+      expect(screen.queryByLabelText('start work')).not.toBeInTheDocument();
     });
 
     it('should show loading state when sessions are loading', () => {
@@ -247,10 +252,10 @@ describe('SessionDashboard', () => {
 
   describe('Starting work', () => {
     // The Start Work and Add Time dialogs belong to the app (one of each)
-    it("opens the app's Start Work dialog from the + button", () => {
+    it("opens the app's Start Work dialog from the active session's Switch task", () => {
       renderDashboard();
 
-      fireEvent.click(screen.getByLabelText('start work'));
+      fireEvent.click(screen.getByRole('button', { name: /switch task/i }));
 
       expect(mockOnStartWork).toHaveBeenCalledTimes(1);
     });

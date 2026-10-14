@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -21,12 +21,23 @@ import {
   AppearanceSettingsSection,
 } from './settings';
 import { InactivitySettingsSection } from './settings/InactivitySettingsSection';
+import { NotificationSettingsSection } from './settings/NotificationSettingsSection';
+import { useOptionalNavigation } from '../../contexts/NavigationContext';
 
 export function SettingsPage() {
   // What the last action did, in the words of the section that did it
   const [notice, setNotice] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
 
   const { days, updateDays } = useFundsReleaseSettings();
+
+  // Opened for a section (a toast's "Backup settings"): scroll to it
+  const navigation = useOptionalNavigation();
+  const section = navigation?.params.section;
+  useEffect(() => {
+    if (!section) return;
+    document.getElementById(`settings-${section}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    navigation?.clearParams();
+  }, [section, navigation]);
 
   const handleSuccess = (text: string) => setNotice({ severity: 'success', text });
   const handleError = (text: string) => setNotice({ severity: 'error', text });
@@ -41,15 +52,17 @@ export function SettingsPage() {
       </Typography>
       
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Appearance, payouts, idle detection, your daily goal, backups and data
+        Appearance, payouts, idle detection, your daily goal, notifications, backups and data
       </Typography>
 
-      <AppearanceSettingsSection />
+      <Box id="settings-appearance">
+        <AppearanceSettingsSection />
+      </Box>
 
       <Divider sx={{ my: 4 }} />
 
       {/* Payout Settings Section */}
-      <Paper sx={{ p: 3, mb: 4 }}>
+      <Paper id="settings-payouts" sx={{ p: 3, mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           <PayoutsIcon color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -83,32 +96,48 @@ export function SettingsPage() {
       <Divider sx={{ my: 4 }} />
 
       {/* Inactivity Detection Settings Section */}
-      <InactivitySettingsSection onSuccess={handleSuccess} onError={handleError} />
+      <Box id="settings-idle">
+        <InactivitySettingsSection onSuccess={handleSuccess} onError={handleError} />
+      </Box>
 
       <Divider sx={{ my: 4 }} />
 
       {/* Daily Earnings Goal Section */}
-      <DailyGoalSettings onSuccess={handleSuccess} onError={handleError} />
+      <Box id="settings-goal">
+        <DailyGoalSettings onSuccess={handleSuccess} onError={handleError} />
+      </Box>
+
+      <Divider sx={{ my: 4 }} />
+
+      <Box id="settings-notifications">
+        <NotificationSettingsSection />
+      </Box>
 
       <Divider sx={{ my: 4 }} />
 
       {/* Automatic Backup Settings Section */}
-      <BackupSettingsSection onSuccess={handleSuccess} onError={handleError} />
+      <Box id="settings-backups">
+        <BackupSettingsSection onSuccess={handleSuccess} onError={handleError} />
+      </Box>
 
       <Divider sx={{ my: 4 }} />
 
       {/* Data Management Section */}
-      <DataManagementSection
-        onSuccess={handleSuccess}
-        onError={handleError}
-        onImportSuccess={handleImportSuccess}
-        onImportError={handleError}
-      />
+      <Box id="settings-data">
+        <DataManagementSection
+          onSuccess={handleSuccess}
+          onError={handleError}
+          onImportSuccess={handleImportSuccess}
+          onImportError={handleError}
+        />
+      </Box>
 
       <Divider sx={{ my: 4 }} />
 
       {/* Privacy Section */}
-      <PrivacySettingsSection />
+      <Box id="settings-privacy">
+        <PrivacySettingsSection />
+      </Box>
 
       <Snackbar
         open={notice !== null}

@@ -1,6 +1,7 @@
 // Application state management
 
 use crate::idle::IdleState;
+use crate::notifications::NotificationPrefs;
 use crate::tray::TrayLiveKey;
 use crate::types::{
     CaptureServerStatus, PendingCapture, ProjectTaskMapping, Task, TaskSession, WorkLogEntry,
@@ -76,6 +77,8 @@ pub struct AppState {
     // Idle-detection settings (mirrored from the app) and the pending
     // "you were away" question. In memory only.
     pub idle: SharedIdleState,
+    // Which OS notifications the user allows (mirrored from the app).
+    pub notification_prefs: Arc<Mutex<NotificationPrefs>>,
 }
 
 impl AppState {
@@ -95,10 +98,18 @@ impl AppState {
             session_load_warning: Arc::new(Mutex::new(None)),
             work_log_load_warning: Arc::new(Mutex::new(None)),
             idle: Arc::new(Mutex::new(IdleState::default())),
+            notification_prefs: Arc::new(Mutex::new(NotificationPrefs::default())),
         }
     }
 
     accessors!(with_idle, with_idle_mut, idle, IdleState, "idle state");
+    accessors!(
+        with_notification_prefs,
+        with_notification_prefs_mut,
+        notification_prefs,
+        NotificationPrefs,
+        "notification preferences"
+    );
     accessors!(
         with_tray_rendered,
         with_tray_rendered_mut,

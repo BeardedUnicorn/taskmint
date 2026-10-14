@@ -9,6 +9,7 @@ import { IdleReturnDialog } from './components/ui/dialogs/IdleReturnDialog';
 import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar } from './components/layout';
 import { GoalFooter } from './components/layout/GoalFooter';
+import { NotificationBell } from './components/notifications/NotificationBell';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { DailyGoalProvider } from './contexts/DailyGoalContext';
 import { TaskNotesProvider } from './contexts/TaskNotesContext';
@@ -113,6 +114,7 @@ function AppContent() {
   const closeStartDialog = useCallback(() => setStartDialogOpen(false), []);
   const closeAddTime = useCallback(() => setAddTimeDialogOpen(false), []);
   const renderGoalFooter = useCallback((collapsed: boolean) => <GoalFooter collapsed={collapsed} />, []);
+  const renderBell = useCallback((collapsed: boolean) => <NotificationBell collapsed={collapsed} />, []);
 
   // The same element until the page or its actions change, so re-rendering
   // the shell (a dialog opening) doesn't re-render the page.
@@ -134,7 +136,12 @@ function AppContent() {
       <CssBaseline />
       <BackgroundJobs onShowStartDialog={showStartDialog} />
       <Box sx={{ height: '100vh', display: 'flex' }}>
-        <Sidebar activeView={activeView} onViewChange={navigate} footer={renderGoalFooter} />
+        <Sidebar
+          activeView={activeView}
+          onViewChange={navigate}
+          footer={renderGoalFooter}
+          headerAction={renderBell}
+        />
         {/* minWidth 0: a wide table scrolls inside its page instead of
             stretching the content past the window */}
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>

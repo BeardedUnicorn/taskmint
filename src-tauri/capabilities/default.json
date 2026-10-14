@@ -2,10 +2,11 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Frontend permissions for the main window. Grant only what the webview's JS calls: everything else (tray, menus, deep links, file I/O) runs Rust-side and needs no capability.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
-    "dialog:default",
-    "notification:default"
+    "dialog:default"
   ]
 }

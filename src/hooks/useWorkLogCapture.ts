@@ -43,7 +43,7 @@ import { errorMessage } from '../utils/errors';
 
 /** A desktop notification too, when the window isn't where you're looking. */
 function notifyIfAway(title: string, body: string) {
-  if (!isAppFocused()) void notifyDesktop(title, body);
+  if (!isAppFocused()) void notifyDesktop(title, body, 'workLogCapture');
 }
 
 export const WORK_LOG_CAPTURED_EVENT = BACKEND_EVENTS.WORK_LOG_PAYLOAD_CAPTURED;
