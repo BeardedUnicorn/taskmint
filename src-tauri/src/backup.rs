@@ -246,4 +246,33 @@ mod tests {
             .exists());
         fs::remove_dir_all(&dir).unwrap();
     }
+
+    #[test]
+    fn a_new_folder_validates_and_reaches_the_frontend_as_is_valid() {
+        let dir = temp_backup_dir().join("New Backups");
+        let result = validate_backup_path(dir.to_str().unwrap()).unwrap();
+
+        assert!(result.is_valid);
+        assert!(dir.is_dir());
+        let json = serde_json::to_value(&result).unwrap();
+        assert_eq!(json["isValid"], true);
+        assert!(json.get("is_valid").is_none());
+        fs::remove_dir_all(dir.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn a_backup_result_uses_the_frontends_names() {
+        let dir = temp_backup_dir();
+        let result = perform_automatic_backup(dir.to_str().unwrap(), "{}", 5).unwrap();
+
+        let json = serde_json::to_value(&result).unwrap();
+        assert_eq!(json["success"], true);
+        assert!(json["filePath"]
+            .as_str()
+            .unwrap()
+            .contains(BACKUP_FILENAME_PREFIX));
+        assert!(json["fileSize"].as_u64().is_some());
+        assert!(json.get("file_path").is_none());
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }
