@@ -134,7 +134,6 @@ export function SessionNotesDialog({
         )}
 
         <NotesList
-          taskId={session.taskId}
           notes={sessionNotes}
           onEditNote={openEditor}
           onDeleteNote={deleteNote}

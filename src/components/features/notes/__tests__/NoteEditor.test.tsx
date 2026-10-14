@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { NoteTemplatesProvider } from '../../../../contexts/NoteTemplatesContext';
 import { NotificationProvider } from '../../../../contexts/NotificationContext';
@@ -25,6 +25,16 @@ import { invoke } from '@tauri-apps/api/core';
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }));
+
+const existingTemplateNote: TaskNote = {
+  id: 'note1',
+  taskId: 'task1',
+  templateId: 'template1',
+  templateName: 'Test Template',
+  fieldValues: { field1: 'Important text', field2: 3 },
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
 
 describe('NoteEditor', () => {
   const mockTemplate: NoteTemplate = {
@@ -261,6 +271,8 @@ describe('NoteEditor', () => {
       />
     );
 
+    // (An empty new note isn't saved at all)
+    fireEvent.change(screen.getByLabelText('Text Field'), { target: { value: 'context' } });
     fireEvent.click(screen.getByText('Save Note'));
 
     await waitFor(() => {
@@ -376,6 +388,119 @@ describe('NoteEditor', () => {
         });
       });
     });
+  });
+
+  it('never creates an empty template note either; Save just closes', async () => {
+    const onCloseEditor = vi.fn();
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={mockOnUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        onCloseEditor={onCloseEditor}
+      />
+    );
+    mockOnSaveNote.mockClear();
+
+    fireEvent.click(screen.getByText('Save Note'));
+
+    await waitFor(() => expect(onCloseEditor).toHaveBeenCalled());
+    expect(mockOnSaveNote).not.toHaveBeenCalled();
+  });
+
+  it('saves pending changes to a saved note when it closes', async () => {
+    const onCloseEditor = vi.fn();
+    const onUpdateNote = vi.fn().mockImplementation(async (id: string, updates: Partial<TaskNote>) => ({
+      ...existingTemplateNote,
+      ...updates,
+      id,
+    }));
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        existingNote={existingTemplateNote}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={onUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        onCloseEditor={onCloseEditor}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Text Field'), { target: { value: 'edited' } });
+    fireEvent.click(screen.getByText('Close'));
+
+    await waitFor(() => expect(onCloseEditor).toHaveBeenCalled());
+    expect(onUpdateNote).toHaveBeenCalledWith('note1', {
+      fieldValues: { field1: 'edited', field2: 3 },
+      taskId: 'task1',
+    });
+    expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
+  });
+
+  it("keeps typing that happens while a save is in flight", async () => {
+    let finish!: (note: TaskNote) => void;
+    const onUpdateNote = vi.fn(() => new Promise<TaskNote>(resolve => (finish = resolve)));
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        existingNote={existingTemplateNote}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={onUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+      />
+    );
+    const field = screen.getByLabelText('Text Field');
+
+    fireEvent.change(field, { target: { value: 'first' } });
+    fireEvent.click(screen.getByText('Update Note'));
+    await waitFor(() => expect(onUpdateNote).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('status')).toHaveTextContent('Saving…');
+
+    fireEvent.change(field, { target: { value: 'first and more' } });
+    await act(async () => {
+      finish({ ...existingTemplateNote, fieldValues: { field1: 'first', field2: null } });
+    });
+
+    expect(field).toHaveValue('first and more');
+    expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes');
+  });
+
+  it('offers Retry after a failed save', async () => {
+    const onUpdateNote = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockResolvedValue(existingTemplateNote);
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        existingNote={existingTemplateNote}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={onUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        autoSaveDisabled
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Text Field'), { target: { value: 'edited' } });
+    fireEvent.click(screen.getByText('Update Note'));
+    expect(await screen.findByText("Couldn't save")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Saved · /));
+    expect(onUpdateNote).toHaveBeenCalledTimes(2);
   });
 
   it('never saves an empty free-form note; Save just closes', async () => {

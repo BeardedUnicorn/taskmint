@@ -1,145 +1,73 @@
 /**
- * Notes List Component
- * 
- * Displays a list of saved notes for a task with creation date,
- * edit/delete actions, and note preview functionality.
+ * Notes List
+ *
+ * The notes it's given, most recently changed first: grouped by level (task,
+ * session, timer) or as one flat list. Searching and filtering are the
+ * caller's (the Notes page has them in its header); so is adding, except
+ * where the list is the only place to add from (onCreateNote).
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useMemo, useState } from 'react';
+import { Box, Button, IconButton, List, Paper, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import {
-  Box,
-  Paper,
-  Typography,
-  List,
-  ListItem,
-  ListItemSecondaryAction,
-  IconButton,
-  Chip,
-  Button,
-  Stack,
-  Collapse,
-
-  Menu,
-  MenuItem,
-  Divider,
-} from '@mui/material';
-import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Add as AddIcon,
-  MoreVert as MoreIcon,
-  ExpandMore as ExpandIcon,
-  ExpandLess as CollapseIcon,
-  Notes as NotesIcon,
-  Schedule as TimeIcon,
-  Archive as ArchiveIcon,
-  Unarchive as UnarchiveIcon,
-  Assignment as TaskIcon,
-  FolderOpen as SessionIcon,
-  Timer as TimerIcon,
   AccountTree as HierarchyIcon,
+  Add as AddIcon,
+  ExpandLess as CollapseIcon,
+  ExpandMore as ExpandIcon,
+  Notes as NotesIcon,
 } from '@mui/icons-material';
 import { NotesListProps, TaskNote } from '../../../types/notes';
-import { SearchListHeader } from '../../ui';
-import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
-import { createTextPreview, formatMultilineText } from '../../../utils/formatters';
-import { formatRelativeDate } from '../../../utils/dateHelpers';
-import { noteText } from '../../../utils/notes';
+import { NOTE_LEVELS, NoteItem, NoteLevel } from './NoteItem';
 
-// Note level configuration for hierarchical display
-const noteLevelConfig = {
-  task: {
-    icon: <TaskIcon />,
-    label: 'Task',
-    color: 'success' as const,
-    description: 'Notes related to the entire task',
-    priority: 1,
-  },
-  session: {
-    icon: <SessionIcon />,
-    label: 'Session',
-    color: 'primary' as const,
-    description: 'Notes for a specific work session',
-    priority: 2,
-  },
-  timer: {
-    icon: <TimerIcon />,
-    label: 'Timer',
-    color: 'secondary' as const,
-    description: 'Notes for a specific timer instance',
-    priority: 3,
-  },
-};
+const LEVEL_ORDER: NoteLevel[] = ['task', 'session', 'timer'];
 
-// Hierarchical grouping component
-interface HierarchicalNotesViewProps {
-  notes: TaskNote[];
-  taskNames?: Record<string, string>;
-  onEditNote: (note: TaskNote) => void;
-  onDeleteNote: (noteId: string) => void;
-  onArchiveNote: (noteId: string) => void;
-  onUnarchiveNote: (noteId: string) => void;
+type ItemHandlers = Pick<NotesListProps, 'taskNames' | 'onEditNote' | 'onDeleteNote' | 'onArchiveNote' | 'onUnarchiveNote'>;
+
+function NoteItems({ notes, showLevelIndicator, ...handlers }: ItemHandlers & { notes: TaskNote[]; showLevelIndicator: boolean }) {
+  return (
+    <List disablePadding>
+      {notes.map(note => (
+        <NoteItem
+          key={note.id}
+          note={note}
+          taskName={handlers.taskNames?.[note.taskId]}
+          onEdit={handlers.onEditNote}
+          onDelete={handlers.onDeleteNote}
+          onArchive={handlers.onArchiveNote}
+          onUnarchive={handlers.onUnarchiveNote}
+          showLevelIndicator={showLevelIndicator}
+        />
+      ))}
+    </List>
+  );
 }
 
-function HierarchicalNotesView({
-  notes,
-  taskNames,
-  onEditNote,
-  onDeleteNote,
-  onArchiveNote,
-  onUnarchiveNote,
-}: HierarchicalNotesViewProps) {
-  const [expandedLevels, setExpandedLevels] = useState<Set<string>>(new Set(['task', 'session', 'timer']));
-
-  const toggleLevel = (level: string) => {
-    setExpandedLevels(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(level)) {
-        newSet.delete(level);
-      } else {
-        newSet.add(level);
-      }
-      return newSet;
+function NotesByLevel({ notes, ...handlers }: ItemHandlers & { notes: TaskNote[] }) {
+  const [collapsed, setCollapsed] = useState<Set<NoteLevel>>(new Set());
+  const groups = useMemo(
+    () =>
+      LEVEL_ORDER.map(level => ({ level, notes: notes.filter(note => (note.noteLevel ?? 'task') === level) })).filter(
+        group => group.notes.length > 0
+      ),
+    [notes]
+  );
+  const toggle = (level: NoteLevel) =>
+    setCollapsed(previous => {
+      const next = new Set(previous);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
     });
-  };
-
-  // Group notes by level
-  const notesByLevel = useMemo(() => {
-    const grouped = notes.reduce((acc, note) => {
-      const level = note.noteLevel || 'task';
-      if (!acc[level]) {
-        acc[level] = [];
-      }
-      acc[level].push(note);
-      return acc;
-    }, {} as Record<string, TaskNote[]>);
-
-    // Sort each level by creation date (newest first)
-    Object.keys(grouped).forEach(level => {
-      grouped[level].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    });
-
-    return grouped;
-  }, [notes]);
-
-  // Sort levels by priority
-  const sortedLevels = Object.keys(notesByLevel).sort((a, b) => {
-    const priorityA = noteLevelConfig[a as keyof typeof noteLevelConfig]?.priority || 999;
-    const priorityB = noteLevelConfig[b as keyof typeof noteLevelConfig]?.priority || 999;
-    return priorityA - priorityB;
-  });
 
   return (
     <Box>
-      {sortedLevels.map(level => {
-        const levelNotes = notesByLevel[level];
-        const config = noteLevelConfig[level as keyof typeof noteLevelConfig];
-        const isExpanded = expandedLevels.has(level);
-
+      {groups.map(({ level, notes: levelNotes }) => {
+        const config = NOTE_LEVELS[level];
+        const open = !collapsed.has(level);
         return (
           <Box key={level} sx={{ mb: 2 }}>
-            {/* Level Header */}
             <Box
+              onClick={() => toggle(level)}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
@@ -149,44 +77,21 @@ function HierarchicalNotesView({
                 cursor: 'pointer',
                 '&:hover': { bgcolor: 'action.selected' },
               }}
-              onClick={() => toggleLevel(level)}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                <Box sx={{ color: `${config?.color}.main`, mr: 1 }}>
-                  {config?.icon}
-                </Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
-                  {config?.label} Notes ({levelNotes.length})
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                  {config?.description}
-                </Typography>
-              </Box>
-              <IconButton size="small" aria-label={isExpanded ? 'Collapse notes' : 'Expand notes'}>
-                {isExpanded ? <CollapseIcon /> : <ExpandIcon />}
+              <Box sx={{ color: `${config.color}.main`, mr: 1, display: 'flex' }}>{config.icon}</Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
+                {config.label} Notes ({levelNotes.length})
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1, flex: 1 }}>
+                {config.description}
+              </Typography>
+              <IconButton size="small" aria-label={open ? 'Collapse notes' : 'Expand notes'} aria-expanded={open}>
+                {open ? <CollapseIcon /> : <ExpandIcon />}
               </IconButton>
             </Box>
-
-            {/* Level Notes */}
-            {isExpanded && (
+            {open && (
               <Box sx={{ ml: 2, mt: 1 }}>
-                {levelNotes.map((note: TaskNote) => (
-                  <NoteItem
-                    key={note.id}
-                    note={note}
-                    taskName={taskNames?.[note.taskId]}
-                    onEdit={onEditNote}
-                    onDelete={onDeleteNote}
-                    onArchive={onArchiveNote}
-                    onUnarchive={onUnarchiveNote}
-                    showLevelIndicator={false} // Don't show level indicator in hierarchical view
-                  />
-                ))}
-                {levelNotes.length === 0 && (
-                  <Typography variant="body2" color="text.secondary" sx={{ p: 2, fontStyle: 'italic' }}>
-                    No {level} notes yet
-                  </Typography>
-                )}
+                <NoteItems notes={levelNotes} showLevelIndicator={false} {...handlers} />
               </Box>
             )}
           </Box>
@@ -196,371 +101,13 @@ function HierarchicalNotesView({
   );
 }
 
-interface NoteItemProps {
-  note: TaskNote;
-  /** Shown as a chip when notes from several tasks are listed together. */
-  taskName?: string;
-  onEdit: (note: TaskNote) => void;
-  onDelete: (noteId: string) => void;
-  onArchive?: (noteId: string) => void;
-  onUnarchive?: (noteId: string) => void;
-  showLevelIndicator?: boolean;
-}
+export function NotesList({ notes, title = 'Notes', onCreateNote, ...handlers }: NotesListProps) {
+  const [viewMode, setViewMode] = useState<'hierarchical' | 'flat'>('hierarchical');
 
-function NoteItem({ note, taskName, onEdit, onDelete, onArchive, onUnarchive, showLevelIndicator = true }: NoteItemProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
-
-  // Get template to resolve field labels
-  const { getTemplateById } = useNoteTemplates();
-  const template = getTemplateById(note.templateId);
-
-  const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
-    event.stopPropagation();
-    setMenuAnchor(event.currentTarget);
-  }, []);
-
-  const handleMenuClose = useCallback(() => {
-    setMenuAnchor(null);
-  }, []);
-
-  const handleEdit = useCallback(() => {
-    onEdit(note);
-    handleMenuClose();
-  }, [note, onEdit, handleMenuClose]);
-
-  const handleDelete = useCallback(() => {
-    onDelete(note.id);
-    handleMenuClose();
-  }, [note.id, onDelete, handleMenuClose]);
-
-  const handleArchive = useCallback(() => {
-    if (onArchive) {
-      onArchive(note.id);
-    }
-    handleMenuClose();
-  }, [note.id, onArchive, handleMenuClose]);
-
-  const handleUnarchive = useCallback(() => {
-    if (onUnarchive) {
-      onUnarchive(note.id);
-    }
-    handleMenuClose();
-  }, [note.id, onUnarchive, handleMenuClose]);
-
-  const formatDate = useCallback((dateString: string) => {
-    return formatRelativeDate(dateString);
-  }, []);
-
-  const getFieldPreview = useCallback(() => {
-    const text = noteText(note);
-    if (text) return createTextPreview(text, 100);
-
-    // Only checkboxes filled in
-    const firstValue = Object.values(note.fieldValues).find(value => typeof value === 'boolean');
-    if (typeof firstValue === 'boolean') {
-      return firstValue ? '✓ Checked' : '✗ Unchecked';
-    }
-    return 'No content';
-  }, [note]);
-
-  const getFilledFieldsCount = useCallback(() => {
-    return Object.values(note.fieldValues).filter(value =>
-      value !== undefined && value !== null && value !== ''
-    ).length;
-  }, [note.fieldValues]);
-
-  const getFieldLabel = useCallback((fieldId: string): string => {
-    if (!template) return fieldId;
-    const field = template.fields.find(f => f.id === fieldId);
-    return field ? field.label : fieldId;
-  }, [template]);
-
-  return (
-    <Paper variant="outlined" sx={{ mb: 1 }}>
-      <ListItem
-        component="div"
-        onClick={() => setExpanded(!expanded)}
-        sx={{
-          '&:hover': { bgcolor: 'action.hover' },
-          cursor: 'pointer',
-        }}
-      >
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          {/* Primary content - chips */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-            {taskName && (
-              <Chip
-                icon={<TaskIcon />}
-                label={taskName}
-                size="small"
-                color="success"
-                variant="outlined"
-              />
-            )}
-            <Chip
-              label={note.templateName}
-              size="small"
-              color="primary"
-              variant="outlined"
-            />
-            <Chip
-              label={`${getFilledFieldsCount()} fields`}
-              size="small"
-              variant="outlined"
-            />
-            {showLevelIndicator && note.noteLevel && (
-              <Chip
-                icon={noteLevelConfig[note.noteLevel]?.icon}
-                label={noteLevelConfig[note.noteLevel]?.label}
-                size="small"
-                color={noteLevelConfig[note.noteLevel]?.color}
-                variant="outlined"
-              />
-            )}
-            {note.timeEntryId && (
-              <Chip
-                label="Time Entry"
-                size="small"
-                color="secondary"
-                variant="outlined"
-              />
-            )}
-            {note.sessionId && (
-              <Chip
-                label="Session"
-                size="small"
-                color="info"
-                variant="outlined"
-              />
-            )}
-            {note.timerInstanceId && (
-              <Chip
-                label="Timer Instance"
-                size="small"
-                color="warning"
-                variant="outlined"
-              />
-            )}
-            {note.isArchived && (
-              <Chip
-                label="Archived"
-                size="small"
-                color="warning"
-                variant="outlined"
-              />
-            )}
-          </Box>
-
-          {/* Secondary content - date and preview */}
-          <Stack spacing={0.5}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <TimeIcon fontSize="small" color="action" />
-              <Typography variant="caption" color="text.secondary">
-                {formatDate(note.updatedAt)}
-              </Typography>
-            </Box>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                lineHeight: 1.4,
-                maxHeight: '2.8em', // 2 lines * 1.4 line-height
-              }}
-            >
-              {getFieldPreview()}
-            </Typography>
-          </Stack>
-        </Box>
-        <ListItemSecondaryAction>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton
-              size="small"
-              onClick={() => setExpanded(!expanded)}
-              title={expanded ? 'Collapse' : 'Expand'}
-            >
-              {expanded ? <CollapseIcon /> : <ExpandIcon />}
-            </IconButton>
-            <IconButton
-              size="small"
-              onClick={handleMenuOpen}
-              title="More actions"
-            >
-              <MoreIcon />
-            </IconButton>
-          </Box>
-        </ListItemSecondaryAction>
-      </ListItem>
-
-      {/* Expanded Content */}
-      <Collapse in={expanded}>
-        <Box sx={{ p: 2, pt: 0, bgcolor: 'action.hover' }}>
-          <Stack spacing={2}>
-            {Object.entries(note.fieldValues).map(([fieldId, value]) => {
-              if (value === undefined || value === null || value === '') return null;
-
-              const fieldLabel = getFieldLabel(fieldId);
-
-              // Handle different field types for display
-              let displayValue: string;
-              let displayStyle = {};
-
-              if (typeof value === 'boolean') {
-                displayValue = value ? '✓ Yes' : '✗ No';
-                displayStyle = {
-                  color: value ? 'success.main' : 'text.secondary',
-                  fontWeight: 'medium'
-                };
-              } else if (typeof value === 'object') {
-                displayValue = JSON.stringify(value, null, 2);
-                displayStyle = {
-                  fontFamily: 'monospace',
-                  backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                  padding: 1,
-                  borderRadius: 1,
-                };
-              } else {
-                displayValue = formatMultilineText(String(value));
-              }
-
-              return (
-                <Box key={fieldId}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'medium', mb: 0.5, display: 'block' }}>
-                    {fieldLabel}:
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      ml: 1,
-                      whiteSpace: 'pre-wrap',
-                      wordWrap: 'break-word',
-                      lineHeight: 1.5,
-                      ...displayStyle,
-                    }}
-                  >
-                    {displayValue}
-                  </Typography>
-                </Box>
-              );
-            })}
-            
-            <Divider sx={{ my: 1 }} />
-            
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">
-                Created: {formatDate(note.createdAt)}
-                {note.createdAt !== note.updatedAt && (
-                  <> • Updated: {formatDate(note.updatedAt)}</>
-                )}
-                {note.timeEntryId && (
-                  <> • Linked to Time Entry: {note.timeEntryId}</>
-                )}
-              </Typography>
-              <Box>
-                <Button
-                  size="small"
-                  startIcon={<EditIcon />}
-                  onClick={handleEdit}
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="small"
-                  startIcon={<DeleteIcon />}
-                  onClick={handleDelete}
-                  color="error"
-                >
-                  Delete
-                </Button>
-              </Box>
-            </Box>
-          </Stack>
-        </Box>
-      </Collapse>
-
-      {/* Context Menu */}
-      <Menu
-        anchorEl={menuAnchor}
-        open={Boolean(menuAnchor)}
-        onClose={handleMenuClose}
-      >
-        <MenuItem onClick={handleEdit}>
-          <EditIcon fontSize="small" sx={{ mr: 1 }} />
-          Edit Note
-        </MenuItem>
-        {note.isArchived ? (
-          onUnarchive && (
-            <MenuItem onClick={handleUnarchive}>
-              <UnarchiveIcon fontSize="small" sx={{ mr: 1 }} />
-              Unarchive Note
-            </MenuItem>
-          )
-        ) : (
-          onArchive && (
-            <MenuItem onClick={handleArchive}>
-              <ArchiveIcon fontSize="small" sx={{ mr: 1 }} />
-              Archive Note
-            </MenuItem>
-          )
-        )}
-        <Divider />
-        <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
-          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
-          Delete Note
-        </MenuItem>
-      </Menu>
-    </Paper>
-  );
-}
-
-export function NotesList({
-  notes,
-  taskNames,
-  onEditNote,
-  onDeleteNote,
-  onCreateNote,
-  onArchiveNote,
-  onUnarchiveNote,
-  searchQuery: searchQueryProp = '',
-}: NotesListProps) {
-  const [viewMode, setViewMode] = useState<'flat' | 'hierarchical'>('hierarchical');
-  const [searchQuery, setSearchQuery] = useState(searchQueryProp);
-
-  useEffect(() => {
-    setSearchQuery(searchQueryProp);
-  }, [searchQueryProp]);
-
-  // Deletes straight away; the toast offers Undo
-  const handleDeleteNote = useCallback(async (noteId: string) => {
-    try {
-      await onDeleteNote(noteId);
-    } catch (error) {
-      console.error('Failed to delete note:', error);
-    }
-  }, [onDeleteNote]);
-
-  const filteredNotes = useMemo(() => {
-    if (!searchQuery.trim()) return notes;
-    const query = searchQuery.toLowerCase();
-    return notes.filter(note => {
-      const content = formatMultilineText(
-        Object.values(note.fieldValues).join(' ')
-      )?.toLowerCase() || '';
-      return note.templateName.toLowerCase().includes(query) || content.includes(query);
-    });
-  }, [notes, searchQuery]);
-
+  // The one sort: most recently changed first
   const sortedNotes = useMemo(
-    () =>
-      [...filteredNotes].sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      ),
-    [filteredNotes]
+    () => [...notes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [notes]
   );
 
   if (sortedNotes.length === 0) {
@@ -568,93 +115,51 @@ export function NotesList({
       <Paper sx={{ p: 3, textAlign: 'center' }}>
         <NotesIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
         <Typography variant="h6" color="text.secondary" gutterBottom>
-          No Notes Yet
+          No notes yet
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Start by creating your first note.
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={onCreateNote}
-        >
-          Create First Note
-        </Button>
+        {onCreateNote && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={onCreateNote} sx={{ mt: 1 }}>
+            Add Note
+          </Button>
+        )}
       </Paper>
     );
   }
 
-    return (
-      <Box>
-        {/* Header */}
-        <SearchListHeader
-          title={`Notes (${sortedNotes.length})`}
-          searchValue={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder="Search notes..."
-          searchFieldProps={{ sx: { width: { xs: '100%', sm: 200 } } }}
-          actions={
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                View:
-              </Typography>
-              <Button
-                size="small"
-                variant={viewMode === 'hierarchical' ? 'contained' : 'outlined'}
-                startIcon={<HierarchyIcon />}
-                onClick={() => setViewMode('hierarchical')}
-                sx={{ minWidth: 'auto' }}
-              >
-                Hierarchical
-              </Button>
-              <Button
-                size="small"
-                variant={viewMode === 'flat' ? 'contained' : 'outlined'}
-                startIcon={<NotesIcon />}
-                onClick={() => setViewMode('flat')}
-                sx={{ minWidth: 'auto' }}
-              >
-                Flat
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={onCreateNote}
-                size="small"
-              >
-                Add Note
-              </Button>
-            </Box>
-          }
-        />
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h6" sx={{ flex: 1 }}>
+          {title} ({sortedNotes.length})
+        </Typography>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={viewMode}
+          onChange={(_, mode: 'hierarchical' | 'flat' | null) => mode && setViewMode(mode)}
+          aria-label="Group notes"
+        >
+          <ToggleButton value="hierarchical">
+            <HierarchyIcon fontSize="small" sx={{ mr: 0.5 }} />
+            By level
+          </ToggleButton>
+          <ToggleButton value="flat">
+            <NotesIcon fontSize="small" sx={{ mr: 0.5 }} />
+            All
+          </ToggleButton>
+        </ToggleButtonGroup>
+        {onCreateNote && (
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={onCreateNote}>
+            Add Note
+          </Button>
+        )}
+      </Box>
 
-      {/* Notes Display */}
       {viewMode === 'hierarchical' ? (
-        <HierarchicalNotesView
-          notes={sortedNotes}
-          taskNames={taskNames}
-          onEditNote={onEditNote}
-          onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
-          onArchiveNote={onArchiveNote || (() => {})}
-          onUnarchiveNote={onUnarchiveNote || (() => {})}
-        />
+        <NotesByLevel notes={sortedNotes} {...handlers} />
       ) : (
-        <List sx={{ p: 0 }}>
-          {sortedNotes.map((note) => (
-            <NoteItem
-              key={note.id}
-              note={note}
-              taskName={taskNames?.[note.taskId]}
-              onEdit={onEditNote}
-              onDelete={(noteId) => void handleDeleteNote(noteId)}
-              onArchive={onArchiveNote}
-              onUnarchive={onUnarchiveNote}
-              showLevelIndicator={true}
-            />
-          ))}
-        </List>
+        <NoteItems notes={sortedNotes} showLevelIndicator {...handlers} />
       )}
-
     </Box>
   );
 }

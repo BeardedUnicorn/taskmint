@@ -97,8 +97,8 @@ describe('NoteEditor Copy Functionality', () => {
     });
 
     // Check for copy buttons
-    expect(screen.getByTitle('Copy Text Field content')).toBeInTheDocument();
-    expect(screen.getByTitle('Copy Number Field content')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy Text Field' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy Number Field' })).toBeInTheDocument();
   });
 
   it('copies field content to clipboard when copy button is clicked', async () => {
@@ -117,7 +117,7 @@ describe('NoteEditor Copy Functionality', () => {
       />
     );
 
-    const copyButton = screen.getByTitle('Copy Text Field content');
+    const copyButton = screen.getByRole('button', { name: 'Copy Text Field' });
     fireEvent.click(copyButton);
 
     await waitFor(() => {
@@ -149,7 +149,7 @@ describe('NoteEditor Copy Functionality', () => {
       />
     );
 
-    const copyButton = screen.getByTitle('Copy Text Field content');
+    const copyButton = screen.getByRole('button', { name: 'Copy Text Field' });
     fireEvent.click(copyButton);
 
     await waitFor(() => {
@@ -178,7 +178,7 @@ describe('NoteEditor Copy Functionality', () => {
       />
     );
 
-    const copyButton = screen.getByTitle('Copy Text Field content');
+    const copyButton = screen.getByRole('button', { name: 'Copy Text Field' });
     fireEvent.click(copyButton);
 
     await waitFor(() => {
@@ -203,7 +203,7 @@ describe('NoteEditor Copy Functionality', () => {
       />
     );
 
-    const copyButton = screen.getByTitle('Copy Number Field content');
+    const copyButton = screen.getByRole('button', { name: 'Copy Number Field' });
     fireEvent.click(copyButton);
 
     await waitFor(() => {
@@ -229,7 +229,7 @@ describe('NoteEditor Copy Functionality', () => {
       />
     );
 
-    const copyButton = screen.getByTitle('Copy Text Field content');
+    const copyButton = screen.getByRole('button', { name: 'Copy Text Field' });
     fireEvent.click(copyButton);
 
     await waitFor(() => {
