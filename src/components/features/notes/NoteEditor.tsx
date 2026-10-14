@@ -347,7 +347,9 @@ export function NoteEditor({
     ]
   );
 
+  // Clear offers Undo, which puts back what was there
   const handleClear = useCallback(() => {
+    const previous = fieldValues;
     if (selectedTemplate) {
       const clearedValues: Record<string, any> = {};
       selectedTemplate.fields.forEach((field: TemplateField) => {
@@ -370,7 +372,22 @@ export function NoteEditor({
     }
     setErrors({});
     setHasUnsavedChanges(true);
-  }, [selectedTemplate]);
+    if (!isDraftEmpty(previous)) {
+      showInfo('Cleared the note', {
+        category: 'note',
+        history: false,
+        actions: [
+          {
+            label: 'Undo',
+            onClick: () => {
+              setFieldValues(previous);
+              setHasUnsavedChanges(true);
+            },
+          },
+        ],
+      });
+    }
+  }, [selectedTemplate, fieldValues, showInfo]);
 
   const handleCopyFieldValue = useCallback(async (fieldId: string, fieldLabel: string) => {
     const value = fieldValues[fieldId];

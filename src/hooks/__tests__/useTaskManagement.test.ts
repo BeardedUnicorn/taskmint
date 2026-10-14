@@ -14,6 +14,7 @@ const mockTaskService = {
   deleteTask: vi.fn(),
   archiveTask: vi.fn(),
   unarchiveTask: vi.fn(),
+  restoreTask: vi.fn(),
   getTask: vi.fn(),
   getTaskByName: vi.fn(),
 };
@@ -287,7 +288,18 @@ describe('useTaskManagement', () => {
       expect(result.current.tasks.find(t => t.id === 'task-1')?.isArchived).toBe(true);
       expect(result.current.activeTasks.map(t => t.id)).toEqual(['task-2', 'task-3']);
       expect(result.current.archivedTasks.map(t => t.id)).toEqual(['task-1']);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Archived "Development"', expect.anything());
+      expect(mockShowSuccess).toHaveBeenCalledWith('Archived "Development"', {
+        category: 'task',
+        actions: [expect.objectContaining({ label: 'Undo' })],
+      });
+
+      // Undo unarchives it
+      mockTaskService.unarchiveTask.mockResolvedValue({ ...archivedTask, isArchived: false, archivedAt: null });
+      const [, { actions }] = mockShowSuccess.mock.calls.at(-1)!;
+      await act(async () => {
+        actions[0].onClick();
+      });
+      await waitFor(() => expect(mockTaskService.unarchiveTask).toHaveBeenCalledWith('task-1'));
     });
 
     it('should unarchive a task, restoring activeTasks membership', async () => {
@@ -347,7 +359,43 @@ describe('useTaskManagement', () => {
 
       expect(mockTaskService.deleteTask).toHaveBeenCalledWith('task-1');
       expect(result.current.tasks).toEqual(sampleTasks.slice(1));
-      expect(mockShowSuccess).toHaveBeenCalledWith('Deleted "Development"', expect.anything());
+      expect(mockShowSuccess).toHaveBeenCalledWith('Deleted "Development"', {
+        category: 'task',
+        actions: [expect.objectContaining({ label: 'Undo' })],
+      });
+
+      // Undo puts it back where it was
+      mockTaskService.restoreTask.mockResolvedValue(sampleTasks[0]);
+      mockTaskService.getAllTasks.mockResolvedValue(sampleTasks);
+      const [, { actions }] = mockShowSuccess.mock.calls.at(-1)!;
+      await act(async () => {
+        actions[0].onClick();
+      });
+      await waitFor(() => expect(result.current.tasks).toEqual(sampleTasks));
+      expect(mockTaskService.restoreTask).toHaveBeenCalledWith(sampleTasks[0], 0);
+    });
+
+    it("says so when Undo can't bring the task back", async () => {
+      mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
+      const { result } = renderHook(() => useTaskManagement());
+      await waitFor(() => expect(result.current.tasks).toEqual(sampleTasks));
+
+      mockTaskService.deleteTask.mockResolvedValue(undefined);
+      mockTaskService.getAllTasks.mockResolvedValue(sampleTasks.slice(1));
+      await act(async () => {
+        await result.current.deleteTask('task-1');
+      });
+
+      mockTaskService.restoreTask.mockRejectedValue(new Error('A task with the name "Development" already exists'));
+      const [, { actions }] = mockShowSuccess.mock.calls.at(-1)!;
+      await act(async () => {
+        actions[0].onClick();
+      });
+      await waitFor(() =>
+        expect(mockShowError).toHaveBeenCalledWith('A task with the name "Development" already exists', {
+          category: 'task',
+        })
+      );
     });
 
     it('should handle delete task error', async () => {

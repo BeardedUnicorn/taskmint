@@ -197,25 +197,14 @@ describe('HistoryPage entries table', () => {
     expect(visibleTaskNames()).toEqual(shortestFirst.slice(0, 25));
   });
 
-  it('asks before deleting an entry', () => {
+  it('deletes an entry straight away (its toast offers Undo)', () => {
     const onDeleteEntry = vi.fn();
     renderPage(makeEntries().slice(0, 1), onDeleteEntry);
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    expect(onDeleteEntry).not.toHaveBeenCalled();
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
 
     expect(onDeleteEntry).toHaveBeenCalledWith('instance-1');
-  });
-
-  it('keeps the entry when the confirmation is cancelled', () => {
-    const onDeleteEntry = vi.fn();
-    renderPage(makeEntries().slice(0, 1), onDeleteEntry);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
-
-    expect(onDeleteEntry).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('counts only finished entries for export, and exports them', () => {

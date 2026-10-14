@@ -33,6 +33,16 @@ export function formatDuration(milliseconds: number): string {
 }
 
 /**
+ * A duration for a sentence: "2h 30m", or "45m" under an hour
+ */
+export function formatDurationCompact(milliseconds: number): string {
+  const totalMinutes = Math.floor(Math.max(0, milliseconds) / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+/**
  * Format date to human-readable format
  */
 export function formatDate(date: Date): string {

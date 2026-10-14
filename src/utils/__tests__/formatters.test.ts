@@ -5,6 +5,7 @@
 import {
   formatTime,
   formatDuration,
+  formatDurationCompact,
 } from '../formatters';
 
 describe('formatTime', () => {
@@ -21,6 +22,18 @@ describe('formatTime', () => {
     expect(formatTime(undefined as any)).toBe('00:00:00');
     expect(formatTime(null as any)).toBe('00:00:00');
     expect(formatTime('invalid' as any)).toBe('00:00:00');
+  });
+});
+
+describe('formatDurationCompact', () => {
+  it('drops the hours under an hour', () => {
+    expect(formatDurationCompact(23 * 60_000)).toBe('23m');
+    expect(formatDurationCompact(0)).toBe('0m');
+  });
+
+  it('shows hours and minutes from an hour up', () => {
+    expect(formatDurationCompact(65 * 60_000)).toBe('1h 5m');
+    expect(formatDurationCompact(3 * 3_600_000)).toBe('3h 0m');
   });
 });
 

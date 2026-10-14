@@ -9,6 +9,12 @@ import { Task } from '../../types/task';
 import { TaskSession } from '../../types/timer';
 import { sessionNoteId, sessionNotesToTaskNotes } from '../../utils/notes';
 
+vi.mock('../../contexts/NotificationContext', async () => {
+  const { createNotificationMock } = await import('../../__tests__/setup/notificationMock');
+  const notifications = createNotificationMock();
+  return { useNotification: () => notifications };
+});
+
 const tasks: Task[] = [{ id: 'task-1', name: 'Annotation', createdAt: '', updatedAt: '' }];
 
 const session = (id: string, notes?: string): TaskSession => ({

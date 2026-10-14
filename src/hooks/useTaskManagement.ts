@@ -3,6 +3,7 @@ import { Task, UseTaskManagementReturn } from '../types/task';
 import { ServiceFactory } from '../services';
 import { useAsyncError } from './useAsyncError';
 import { useNotification } from '../contexts/NotificationContext';
+import { errorMessage } from '../utils/errors';
 
 export function useTaskManagement(): UseTaskManagementReturn {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -16,6 +17,8 @@ export function useTaskManagement(): UseTaskManagementReturn {
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
+  // Archive's Undo (unarchiveTask is defined after it)
+  const unarchiveRef = useRef<(taskId: string) => Promise<unknown>>(async () => null);
 
   // Load tasks on mount
   useEffect(() => {
@@ -77,7 +80,10 @@ export function useTaskManagement(): UseTaskManagementReturn {
         setTasks(prev => prev.map(task =>
           task.id === taskId ? archivedTask : task
         ));
-        showSuccess(`Archived "${archivedTask.name}"`, { category: 'task' });
+        showSuccess(`Archived "${archivedTask.name}"`, {
+          category: 'task',
+          actions: [{ label: 'Undo', onClick: () => void unarchiveRef.current(taskId) }],
+        });
         return archivedTask;
       },
       {
@@ -101,7 +107,11 @@ export function useTaskManagement(): UseTaskManagementReturn {
         errorHandler: error => showError(error.message || 'Failed to unarchive task.')
       }
     );
-  }, [taskService, executeAsync, showSuccess, showError]);
+  }, [taskService, executeAsync, showError]);
+
+  useEffect(() => {
+    unarchiveRef.current = unarchiveTask;
+  }, [unarchiveTask]);
 
   // The star is its own feedback, so unlike updateTask this doesn't toast.
   const toggleFavorite = useCallback(async (taskId: string) => {
@@ -120,21 +130,37 @@ export function useTaskManagement(): UseTaskManagementReturn {
     );
   }, [taskService, executeAsync, showError]);
 
+  // Undo of a delete: the task goes back where it was in the list
+  const restoreTask = useCallback(async (task: Task, index: number) => {
+    try {
+      await taskService.restoreTask(task, index);
+      setTasks(await taskService.getAllTasks());
+    } catch (error) {
+      showError(errorMessage(error, `Couldn't restore "${task.name}"`), { category: 'task' });
+    }
+  }, [taskService, showError]);
+
   const deleteTask = useCallback(async (taskId: string): Promise<void> => {
-    const taskToDelete = tasksRef.current.find(task => task.id === taskId);
+    const index = tasksRef.current.findIndex(task => task.id === taskId);
+    const taskToDelete = index >= 0 ? tasksRef.current[index] : undefined;
     await executeAsync(
       async () => {
         await taskService.deleteTask(taskId);
         const updatedTasks = await taskService.getAllTasks();
         setTasks(updatedTasks);
-        showSuccess(`Deleted "${taskToDelete?.name || 'the task'}"`, { category: 'task' });
+        showSuccess(`Deleted "${taskToDelete?.name || 'the task'}"`, {
+          category: 'task',
+          actions: taskToDelete
+            ? [{ label: 'Undo', onClick: () => void restoreTask(taskToDelete, index) }]
+            : undefined,
+        });
       },
       {
         operation: 'deleteTask',
         errorHandler: error => showError(error.message || 'Failed to delete task.')
       }
     );
-  }, [taskService, executeAsync, showSuccess, showError]);
+  }, [taskService, executeAsync, showSuccess, showError, restoreTask]);
 
   return useMemo(() => ({
     tasks,

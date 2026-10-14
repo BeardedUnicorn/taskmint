@@ -40,7 +40,7 @@ import {
   AccountTree as HierarchyIcon,
 } from '@mui/icons-material';
 import { NotesListProps, TaskNote } from '../../../types/notes';
-import { ConfirmDialog, SearchListHeader } from '../../ui';
+import { SearchListHeader } from '../../ui';
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 import { createTextPreview, formatMultilineText } from '../../../utils/formatters';
 import { formatRelativeDate } from '../../../utils/dateHelpers';
@@ -528,7 +528,6 @@ export function NotesList({
   onUnarchiveNote,
   searchQuery: searchQueryProp = '',
 }: NotesListProps) {
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'flat' | 'hierarchical'>('hierarchical');
   const [searchQuery, setSearchQuery] = useState(searchQueryProp);
 
@@ -536,13 +535,13 @@ export function NotesList({
     setSearchQuery(searchQueryProp);
   }, [searchQueryProp]);
 
+  // Deletes straight away; the toast offers Undo
   const handleDeleteNote = useCallback(async (noteId: string) => {
     try {
       await onDeleteNote(noteId);
     } catch (error) {
       console.error('Failed to delete note:', error);
     }
-    setDeleteConfirm(null);
   }, [onDeleteNote]);
 
   const filteredNotes = useMemo(() => {
@@ -635,7 +634,7 @@ export function NotesList({
           notes={sortedNotes}
           taskNames={taskNames}
           onEditNote={onEditNote}
-          onDeleteNote={(noteId) => setDeleteConfirm(noteId)}
+          onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           onArchiveNote={onArchiveNote || (() => {})}
           onUnarchiveNote={onUnarchiveNote || (() => {})}
         />
@@ -647,7 +646,7 @@ export function NotesList({
               note={note}
               taskName={taskNames?.[note.taskId]}
               onEdit={onEditNote}
-              onDelete={(noteId) => setDeleteConfirm(noteId)}
+              onDelete={(noteId) => void handleDeleteNote(noteId)}
               onArchive={onArchiveNote}
               onUnarchive={onUnarchiveNote}
               showLevelIndicator={true}
@@ -656,16 +655,6 @@ export function NotesList({
         </List>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={!!deleteConfirm}
-        onClose={() => setDeleteConfirm(null)}
-        onConfirm={() => (deleteConfirm ? handleDeleteNote(deleteConfirm) : undefined)}
-        title="Delete Note"
-        message="Are you sure you want to delete this note? This action cannot be undone."
-        confirmLabel="Delete"
-        severity="error"
-      />
     </Box>
   );
 }

@@ -389,29 +389,73 @@ describe('useSessionManagement', () => {
   });
 
   describe('session deletion', () => {
-    it('should delete a session', async () => {
-      primeCommand('get_sessions', [mockSession]);
+    const finished: TimerInstance = {
+      id: 'done-1',
+      sessionId: 'session-1',
+      startTime: '2024-01-15T10:00:00Z' as unknown as Date,
+      endTime: '2024-01-15T11:05:00Z' as unknown as Date,
+      duration: 65 * 60_000,
+      isRunning: false,
+      isPaused: false,
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T11:05:00Z',
+    };
+    const withTime: TaskSession = { ...mockSession, timerInstances: [finished], totalDuration: 65 * 60_000 };
+
+    it('deletes a session and offers Undo, which restores the snapshot', async () => {
+      primeCommand('get_sessions', [withTime]);
+      primeCommand('delete_session', withTime);
+      primeCommand('restore_session', withTime);
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.sessions).toHaveLength(1));
 
-      await waitFor(() => {
-        expect(result.current.sessions).toEqual([mockSession]);
-      });
-
+      let deleted = false;
       await act(async () => {
-        await result.current.deleteSession('session-1');
+        deleted = await result.current.deleteSession('session-1');
       });
 
-      expect(mockInvoke).toHaveBeenCalledWith('delete_session', {
-        sessionId: 'session-1',
-      });
-      expect(mockShowSuccess).toHaveBeenCalledWith('Session deleted successfully', expect.anything());
+      expect(deleted).toBe(true);
+      expect(mockInvoke).toHaveBeenCalledWith('delete_session', { sessionId: 'session-1' });
       expect(result.current.sessions).toEqual([]);
+      expect(mockShowInfo).toHaveBeenCalledWith('Deleted the "Test Task" session (1 timer, 1h 5m)', {
+        category: 'session',
+        actions: [expect.objectContaining({ label: 'Undo' })],
+      });
+
+      const [, { actions }] = mockShowInfo.mock.calls.at(-1)!;
+      await act(async () => {
+        actions[0].onClick();
+      });
+      await waitFor(() => expect(result.current.sessions.map(s => s.id)).toEqual(['session-1']));
+      expect(mockInvoke).toHaveBeenCalledWith('restore_session', { session: withTime });
+    });
+
+    it('reports a failed delete without an Undo', async () => {
+      primeCommand('get_sessions', [mockSession]);
+      primeCommand('delete_session', new Error('Imported time changes only through a work-log import'));
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+
+      let deleted = true;
+      await act(async () => {
+        deleted = await result.current.deleteSession('session-1');
+      });
+
+      expect(deleted).toBe(false);
+      expect(result.current.sessions).toHaveLength(1);
+      expect(mockShowError).toHaveBeenCalledWith(
+        'Imported time changes only through a work-log import',
+        expect.anything()
+      );
+      expect(mockShowInfo).not.toHaveBeenCalled();
     });
 
     it('should clear active session when deleted', async () => {
       const activeSession = { ...mockSession, isActive: true };
       primeCommand('get_sessions', [activeSession]);
+      primeCommand('delete_session', { ...activeSession, isActive: false });
 
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
 
@@ -424,6 +468,57 @@ describe('useSessionManagement', () => {
       });
 
       expect(result.current.activeSession).toBeNull();
+    });
+
+    it("puts a deleted timer back in its place with Undo", async () => {
+      const other = { ...finished, id: 'done-2', duration: 60_000 };
+      const session = { ...withTime, timerInstances: [finished, other] };
+      primeCommand('get_sessions', [session]);
+      primeCommand('delete_timer_instance', { ...session, timerInstances: [other] });
+      primeCommand('restore_timer_instance', session);
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+
+      await act(async () => {
+        await result.current.deleteTimerInstance('done-1');
+      });
+      expect(result.current.sessions[0].timerInstances.map(i => i.id)).toEqual(['done-2']);
+      expect(mockShowInfo).toHaveBeenCalledWith('Deleted 1h 5m from "Test Task"', {
+        category: 'timer',
+        actions: [expect.objectContaining({ label: 'Undo' })],
+      });
+
+      const [, { actions }] = mockShowInfo.mock.calls.at(-1)!;
+      await act(async () => {
+        actions[0].onClick();
+      });
+      await waitFor(() =>
+        expect(result.current.sessions[0].timerInstances.map(i => i.id)).toEqual(['done-1', 'done-2'])
+      );
+      expect(mockInvoke).toHaveBeenCalledWith('restore_timer_instance', {
+        sessionId: 'session-1',
+        instance: expect.objectContaining({ id: 'done-1', duration: 65 * 60_000 }),
+        index: 0,
+      });
+    });
+
+    it("doesn't offer Undo for a timer that never ran", async () => {
+      const session = { ...mockSession, timerInstances: [mockTimerInstance] };
+      primeCommand('get_sessions', [session]);
+      primeCommand('delete_timer_instance', { ...session, timerInstances: [] });
+
+      const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+
+      let deleted = false;
+      await act(async () => {
+        deleted = await result.current.deleteTimerInstance('instance-1');
+      });
+
+      expect(deleted).toBe(true);
+      expect(mockShowInfo).not.toHaveBeenCalled();
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
   });
 

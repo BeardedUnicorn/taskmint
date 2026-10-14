@@ -2,7 +2,8 @@
 //!
 //! - `timer`: the pure timer state machine (start, pause, resume, finalize).
 //! - `instances`: commands on one timer instance.
-//! - `lifecycle`: commands on whole sessions (edit, delete, activate, move).
+//! - `lifecycle`: commands on whole sessions (edit, activate, move).
+//! - `undo`: deleting a session, and putting a deleted session or timer back.
 //! - `start`: starting work (app and tray) and the tray's timer actions.
 //! - `manual`: "Add time".
 //! - `task_links`: the task name and rate sessions copy.
@@ -13,6 +14,7 @@ pub mod manual;
 pub mod start;
 pub mod task_links;
 pub mod timer;
+pub mod undo;
 
 #[cfg(test)]
 mod tests;

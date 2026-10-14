@@ -12,7 +12,6 @@ import { TaskListPane } from './tasks/TaskListPane';
 import { TaskFormDialog } from './tasks/TaskFormDialog';
 import { DeleteTaskDialog, TaskHistory } from './tasks/DeleteTaskDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
-import { ConfirmDialog } from '../ui';
 import { EditTimeEntryData } from '../../types/form';
 import { getEntryElapsedMs } from '../../utils/timerHelpers';
 import { findTaskFor } from '../../utils/earnings';
@@ -58,7 +57,6 @@ export function TasksPage({
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
-  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
 
   // Keep the selection in sync with the task list
   useEffect(() => {
@@ -138,22 +136,11 @@ export function TasksPage({
     setEditingEntry(entry);
   };
 
-  const handleDeleteEntry = (entryId: string) => {
-    setDeletingEntryId(entryId);
-  };
-
   const handleSaveEntryEdit = (data: EditTimeEntryData) => {
     if (!editingEntry || !onUpdateEntry) return;
 
     onUpdateEntry(data);
     setEditingEntry(null);
-  };
-
-  const handleConfirmEntryDelete = () => {
-    if (deletingEntryId && onDeleteEntry) {
-      onDeleteEntry(deletingEntryId);
-      setDeletingEntryId(null);
-    }
   };
 
   const handleAddTaskClick = () => {
@@ -213,7 +200,7 @@ export function TasksPage({
                 timeEntries={timeEntries}
                 onToggleFavorite={onToggleFavorite ? (taskId) => { void onToggleFavorite(taskId); } : undefined}
                 onEditEntry={onUpdateEntry ? handleEditEntry : () => {}}
-                onDeleteEntry={onDeleteEntry ? handleDeleteEntry : () => {}}
+                onDeleteEntry={onDeleteEntry ?? (() => {})}
                 onStart={onStartTask}
                 isRunning={runningTaskId === selectedTask.id}
                 onViewHistory={onViewHistory}
@@ -285,17 +272,6 @@ export function TasksPage({
           tasks={tasks}
         />
       )}
-
-      {/* Delete Time Entry Confirmation Dialog */}
-      <ConfirmDialog
-        open={deletingEntryId !== null}
-        title="Delete Time Entry"
-        message="Are you sure you want to delete this time entry? This action cannot be undone."
-        onConfirm={handleConfirmEntryDelete}
-        onClose={() => setDeletingEntryId(null)}
-        confirmLabel="Delete"
-        severity="error"
-      />
     </Box>
   );
 }

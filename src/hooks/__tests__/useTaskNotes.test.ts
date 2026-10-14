@@ -7,6 +7,11 @@ import { TaskNote } from '../../types/notes';
 
 vi.mock('../../services/TaskNotesService');
 
+const notifications = vi.hoisted(() => ({ showInfo: vi.fn(), showError: vi.fn() }));
+vi.mock('../../contexts/NotificationContext', () => ({
+  useNotification: () => notifications,
+}));
+
 const mockNotesService = {
   getAllNotes: vi.fn(),
   createNote: vi.fn(),
@@ -87,6 +92,48 @@ describe('useTaskNotes', () => {
       await result.current.deleteNote('2');
     });
     expect(result.current.notes.map(n => n.id)).toEqual(['1']);
+  });
+
+  it('puts a deleted note back with Undo', async () => {
+    const saved = note('1', { content: 'keep me' }, 'Daily log');
+    mockNotesService.getAllNotes.mockResolvedValue([saved]);
+    mockNotesService.deleteNote.mockResolvedValue(undefined);
+    mockNotesService.addNotes.mockImplementation(async (notes: TaskNote[]) => notes);
+    const { result } = renderHook(() => useTaskNotes());
+    await waitFor(() => expect(result.current.notes).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.deleteNote('1');
+    });
+    expect(result.current.notes).toHaveLength(0);
+    expect(notifications.showInfo).toHaveBeenCalledWith('Deleted the "Daily log" note', {
+      category: 'note',
+      actions: [expect.objectContaining({ label: 'Undo' })],
+    });
+
+    const [, { actions }] = notifications.showInfo.mock.calls[0];
+    await act(async () => {
+      await actions[0].onClick();
+    });
+    await waitFor(() => expect(result.current.notes).toEqual([saved]));
+    expect(mockNotesService.addNotes).toHaveBeenCalledWith([saved]);
+  });
+
+  it("says so when Undo can't put the note back", async () => {
+    mockNotesService.getAllNotes.mockResolvedValue([note('1', { content: 'x' })]);
+    mockNotesService.deleteNote.mockResolvedValue(undefined);
+    mockNotesService.addNotes.mockRejectedValue(new Error('disk full'));
+    const { result } = renderHook(() => useTaskNotes());
+    await waitFor(() => expect(result.current.notes).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.deleteNote('1');
+    });
+    const [, { actions }] = notifications.showInfo.mock.calls[0];
+    await act(async () => {
+      await actions[0].onClick();
+    });
+    await waitFor(() => expect(notifications.showError).toHaveBeenCalledWith('disk full', { category: 'note' }));
   });
 
   it('rethrows a failed save with its message', async () => {

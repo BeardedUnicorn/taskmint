@@ -383,31 +383,14 @@ describe('TasksPage - Task List Layout', () => {
     });
   });
 
-  it('opens delete confirmation when delete entry is clicked', async () => {
-    render(<TasksPage {...mockProps} />);
-
-    fireEvent.click(screen.getByText('Delete Entry'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
-    });
-  });
-
-  it('calls onDeleteEntry when delete is confirmed', async () => {
+  it('deletes an entry straight away (its toast offers Undo)', () => {
     const mockOnDeleteEntry = vi.fn();
     render(<TasksPage {...mockProps} onDeleteEntry={mockOnDeleteEntry} />);
 
     fireEvent.click(screen.getByText('Delete Entry'));
 
-    await waitFor(() => {
-      expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText('Confirm'));
-
-    await waitFor(() => {
-      expect(mockOnDeleteEntry).toHaveBeenCalledWith('entry1');
-    });
+    expect(mockOnDeleteEntry).toHaveBeenCalledWith('entry1');
+    expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
   });
 
   it('lets you add a task past the old 10-task free limit with no upgrade prompt', async () => {

@@ -204,6 +204,28 @@ export class TaskService {
   }
 
   /**
+   * Put a deleted task back (Undo) at its old place in the list. Refused when
+   * it's back already or another task has taken its name since.
+   */
+  async restoreTask(task: Task, index: number): Promise<Task> {
+    const tasks = await this.getAllTasks();
+    if (tasks.some(t => t.id === task.id)) {
+      throw createTaskError('TASK_VALIDATION_FAILED', `"${task.name}" is already back`, { taskId: task.id }, 'restoreTask');
+    }
+    if (!(await this.isTaskNameUnique(task.name))) {
+      throw createTaskError(
+        'TASK_DUPLICATE_NAME',
+        `A task with the name "${task.name}" already exists`,
+        { taskName: task.name },
+        'restoreTask'
+      );
+    }
+    const at = Math.max(0, Math.min(index, tasks.length));
+    await this.storageService.setTasks([...tasks.slice(0, at), task, ...tasks.slice(at)]);
+    return task;
+  }
+
+  /**
    * Get a single task by ID
    */
   async getTask(taskId: string): Promise<Task | null> {

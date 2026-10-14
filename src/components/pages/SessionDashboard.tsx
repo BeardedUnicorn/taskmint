@@ -25,13 +25,12 @@ import { SessionList } from '../ui/sessions/SessionList';
 import { SessionTimerDisplay } from '../ui/display/SessionTimerDisplay';
 import { SessionNotesDialog } from '../ui/dialogs/SessionNotesDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
-import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
-import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
+import { TaskSession, TimerInstance } from '../../types/timer';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
-import { formatCurrency, formatDuration, formatTime } from '../../utils/formatters';
+import { formatCurrency, formatTime } from '../../utils/formatters';
 import { getInstanceElapsedMs, getSessionElapsedMs, hasRunningTimer } from '../../utils/timerHelpers';
 import { useNowMs } from '../../hooks/useNowMs';
 import { useTimerEntryEdit } from '../../hooks/useTimerEntryEdit';
@@ -57,7 +56,6 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   const [editingTimerData, setEditingTimerData] = useState<EditTimeEntryData | null>(null);
   const [editingTimerInstanceId, setEditingTimerInstanceId] = useState<string | null>(null);
   // A finished timer holds tracked time, so deleting one waits for a confirm
-  const [timerPendingDelete, setTimerPendingDelete] = useState<TimerInstance | null>(null);
 
 
   // Hooks
@@ -128,22 +126,10 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
     await createTimerInstance(activeSession.id);
   }, [activeSession, createTimerInstance]);
 
-  // Idle timers hold no time and delete straight away; a finished timer's
-  // tracked time would be lost, so ask first.
-  const handleRequestDeleteTimer = useCallback((instanceId: string) => {
-    const instance = activeSession?.timerInstances.find(i => i.id === instanceId);
-    if (instance?.state === TimerState.stopped) {
-      setTimerPendingDelete(instance);
-      return;
-    }
+  // Deletes straight away: a finished timer's toast offers Undo
+  const handleDeleteTimer = useCallback((instanceId: string) => {
     void deleteTimerInstance(instanceId);
-  }, [activeSession, deleteTimerInstance]);
-
-  const handleConfirmDeleteTimer = useCallback(() => {
-    if (timerPendingDelete) {
-      void deleteTimerInstance(timerPendingDelete.id);
-    }
-  }, [timerPendingDelete, deleteTimerInstance]);
+  }, [deleteTimerInstance]);
 
   const handleCloseEditTimerDialog = useCallback(() => {
     setEditingTimerData(null);
@@ -262,7 +248,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
               onStopTimer={stopTimerInstance}
               onPauseTimer={pauseTimerInstance}
               onResumeTimer={resumeTimerInstance}
-              onDeleteTimer={handleRequestDeleteTimer}
+              onDeleteTimer={handleDeleteTimer}
               onEditTimer={handleEditTimer}
               onOpenNotes={handleOpenTimerNotes}
             />
@@ -317,20 +303,6 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
         onSave={handleSaveTimerEdit}
         entry={editingTimerData}
         tasks={tasks}
-      />
-
-      <ConfirmDialog
-        open={timerPendingDelete !== null}
-        title="Delete Timer"
-        message={
-          timerPendingDelete
-            ? `Delete this timer? Its ${formatDuration(getInstanceElapsedMs(timerPendingDelete))} of tracked time will be removed permanently.`
-            : ''
-        }
-        confirmLabel="Delete"
-        severity="error"
-        onConfirm={handleConfirmDeleteTimer}
-        onClose={() => setTimerPendingDelete(null)}
       />
 
     </Container>

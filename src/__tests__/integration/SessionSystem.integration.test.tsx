@@ -34,6 +34,8 @@ vi.mock('../../contexts/NotificationContext', () => ({
   useNotification: () => ({
     showError: mockShowError,
     showSuccess: mockShowSuccess,
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
   }),
   NotificationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
