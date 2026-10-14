@@ -5,7 +5,7 @@
  * backup path selection, and backup status monitoring.
  */
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useDataBackup } from './useDataBackup';
 import {
@@ -20,9 +20,35 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { isTauriEnvironment } from '../utils/tauri';
 import { errorMessage } from '../utils/errors';
+import { readLocal, writeLocal } from '../utils/localStore';
+import { revealAction } from '../utils/reveal';
+import { useNotification } from '../contexts/NotificationContext';
+import { useNotificationPreferences } from '../notifications/preferences';
 
 export const BACKUP_CONFIG_KEY = 'automaticBackupConfig';
 export const DEFAULT_BACKUP_FOLDER_NAME = 'TaskMint Backups';
+
+/**
+ * The last automatic-backup failure announced. A failed backup stays due and
+ * is retried every hour, so the same failure is announced again only after a
+ * day (a different one, right away).
+ */
+export const BACKUP_FAILURE_NOTICE_KEY = 'backupFailureNotice';
+const FAILURE_REPEAT_MS = 24 * 60 * 60 * 1000;
+
+interface FailureNotice {
+  message: string;
+  at: number;
+}
+
+function shouldAnnounceFailure(message: string, now = Date.now()): boolean {
+  const last = readLocal<FailureNotice | null>(BACKUP_FAILURE_NOTICE_KEY, null);
+  if (last && last.message === message && now - last.at < FAILURE_REPEAT_MS) return false;
+  writeLocal<FailureNotice | null>(BACKUP_FAILURE_NOTICE_KEY, { message, at: now }, null);
+  return true;
+}
+
+export type BackupTrigger = 'manual' | 'automatic';
 
 /**
  * Automatic backups start on in the desktop app: weekly, the newest 10 kept,
@@ -71,15 +97,8 @@ export function useBackupSettings() {
   });
 
   const { createBackupData } = useDataBackup({});
-
-  // Safe notification functions without NotificationProvider dependency
-  const showError = useCallback((message: string) => {
-    console.error('Backup Settings Error:', message);
-  }, []);
-
-  const showSuccess = useCallback((message: string) => {
-    console.log('Backup Settings Success:', message);
-  }, []);
+  const { notify, showError } = useNotification();
+  const [notificationPreferences] = useNotificationPreferences();
 
   // Update status when config changes
   useEffect(() => {
@@ -154,28 +173,78 @@ export function useBackupSettings() {
     }
   }, []);
 
-  // Perform manual backup
-  const performManualBackup = useCallback(async (): Promise<BackupResult> => {
-    if (!config.backupPath) {
-      const message = 'No backup directory selected';
-      showError(message);
-      return {
-        success: false,
-        error: message,
-        timestamp: new Date().toISOString(),
-      };
-    }
+  const failed = (error: string): BackupResult => ({
+    success: false,
+    error,
+    timestamp: new Date().toISOString(),
+  });
 
-    // Validate backup path before proceeding
+  /**
+   * Back up now. A manual backup reports either way; an automatic one is
+   * quiet when it works (unless "Automatic backup saved" notifications are
+   * on) and announces a failure once a day (see shouldAnnounceFailure), with
+   * Retry and a way to the settings, also as an OS notification while the
+   * app is in the background.
+   */
+  const performBackup = useCallback(async (trigger: BackupTrigger): Promise<BackupResult> => {
+    const report = (result: BackupResult) => {
+      if (result.success) {
+        writeLocal<FailureNotice | null>(BACKUP_FAILURE_NOTICE_KEY, null, null);
+        if (trigger === 'manual') {
+          notify({
+            severity: 'success',
+            category: 'backup',
+            message: result.filePath ? `Backed up to ${result.filePath}` : 'Backup saved',
+            actions: revealAction(result.filePath),
+            desktop: 'never',
+          });
+        } else if (notificationPreferences.backupSuccess) {
+          notify({
+            severity: 'success',
+            category: 'backup',
+            title: 'Automatic backup saved',
+            message: result.filePath ?? 'Your data was backed up.',
+            actions: revealAction(result.filePath),
+          });
+        }
+        return result;
+      }
+
+      const reason = result.error || 'Backup failed for an unknown reason';
+      if (trigger === 'manual') {
+        notify({
+          severity: 'error',
+          category: 'backup',
+          title: 'Backup failed',
+          message: reason,
+          actions: [{ label: 'Retry', onClick: () => void performBackupRef.current('manual') }],
+          desktop: 'never',
+        });
+      } else if (shouldAnnounceFailure(reason)) {
+        notify({
+          severity: 'error',
+          category: 'backup',
+          title: 'Automatic backup failed',
+          message: `${reason}. It will be retried every hour.`,
+          actions: [
+            { label: 'Retry', onClick: () => void performBackupRef.current('manual') },
+            { label: 'Backup settings', view: 'settings', section: 'backups' },
+          ],
+        });
+      } else {
+        console.warn('Automatic backup failed again:', reason);
+      }
+      return result;
+    };
+
+    if (!config.backupPath) {
+      return report(failed('No backup folder selected'));
+    }
     const validation = await validateBackupPath(config.backupPath);
     if (!validation.isValid) {
-      const message = validation.error || 'Invalid backup directory';
-      showError(`Backup path validation failed: ${message}`);
-      return {
-        success: false,
-        error: message,
-        timestamp: new Date().toISOString(),
-      };
+      const reason = validation.error || 'The backup folder is not usable';
+      setStatus(prev => ({ ...prev, lastBackupSuccess: false, lastBackupError: reason }));
+      return report(failed(reason));
     }
 
     setStatus(prev => ({ ...prev, isRunning: true }));
@@ -186,7 +255,6 @@ export function useBackupSettings() {
       const backupData = await createBackupData();
       const backupJson = JSON.stringify(backupData, null, 2);
 
-      // Call Tauri command to perform backup
       const result = await invoke<BackupResult>('perform_automatic_backup', {
         backupPath: config.backupPath,
         currentDataJson: backupJson,
@@ -200,7 +268,6 @@ export function useBackupSettings() {
         setConfig(prev => ({ ...prev, lastBackupTime: now }));
       }
 
-      // Update status
       setStatus(prev => ({
         ...prev,
         isRunning: false,
@@ -212,37 +279,26 @@ export function useBackupSettings() {
           : prev.nextScheduledBackup,
       }));
 
-      // Show user notification based on result
-      if (result.success) {
-        showSuccess('Backup completed successfully');
-      } else {
-        // Propagate specific error from Rust backend
-        const backendError = result.error || 'Backup failed for unknown reason';
-        showError(`Backup failed: ${backendError}`);
-      }
-
-      return result;
+      return report(result);
     } catch (error) {
-      // Extract specific error message from Tauri invoke call
       const message = errorMessage(error, 'Unknown error occurred during backup');
-
       setStatus(prev => ({
         ...prev,
         isRunning: false,
         lastBackupSuccess: false,
         lastBackupError: message,
       }));
-
-      // Show specific error message to user
-      showError(`Backup failed: ${message}`);
-
-      return {
-        success: false,
-        error: message,
-        timestamp: new Date().toISOString(),
-      };
+      return report(failed(message));
     }
-  }, [config, createBackupData, setConfig, showError, showSuccess, validateBackupPath]);
+  }, [config, createBackupData, setConfig, validateBackupPath, notify, notificationPreferences.backupSuccess]);
+
+  // Retry buttons call the latest version (the config may have changed since)
+  const performBackupRef = useRef(performBackup);
+  useEffect(() => {
+    performBackupRef.current = performBackup;
+  }, [performBackup]);
+
+  const performManualBackup = useCallback(() => performBackup('manual'), [performBackup]);
 
   // Check if backup is due
   const checkBackupDue = useCallback((): boolean => {
@@ -255,8 +311,8 @@ export function useBackupSettings() {
       return null;
     }
 
-    return await performManualBackup();
-  }, [checkBackupDue, performManualBackup]);
+    return await performBackup('automatic');
+  }, [checkBackupDue, performBackup]);
 
   // Reset backup configuration
   const resetConfig = useCallback(() => {

@@ -11,25 +11,15 @@ import {
   Typography,
   Alert,
   CircularProgress,
-  Snackbar,
 } from '@mui/material';
 import { NoteTemplate } from '../../types/notes';
 import { NoteTemplateBuilder } from '../features/notes/NoteTemplateBuilder';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
-import { errorMessage } from '../../utils/errors';
 
 export function NoteTemplates() {
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error' | 'info';
-  }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
 
+  // The builder reports what each action did (one toast per action)
   const {
     templates,
     createTemplate,
@@ -38,53 +28,6 @@ export function NoteTemplates() {
     isLoading,
     error,
   } = useNoteTemplates();
-
-  const showSnackbar = useCallback((
-    message: string, 
-    severity: 'success' | 'error' | 'info' = 'success'
-  ) => {
-    setSnackbar({ open: true, message, severity });
-  }, []);
-
-  const handleCreateTemplate = useCallback(async (
-    templateData: Omit<NoteTemplate, 'id' | 'createdAt' | 'updatedAt'>
-  ): Promise<NoteTemplate> => {
-    try {
-      const newTemplate = await createTemplate(templateData);
-      showSnackbar('Template created successfully');
-      return newTemplate;
-    } catch (error) {
-      const message = errorMessage(error, 'Failed to create template');
-      showSnackbar(message, 'error');
-      throw error;
-    }
-  }, [createTemplate, showSnackbar]);
-
-  const handleUpdateTemplate = useCallback(async (
-    templateId: string,
-    updates: Partial<NoteTemplate>
-  ): Promise<NoteTemplate> => {
-    try {
-      const updatedTemplate = await updateTemplate(templateId, updates);
-      showSnackbar('Template updated successfully');
-      return updatedTemplate;
-    } catch (error) {
-      const message = errorMessage(error, 'Failed to update template');
-      showSnackbar(message, 'error');
-      throw error;
-    }
-  }, [updateTemplate, showSnackbar]);
-
-  const handleDeleteTemplate = useCallback(async (templateId: string): Promise<void> => {
-    try {
-      await deleteTemplate(templateId);
-      showSnackbar('Template deleted successfully');
-    } catch (error) {
-      const message = errorMessage(error, 'Failed to delete template');
-      showSnackbar(message, 'error');
-      throw error;
-    }
-  }, [deleteTemplate, showSnackbar]);
 
   const handleSelectTemplate = useCallback((template: NoteTemplate | null) => {
     setSelectedTemplate(template);
@@ -127,28 +70,13 @@ export function NoteTemplates() {
       <Box sx={{ flex: 1, minHeight: 0 }}>
         <NoteTemplateBuilder
           templates={templates}
-          onCreateTemplate={handleCreateTemplate}
-          onUpdateTemplate={handleUpdateTemplate}
-          onDeleteTemplate={handleDeleteTemplate}
+          onCreateTemplate={createTemplate}
+          onUpdateTemplate={updateTemplate}
+          onDeleteTemplate={deleteTemplate}
           onSelectTemplate={handleSelectTemplate}
           selectedTemplate={selectedTemplate}
         />
       </Box>
-
-      {/* Success/Error Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-      >
-        <Alert
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

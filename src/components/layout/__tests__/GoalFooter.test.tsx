@@ -11,6 +11,9 @@ vi.mock('../../../contexts/SessionManagementContext', () => ({
 vi.mock('../../../contexts/TaskManagementContext', () => ({
   useTaskManagementContext: () => ({ tasks: [] }),
 }));
+vi.mock('../../../contexts/NotificationContext', () => ({
+  useNotification: () => ({ notify: vi.fn() }),
+}));
 
 describe('GoalFooter', () => {
   beforeEach(() => {

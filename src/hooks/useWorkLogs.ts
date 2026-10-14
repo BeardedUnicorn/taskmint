@@ -40,7 +40,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
   const [error, setError] = useState<string | null>(null);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
 
-  const { showError } = useNotification();
+  const { showError, showWarning } = useNotification();
 
   const reload = useCallback(async () => {
     setIsLoading(true);
@@ -85,9 +85,13 @@ export function useWorkLogs(): UseWorkLogsReturn {
   useEffect(() => {
     if (loadWarning && !loadWarningShownRef.current) {
       loadWarningShownRef.current = true;
-      showError(loadWarning);
+      showWarning(loadWarning, {
+        category: 'workLog',
+        title: 'Some work logs could not be read',
+        duration: null,
+      });
     }
-  }, [loadWarning, showError]);
+  }, [loadWarning, showWarning]);
 
   return useMemo(
     () => ({ entries, mappings, isLoading, error, loadWarning, reload, applyImport }),

@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
   Box,
   Typography,
   Paper,
   Divider,
   Alert,
-  Snackbar,
   FormControl,
   InputLabel,
   Select,
@@ -25,9 +24,6 @@ import { NotificationSettingsSection } from './settings/NotificationSettingsSect
 import { useOptionalNavigation } from '../../contexts/NavigationContext';
 
 export function SettingsPage() {
-  // What the last action did, in the words of the section that did it
-  const [notice, setNotice] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
-
   const { days, updateDays } = useFundsReleaseSettings();
 
   // Opened for a section (a toast's "Backup settings"): scroll to it
@@ -39,10 +35,6 @@ export function SettingsPage() {
     navigation?.clearParams();
   }, [section, navigation]);
 
-  const handleSuccess = (text: string) => setNotice({ severity: 'success', text });
-  const handleError = (text: string) => setNotice({ severity: 'error', text });
-  const handleImportSuccess = () =>
-    setNotice({ severity: 'success', text: 'Data imported. Reloading…' });
 
   return (
     <Box sx={{ p: 3 }}>
@@ -97,14 +89,14 @@ export function SettingsPage() {
 
       {/* Inactivity Detection Settings Section */}
       <Box id="settings-idle">
-        <InactivitySettingsSection onSuccess={handleSuccess} onError={handleError} />
+        <InactivitySettingsSection />
       </Box>
 
       <Divider sx={{ my: 4 }} />
 
       {/* Daily Earnings Goal Section */}
       <Box id="settings-goal">
-        <DailyGoalSettings onSuccess={handleSuccess} onError={handleError} />
+        <DailyGoalSettings />
       </Box>
 
       <Divider sx={{ my: 4 }} />
@@ -117,19 +109,14 @@ export function SettingsPage() {
 
       {/* Automatic Backup Settings Section */}
       <Box id="settings-backups">
-        <BackupSettingsSection onSuccess={handleSuccess} onError={handleError} />
+        <BackupSettingsSection />
       </Box>
 
       <Divider sx={{ my: 4 }} />
 
       {/* Data Management Section */}
       <Box id="settings-data">
-        <DataManagementSection
-          onSuccess={handleSuccess}
-          onError={handleError}
-          onImportSuccess={handleImportSuccess}
-          onImportError={handleError}
-        />
+        <DataManagementSection />
       </Box>
 
       <Divider sx={{ my: 4 }} />
@@ -139,16 +126,6 @@ export function SettingsPage() {
         <PrivacySettingsSection />
       </Box>
 
-      <Snackbar
-        open={notice !== null}
-        autoHideDuration={notice?.severity === 'error' ? 6000 : 4000}
-        onClose={() => setNotice(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert onClose={() => setNotice(null)} severity={notice?.severity ?? 'success'} sx={{ width: '100%' }}>
-          {notice?.text}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

@@ -10,6 +10,12 @@ import { Task } from '../../../types/task';
 import { TaskNote, NoteTemplate } from '../../../types/notes';
 
 // Mock the hooks
+vi.mock('../../../contexts/NotificationContext', async () => {
+  const { createNotificationMock } = await import('../../../__tests__/setup/notificationMock');
+  const notifications = createNotificationMock();
+  return { useNotification: () => notifications };
+});
+
 vi.mock('../../../hooks/useTaskNotes', () => ({
   useTaskNotes: vi.fn(() => ({
     notes: [],

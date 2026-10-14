@@ -38,11 +38,7 @@ import { SettingsSection } from './SettingsSection';
 import { useEnhancedTimerSettings } from '../../../hooks/useEnhancedTimerSettings';
 import { INACTIVITY_CONSTANTS } from '../../../constants';
 import { isTauriEnvironment, safeInvoke } from '../../../utils/tauri';
-
-interface InactivitySettingsSectionProps {
-  onSuccess: (message: string) => void;
-  onError: (message: string) => void;
-}
+import { useNotification } from '../../../contexts/NotificationContext';
 
 /** Hours offered for the long-run reminder (0 = off). */
 export const LONG_RUN_HOUR_OPTIONS = [0, 2, 3, 4, 6, 8] as const;
@@ -59,11 +55,9 @@ const formatTime = (minutes: number): string => {
   return `${hours}h ${remainingMinutes}m`;
 };
 
-export function InactivitySettingsSection({
-  onSuccess,
-  onError,
-}: InactivitySettingsSectionProps) {
+export function InactivitySettingsSection() {
   const { inactivitySettings, updateInactivitySettings, resetToDefaults } = useEnhancedTimerSettings();
+  const { showSuccess, showError } = useNotification();
 
   // The slider moves freely while dragged and saves when let go
   const [threshold, setThreshold] = useState(inactivitySettings.thresholdMinutes);
@@ -84,10 +78,10 @@ export function InactivitySettingsSection({
   const handleReset = () => {
     try {
       resetToDefaults();
-      onSuccess('Idle and reminder settings are back to their defaults');
+      showSuccess('Idle and reminder settings are back to their defaults');
     } catch (error) {
       console.error('Failed to reset inactivity settings:', error);
-      onError("Couldn't reset the idle settings. Please try again.");
+      showError("Couldn't reset the idle settings. Please try again.");
     }
   };
 

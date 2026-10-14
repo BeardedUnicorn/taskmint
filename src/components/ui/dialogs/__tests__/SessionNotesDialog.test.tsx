@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { SessionNotesDialog } from '../SessionNotesDialog';
 import { TaskNotesProvider } from '../../../../contexts/TaskNotesContext';
 import { NoteTemplatesProvider } from '../../../../contexts/NoteTemplatesContext';
+import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import { useTaskNotes } from '../../../../hooks/useTaskNotes';
 import { STORAGE_KEYS } from '../../../../constants';
 import { TaskNote } from '../../../../types/notes';
@@ -65,6 +66,7 @@ function SessionRowPreview() {
 
 function renderDialog(timerInstanceId?: string) {
   return render(
+    <NotificationProvider>
     <TaskNotesProvider>
       <NoteTemplatesProvider>
         <SessionNotesDialog
@@ -77,6 +79,7 @@ function renderDialog(timerInstanceId?: string) {
         <SessionRowPreview />
       </NoteTemplatesProvider>
     </TaskNotesProvider>
+    </NotificationProvider>
   );
 }
 

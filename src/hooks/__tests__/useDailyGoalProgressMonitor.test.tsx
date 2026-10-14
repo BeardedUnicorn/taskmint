@@ -2,13 +2,17 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ReactNode } from 'react';
 import { useDailyGoalProgressMonitor, nextGoalMilestone, EXCEEDED_TIER } from '../useDailyGoalProgressMonitor';
-import * as desktopNotification from '../../utils/desktopNotification';
 import { useDailyGoals } from '../useDailyGoals';
 import { DailyGoalProvider } from '../../contexts/DailyGoalContext';
 import { STORAGE_KEYS } from '../../constants';
 import { Task } from '../../types/task';
 import { TaskSession, TimerState } from '../../types/timer';
 import { formatDateString } from '../../utils/dateHelpers';
+
+const mockNotify = vi.hoisted(() => vi.fn(() => 'toast-1'));
+vi.mock('../../contexts/NotificationContext', () => ({
+  useNotification: () => ({ notify: mockNotify }),
+}));
 
 const HOUR = 3_600_000;
 const tasks: Task[] = [
@@ -212,11 +216,9 @@ describe('goal notifications', () => {
     vi.restoreAllMocks();
   });
 
-  it("doesn't send a milestone twice while the first send is still pending", async () => {
-    let finish!: () => void;
-    const notify = vi
-      .spyOn(desktopNotification, 'notifyDesktop')
-      .mockImplementation(() => new Promise<void>(resolve => (finish = resolve)));
+  it("doesn't send a milestone twice while the first one is still being saved", async () => {
+    mockNotify.mockClear();
+    const notify = mockNotify;
     storeGoal(100);
 
     const { rerender, result } = renderHook(
@@ -228,15 +230,20 @@ describe('goal notifications', () => {
     );
     await waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
 
-    // New session data while the notification is still awaiting
+    expect(notify).toHaveBeenCalledWith({
+      category: 'goal',
+      severity: 'success',
+      title: 'Halfway to your goal!',
+      message: expect.stringContaining('$60.00 of your $100.00'),
+    });
+
+    // New session data before the sent tier is saved
     rerender({ sessions: runningFor(1) });
     rerender({ sessions: runningFor(1) });
     expect(notify).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      finish();
-    });
     await waitFor(() => expect(result.current.goals.currentGoal?.lastNotifiedPercent).toBe(50));
+    rerender({ sessions: runningFor(1) });
     expect(notify).toHaveBeenCalledTimes(1);
   });
 });

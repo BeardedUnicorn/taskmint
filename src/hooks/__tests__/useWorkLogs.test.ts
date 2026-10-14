@@ -20,9 +20,11 @@ import { invoke } from '@tauri-apps/api/core';
 const mockInvoke = vi.mocked(invoke);
 
 const mockShowError = vi.fn();
+const mockShowWarning = vi.fn();
 vi.mock('../../contexts/NotificationContext', () => ({
   useNotification: () => ({
     showError: mockShowError,
+    showWarning: mockShowWarning,
     showSuccess: vi.fn(),
   }),
 }));
@@ -99,8 +101,13 @@ describe('useWorkLogs', () => {
     await act(async () => {
       await result.current.reload();
     });
-    expect(mockShowError).toHaveBeenCalledTimes(1);
-    expect(mockShowError).toHaveBeenCalledWith('2 records skipped');
+    expect(mockShowWarning).toHaveBeenCalledTimes(1);
+    expect(mockShowWarning).toHaveBeenCalledWith('2 records skipped', {
+      category: 'workLog',
+      title: 'Some work logs could not be read',
+      duration: null,
+    });
+    expect(mockShowError).not.toHaveBeenCalled();
   });
 
   it('applies an import with the payload and reloads the ledger', async () => {

@@ -12,6 +12,11 @@ vi.mock('../../utils/tauri', () => ({
   safeInvoke: vi.fn(),
 }));
 
+const mockNotify = vi.fn();
+vi.mock('../NotificationContext', () => ({
+  useNotification: () => ({ notify: mockNotify, showError: vi.fn() }),
+}));
+
 const CONFIG_KEY = 'automaticBackupConfig';
 
 function storeConfig(config: Record<string, unknown>) {
@@ -103,5 +108,42 @@ describe('BackupSettingsProvider scheduling', () => {
       await vi.advanceTimersByTimeAsync(BACKUP_CHECK_INTERVAL_MS);
     });
     await waitFor(() => expect(backupCalls()).toHaveLength(2));
+  });
+
+  it('announces a failure once (with Retry and a way to the settings), not every hour', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    storeConfig({ enabled: true, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
+    mockBackend({ success: false, error: 'disk full' });
+
+    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+
+    await waitFor(() => expect(mockNotify).toHaveBeenCalledTimes(1));
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'error',
+        category: 'backup',
+        title: 'Automatic backup failed',
+        actions: [
+          expect.objectContaining({ label: 'Retry' }),
+          { label: 'Backup settings', view: 'settings', section: 'backups' },
+        ],
+      })
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BACKUP_CHECK_INTERVAL_MS);
+    });
+    await waitFor(() => expect(backupCalls()).toHaveLength(2));
+    expect(mockNotify).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays quiet when an automatic backup works', async () => {
+    storeConfig({ enabled: true, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
+    mockBackend({ success: true });
+
+    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+
+    await waitFor(() => expect(storedConfig().lastBackupTime).toBeDefined());
+    expect(mockNotify).not.toHaveBeenCalled();
   });
 });

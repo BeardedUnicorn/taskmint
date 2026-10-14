@@ -83,9 +83,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
   const [sessions, setSessions] = useState<TaskSession[]>([]);
   const [activeSession, setActiveSessionState] = useState<TaskSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
-  const { showError, showSuccess, showInfo } = useNotification();
+  const { showError, showSuccess, showInfo, showWarning } = useNotification();
   const { activeTimer, setActiveTimer } = useActiveTimer();
 
   // Current values for code that must read state synchronously between
@@ -114,9 +114,10 @@ export function useSessionManagement(): UseSessionManagementReturn {
   }, []);
 
   /**
-   * Runs a backend command: busy while it runs, a success toast if asked for,
-   * and on failure the backend's reason (or `fallback`) as the error and a
-   * toast. Resolves to the command's result, or null when it failed.
+   * Runs a backend command: busy while it runs, a success toast if asked for
+   * (only for what the screen doesn't already show), and on failure the
+   * backend's reason (or `fallback`) as an error toast. Resolves to the
+   * command's result, or null when it failed.
    */
   const runCommand = useCallback(async <T,>(
     fallback: string,
@@ -124,16 +125,13 @@ export function useSessionManagement(): UseSessionManagementReturn {
     success?: string | ((result: T) => string | null)
   ): Promise<T | null> => {
     beginBusy();
-    setError(null);
     try {
       const result = await command();
       const message = typeof success === 'function' ? success(result) : success;
-      if (message) showSuccess(message);
+      if (message) showSuccess(message, { category: 'timer' });
       return result;
     } catch (err) {
-      const message = errorMessage(err, fallback);
-      setError(message);
-      showError(message);
+      showError(errorMessage(err, fallback), { category: 'timer' });
       return null;
     } finally {
       endBusy();
@@ -145,7 +143,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
   const loadSessions = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
     if (!silent) beginBusy();
-    setError(null);
 
     try {
       const loadedSessions = await invoke<TaskSession[]>('get_sessions');
@@ -153,14 +150,15 @@ export function useSessionManagement(): UseSessionManagementReturn {
       setSessions(normalizedSessions);
       setActiveSessionState(normalizedSessions.find(s => s.isActive) || null);
       setActiveTimer(findRunningInstance(normalizedSessions)?.instance ?? null);
+      setHasLoaded(true);
     } catch (err) {
-      const message = errorMessage(err, 'Failed to load sessions');
-      setError(message);
       // Keep the last-known-good sessions/activeSession/activeTimer: blanking
       // the list while the toolbar still shows an active session leaves the
       // UI inconsistent. Background refreshes also should not toast out of
-      // nowhere.
-      if (!silent) showError(message);
+      // nowhere. A failed load stays up until dismissed.
+      if (!silent) {
+        showError(errorMessage(err, 'Failed to load sessions'), { category: 'session', duration: null });
+      }
     } finally {
       if (!silent) endBusy();
     }
@@ -188,7 +186,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
       const newInstance = await invoke<TimerInstance>('create_timer_instance', { sessionId });
       await loadSessions({ silent: true }); // the session with its new instance
       return newInstance;
-    }, 'New timer instance created'),
+    }),
   [runCommand, loadSessions]);
 
   const startTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
@@ -198,7 +196,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     // type. Read sessions through the ref: under rapid successive starts a
     // closure over `sessions` holds a stale list and would stop the wrong
     // timer. Resolves to the task whose timer was stopped, if any.
-    await runCommand('Failed to start timer', async (): Promise<string | null> => {
+    const handoff = await runCommand('Failed to start timer', async (): Promise<string | null> => {
       const maxAttempts = 3;
       let handoffTaskName: string | null = null;
       for (let attempt = 1; ; attempt++) {
@@ -253,38 +251,38 @@ export function useSessionManagement(): UseSessionManagementReturn {
           throw err;
         }
       }
-    }, handoffTaskName =>
-      // The hand-off must be explicit: the user asked to start this timer,
-      // not to stop the other one.
-      handoffTaskName
-        ? `Timer started — stopped the running timer for "${handoffTaskName}"`
-        : 'Timer started'
-    );
-  }, [runCommand, updateLocalSession, setActiveTimer]);
+    });
+    // The hand-off must be explicit: the user asked to start this timer, not
+    // to stop the other one. (A plain start shows on screen; no toast.)
+    if (handoff) {
+      showInfo(`Stopped the running timer for "${handoff}"`, { category: 'timer' });
+    }
+  }, [runCommand, updateLocalSession, setActiveTimer, showInfo]);
 
   // stop/pause/resume return the updated session (or null on failure) so
   // orchestrating callers like endActiveSession can tell whether the command
   // actually succeeded.
+  // (No success toasts: the timer's state on screen says it.)
   const timerCommand = useCallback(
-    (command: string, fallback: string, success: string) =>
+    (command: string, fallback: string) =>
       (instanceId: string): Promise<TaskSession | null> =>
         runCommand(fallback, async () => {
           const updatedSession = await invoke<TaskSession>(command, { instanceId });
           updateLocalSession(updatedSession);
           return updatedSession;
-        }, success),
+        }),
     [runCommand, updateLocalSession]
   );
   const stopTimerInstance = useMemo(
-    () => timerCommand('stop_timer_instance', 'Failed to stop timer', 'Timer stopped'),
+    () => timerCommand('stop_timer_instance', 'Failed to stop timer'),
     [timerCommand]
   );
   const pauseTimerInstance = useMemo(
-    () => timerCommand('pause_timer_instance', 'Failed to pause timer', 'Timer paused'),
+    () => timerCommand('pause_timer_instance', 'Failed to pause timer'),
     [timerCommand]
   );
   const resumeTimerInstance = useMemo(
-    () => timerCommand('resume_timer_instance', 'Failed to resume timer', 'Timer resumed'),
+    () => timerCommand('resume_timer_instance', 'Failed to resume timer'),
     [timerCommand]
   );
 
@@ -322,7 +320,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         // A failed move after a saved duration still changed something
         await loadSessions({ silent: true });
       }
-    }, () => (edit.moveTo ? `Moved to "${edit.moveTo.taskName}"` : 'Timer updated')),
+    }, () => (edit.moveTo ? `Moved to "${edit.moveTo.taskName}"` : null)),
   [runCommand, loadSessions]);
 
   // Initialize sessions on mount, and surface any startup load problems the
@@ -335,13 +333,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
       loadWarningShownRef.current = true;
       invoke<string | null>('get_session_load_warning')
         .then(warning => {
-          if (warning) showError(warning);
+          // Records were lost or skipped: stays up until dismissed
+          if (warning) showWarning(warning, { category: 'session', duration: null, title: 'Some saved time could not be read' });
         })
         .catch(() => {
           // Older backends without this command: nothing to surface
         });
     }
-  }, [loadSessions, showError]);
+  }, [loadSessions, showWarning]);
 
   // Refresh whenever the backend reports a timer-instance change. This keeps
   // any surface that mutates outside this hook (e.g. the system tray) in
@@ -368,20 +367,18 @@ export function useSessionManagement(): UseSessionManagementReturn {
       await loadSessions({ silent: true });
       return started;
     });
-    if (result) {
-      const handoff = result.stoppedTaskName
-        ? ` — stopped the running timer for "${result.stoppedTaskName}"`
-        : '';
-      if (result.outcome === 'alreadyRunning') {
-        showInfo(`"${taskName}" is already running`);
-      } else if (result.outcome === 'resumed') {
-        showSuccess(`Resumed "${taskName}"${handoff}`);
-      } else {
-        showSuccess(`Started "${taskName}"${handoff}`);
-      }
+    // The timer shows on screen; say only what it doesn't: nothing changed,
+    // or another task's timer was stopped for this one.
+    if (result?.outcome === 'alreadyRunning') {
+      showInfo(`"${taskName}" is already running`, { category: 'timer' });
+    } else if (result?.stoppedTaskName) {
+      const verb = result.outcome === 'resumed' ? 'Resumed' : 'Started';
+      showInfo(`${verb} "${taskName}" — stopped the running timer for "${result.stoppedTaskName}"`, {
+        category: 'timer',
+      });
     }
     return result;
-  }, [runCommand, loadSessions, showInfo, showSuccess]);
+  }, [runCommand, loadSessions, showInfo]);
 
   // "Add time": a finished timer logged after the fact. Rejects with the
   // backend's reason (e.g. an overlap) so the dialog can show it in place.
@@ -441,16 +438,13 @@ export function useSessionManagement(): UseSessionManagementReturn {
       // debounced event reload (active-entry displays key off it).
       setActiveTimer(findRunningInstance(normalized)?.instance ?? null);
       return true;
-    }, () => {
-      if (!session) return null;
-      const stoppedElsewhere =
-        previousRunner && previousRunner.session.id !== session.id
-          ? ` — stopped the running timer for "${previousRunner.session.taskName}"`
-          : '';
-      return `Activated session for "${session.taskName || 'Unknown Task'}"${stoppedElsewhere}`;
     });
+    // Announce only a hand-off (activating finalized another task's timer)
+    if (done && session && previousRunner && previousRunner.session.id !== session.id) {
+      showInfo(`Stopped the running timer for "${previousRunner.session.taskName}"`, { category: 'session' });
+    }
     return done === true;
-  }, [runCommand, setActiveTimer]);
+  }, [runCommand, setActiveTimer, showInfo]);
 
   const endActiveSession = useCallback(async (): Promise<void> => {
     // Read through the ref so a stale closure can't miss a timer that
@@ -472,16 +466,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
         // Leave the session active so the timers stay reachable and the user
         // can retry — deactivating around them would strand running timers
         // where no control can reach them.
-        showError('Session not ended: a timer could not be stopped.');
+        showError('Session not ended: a timer could not be stopped.', { category: 'session' });
         return;
       }
-      if (await setActiveSession(null)) {
-        showSuccess('Session ended successfully.');
-      }
+      await setActiveSession(null);
     } finally {
       endBusy();
     }
-  }, [beginBusy, endBusy, stopTimerInstance, setActiveSession, showError, showSuccess]);
+  }, [beginBusy, endBusy, stopTimerInstance, setActiveSession, showError]);
 
   const pauseAllTimersInActiveSession = useCallback(async (): Promise<void> => {
     const session = activeSessionRef.current;
@@ -492,11 +484,10 @@ export function useSessionManagement(): UseSessionManagementReturn {
       for (const timer of runningTimers) {
         await pauseTimerInstance(timer.id);
       }
-      if (runningTimers.length > 0) showSuccess(`Paused ${runningTimers.length} timer(s).`);
     } finally {
       endBusy();
     }
-  }, [beginBusy, endBusy, pauseTimerInstance, showSuccess]);
+  }, [beginBusy, endBusy, pauseTimerInstance]);
 
   const resumeAllTimersInActiveSession = useCallback(async (): Promise<void> => {
     const session = activeSessionRef.current;
@@ -510,10 +501,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
       .sort((a, b) => pausedAtMs(b) - pausedAtMs(a))[0];
     if (mostRecent) await resumeTimerInstance(mostRecent.id);
   }, [resumeTimerInstance]);
-
-  // Let consumers dismiss a surfaced error (the provider outlives page
-  // navigation, so errors no longer clear on remount).
-  const clearError = useCallback(() => setError(null), []);
 
   return useMemo(() => ({
     sessions,
@@ -534,12 +521,11 @@ export function useSessionManagement(): UseSessionManagementReturn {
     deleteTimerInstance,
     editTimerEntry,
     isLoading,
-    error,
-    clearError,
+    hasLoaded,
   }), [
     sessions, activeSession, startTask, addManualTime, clearSessionNotes, deleteSession,
     setActiveSession, endActiveSession, pauseAllTimersInActiveSession, resumeAllTimersInActiveSession,
     createTimerInstance, startTimerInstance, stopTimerInstance, pauseTimerInstance, resumeTimerInstance,
-    deleteTimerInstance, editTimerEntry, isLoading, error, clearError,
+    deleteTimerInstance, editTimerEntry, isLoading, hasLoaded,
   ]);
 }

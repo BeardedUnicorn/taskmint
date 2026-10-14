@@ -165,6 +165,6 @@ export interface UseSessionManagementReturn {
     edit: { updates?: Record<string, any>; moveTo?: { taskId: string; taskName: string } }
   ) => Promise<string | null>;
   isLoading: boolean;
-  error: string | null;
-  clearError: () => void;
+  /** The saved sessions have been read at least once. */
+  hasLoaded: boolean;
 }

@@ -11,7 +11,6 @@ import {
   Box,
   Container,
   Typography,
-  Alert,
   Button,
   Backdrop,
   CircularProgress,
@@ -29,7 +28,6 @@ import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
-import { useNotification } from '../../contexts/NotificationContext';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { EditTimeEntryData } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
@@ -79,12 +77,9 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
     resumeTimerInstance,
     deleteTimerInstance,
     isLoading: sessionsLoading,
-    error: sessionsError,
-    clearError: clearSessionsError,
   } = useSessionManagementContext();
 
   const { tasks, archivedTasks, isLoading: tasksLoading } = useTaskManagementContext();
-  const { showError } = useNotification();
 
   // Every start surface lists tasks the same way (and as the tray does):
   // favorites, then most recently used, then the rest; never archived ones.
@@ -126,15 +121,12 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
     });
   }, []);
 
+  // New timers start idle — the user starts them explicitly. (Failures are
+  // reported by the session context.)
   const handleAddTimer = useCallback(async () => {
     if (!activeSession) return;
-    try {
-      await createTimerInstance(activeSession.id);
-      // New timers start idle — the user starts them explicitly.
-    } catch (error) {
-      showError(error instanceof Error ? error.message : 'Failed to add timer');
-    }
-  }, [activeSession, createTimerInstance, showError]);
+    await createTimerInstance(activeSession.id);
+  }, [activeSession, createTimerInstance]);
 
   // Idle timers hold no time and delete straight away; a finished timer's
   // tracked time would be lost, so ask first.
@@ -194,12 +186,8 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   }, []);
 
   const handleStartSelectedSession = useCallback(async (session: TaskSession) => {
-    try {
-      await setActiveSession(session);
-    } catch (error) {
-      showError('Failed to activate session');
-    }
-  }, [setActiveSession, showError]);
+    await setActiveSession(session);
+  }, [setActiveSession]);
 
   // Memoized dialog callbacks (the start and add-time dialogs are the app's)
   const handleCloseNotesDialog = useCallback(() => setNotesTarget(null), []);
@@ -218,15 +206,6 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* A failed operation must not replace the whole dashboard (the shared
-          provider outlives navigation, so the error would persist with the
-          timers running invisibly) — surface it inline and dismissible. */}
-      {sessionsError && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={clearSessionsError}>
-          {sessionsError}
-        </Alert>
-      )}
-
       {/* Session Timer Bar */}
       <Box sx={{ mb: 4 }}>
         <SessionTimerToolbar

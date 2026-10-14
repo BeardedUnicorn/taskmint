@@ -29,7 +29,10 @@ describe('useCsvExport', () => {
       csv: 'a,b\r\n',
       suggestedFilename: 'entries.csv',
     });
-    expect(showSuccess).toHaveBeenCalledWith('Saved to /Users/me/Downloads/entries.csv');
+    expect(showSuccess).toHaveBeenCalledWith('Saved to /Users/me/Downloads/entries.csv', {
+      category: 'export',
+      actions: [expect.objectContaining({ label: expect.stringMatching(/^Show in (Finder|folder)$/) })],
+    });
   });
 
   it('stays quiet when the Save dialog is cancelled', async () => {
@@ -65,7 +68,7 @@ describe('useCsvExport', () => {
 
     expect(invoke).not.toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
-    expect(showSuccess).toHaveBeenCalledWith('Downloaded entries.csv');
+    expect(showSuccess).toHaveBeenCalledWith('Downloaded entries.csv', { category: 'export' });
     click.mockRestore();
   });
 });

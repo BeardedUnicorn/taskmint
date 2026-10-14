@@ -21,7 +21,6 @@ import {
 
   Chip,
   Alert,
-  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -35,6 +34,7 @@ import { NoteTemplateBuilderProps, NoteTemplate, TemplateField } from '../../../
 import { FieldEditor } from './FieldEditor';
 import { ConfirmDialog } from '../../ui';
 import { errorMessage } from '../../../utils/errors';
+import { useNotification } from '../../../contexts/NotificationContext';
 
 export function NoteTemplateBuilder({
   templates,
@@ -49,15 +49,15 @@ export function NoteTemplateBuilder({
   const [templateDescription, setTemplateDescription] = useState('');
   const [templateFields, setTemplateFields] = useState<TemplateField[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
 
-  const showSnackbar = useCallback((message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbar({ open: true, message, severity });
-  }, []);
+  const { showSuccess, showError } = useNotification();
+  const report = useCallback(
+    (message: string, severity: 'success' | 'error' = 'success') =>
+      severity === 'error'
+        ? showError(message, { category: 'template' })
+        : showSuccess(message, { category: 'template' }),
+    [showSuccess, showError]
+  );
 
   const handleSelectTemplate = useCallback((template: NoteTemplate | null) => {
     onSelectTemplate(template);
@@ -77,7 +77,7 @@ export function NoteTemplateBuilder({
 
   const handleSaveTemplate = useCallback(async () => {
     if (!templateName.trim()) {
-      showSnackbar('Template name is required', 'error');
+      report('Template name is required', 'error');
       return;
     }
 
@@ -92,18 +92,18 @@ export function NoteTemplateBuilder({
       if (selectedTemplate) {
         // Update existing template
         await onUpdateTemplate(selectedTemplate.id, templateData);
-        showSnackbar('Template updated successfully');
+        report('Template saved');
       } else {
         // Create new template
         const newTemplate = await onCreateTemplate(templateData);
         handleSelectTemplate(newTemplate);
-        showSnackbar('Template created successfully');
+        report('Template created');
       }
       
       setIsEditing(false);
     } catch (error) {
       const message = errorMessage(error, 'Failed to save template');
-      showSnackbar(message, 'error');
+      report(message, 'error');
     }
   }, [
     templateName,
@@ -113,7 +113,7 @@ export function NoteTemplateBuilder({
     onUpdateTemplate,
     onCreateTemplate,
     handleSelectTemplate,
-    showSnackbar,
+    report,
   ]);
 
   const handleDeleteTemplate = useCallback(async (templateId: string) => {
@@ -122,23 +122,23 @@ export function NoteTemplateBuilder({
       if (selectedTemplate?.id === templateId) {
         handleSelectTemplate(null);
       }
-      showSnackbar('Template deleted successfully');
+      report('Template deleted');
     } catch (error) {
       const message = errorMessage(error, 'Failed to delete template');
-      showSnackbar(message, 'error');
+      report(message, 'error');
     }
     setDeleteConfirm(null);
-  }, [onDeleteTemplate, selectedTemplate, handleSelectTemplate, showSnackbar]);
+  }, [onDeleteTemplate, selectedTemplate, handleSelectTemplate, report]);
 
   const handleToggleActive = useCallback(async (template: NoteTemplate) => {
     try {
       await onUpdateTemplate(template.id, { isActive: !template.isActive });
-      showSnackbar(`Template ${template.isActive ? 'deactivated' : 'activated'} successfully`);
+      report(`Template ${template.isActive ? 'deactivated' : 'activated'}`);
     } catch (error) {
       const message = errorMessage(error, 'Failed to update template');
-      showSnackbar(message, 'error');
+      report(message, 'error');
     }
-  }, [onUpdateTemplate, showSnackbar]);
+  }, [onUpdateTemplate, report]);
 
   const handleAddField = useCallback(() => {
     const newField: TemplateField = {
@@ -396,20 +396,6 @@ export function NoteTemplateBuilder({
         severity="error"
       />
 
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-      >
-        <Alert
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

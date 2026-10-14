@@ -12,6 +12,10 @@ import { useResetAppData } from '../../../../hooks/useResetAppData';
 // typed-confirmation dialog, not the hook internals.
 vi.mock('../../../../hooks/useDataBackup');
 vi.mock('../../../../hooks/useResetAppData');
+const mockShowError = vi.fn();
+vi.mock('../../../../contexts/NotificationContext', () => ({
+  useNotification: () => ({ notify: vi.fn(), showError: mockShowError }),
+}));
 
 const mockUseDataBackup = vi.mocked(useDataBackup);
 const mockUseResetAppData = vi.mocked(useResetAppData);
@@ -22,7 +26,6 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 describe('DataManagementSection', () => {
   const mockResetAllData = vi.fn();
-  const mockOnError = vi.fn();
 
   const setupHookMocks = ({ isResetting = false } = {}) => {
     mockUseDataBackup.mockReturnValue({
@@ -38,7 +41,7 @@ describe('DataManagementSection', () => {
   };
 
   const renderSection = () =>
-    render(<DataManagementSection onError={mockOnError} />, { wrapper: TestWrapper });
+    render(<DataManagementSection />, { wrapper: TestWrapper });
 
   const openResetDialog = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(screen.getByRole('button', { name: /reset all data/i }));
@@ -117,13 +120,13 @@ describe('DataManagementSection', () => {
     expect(mockResetAllData).not.toHaveBeenCalled();
   });
 
-  it('forwards reset errors to the section error handler', () => {
+  it('shows reset errors', () => {
     renderSection();
 
     const hookProps = mockUseResetAppData.mock.calls[0][0];
     hookProps?.onError?.('Failed to reset app data. Please try again.');
 
-    expect(mockOnError).toHaveBeenCalledWith('Failed to reset app data. Please try again.');
+    expect(mockShowError).toHaveBeenCalledWith('Failed to reset app data. Please try again.');
   });
 
   it('shows the busy state while a reset is in flight', () => {

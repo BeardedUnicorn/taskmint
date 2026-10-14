@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { InactivitySettingsSection } from '../InactivitySettingsSection';
+import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import { STORAGE_KEYS } from '../../../../constants';
 import { safeInvoke } from '../../../../utils/tauri';
 
@@ -13,7 +14,7 @@ vi.mock('../../../../utils/tauri', () => ({
 const mockSafeInvoke = vi.mocked(safeInvoke);
 
 function renderSection() {
-  return render(<InactivitySettingsSection onSuccess={() => {}} onError={() => {}} />);
+  return render(<InactivitySettingsSection />, { wrapper: NotificationProvider });
 }
 
 function storeSettings(data: Record<string, unknown>) {

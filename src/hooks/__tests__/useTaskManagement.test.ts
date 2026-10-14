@@ -149,7 +149,8 @@ describe('useTaskManagement', () => {
       expect(mockTaskService.createTask).toHaveBeenCalledWith(newTaskData);
       expect(returnedTask).toEqual(createdTask);
       expect(result.current.tasks).toContain(createdTask);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Task "New Task" created successfully!');
+      // The new task shows in the list: no toast
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
     it('should handle add task error', async () => {
@@ -197,7 +198,7 @@ describe('useTaskManagement', () => {
 
       expect(mockTaskService.updateTask).toHaveBeenCalledWith('task-1', updates);
       expect(returnedTask).toEqual(updatedTask);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Task "Updated Task" updated successfully!');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
     it('should handle update task error', async () => {
@@ -286,7 +287,7 @@ describe('useTaskManagement', () => {
       expect(result.current.tasks.find(t => t.id === 'task-1')?.isArchived).toBe(true);
       expect(result.current.activeTasks.map(t => t.id)).toEqual(['task-2', 'task-3']);
       expect(result.current.archivedTasks.map(t => t.id)).toEqual(['task-1']);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Task "Development" archived successfully!');
+      expect(mockShowSuccess).toHaveBeenCalledWith('Archived "Development"', expect.anything());
     });
 
     it('should unarchive a task, restoring activeTasks membership', async () => {
@@ -315,7 +316,7 @@ describe('useTaskManagement', () => {
       expect(mockTaskService.unarchiveTask).toHaveBeenCalledWith('task-1');
       expect(result.current.activeTasks.map(t => t.id)).toEqual(['task-1', 'task-2', 'task-3']);
       expect(result.current.archivedTasks).toHaveLength(0);
-      expect(mockShowSuccess).toHaveBeenCalledWith('Task "Development" unarchived successfully!');
+      expect(mockShowSuccess).not.toHaveBeenCalled();
     });
 
     it('should handle archive task error', async () => {
@@ -346,7 +347,7 @@ describe('useTaskManagement', () => {
 
       expect(mockTaskService.deleteTask).toHaveBeenCalledWith('task-1');
       expect(result.current.tasks).toEqual(sampleTasks.slice(1));
-      expect(mockShowSuccess).toHaveBeenCalledWith('Task "Development" deleted successfully!');
+      expect(mockShowSuccess).toHaveBeenCalledWith('Deleted "Development"', expect.anything());
     });
 
     it('should handle delete task error', async () => {

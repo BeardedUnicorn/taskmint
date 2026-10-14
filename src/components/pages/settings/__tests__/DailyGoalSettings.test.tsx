@@ -35,8 +35,6 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 describe('DailyGoalSettings', () => {
   const mockUpdateDailyGoal = vi.fn();
   const mockEnableDailyGoal = vi.fn();
-  const mockOnSuccess = vi.fn();
-  const mockOnError = vi.fn();
 
   const setupMocks = (goal: any) => {
     mockUseDailyGoals.mockReturnValue({
@@ -56,13 +54,13 @@ describe('DailyGoalSettings', () => {
   });
 
   it('should initialize form fields from currentGoal', () => {
-    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('100');
     expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).not.toBeChecked();
   });
 
   it('has no currency picker, since every amount in the app is in dollars', () => {
-    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
     expect(screen.queryByRole('combobox', { name: 'Currency' })).not.toBeInTheDocument();
   });
 
@@ -70,7 +68,7 @@ describe('DailyGoalSettings', () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockResolvedValue(undefined);
     setupMocks({ targetAmount: 150, currency: 'EUR', isEnabled: false });
-    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
 
     await user.click(await screen.findByRole('switch', { name: /enable daily earnings goal/i }));
     await user.click(screen.getByRole('button', { name: 'Save Goal' }));
@@ -84,14 +82,14 @@ describe('DailyGoalSettings', () => {
 
   it('should handle enabled goal state', () => {
     setupMocks({ targetAmount: 150, currency: 'EUR', isEnabled: true });
-    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('150');
     expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).toBeChecked();
   });
 
   it('should handle null currentGoal', () => {
     setupMocks(null);
-    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
     expect(screen.getByLabelText(/daily target amount/i)).toHaveValue('');
     expect(screen.getByRole('switch', { name: /enable daily earnings goal/i })).not.toBeChecked();
   });
@@ -99,7 +97,7 @@ describe('DailyGoalSettings', () => {
   it('should call updateDailyGoal when save button is clicked', async () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockResolvedValue(undefined);
-    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
 
     const toggle = await screen.findByRole('switch', { name: /enable daily earnings goal/i });
     await user.click(toggle);
@@ -113,9 +111,8 @@ describe('DailyGoalSettings', () => {
       isEnabled: true, // Should be true now
     });
 
-    await waitFor(() => {
-      expect(mockOnSuccess).toHaveBeenCalled();
-    });
+    // One confirmation, as a toast
+    expect(await screen.findByRole('status')).toHaveTextContent('Daily goal saved');
   }, 30000);
 
   it('should handle updateDailyGoal errors', async () => {
@@ -124,15 +121,13 @@ describe('DailyGoalSettings', () => {
     
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     
-    render(<DailyGoalSettings onSuccess={mockOnSuccess} onError={mockOnError} />, { wrapper: TestWrapper });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
 
     await user.click(await screen.findByRole('switch', { name: /enable daily earnings goal/i }));
     await user.click(screen.getByRole('button', { name: 'Save Goal' }));
 
-    await waitFor(() => {
-      expect(screen.getByText('Failed to save goal. Please try again.')).toBeInTheDocument();
-      expect(mockOnError).toHaveBeenCalledWith('Failed to save goal. Please try again.');
-    });
+    // The reason, as an error toast
+    expect(await screen.findByText('Save failed')).toBeInTheDocument();
     
     consoleSpy.mockRestore();
   }, 30000);

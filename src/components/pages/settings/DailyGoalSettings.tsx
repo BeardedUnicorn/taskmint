@@ -12,15 +12,12 @@ import { TrendingUp as GoalIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { CurrencyInput } from '../../ui/forms/CurrencyInput';
 import { useDailyGoals } from '../../../hooks/useDailyGoals';
+import { useNotification } from '../../../contexts/NotificationContext';
+import { errorMessage } from '../../../utils/errors';
 
-interface DailyGoalSettingsProps {
-  onSuccess?: (message: string) => void;
-  onError?: (error: string) => void;
-}
-
-export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps) {
+export function DailyGoalSettings() {
+  const { showSuccess, showError } = useNotification();
   // Local state for form management
-  const [goalSuccess, setGoalSuccess] = useState(false);
   const [goalError, setGoalError] = useState<string | null>(null);
   const [goalTargetAmount, setGoalTargetAmount] = useState('');
   // Every amount in the app is shown in dollars, so there's no currency
@@ -58,7 +55,6 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
       if (isNaN(targetAmount) || targetAmount < 0) {
         const error = 'Please enter a valid target amount';
         setGoalError(error);
-        onError?.(error);
         return;
       }
 
@@ -69,14 +65,10 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
       });
 
       setIsDirty(false);
-      setGoalSuccess(true);
-      setTimeout(() => setGoalSuccess(false), 3000);
-      onSuccess?.('Daily goal saved');
+      showSuccess('Daily goal saved');
     } catch (error) {
       console.error('Failed to save goal:', error);
-      const errorMessage = 'Failed to save goal. Please try again.';
-      setGoalError(errorMessage);
-      onError?.(errorMessage);
+      showError(errorMessage(error, 'Failed to save the goal. Please try again.'));
     }
   };
 
@@ -109,8 +101,8 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
             currency="$"
             placeholder="0.00"
             disabled={!goalEnabled}
-            error={!!goalError && goalError.includes('target amount')}
-            helperText={goalError && goalError.includes('target amount') ? goalError : 'Set your daily earnings target'}
+            error={!!goalError}
+            helperText={goalError ?? 'Set your daily earnings target'}
             sx={{ minWidth: 200 }}
           />
         </Stack>
@@ -128,22 +120,9 @@ export function DailyGoalSettings({ onSuccess, onError }: DailyGoalSettingsProps
         </Box>
       </Stack>
 
-      {/* Error/Success Messages */}
-      {goalError && !goalError.includes('target amount') && (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {goalError}
-        </Alert>
-      )}
-
-      {goalSuccess && (
-        <Alert severity="success" sx={{ mt: 2 }}>
-          Daily earnings goal saved successfully!
-        </Alert>
-      )}
-
       <Alert severity="info" sx={{ mt: 2 }}>
         <Typography variant="body2">
-          <strong>Daily Goal Notifications:</strong> You'll receive desktop notifications at 50%, 75%, 100%, and when you exceed your daily target.
+          <strong>Daily Goal Notifications:</strong> You'll be notified at 50%, 75%, when you reach your target, and when you're well past it (choose which reach your desktop under Notifications).
           The goal resets automatically each day.
         </Typography>
       </Alert>

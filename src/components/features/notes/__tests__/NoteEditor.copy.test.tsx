@@ -6,9 +6,17 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render as rtlRender, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { NoteTemplatesProvider } from '../../../../contexts/NoteTemplatesContext';
+import { NotificationProvider } from '../../../../contexts/NotificationContext';
 
-// NoteEditor reads the shared templates
-const render = (ui: ReactElement) => rtlRender(ui, { wrapper: NoteTemplatesProvider });
+// NoteEditor reads the shared templates and reports through toasts
+const render = (ui: ReactElement) =>
+  rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <NotificationProvider>
+        <NoteTemplatesProvider>{children}</NoteTemplatesProvider>
+      </NotificationProvider>
+    ),
+  });
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate, TaskNote } from '../../../../types/notes';
 
@@ -114,7 +122,7 @@ describe('NoteEditor Copy Functionality', () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Sample text content');
-      expect(screen.getByText('Copied Text Field content to clipboard')).toBeInTheDocument();
+      expect(screen.getByText('Copied Text Field to the clipboard')).toBeInTheDocument();
     });
   });
 
@@ -174,7 +182,7 @@ describe('NoteEditor Copy Functionality', () => {
     fireEvent.click(copyButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to copy Text Field content')).toBeInTheDocument();
+      expect(screen.getByText("Couldn't copy Text Field")).toBeInTheDocument();
     });
 
     consoleSpy.mockRestore();
@@ -200,11 +208,13 @@ describe('NoteEditor Copy Functionality', () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('42');
-      expect(screen.getByText('Copied Number Field content to clipboard')).toBeInTheDocument();
+      expect(screen.getByText('Copied Number Field to the clipboard')).toBeInTheDocument();
     });
   });
 
-  it('closes snackbar after timeout', async () => {
+  it('closes the toast after a moment', async () => {
+    // Toasts wait while you're away from the window; here you're looking at it
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     render(
       <NoteEditor
         taskId="task1"
@@ -223,13 +233,13 @@ describe('NoteEditor Copy Functionality', () => {
     fireEvent.click(copyButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Copied Text Field content to clipboard')).toBeInTheDocument();
+      expect(screen.getByText('Copied Text Field to the clipboard')).toBeInTheDocument();
     });
 
-    // Wait for snackbar to auto-hide (3 seconds)
+    // The copy confirmation is brief (2s)
     await waitFor(
       () => {
-        expect(screen.queryByText('Copied Text Field content to clipboard')).not.toBeInTheDocument();
+        expect(screen.queryByText('Copied Text Field to the clipboard')).not.toBeInTheDocument();
       },
       { timeout: 4000 }
     );
