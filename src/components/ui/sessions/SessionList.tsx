@@ -1,51 +1,39 @@
 /**
- * Session List Component
- * 
- * Displays a list of task sessions with management capabilities,
- * filtering, and detailed session information.
+ * Session List
+ *
+ * Sessions grouped by day, newest first, with search and filters
+ * (useSessionFilters, SessionFilterBar) and a menu per session.
  */
 
-import React, { useState, useMemo, memo, useCallback } from 'react';
-import dayjs from 'dayjs';
+import { memo, useCallback, useState, MouseEvent } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
-  Typography,
-  Chip,
-  IconButton,
   Button,
-  Stack,
-  TextField,
-  InputAdornment,
-  Menu,
-  MenuItem,
+  Divider,
   ListItemIcon,
   ListItemText,
-  Divider,
-  FormControl,
-  InputLabel,
-  Select,
-  SelectChangeEvent,
+  Menu,
+  MenuItem,
   Skeleton,
+  Stack,
+  Typography,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
-  MoreVert as MoreIcon,
-  PlayArrow as PlayIcon,
-  Stop as StopIcon,
+  Add as AddIcon,
   Delete as DeleteIcon,
   Notes as NotesIcon,
+  PlayArrow as PlayIcon,
+  Stop as StopIcon,
   Timer as TimerIcon,
   Today as DateIcon,
-  Add as AddIcon,
 } from '@mui/icons-material';
-import { TaskSession, TimerState, MANUAL_SOURCE } from '../../../types/timer';
-import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
-import { formatTime, formatDuration, formatDate } from '../../../utils/formatters';
+import { TaskSession, TimerState } from '../../../types/timer';
+import { formatDate } from '../../../utils/formatters';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
-import { getSessionElapsedMs } from '../../../utils/timerHelpers';
 import { EmptyState } from '../display/EmptyState';
+import { SessionCard } from './SessionCard';
+import { SessionFilterBar } from './SessionFilterBar';
+import { RECENT_SESSION_DAYS, isImportedSession, notesFor, useSessionFilters } from './useSessionFilters';
 
 interface SessionListProps {
   sessions: TaskSession[];
@@ -66,33 +54,6 @@ interface SessionListProps {
   archivedTaskNames?: string[];
 }
 
-function isImportedSession(session: TaskSession | null): boolean {
-  return session?.source === WORKLOG_IMPORT_SOURCE;
-}
-
-/** The list opens on this many days; older sessions are a click away (and in History). */
-export const RECENT_SESSION_DAYS = 30;
-
-type SourceFilter = 'all' | 'tracked' | 'imported';
-
-/** Active, or worked on (dated, or a timer started) on or after `cutoff`. */
-function isRecent(session: TaskSession, cutoff: string): boolean {
-  if (session.isActive || session.date >= cutoff) return true;
-  return (session.timerInstances ?? []).some(
-    instance => dayjs(instance.startTime).format('YYYY-MM-DD') >= cutoff
-  );
-}
-
-/**
- * A session's note texts, newest first. Text a session still carries itself
- * (old notes that couldn't be moved to the notes store) shows as a fallback.
- */
-function notesFor(session: TaskSession, sessionNotes?: Map<string, string[]>): string[] {
-  const texts = sessionNotes?.get(session.id);
-  if (texts && texts.length > 0) return texts;
-  return session.notes?.trim() ? [session.notes] : [];
-}
-
 // Memoized so unrelated dashboard state changes (dialogs, selection) don't
 // re-render the list; the shared nowMs prop changes once a second while a
 // timer runs and deliberately re-renders it — that tick is the list's clock.
@@ -108,138 +69,28 @@ export const SessionList = memo(function SessionList({
   isLoading = false,
   onOpenNotes,
   sessionNotes,
-  archivedTaskNames = [],
+  archivedTaskNames,
 }: SessionListProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [showOlder, setShowOlder] = useState(false);
-  const [taskFilters, setTaskFilters] = useState<string[]>([]);
-  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
-  const [selectedSession, setSelectedSession] = useState<TaskSession | null>(null);
-  // Deleting a session removes all of its timers' tracked time, so it waits
-  // for an explicit confirmation.
+  const filters = useSessionFilters({ sessions, sessionNotes, archivedTaskNames });
+  const { byDate, olderCount, showOlder, setShowOlder } = filters;
+  const [menu, setMenu] = useState<{ anchor: HTMLElement; session: TaskSession } | null>(null);
 
-  // Unique task names for task filter chips. Archived tasks' names are
-  // hidden to keep the chip row manageable, but a chip stays visible while
-  // it is selected so an active filter can always be cleared.
-  const uniqueTaskNames = useMemo(() => {
-    const archived = new Set(archivedTaskNames);
-    return Array.from(new Set(sessions.map(s => s.taskName)))
-      .filter(name => !archived.has(name) || taskFilters.includes(name))
-      .sort();
-  }, [sessions, archivedTaskNames, taskFilters]);
-
-  // Filter sessions based on search query and filters
-  const filteredSessions = useMemo(() => {
-    let result = sessions;
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(session =>
-        session.taskName.toLowerCase().includes(query) ||
-        notesFor(session, sessionNotes).some(text => text.toLowerCase().includes(query)) ||
-        session.date.includes(query)
-      );
-    }
-
-    if (statusFilter !== 'all') {
-      result = result.filter(session =>
-        statusFilter === 'active' ? session.isActive : !session.isActive
-      );
-    }
-
-    if (taskFilters.length > 0) {
-      result = result.filter(session => taskFilters.includes(session.taskName));
-    }
-
-    if (sourceFilter !== 'all') {
-      result = result.filter(session =>
-        sourceFilter === 'imported' ? isImportedSession(session) : !isImportedSession(session)
-      );
-    }
-
-    return result;
-  }, [sessions, searchQuery, statusFilter, taskFilters, sourceFilter, sessionNotes]);
-
-  // The last RECENT_SESSION_DAYS days, unless older ones were asked for
-  const { visibleSessions, olderCount } = useMemo(() => {
-    const cutoff = dayjs().subtract(RECENT_SESSION_DAYS - 1, 'day').format('YYYY-MM-DD');
-    const recent = filteredSessions.filter(session => isRecent(session, cutoff));
-    return {
-      visibleSessions: showOlder ? filteredSessions : recent,
-      olderCount: filteredSessions.length - recent.length,
-    };
-  }, [filteredSessions, showOlder]);
-
-  // Group sessions by date
-  const sessionsByDate = useMemo(() => {
-    const grouped = visibleSessions.reduce((acc, session) => {
-      const date = session.date;
-      if (!acc[date]) {
-        acc[date] = [];
-      }
-      acc[date].push(session);
-      return acc;
-    }, {} as Record<string, TaskSession[]>);
-
-    // Sort dates in descending order
-    const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-    
-    return sortedDates.map(date => ({
-      date,
-      sessions: grouped[date].sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      )
-    }));
-  }, [visibleSessions]);
-
-  const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>, session: TaskSession) => {
+  const handleMenuOpen = useCallback((event: MouseEvent<HTMLElement>, session: TaskSession) => {
     event.stopPropagation();
-    setMenuAnchor(event.currentTarget);
-    setSelectedSession(session);
+    setMenu({ anchor: event.currentTarget, session });
   }, []);
-
-  const handleMenuClose = () => {
-    setMenuAnchor(null);
-    setSelectedSession(null);
+  const fromMenu = (action: (session: TaskSession) => void) => () => {
+    if (menu) action(menu.session);
+    setMenu(null);
   };
-
-  // Deletes straight away; the toast offers Undo
-  const handleDeleteSession = () => {
-    if (selectedSession) {
-      onDeleteSession(selectedSession.id);
-      handleMenuClose();
-    }
-  };
-
-
-  const handleToggleActive = () => {
-    if (selectedSession) {
-      if (selectedSession.isActive) {
-        onStopSession();
-      } else {
-        onStartSession(selectedSession);
-      }
-      handleMenuClose();
-    }
-  };
-
-  const handleOpenNotes = () => {
-    if (selectedSession) {
-      onOpenNotes(selectedSession.id);
-      handleMenuClose();
-    }
-  };
-
   // Imported days are rebuilt by every import: notes only, no activate/delete
-  const selectedIsImported = isImportedSession(selectedSession);
+  const menuIsImported = isImportedSession(menu?.session ?? null);
 
   if (isLoading) {
     return (
       <Box sx={{ p: 2 }}>
         <Stack spacing={2}>
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2].map(i => (
             <Skeleton key={i} variant="rounded" height={110} />
           ))}
         </Stack>
@@ -268,95 +119,9 @@ export const SessionList = memo(function SessionList({
 
   return (
     <Box sx={{ p: 2 }}>
-      {/* Search and filters */}
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: 2,
-          mb: 2,
-        }}
-      >
-        <TextField
-          fullWidth
-          label="Search sessions"
-          placeholder="Search sessions..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }
-          }}
-        />
+      <SessionFilterBar filters={filters} />
 
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel id="session-status-label">Status</InputLabel>
-          <Select
-            labelId="session-status-label"
-            value={statusFilter}
-            label="Status"
-            onChange={(e: SelectChangeEvent) =>
-              setStatusFilter(e.target.value as 'all' | 'active' | 'completed')
-            }
-          >
-            <MenuItem value="all">All</MenuItem>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="completed">Completed</MenuItem>
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 130 }}>
-          <InputLabel id="session-source-label">Source</InputLabel>
-          <Select
-            labelId="session-source-label"
-            value={sourceFilter}
-            label="Source"
-            onChange={(e: SelectChangeEvent) => setSourceFilter(e.target.value as SourceFilter)}
-          >
-            <MenuItem value="all">All</MenuItem>
-            <MenuItem value="tracked">Tracked</MenuItem>
-            <MenuItem value="imported">Imported</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
-
-      {uniqueTaskNames.length > 0 && (
-        <Stack direction="row" spacing={1} sx={{ mb: 3, flexWrap: 'wrap' }}>
-          {uniqueTaskNames.map(name => {
-            const selected = taskFilters.includes(name);
-            return (
-              <Chip
-                key={name}
-                label={name}
-                size="small"
-                clickable
-                color={selected ? 'primary' : 'default'}
-                variant={selected ? 'filled' : 'outlined'}
-                onClick={() =>
-                  setTaskFilters(prev =>
-                    selected ? prev.filter(t => t !== name) : [...prev, name]
-                  )
-                }
-              />
-            );
-          })}
-          {taskFilters.length > 0 && (
-            <Chip
-              label="Clear"
-              size="small"
-              onClick={() => setTaskFilters([])}
-            />
-          )}
-        </Stack>
-      )}
-
-      {/* Sessions grouped by date */}
-      {sessionsByDate.length === 0 ? (
+      {byDate.length === 0 ? (
         olderCount > 0 && !showOlder ? (
           <EmptyState
             title={`Nothing in the last ${RECENT_SESSION_DAYS} days`}
@@ -372,15 +137,7 @@ export const SessionList = memo(function SessionList({
             title="No matching sessions"
             description="Nothing matches your current search and filters."
             action={
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  setSearchQuery('');
-                  setStatusFilter('all');
-                  setSourceFilter('all');
-                  setTaskFilters([]);
-                }}
-              >
+              <Button variant="outlined" onClick={filters.clearFilters}>
                 Clear filters
               </Button>
             }
@@ -388,18 +145,11 @@ export const SessionList = memo(function SessionList({
         )
       ) : (
         <Stack spacing={3}>
-          {sessionsByDate.map(({ date, sessions: dateSessions }) => (
+          {byDate.map(({ date, sessions: daySessions }) => (
             <Box key={date}>
               <Typography
                 variant="h6"
-                sx={{
-                  mb: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  color: 'text.secondary',
-                  fontWeight: 600,
-                }}
+                sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontWeight: 600 }}
               >
                 <DateIcon />
                 {/* new Date('YYYY-MM-DD') parses as UTC midnight, which is
@@ -408,16 +158,14 @@ export const SessionList = memo(function SessionList({
               </Typography>
 
               <Stack spacing={2}>
-                {dateSessions.map((session) => (
+                {daySessions.map(session => (
                   <SessionCard
                     key={session.id}
                     session={session}
                     // Only the active session's time moves; the others keep a
                     // fixed clock so their memoized cards skip the tick.
                     nowMs={
-                      session.isActive || session.timerInstances?.some(i => i.state === TimerState.running)
-                        ? nowMs
-                        : 0
+                      session.isActive || session.timerInstances?.some(i => i.state === TimerState.running) ? nowMs : 0
                     }
                     isSelected={session.id === selectedSessionId}
                     onSelect={onSelectSession}
@@ -434,44 +182,40 @@ export const SessionList = memo(function SessionList({
         </Stack>
       )}
 
-      {sessionsByDate.length > 0 && (olderCount > 0 || showOlder) && (
+      {byDate.length > 0 && (olderCount > 0 || showOlder) && (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-          <Button variant="text" onClick={() => setShowOlder(prev => !prev)}>
+          <Button variant="text" onClick={() => setShowOlder(previous => !previous)}>
             {showOlder ? `Show the last ${RECENT_SESSION_DAYS} days only` : `Show older (${olderCount})`}
           </Button>
         </Box>
       )}
 
-      {/* Context menu */}
-      <Menu
-        anchorEl={menuAnchor}
-        open={Boolean(menuAnchor)}
-        onClose={handleMenuClose}
-      >
-        {!selectedIsImported && (
-          <MenuItem onClick={handleToggleActive}>
+      <Menu anchorEl={menu?.anchor} open={menu !== null} onClose={() => setMenu(null)}>
+        {!menuIsImported && (
+          <MenuItem onClick={fromMenu(session => (session.isActive ? onStopSession() : onStartSession(session)))}>
             <ListItemIcon>
-              {selectedSession?.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}
+              {menu?.session.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}
             </ListItemIcon>
             <ListItemText>
               {/* "Activate" is honest: it makes the session current (finalizing
                   any timer running elsewhere) without starting a timer. */}
-              {selectedSession?.isActive ? 'End Session' : 'Activate Session'}
+              {menu?.session.isActive ? 'End Session' : 'Activate Session'}
             </ListItemText>
           </MenuItem>
         )}
 
-        <MenuItem onClick={handleOpenNotes}>
+        <MenuItem onClick={fromMenu(session => onOpenNotes(session.id))}>
           <ListItemIcon>
             <NotesIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>Notes</ListItemText>
         </MenuItem>
 
-        {!selectedIsImported && <Divider />}
+        {!menuIsImported && <Divider />}
 
-        {!selectedIsImported && (
-          <MenuItem onClick={handleDeleteSession} sx={{ color: 'error.main' }}>
+        {/* Deletes straight away; the toast offers Undo */}
+        {!menuIsImported && (
+          <MenuItem onClick={fromMenu(session => onDeleteSession(session.id))} sx={{ color: 'error.main' }}>
             <ListItemIcon>
               <DeleteIcon color="error" fontSize="small" />
             </ListItemIcon>
@@ -479,172 +223,6 @@ export const SessionList = memo(function SessionList({
           </MenuItem>
         )}
       </Menu>
-
     </Box>
-  );
-});
-
-
-
-// Session Card Component
-interface SessionCardProps {
-  session: TaskSession;
-  /** Timestamp the duration is rendered at, ticked by the list while timers run */
-  nowMs: number;
-  isSelected: boolean;
-  // Stable handlers taking the session, so memo can skip unchanged cards
-  onSelect: (session: TaskSession) => void;
-  onMenuOpen: (event: React.MouseEvent<HTMLElement>, session: TaskSession) => void;
-  onStart: (session: TaskSession) => void;
-  onStop: () => void;
-  onOpenNotes: (sessionId: string) => void;
-  /** The newest note's text, previewed under the title. */
-  notePreview?: string;
-}
-
-const SessionCard = memo(function SessionCard({
-  session,
-  nowMs,
-  isSelected,
-  onSelect,
-  onMenuOpen,
-  onStart,
-  onStop,
-  onOpenNotes,
-  notePreview,
-}: SessionCardProps) {
-
-  const runningInstances = session.timerInstances?.filter(i => i.state === TimerState.running) || [];
-  const totalInstances = session.timerInstances?.length || 0;
-
-  return (
-    <Card
-      sx={{
-        cursor: 'pointer',
-        border: isSelected ? 2 : 1,
-        borderColor: isSelected ? 'primary.main' : 'divider',
-        bgcolor: session.isActive ? 'action.selected' : 'background.paper',
-        '&:hover': {
-          bgcolor: 'action.hover',
-        },
-      }}
-      onClick={() => onSelect(session)}
-    >
-      <CardContent sx={{ pb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-              {session.taskName}
-            </Typography>
-            
-            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-              <Chip
-                icon={<TimerIcon />}
-                // Live sessions tick in HH:MM:SS; finished ones read as a
-                // plain duration — one glance separates now from history.
-                label={
-                  session.isActive
-                    ? formatTime(getSessionElapsedMs(session, nowMs))
-                    : formatDuration(getSessionElapsedMs(session, nowMs))
-                }
-                size="small"
-                color={session.isActive ? 'primary' : 'default'}
-                variant={session.isActive ? 'filled' : 'outlined'}
-              />
-              
-              <Chip
-                label={`${totalInstances} timer${totalInstances !== 1 ? 's' : ''}`}
-                size="small"
-                variant="outlined"
-              />
-              
-              {runningInstances.length > 0 && (
-                <Chip
-                  label={`${runningInstances.length} running`}
-                  size="small"
-                  color="success"
-                />
-              )}
-              
-              {session.isActive && (
-                <Chip
-                  label="Active"
-                  size="small"
-                  color="primary"
-                />
-              )}
-
-              {isImportedSession(session) && (
-                <Chip
-                  label="Imported"
-                  size="small"
-                  color="secondary"
-                  variant="outlined"
-                />
-              )}
-
-              {session.source === MANUAL_SOURCE && (
-                <Chip
-                  label="Manual"
-                  size="small"
-                  variant="outlined"
-                />
-              )}
-            </Stack>
-            
-            {notePreview && (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                }}
-              >
-                {notePreview}
-              </Typography>
-            )}
-          </Box>
-          
-          <Stack direction="row" spacing={1} sx={{ mt: -1, mr: -1 }}>
-            {/* Imported days change only by importing again */}
-            {!isImportedSession(session) && (
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  session.isActive ? onStop() : onStart(session);
-                }}
-                size="small"
-                startIcon={session.isActive ? <StopIcon /> : <PlayIcon />}
-                aria-label={session.isActive ? 'End session' : 'Activate session'}
-              >
-                {session.isActive ? 'End' : 'Activate'}
-              </Button>
-            )}
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenNotes(session.id);
-              }}
-              size="small"
-              startIcon={<NotesIcon />}
-              aria-label="Open session notes"
-            >
-              Notes
-            </Button>
-            <IconButton
-              onClick={(event) => onMenuOpen(event, session)}
-              size="small"
-              aria-label="More options"
-            >
-              <MoreIcon />
-            </IconButton>
-          </Stack>
-        </Box>
-      </CardContent>
-    </Card>
   );
 });

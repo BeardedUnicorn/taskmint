@@ -7,7 +7,7 @@
  * that out per day before anything is touched.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -40,13 +40,11 @@ import {
   WorkLogImportSummary,
 } from '../../../types/workLog';
 import {
+  applyImpliedRates,
   buildImportPreview,
-  buildLedgerEntries,
-  buildRewriteGroups,
-  computeImpliedRates,
-  mergeLedger,
   parseWorkLogPayload,
-  resolveProjectMappings,
+  payloadProjects,
+  planWorkLogImport,
 } from '../../../utils/workLogImport';
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { centsToDollars } from '../../../utils/payoutCalculator';
@@ -117,98 +115,64 @@ export function ImportWorkLogsDialog({
   const parsed = useMemo(() => parseWorkLogPayload(rawText), [rawText]);
   const hasRecords = parsed.timedEntries.length > 0 || parsed.workLogs.length > 0;
 
-  const pastedProjects = useMemo(() => {
-    const byId = new Map<string, { id: string; name: string }>();
-    for (const record of [...parsed.timedEntries, ...parsed.workLogs]) {
-      byId.set(record.project.id, record.project);
-    }
-    return [...byId.values()];
-  }, [parsed]);
+  // Tasks picked here for projects with no stored or same-named task
+  const chosenMappings = useMemo((): ProjectTaskMapping[] => {
+    const nowIso = new Date().toISOString();
+    return payloadProjects(parsed).flatMap(project => {
+      const task = taskChoices[project.id]?.task;
+      return task
+        ? [{ projectId: project.id, projectName: project.name, taskId: task.id, taskName: task.name, createdAt: nowIso, updatedAt: nowIso }]
+        : [];
+    });
+  }, [parsed, taskChoices]);
 
-  const mappingResolution = useMemo(
+  // The pipeline browser capture uses too
+  const planImport = useCallback(
     () =>
-      resolveProjectMappings(
-        pastedProjects,
-        existingMappings,
+      planWorkLogImport(parsed, {
+        entries: existingEntries,
+        mappings: existingMappings,
         tasks,
-        new Date().toISOString()
-      ),
-    [pastedProjects, existingMappings, tasks]
+        sessions,
+        nowIso: new Date().toISOString(),
+        chosenMappings,
+      }),
+    [parsed, existingEntries, existingMappings, tasks, sessions, chosenMappings]
   );
+  const plan = useMemo(() => planImport(), [planImport]);
 
-  // Stored/auto-matched mappings plus the user's dialog choices.
-  const chosenMappings = useMemo(() => {
-    const mappings = [...mappingResolution.resolved];
-    for (const project of mappingResolution.unresolved) {
-      const choice = taskChoices[project.projectId];
-      if (choice?.task) {
-        mappings.push({
-          projectId: project.projectId,
-          projectName: project.projectName,
-          taskId: choice.task.id,
-          taskName: choice.task.name,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      }
-    }
-    return mappings;
-  }, [mappingResolution, taskChoices]);
+  const details = plan.status === 'ready' || plan.status === 'needs-mapping' ? plan : null;
+  const unmatched = details?.unmatched ?? [];
+  const unresolvedRemaining = plan.status === 'needs-mapping' ? plan.unresolved : [];
+  const impliedRates = plan.status === 'ready' ? plan.impliedRates : [];
 
-  const unresolvedRemaining = useMemo(
+  const preview = useMemo(
     () =>
-      mappingResolution.unresolved.filter(
-        project => !taskChoices[project.projectId]?.task
-      ),
-    [mappingResolution, taskChoices]
+      details && details.entries.length > 0
+        ? buildImportPreview(details.entries, details.merged, sessions, Date.now())
+        : [],
+    [details, sessions]
   );
-
-  const pasteLedger = useMemo(
-    () => buildLedgerEntries(parsed, chosenMappings, new Date().toISOString()),
-    [parsed, chosenMappings]
-  );
-
-  const preview = useMemo(() => {
-    if (pasteLedger.length === 0) return [];
-    const { merged } = mergeLedger(existingEntries, pasteLedger);
-    return buildImportPreview(pasteLedger, merged, sessions, Date.now());
-  }, [pasteLedger, existingEntries, sessions]);
-
-  const impliedRates = useMemo(() => computeImpliedRates(pasteLedger), [pasteLedger]);
 
   const rewriteDayCount = preview.filter(r => r.importedMinutes > 0 && !r.blocked).length;
   const blockedDayCount = preview.filter(r => r.blocked).length;
 
-  const canApply =
-    !applying &&
-    hasRecords &&
-    parsed.error === null &&
-    unresolvedRemaining.length === 0 &&
-    pasteLedger.length > 0;
+  const canApply = !applying && plan.status === 'ready';
 
   const handleApply = async () => {
     setApplying(true);
     try {
-      // Rebuild from the latest props at click time (sessions refresh via the
-      // work-logs-imported event between renders).
-      const { merged } = mergeLedger(existingEntries, pasteLedger);
-      const groupBuild = buildRewriteGroups(pasteLedger, merged, sessions, {
-        nowIso: new Date().toISOString(),
-      });
-      const summary = await onApply({
-        entries: pasteLedger,
-        mappings: chosenMappings,
-        rewriteGroups: groupBuild.groups,
-      });
+      // Planned again at click time: sessions refresh (work-logs-imported)
+      // between renders
+      const fresh = planImport();
+      if (fresh.status !== 'ready') return;
+      const summary = await onApply(fresh.payload);
       if (!summary) return; // hook already toasted the error
 
       if (updateRates) {
-        for (const implied of impliedRates) {
-          const task = tasks.find(t => t.id === implied.taskId);
-          if (task && task.hourlyRate !== implied.impliedHourlyRate) {
-            await onUpdateTaskRate(implied.taskId, implied.impliedHourlyRate);
-          }
-        }
+        await applyImpliedRates(tasks, fresh.impliedRates, (taskId, updates) =>
+          onUpdateTaskRate(taskId, updates.hourlyRate ?? 0)
+        );
       }
 
       setResult(summary);
@@ -278,13 +242,13 @@ export function ImportWorkLogsDialog({
                 <Alert severity="info">Nothing to import in this payload.</Alert>
               )}
 
-              {mappingResolution.unresolved.length > 0 && (
+              {unmatched.length > 0 && (
                 <Box>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>
                     Match site projects to tasks
                   </Typography>
                   <Stack spacing={1.5}>
-                    {mappingResolution.unresolved.map(project => (
+                    {unmatched.map(project => (
                       <Box
                         key={project.projectId}
                         sx={{ display: 'flex', alignItems: 'center', gap: 2 }}
