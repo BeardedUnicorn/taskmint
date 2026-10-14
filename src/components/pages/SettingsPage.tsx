@@ -18,18 +18,24 @@ import { NotificationSettingsSection } from './settings/NotificationSettingsSect
 import { PayoutSettingsSection } from './settings/PayoutSettingsSection';
 import { PageContainer, PageHeader } from '../layout/PageLayout';
 import { useOptionalNavigation } from '../../contexts/NavigationContext';
-import type { SettingsSectionId } from '../../navigation/views';
+import { SETTINGS_SECTION_LABELS, SettingsSectionId } from '../../navigation/views';
 
-export const SETTINGS_SECTIONS: { id: SettingsSectionId; label: string; Section: ComponentType }[] = [
-  { id: 'appearance', label: 'Appearance', Section: AppearanceSettingsSection },
-  { id: 'payouts', label: 'Payouts', Section: PayoutSettingsSection },
-  { id: 'idle', label: 'Idle & Reminders', Section: InactivitySettingsSection },
-  { id: 'goal', label: 'Daily Goal', Section: DailyGoalSettings },
-  { id: 'notifications', label: 'Notifications', Section: NotificationSettingsSection },
-  { id: 'backups', label: 'Backups', Section: BackupSettingsSection },
-  { id: 'data', label: 'Data', Section: DataManagementSection },
-  { id: 'privacy', label: 'Privacy', Section: PrivacySettingsSection },
-];
+const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
+  appearance: AppearanceSettingsSection,
+  payouts: PayoutSettingsSection,
+  idle: InactivitySettingsSection,
+  goal: DailyGoalSettings,
+  notifications: NotificationSettingsSection,
+  backups: BackupSettingsSection,
+  data: DataManagementSection,
+  privacy: PrivacySettingsSection,
+};
+
+export const SETTINGS_SECTIONS = (Object.keys(SETTINGS_SECTION_LABELS) as SettingsSectionId[]).map(id => ({
+  id,
+  label: SETTINGS_SECTION_LABELS[id],
+  Section: SECTION_COMPONENTS[id],
+}));
 
 const sectionElement = (id: SettingsSectionId) => document.getElementById(`settings-${id}`);
 

@@ -1,7 +1,8 @@
-import { Typography } from '@mui/material';
+import { Divider, Typography } from '@mui/material';
 import { Palette as AppearanceIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { ThemeSelector } from './ThemeSelector';
+import { KeyboardShortcutsList } from './KeyboardShortcutsList';
 
 export function AppearanceSettingsSection() {
   return (
@@ -10,6 +11,12 @@ export function AppearanceSettingsSection() {
         System follows your operating system's light or dark setting.
       </Typography>
       <ThemeSelector />
+
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
+        Keyboard shortcuts
+      </Typography>
+      <KeyboardShortcutsList />
     </SettingsSection>
   );
 }

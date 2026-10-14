@@ -43,7 +43,7 @@ function SessionsRoute({ onStartWork, onAddTime }: PageProps) {
 }
 
 function TasksRoute() {
-  const { navigate } = useNavigation();
+  const { navigate, params, clearParams } = useNavigation();
   const { tasks, addTask, updateTask, deleteTask, archiveTask, unarchiveTask, toggleFavorite } =
     useTaskManagementContext();
   const { activeSession, startTask } = useSessionManagementContext();
@@ -68,6 +68,8 @@ function TasksRoute() {
       }}
       runningTaskId={activeTimer && activeSession ? activeSession.taskId : null}
       onViewHistory={task => navigate('history', { focusTaskId: task.id })}
+      newTaskRequested={params.intent === 'new-task'}
+      onNewTaskRequestHandled={clearParams}
     />
   );
 }

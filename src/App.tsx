@@ -10,6 +10,7 @@ import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar } from './components/layout';
 import { GoalFooter } from './components/layout/GoalFooter';
 import { PageSkeleton } from './components/layout/PageLayout';
+import { CommandCenter } from './components/command/CommandCenter';
 import { NotificationBell } from './components/notifications/NotificationBell';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { DailyGoalProvider } from './contexts/DailyGoalContext';
@@ -134,6 +135,7 @@ function AppContent() {
     <>
       <CssBaseline enableColorScheme />
       <BackgroundJobs onShowStartDialog={showStartDialog} />
+      <CommandCenter onStartWork={showStartDialog} onAddTime={showAddTime} />
       <Box sx={{ height: '100vh', display: 'flex' }}>
         <Sidebar
           activeView={activeView}

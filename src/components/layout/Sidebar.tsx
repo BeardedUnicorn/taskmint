@@ -1,6 +1,7 @@
 
 import { ReactNode } from 'react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { viewShortcut } from '../../hooks/useKeyboardShortcuts';
 import {
   Drawer,
   List,
@@ -145,13 +146,19 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
             </ListItemButton>
           );
 
-          // Wrap with tooltip when collapsed
-          return isCollapsed ? (
-            <Tooltip key={item.id} title={item.label} placement="right">
+          // The page's shortcut on hover; its name too when collapsed
+          const shortcut = viewShortcut(item.id);
+          return (
+            <Tooltip
+              key={item.id}
+              title={isCollapsed ? `${item.label}  ${shortcut}` : shortcut}
+              placement="right"
+              enterDelay={isCollapsed ? 100 : 600}
+              // The label already names the button; the shortcut is extra
+              describeChild
+            >
               {listItemButton}
             </Tooltip>
-          ) : (
-            listItemButton
           );
         })}
       </List>

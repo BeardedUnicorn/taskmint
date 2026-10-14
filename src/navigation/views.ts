@@ -26,6 +26,18 @@ export type SettingsSectionId =
   | 'data'
   | 'privacy';
 
+/** Settings' sections, in page order, as its section list names them. */
+export const SETTINGS_SECTION_LABELS: Record<SettingsSectionId, string> = {
+  appearance: 'Appearance',
+  payouts: 'Payouts',
+  idle: 'Idle & Reminders',
+  goal: 'Daily Goal',
+  notifications: 'Notifications',
+  backups: 'Backups',
+  data: 'Data',
+  privacy: 'Privacy',
+};
+
 /** Extra context for the page being opened (cleared once the page has used it). */
 export interface NavigationParams {
   /** Settings: the section to show. */
