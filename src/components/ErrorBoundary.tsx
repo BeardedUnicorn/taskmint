@@ -36,6 +36,8 @@ interface ErrorBoundaryProps {
   enableAutoRecovery?: boolean;
   maxRecoveryAttempts?: number;
   recoveryDelay?: number;
+  /** 'page': fills its page instead of the window, so the sidebar stays usable. */
+  level?: 'app' | 'page';
 }
 
 /**
@@ -222,7 +224,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <Box
           sx={{
-            minHeight: '100vh',
+            minHeight: this.props.level === 'page' ? '100%' : '100vh',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

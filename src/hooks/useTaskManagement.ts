@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { Task, UseTaskManagementReturn } from '../types/task';
 import { ServiceFactory } from '../services';
 import { useAsyncError } from './useAsyncError';
@@ -10,6 +10,12 @@ export function useTaskManagement(): UseTaskManagementReturn {
   const taskService = ServiceFactory.getTaskService();
   const { executeAsync } = useAsyncError();
   const { showError, showSuccess } = useNotification();
+  // Latest list for actions that look a task up, so they don't change
+  // identity on every edit
+  const tasksRef = useRef(tasks);
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   // Load tasks on mount
   useEffect(() => {
@@ -43,26 +49,6 @@ export function useTaskManagement(): UseTaskManagementReturn {
       }
     );
   }, [taskService, executeAsync, showSuccess, showError]);
-
-  // Memoized task lookup maps for performance (must be defined before functions that use them)
-  const taskByIdMap = useMemo(() => {
-    return tasks.reduce((map, task) => {
-      map.set(task.id, task);
-      return map;
-    }, new Map<string, Task>());
-  }, [tasks]);
-
-  const taskByNameMap = useMemo(() => {
-    return tasks.reduce((map, task) => {
-      map.set(task.name, task);
-      return map;
-    }, new Map<string, Task>());
-  }, [tasks]);
-
-  // Memoized task names for performance
-  const taskNames = useMemo((): string[] => {
-    return tasks.map(task => task.name).sort();
-  }, [tasks]);
 
   // Archived tasks stay in `tasks` (history/rate lookups need them);
   // start-new-work surfaces consume `activeTasks` instead
@@ -122,7 +108,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
 
   // The star is its own feedback, so unlike updateTask this doesn't toast.
   const toggleFavorite = useCallback(async (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasksRef.current.find(t => t.id === taskId);
     if (!task) return null;
     return executeAsync(
       async () => {
@@ -135,10 +121,10 @@ export function useTaskManagement(): UseTaskManagementReturn {
         errorHandler: error => showError(error.message || 'Failed to update the favorite.')
       }
     );
-  }, [tasks, taskService, executeAsync, showError]);
+  }, [taskService, executeAsync, showError]);
 
   const deleteTask = useCallback(async (taskId: string): Promise<void> => {
-    const taskToDelete = tasks.find(task => task.id === taskId);
+    const taskToDelete = tasksRef.current.find(task => task.id === taskId);
     await executeAsync(
       async () => {
         await taskService.deleteTask(taskId);
@@ -151,21 +137,9 @@ export function useTaskManagement(): UseTaskManagementReturn {
         errorHandler: error => showError(error.message || 'Failed to delete task.')
       }
     );
-  }, [taskService, executeAsync, tasks, showSuccess, showError]);
+  }, [taskService, executeAsync, showSuccess, showError]);
 
-  const getTaskById = useCallback((taskId: string): Task | undefined => {
-    return taskByIdMap.get(taskId);
-  }, [taskByIdMap]);
-
-  const getTaskByName = useCallback((taskName: string): Task | undefined => {
-    return taskByNameMap.get(taskName);
-  }, [taskByNameMap]);
-
-  const getTaskNames = useCallback((): string[] => {
-    return taskNames;
-  }, [taskNames]);
-
-  return {
+  return useMemo(() => ({
     tasks,
     activeTasks,
     archivedTasks,
@@ -175,9 +149,6 @@ export function useTaskManagement(): UseTaskManagementReturn {
     archiveTask,
     unarchiveTask,
     toggleFavorite,
-    getTaskById,
-    getTaskByName,
-    getTaskNames,
     isLoading,
-  };
+  }), [tasks, activeTasks, archivedTasks, addTask, updateTask, deleteTask, archiveTask, unarchiveTask, toggleFavorite, isLoading]);
 }

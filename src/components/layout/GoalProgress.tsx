@@ -23,7 +23,7 @@ export function GoalProgress({ progress, collapsed = false }: GoalProgressProps)
   const barValue = Math.min(100, Math.floor(percent));
   const reached = percent >= 100;
   const color = reached ? 'success' : 'primary';
-  const summary = `${formatCurrency(progress.earned)} of ${formatCurrency(progress.target)}`;
+  const summary = `${formatCurrency(progress.earned, progress.currency)} of ${formatCurrency(progress.target, progress.currency)}`;
   const label = `Today's goal: ${summary} (${Math.floor(percent)}%)`;
 
   if (collapsed) {

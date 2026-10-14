@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useEnhancedSystemTray } from '../useEnhancedSystemTray';
-import { safeInvoke, safeListen } from '../../utils/tauri';
+import { listen } from '@tauri-apps/api/event';
+import { safeInvoke } from '../../utils/tauri';
 import { Task } from '../../types/task';
 
 vi.mock('../../utils/tauri', () => ({
   isTauriEnvironment: vi.fn(() => true),
   safeInvoke: vi.fn().mockResolvedValue(undefined),
-  safeListen: vi.fn(),
 }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 
 const task = (id: string): Task => ({
   id,
@@ -25,8 +26,8 @@ describe('useEnhancedSystemTray', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     trayHandler = undefined;
-    vi.mocked(safeListen).mockImplementation(async (_event, handler) => {
-      trayHandler = () => handler({});
+    vi.mocked(listen).mockImplementation(async (_event, handler) => {
+      trayHandler = () => (handler as (event: unknown) => void)({});
       return unlisten;
     });
   });
@@ -51,7 +52,7 @@ describe('useEnhancedSystemTray', () => {
     );
 
     await waitFor(() => expect(trayHandler).toBeDefined());
-    expect(safeListen).toHaveBeenCalledWith('show-start-task-dialog', expect.any(Function));
+    expect(listen).toHaveBeenCalledWith('show-start-task-dialog', expect.any(Function));
     trayHandler!();
     expect(onShowStartDialog).toHaveBeenCalledTimes(1);
 
@@ -63,7 +64,7 @@ describe('useEnhancedSystemTray', () => {
     renderHook(() => useEnhancedSystemTray({ tasks: [], onShowStartDialog: vi.fn() }));
     const commands = vi.mocked(safeInvoke).mock.calls.map(([command]) => command);
     expect(commands).toEqual(['update_tasks']);
-    const events = vi.mocked(safeListen).mock.calls.map(([event]) => event);
+    const events = vi.mocked(listen).mock.calls.map(([event]) => event);
     expect(events).toEqual(['show-start-task-dialog']);
   });
 });

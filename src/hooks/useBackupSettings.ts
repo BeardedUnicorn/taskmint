@@ -5,7 +5,7 @@
  * backup path selection, and backup status monitoring.
  */
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useDataBackup } from './useDataBackup';
 import {
@@ -302,7 +302,7 @@ export function useBackupSettings() {
     return `Last backup: ${lastBackup.toLocaleDateString()} ${lastBackup.toLocaleTimeString()}`;
   }, [config, status]);
 
-  return {
+  return useMemo(() => ({
     // Configuration
     config,
     updateConfig,
@@ -322,5 +322,9 @@ export function useBackupSettings() {
     performAutomaticBackupIfDue,
     checkBackupDue,
     validateBackupPath,
-  };
+  }), [
+    config, updateConfig, toggleEnabled, updateFrequency, updateBackupPath, updateMaxBackups,
+    resetConfig, status, getStatusSummary, selectBackupDirectory, performManualBackup,
+    performAutomaticBackupIfDue, checkBackupDue, validateBackupPath,
+  ]);
 }

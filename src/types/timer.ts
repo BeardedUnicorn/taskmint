@@ -145,13 +145,9 @@ export interface UseSessionManagementReturn {
   startTask: (taskId: string, taskName: string) => Promise<StartTaskResult | null>;
   /** Log a finished timer after the fact ("Add time"). Rejects with the reason. */
   addManualTime: (input: AddManualTimeInput) => Promise<TaskSession>;
-  updateSession: (sessionId: string, updates: Partial<TaskSession>) => Promise<TaskSession | null>;
   /** Clears sessions' old plain-text notes once they've moved to the notes store; returns how many had text. */
   clearSessionNotes: (sessionIds: string[]) => Promise<number>;
   deleteSession: (sessionId: string) => Promise<void>;
-  getSessionById: (sessionId: string) => TaskSession | undefined;
-  getSessionsByTaskId: (taskId: string) => TaskSession[];
-  getActiveSession: () => TaskSession | null;
   setActiveSession: (session: TaskSession | null) => Promise<boolean>;
   endActiveSession: () => Promise<void>;
   pauseAllTimersInActiveSession: () => Promise<void>;
@@ -163,7 +159,6 @@ export interface UseSessionManagementReturn {
   pauseTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
   resumeTimerInstance: (instanceId: string) => Promise<TaskSession | null>;
   deleteTimerInstance: (instanceId: string) => Promise<void>;
-  updateTimerInstance: (instanceId: string, updates: Record<string, any>) => Promise<void>;
   /** Saves a finished timer's edit (duration and/or task); resolves to its session id, or null on failure. */
   editTimerEntry: (
     instanceId: string,

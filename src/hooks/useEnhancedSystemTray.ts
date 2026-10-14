@@ -10,7 +10,8 @@
 
 import { useEffect } from 'react';
 import { Task } from '../types/task';
-import { safeInvoke, safeListen, isTauriEnvironment } from '../utils/tauri';
+import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
+import { useTauriEvent } from './useTauriEvent';
 
 export interface UseEnhancedSystemTrayProps {
   tasks: Task[];
@@ -28,26 +29,5 @@ export function useEnhancedSystemTray({ tasks, onShowStartDialog }: UseEnhancedS
     safeInvoke('update_tasks', { tasks });
   }, [tasks]);
 
-  useEffect(() => {
-    if (!isTauriEnvironment()) {
-      return;
-    }
-
-    let cancelled = false;
-    let unlisten: (() => void) | null = null;
-    safeListen('show-start-task-dialog', () => onShowStartDialog()).then(fn => {
-      // Torn down while registering: unlisten now instead of leaking a
-      // listener that would open the dialog once more per click.
-      if (cancelled) {
-        fn?.();
-      } else {
-        unlisten = fn ?? null;
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [onShowStartDialog]);
+  useTauriEvent('show-start-task-dialog', () => onShowStartDialog());
 }

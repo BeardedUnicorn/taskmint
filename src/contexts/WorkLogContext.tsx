@@ -10,7 +10,7 @@
  * capture handler builds rewrite groups from sessions and syncs task rates.
  */
 
-import { createContext, useCallback, useContext, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
 import { useWorkLogs, UseWorkLogsReturn } from '../hooks/useWorkLogs';
 import { useWorkLogCapture, StagedCapture } from '../hooks/useWorkLogCapture';
 import { useSessionManagementContext } from './SessionManagementContext';
@@ -49,13 +49,12 @@ export function WorkLogProvider({ children }: { children: ReactNode }) {
     clearStagedCapture,
   });
 
-  return (
-    <WorkLogContext.Provider
-      value={{ ...workLogs, stagedCapture, stageCapture, clearStagedCapture }}
-    >
-      {children}
-    </WorkLogContext.Provider>
+  const value = useMemo(
+    () => ({ ...workLogs, stagedCapture, stageCapture, clearStagedCapture }),
+    [workLogs, stagedCapture, stageCapture, clearStagedCapture]
   );
+
+  return <WorkLogContext.Provider value={value}>{children}</WorkLogContext.Provider>;
 }
 
 export function useWorkLogContext(): WorkLogContextValue {
