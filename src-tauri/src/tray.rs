@@ -1,8 +1,10 @@
 // System tray functionality
 
 use crate::commands::sessions::{self, LiveTimer};
-use crate::config::{get_config, Config};
-use crate::error::AppError;
+use crate::config::{
+    ICON_TRAY_FALLBACK, ICON_TRAY_PRIMARY, TRAY_MAX_RECENT_TASKS, TRAY_MENU_REFRESH_INTERVAL,
+    TRAY_STATUS_UPDATE_INTERVAL, TRAY_TOOLTIP_APP_NAME,
+};
 use crate::state::AppState;
 use crate::types::{Task, TaskSession};
 use crate::utils::{format_duration_hm, is_macos};
@@ -12,7 +14,7 @@ use std::collections::HashMap;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 /// When each task last had a timer start, from the sessions (keyed by task id).
 pub(crate) fn last_used_by_task(sessions: &[TaskSession]) -> HashMap<String, DateTime<Utc>> {
@@ -106,7 +108,6 @@ pub fn create_tray_menu(
     app: &AppHandle,
     state: &AppState,
 ) -> Result<Menu<tauri::Wry>, tauri::Error> {
-    let config = get_config();
     log::debug!("Creating tray menu...");
     let menu = Menu::new(app)?;
 
@@ -180,9 +181,7 @@ pub fn create_tray_menu(
         .with_task_sessions(|sessions| last_used_by_task(sessions))
         .unwrap_or_default();
     let has_tasks = state
-        .with_tasks(|tasks| {
-            !visible_tasks(tasks, &last_used, config.tray_max_recent_tasks).is_empty()
-        })
+        .with_tasks(|tasks| !visible_tasks(tasks, &last_used, TRAY_MAX_RECENT_TASKS).is_empty())
         .unwrap_or(false);
 
     if has_tasks {
@@ -192,7 +191,7 @@ pub fn create_tray_menu(
         // Add recent/favorite tasks (limit to configured max)
         state
             .with_tasks(|tasks| {
-                for task in visible_tasks(tasks, &last_used, config.tray_max_recent_tasks) {
+                for task in visible_tasks(tasks, &last_used, TRAY_MAX_RECENT_TASKS) {
                     let menu_id = format!("start_task_{}", task.id);
                     let label = if task.is_favorite {
                         format!("★ {}", task.name)
@@ -308,9 +307,7 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
         // The app picks: its start dialog, or the Tasks page when there are
         // no tasks to start yet.
         "choose_task" | "add_task" => {
-            if let Err(e) = app.emit("show-start-task-dialog", ()) {
-                log::error!("Failed to emit show-start-task-dialog event: {}", e);
-            }
+            crate::events::emit_quiet(app, crate::events::SHOW_START_TASK_DIALOG, ());
             show_main_window(app);
         }
         "show_app" => {
@@ -395,7 +392,6 @@ pub fn sync_tray(app: &AppHandle, state: &AppState) {
 }
 
 pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
-    let config = get_config();
     log::debug!("Starting system tray setup...");
 
     // Check if tray icon already exists to prevent duplicates
@@ -426,7 +422,7 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
     let tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
-        .tooltip(&config.tray_tooltip_app_name)
+        .tooltip(TRAY_TOOLTIP_APP_NAME)
         .on_tray_icon_event({
             let app_handle = app.clone();
             move |_tray, event| {
@@ -454,8 +450,6 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
 }
 
 fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
-    let config = get_config();
-
     // Try primary icon first
     let primary_icon_bytes = include_bytes!("../icons/32x32.png");
     log::debug!(
@@ -467,16 +461,12 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
         Ok(icon) => {
             log::debug!(
                 "Successfully created icon from primary {}",
-                config.icon_tray_primary
+                ICON_TRAY_PRIMARY
             );
             Ok(icon)
         }
         Err(e) => {
-            log::error!(
-                "Failed to create icon from {}: {:?}",
-                config.icon_tray_primary,
-                e
-            );
+            log::error!("Failed to create icon from {}: {:?}", ICON_TRAY_PRIMARY, e);
             log::debug!("Trying fallback icon...");
 
             // Try fallback icon
@@ -489,7 +479,7 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
             Image::from_bytes(fallback_icon_bytes).map_err(|e2| {
                 log::error!(
                     "Failed to create icon from fallback {}: {:?}",
-                    config.icon_tray_fallback,
+                    ICON_TRAY_FALLBACK,
                     e2
                 );
                 log::error!("Both primary and fallback icons failed!");
@@ -499,8 +489,7 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
     }
 }
 
-pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError> {
-    let config = get_config();
+pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), String> {
     let live = current_live_timer(state);
 
     let (tooltip, title) = match &live {
@@ -524,7 +513,7 @@ pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError>
         None => (
             format!(
                 "{} - No active timer (Click for menu)",
-                config.tray_tooltip_app_name
+                TRAY_TOOLTIP_APP_NAME
             ),
             // tray-icon's macOS set_title(None) is a no-op (it only calls
             // setTitle for Some), so an empty string is what clears it.
@@ -535,12 +524,12 @@ pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError>
     state.with_tray_icon(|tray_option| {
         let tray = tray_option
             .as_ref()
-            .ok_or_else(|| AppError::new("Tray icon not available"))?;
+            .ok_or_else(|| "Tray icon not available".to_string())?;
         tray.set_tooltip(Some(&tooltip))
-            .map_err(|e| AppError::new(format!("Failed to set tooltip: {}", e)))?;
+            .map_err(|e| format!("Failed to set tooltip: {}", e))?;
         if is_macos() {
             tray.set_title(Some(&title))
-                .map_err(|e| AppError::new(format!("Failed to set title: {}", e)))?;
+                .map_err(|e| format!("Failed to set title: {}", e))?;
         }
         Ok(())
     })?
@@ -549,13 +538,12 @@ pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), AppError>
 pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
     let app_clone = app.clone();
     let state_clone = state.clone();
-    let config = Config::default();
 
     std::thread::spawn(move || {
         let mut last_menu_update = std::time::Instant::now();
 
         loop {
-            std::thread::sleep(config.tray_status_update_duration());
+            std::thread::sleep(TRAY_STATUS_UPDATE_INTERVAL);
 
             // Picks up starts/stops made anywhere (app UI, tray, imports) and
             // keeps the running clock in the tooltip/title current.
@@ -574,7 +562,7 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
             // occasionally while running (sync_tray only rebuilds on change).
             if changed {
                 last_menu_update = std::time::Instant::now();
-            } else if running && last_menu_update.elapsed() >= config.tray_menu_refresh_duration() {
+            } else if running && last_menu_update.elapsed() >= TRAY_MENU_REFRESH_INTERVAL {
                 if let Err(e) = update_tray_menu(&app_clone, &state_clone) {
                     log::error!("Failed to update tray menu: {:?}", e);
                 }

@@ -1,6 +1,8 @@
 // Backup functionality
 
-use crate::config::get_config;
+use crate::config::{
+    BACKUP_FILENAME_EXTENSION, BACKUP_FILENAME_PREFIX, BACKUP_WRITE_TEST_FILENAME,
+};
 use crate::types::{BackupResult, PathValidationResult};
 use crate::utils::is_valid_backup_timestamp;
 use chrono::Utc;
@@ -8,7 +10,6 @@ use std::fs;
 use std::path::Path;
 
 pub fn validate_backup_path(path: &str) -> Result<PathValidationResult, String> {
-    let config = get_config();
     let backup_path = Path::new(path);
 
     // Check if path is empty
@@ -47,7 +48,7 @@ pub fn validate_backup_path(path: &str) -> Result<PathValidationResult, String> 
     }
 
     // Test write permissions by creating a temporary file
-    let test_file_path = backup_path.join(&config.backup_write_test_filename);
+    let test_file_path = backup_path.join(BACKUP_WRITE_TEST_FILENAME);
     match fs::write(&test_file_path, "test") {
         Ok(_) => {
             // Clean up test file
@@ -69,7 +70,6 @@ pub fn perform_automatic_backup(
     current_data_json: &str,
     max_backups: u32,
 ) -> Result<BackupResult, String> {
-    let config = get_config();
     let timestamp = Utc::now();
     // Keeping zero would prune the backup just written along with the rest
     if max_backups == 0 {
@@ -84,7 +84,7 @@ pub fn perform_automatic_backup(
     let timestamp_str = timestamp.format("%Y%m%d_%H%M%S").to_string();
     let filename = format!(
         "{}{}{}",
-        config.backup_filename_prefix, timestamp_str, config.backup_filename_extension
+        BACKUP_FILENAME_PREFIX, timestamp_str, BACKUP_FILENAME_EXTENSION
     );
     let file_path = Path::new(backup_path).join(&filename);
 
@@ -134,7 +134,6 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
     if max_backups == 0 {
         return Err("Refusing to delete every backup (max_backups is 0)".to_string());
     }
-    let config = get_config();
     let backup_dir = Path::new(backup_path);
 
     if !backup_dir.exists() {
@@ -151,12 +150,12 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
     for entry in entries.flatten() {
         let path = entry.path();
         if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-            if filename.starts_with(&config.backup_filename_prefix)
-                && filename.ends_with(&config.backup_filename_extension)
+            if filename.starts_with(BACKUP_FILENAME_PREFIX)
+                && filename.ends_with(BACKUP_FILENAME_EXTENSION)
             {
                 if let Some(timestamp_part) = filename
-                    .strip_prefix(&config.backup_filename_prefix)
-                    .and_then(|s| s.strip_suffix(&config.backup_filename_extension))
+                    .strip_prefix(BACKUP_FILENAME_PREFIX)
+                    .and_then(|s| s.strip_suffix(BACKUP_FILENAME_EXTENSION))
                 {
                     if is_valid_backup_timestamp(timestamp_part) {
                         backup_files.push(path.to_string_lossy().to_string());
@@ -205,10 +204,9 @@ mod tests {
     }
 
     fn write_backup(dir: &Path, stamp: &str) {
-        let config = get_config();
         let name = format!(
             "{}{}{}",
-            config.backup_filename_prefix, stamp, config.backup_filename_extension
+            BACKUP_FILENAME_PREFIX, stamp, BACKUP_FILENAME_EXTENSION
         );
         fs::write(dir.join(name), "{}").unwrap();
     }
@@ -243,8 +241,7 @@ mod tests {
         assert!(!dir
             .join(format!(
                 "{}20260101_120000{}",
-                get_config().backup_filename_prefix,
-                get_config().backup_filename_extension
+                BACKUP_FILENAME_PREFIX, BACKUP_FILENAME_EXTENSION
             ))
             .exists());
         fs::remove_dir_all(&dir).unwrap();

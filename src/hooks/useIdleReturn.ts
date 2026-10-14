@@ -12,6 +12,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { IdleChoice, IdlePause } from '../types/timer';
 import { isTauriEnvironment, safeInvoke } from '../utils/tauri';
 import { useTauriEvent } from './useTauriEvent';
+import { BACKEND_EVENTS } from '../constants/events';
 import { sendIdleSettings, useEnhancedTimerSettings } from './useEnhancedTimerSettings';
 import { errorMessage } from '../utils/errors';
 
@@ -35,11 +36,11 @@ export function useIdleReturn(): UseIdleReturnResult {
     void sendIdleSettings(inactivitySettings);
   }, [inactivitySettings]);
 
-  useTauriEvent<IdlePause>('idle-returned', event => {
+  useTauriEvent<IdlePause>(BACKEND_EVENTS.IDLE_RETURNED, event => {
     setError(null);
     setPending(event.payload);
   });
-  useTauriEvent('idle-resolved', () => {
+  useTauriEvent(BACKEND_EVENTS.IDLE_RESOLVED, () => {
     setPending(null);
     setError(null);
   });

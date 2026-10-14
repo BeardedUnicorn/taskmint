@@ -24,18 +24,19 @@ import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
 import { useTauriEvent } from './useTauriEvent';
+import { BACKEND_EVENTS } from '../constants/events';
 
 // Backend events that signal session data changed outside this hook's own
 // calls (timer-instance changes, work-log imports that rewrite sessions, and
 // task renames or moved timers)
 const TIMER_INSTANCE_EVENTS = [
-  'timer-instance-started',
-  'timer-instance-stopped',
-  'timer-instance-paused',
-  'timer-instance-resumed',
-  'timer-instance-deleted',
-  'work-logs-imported',
-  'sessions-changed',
+  BACKEND_EVENTS.TIMER_INSTANCE_STARTED,
+  BACKEND_EVENTS.TIMER_INSTANCE_STOPPED,
+  BACKEND_EVENTS.TIMER_INSTANCE_PAUSED,
+  BACKEND_EVENTS.TIMER_INSTANCE_RESUMED,
+  BACKEND_EVENTS.TIMER_INSTANCE_DELETED,
+  BACKEND_EVENTS.WORK_LOGS_IMPORTED,
+  BACKEND_EVENTS.SESSIONS_CHANGED,
 ] as const;
 
 // Helper to ensure timer instances always have a state value. The Rust

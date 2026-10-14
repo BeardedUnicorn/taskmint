@@ -2,13 +2,13 @@
 
 use crate::commands::sessions::{
     fill_imported_session_rates, fill_missing_session_rates, sync_session_task_names,
-    SESSIONS_CHANGED_EVENT,
 };
 use crate::commands::worklogs::sync_work_log_task_names;
+use crate::events::{emit_quiet, SESSIONS_CHANGED};
 use crate::state::AppState;
 use crate::storage;
 use crate::types::Task;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub fn update_tasks(
@@ -38,7 +38,7 @@ pub fn update_tasks(
         log::info!("Filled in hourly rates on sessions that had none");
     }
     if renamed {
-        let _ = app.emit(SESSIONS_CHANGED_EVENT, ());
+        emit_quiet(&app, SESSIONS_CHANGED, ());
     }
     app_state.with_work_logs_mut(|work_logs| -> Result<(), String> {
         if sync_work_log_task_names(&mut work_logs.entries, &mut work_logs.mappings, &tasks) {

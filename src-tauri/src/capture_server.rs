@@ -16,7 +16,7 @@
 use std::io::Read;
 
 use base64::Engine;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tiny_http::{Header, Method, Request, Response, Server};
 
 use crate::state::AppState;
@@ -157,8 +157,9 @@ pub fn accept_capture_payload(
     })?;
     // Non-fatal, like the other backend emits: the frontend also takes the
     // pending capture on mount.
-    let _ = app.emit(
-        "work-log-payload-captured",
+    crate::events::emit_quiet(
+        app,
+        crate::events::WORK_LOG_PAYLOAD_CAPTURED,
         serde_json::json!({ "receivedAt": received_at }),
     );
     Ok(())

@@ -7,6 +7,34 @@ use crate::types::{
 };
 use std::sync::{Arc, Mutex};
 
+/// Run `f` on the value behind `mutex`; a poisoned lock is an error naming
+/// `what`.
+fn with_lock<T, R>(mutex: &Mutex<T>, what: &str, f: impl FnOnce(&mut T) -> R) -> Result<R, String> {
+    let mut guard = mutex
+        .lock()
+        .map_err(|e| format!("Failed to lock {}: {}", what, e))?;
+    Ok(f(&mut guard))
+}
+
+/// A read accessor and a write accessor for one shared field.
+macro_rules! accessors {
+    ($read:ident, $write:ident, $field:ident, $ty:ty, $what:literal) => {
+        pub fn $read<T, F>(&self, f: F) -> Result<T, String>
+        where
+            F: FnOnce(&$ty) -> T,
+        {
+            with_lock(&self.$field, $what, |value| f(value))
+        }
+
+        pub fn $write<T, F>(&self, f: F) -> Result<T, String>
+        where
+            F: FnOnce(&mut $ty) -> T,
+        {
+            with_lock(&self.$field, $what, f)
+        }
+    };
+}
+
 // Imported work-log ledger + remembered project→task mappings, persisted
 // together in worklogs.json.
 #[derive(Default)]
@@ -70,229 +98,64 @@ impl AppState {
         }
     }
 
-    pub fn with_idle<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&IdleState) -> T,
-    {
-        let idle = self
-            .idle
-            .lock()
-            .map_err(|e| format!("Failed to lock idle state: {}", e))?;
-        Ok(f(&idle))
-    }
-
-    pub fn with_idle_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut IdleState) -> T,
-    {
-        let mut idle = self
-            .idle
-            .lock()
-            .map_err(|e| format!("Failed to lock idle state: {}", e))?;
-        Ok(f(&mut idle))
-    }
-
-    // Helper methods for accessing state with better error handling
-    pub fn with_tray_rendered<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&Option<TrayLiveKey>) -> T,
-    {
-        let rendered = self
-            .tray_rendered
-            .lock()
-            .map_err(|e| format!("Failed to lock tray state: {}", e))?;
-        Ok(f(&rendered))
-    }
-
-    pub fn with_tray_rendered_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut Option<TrayLiveKey>) -> T,
-    {
-        let mut rendered = self
-            .tray_rendered
-            .lock()
-            .map_err(|e| format!("Failed to lock tray state: {}", e))?;
-        Ok(f(&mut rendered))
-    }
-
-    pub fn with_tasks<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&Vec<Task>) -> T,
-    {
-        let tasks = self
-            .tasks
-            .lock()
-            .map_err(|e| format!("Failed to lock tasks: {}", e))?;
-        Ok(f(&tasks))
-    }
-
-    pub fn with_tasks_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut Vec<Task>) -> T,
-    {
-        let mut tasks = self
-            .tasks
-            .lock()
-            .map_err(|e| format!("Failed to lock tasks: {}", e))?;
-        Ok(f(&mut tasks))
-    }
-
-    pub fn with_tray_icon<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&Option<tauri::tray::TrayIcon>) -> T,
-    {
-        let tray = self
-            .tray_icon
-            .lock()
-            .map_err(|e| format!("Failed to lock tray icon: {}", e))?;
-        Ok(f(&tray))
-    }
-
-    pub fn with_tray_icon_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut Option<tauri::tray::TrayIcon>) -> T,
-    {
-        let mut tray = self
-            .tray_icon
-            .lock()
-            .map_err(|e| format!("Failed to lock tray icon: {}", e))?;
-        Ok(f(&mut tray))
-    }
-
-    // Task sessions methods
-    pub fn with_task_sessions<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&Vec<TaskSession>) -> T,
-    {
-        let sessions = self
-            .task_sessions
-            .lock()
-            .map_err(|e| format!("Failed to lock task sessions: {}", e))?;
-        Ok(f(&sessions))
-    }
-
-    pub fn with_task_sessions_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut Vec<TaskSession>) -> T,
-    {
-        let mut sessions = self
-            .task_sessions
-            .lock()
-            .map_err(|e| format!("Failed to lock task sessions: {}", e))?;
-        Ok(f(&mut sessions))
-    }
-
-    // Work-log store methods
-    pub fn with_work_logs<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&WorkLogStore) -> T,
-    {
-        let work_logs = self
-            .work_logs
-            .lock()
-            .map_err(|e| format!("Failed to lock work logs: {}", e))?;
-        Ok(f(&work_logs))
-    }
-
-    pub fn with_work_logs_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut WorkLogStore) -> T,
-    {
-        let mut work_logs = self
-            .work_logs
-            .lock()
-            .map_err(|e| format!("Failed to lock work logs: {}", e))?;
-        Ok(f(&mut work_logs))
-    }
-
-    // Browser-capture methods
-    pub fn with_pending_work_log_capture<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&Option<PendingCapture>) -> T,
-    {
-        let capture = self
-            .pending_work_log_capture
-            .lock()
-            .map_err(|e| format!("Failed to lock pending work log capture: {}", e))?;
-        Ok(f(&capture))
-    }
-
-    pub fn with_pending_work_log_capture_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut Option<PendingCapture>) -> T,
-    {
-        let mut capture = self
-            .pending_work_log_capture
-            .lock()
-            .map_err(|e| format!("Failed to lock pending work log capture: {}", e))?;
-        Ok(f(&mut capture))
-    }
-
-    pub fn with_capture_server_status<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&CaptureServerStatus) -> T,
-    {
-        let status = self
-            .capture_server_status
-            .lock()
-            .map_err(|e| format!("Failed to lock capture server status: {}", e))?;
-        Ok(f(&status))
-    }
-
-    pub fn with_capture_server_status_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut CaptureServerStatus) -> T,
-    {
-        let mut status = self
-            .capture_server_status
-            .lock()
-            .map_err(|e| format!("Failed to lock capture server status: {}", e))?;
-        Ok(f(&mut status))
-    }
-
-    pub fn with_work_log_load_warning<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&Option<String>) -> T,
-    {
-        let warning = self
-            .work_log_load_warning
-            .lock()
-            .map_err(|e| format!("Failed to lock work log load warning: {}", e))?;
-        Ok(f(&warning))
-    }
-
-    pub fn with_work_log_load_warning_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut Option<String>) -> T,
-    {
-        let mut warning = self
-            .work_log_load_warning
-            .lock()
-            .map_err(|e| format!("Failed to lock work log load warning: {}", e))?;
-        Ok(f(&mut warning))
-    }
-
-    pub fn with_session_load_warning<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&Option<String>) -> T,
-    {
-        let warning = self
-            .session_load_warning
-            .lock()
-            .map_err(|e| format!("Failed to lock session load warning: {}", e))?;
-        Ok(f(&warning))
-    }
-
-    pub fn with_session_load_warning_mut<T, F>(&self, f: F) -> Result<T, String>
-    where
-        F: FnOnce(&mut Option<String>) -> T,
-    {
-        let mut warning = self
-            .session_load_warning
-            .lock()
-            .map_err(|e| format!("Failed to lock session load warning: {}", e))?;
-        Ok(f(&mut warning))
-    }
+    accessors!(with_idle, with_idle_mut, idle, IdleState, "idle state");
+    accessors!(
+        with_tray_rendered,
+        with_tray_rendered_mut,
+        tray_rendered,
+        Option<TrayLiveKey>,
+        "tray state"
+    );
+    accessors!(with_tasks, with_tasks_mut, tasks, Vec<Task>, "tasks");
+    accessors!(
+        with_tray_icon,
+        with_tray_icon_mut,
+        tray_icon,
+        Option<tauri::tray::TrayIcon>,
+        "tray icon"
+    );
+    accessors!(
+        with_task_sessions,
+        with_task_sessions_mut,
+        task_sessions,
+        Vec<TaskSession>,
+        "task sessions"
+    );
+    accessors!(
+        with_work_logs,
+        with_work_logs_mut,
+        work_logs,
+        WorkLogStore,
+        "work logs"
+    );
+    accessors!(
+        with_pending_work_log_capture,
+        with_pending_work_log_capture_mut,
+        pending_work_log_capture,
+        Option<PendingCapture>,
+        "pending work log capture"
+    );
+    accessors!(
+        with_capture_server_status,
+        with_capture_server_status_mut,
+        capture_server_status,
+        CaptureServerStatus,
+        "capture server status"
+    );
+    accessors!(
+        with_work_log_load_warning,
+        with_work_log_load_warning_mut,
+        work_log_load_warning,
+        Option<String>,
+        "work log load warning"
+    );
+    accessors!(
+        with_session_load_warning,
+        with_session_load_warning_mut,
+        session_load_warning,
+        Option<String>,
+        "session load warning"
+    );
 }
 
 impl Default for AppState {
