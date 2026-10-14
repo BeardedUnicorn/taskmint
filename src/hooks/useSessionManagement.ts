@@ -23,6 +23,7 @@ import {
 import { formatDuration } from '../utils/formatters';
 import { useNotification } from '../contexts/NotificationContext';
 import { measurePerformance } from '../utils/performance';
+import { errorMessage } from '../utils/errors';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
 
 // Backend events that signal session data changed outside this hook's own
@@ -78,15 +79,6 @@ function findRunningInstance(
   return null;
 }
 
-// Tauri rejects Result<_, String> command errors with the plain string, not
-// an Error instance — `err instanceof Error` alone would hide every backend
-// message behind the generic fallback.
-function errorText(err: unknown, fallback: string): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string' && err.trim()) return err;
-  return fallback;
-}
-
 export function useSessionManagement(): UseSessionManagementReturn {
   const [sessions, setSessions] = useState<TaskSession[]>([]);
   const [activeSession, setActiveSessionState] = useState<TaskSession | null>(null);
@@ -114,13 +106,13 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
       setActiveTimer(findRunningInstance(normalizedSessions)?.instance ?? null);
     } catch (err) {
-      const errorMessage = errorText(err, 'Failed to load sessions');
-      setError(errorMessage);
+      const message = errorMessage(err, 'Failed to load sessions');
+      setError(message);
       // Keep the last-known-good sessions/activeSession/activeTimer: blanking
       // the list while the toolbar still shows an active session leaves the
       // UI inconsistent. Background refreshes also should not toast out of
       // nowhere.
-      if (!silent) showError(errorMessage);
+      if (!silent) showError(message);
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -167,9 +159,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         showSuccess('New timer instance created');
         return newInstance;
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to create timer instance');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to create timer instance');
+        setError(message);
+        showError(message);
         return null;
       } finally {
         setIsLoading(false);
@@ -204,9 +196,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
             );
             return;
           } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : String(err ?? '');
+            const failure = errorMessage(err, '');
 
-            if (attempt < maxAttempts && errorMessage.includes('inactive session')) {
+            if (attempt < maxAttempts && failure.includes('inactive session')) {
               const parentSession = sessionsRef.current.find(s =>
                 s.timerInstances.some(t => t.id === instanceId)
               );
@@ -229,7 +221,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
               }
             }
 
-            if (attempt < maxAttempts && errorMessage.includes('Another timer instance is already running')) {
+            if (attempt < maxAttempts && failure.includes('Another timer instance is already running')) {
               const running = findRunningInstance(sessionsRef.current, instanceId);
               if (running) {
                 handoffTaskName = running.session.taskName;
@@ -239,7 +231,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
                   });
                   updateLocalSession(stoppedSession);
                 } catch (stopErr) {
-                  const stopMessage = stopErr instanceof Error ? stopErr.message : String(stopErr ?? '');
+                  const stopMessage = errorMessage(stopErr, '');
                   // Already stopped between our read and the call (e.g. a
                   // same-tick double start): the obstacle is gone, retry.
                   if (!stopMessage.includes('timer is not running')) throw stopErr;
@@ -252,9 +244,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
           }
         }
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to start timer');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to start timer');
+        setError(message);
+        showError(message);
       } finally {
         setIsLoading(false);
       }
@@ -275,9 +267,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         showSuccess('Timer stopped');
         return updatedSession;
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to stop timer');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to stop timer');
+        setError(message);
+        showError(message);
         return null;
       } finally {
         setIsLoading(false);
@@ -296,9 +288,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         showSuccess('Timer paused');
         return updatedSession;
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to pause timer');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to pause timer');
+        setError(message);
+        showError(message);
         return null;
       } finally {
         setIsLoading(false);
@@ -317,9 +309,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         showSuccess('Timer resumed');
         return updatedSession;
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to resume timer');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to resume timer');
+        setError(message);
+        showError(message);
         return null;
       } finally {
         setIsLoading(false);
@@ -337,9 +329,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         updateLocalSession(updatedSession);
         showSuccess('Timer deleted');
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to delete timer');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to delete timer');
+        setError(message);
+        showError(message);
       } finally {
         setIsLoading(false);
       }
@@ -356,9 +348,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         await loadSessions();
         showSuccess('Timer updated');
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to update timer');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to update timer');
+        setError(message);
+        showError(message);
       } finally {
         setIsLoading(false);
       }
@@ -396,9 +388,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
       } catch (err) {
         // A failed move after a saved duration still changed something
         await loadSessions({ silent: true });
-        const errorMessage = errorText(err, 'Failed to update timer');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to update timer');
+        setError(message);
+        showError(message);
         return null;
       } finally {
         setIsLoading(false);
@@ -477,9 +469,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         }
         return result;
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to start the task');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to start the task');
+        setError(message);
+        showError(message);
         return null;
       } finally {
         setIsLoading(false);
@@ -503,7 +495,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         showSuccess(`Added ${formatDuration(input.durationMs)} to "${input.taskName}" on ${day}`);
         return session;
       } catch (err) {
-        throw new Error(errorText(err, 'Failed to add the time entry'));
+        throw new Error(errorMessage(err, 'Failed to add the time entry'));
       }
     });
   }, [loadSessions, showSuccess]);
@@ -526,9 +518,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         updateLocalSession(updatedSession);
         return updatedSession;
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to update session');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to update session');
+        setError(message);
+        showError(message);
         return null;
       } finally {
         setIsLoading(false);
@@ -558,9 +550,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
         showSuccess('Session deleted successfully');
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to delete session');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to delete session');
+        setError(message);
+        showError(message);
       } finally {
         setIsLoading(false);
       }
@@ -610,9 +602,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
         }
         return true;
       } catch (err) {
-        const errorMessage = errorText(err, 'Failed to set active session');
-        setError(errorMessage);
-        showError(errorMessage);
+        const message = errorMessage(err, 'Failed to set active session');
+        setError(message);
+        showError(message);
         return false;
       } finally {
         setIsLoading(false);
@@ -647,8 +639,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
                 showSuccess('Session ended successfully.');
             }
         } catch (err) {
-            const errorMessage = errorText(err, 'Failed to end session');
-            showError(errorMessage);
+            const message = errorMessage(err, 'Failed to end session');
+            showError(message);
         } finally {
             setIsLoading(false);
         }
@@ -664,8 +656,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
             }
             if (runningTimers.length > 0) showSuccess(`Paused ${runningTimers.length} timer(s).`);
         } catch (err) {
-            const errorMessage = errorText(err, 'Failed to pause all timers');
-            showError(errorMessage);
+            const message = errorMessage(err, 'Failed to pause all timers');
+            showError(message);
         } finally {
             setIsLoading(false);
         }
@@ -685,8 +677,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
                 .sort((a, b) => pausedAtMs(b) - pausedAtMs(a))[0];
             if (mostRecent) await resumeTimerInstance(mostRecent.id);
         } catch (err) {
-            const errorMessage = errorText(err, 'Failed to resume all timers');
-            showError(errorMessage);
+            const message = errorMessage(err, 'Failed to resume all timers');
+            showError(message);
         } finally {
             setIsLoading(false);
         }

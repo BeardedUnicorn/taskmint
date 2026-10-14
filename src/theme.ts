@@ -122,11 +122,14 @@ export const darkTheme = createTheme({
             outline: '2px solid #65D6A1',
             outlineOffset: '2px',
           },
-          // Better hover contrast
+        }),
+        // Hover tint for text buttons only: on root it also replaced the
+        // contained buttons' fill (a red Delete went see-through on hover).
+        text: {
           '&:hover': {
             backgroundColor: 'rgba(101, 214, 161, 0.08)',
           },
-        }),
+        },
         contained: {
           boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
           '&:hover': {

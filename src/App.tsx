@@ -11,10 +11,12 @@ import { StartWorkDialog } from './components/ui/dialogs/StartWorkDialog';
 import { AddTimeDialog } from './components/ui/dialogs/AddTimeDialog';
 import { IdleReturnDialog } from './components/ui/dialogs/IdleReturnDialog';
 import { useIdleReturn } from './hooks/useIdleReturn';
-import { Sidebar, type SidebarView } from './components/layout';
+import { Sidebar } from './components/layout';
+import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { GoalProgress } from './components/layout/GoalProgress';
 import { DailyGoalProvider } from './contexts/DailyGoalContext';
 import { TaskNotesProvider } from './contexts/TaskNotesContext';
+import { NoteTemplatesProvider } from './contexts/NoteTemplatesContext';
 import { useSessionNotesMigration } from './hooks/useSessionNotesMigration';
 
 const TasksPage = lazy(() => import('./components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
@@ -26,7 +28,6 @@ const SettingsPage = lazy(() => import('./components/pages/SettingsPage').then(m
 import { SessionDashboard } from './components/pages/SessionDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TimeEntry } from './types/timer';
-import { Task } from './types/task';
 import { EditTimeEntryData } from './types/form';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
@@ -41,11 +42,9 @@ import { TaskManagementProvider, useTaskManagementContext } from './contexts/Tas
 // AppContent component contains the main application logic and UI.
 // It is wrapped by all necessary context providers in the App component.
 function AppContent() {
-  const [activeView, setActiveView] = useState<SidebarView>('sessions');
+  const { view: activeView, params: viewParams, navigate, clearParams } = useNavigation();
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [addTimeDialogOpen, setAddTimeDialogOpen] = useState(false);
-  // A task whose entries History should open on (Tasks → View all in History)
-  const [historyFocusTask, setHistoryFocusTask] = useState<Task | null>(null);
 
   const appErrorHandler = useMemo(() => createServiceErrorHandler('AppContent'), []);
 
@@ -93,11 +92,16 @@ function AppContent() {
     if (hasActiveTasks) {
       setStartDialogOpen(true);
     } else {
-      setActiveView('tasks');
+      navigate('tasks');
     }
-  }, [hasActiveTasks]);
+  }, [hasActiveTasks, navigate]);
   useEnhancedSystemTray({ tasks, onShowStartDialog: showStartDialog });
-  const openTasksPage = useCallback(() => setActiveView('tasks'), []);
+  const openTasksPage = useCallback(() => navigate('tasks'), [navigate]);
+  // A task whose entries History should open on (Tasks → View all in History)
+  const historyFocusTask = useMemo(
+    () => (viewParams.focusTaskId ? tasks.find(task => task.id === viewParams.focusTaskId) ?? null : null),
+    [viewParams.focusTaskId, tasks]
+  );
 
   // Idle detection runs in the backend; this sends it the saved settings and
   // holds its "you were away" question.
@@ -109,10 +113,6 @@ function AppContent() {
     sessions: sessionManager.sessions,
     tasks,
   });
-
-  const handleViewChange = (view: SidebarView) => {
-    setActiveView(view);
-  };
 
   // Duration edits, and moves to another task when one was picked
   const saveTimerEdit = useTimerEntryEdit();
@@ -138,7 +138,7 @@ function AppContent() {
       <Box sx={{ height: '100vh', display: 'flex' }}>
         <Sidebar
           activeView={activeView}
-          onViewChange={handleViewChange}
+          onViewChange={navigate}
           footer={
             goalProgress.enabled
               ? (collapsed) => <GoalProgress progress={goalProgress} collapsed={collapsed} />
@@ -174,10 +174,7 @@ function AppContent() {
                   onDeleteEntry={handleDeleteEntry}
                   onStartTask={(task) => { void sessionManager.startTask(task.id, task.name); }}
                   runningTaskId={activeEntry?.taskId ?? null}
-                  onViewHistory={(task) => {
-                    setHistoryFocusTask(task);
-                    setActiveView('history');
-                  }}
+                  onViewHistory={(task) => navigate('history', { focusTaskId: task.id })}
                 />
               )}
               {activeView === 'notes' && (
@@ -195,7 +192,7 @@ function AppContent() {
                   onDeleteEntry={handleDeleteEntry}
                   onAddTime={() => setAddTimeDialogOpen(true)}
                   focusTask={historyFocusTask}
-                  onFocusApplied={() => setHistoryFocusTask(null)}
+                  onFocusApplied={clearParams}
                 />
               )}
               {activeView === 'calendar' && <CalendarPage />}
@@ -236,23 +233,27 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <NotificationProvider>
-          <TaskManagementProvider>
-            <DailyGoalProvider>
-              <ActiveTimerProvider>
-                <SessionManagementProvider>
-                  <TaskNotesProvider>
-                    <WorkLogProvider>
-                      <BackupSettingsProvider>
-                        <AppContent />
-                      </BackupSettingsProvider>
-                    </WorkLogProvider>
-                  </TaskNotesProvider>
-                </SessionManagementProvider>
-              </ActiveTimerProvider>
-            </DailyGoalProvider>
-          </TaskManagementProvider>
-        </NotificationProvider>
+        <NavigationProvider>
+          <NotificationProvider>
+            <TaskManagementProvider>
+              <DailyGoalProvider>
+                <ActiveTimerProvider>
+                  <SessionManagementProvider>
+                    <TaskNotesProvider>
+                      <NoteTemplatesProvider>
+                        <WorkLogProvider>
+                          <BackupSettingsProvider>
+                            <AppContent />
+                          </BackupSettingsProvider>
+                        </WorkLogProvider>
+                      </NoteTemplatesProvider>
+                    </TaskNotesProvider>
+                  </SessionManagementProvider>
+                </ActiveTimerProvider>
+              </DailyGoalProvider>
+            </TaskManagementProvider>
+          </NotificationProvider>
+        </NavigationProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

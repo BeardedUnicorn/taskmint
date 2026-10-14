@@ -21,14 +21,7 @@ import {
   WorkLogsResponse,
 } from '../types/workLog';
 import { useNotification } from '../contexts/NotificationContext';
-
-// Tauri rejects Result<_, String> command errors with the plain string, not
-// an Error instance (same handling as useSessionManagement).
-function errorText(err: unknown, fallback: string): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string' && err.trim()) return err;
-  return fallback;
-}
+import { errorMessage } from '../utils/errors';
 
 export interface UseWorkLogsReturn {
   entries: WorkLogEntry[];
@@ -58,7 +51,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
       setMappings(response.mappings ?? []);
       setLoadWarning(response.loadWarning ?? null);
     } catch (err) {
-      const message = errorText(err, 'Failed to load work logs');
+      const message = errorMessage(err, 'Failed to load work logs');
       setError(message);
       showError(message);
     } finally {
@@ -74,7 +67,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
         await reload();
         return summary;
       } catch (err) {
-        const message = errorText(err, 'Failed to apply work-log import');
+        const message = errorMessage(err, 'Failed to apply work-log import');
         setError(message);
         showError(message);
         return null;

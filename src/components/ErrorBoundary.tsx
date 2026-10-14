@@ -44,8 +44,12 @@ interface ErrorBoundaryProps {
  * Catches JavaScript errors anywhere in the child component tree,
  * logs those errors, and displays a fallback UI instead of the component tree that crashed.
  */
+/** How long the children must render without an error before auto-recovery starts counting afresh. */
+const STABLE_RESET_MS = 10_000;
+
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  private recoveryTimeoutId: NodeJS.Timeout | null = null;
+  private recoveryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private stableTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -89,9 +93,33 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     this.attemptAutoRecovery();
   }
 
+  componentDidUpdate(_prevProps: ErrorBoundaryProps, prevState: ErrorBoundaryState) {
+    // Recovered: once the children have rendered cleanly for a while, a later
+    // error gets the full set of automatic retries again.
+    const recovered = prevState.hasError && !this.state.hasError;
+    if (recovered && this.state.recoveryAttempts > 0) {
+      this.clearStableTimeout();
+      this.stableTimeoutId = setTimeout(() => {
+        this.stableTimeoutId = null;
+        this.setState({ recoveryAttempts: 0 });
+      }, STABLE_RESET_MS);
+    }
+    if (!prevState.hasError && this.state.hasError) {
+      this.clearStableTimeout();
+    }
+  }
+
   componentWillUnmount() {
     if (this.recoveryTimeoutId) {
       clearTimeout(this.recoveryTimeoutId);
+    }
+    this.clearStableTimeout();
+  }
+
+  private clearStableTimeout() {
+    if (this.stableTimeoutId) {
+      clearTimeout(this.stableTimeoutId);
+      this.stableTimeoutId = null;
     }
   }
 
@@ -132,15 +160,25 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     captureException(error, errorReport);
   };
 
-  private handleRetry = () => {
-    this.setState({
+  /** Render the children again. Automatic retries keep their count, so a
+   * persistent error stops after maxRecoveryAttempts instead of looping. */
+  private resetBoundary = (resetAttempts: boolean) => {
+    this.setState(prev => ({
       hasError: false,
       error: undefined,
       errorInfo: undefined,
       showDetails: false,
       isRecovering: false,
-      recoveryAttempts: 0,
-    });
+      recoveryAttempts: resetAttempts ? 0 : prev.recoveryAttempts,
+    }));
+  };
+
+  private handleRetry = () => {
+    if (this.recoveryTimeoutId) {
+      clearTimeout(this.recoveryTimeoutId);
+      this.recoveryTimeoutId = null;
+    }
+    this.resetBoundary(true);
   };
 
   private attemptAutoRecovery = () => {
@@ -157,8 +195,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     });
 
     this.recoveryTimeoutId = setTimeout(() => {
-      console.log(`🔄 ErrorBoundary: Attempting auto-recovery (${recoveryAttempts + 1}/${maxRecoveryAttempts})`);
-      this.handleRetry();
+      this.recoveryTimeoutId = null;
+      console.warn(`ErrorBoundary: retrying (${recoveryAttempts + 1}/${maxRecoveryAttempts})`);
+      this.resetBoundary(false);
     }, recoveryDelay);
   };
 

@@ -7,7 +7,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
-import { useWorkLogContext } from '../../contexts/WorkLogContext';
+import { useOptionalWorkLogContext } from '../../contexts/WorkLogContext';
 import { formatDateString, parseDateStringLocal } from '../../utils/dateHelpers';
 import { calendarLocalizer } from '../../utils/calendarLocalizer';
 import { buildPayoutCells, centsToDollars } from '../../utils/payoutCalculator';
@@ -17,6 +17,7 @@ import { TimerState } from '../../types/timer';
 import { WorkLogEntry } from '../../types/workLog';
 
 const localizer = calendarLocalizer;
+const EMPTY_ENTRIES: WorkLogEntry[] = [];
 
 interface CalendarEvent {
   id: string;
@@ -83,13 +84,7 @@ const CalendarPage: React.FC = () => {
   const { sessions, isLoading: sessionsLoading } = useSessionManagementContext();
   const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
 
-  let workLogEntries: WorkLogEntry[] = [];
-  try {
-    const workLogs = useWorkLogContext();
-    workLogEntries = workLogs?.entries ?? [];
-  } catch {
-    // Graceful fallback if rendered without WorkLogProvider in isolated tests
-  }
+  const workLogEntries: WorkLogEntry[] = useOptionalWorkLogContext()?.entries ?? EMPTY_ENTRIES;
 
   const loading = (sessionsLoading && sessions.length === 0) || tasksLoading;
 

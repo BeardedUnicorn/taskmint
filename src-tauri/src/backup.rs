@@ -71,6 +71,16 @@ pub fn perform_automatic_backup(
 ) -> Result<BackupResult, String> {
     let config = get_config();
     let timestamp = Utc::now();
+    // Keeping zero would prune the backup just written along with the rest
+    if max_backups == 0 {
+        return Ok(BackupResult {
+            success: false,
+            file_path: None,
+            error: Some("Keep at least one backup (the limit is set to 0)".to_string()),
+            timestamp: timestamp.to_rfc3339(),
+            file_size: None,
+        });
+    }
     let timestamp_str = timestamp.format("%Y%m%d_%H%M%S").to_string();
     let filename = format!(
         "{}{}{}",
@@ -121,6 +131,9 @@ pub fn perform_automatic_backup(
 }
 
 fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String> {
+    if max_backups == 0 {
+        return Err("Refusing to delete every backup (max_backups is 0)".to_string());
+    }
     let config = get_config();
     let backup_dir = Path::new(backup_path);
 
@@ -179,4 +192,61 @@ fn cleanup_old_backups(backup_path: &str, max_backups: u32) -> Result<(), String
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_backup_dir() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("taskmint-backup-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_backup(dir: &Path, stamp: &str) {
+        let config = get_config();
+        let name = format!(
+            "{}{}{}",
+            config.backup_filename_prefix, stamp, config.backup_filename_extension
+        );
+        fs::write(dir.join(name), "{}").unwrap();
+    }
+
+    fn backup_count(dir: &Path) -> usize {
+        fs::read_dir(dir).unwrap().count()
+    }
+
+    #[test]
+    fn a_limit_of_zero_writes_nothing_and_deletes_nothing() {
+        let dir = temp_backup_dir();
+        write_backup(&dir, "20260101_120000");
+
+        let result = perform_automatic_backup(dir.to_str().unwrap(), "{}", 0).unwrap();
+
+        assert!(!result.success);
+        assert!(result.error.unwrap().contains("at least one backup"));
+        assert_eq!(backup_count(&dir), 1);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn keeps_the_newest_backups_up_to_the_limit() {
+        let dir = temp_backup_dir();
+        write_backup(&dir, "20260101_120000");
+        write_backup(&dir, "20260102_120000");
+
+        let result = perform_automatic_backup(dir.to_str().unwrap(), "{}", 2).unwrap();
+
+        assert!(result.success);
+        assert_eq!(backup_count(&dir), 2);
+        assert!(!dir
+            .join(format!(
+                "{}20260101_120000{}",
+                get_config().backup_filename_prefix,
+                get_config().backup_filename_extension
+            ))
+            .exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }

@@ -16,6 +16,7 @@ import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
 import { TaskNotesProvider } from '../../contexts/TaskNotesContext';
+import { NoteTemplatesProvider } from '../../contexts/NoteTemplatesContext';
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -95,7 +96,9 @@ const renderDashboard = () =>
   render(<SessionDashboard />, {
     wrapper: ({ children }) => (
       <ActiveTimerProvider>
-        <TaskNotesProvider>{children}</TaskNotesProvider>
+        <TaskNotesProvider>
+          <NoteTemplatesProvider>{children}</NoteTemplatesProvider>
+        </TaskNotesProvider>
       </ActiveTimerProvider>
     ),
   });

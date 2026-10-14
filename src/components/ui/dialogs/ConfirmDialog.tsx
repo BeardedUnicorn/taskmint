@@ -1,4 +1,5 @@
 
+import { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -7,12 +8,16 @@ import {
   DialogActions,
   Button,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import { ConfirmDialogProps } from '../../../types/form';
 
 /**
  * Reusable confirmation dialog component
- * Provides consistent styling for delete confirmations and other destructive actions
+ * Provides consistent styling for delete confirmations and other destructive actions.
+ * For a destructive (error) confirmation, focus starts on Cancel so Enter
+ * can't confirm by accident. An async onConfirm keeps the dialog open, with
+ * its buttons disabled, until it settles.
  */
 export function ConfirmDialog({
   open,
@@ -27,12 +32,27 @@ export function ConfirmDialog({
   severity = 'warning',
   sx,
 }: ConfirmDialogProps) {
-  const handleConfirm = () => {
-    onConfirm();
-    onClose();
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  const handleConfirm = async () => {
+    const result = onConfirm();
+    if (!(result instanceof Promise)) {
+      onClose();
+      return;
+    }
+    setIsConfirming(true);
+    try {
+      await result;
+      onClose();
+    } catch {
+      // The caller reports the failure; stay open so the user can retry.
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const handleCancel = () => {
+    if (isConfirming) return;
     if (onCancel) {
       onCancel();
     }
@@ -60,7 +80,7 @@ export function ConfirmDialog({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={isConfirming ? undefined : onClose}
       maxWidth="sm"
       fullWidth
       sx={sx}
@@ -76,14 +96,21 @@ export function ConfirmDialog({
       </DialogContent>
       
       <DialogActions>
-        <Button onClick={handleCancel} color="secondary">
+        <Button
+          onClick={handleCancel}
+          color="secondary"
+          disabled={isConfirming}
+          autoFocus={severity === 'error'}
+        >
           {cancelLabel}
         </Button>
         <Button
-          onClick={handleConfirm}
+          onClick={() => void handleConfirm()}
           variant="contained"
           color={getConfirmButtonColor()}
-          autoFocus
+          disabled={isConfirming}
+          autoFocus={severity !== 'error'}
+          startIcon={isConfirming ? <CircularProgress size={16} color="inherit" /> : undefined}
         >
           {confirmLabel}
         </Button>

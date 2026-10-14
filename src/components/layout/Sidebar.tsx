@@ -24,7 +24,9 @@ import {
   AttachMoney as PayoutsIcon,
 } from '@mui/icons-material';
 
-export type SidebarView = 'sessions' | 'tasks' | 'notes' | 'history' | 'calendar' | 'payouts' | 'settings';
+import { VIEWS, VIEW_LABELS, type SidebarView } from '../../navigation/views';
+
+export type { SidebarView };
 
 interface SidebarProps {
   activeView: SidebarView;
@@ -36,43 +38,17 @@ interface SidebarProps {
 const SIDEBAR_WIDTH = 240;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
 
-const navigationItems = [
-  {
-    id: 'sessions' as SidebarView,
-    label: 'Sessions',
-    icon: SessionsIcon,
-  },
-  {
-    id: 'tasks' as SidebarView,
-    label: 'Tasks',
-    icon: TaskIcon,
-  },
-  {
-    id: 'notes' as SidebarView,
-    label: 'Notes',
-    icon: NotesIcon,
-  },
-  {
-    id: 'history' as SidebarView,
-    label: 'History',
-    icon: HistoryIcon,
-  },
-  {
-    id: 'calendar' as SidebarView,
-    label: 'Calendar',
-    icon: CalendarIcon,
-  },
-  {
-    id: 'payouts' as SidebarView,
-    label: 'Payouts',
-    icon: PayoutsIcon,
-  },
-  {
-    id: 'settings' as SidebarView,
-    label: 'Settings',
-    icon: SettingsIcon,
-  },
-];
+const VIEW_ICONS: Record<SidebarView, typeof TaskIcon> = {
+  sessions: SessionsIcon,
+  tasks: TaskIcon,
+  notes: NotesIcon,
+  history: HistoryIcon,
+  calendar: CalendarIcon,
+  payouts: PayoutsIcon,
+  settings: SettingsIcon,
+};
+
+const navigationItems = VIEWS.map(id => ({ id, label: VIEW_LABELS[id], icon: VIEW_ICONS[id] }));
 
 export function Sidebar({ activeView, onViewChange, footer }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);

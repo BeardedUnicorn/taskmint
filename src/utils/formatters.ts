@@ -47,19 +47,20 @@ export function formatDate(date: Date): string {
 /**
  * Format currency amount with proper symbol and formatting
  */
-export function formatCurrency(amount: string | number): string {
-  const numericAmount = typeof amount === 'string' 
-    ? parseFloat(amount.replace(/[$,]/g, '')) 
+export function formatCurrency(amount: string | number, currency = 'USD'): string {
+  const numericAmount = typeof amount === 'string'
+    ? parseFloat(amount.replace(/[$,]/g, ''))
     : amount;
-  
-  if (isNaN(numericAmount)) {
-    return '$0.00';
+
+  const format = (value: number, code: string) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: code }).format(value);
+  const value = isNaN(numericAmount) ? 0 : numericAmount;
+  try {
+    return format(value, currency);
+  } catch {
+    // Not an ISO currency code
+    return format(value, 'USD');
   }
-  
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(numericAmount);
 }
 
 /**

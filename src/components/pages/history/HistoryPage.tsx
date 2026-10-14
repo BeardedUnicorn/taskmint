@@ -97,9 +97,16 @@ export function HistoryPage({
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   
-  // Arriving from a task's "View all in History": that task, all time
+  // Arriving from a task's "View all in History": that task, all time (once
+  // per request, however often the page re-renders before it's cleared)
+  const appliedFocusRef = React.useRef<Task | null>(null);
   React.useEffect(() => {
-    if (!focusTask) return;
+    if (!focusTask) {
+      appliedFocusRef.current = null;
+      return;
+    }
+    if (appliedFocusRef.current === focusTask) return;
+    appliedFocusRef.current = focusTask;
     setFilters({
       ...defaultFilters,
       selectedTasks: [focusTask],
@@ -108,8 +115,7 @@ export function HistoryPage({
       endDate: null,
     });
     onFocusApplied?.();
-    // Once per focus request: setFilters and the callback aren't stable
-  }, [focusTask]);
+  }, [focusTask, setFilters, onFocusApplied]);
 
   // Filter, then sort the whole list, then paginate — sorting after the
   // slice would only order the visible page.
@@ -253,7 +259,9 @@ export function HistoryPage({
         sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}
       >
         <Typography variant="body2" color="text.secondary">
-          Showing {startIndex + 1}-{Math.min(endIndex, filteredEntries.length)} of {filteredEntries.length} entries
+          {filteredEntries.length === 0
+            ? 'No entries'
+            : `Showing ${startIndex + 1}-${Math.min(endIndex, filteredEntries.length)} of ${filteredEntries.length} ${filteredEntries.length === 1 ? 'entry' : 'entries'}`}
           {filteredEntries.length !== timeEntries.length && (
             <> (filtered from {timeEntries.length} total)</>
           )}

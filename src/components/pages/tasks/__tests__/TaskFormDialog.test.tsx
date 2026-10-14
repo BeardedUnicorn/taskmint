@@ -65,6 +65,34 @@ describe('TaskFormDialog', () => {
     });
   });
 
+  it('submits once even when Add Task is clicked twice', async () => {
+    let finish!: (task: Task) => void;
+    const slowSubmit = vi.fn(() => new Promise<Task>(resolve => (finish = resolve)));
+    render(<TaskFormDialog open onClose={onClose} mode="add" initialTask={null} onSubmit={slowSubmit} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Enter task name...'), { target: { value: 'New Task' } });
+    fireEvent.click(screen.getByText('Add Task'));
+    fireEvent.click(screen.getByText('Add Task'));
+
+    expect(slowSubmit).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Add Task' })).toBeDisabled();
+    finish({ id: '1', name: 'New Task', createdAt: '', updatedAt: '' });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it('shows a taken name next to the name field', async () => {
+    const failing = vi.fn().mockRejectedValue(
+      Object.assign(new Error('A task with the name "Design" already exists'), { code: 'TASK_DUPLICATE_NAME' })
+    );
+    render(<TaskFormDialog open onClose={onClose} mode="add" initialTask={null} onSubmit={failing} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Enter task name...'), { target: { value: 'Design' } });
+    fireEvent.click(screen.getByText('Add Task'));
+
+    expect(await screen.findByText('A task with the name "Design" already exists')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('explains that a changed rate applies to new time only', () => {
     const task: Task = { id: '1', name: 'Existing Task', hourlyRate: 10, createdAt: '', updatedAt: '' };
     render(<TaskFormDialog open={true} onClose={onClose} mode="edit" initialTask={task} onSubmit={onSubmit} />);
