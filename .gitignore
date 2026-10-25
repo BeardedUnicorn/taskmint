@@ -33,5 +33,8 @@ dist-ssr
 # Test coverage output
 coverage/
 
+# Rust build output (Cargo workspace at the repo root)
+/target
+
 # Local Claude Code launch config
 .claude/

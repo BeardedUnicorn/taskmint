@@ -81,14 +81,14 @@ files, their `.bak` copies and `localStorage`.
 
 ## Browser capture (optional)
 
-`chrome-extension/` is a Chrome extension that captures your DataAnnotation
+`apps/extension/` is a Chrome extension that captures your DataAnnotation
 work logs from the payments page and delivers them to the app over
 `http://127.0.0.1:43117`, or through a `taskmint://` link that launches the app
 if it's closed. The app accepts localhost deliveries only from this
 extension's fixed ID. Payloads that arrive only by link wait in Payouts for
 review, since any web page can open a link. When the app window isn't in
 front, each capture's result also shows as a desktop notification. See
-[chrome-extension/README.md](chrome-extension/README.md).
+[apps/extension/README.md](apps/extension/README.md).
 
 ## Error reporting
 
@@ -118,12 +118,12 @@ off.
 ### Checks
 
 ```bash
-pnpm build                        # tsc + vite build
-pnpm test                         # vitest
+pnpm build                        # tsc for every package + desktop vite build
+pnpm test                         # vitest in every package
 pnpm test:coverage                # vitest with enforced coverage floors
-cd src-tauri && cargo test        # backend unit tests
-cd src-tauri && cargo clippy --all-targets -- -D warnings
-cd src-tauri && cargo fmt --check
+cargo test                        # Rust workspace tests
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all --check
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of these on pushes to `main` and on
@@ -144,20 +144,26 @@ above, dev builds include `debug`.
 
 ## Project layout
 
+A pnpm workspace and a Cargo workspace share the repo root. The plan for
+running TaskMint in browsers against a server is in
+[docs/adr/0001-web-support.md](docs/adr/0001-web-support.md).
+
 ```
-src/                     React frontend
-  components/pages/      One folder/file per page (payouts/, settings/, tasks/)
-  contexts/              App-wide providers: sessions, tasks, work logs, backups, …
-  hooks/                 Data hooks (useSessionManagement, useWorkLogs, useDataBackup, …)
-  services/              Tasks, notes, templates (appRecords.ts: the appdata.json cache)
-  utils/                 Pure logic: time math, payouts, work-log import, Sentry
-  types/                 Shared types and zod schemas
-src-tauri/               Rust backend
-  src/commands/          IPC commands (sessions, worklogs, restore, backup, reset, …)
-  src/storage.rs         sessions.json / worklogs.json / appdata.json persistence and .bak copies
-  src/capture_server.rs  localhost capture server and taskmint:// deep links
-  src/tray.rs            System tray
-  config.toml            Build-time constants (generated into Rust by build.rs)
-  capabilities/          Frontend permission grants
-chrome-extension/        Work-log capture extension (MV3)
+packages/client/             React app (@taskmint/client)
+  src/components/pages/      One folder/file per page (payouts/, settings/, tasks/)
+  src/contexts/              App-wide providers: sessions, tasks, work logs, backups, …
+  src/hooks/                 Data hooks (useSessionManagement, useWorkLogs, useDataBackup, …)
+  src/services/              Tasks, notes, templates (appRecords.ts: the appdata.json cache)
+  src/utils/                 Pure logic: time math, payouts, work-log import, Sentry
+  src/types/                 Shared types and zod schemas
+  public/                    Favicon and logos
+apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri shell
+  src-tauri/src/commands/    IPC commands (sessions, worklogs, restore, backup, reset, …)
+  src-tauri/src/storage.rs   sessions.json / worklogs.json / appdata.json persistence and .bak copies
+  src-tauri/src/capture_server.rs  localhost capture server and taskmint:// deep links
+  src-tauri/src/tray.rs      System tray
+  src-tauri/src/config.rs    Constants
+  src-tauri/capabilities/    Frontend permission grants
+apps/extension/              Work-log capture extension (MV3)
+docs/                        ADRs and the coverage policy
 ```

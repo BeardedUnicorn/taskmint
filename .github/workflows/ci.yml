@@ -27,8 +27,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # tsc + vite build. Must run before cargo: tauri::generate_context!
-      # embeds ../dist at compile time.
+      # tsc for every package + the desktop vite build. Must run before
+      # cargo: tauri::generate_context! embeds apps/desktop/dist.
       - run: pnpm build
 
       - run: pnpm test:coverage
@@ -38,17 +38,12 @@ jobs:
           components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
 
       - name: cargo fmt
-        working-directory: src-tauri
-        run: cargo fmt --check
+        run: cargo fmt --all --check
 
       - name: cargo clippy
-        working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: cargo test
-        working-directory: src-tauri
-        run: cargo test
+        run: cargo test --workspace
