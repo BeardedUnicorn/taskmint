@@ -1,0 +1,24 @@
+{
+  "name": "@taskmint/desktop",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p . && vite build",
+    "typecheck": "tsc -p .",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "build:win": "tauri build --target x86_64-pc-windows-msvc --runner cargo-xwin"
+  },
+  "dependencies": {
+    "@taskmint/client": "workspace:*"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "@taskmint/client",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    "./main": "./src/main.tsx"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run --exclude src/__tests__/integration/",
+    "test:integration": "vitest run src/__tests__/integration/",
+    "test:sessions": "vitest run src/hooks/__tests__/useSessionManagement.test.ts",
+    "test:session-system": "vitest run src/__tests__/integration/SessionSystem.integration.test.tsx"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/roboto-mono": "^5.3.0",
+    "@mui/icons-material": "^9.3.1",
+    "@mui/material": "^9.3.1",
+    "@mui/x-date-pickers": "^9.11.0",
+    "@sentry/react": "^10.70.0",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "dayjs": "^1.11.23",
+    "react": "catalog:",
+    "react-big-calendar": "^1.20.0",
+    "react-dom": "catalog:",
+    "recharts": "^3.10.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.4",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-big-calendar": "^1.16.3",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/ui": "^4.1.10",
+    "jsdom": "^30.0.1",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "^4.1.10"
+  }
+}
