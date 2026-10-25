@@ -26,7 +26,7 @@ We want:
 9. **Contracts:** ts-rs generates the wire types, and golden tests generate the shared constants. CI fails on drift.
 10. **Hosting:** local docker compose only for now, with production-shaped images.
 
-The full design and phase list are in the approved plan. The sections below record what the P0 spikes established.
+The full design and phase list are in [web-support-plan.md](../web-support-plan.md). The sections below record what the P0 spikes established.
 
 ## Baseline (2026-10-25, commit 5e7cc3e)
 
