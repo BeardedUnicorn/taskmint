@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH expired AS (\n            DELETE FROM auth_sessions WHERE user_id = $3 AND expires_at <= now()\n        )\n        INSERT INTO auth_sessions (token_hash, csrf_token, user_id, expires_at, user_agent, ip)\n        VALUES ($1, $2, $3, $4, $5, $6)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text",
+        "Uuid",
+        "Timestamptz",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6d5eabe09d3a02672177ba60f5b41a2fa9cf81e6dc0df2c4eabcce4c25ead66f"
+}

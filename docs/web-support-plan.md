@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config) and P4 (core extraction) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P4 (core extraction) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -163,6 +163,16 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
 - `RUST_LOG`, `TASKMINT_LOG_FORMAT`
 
 **CLI** (clap): `serve | migrate | healthcheck | admin …`.
+
+**As built in P8:**
+- sqlx is 0.8.6, because 0.9 needs rustc 1.94. The offline query data is in `apps/server/.sqlx`, and `.cargo/config.toml` sets `SQLX_OFFLINE=true` so builds never need a database.
+- Each operation is one SQL statement (CTEs), so a write and its audit row commit together with no explicit transaction.
+- Two additions:
+  - `GET password-resets/:token`, so the reset page can show whose password it sets.
+  - `api_tokens.kind` (`api` or `device`), so the tokens list can tell device tokens apart.
+- Accepting an invite creates the user and a session only. P9 adds the `workspaces` row.
+- Compose publishes the server on `127.0.0.1:${SERVER_PORT:-3000}` for the Vite proxy, and `db` on `${DB_PORT:-5433}`.
+- The image's `test` stage and the compose `test` profile are left for P11.
 
 ## 5. Frontend
 

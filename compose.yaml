@@ -1,0 +1,83 @@
+# Local stack. Copy .env.example to .env first; every variable has a default,
+# so `docker compose up` also works without one.
+#
+#   docker compose up --build -d --wait db migrate server
+#
+# The database is published on 127.0.0.1 only, for `cargo llvm-cov` /
+# `#[sqlx::test]` (see README "Server").
+
+name: taskmint
+
+x-server-image: &server-image
+  image: taskmint-server:local
+  build:
+    context: .
+    dockerfile: apps/server/Dockerfile
+
+x-database-url: &database-url
+  DATABASE_URL: postgres://taskmint:${POSTGRES_PASSWORD:-taskmint}@db:5432/taskmint
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: taskmint
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskmint}
+      POSTGRES_DB: taskmint
+    volumes:
+      # PG18 keeps PGDATA in a versioned folder under this path.
+      - db-data:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskmint -d taskmint"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  migrate:
+    <<: *server-image
+    command: ["migrate"]
+    environment:
+      <<: *database-url
+      RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      db:
+        condition: service_healthy
+    # The image's HEALTHCHECK is for `serve`; this one runs and exits.
+    healthcheck:
+      disable: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+
+  server:
+    <<: *server-image
+    command: ["serve"]
+    environment:
+      <<: *database-url
+      TASKMINT_BIND: 0.0.0.0:3000
+      TASKMINT_PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8080}
+      TASKMINT_COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TASKMINT_TRUST_PROXY: ${TRUST_PROXY:-false}
+      TASKMINT_ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      TASKMINT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      RUST_LOG: ${RUST_LOG:-info}
+      TASKMINT_LOG_FORMAT: ${LOG_FORMAT:-json}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "3000"
+    ports:
+      # Loopback only: the web app's dev server proxies /api here.
+      - "127.0.0.1:${SERVER_PORT:-3000}:3000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+volumes:
+  db-data:

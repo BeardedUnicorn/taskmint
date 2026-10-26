@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH reset AS (\n            UPDATE password_resets r SET used_at = now()\n            FROM users u\n            WHERE r.token_hash = $1 AND r.used_at IS NULL AND r.expires_at > now()\n              AND u.id = r.user_id AND u.disabled_at IS NULL\n            RETURNING r.id, r.user_id\n        ), updated AS (\n            UPDATE users SET password_hash = $2, password_changed_at = now(), updated_at = now()\n            WHERE id = (SELECT user_id FROM reset)\n            RETURNING id, username, display_name, role, time_zone\n        ), signed_out AS (\n            DELETE FROM auth_sessions WHERE user_id = (SELECT id FROM updated)\n        ), session AS (\n            INSERT INTO auth_sessions (token_hash, csrf_token, user_id, expires_at, user_agent, ip)\n            SELECT $3, $4, id, $5, $6, $7 FROM updated\n        ), audit AS (\n            INSERT INTO audit_events (actor_id, action, target_user_id, detail, ip)\n            SELECT updated.id, 'password_reset.accept', updated.id,\n                   jsonb_build_object('resetId', reset.id), $7\n            FROM updated, reset\n        )\n        SELECT id AS \"id!\", username AS \"username!\", display_name AS \"display_name!\",\n               role AS \"role!: Role\", time_zone AS \"time_zone!\"\n        FROM updated\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "username!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "role!: Role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "time_zone!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text",
+        "Bytea",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fce6eaeaf460431d5c9d26e6a3cfc2193e11973a741a678bc7b4e6918f0be703"
+}
