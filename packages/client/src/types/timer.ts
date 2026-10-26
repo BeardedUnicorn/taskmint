@@ -114,7 +114,7 @@ export const DEFAULT_INACTIVITY_SETTINGS: InactivitySettings = {
 
 /**
  * Provenance marker on sessions created by "Add time". Must match
- * MANUAL_SOURCE in apps/desktop/src-tauri/src/commands/sessions.rs.
+ * MANUAL_SOURCE in crates/taskmint-core/src/contract.rs.
  */
 export const MANUAL_SOURCE = 'manual';
 

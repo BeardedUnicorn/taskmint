@@ -16,7 +16,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { STORAGE_KEYS } from '../constants';
 import { isTauriEnvironment } from '../utils/tauri';
 
-/** Paired with APP_RECORD_KEYS in apps/desktop/src-tauri/src/storage.rs. */
+/** Paired with APP_RECORD_KEYS in crates/taskmint-core/src/contract.rs. */
 export const APP_RECORD_KEYS = [
   STORAGE_KEYS.PREDEFINED_TASKS,
   STORAGE_KEYS.TASK_NOTES,

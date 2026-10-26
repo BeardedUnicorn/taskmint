@@ -1,8 +1,9 @@
 // Idle-detection command handlers (see idle.rs for the monitor)
 
-use crate::idle::{self, IdleChoice, IdlePausePayload, IdleSettings};
+use crate::idle;
 use crate::state::AppState;
 use chrono::Utc;
+use taskmint_core::idle::{IdleChoice, IdlePausePayload, IdleSettings};
 use tauri::{AppHandle, State};
 
 /// The app mirrors its saved detection settings here at startup and whenever

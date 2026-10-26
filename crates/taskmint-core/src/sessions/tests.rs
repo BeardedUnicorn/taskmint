@@ -1,14 +1,23 @@
 //! Unit tests for the session commands and their helpers.
 
-use super::instances::*;
-use super::lifecycle::*;
+use super::instances::{self, *};
+use super::lifecycle::{self, *};
 use super::manual::*;
 use super::start::*;
 use super::task_links::*;
-use super::timer::*;
-use crate::types::{Task, TaskSession, TimerInstance, WorkLogEntry};
+use crate::contract::{
+    ERR_ANOTHER_TIMER_RUNNING, ERR_PAUSE_NOT_RUNNING, ERR_RESUME_INACTIVE_SESSION,
+    ERR_START_INACTIVE_SESSION, ERR_STOP_NOT_RUNNING, EXPORT_CANCELLED, MANUAL_SOURCE,
+    MAX_TIMER_INSTANCES_PER_SESSION, WORKLOG_IMPORT_SOURCE,
+};
+use crate::model::{Task, TaskSession, TimerInstance, WorkLogEntry};
+use crate::timer::*;
+use crate::zone::DayZone;
 use chrono::TimeZone;
 use chrono::{DateTime, Local, Utc};
+
+/// What the desktop app passes: the machine's own zone.
+const LOCAL: DayZone = DayZone::Local;
 
 fn ts(secs: i64) -> DateTime<Utc> {
     Utc.timestamp_opt(secs, 0).unwrap()
@@ -382,7 +391,8 @@ fn tray_start_opens_a_new_session_and_finalizes_the_previous_timer() {
     cur.timer_instances = vec![running];
     let mut sessions = vec![cur];
 
-    let (outcome, stopped) = start_task_timer(&mut sessions, "b", "Task b", None, ts(60)).unwrap();
+    let (outcome, stopped) =
+        start_task_timer(&mut sessions, "b", "Task b", None, ts(60), LOCAL).unwrap();
 
     assert_eq!(stopped, vec!["r".to_string()]);
     assert!(!sessions[0].is_active);
@@ -413,7 +423,8 @@ fn tray_start_for_the_active_task_continues_its_session() {
     cur.timer_instances = vec![done];
     let mut sessions = vec![cur];
 
-    let (outcome, stopped) = start_task_timer(&mut sessions, "a", "Task a", None, ts(100)).unwrap();
+    let (outcome, stopped) =
+        start_task_timer(&mut sessions, "a", "Task a", None, ts(100), LOCAL).unwrap();
 
     assert!(stopped.is_empty());
     assert_eq!(sessions.len(), 1);
@@ -433,7 +444,7 @@ fn tray_start_for_the_active_task_resumes_a_paused_timer() {
     cur.timer_instances = vec![paused];
     let mut sessions = vec![cur];
 
-    let (outcome, _) = start_task_timer(&mut sessions, "a", "Task a", None, ts(90)).unwrap();
+    let (outcome, _) = start_task_timer(&mut sessions, "a", "Task a", None, ts(90), LOCAL).unwrap();
 
     assert_eq!(outcome, TrayStart::Resumed("p".to_string()));
     let resumed = &sessions[0].timer_instances[0];
@@ -451,7 +462,8 @@ fn tray_start_is_a_no_op_when_the_task_is_already_running() {
     let mut sessions = vec![cur];
     let before = sessions.clone();
 
-    let (outcome, stopped) = start_task_timer(&mut sessions, "a", "Task a", None, ts(90)).unwrap();
+    let (outcome, stopped) =
+        start_task_timer(&mut sessions, "a", "Task a", None, ts(90), LOCAL).unwrap();
 
     assert_eq!(outcome, TrayStart::AlreadyRunning);
     assert!(stopped.is_empty());
@@ -490,9 +502,12 @@ fn start_reports_the_task_whose_timer_it_handed_off_from() {
     let mut sessions = vec![cur];
 
     let (outcome, stopped, handoff) =
-        start_task_with_handoff(&mut sessions, "b", "Task b", None, ts(60)).unwrap();
+        start_task_with_handoff(&mut sessions, "b", "Task b", None, ts(60), LOCAL).unwrap();
 
-    assert!(matches!(outcome, TrayStart::Started(_)));
+    assert_eq!(
+        outcome,
+        TrayStart::Started(sessions[1].timer_instances[0].id.clone())
+    );
     assert_eq!(stopped, vec!["r".to_string()]);
     assert_eq!(handoff.as_deref(), Some("Task a"));
 }
@@ -508,7 +523,7 @@ fn start_has_no_handoff_when_continuing_the_same_task() {
     let mut sessions = vec![cur];
 
     let (outcome, _, handoff) =
-        start_task_with_handoff(&mut sessions, "a", "Task a", None, ts(90)).unwrap();
+        start_task_with_handoff(&mut sessions, "a", "Task a", None, ts(90), LOCAL).unwrap();
 
     assert_eq!(outcome, TrayStart::Resumed("p".to_string()));
     assert_eq!(handoff, None);
@@ -518,7 +533,7 @@ fn start_has_no_handoff_when_continuing_the_same_task() {
 fn start_has_no_handoff_when_nothing_was_live() {
     let mut sessions = vec![tray_session("old", "a", false)];
     let (_, stopped, handoff) =
-        start_task_with_handoff(&mut sessions, "b", "Task b", None, ts(10)).unwrap();
+        start_task_with_handoff(&mut sessions, "b", "Task b", None, ts(10), LOCAL).unwrap();
     assert!(stopped.is_empty());
     assert_eq!(handoff, None);
 }
@@ -583,26 +598,62 @@ fn finished(id: &str, session_id: &str, start: i64, end: i64) -> TimerInstance {
 
 const HOUR_MS: u64 = 3_600_000;
 
+fn entry<'a>(
+    task_id: &'a str,
+    task_name: &'a str,
+    hourly_rate: Option<f64>,
+    start: DateTime<Utc>,
+    duration_ms: u64,
+) -> ManualEntry<'a> {
+    ManualEntry {
+        task_id,
+        task_name,
+        hourly_rate,
+        start,
+        duration_ms,
+    }
+}
+
 #[test]
 fn manual_time_rejects_invalid_entries() {
     let now = ts(100_000);
     let start = ts(10_000);
-    assert!(build_manual_session(&[], "", "Task", None, start, HOUR_MS, now).is_err());
+    assert!(
+        build_manual_session(&[], &entry("", "Task", None, start, HOUR_MS), now, LOCAL).is_err()
+    );
     assert_eq!(
-        build_manual_session(&[], "a", "Task a", None, start, 0, now).unwrap_err(),
+        build_manual_session(&[], &entry("a", "Task a", None, start, 0), now, LOCAL).unwrap_err(),
         "Duration must be greater than zero"
     );
     assert_eq!(
-        build_manual_session(&[], "a", "Task a", None, start, 24 * HOUR_MS + 1, now).unwrap_err(),
+        build_manual_session(
+            &[],
+            &entry("a", "Task a", None, start, 24 * HOUR_MS + 1),
+            now,
+            LOCAL
+        )
+        .unwrap_err(),
         "A time entry can be at most 24 hours"
     );
     // Ends 30 minutes after "now"
     assert_eq!(
-        build_manual_session(&[], "a", "Task a", None, ts(98_000), HOUR_MS, now).unwrap_err(),
+        build_manual_session(
+            &[],
+            &entry("a", "Task a", None, ts(98_000), HOUR_MS),
+            now,
+            LOCAL
+        )
+        .unwrap_err(),
         "The time entry can't end in the future"
     );
     // Ending within the clock-skew tolerance is fine
-    assert!(build_manual_session(&[], "a", "Task a", None, ts(96_430), HOUR_MS, now).is_ok());
+    assert!(build_manual_session(
+        &[],
+        &entry("a", "Task a", None, ts(96_430), HOUR_MS),
+        now,
+        LOCAL
+    )
+    .is_ok());
 }
 
 #[test]
@@ -615,27 +666,27 @@ fn manual_time_rejects_overlap_with_tracked_time() {
     // Starts inside the finished timer
     let err = build_manual_session(
         &[done.clone()],
-        "a",
-        "Task a",
-        None,
-        ts(12_000),
-        HOUR_MS,
+        &entry("a", "Task a", None, ts(12_000), HOUR_MS),
         now,
+        LOCAL,
     )
     .unwrap_err();
     assert!(err.contains("Earlier work"), "{}", err);
     // Touching end to start is not an overlap
     assert!(build_manual_session(
         &[done.clone()],
-        "a",
-        "Task a",
-        None,
-        ts(13_600),
-        HOUR_MS,
-        now
+        &entry("a", "Task a", None, ts(13_600), HOUR_MS),
+        now,
+        LOCAL
     )
     .is_ok());
-    assert!(build_manual_session(&[done], "a", "Task a", None, ts(6_400), HOUR_MS, now).is_ok());
+    assert!(build_manual_session(
+        &[done],
+        &entry("a", "Task a", None, ts(6_400), HOUR_MS),
+        now,
+        LOCAL
+    )
+    .is_ok());
 
     // A live timer occupies its start up to now
     let mut live = tray_instance("r", "cur", 90_000);
@@ -644,12 +695,9 @@ fn manual_time_rejects_overlap_with_tracked_time() {
     cur.timer_instances = vec![live];
     assert!(build_manual_session(
         &[cur.clone()],
-        "a",
-        "Task a",
-        None,
-        ts(88_000),
-        HOUR_MS,
-        now
+        &entry("a", "Task a", None, ts(88_000), HOUR_MS),
+        now,
+        LOCAL
     )
     .is_err());
     // Idle (never run) timers occupy nothing
@@ -657,12 +705,9 @@ fn manual_time_rejects_overlap_with_tracked_time() {
     idle_session.timer_instances = vec![tray_instance("i", "idle", 88_000)];
     assert!(build_manual_session(
         &[idle_session],
-        "a",
-        "Task a",
-        None,
-        ts(88_000),
-        HOUR_MS,
-        now
+        &entry("a", "Task a", None, ts(88_000), HOUR_MS),
+        now,
+        LOCAL
     )
     .is_ok());
 }
@@ -672,7 +717,13 @@ fn manual_time_builds_an_inactive_manual_session_on_the_local_start_day() {
     let now = ts(100_000);
     let start = ts(20_000);
 
-    let session = build_manual_session(&[], "a", "Task a", None, start, 90 * 60_000, now).unwrap();
+    let session = build_manual_session(
+        &[],
+        &entry("a", "Task a", None, start, 90 * 60_000),
+        now,
+        LOCAL,
+    )
+    .unwrap();
 
     assert!(!session.is_active);
     assert_eq!(session.source.as_deref(), Some(MANUAL_SOURCE));
@@ -713,18 +764,18 @@ fn rated_task(id: &str, rate: Option<f64>) -> Task {
 #[test]
 fn a_new_session_captures_the_rate_and_continuing_keeps_it() {
     let mut sessions = Vec::new();
-    start_task_timer(&mut sessions, "a", "Task a", Some(40.0), ts(0)).unwrap();
+    start_task_timer(&mut sessions, "a", "Task a", Some(40.0), ts(0), LOCAL).unwrap();
     assert_eq!(sessions[0].hourly_rate, Some(40.0));
 
     // Pause, then start the same task again at a new rate: same session,
     // same rate.
     pause_live_timer(&mut sessions, ts(60));
-    start_task_timer(&mut sessions, "a", "Task a", Some(55.0), ts(120)).unwrap();
+    start_task_timer(&mut sessions, "a", "Task a", Some(55.0), ts(120), LOCAL).unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].hourly_rate, Some(40.0));
 
     // Another task opens its own session at its own rate
-    start_task_timer(&mut sessions, "b", "Task b", Some(25.0), ts(180)).unwrap();
+    start_task_timer(&mut sessions, "b", "Task b", Some(25.0), ts(180), LOCAL).unwrap();
     assert_eq!(sessions[1].hourly_rate, Some(25.0));
 }
 
@@ -732,12 +783,9 @@ fn a_new_session_captures_the_rate_and_continuing_keeps_it() {
 fn manual_time_captures_the_rate() {
     let session = build_manual_session(
         &[],
-        "a",
-        "Task a",
-        Some(32.5),
-        ts(1_000),
-        60_000,
+        &entry("a", "Task a", Some(32.5), ts(1_000), 60_000),
         ts(10_000),
+        LOCAL,
     )
     .unwrap();
     assert_eq!(session.hourly_rate, Some(32.5));
@@ -779,7 +827,7 @@ fn older_imported_sessions_get_the_rate_the_site_pay_implies() {
         ..tray_instance(id, "imp", 0)
     };
     let mut imported = tray_session("imp", "a", false);
-    imported.source = Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE.to_string());
+    imported.source = Some(WORKLOG_IMPORT_SOURCE.to_string());
     imported.timer_instances = vec![timer("i1", "e1", 40), timer("i2", "e2", 20)];
     let tracked = tray_session("tracked", "a", false);
     let mut sessions = vec![imported, tracked];
@@ -860,13 +908,13 @@ fn starting_a_task_whose_active_session_is_from_an_earlier_day_opens_a_new_one()
     let mut sessions = vec![old];
 
     let (outcome, stopped) =
-        start_task_timer(&mut sessions, "a", "Task a", Some(30.0), now).unwrap();
+        start_task_timer(&mut sessions, "a", "Task a", Some(30.0), now, LOCAL).unwrap();
 
     assert!(stopped.is_empty());
     assert!(!sessions[0].is_active);
     let today = &sessions[1];
     assert!(today.is_active);
-    assert_eq!(today.date, local_day(now));
+    assert_eq!(today.date, LOCAL.day(now));
     assert_eq!(today.hourly_rate, Some(30.0));
     assert_eq!(
         outcome,
@@ -886,7 +934,7 @@ fn a_timer_left_paused_on_an_earlier_day_is_finalized_by_the_rollover() {
     old.timer_instances = vec![paused];
     let mut sessions = vec![old];
 
-    let (_, stopped) = start_task_timer(&mut sessions, "a", "Task a", None, now).unwrap();
+    let (_, stopped) = start_task_timer(&mut sessions, "a", "Task a", None, now, LOCAL).unwrap();
 
     assert_eq!(stopped, vec!["p".to_string()]);
     assert_eq!(sessions[0].timer_instances[0].duration, Some(60_000));
@@ -903,7 +951,7 @@ fn a_timer_still_running_from_an_earlier_day_keeps_its_session() {
     old.timer_instances = vec![running];
     let mut sessions = vec![old];
 
-    let (outcome, _) = start_task_timer(&mut sessions, "a", "Task a", None, now).unwrap();
+    let (outcome, _) = start_task_timer(&mut sessions, "a", "Task a", None, now, LOCAL).unwrap();
     assert_eq!(outcome, TrayStart::AlreadyRunning);
     assert_eq!(sessions.len(), 1);
 }
@@ -912,11 +960,11 @@ fn a_timer_still_running_from_an_earlier_day_keeps_its_session() {
 fn a_same_day_session_is_continued() {
     let now = ts(1_800_000_000);
     let mut cur = tray_session("cur", "a", true);
-    cur.date = local_day(now);
+    cur.date = LOCAL.day(now);
     cur.timer_instances = vec![finished("done", "cur", 0, 60)];
     let mut sessions = vec![cur];
 
-    start_task_timer(&mut sessions, "a", "Task a", None, now).unwrap();
+    start_task_timer(&mut sessions, "a", "Task a", None, now, LOCAL).unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].timer_instances.len(), 2);
 }
@@ -928,8 +976,16 @@ fn moving_a_sessions_only_timer_repoints_the_session() {
     only.timer_instances = vec![finished("t", "s", 0, 60)];
     let mut sessions = vec![only];
 
-    let (id, changed) =
-        move_instance_to_task(&mut sessions, "t", "b", "Task b", Some(50.0), ts(100)).unwrap();
+    let (id, changed) = move_instance_to_task(
+        &mut sessions,
+        "t",
+        "b",
+        "Task b",
+        Some(50.0),
+        ts(100),
+        LOCAL,
+    )
+    .unwrap();
 
     assert!(changed);
     assert_eq!(id, "s");
@@ -951,8 +1007,16 @@ fn moving_one_of_several_timers_splits_it_into_its_own_session() {
     recalculate_total_duration(&mut cur);
     let mut sessions = vec![cur];
 
-    let (id, changed) =
-        move_instance_to_task(&mut sessions, "move", "b", "Task b", None, ts(start + 500)).unwrap();
+    let (id, changed) = move_instance_to_task(
+        &mut sessions,
+        "move",
+        "b",
+        "Task b",
+        None,
+        ts(start + 500),
+        LOCAL,
+    )
+    .unwrap();
 
     assert!(changed);
     assert_eq!(sessions.len(), 2);
@@ -963,19 +1027,19 @@ fn moving_one_of_several_timers_splits_it_into_its_own_session() {
     assert!(!moved.is_active);
     assert_eq!(moved.task_id, "b");
     assert_eq!(moved.source.as_deref(), Some(MANUAL_SOURCE));
-    assert_eq!(moved.date, local_day(ts(start + 100)));
+    assert_eq!(moved.date, LOCAL.day(ts(start + 100)));
     assert_eq!(moved.total_duration, 300_000);
     assert_eq!(moved.timer_instances[0].session_id, id);
 }
 
 #[test]
-fn an_inactive_session_a_move_leaves_empty_is_removed() {
+fn moving_every_timer_out_of_an_inactive_session_leaves_no_empty_one() {
     let mut two = tray_session("s", "a", false);
     two.timer_instances = vec![finished("x", "s", 0, 60), finished("y", "s", 100, 160)];
     let mut sessions = vec![two];
 
-    move_instance_to_task(&mut sessions, "x", "b", "Task b", None, ts(200)).unwrap();
-    move_instance_to_task(&mut sessions, "y", "b", "Task b", None, ts(200)).unwrap();
+    move_instance_to_task(&mut sessions, "x", "b", "Task b", None, ts(200), LOCAL).unwrap();
+    move_instance_to_task(&mut sessions, "y", "b", "Task b", None, ts(200), LOCAL).unwrap();
 
     assert!(sessions.iter().all(|s| s.task_id == "b"));
     assert!(sessions.iter().all(|s| !s.timer_instances.is_empty()));
@@ -989,17 +1053,17 @@ fn moves_refuse_live_timers_and_imported_time_and_skip_the_same_task() {
     live.timer_instances = vec![running];
     let mut sessions = vec![live];
     assert!(
-        move_instance_to_task(&mut sessions, "r", "b", "Task b", None, ts(10))
+        move_instance_to_task(&mut sessions, "r", "b", "Task b", None, ts(10), LOCAL)
             .unwrap_err()
             .contains("Stop this timer")
     );
 
     let mut imported = tray_session("i", "a", false);
-    imported.source = Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE.to_string());
+    imported.source = Some(WORKLOG_IMPORT_SOURCE.to_string());
     imported.timer_instances = vec![finished("t", "i", 0, 60)];
     let mut sessions = vec![imported];
     assert!(
-        move_instance_to_task(&mut sessions, "t", "b", "Task b", None, ts(100))
+        move_instance_to_task(&mut sessions, "t", "b", "Task b", None, ts(100), LOCAL)
             .unwrap_err()
             .contains("work-log import")
     );
@@ -1008,14 +1072,14 @@ fn moves_refuse_live_timers_and_imported_time_and_skip_the_same_task() {
     mine.timer_instances = vec![finished("t", "m", 0, 60)];
     let mut sessions = vec![mine];
     let (id, changed) =
-        move_instance_to_task(&mut sessions, "t", "a", "Task a", None, ts(100)).unwrap();
+        move_instance_to_task(&mut sessions, "t", "a", "Task a", None, ts(100), LOCAL).unwrap();
     assert_eq!((id.as_str(), changed), ("m", false));
 }
 
 #[test]
 fn imported_sessions_are_read_only() {
     let mut imported = fresh_session();
-    imported.source = Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE.to_string());
+    imported.source = Some(WORKLOG_IMPORT_SOURCE.to_string());
     assert!(ensure_not_imported(&imported).is_err());
     let mut manual = fresh_session();
     manual.source = Some(MANUAL_SOURCE.to_string());
@@ -1044,8 +1108,579 @@ fn frontend_matched_error_strings_stay_verbatim() {
         not_running
     );
 
+    assert_eq!(EXPORT_CANCELLED, "Export cancelled by user");
+}
+
+// --- instance commands -------------------------------------------------------
+
+fn session_with(id: &str, active: bool, instances: Vec<TimerInstance>) -> TaskSession {
+    let mut session = tray_session(id, &format!("task-{}", id), active);
+    session.timer_instances = instances;
+    recalculate_total_duration(&mut session);
+    session
+}
+
+fn running(id: &str, session_id: &str, start: i64) -> TimerInstance {
+    TimerInstance {
+        is_running: true,
+        resumed_at: Some(ts(start)),
+        paused_duration: Some(0),
+        ..tray_instance(id, session_id, start)
+    }
+}
+
+fn paused(id: &str, session_id: &str, start: i64, paused_at: i64) -> TimerInstance {
+    TimerInstance {
+        is_paused: true,
+        paused_at: Some(ts(paused_at)),
+        paused_duration: Some(0),
+        ..tray_instance(id, session_id, start)
+    }
+}
+
+fn imported(mut session: TaskSession) -> TaskSession {
+    session.source = Some(WORKLOG_IMPORT_SOURCE.to_string());
+    session
+}
+
+#[test]
+fn create_adds_an_idle_timer_to_the_session() {
+    let mut sessions = vec![
+        session_with("a", false, vec![]),
+        session_with("b", true, vec![]),
+    ];
+
+    let created = instances::create(&mut sessions, "b", ts(5)).unwrap();
+
+    assert_eq!(created.session_id, "b");
+    assert!(!created.is_running && !created.is_paused && created.duration.is_none());
+    assert_eq!(sessions[1].timer_instances, vec![created]);
+    assert_eq!(sessions[1].updated_at, ts(5).to_rfc3339());
+    assert!(sessions[0].timer_instances.is_empty());
+}
+
+#[test]
+fn create_refuses_unknown_imported_and_full_sessions() {
+    let mut sessions = vec![
+        imported(session_with("imp", false, vec![])),
+        session_with(
+            "full",
+            true,
+            (0..MAX_TIMER_INSTANCES_PER_SESSION)
+                .map(|n| finished(&format!("t{n}"), "full", 0, 1))
+                .collect(),
+        ),
+    ];
+
     assert_eq!(
-        crate::commands::backup::EXPORT_CANCELLED,
-        "Export cancelled by user"
+        instances::create(&mut sessions, "gone", ts(0)).unwrap_err(),
+        "Session with ID gone not found"
     );
+    assert!(instances::create(&mut sessions, "imp", ts(0))
+        .unwrap_err()
+        .contains("work-log import"));
+    assert_eq!(
+        instances::create(&mut sessions, "full", ts(0)).unwrap_err(),
+        "Maximum number of timers (50) reached for this session"
+    );
+    assert_eq!(
+        sessions[1].timer_instances.len(),
+        MAX_TIMER_INSTANCES_PER_SESSION
+    );
+}
+
+#[test]
+fn instance_commands_find_the_timer_in_any_session() {
+    let mut sessions = vec![
+        session_with("a", false, vec![finished("done", "a", 0, 60)]),
+        session_with("b", true, vec![tray_instance("idle", "b", 0)]),
+    ];
+
+    let session = instances::start(&mut sessions, "idle", ts(100)).unwrap();
+
+    assert_eq!(session.id, "b");
+    let started = &session.timer_instances[0];
+    assert!(started.is_running);
+    assert_eq!(started.start_time, ts(100));
+    assert_eq!(sessions[1], session);
+    assert_eq!(session.updated_at, ts(100).to_rfc3339());
+}
+
+#[test]
+fn instance_commands_refuse_unknown_timers_and_imported_time() {
+    let mut sessions = vec![
+        session_with("a", true, vec![]),
+        imported(session_with(
+            "imp",
+            false,
+            vec![finished("t", "imp", 0, 60)],
+        )),
+    ];
+    let before = sessions.clone();
+
+    assert_eq!(
+        instances::stop(&mut sessions, "gone", ts(0)).unwrap_err(),
+        "Timer instance with ID gone not found"
+    );
+    assert!(instances::delete(&mut sessions, "t", ts(0))
+        .unwrap_err()
+        .contains("work-log import"));
+    // llvm-cov scores a generic function by its best instantiation, so one
+    // command (stop) walks every path through mutate_instance
+    assert!(instances::stop(&mut sessions, "t", ts(0))
+        .unwrap_err()
+        .contains("work-log import"));
+    assert_eq!(sessions, before);
+}
+
+#[test]
+fn start_refuses_while_another_timer_runs_or_in_an_inactive_session() {
+    let mut sessions = vec![
+        session_with("a", false, vec![running("r", "a", 0)]),
+        session_with("b", true, vec![tray_instance("idle", "b", 0)]),
+        session_with("c", false, vec![tray_instance("other", "c", 0)]),
+    ];
+
+    assert_eq!(
+        instances::start(&mut sessions, "idle", ts(10)).unwrap_err(),
+        ERR_ANOTHER_TIMER_RUNNING
+    );
+    assert_eq!(
+        instances::start(&mut sessions, "other", ts(10)).unwrap_err(),
+        ERR_START_INACTIVE_SESSION
+    );
+    // A refused change leaves the session's stamp alone
+    assert_eq!(sessions[1].updated_at, ts(0).to_rfc3339());
+}
+
+#[test]
+fn stop_finalizes_a_live_timer_and_refuses_an_idle_one() {
+    let mut sessions = vec![session_with(
+        "a",
+        true,
+        vec![running("r", "a", 0), tray_instance("idle", "a", 0)],
+    )];
+
+    let session = instances::stop(&mut sessions, "r", ts(90)).unwrap();
+
+    assert_eq!(session.timer_instances[0].duration, Some(90_000));
+    assert_eq!(session.total_duration, 90_000);
+    assert_eq!(
+        instances::stop(&mut sessions, "idle", ts(90)).unwrap_err(),
+        ERR_STOP_NOT_RUNNING
+    );
+}
+
+#[test]
+fn pause_needs_a_running_timer() {
+    let mut sessions = vec![session_with("a", true, vec![running("r", "a", 0)])];
+
+    let session = instances::pause(&mut sessions, "r", ts(30)).unwrap();
+
+    let timer = &session.timer_instances[0];
+    assert!(timer.is_paused && !timer.is_running);
+    assert_eq!(timer.paused_at, Some(ts(30)));
+    assert_eq!(
+        instances::pause(&mut sessions, "r", ts(40)).unwrap_err(),
+        ERR_PAUSE_NOT_RUNNING
+    );
+}
+
+#[test]
+fn resume_continues_a_paused_timer_in_the_active_session() {
+    let mut sessions = vec![session_with("a", true, vec![paused("p", "a", 0, 30)])];
+
+    let session = instances::resume(&mut sessions, "p", ts(50)).unwrap();
+
+    let timer = &session.timer_instances[0];
+    assert!(timer.is_running && !timer.is_paused);
+    assert_eq!(timer.paused_duration, Some(20_000));
+    assert_eq!(timer.resumed_at, Some(ts(50)));
+}
+
+#[test]
+fn resume_upholds_the_same_rules_as_start() {
+    let mut sessions = vec![
+        session_with(
+            "a",
+            true,
+            vec![running("r", "a", 0), paused("p", "a", 0, 5)],
+        ),
+        session_with("b", false, vec![paused("q", "b", 0, 5)]),
+    ];
+
+    assert_eq!(
+        instances::resume(&mut sessions, "r", ts(10)).unwrap_err(),
+        "Cannot resume timer: timer is not paused"
+    );
+    assert_eq!(
+        instances::resume(&mut sessions, "q", ts(10)).unwrap_err(),
+        ERR_RESUME_INACTIVE_SESSION
+    );
+    assert_eq!(
+        instances::resume(&mut sessions, "p", ts(10)).unwrap_err(),
+        ERR_ANOTHER_TIMER_RUNNING
+    );
+}
+
+#[test]
+fn delete_removes_a_stopped_timer_and_keeps_a_live_one() {
+    let mut sessions = vec![session_with(
+        "a",
+        true,
+        vec![finished("done", "a", 0, 60), running("r", "a", 100)],
+    )];
+
+    let session = instances::delete(&mut sessions, "done", ts(200)).unwrap();
+
+    assert_eq!(session.timer_instances.len(), 1);
+    assert_eq!(session.total_duration, 0);
+    assert!(instances::delete(&mut sessions, "r", ts(200))
+        .unwrap_err()
+        .contains("running"));
+    assert_eq!(sessions[0].timer_instances.len(), 1);
+}
+
+#[test]
+fn update_applies_every_patched_field() {
+    let mut sessions = vec![session_with("a", true, vec![paused("p", "a", 0, 30)])];
+    let updates = TimerInstanceUpdates {
+        is_running: Some(false),
+        is_paused: Some(false),
+        notes: Some("edited".to_string()),
+        duration: Some(45_000),
+        resumed_at: Some("1970-01-01T00:00:20Z".to_string()),
+        start_time: Some("1970-01-01T00:00:05+00:00".to_string()),
+        end_time: Some("1970-01-01T00:00:50Z".to_string()),
+    };
+
+    let timer = instances::update(&mut sessions, "p", &updates, ts(60)).unwrap();
+
+    assert!(!timer.is_running && !timer.is_paused);
+    assert_eq!(timer.notes.as_deref(), Some("edited"));
+    assert_eq!(timer.duration, Some(45_000));
+    assert_eq!(timer.start_time, ts(5));
+    assert_eq!(timer.end_time, Some(ts(50)));
+    // Finalizing clears the pause bookkeeping, including the patched resume
+    assert_eq!((timer.paused_at, timer.resumed_at), (None, None));
+    assert_eq!(sessions[0].timer_instances[0], timer);
+    assert_eq!(sessions[0].total_duration, 45_000);
+}
+
+#[test]
+fn update_sets_resumed_at_when_not_finalizing() {
+    let mut sessions = vec![session_with("a", true, vec![running("r", "a", 0)])];
+    let updates = TimerInstanceUpdates {
+        resumed_at: Some("1970-01-01T00:00:20Z".to_string()),
+        ..Default::default()
+    };
+
+    let timer = instances::update(&mut sessions, "r", &updates, ts(60)).unwrap();
+
+    assert_eq!(timer.resumed_at, Some(ts(20)));
+    assert!(timer.is_running);
+}
+
+#[test]
+fn update_rejects_a_bad_patch_before_changing_anything() {
+    let mut sessions = vec![session_with("a", true, vec![finished("t", "a", 0, 60)])];
+    let before = sessions.clone();
+    let bad = |field: &str| {
+        let value = Some("yesterday".to_string());
+        match field {
+            "resumedAt" => TimerInstanceUpdates {
+                resumed_at: value,
+                ..Default::default()
+            },
+            "startTime" => TimerInstanceUpdates {
+                start_time: value,
+                ..Default::default()
+            },
+            _ => TimerInstanceUpdates {
+                end_time: value,
+                ..Default::default()
+            },
+        }
+    };
+
+    for field in ["resumedAt", "startTime", "endTime"] {
+        let err = instances::update(&mut sessions, "t", &bad(field), ts(90)).unwrap_err();
+        assert!(
+            err.starts_with("Invalid timestamp 'yesterday': "),
+            "{}",
+            err
+        );
+    }
+    let raise = TimerInstanceUpdates {
+        is_running: Some(true),
+        ..Default::default()
+    };
+    assert!(instances::update(&mut sessions, "t", &raise, ts(90)).is_err());
+    assert_eq!(
+        instances::update(
+            &mut sessions,
+            "gone",
+            &TimerInstanceUpdates::default(),
+            ts(90)
+        )
+        .unwrap_err(),
+        "Timer instance with ID gone not found"
+    );
+    assert_eq!(sessions, before);
+}
+
+#[test]
+fn updates_accept_camel_case_and_the_old_snake_case_keys() {
+    let camel: TimerInstanceUpdates =
+        serde_json::from_value(serde_json::json!({ "isRunning": false, "endTime": "x" })).unwrap();
+    let snake: TimerInstanceUpdates =
+        serde_json::from_value(serde_json::json!({ "is_running": false, "end_time": "x" }))
+            .unwrap();
+    assert_eq!(camel.is_running, Some(false));
+    assert_eq!(snake.is_running, Some(false));
+    assert_eq!(camel.end_time, snake.end_time);
+}
+
+// --- session commands ---------------------------------------------------------
+
+#[test]
+fn update_session_patches_notes_and_the_active_flag() {
+    let mut sessions = vec![
+        session_with("a", false, vec![]),
+        session_with("b", false, vec![]),
+    ];
+    let updates = SessionUpdates {
+        notes: Some("n".to_string()),
+        is_active: Some(true),
+    };
+
+    let updated = lifecycle::update_session(&mut sessions, "b", &updates, ts(9)).unwrap();
+
+    assert_eq!(updated.notes.as_deref(), Some("n"));
+    assert!(updated.is_active);
+    assert_eq!(updated.updated_at, ts(9).to_rfc3339());
+    assert_eq!(sessions[1], updated);
+
+    // An empty patch only stamps the session
+    let stamped =
+        lifecycle::update_session(&mut sessions, "a", &SessionUpdates::default(), ts(10)).unwrap();
+    assert_eq!(stamped.notes, None);
+    assert!(!stamped.is_active);
+    assert_eq!(
+        lifecycle::update_session(&mut sessions, "gone", &updates, ts(0)).unwrap_err(),
+        "Session with ID gone not found"
+    );
+}
+
+#[test]
+fn session_updates_accept_the_old_snake_case_flag() {
+    let updates: SessionUpdates =
+        serde_json::from_value(serde_json::json!({ "is_active": false })).unwrap();
+    assert_eq!(updates.is_active, Some(false));
+}
+
+#[test]
+fn activating_a_session_finalizes_the_others_live_timers() {
+    let mut sessions = vec![
+        session_with("a", true, vec![running("r", "a", 0)]),
+        session_with("b", false, vec![]),
+        session_with("c", false, vec![]),
+    ];
+
+    let stopped = lifecycle::set_active_session(&mut sessions, Some("b"), ts(60)).unwrap();
+
+    assert_eq!(stopped, vec!["r".to_string()]);
+    assert_eq!(sessions[0].timer_instances[0].duration, Some(60_000));
+    assert_eq!(
+        sessions.iter().map(|s| s.is_active).collect::<Vec<_>>(),
+        vec![false, true, false]
+    );
+
+    // Re-activating the active session finalizes nothing
+    assert!(
+        lifecycle::set_active_session(&mut sessions, Some("b"), ts(70))
+            .unwrap()
+            .is_empty()
+    );
+    // None deactivates every session
+    assert!(lifecycle::set_active_session(&mut sessions, None, ts(80))
+        .unwrap()
+        .is_empty());
+    assert!(sessions.iter().all(|s| !s.is_active));
+}
+
+#[test]
+fn only_an_existing_tracked_session_can_be_activated() {
+    let mut sessions = vec![
+        session_with("a", true, vec![running("r", "a", 0)]),
+        imported(session_with("imp", false, vec![])),
+    ];
+    let before = sessions.clone();
+
+    assert_eq!(
+        lifecycle::set_active_session(&mut sessions, Some("gone"), ts(5)).unwrap_err(),
+        "Session with ID gone not found"
+    );
+    assert!(
+        lifecycle::set_active_session(&mut sessions, Some("imp"), ts(5))
+            .unwrap_err()
+            .contains("work-log import")
+    );
+    assert_eq!(sessions, before);
+}
+
+#[test]
+fn a_timer_that_never_ran_cannot_be_moved() {
+    let mut sessions = vec![session_with(
+        "a",
+        false,
+        vec![tray_instance("idle", "a", 0)],
+    )];
+    assert_eq!(
+        move_instance_to_task(&mut sessions, "idle", "b", "Task b", None, ts(10), LOCAL)
+            .unwrap_err(),
+        "This timer hasn't tracked any time yet"
+    );
+    assert_eq!(
+        move_instance_to_task(&mut sessions, "gone", "b", "Task b", None, ts(10), LOCAL)
+            .unwrap_err(),
+        "Timer instance with ID gone not found"
+    );
+}
+
+#[test]
+fn moving_the_active_sessions_only_timer_keeps_the_active_session() {
+    let mut sessions = vec![session_with("a", true, vec![finished("t", "a", 0, 60)])];
+
+    let (moved_id, changed) =
+        move_instance_to_task(&mut sessions, "t", "b", "Task b", None, ts(100), LOCAL).unwrap();
+
+    assert!(changed);
+    assert_eq!(sessions.len(), 2);
+    assert!(sessions[0].is_active && sessions[0].timer_instances.is_empty());
+    assert_eq!(sessions[1].id, moved_id);
+}
+
+// --- start and rename edge cases ---------------------------------------------
+
+#[test]
+fn continuing_a_full_session_is_refused() {
+    let now = ts(1_800_000_000);
+    let mut full = tray_session("cur", "a", true);
+    full.date = LOCAL.day(now);
+    full.timer_instances = (0..MAX_TIMER_INSTANCES_PER_SESSION)
+        .map(|n| finished(&format!("t{n}"), "cur", 0, 1))
+        .collect();
+    let mut sessions = vec![full];
+
+    assert_eq!(
+        start_task_timer(&mut sessions, "a", "Task a", None, now, LOCAL).unwrap_err(),
+        "Maximum number of timers (50) reached for this session"
+    );
+    assert_eq!(
+        sessions[0].timer_instances.len(),
+        MAX_TIMER_INSTANCES_PER_SESSION
+    );
+}
+
+#[test]
+fn renames_skip_sessions_whose_task_is_unknown() {
+    let mut sessions = vec![tray_session("s", "deleted-task", false)];
+    assert!(!sync_session_task_names(
+        &mut sessions,
+        &[rated_task("a", None)]
+    ));
+    assert_eq!(sessions[0].task_name, "Task deleted-task");
+}
+
+#[test]
+fn imported_rates_ignore_timers_without_a_ledger_entry() {
+    let ledger: Vec<WorkLogEntry> = serde_json::from_value(serde_json::json!([
+        { "id": "e1", "kind": "timed", "amountCents": 1_500 }
+    ]))
+    .unwrap();
+    let mut imported_session = imported(tray_session("imp", "a", false));
+    imported_session.timer_instances = vec![
+        TimerInstance {
+            external_id: Some("e1".to_string()),
+            duration: Some(30 * 60_000),
+            ..tray_instance("i1", "imp", 0)
+        },
+        // No ledger link, and a link to an entry the ledger doesn't have
+        TimerInstance {
+            duration: Some(30 * 60_000),
+            ..tray_instance("i2", "imp", 0)
+        },
+        TimerInstance {
+            external_id: Some("e-missing".to_string()),
+            duration: Some(30 * 60_000),
+            ..tray_instance("i3", "imp", 0)
+        },
+    ];
+    let mut sessions = vec![imported_session];
+
+    assert!(fill_imported_session_rates(&mut sessions, &ledger));
+    // $15 over the half hour the ledger accounts for
+    assert_eq!(sessions[0].hourly_rate, Some(30.0));
+}
+
+#[test]
+fn task_rate_ignores_missing_and_zero_rates() {
+    let tasks = vec![
+        rated_task("a", Some(25.0)),
+        rated_task("b", Some(0.0)),
+        rated_task("c", None),
+    ];
+    assert_eq!(task_rate(&tasks, "a"), Some(25.0));
+    assert_eq!(task_rate(&tasks, "b"), None);
+    assert_eq!(task_rate(&tasks, "c"), None);
+    assert_eq!(task_rate(&tasks, "gone"), None);
+}
+
+#[test]
+fn a_refused_start_reports_no_handoff() {
+    let now = ts(1_800_000_000);
+    let mut full = tray_session("cur", "a", true);
+    full.date = LOCAL.day(now);
+    full.timer_instances = (0..MAX_TIMER_INSTANCES_PER_SESSION)
+        .map(|n| finished(&format!("t{n}"), "cur", 0, 1))
+        .collect();
+    let mut sessions = vec![full];
+
+    assert!(start_task_with_handoff(&mut sessions, "a", "Task a", None, now, LOCAL).is_err());
+}
+
+#[test]
+fn imported_time_the_ledger_paid_nothing_for_gets_no_rate() {
+    let ledger: Vec<WorkLogEntry> = serde_json::from_value(serde_json::json!([
+        { "id": "e1", "kind": "timed", "amountCents": 0 }
+    ]))
+    .unwrap();
+    let mut unpaid = imported(tray_session("imp", "a", false));
+    unpaid.timer_instances = vec![TimerInstance {
+        external_id: Some("e1".to_string()),
+        duration: Some(60_000),
+        ..tray_instance("i1", "imp", 0)
+    }];
+    let mut sessions = vec![unpaid];
+
+    assert!(!fill_imported_session_rates(&mut sessions, &ledger));
+    assert_eq!(sessions[0].hourly_rate, None);
+}
+
+#[test]
+fn resuming_a_pause_with_no_start_adds_no_paused_time() {
+    // Defensive: data from an older build could carry is_paused without
+    // paused_at
+    let mut timer = TimerInstance {
+        is_paused: true,
+        paused_duration: Some(5_000),
+        ..fresh_instance()
+    };
+
+    resume_instance(&mut timer, ts(100));
+
+    assert!(timer.is_running && !timer.is_paused);
+    assert_eq!(timer.paused_duration, Some(5_000));
+    assert_eq!(timer.resumed_at, Some(ts(100)));
 }

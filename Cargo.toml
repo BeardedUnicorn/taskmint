@@ -1,3 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["apps/desktop/src-tauri"]
+members = ["crates/taskmint-core", "apps/desktop/src-tauri"]
+# The desktop crate needs WebKitGTK on Linux, so plain `cargo` commands at the
+# root leave it out; `--workspace` or `-p taskmint` includes it.
+default-members = ["crates/taskmint-core"]

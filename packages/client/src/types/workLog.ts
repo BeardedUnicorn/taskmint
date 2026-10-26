@@ -9,7 +9,7 @@ import { TaskSession } from './timer';
 
 /**
  * Provenance marker on sessions synthesized by a work-log import. Must match
- * WORKLOG_IMPORT_SOURCE in apps/desktop/src-tauri/src/commands/worklogs.rs.
+ * WORKLOG_IMPORT_SOURCE in crates/taskmint-core/src/contract.rs.
  */
 export const WORKLOG_IMPORT_SOURCE = 'worklog-import';
 
@@ -188,7 +188,7 @@ export interface WorkLogImportSummary {
 
 /** Wire shape of take_pending_work_log_capture (Rust PendingCapture). */
 /**
- * How a capture reached the app (CaptureSource in apps/desktop/src-tauri/src/types.rs).
+ * How a capture reached the app (CaptureSource in crates/taskmint-core/src/model/mod.rs).
  * 'extension': localhost POST from the pinned TaskMint extension — trusted.
  * 'link': a taskmint:// link, which any web page can open — review first.
  */

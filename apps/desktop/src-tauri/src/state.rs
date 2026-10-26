@@ -1,12 +1,12 @@
 // Application state management
 
-use crate::idle::IdleState;
-use crate::notifications::NotificationPrefs;
 use crate::tray::TrayLiveKey;
-use crate::types::{
+use std::sync::{Arc, Mutex};
+use taskmint_core::idle::IdleState;
+use taskmint_core::model::{
     CaptureServerStatus, PendingCapture, ProjectTaskMapping, Task, TaskSession, WorkLogEntry,
 };
-use std::sync::{Arc, Mutex};
+use taskmint_core::notifications::NotificationPrefs;
 
 /// Run `f` on the value behind `mutex`; a poisoned lock is an error naming
 /// `what`.
@@ -90,7 +90,7 @@ impl AppState {
             pending_work_log_capture: Arc::new(Mutex::new(None)),
             capture_server_status: Arc::new(Mutex::new(CaptureServerStatus {
                 running: false,
-                port: crate::capture_server::CAPTURE_SERVER_PORT,
+                port: taskmint_core::contract::CAPTURE_SERVER_PORT,
                 warning: None,
             })),
             tray_icon: Arc::new(Mutex::new(None)),

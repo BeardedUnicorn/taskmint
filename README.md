@@ -121,9 +121,10 @@ off.
 pnpm build                        # tsc for every package + desktop vite build
 pnpm test                         # vitest in every package
 pnpm test:coverage                # vitest with enforced coverage floors
-cargo test                        # Rust workspace tests
+cargo test --workspace            # Rust tests (bare `cargo` skips the desktop crate)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
+cargo llvm-cov -p taskmint-core --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of these on pushes to `main` and on
@@ -157,8 +158,10 @@ packages/client/             React app (@taskmint/client)
   src/utils/                 Pure logic: time math, payouts, work-log import, Sentry
   src/types/                 Shared types and zod schemas
   public/                    Favicon and logos
+crates/taskmint-core/        Business rules shared by every host: sessions, timers, work-log
+                             import, restore, idle, the wire contract (pure: no I/O, no clock)
 apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri shell
-  src-tauri/src/commands/    IPC commands (sessions, worklogs, restore, backup, reset, …)
+  src-tauri/src/commands/    IPC commands: lock, call taskmint-core, save, emit
   src-tauri/src/storage.rs   sessions.json / worklogs.json / appdata.json persistence and .bak copies
   src-tauri/src/capture_server.rs  localhost capture server and taskmint:// deep links
   src-tauri/src/tray.rs      System tray

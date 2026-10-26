@@ -3,11 +3,11 @@
 use crate::config::{
     BACKUP_FILENAME_EXTENSION, BACKUP_FILENAME_PREFIX, BACKUP_WRITE_TEST_FILENAME,
 };
-use crate::types::{BackupResult, PathValidationResult};
 use crate::utils::is_valid_backup_timestamp;
 use chrono::Utc;
 use std::fs;
 use std::path::Path;
+use taskmint_core::model::{BackupResult, PathValidationResult};
 
 pub fn validate_backup_path(path: &str) -> Result<PathValidationResult, String> {
     let backup_path = Path::new(path);

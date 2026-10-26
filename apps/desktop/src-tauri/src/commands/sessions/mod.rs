@@ -1,31 +1,45 @@
-//! Session command handlers and the timer logic behind them.
+//! Session command handlers. The rules live in `taskmint_core::sessions`;
+//! these lock the sessions, run them, save, and announce the change.
 //!
-//! - `timer`: the pure timer state machine (start, pause, resume, finalize).
 //! - `instances`: commands on one timer instance.
 //! - `lifecycle`: commands on whole sessions (edit, activate, move).
 //! - `undo`: deleting a session, and putting a deleted session or timer back.
 //! - `start`: starting work (app and tray) and the tray's timer actions.
 //! - `manual`: "Add time".
-//! - `task_links`: the task name and rate sessions copy.
 
 pub mod instances;
 pub mod lifecycle;
 pub mod manual;
 pub mod start;
-pub mod task_links;
-pub mod timer;
 pub mod undo;
 
-#[cfg(test)]
-mod tests;
+use crate::state::AppState;
+use crate::storage;
+use taskmint_core::model::TaskSession;
+use tauri::AppHandle;
 
 // The paths the rest of the backend uses.
-pub use start::{live_timer, start_task_now, tray_pause_timer, tray_stop_timer, LiveTimer};
-pub use task_links::{
-    fill_imported_session_rates, fill_missing_session_rates, sync_session_task_names,
-};
-pub use timer::finalize_stranded_instances;
-pub(crate) use timer::{
-    keep_idle_time, pause_instance_at, recalculate_total_duration, resume_instance,
-    stop_active_instances, MAX_TIMER_INSTANCES_PER_SESSION,
-};
+pub use start::{start_task_now, tray_pause_timer, tray_stop_timer};
+
+/// A task's current hourly rate from the mirrored task list (None when the
+/// task has no rate, or isn't mirrored yet).
+pub(super) fn current_task_rate(app_state: &AppState, task_id: &str) -> Option<f64> {
+    app_state
+        .with_tasks(|tasks| taskmint_core::sessions::task_links::task_rate(tasks, task_id))
+        .ok()
+        .flatten()
+}
+
+/// Run `change` on the sessions under their lock, then save them; an error
+/// from `change` saves nothing.
+pub(super) fn change_and_save<R>(
+    app: &AppHandle,
+    app_state: &AppState,
+    change: impl FnOnce(&mut Vec<TaskSession>) -> Result<R, String>,
+) -> Result<R, String> {
+    app_state.with_task_sessions_mut(|sessions| {
+        let result = change(sessions)?;
+        storage::save_sessions(app, sessions)?;
+        Ok(result)
+    })?
+}

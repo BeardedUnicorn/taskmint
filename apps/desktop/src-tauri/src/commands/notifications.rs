@@ -1,7 +1,8 @@
 //! Notification preferences from the app, and OS notifications it asks for.
 
-use crate::notifications::{self, NotificationKind, NotificationPrefs, Origin};
+use crate::notifications::{self, Origin};
 use crate::state::AppState;
+use taskmint_core::notifications::{NotificationKind, NotificationPrefs};
 use tauri::{AppHandle, State};
 
 /// The app sends its saved preferences at startup and on every change.

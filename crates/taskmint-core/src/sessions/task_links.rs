@@ -1,7 +1,8 @@
 //! What sessions copy from their task: its name and its hourly rate.
 
-use crate::state::AppState;
-use crate::types::{Task, TaskSession, WorkLogEntry};
+use crate::contract::WORKLOG_IMPORT_SOURCE;
+use crate::model::{Task, TaskSession, WorkLogEntry};
+use std::collections::HashMap;
 
 /// Sessions keep a copy of their task's name; bring every copy up to date
 /// after a task is renamed. Returns whether any session changed.
@@ -18,20 +19,14 @@ pub fn sync_session_task_names(sessions: &mut [TaskSession], tasks: &[Task]) -> 
     changed
 }
 
-/// A task's current hourly rate from the mirrored task list (None when the
-/// task has no rate, or isn't mirrored yet; fill_missing_session_rates
-/// catches the session up later).
-pub(super) fn task_rate(app_state: &AppState, task_id: &str) -> Option<f64> {
-    app_state
-        .with_tasks(|tasks| {
-            tasks
-                .iter()
-                .find(|t| t.id == task_id)
-                .and_then(|t| t.hourly_rate)
-                .filter(|rate| *rate > 0.0)
-        })
-        .ok()
-        .flatten()
+/// A task's current hourly rate (None when the task has no rate, or isn't
+/// known yet; fill_missing_session_rates catches the session up later).
+pub fn task_rate(tasks: &[Task], task_id: &str) -> Option<f64> {
+    tasks
+        .iter()
+        .find(|t| t.id == task_id)
+        .and_then(|t| t.hourly_rate)
+        .filter(|rate| *rate > 0.0)
 }
 
 /// Give sessions without a rate their task's current rate (when it has one).
@@ -41,11 +36,7 @@ pub(super) fn task_rate(app_state: &AppState, task_id: &str) -> Option<f64> {
 pub fn fill_missing_session_rates(sessions: &mut [TaskSession], tasks: &[Task]) -> bool {
     let mut changed = false;
     for session in sessions.iter_mut().filter(|s| s.hourly_rate.is_none()) {
-        let rate = tasks
-            .iter()
-            .find(|t| t.id == session.task_id)
-            .and_then(|t| t.hourly_rate)
-            .filter(|rate| *rate > 0.0);
+        let rate = task_rate(tasks, &session.task_id);
         if rate.is_some() {
             session.hourly_rate = rate;
             changed = true;
@@ -60,16 +51,15 @@ pub fn fill_missing_session_rates(sessions: &mut [TaskSession], tasks: &[Task]) 
 /// fill_missing_session_rates, which would otherwise give them the task's
 /// rate. Returns whether anything changed.
 pub fn fill_imported_session_rates(sessions: &mut [TaskSession], entries: &[WorkLogEntry]) -> bool {
-    use std::collections::HashMap;
     let cents_by_entry: HashMap<&str, i64> = entries
         .iter()
         .map(|entry| (entry.id.as_str(), entry.amount_cents))
         .collect();
     let mut changed = false;
-    for session in sessions.iter_mut().filter(|s| {
-        s.hourly_rate.is_none()
-            && s.source.as_deref() == Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE)
-    }) {
+    for session in sessions
+        .iter_mut()
+        .filter(|s| s.hourly_rate.is_none() && s.source.as_deref() == Some(WORKLOG_IMPORT_SOURCE))
+    {
         let (mut cents, mut ms) = (0_i64, 0_u64);
         for instance in &session.timer_instances {
             let (Some(entry_id), Some(duration)) = (&instance.external_id, instance.duration)
