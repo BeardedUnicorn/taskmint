@@ -110,8 +110,8 @@ describe('useWorkLogCapture', () => {
       }
       return undefined;
     });
-    mockListen.mockImplementation(async (event: string, handler: never) => {
-      eventHandlers[event] = handler;
+    mockListen.mockImplementation(async (event, handler) => {
+      eventHandlers[event] = handler as (event: { payload: unknown }) => void;
       return () => {
         delete eventHandlers[event];
       };

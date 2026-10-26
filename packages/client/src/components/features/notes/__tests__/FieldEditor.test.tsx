@@ -7,10 +7,6 @@ import { FieldEditor } from '../FieldEditor';
 import { TemplateField } from '../../../../types/notes';
 
 describe('FieldEditor', () => {
-  // Mock the Collapse component to disable animation
-  const MockCollapse = ({ in: open, children, ...props }: { in: boolean; children: React.ReactNode; }) => {
-    return open ? <div {...props}>{children}</div> : null;
-  };
 
   // Replace Collapse with our mock
   

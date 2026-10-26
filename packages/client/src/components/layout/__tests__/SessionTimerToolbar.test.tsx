@@ -6,7 +6,6 @@
  * SessionTimerDisplay and are tested there.
  */
 
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';

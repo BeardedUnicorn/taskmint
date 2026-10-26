@@ -142,7 +142,7 @@ export interface NoteEditorProps {
   timeEntryId?: string | null; // Optional time entry context
   sessionId?: string | null; // Optional session context
   timerInstanceId?: string | null; // Optional timer instance context
-  noteLevel: 'task' | 'session' | 'timer'; // Level of the note
+  noteLevel?: 'task' | 'session' | 'timer'; // Level of the note (defaults to 'task')
   onSaveNote: (note: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<TaskNote>;
   onUpdateNote: (noteId: string, updates: Partial<TaskNote>) => Promise<TaskNote>;
   onDeleteNote: (noteId: string) => Promise<void>;

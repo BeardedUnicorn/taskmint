@@ -12,9 +12,7 @@ import {
   createMockTimerInstance,
   createActiveSessionScenario,
   createMultipleSessionsScenario,
-  expectSessionToBeActive,
   expectTimerInstanceToBeRunning,
-  expectTimerInstanceToBeStopped,
 } from '../setup/session-test-utils';
 import { TaskSession, TimerInstance, InactivitySettings } from '../../types/timer';
 
@@ -99,6 +97,7 @@ describe('Session System Validation', () => {
       const defaultSettings: InactivitySettings = {
         enabled: true,
         thresholdMinutes: 15,
+        longRunHours: 4,
       };
 
       const customSettings: InactivitySettings = {

@@ -180,7 +180,7 @@ describe('appRecords', () => {
     const file = fakeBackend();
     await loadAppRecords();
     const order: string[] = [];
-    mockInvoke.mockImplementation(async (command: string, args?: any) => {
+    mockInvoke.mockImplementation(async (_command: string, args?: any) => {
       // The first write is slower than the second
       await new Promise(resolve => setTimeout(resolve, args.value === 'first' ? 20 : 0));
       order.push(String(args.value));

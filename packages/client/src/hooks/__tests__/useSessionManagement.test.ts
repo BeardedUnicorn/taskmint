@@ -397,6 +397,7 @@ describe('useSessionManagement', () => {
       duration: 65 * 60_000,
       isRunning: false,
       isPaused: false,
+      state: TimerState.stopped,
       createdAt: '2024-01-15T10:00:00Z',
       updatedAt: '2024-01-15T11:05:00Z',
     };

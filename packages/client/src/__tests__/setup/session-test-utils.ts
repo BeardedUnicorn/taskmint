@@ -6,7 +6,7 @@
  */
 
 import { vi } from 'vitest';
-import { TaskSession, TimerInstance, InactivitySettings } from '../../types/timer';
+import { TaskSession, TimerInstance, InactivitySettings, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { TaskNote } from '../../types/notes';
 import { ProjectTaskMapping, WORKLOG_IMPORT_SOURCE, WorkLogEntry } from '../../types/workLog';
@@ -18,13 +18,22 @@ import { ProjectTaskMapping, WORKLOG_IMPORT_SOURCE, WorkLogEntry } from '../../t
 export const createMockTask = (overrides: Partial<Task> = {}): Task => ({
   id: 'task-1',
   name: 'Test Task',
-  description: 'A test task for development',
   createdAt: '2024-01-15T09:00:00Z',
   updatedAt: '2024-01-15T09:00:00Z',
   ...overrides,
 });
 
+// Same state the session hook derives from the backend's isRunning/isPaused
+// flags (normalizeTimerInstance), so mocks match what components receive.
+function derivedState({ isRunning, isPaused, duration, endTime }: Partial<TimerInstance>): TimerState {
+  if (isRunning) return TimerState.running;
+  if (isPaused) return TimerState.paused;
+  if (duration != null || endTime != null) return TimerState.stopped;
+  return TimerState.idle;
+}
+
 export const createMockTimerInstance = (overrides: Partial<TimerInstance> = {}): TimerInstance => ({
+  state: derivedState(overrides),
   id: 'instance-1',
   sessionId: 'session-1',
   startTime: new Date('2024-01-15T10:00:00Z'),
@@ -113,6 +122,7 @@ export const createMockImportedSession = (overrides: Partial<TaskSession> = {}):
 export const createMockInactivitySettings = (overrides: Partial<InactivitySettings> = {}): InactivitySettings => ({
   enabled: true,
   thresholdMinutes: 15,
+  longRunHours: 4,
   ...overrides,
 });
 
@@ -407,7 +417,3 @@ export const expectRenderTimeToBeReasonable = (renderTime: number, maxMs = 100) 
   expect(renderTime).toBeLessThan(maxMs);
 };
 
-// Global test utilities
-declare global {
-  const vi: typeof import('vitest').vi;
-}

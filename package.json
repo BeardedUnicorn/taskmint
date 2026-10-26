@@ -8,10 +8,16 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "tsc -p . && pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:coverage": "pnpm -r test:coverage",
     "dev": "pnpm --filter @taskmint/desktop dev",
-    "tauri": "pnpm --filter @taskmint/desktop tauri"
+    "tauri": "pnpm --filter @taskmint/desktop tauri",
+    "check:coverage-policy": "node scripts/check-coverage-policy.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

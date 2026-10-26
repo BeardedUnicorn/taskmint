@@ -1,0 +1,23 @@
+{
+  "$comment": "The only list of coverage exclusions. vitest.shared.ts reads the typescript section; scripts/check-coverage-policy.mjs enforces both sections and prints each crate's cargo-llvm-cov ignore regex. See docs/coverage-policy.md.",
+  "typescript": {
+    "allPackages": [
+      { "glob": "src/**/__tests__/**", "why": "tests and their helpers" },
+      { "glob": "src/**/*.{test,spec}.{ts,tsx}", "why": "test files outside __tests__" },
+      { "glob": "src/setupTests.ts", "why": "test setup" },
+      { "glob": "src/**/*.d.ts", "why": "type declarations, no runtime code" }
+    ],
+    "packages": {
+      "packages/client": []
+    }
+  },
+  "rust": {
+    "crates/taskmint-core": [],
+    "apps/server": [
+      { "file": "src/main.rs", "why": "#[tokio::main] and signal wiring that call the tested cli::run" }
+    ],
+    "apps/desktop/src-tauri": [
+      { "file": "src/main.rs", "why": "binary entry; calls taskmint_lib::run" }
+    ]
+  }
+}

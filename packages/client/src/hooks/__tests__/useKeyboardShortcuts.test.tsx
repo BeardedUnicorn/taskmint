@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, renderHook, fireEvent } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { Dialog } from '@mui/material';
@@ -58,7 +58,7 @@ describe('useKeyboardShortcuts', () => {
   // jsdom reports no platform; Ctrl is the modifier there
   const ctrl = (key: string) => fireEvent.keyDown(window, { key, ctrlKey: true });
 
-  let onTogglePalette: ReturnType<typeof vi.fn>;
+  let onTogglePalette: Mock<() => void>;
   beforeEach(() => {
     onTogglePalette = vi.fn();
   });

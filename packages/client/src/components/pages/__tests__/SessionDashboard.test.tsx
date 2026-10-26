@@ -269,6 +269,7 @@ describe('SessionDashboard', () => {
             duration: 3600000, // 1 hour
             isRunning: false,
             isPaused: false,
+            state: TimerState.stopped,
             createdAt: '2024-01-15T10:00:00Z',
             updatedAt: '2024-01-15T11:00:00Z',
           },
@@ -370,6 +371,7 @@ describe('SessionDashboard', () => {
           duration: 0,
           isRunning: false,
           isPaused: false,
+          state: TimerState.stopped,
           createdAt: '2024-01-15T10:00:00Z',
           updatedAt: '2024-01-15T10:00:00Z',
         },
@@ -398,6 +400,7 @@ describe('SessionDashboard', () => {
         duration: 0,
         isRunning: false,
         isPaused: false,
+        state: TimerState.stopped,
         createdAt: '2024-01-15T10:00:00Z',
         updatedAt: '2024-01-15T10:00:00Z',
       };
@@ -626,6 +629,7 @@ describe('SessionDashboard', () => {
           duration: 0,
           isRunning: false,
           isPaused: false,
+          state: TimerState.stopped,
           createdAt: '2024-01-15T10:00:00Z',
           updatedAt: '2024-01-15T10:00:00Z',
         },

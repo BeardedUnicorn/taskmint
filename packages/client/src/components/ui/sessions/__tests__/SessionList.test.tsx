@@ -5,7 +5,6 @@
  * selection, activation, and management operations.
  */
 
-import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionList } from '../SessionList';
