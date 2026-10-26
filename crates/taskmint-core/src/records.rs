@@ -2,13 +2,40 @@
 //! its history), kept as opaque JSON: the frontend owns their schemas, so
 //! fields Rust doesn't model are never dropped.
 
-use crate::contract::APP_RECORD_KEYS;
+use crate::contract::{APP_RECORD_KEYS, TASKS_RECORD_KEY};
+use crate::model::Task;
+use serde::Deserialize;
 use std::collections::HashSet;
 
 pub type RecordMap = serde_json::Map<String, serde_json::Value>;
 
 pub fn is_app_record_key(key: &str) -> bool {
     APP_RECORD_KEYS.contains(&key)
+}
+
+/// The tasks in the `predefinedTasks` record. The frontend validates the
+/// record; an item that doesn't read as a task is left out here rather than
+/// failing the list. A `{ version, data }` wrapper (restored from data an
+/// older version exported) is looked through.
+pub fn tasks_from_records(records: &RecordMap) -> Vec<Task> {
+    let Some(mut value) = records.get(TASKS_RECORD_KEY) else {
+        return Vec::new();
+    };
+    if value
+        .get("version")
+        .is_some_and(serde_json::Value::is_number)
+    {
+        value = value.get("data").unwrap_or(&serde_json::Value::Null);
+    }
+    value
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| Task::deserialize(item).ok())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// A list item's identity when merging: its id, or the whole item if it
@@ -70,6 +97,55 @@ mod tests {
         }
         assert!(!is_app_record_key("sessions"));
         assert!(!is_app_record_key("theme-mode"));
+    }
+
+    fn task(id: &str) -> serde_json::Value {
+        json!({
+            "id": id,
+            "name": format!("Task {}", id),
+            "hourlyRate": 40,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+        })
+    }
+
+    #[test]
+    fn tasks_come_from_the_tasks_record_skipping_items_that_are_not_tasks() {
+        let mut records = RecordMap::new();
+        assert!(tasks_from_records(&records).is_empty());
+
+        records.insert(
+            TASKS_RECORD_KEY.into(),
+            json!([task("a"), { "id": "no-name" }, "text", task("b")]),
+        );
+        let tasks = tasks_from_records(&records);
+        assert_eq!(
+            tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        assert_eq!(tasks[0].hourly_rate, Some(40.0));
+
+        records.insert(TASKS_RECORD_KEY.into(), json!({ "not": "a list" }));
+        assert!(tasks_from_records(&records).is_empty());
+    }
+
+    #[test]
+    fn a_version_wrapper_around_the_tasks_is_looked_through() {
+        let mut records = RecordMap::new();
+        records.insert(
+            TASKS_RECORD_KEY.into(),
+            json!({ "version": 1, "data": [task("a")] }),
+        );
+        assert_eq!(tasks_from_records(&records)[0].id, "a");
+
+        records.insert(TASKS_RECORD_KEY.into(), json!({ "version": 1 }));
+        assert!(tasks_from_records(&records).is_empty());
+        // Not a wrapper: version isn't a number
+        records.insert(
+            TASKS_RECORD_KEY.into(),
+            json!({ "version": "1", "data": [task("a")] }),
+        );
+        assert!(tasks_from_records(&records).is_empty());
     }
 
     #[test]

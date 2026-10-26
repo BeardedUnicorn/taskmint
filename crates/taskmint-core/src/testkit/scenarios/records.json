@@ -1,0 +1,73 @@
+{
+  "name": "records are saved, read back, and merged in without overwriting",
+  "steps": [
+    { "call": "get_app_records", "reply": { "records": {} } },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 100 } },
+      "reply": null
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "theme-mode", "value": "dark" },
+      "error": "Unknown record \"theme-mode\""
+    },
+    {
+      "call": "import_app_records",
+      "args": {
+        "records": {
+          "dailyGoal": { "targetAmount": 5 },
+          "taskNotes": [{ "id": "n1" }],
+          "noteTemplates": null,
+          "theme-mode": "dark"
+        }
+      },
+      "reply": {
+        "records": {
+          "dailyGoal": { "targetAmount": 100 },
+          "taskNotes": [{ "id": "n1" }],
+          "noteTemplates": "$absent",
+          "theme-mode": "$absent"
+        }
+      }
+    },
+    {
+      "call": "import_app_records",
+      "args": { "records": { "dailyGoal": { "targetAmount": 5 }, "theme-mode": "dark" } },
+      "reply": { "records": { "dailyGoal": { "targetAmount": 100 } } }
+    },
+    {
+      "call": "import_app_records",
+      "args": { "records": { "theme-mode": "dark", "taskNotes": null } },
+      "reply": { "records": { "dailyGoal": { "targetAmount": 100 } } }
+    },
+    {
+      "call": "import_app_records",
+      "args": { "records": { "taskNotes": [{ "id": "n1" }, { "id": "n2" }] } },
+      "reply": { "records": { "taskNotes": [{ "id": "n1" }, { "id": "n2" }] } }
+    },
+    {
+      "reload": true,
+      "call": "get_app_records",
+      "reply": {
+        "records": {
+          "dailyGoal": { "targetAmount": 100 },
+          "taskNotes": [{ "id": "n1" }, { "id": "n2" }]
+        }
+      }
+    },
+    { "call": "set_app_record", "args": { "key": "dailyGoal", "value": null }, "reply": null },
+    {
+      "call": "import_app_records",
+      "args": {},
+      "error": "Invalid arguments for import_app_records: missing field `records`"
+    },
+    {
+      "reload": true,
+      "call": "get_app_records",
+      "reply": {
+        "records": { "dailyGoal": "$absent", "taskNotes": [{ "id": "n1" }, { "id": "n2" }] }
+      }
+    }
+  ]
+}

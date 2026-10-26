@@ -1,0 +1,112 @@
+{
+  "sessions": [
+    {
+      "createdAt": "2026-03-02T09:00:00+00:00",
+      "date": "2026-03-02",
+      "hourlyRate": 75.0,
+      "id": "session_finished",
+      "isActive": false,
+      "notes": "Draft",
+      "source": null,
+      "taskId": "task_write",
+      "taskName": "Writing",
+      "timerInstances": [
+        {
+          "createdAt": "2026-03-02T09:00:00+00:00",
+          "duration": 5400000,
+          "endTime": "2026-03-02T10:30:00Z",
+          "externalId": null,
+          "id": "instance_finished",
+          "isPaused": false,
+          "isRunning": false,
+          "notes": "Chapter 2",
+          "pausedAt": null,
+          "pausedDuration": 0,
+          "resumedAt": "2026-03-02T09:00:00Z",
+          "sessionId": "session_finished",
+          "startTime": "2026-03-02T09:00:00Z",
+          "updatedAt": "2026-03-02T10:30:00+00:00"
+        }
+      ],
+      "totalDuration": 5400000,
+      "updatedAt": "2026-03-02T10:30:00+00:00"
+    },
+    {
+      "id": "session_old_build",
+      "notes": null,
+      "taskId": "task_review",
+      "taskName": "Reviews",
+      "timerInstances": [
+        {
+          "duration": 2700000,
+          "endTime": "2025-09-01T13:45:00Z",
+          "id": "instance_old_build",
+          "notes": null,
+          "pausedAt": null,
+          "pausedDuration": null,
+          "resumedAt": null,
+          "sessionId": "session_old_build",
+          "startTime": "2025-09-01T13:00:00Z"
+        }
+      ],
+      "totalDuration": 2700000
+    },
+    {
+      "createdAt": "2026-03-03T08:00:00+00:00",
+      "date": "2026-03-03",
+      "hourlyRate": null,
+      "id": "session_live",
+      "isActive": true,
+      "notes": null,
+      "taskId": "task_write",
+      "taskName": "Writing",
+      "timerInstances": [
+        {
+          "createdAt": "2026-03-03T08:00:00+00:00",
+          "duration": null,
+          "endTime": null,
+          "id": "instance_live",
+          "isPaused": false,
+          "isRunning": true,
+          "notes": null,
+          "pausedAt": null,
+          "pausedDuration": 0,
+          "resumedAt": "2026-03-03T08:00:00Z",
+          "sessionId": "session_live",
+          "startTime": "2026-03-03T08:00:00Z",
+          "updatedAt": "2026-03-03T08:00:00+00:00"
+        }
+      ],
+      "totalDuration": 0,
+      "updatedAt": "2026-03-03T08:00:00+00:00"
+    },
+    {
+      "date": "2026-03-01",
+      "id": "session_stranded",
+      "isActive": false,
+      "notes": null,
+      "taskId": "task_review",
+      "taskName": "Reviews",
+      "timerInstances": [
+        {
+          "duration": null,
+          "endTime": null,
+          "id": "instance_stranded",
+          "isPaused": true,
+          "isRunning": false,
+          "notes": null,
+          "pausedAt": "2026-03-01T15:20:00Z",
+          "pausedDuration": 0,
+          "resumedAt": "2026-03-01T15:00:00Z",
+          "sessionId": "session_stranded",
+          "startTime": "2026-03-01T15:00:00Z"
+        }
+      ],
+      "totalDuration": 0
+    },
+    {
+      "taskId": "task_write",
+      "taskName": "No id, so unreadable"
+    }
+  ]
+}

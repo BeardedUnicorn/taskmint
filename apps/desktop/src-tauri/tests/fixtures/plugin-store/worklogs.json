@@ -1,0 +1,45 @@
+{
+  "mappings": [
+    {
+      "createdAt": "2026-03-03T07:00:00+00:00",
+      "projectId": "project_a",
+      "projectName": "Project A",
+      "taskId": "task_write",
+      "taskName": "Writing",
+      "updatedAt": "2026-03-03T07:00:00+00:00"
+    },
+    {
+      "projectName": "No project id, so unreadable"
+    }
+  ],
+  "entries": [
+    {
+      "amountCents": 11250,
+      "createdAt": "2026-03-02T18:00:00.000Z",
+      "id": "entry_timed",
+      "importedAt": "2026-03-03T07:00:00+00:00",
+      "kind": "timed",
+      "projectId": "project_a",
+      "projectName": "Project A",
+      "reportedTimeInMinutes": 90.0,
+      "status": "approved",
+      "taskId": "task_write",
+      "taskName": "Writing",
+      "timeInMinutes": 90.0,
+      "updatedAt": "2026-03-03T07:00:00+00:00",
+      "workDay": "2026-03-02"
+    },
+    {
+      "amountCents": 2500,
+      "createdAt": "2026-03-02T19:00:00.000Z",
+      "id": "entry_work_log",
+      "kind": "workLog",
+      "projectId": "project_b",
+      "workDay": "2026-03-02"
+    },
+    {
+      "id": "entry_unknown_kind",
+      "kind": "bonus"
+    }
+  ]
+}

@@ -1,14 +1,13 @@
 /**
- * The client's Backend in the desktop app: every data command is a Tauri
- * command of the same name, events are Tauri events, and the platform is the
- * app's Rust shell (dialogs, files, OS notifications, idle time, backups).
+ * The client's Backend in the desktop app. Every call goes through the app's
+ * one IPC command, `dispatch` (apps/desktop/src-tauri/src/dispatch.rs): data
+ * commands by their own names, and the platform (dialogs, files, OS
+ * notifications, idle time, backups) as the Rust shell's commands. Events are
+ * Tauri events.
  */
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { documentDir, join } from "@tauri-apps/api/path";
-import { open } from "@tauri-apps/plugin-dialog";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { Backend, Platform } from "@taskmint/client/backend";
 
 /** Paired with EXPORT_CANCELLED in crates/taskmint-core/src/contract.rs. */
@@ -16,8 +15,10 @@ export const EXPORT_CANCELLED = "Export cancelled by user";
 /** Paired with IMPORT_CANCELLED in crates/taskmint-core/src/contract.rs. */
 export const IMPORT_CANCELLED = "Import cancelled by user";
 
-/** Where automatic backups go until the user picks a folder: inside Documents. */
-export const DEFAULT_BACKUP_FOLDER_NAME = "TaskMint Backups";
+/** Runs a command in the app's Rust side. */
+function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+  return invoke<T>("dispatch", { command: name, args });
+}
 
 /** The command's result, or null when it says the user dismissed its dialog. */
 async function unlessCancelled<T>(result: Promise<T>, cancelled: string): Promise<T | null> {
@@ -54,38 +55,38 @@ const platform: Platform = {
     async save({ contents, suggestedName, format }) {
       const saving =
         format === "csv"
-          ? invoke<string>("export_csv_file", { csv: contents, suggestedFilename: suggestedName })
-          : invoke<string>("export_data_to_file", { dataJson: contents, suggestedFilename: suggestedName });
+          ? command<string>("export_csv_file", { csv: contents, suggestedFilename: suggestedName })
+          : command<string>("export_data_to_file", { dataJson: contents, suggestedFilename: suggestedName });
       const path = await unlessCancelled(saving, EXPORT_CANCELLED);
       return path === null ? null : { kind: "path", path };
     },
-    openJson: () => unlessCancelled(invoke<string>("import_data_from_file"), IMPORT_CANCELLED),
+    openJson: () => unlessCancelled(command<string>("import_data_from_file"), IMPORT_CANCELLED),
   },
   notifications: {
-    show: (kind, title, body) => invoke<boolean>("show_desktop_notification", { kind, title, body }),
-    setPreferences: prefs => invoke<void>("set_notification_preferences", { prefs }),
+    show: (kind, title, body) => command<boolean>("show_desktop_notification", { kind, title, body }),
+    setPreferences: prefs => command<void>("set_notification_preferences", { prefs }),
   },
   idle: {
-    isSupported: () => invoke<boolean>("get_idle_support"),
-    setSettings: settings => invoke<void>("set_idle_settings", { settings }),
-    getPending: () => invoke("get_idle_pause"),
-    resolve: choice => invoke<void>("resolve_idle_pause", { choice }),
+    isSupported: () => command<boolean>("get_idle_support"),
+    setSettings: settings => command<void>("set_idle_settings", { settings }),
+    getPending: () => command("get_idle_pause"),
+    resolve: choice => command<void>("resolve_idle_pause", { choice }),
   },
   folderBackups: {
-    defaultFolder: async () => join(await documentDir(), DEFAULT_BACKUP_FOLDER_NAME),
-    pickFolder: () => open({ directory: true, multiple: false, title: "Select Backup Directory" }),
-    validateFolder: path => invoke("validate_backup_path", { path }),
+    defaultFolder: () => command<string>("default_backup_dir"),
+    pickFolder: () => command<string | null>("pick_backup_dir"),
+    validateFolder: path => command("validate_backup_path", { path }),
     write: ({ folder, contents, maxBackups }) =>
-      invoke("perform_automatic_backup", { backupPath: folder, currentDataJson: contents, maxBackups }),
+      command("perform_automatic_backup", { backupPath: folder, currentDataJson: contents, maxBackups }),
   },
-  reveal: path => revealItemInDir(path),
-  captureStatus: () => invoke("get_capture_server_status"),
+  reveal: path => command<void>("reveal_path", { path }),
+  captureStatus: () => command("get_capture_server_status"),
 };
 
 export function createTauriBackend(): Backend {
   return {
     capabilities: { runtime: "desktop", dataLocation: "local" },
-    call: (command, args) => invoke(command, args),
+    call: (name, args) => command(name, args),
     subscribe,
     platform,
   };

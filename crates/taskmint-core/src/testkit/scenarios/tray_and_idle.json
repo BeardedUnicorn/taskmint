@@ -1,0 +1,57 @@
+{
+  "name": "the tray and the idle monitor act on the live timer",
+  "steps": [
+    { "call": "pause_live_timer", "reply": null },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "save": { "timer": "/instanceId" },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "advanceMs": 900000,
+      "call": "pause_timer_at",
+      "args": { "instanceId": "$timer", "idleSince": "2026-03-02T15:05:00Z" },
+      "reply": true,
+      "events": ["timer-instance-paused"]
+    },
+    {
+      "call": "pause_timer_at",
+      "args": { "instanceId": "$timer", "idleSince": "2026-03-02T15:06:00Z" },
+      "reply": false
+    },
+    {
+      "call": "get_sessions",
+      "reply": [{ "timerInstances": [{ "isPaused": true, "pausedAt": "2026-03-02T15:05:00Z" }] }]
+    },
+    {
+      "call": "apply_idle_choice",
+      "args": { "instanceId": "$timer", "choice": "maybe" },
+      "error": "Unknown choice: maybe"
+    },
+    {
+      "call": "apply_idle_choice",
+      "args": { "instanceId": "$timer", "choice": "stayPaused" },
+      "reply": false
+    },
+    {
+      "call": "apply_idle_choice",
+      "args": { "instanceId": "$timer", "choice": "keepResume" },
+      "reply": true,
+      "events": ["timer-instance-resumed"]
+    },
+    {
+      "call": "apply_idle_choice",
+      "args": { "instanceId": "$timer", "choice": "discardResume" },
+      "error": "The timer is no longer paused"
+    },
+    {
+      "advanceMs": 600000,
+      "call": "pause_live_timer",
+      "reply": "$timer",
+      "events": ["timer-instance-paused"]
+    },
+    { "call": "stop_live_timer", "reply": "$timer", "events": ["timer-instance-stopped"] },
+    { "call": "get_sessions", "reply": [{ "totalDuration": 1500000 }] }
+  ]
+}

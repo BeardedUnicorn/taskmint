@@ -1,0 +1,102 @@
+{
+  "name": "an export restores alongside what's there, and a reset clears everything",
+  "steps": [
+    { "call": "set_app_record", "args": { "key": "dailyGoal", "value": { "targetAmount": 100 } } },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "call": "restore_backup_data",
+      "args": { "payload": { "mode": "merge", "sessions": "not a list" } },
+      "error": "Stored sessions value is not an array"
+    },
+    {
+      "call": "restore_backup_data",
+      "args": { "payload": { "mode": "merge", "workLogEntries": "not a list" } },
+      "error": "Stored work-log entry value is not an array"
+    },
+    {
+      "call": "restore_backup_data",
+      "args": { "payload": { "mode": "merge", "workLogMappings": {} } },
+      "error": "Stored project mapping value is not an array"
+    },
+    {
+      "call": "restore_backup_data",
+      "args": {
+        "payload": {
+          "mode": "merge",
+          "exportedAt": "2026-03-01T20:00:00Z",
+          "sessions": [
+            {
+              "id": "session_exported",
+              "taskId": "t2",
+              "taskName": "Reviews",
+              "timerInstances": [
+                {
+                  "id": "instance_exported",
+                  "sessionId": "session_exported",
+                  "startTime": "2026-03-01T19:00:00Z",
+                  "endTime": null,
+                  "duration": null,
+                  "isRunning": true,
+                  "pausedAt": null,
+                  "pausedDuration": 0,
+                  "resumedAt": "2026-03-01T19:00:00Z",
+                  "notes": null
+                }
+              ],
+              "notes": null,
+              "isActive": true
+            },
+            { "taskId": "no id" }
+          ],
+          "workLogEntries": [{ "id": "e1", "kind": "workLog", "amountCents": 500 }],
+          "workLogMappings": null
+        }
+      },
+      "reply": {
+        "sessionsRestored": 1,
+        "sessionsAlreadyPresent": 0,
+        "workLogEntriesRestored": 1,
+        "workLogMappingsRestored": 0,
+        "recordsSkipped": 1
+      }
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [
+        { "taskId": "t1", "isActive": true },
+        {
+          "id": "session_exported",
+          "isActive": false,
+          "totalDuration": 3600000,
+          "timerInstances": [{ "isRunning": false, "endTime": "2026-03-01T20:00:00Z" }]
+        }
+      ]
+    },
+    {
+      "call": "restore_backup_data",
+      "args": { "payload": { "mode": "replace", "workLogMappings": [{ "projectId": "p1" }] } },
+      "reply": { "sessionsRestored": 0, "workLogMappingsRestored": 1, "recordsSkipped": 0 }
+    },
+    {
+      "call": "get_work_logs",
+      "reply": { "entries": [{ "id": "e1" }], "mappings": [{ "projectId": "p1" }] }
+    },
+    {
+      "call": "accept_capture",
+      "args": { "payload": "{\"workLogs\": []}", "source": "extension" },
+      "events": ["work-log-payload-captured"]
+    },
+    { "call": "reset_all_app_data" },
+    { "call": "get_sessions", "reply": [] },
+    { "call": "get_work_logs", "reply": { "entries": [], "mappings": [] } },
+    { "call": "get_app_records", "reply": { "records": {} } },
+    { "call": "take_pending_work_log_capture", "reply": null },
+    { "reload": true, "call": "get_sessions", "reply": [] },
+    { "call": "get_app_records", "reply": { "records": {} } }
+  ]
+}

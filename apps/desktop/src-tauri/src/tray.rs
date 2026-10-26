@@ -1,6 +1,5 @@
 // System tray functionality
 
-use crate::commands::sessions;
 use crate::config::{
     ICON_TRAY_FALLBACK, ICON_TRAY_PRIMARY, TRAY_MAX_RECENT_TASKS, TRAY_MENU_REFRESH_INTERVAL,
     TRAY_STATUS_UPDATE_INTERVAL, TRAY_TOOLTIP_APP_NAME,
@@ -9,7 +8,8 @@ use crate::state::AppState;
 use crate::utils::{format_duration_hm, is_macos};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use taskmint_core::idle::IdleChoice;
+use taskmint_core::command::{Command, NoArgs, StartTaskArgs};
+use taskmint_core::contract::{IDLE_CHOICE_DISCARD_RESUME, IDLE_CHOICE_KEEP_RESUME};
 use taskmint_core::model::{Task, TaskSession};
 use taskmint_core::sessions::start::{live_timer, LiveTimer};
 
@@ -81,41 +81,83 @@ impl TrayLiveKey {
     }
 }
 
-/// The live timer, read straight from the Rust-owned sessions.
-fn current_live_timer(state: &AppState) -> Option<LiveTimer> {
-    state
-        .with_task_sessions(|sessions| live_timer(sessions, Utc::now()))
-        .ok()
-        .flatten()
+/// Everything the tray shows, read from the data at once.
+pub(crate) struct TraySnapshot {
+    live: Option<LiveTimer>,
+    /// The live timer is the one idle detection paused (question pending).
+    idle_paused: bool,
+    /// The Start submenu's tasks, in order.
+    tasks: Vec<Task>,
 }
 
-/// Whether the live timer is the one idle detection paused (question pending).
-fn is_idle_paused(state: &AppState, live: &LiveTimer) -> bool {
-    live.is_paused
-        && state
-            .with_idle(|idle| {
-                idle.pause
-                    .as_ref()
-                    .is_some_and(|p| p.instance_id == live.instance_id)
-            })
-            .unwrap_or(false)
+/// What the menu was built for. A change in any of it needs a rebuild;
+/// elapsed time alone only needs the tooltip.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrayKey {
+    live: Option<TrayLiveKey>,
+    tasks: Vec<Task>,
 }
 
-/// The rebuild key for the tray's current state.
-fn current_tray_key(state: &AppState) -> Option<TrayLiveKey> {
-    current_live_timer(state).map(|live| TrayLiveKey::new(&live, is_idle_paused(state, &live)))
+impl TraySnapshot {
+    fn key(&self) -> TrayKey {
+        TrayKey {
+            live: self
+                .live
+                .as_ref()
+                .map(|live| TrayLiveKey::new(live, self.idle_paused)),
+            tasks: self.tasks.clone(),
+        }
+    }
 }
 
-pub fn create_tray_menu(
+fn snapshot(state: &AppState) -> TraySnapshot {
+    let now = Utc::now();
+    let (live, tasks) = state
+        .backend
+        .read(|workspace| {
+            let tasks = workspace.tasks();
+            let last_used = last_used_by_task(&workspace.sessions);
+            let visible = visible_tasks(&tasks, &last_used, TRAY_MAX_RECENT_TASKS)
+                .into_iter()
+                .cloned()
+                .collect();
+            (live_timer(&workspace.sessions, now), visible)
+        })
+        .unwrap_or_default();
+    let idle_paused = live.as_ref().is_some_and(|live| {
+        live.is_paused
+            && state
+                .with_idle(|idle| {
+                    idle.pause
+                        .as_ref()
+                        .is_some_and(|p| p.instance_id == live.instance_id)
+                })
+                .unwrap_or(false)
+    });
+    TraySnapshot {
+        live,
+        idle_paused,
+        tasks,
+    }
+}
+
+/// Runs a tray action; a failure is logged (the tray has nowhere to show it).
+fn act(state: &AppState, what: &str, command: Command) {
+    if let Err(e) = state.backend.call(command) {
+        log::error!("Failed to {} from the tray: {}", what, e);
+    }
+}
+
+fn create_tray_menu(
     app: &AppHandle,
-    state: &AppState,
+    snapshot: &TraySnapshot,
 ) -> Result<Menu<tauri::Wry>, tauri::Error> {
     log::debug!("Creating tray menu...");
     let menu = Menu::new(app)?;
 
     // Timer status section
-    match current_live_timer(state) {
-        Some(live) if is_idle_paused(state, &live) => {
+    match &snapshot.live {
+        Some(live) if snapshot.idle_paused => {
             // Idle detection paused it as of when input stopped: the resume
             // choices decide whether that away time counts.
             let status_text = format!(
@@ -177,36 +219,22 @@ pub fn create_tray_menu(
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
-    // Quick start tasks section (archived tasks are not listed). Recency comes
-    // from the sessions; read it before taking the tasks lock (never nested).
-    let last_used = state
-        .with_task_sessions(|sessions| last_used_by_task(sessions))
-        .unwrap_or_default();
-    let has_tasks = state
-        .with_tasks(|tasks| !visible_tasks(tasks, &last_used, TRAY_MAX_RECENT_TASKS).is_empty())
-        .unwrap_or(false);
-
-    if has_tasks {
+    // Quick start tasks section (archived tasks are not listed)
+    if !snapshot.tasks.is_empty() {
         let start_submenu = Submenu::new(app, "▶️ Start Timer", true)?;
         log::debug!("Created start timer submenu");
 
-        // Add recent/favorite tasks (limit to configured max)
-        state
-            .with_tasks(|tasks| {
-                for task in visible_tasks(tasks, &last_used, TRAY_MAX_RECENT_TASKS) {
-                    let menu_id = format!("start_task_{}", task.id);
-                    let label = if task.is_favorite {
-                        format!("★ {}", task.name)
-                    } else {
-                        task.name.clone()
-                    };
-                    let task_item = MenuItem::with_id(app, &menu_id, &label, true, None::<&str>)?;
-                    start_submenu.append(&task_item)?;
-                    log::debug!("Added task item: '{}' with ID: '{}'", task.name, menu_id);
-                }
-                Ok::<_, tauri::Error>(())
-            })
-            .unwrap_or(Ok(()))?;
+        for task in &snapshot.tasks {
+            let menu_id = format!("start_task_{}", task.id);
+            let label = if task.is_favorite {
+                format!("★ {}", task.name)
+            } else {
+                task.name.clone()
+            };
+            let task_item = MenuItem::with_id(app, &menu_id, &label, true, None::<&str>)?;
+            start_submenu.append(&task_item)?;
+            log::debug!("Added task item: '{}' with ID: '{}'", task.name, menu_id);
+        }
 
         // Every task, not just the ones listed above, in the app's start dialog
         start_submenu.append(&PredefinedMenuItem::separator(app)?)?;
@@ -274,16 +302,14 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
 
     match id {
         "stop_timer" => {
-            if let Err(e) = sessions::tray_stop_timer(app, state) {
-                log::error!("Failed to stop timer from tray: {}", e);
-            }
+            act(state, "stop the timer", Command::StopLiveTimer(NoArgs {}));
             sync_tray(app, state);
         }
         "idle_discard_resume" | "idle_keep_resume" => {
             let choice = if id == "idle_keep_resume" {
-                IdleChoice::KeepResume
+                IDLE_CHOICE_KEEP_RESUME
             } else {
-                IdleChoice::DiscardResume
+                IDLE_CHOICE_DISCARD_RESUME
             };
             if let Err(e) = crate::idle::resolve(app, state, choice) {
                 log::error!("Failed to resume after idle from tray: {}", e);
@@ -291,18 +317,20 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
             sync_tray(app, state);
         }
         "pause_timer" => {
-            if let Err(e) = sessions::tray_pause_timer(app, state) {
-                log::error!("Failed to pause timer from tray: {}", e);
-            }
+            act(state, "pause the timer", Command::PauseLiveTimer(NoArgs {}));
             sync_tray(app, state);
         }
         "resume_timer" => {
             // Starting the paused timer's own task resumes it.
-            if let Some(live) = current_live_timer(state).filter(|l| l.is_paused) {
-                if let Err(e) = sessions::start_task_now(app, state, &live.task_id, &live.task_name)
-                {
-                    log::error!("Failed to resume timer from tray: {}", e);
-                }
+            if let Some(live) = snapshot(state).live.filter(|l| l.is_paused) {
+                act(
+                    state,
+                    "resume the timer",
+                    Command::StartTask(StartTaskArgs {
+                        task_id: live.task_id,
+                        task_name: live.task_name,
+                    }),
+                );
             }
             sync_tray(app, state);
         }
@@ -318,19 +346,26 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
         id if id.starts_with("start_task_") => {
             let task_id = &id["start_task_".len()..];
             let task_name = state
-                .with_tasks(|tasks| {
-                    tasks
-                        .iter()
+                .backend
+                .read(|workspace| {
+                    workspace
+                        .tasks()
+                        .into_iter()
                         .find(|t| t.id == task_id)
-                        .map(|task| task.name.clone())
+                        .map(|task| task.name)
                 })
                 .unwrap_or(None);
 
             match task_name {
                 Some(task_name) => {
-                    if let Err(e) = sessions::start_task_now(app, state, task_id, &task_name) {
-                        log::error!("Failed to start timer from tray: {}", e);
-                    }
+                    act(
+                        state,
+                        "start a timer",
+                        Command::StartTask(StartTaskArgs {
+                            task_id: task_id.to_string(),
+                            task_name,
+                        }),
+                    );
                     sync_tray(app, state);
                 }
                 None => log::error!("Tray start: task not found for id '{}'", task_id),
@@ -359,36 +394,39 @@ pub(crate) fn show_main_window(app: &AppHandle) {
     }
 }
 
-pub fn update_tray_menu(app: &AppHandle, state: &AppState) -> Result<(), tauri::Error> {
-    let rendered = current_tray_key(state);
+fn update_tray_menu(
+    app: &AppHandle,
+    state: &AppState,
+    snapshot: &TraySnapshot,
+) -> Result<(), tauri::Error> {
     state
         .with_tray_icon(|tray_option| {
             if let Some(ref tray) = tray_option {
-                let new_menu = create_tray_menu(app, state)?;
+                let new_menu = create_tray_menu(app, snapshot)?;
                 tray.set_menu(Some(new_menu))?;
             }
             Ok::<(), tauri::Error>(())
         })
         .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))??;
-    let _ = state.with_tray_rendered_mut(|slot| *slot = rendered);
+    let _ = state.with_tray_rendered_mut(|slot| *slot = Some(snapshot.key()));
     Ok(())
 }
 
-/// Bring the tray in line with the sessions: rebuild the menu only when the
-/// live timer changed (a rebuild closes an open menu, so no-op rebuilds must
-/// not happen), and refresh the tooltip/title. Called after tray actions and
-/// by the update thread, so changes made in the app show within a tick.
+/// Bring the tray in line with the data: rebuild the menu only when what it
+/// shows changed (a rebuild closes an open menu, so no-op rebuilds must not
+/// happen), and refresh the tooltip/title. Runs after every saved change to
+/// sessions or tasks, after tray actions, and from the update thread.
 pub fn sync_tray(app: &AppHandle, state: &AppState) {
-    let live = current_tray_key(state);
+    let snapshot = snapshot(state);
     let changed = state
-        .with_tray_rendered(|rendered| *rendered != live)
+        .with_tray_rendered(|rendered| rendered.as_ref() != Some(&snapshot.key()))
         .unwrap_or(true);
     if changed {
-        if let Err(e) = update_tray_menu(app, state) {
+        if let Err(e) = update_tray_menu(app, state, &snapshot) {
             log::error!("Failed to update tray menu: {:?}", e);
         }
     }
-    if let Err(e) = update_tray_tooltip_only(state) {
+    if let Err(e) = update_tray_tooltip(state, &snapshot) {
         log::error!("Failed to update tray tooltip: {:?}", e);
     }
 }
@@ -417,7 +455,8 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
 
     // Load the tray icon with fallback
     let icon = load_tray_icon()?;
-    let menu = create_tray_menu(app, state)?;
+    let snapshot = snapshot(state);
+    let menu = create_tray_menu(app, &snapshot)?;
 
     // Build the tray icon
     log::debug!("Building new tray icon...");
@@ -446,6 +485,7 @@ pub fn setup_system_tray(app: &AppHandle, state: &AppState) -> Result<(), tauri:
             *tray_option = Some(tray);
         })
         .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!(e)))?;
+    let _ = state.with_tray_rendered_mut(|slot| *slot = Some(snapshot.key()));
 
     log::info!("System tray setup completed successfully");
     Ok(())
@@ -491,10 +531,8 @@ fn load_tray_icon() -> Result<Image<'static>, tauri::Error> {
     }
 }
 
-pub(crate) fn update_tray_tooltip_only(state: &AppState) -> Result<(), String> {
-    let live = current_live_timer(state);
-
-    let (tooltip, title) = match &live {
+fn update_tray_tooltip(state: &AppState, snapshot: &TraySnapshot) -> Result<(), String> {
+    let (tooltip, title) = match &snapshot.live {
         Some(live) => {
             let elapsed = format_duration_hm(live.elapsed_ms);
             if live.is_paused {
@@ -547,14 +585,13 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
         loop {
             std::thread::sleep(TRAY_STATUS_UPDATE_INTERVAL);
 
-            // Picks up starts/stops made anywhere (app UI, tray, imports) and
-            // keeps the running clock in the tooltip/title current.
-            let live = current_live_timer(&state_clone);
-            let key = current_tray_key(&state_clone);
+            // Keeps the running clock in the tooltip/title current, and
+            // catches anything a saved change didn't already sync.
+            let snapshot = snapshot(&state_clone);
             let changed = state_clone
-                .with_tray_rendered(|rendered| *rendered != key)
+                .with_tray_rendered(|rendered| rendered.as_ref() != Some(&snapshot.key()))
                 .unwrap_or(false);
-            let running = live.as_ref().is_some_and(|l| !l.is_paused);
+            let running = snapshot.live.as_ref().is_some_and(|l| !l.is_paused);
 
             if changed || running {
                 sync_tray(&app_clone, &state_clone);
@@ -565,7 +602,7 @@ pub fn start_tray_update_timer(app: &AppHandle, state: &AppState) {
             if changed {
                 last_menu_update = std::time::Instant::now();
             } else if running && last_menu_update.elapsed() >= TRAY_MENU_REFRESH_INTERVAL {
-                if let Err(e) = update_tray_menu(&app_clone, &state_clone) {
+                if let Err(e) = update_tray_menu(&app_clone, &state_clone, &snapshot) {
                     log::error!("Failed to update tray menu: {:?}", e);
                 }
                 last_menu_update = std::time::Instant::now();

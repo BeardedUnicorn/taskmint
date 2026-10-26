@@ -15,6 +15,33 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+/// apply_work_log_import's payload: ledger rows and mappings to upsert, and
+/// the per-day rewrites they drive.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkLogImportPayload {
+    #[serde(default)]
+    pub entries: Vec<WorkLogEntry>,
+    #[serde(default)]
+    pub mappings: Vec<ProjectTaskMapping>,
+    #[serde(default)]
+    pub rewrite_groups: Vec<RewriteGroup>,
+    /// A project moved to another task: the entries are re-pointed, not new
+    /// from the site, so they keep their `updated_at` (Payouts' "Last import").
+    #[serde(default)]
+    pub is_remap: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkLogImportSummary {
+    pub entries_added: usize,
+    pub entries_updated: usize,
+    pub mappings_saved: usize,
+    pub groups_applied: Vec<AppliedGroup>,
+    pub groups_skipped: Vec<SkippedGroup>,
+}
+
 /// One (task, workDay) rewrite: delete the listed finalized instances and
 /// insert the replacement session built from the ledger. A remap that leaves
 /// a day with nothing left to import for this task sends no replacement: the

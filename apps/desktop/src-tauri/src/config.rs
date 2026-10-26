@@ -17,6 +17,9 @@ pub const TRAY_MAX_RECENT_TASKS: usize = 5;
 /// so it stays.
 pub const BACKUP_FILENAME_PREFIX: &str = "time_tracker_backup_";
 pub const BACKUP_FILENAME_EXTENSION: &str = ".json";
+/// Automatic backups go here, inside Documents, until the user picks a
+/// folder.
+pub const DEFAULT_BACKUP_FOLDER_NAME: &str = "TaskMint Backups";
 /// Written and removed to check a backup folder is writable.
 pub const BACKUP_WRITE_TEST_FILENAME: &str = ".taskmint_write_test";
 

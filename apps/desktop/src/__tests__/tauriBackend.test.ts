@@ -1,28 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import {
-  createTauriBackend,
-  DEFAULT_BACKUP_FOLDER_NAME,
-  EXPORT_CANCELLED,
-  IMPORT_CANCELLED,
-} from "../tauriBackend";
+import { createTauriBackend, EXPORT_CANCELLED, IMPORT_CANCELLED } from "../tauriBackend";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
-vi.mock("@tauri-apps/api/path", () => ({
-  documentDir: async () => "/Users/me/Documents",
-  join: async (...parts: string[]) => parts.join("/"),
-}));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ revealItemInDir: vi.fn() }));
 
 const mockInvoke = vi.mocked(invoke);
 const mockListen = vi.mocked(listen);
 const backend = createTauriBackend();
 const { platform } = backend;
+
+/** The commands dispatch was asked to run, with their args. */
+function dispatched() {
+  return mockInvoke.mock.calls.map(([name, payload]) => {
+    expect(name).toBe("dispatch");
+    const { command, args } = payload as { command: string; args?: unknown };
+    return args === undefined ? [command] : [command, args];
+  });
+}
 
 describe("createTauriBackend", () => {
   beforeEach(() => {
@@ -34,9 +30,14 @@ describe("createTauriBackend", () => {
     expect(backend.capabilities).toEqual({ runtime: "desktop", dataLocation: "local" });
   });
 
-  it("runs data commands as the Tauri commands of the same name", async () => {
+  it("runs data commands by name through dispatch", async () => {
     await expect(backend.call("start_task", { taskId: "t1", taskName: "Annotation" })).resolves.toBe("result");
-    expect(mockInvoke).toHaveBeenCalledWith("start_task", { taskId: "t1", taskName: "Annotation" });
+    await backend.call("get_sessions");
+    expect(mockInvoke).toHaveBeenCalledWith("dispatch", {
+      command: "start_task",
+      args: { taskId: "t1", taskName: "Annotation" },
+    });
+    expect(dispatched()).toEqual([["start_task", { taskId: "t1", taskName: "Annotation" }], ["get_sessions"]]);
   });
 
   it("rejects with the command's reason", async () => {
@@ -97,7 +98,7 @@ describe("createTauriBackend", () => {
         kind: "path",
         path: "/Users/me/entries.csv",
       });
-      expect(mockInvoke).toHaveBeenCalledWith("export_csv_file", { csv: "a,b", suggestedFilename: "entries.csv" });
+      expect(dispatched()).toEqual([["export_csv_file", { csv: "a,b", suggestedFilename: "entries.csv" }]]);
     });
 
     it("saves a JSON export through the Save dialog", async () => {
@@ -107,7 +108,7 @@ describe("createTauriBackend", () => {
         kind: "path",
         path: "/Users/me/export.json",
       });
-      expect(mockInvoke).toHaveBeenCalledWith("export_data_to_file", { dataJson: "{}", suggestedFilename: "export.json" });
+      expect(dispatched()).toEqual([["export_data_to_file", { dataJson: "{}", suggestedFilename: "export.json" }]]);
     });
 
     it("is null when the Save dialog is dismissed, and rejects on a real failure", async () => {
@@ -123,7 +124,7 @@ describe("createTauriBackend", () => {
     it("opens a JSON file, null when the Open dialog is dismissed", async () => {
       mockInvoke.mockResolvedValueOnce('{"version":"2"}');
       await expect(platform.files.openJson()).resolves.toBe('{"version":"2"}');
-      expect(mockInvoke).toHaveBeenCalledWith("import_data_from_file");
+      expect(dispatched()).toEqual([["import_data_from_file"]]);
 
       mockInvoke.mockRejectedValueOnce(IMPORT_CANCELLED);
       await expect(platform.files.openJson()).resolves.toBeNull();
@@ -133,15 +134,13 @@ describe("createTauriBackend", () => {
   it("shows OS notifications and applies their preferences in Rust", async () => {
     mockInvoke.mockResolvedValue(true);
     await expect(platform.notifications.show("longRun", "Still working?", "4h")).resolves.toBe(true);
-    expect(mockInvoke).toHaveBeenCalledWith("show_desktop_notification", {
-      kind: "longRun",
-      title: "Still working?",
-      body: "4h",
-    });
-
     const prefs = { enabled: true } as never;
     await platform.notifications.setPreferences!(prefs);
-    expect(mockInvoke).toHaveBeenCalledWith("set_notification_preferences", { prefs });
+
+    expect(dispatched()).toEqual([
+      ["show_desktop_notification", { kind: "longRun", title: "Still working?", body: "4h" }],
+      ["set_notification_preferences", { prefs }],
+    ]);
   });
 
   it("reaches the idle monitor", async () => {
@@ -151,7 +150,7 @@ describe("createTauriBackend", () => {
     await idle.getPending();
     await idle.resolve("keepResume");
 
-    expect(mockInvoke.mock.calls).toEqual([
+    expect(dispatched()).toEqual([
       ["get_idle_support"],
       ["set_idle_settings", { settings: { enabled: true, thresholdMinutes: 10, longRunHours: 4 } }],
       ["get_idle_pause"],
@@ -162,21 +161,20 @@ describe("createTauriBackend", () => {
   describe("folder backups", () => {
     const folders = platform.folderBackups!;
 
-    it("default to a folder in Documents", async () => {
-      await expect(folders.defaultFolder()).resolves.toBe(`/Users/me/Documents/${DEFAULT_BACKUP_FOLDER_NAME}`);
-    });
+    it("default to a folder Rust names, and pick one with its folder dialog", async () => {
+      mockInvoke.mockResolvedValueOnce("/Users/me/Documents/TaskMint Backups");
+      await expect(folders.defaultFolder()).resolves.toBe("/Users/me/Documents/TaskMint Backups");
+      mockInvoke.mockResolvedValueOnce(null);
+      await expect(folders.pickFolder()).resolves.toBeNull();
 
-    it("pick a folder with the folder dialog", async () => {
-      vi.mocked(open).mockResolvedValue("/Users/me/Backups");
-      await expect(folders.pickFolder()).resolves.toBe("/Users/me/Backups");
-      expect(open).toHaveBeenCalledWith({ directory: true, multiple: false, title: "Select Backup Directory" });
+      expect(dispatched()).toEqual([["default_backup_dir"], ["pick_backup_dir"]]);
     });
 
     it("validate and write through Rust", async () => {
       await folders.validateFolder("/Users/me/Backups");
       await folders.write({ folder: "/Users/me/Backups", contents: "{}", maxBackups: 10 });
 
-      expect(mockInvoke.mock.calls).toEqual([
+      expect(dispatched()).toEqual([
         ["validate_backup_path", { path: "/Users/me/Backups" }],
         ["perform_automatic_backup", { backupPath: "/Users/me/Backups", currentDataJson: "{}", maxBackups: 10 }],
       ]);
@@ -185,9 +183,8 @@ describe("createTauriBackend", () => {
 
   it("reveals files and reports the capture server", async () => {
     await platform.reveal!("/Users/me/export.json");
-    expect(revealItemInDir).toHaveBeenCalledWith("/Users/me/export.json");
-
     await platform.captureStatus!();
-    expect(mockInvoke).toHaveBeenCalledWith("get_capture_server_status");
+
+    expect(dispatched()).toEqual([["reveal_path", { path: "/Users/me/export.json" }], ["get_capture_server_status"]]);
   });
 });

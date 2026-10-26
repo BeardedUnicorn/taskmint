@@ -217,7 +217,7 @@ impl IdleChoice {
 /// Returns whether the timer was resumed.
 pub fn apply_idle_choice(
     sessions: &mut [TaskSession],
-    pause: &IdlePause,
+    instance_id: &str,
     choice: IdleChoice,
     now: DateTime<Utc>,
 ) -> Result<bool, String> {
@@ -229,14 +229,14 @@ pub fn apply_idle_choice(
     let another_running = sessions
         .iter()
         .flat_map(|s| s.timer_instances.iter())
-        .any(|i| i.is_running && i.id != pause.instance_id);
+        .any(|i| i.is_running && i.id != instance_id);
     let (session, index) = sessions
         .iter_mut()
         .find_map(|session| {
             let index = session
                 .timer_instances
                 .iter()
-                .position(|i| i.id == pause.instance_id);
+                .position(|i| i.id == instance_id);
             index.map(|index| (session, index))
         })
         .ok_or_else(|| "The paused timer no longer exists".to_string())?;
@@ -481,9 +481,13 @@ mod tests {
     #[test]
     fn discard_and_resume_leaves_the_away_time_uncounted() {
         let (mut sessions, pause) = idle_paused_sessions();
-        assert!(
-            apply_idle_choice(&mut sessions, &pause, IdleChoice::DiscardResume, ts(3_000)).unwrap()
-        );
+        assert!(apply_idle_choice(
+            &mut sessions,
+            &pause.instance_id,
+            IdleChoice::DiscardResume,
+            ts(3_000)
+        )
+        .unwrap());
         // 600s more of work after returning: 1800 + 600
         assert_eq!(net_ms_at(&sessions, ts(3_600)), 2_400_000);
     }
@@ -491,9 +495,13 @@ mod tests {
     #[test]
     fn keep_and_resume_counts_the_away_time() {
         let (mut sessions, pause) = idle_paused_sessions();
-        assert!(
-            apply_idle_choice(&mut sessions, &pause, IdleChoice::KeepResume, ts(3_000)).unwrap()
-        );
+        assert!(apply_idle_choice(
+            &mut sessions,
+            &pause.instance_id,
+            IdleChoice::KeepResume,
+            ts(3_000)
+        )
+        .unwrap());
         let timer = &sessions[0].timer_instances[0];
         assert!(timer.is_running && !timer.is_paused);
         assert_eq!(net_ms_at(&sessions, ts(3_600)), 3_600_000);
@@ -503,9 +511,13 @@ mod tests {
     fn stay_paused_changes_nothing() {
         let (mut sessions, pause) = idle_paused_sessions();
         let before = sessions.clone();
-        assert!(
-            !apply_idle_choice(&mut sessions, &pause, IdleChoice::StayPaused, ts(3_000)).unwrap()
-        );
+        assert!(!apply_idle_choice(
+            &mut sessions,
+            &pause.instance_id,
+            IdleChoice::StayPaused,
+            ts(3_000)
+        )
+        .unwrap());
         assert_eq!(sessions, before);
     }
 
@@ -513,8 +525,13 @@ mod tests {
     fn resuming_is_refused_while_another_timer_runs() {
         let (mut sessions, pause) = idle_paused_sessions();
         sessions[0].timer_instances.push(running("other", 3_100));
-        let err = apply_idle_choice(&mut sessions, &pause, IdleChoice::DiscardResume, ts(3_200))
-            .unwrap_err();
+        let err = apply_idle_choice(
+            &mut sessions,
+            &pause.instance_id,
+            IdleChoice::DiscardResume,
+            ts(3_200),
+        )
+        .unwrap_err();
         assert_eq!(err, "Another timer instance is already running");
     }
 
@@ -598,23 +615,39 @@ mod tests {
         let (mut sessions, pause) = idle_paused_sessions();
         sessions[0].is_active = false;
         assert_eq!(
-            apply_idle_choice(&mut sessions, &pause, IdleChoice::KeepResume, ts(3_000))
-                .unwrap_err(),
+            apply_idle_choice(
+                &mut sessions,
+                &pause.instance_id,
+                IdleChoice::KeepResume,
+                ts(3_000)
+            )
+            .unwrap_err(),
             ERR_RESUME_INACTIVE_SESSION
         );
 
         let (mut sessions, pause) = idle_paused_sessions();
         resume_instance(&mut sessions[0].timer_instances[0], ts(3_000));
         assert_eq!(
-            apply_idle_choice(&mut sessions, &pause, IdleChoice::DiscardResume, ts(3_100))
-                .unwrap_err(),
+            apply_idle_choice(
+                &mut sessions,
+                &pause.instance_id,
+                IdleChoice::DiscardResume,
+                ts(3_100)
+            )
+            .unwrap_err(),
             "The timer is no longer paused"
         );
 
         let mut gone = vec![session(true, vec![running("other", 0)])];
         gone[0].timer_instances[0].is_running = false;
         assert_eq!(
-            apply_idle_choice(&mut gone, &pause, IdleChoice::DiscardResume, ts(3_100)).unwrap_err(),
+            apply_idle_choice(
+                &mut gone,
+                &pause.instance_id,
+                IdleChoice::DiscardResume,
+                ts(3_100)
+            )
+            .unwrap_err(),
             "The paused timer no longer exists"
         );
     }

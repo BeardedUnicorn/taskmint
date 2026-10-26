@@ -1,0 +1,96 @@
+{
+  "name": "starting work hands off from the live timer",
+  "steps": [
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          },
+          {
+            "id": "t2",
+            "name": "Reviews",
+            "hourlyRate": 40,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": " t1 ", "taskName": " Writing " },
+      "reply": { "outcome": "started" },
+      "save": { "first": "/instanceId" },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "reply": { "outcome": "alreadyRunning", "instanceId": null, "stoppedTaskName": null }
+    },
+    {
+      "advanceMs": 60000,
+      "call": "start_task",
+      "args": { "taskId": "t2", "taskName": "Reviews" },
+      "reply": { "outcome": "started", "stoppedTaskName": "Writing" },
+      "save": { "second": "/instanceId" },
+      "events": ["timer-instance-stopped", "timer-instance-started"]
+    },
+    {
+      "call": "get_sessions",
+      "reply": [
+        {
+          "taskId": "t1",
+          "isActive": false,
+          "hourlyRate": null,
+          "timerInstances": [{ "id": "$first", "duration": 60000 }]
+        },
+        {
+          "taskId": "t2",
+          "isActive": true,
+          "hourlyRate": 40,
+          "timerInstances": [{ "id": "$second", "isRunning": true }]
+        }
+      ]
+    },
+    {
+      "call": "pause_timer_instance",
+      "args": { "instanceId": "$second" },
+      "events": ["timer-instance-paused"]
+    },
+    {
+      "advanceMs": 60000,
+      "call": "start_task",
+      "args": { "taskId": "t2", "taskName": "Reviews" },
+      "reply": { "outcome": "resumed", "instanceId": "$second", "stoppedTaskName": null },
+      "events": ["timer-instance-resumed"]
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": " ", "taskName": "Writing" },
+      "error": "Choose a task to start"
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "" },
+      "error": "Choose a task to start"
+    },
+    {
+      "call": "start_task",
+      "args": {},
+      "error": "Invalid arguments for start_task: missing field `taskId`"
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": 7, "taskName": "Writing" },
+      "error": "Invalid arguments for start_task: invalid type: integer `7`, expected a string"
+    },
+    { "call": "launch_rocket", "error": "Unknown command: launch_rocket" }
+  ]
+}

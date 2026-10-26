@@ -1,0 +1,92 @@
+{
+  "name": "sessions follow the tasks record's names and rates",
+  "steps": [
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "save": { "timer": "/instanceId" },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "advanceMs": 60000,
+      "call": "stop_live_timer",
+      "reply": "$timer",
+      "events": ["timer-instance-stopped"]
+    },
+    { "call": "stop_live_timer", "reply": null },
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Drafting",
+            "hourlyRate": 60,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-02T00:00:00Z"
+          }
+        ]
+      },
+      "events": ["sessions-changed"]
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [{ "taskName": "Drafting", "hourlyRate": 60 }]
+    },
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Drafting",
+            "hourlyRate": 80,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-03T00:00:00Z"
+          }
+        ]
+      }
+    },
+    { "call": "get_sessions", "reply": [{ "taskName": "Drafting", "hourlyRate": 60 }] },
+    {
+      "call": "import_app_records",
+      "args": {
+        "records": {
+          "predefinedTasks": [
+            {
+              "id": "t2",
+              "name": "Reviews",
+              "hourlyRate": 30,
+              "createdAt": "2026-01-01T00:00:00Z",
+              "updatedAt": "2026-01-01T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "reply": { "records": { "predefinedTasks": [{ "id": "t1" }, { "id": "t2" }] } }
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t2", "taskName": "Reviews" },
+      "events": ["timer-instance-started"]
+    },
+    { "call": "get_sessions", "reply": [{ "taskId": "t1" }, { "taskId": "t2", "hourlyRate": 30 }] }
+  ]
+}

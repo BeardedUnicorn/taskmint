@@ -13,12 +13,9 @@
 use crate::events;
 use crate::notifications::{self, Origin};
 use crate::state::AppState;
-use crate::storage;
 use chrono::{DateTime, Utc};
-use taskmint_core::idle::{
-    apply_idle_choice, idle_tick, long_run_tick, pause_for_idle, IdleAction, IdleChoice, IdlePause,
-    LongRun,
-};
+use taskmint_core::command::{ApplyIdleChoiceArgs, Command, PauseTimerAtArgs};
+use taskmint_core::idle::{idle_tick, long_run_tick, IdleAction, IdleChoice, IdlePause, LongRun};
 use taskmint_core::notifications::NotificationKind;
 use taskmint_core::DayZone;
 use tauri::AppHandle;
@@ -81,24 +78,20 @@ pub fn is_supported() -> bool {
 // RUNTIME
 // ============================================================================
 
-/// Pause the running timer as of `idle_since`, persist, and record the
-/// pending question.
+/// Pause the running timer as of `idle_since`, and record the pending
+/// question.
 fn apply_pause(
     app: &AppHandle,
     state: &AppState,
     instance_id: &str,
     task_name: &str,
     idle_since: DateTime<Utc>,
-    now: DateTime<Utc>,
 ) -> Result<(), String> {
-    let paused = state.with_task_sessions_mut(|sessions| -> Result<bool, String> {
-        if !pause_for_idle(sessions, instance_id, idle_since, now) {
-            return Ok(false);
-        }
-        storage::save_sessions(app, sessions)?;
-        Ok(true)
-    })??;
-    if !paused {
+    let paused = state.backend.call(Command::PauseTimerAt(PauseTimerAtArgs {
+        instance_id: instance_id.to_string(),
+        idle_since,
+    }))?;
+    if paused != serde_json::Value::Bool(true) {
         return Ok(());
     }
 
@@ -114,13 +107,6 @@ fn apply_pause(
         "Idle: paused '{}' as of {} (no input since then)",
         task_name,
         idle_since.to_rfc3339()
-    );
-    events::emit_instance_event(
-        app,
-        events::TIMER_INSTANCE_PAUSED,
-        instance_id,
-        "pausedAt",
-        idle_since,
     );
     notifications::post(
         app,
@@ -161,28 +147,19 @@ fn clear_pending(app: &AppHandle, state: &AppState) -> Result<(), String> {
     Ok(())
 }
 
-/// Answer the pending question (from the app's dialog or the tray).
-pub fn resolve(app: &AppHandle, state: &AppState, choice: IdleChoice) -> Result<(), String> {
-    let now = Utc::now();
+/// Answer the pending question (from the app's dialog or the tray):
+/// "discardResume", "keepResume" or "stayPaused".
+pub fn resolve(app: &AppHandle, state: &AppState, choice: &str) -> Result<(), String> {
+    IdleChoice::parse(choice)?;
     let Some(pause) = state.with_idle(|idle| idle.pause.clone())? else {
         return Ok(());
     };
-    let resumed = state.with_task_sessions_mut(|sessions| -> Result<bool, String> {
-        let resumed = apply_idle_choice(sessions, &pause, choice, now)?;
-        if resumed {
-            storage::save_sessions(app, sessions)?;
-        }
-        Ok(resumed)
-    })??;
-    if resumed {
-        events::emit_instance_event(
-            app,
-            events::TIMER_INSTANCE_RESUMED,
-            &pause.instance_id,
-            "resumedAt",
-            now,
-        );
-    }
+    state
+        .backend
+        .call(Command::ApplyIdleChoice(ApplyIdleChoiceArgs {
+            instance_id: pause.instance_id,
+            choice: choice.to_string(),
+        }))?;
     clear_pending(app, state)
 }
 
@@ -221,9 +198,10 @@ pub fn start_idle_monitor(app: &AppHandle, state: &AppState) {
         };
 
         let long_run = state
-            .with_task_sessions(|sessions| {
+            .backend
+            .read(|workspace| {
                 long_run_tick(
-                    sessions,
+                    &workspace.sessions,
                     idle_state.long_run_reminded.as_deref(),
                     idle_state.settings.long_run_hours,
                     now,
@@ -241,7 +219,8 @@ pub fn start_idle_monitor(app: &AppHandle, state: &AppState) {
             continue;
         };
         let action = state
-            .with_task_sessions(|sessions| idle_tick(sessions, &idle_state, idle_ms, now))
+            .backend
+            .read(|workspace| idle_tick(&workspace.sessions, &idle_state, idle_ms, now))
             .unwrap_or(IdleAction::None);
         let result = match action {
             IdleAction::None => Ok(()),
@@ -249,7 +228,7 @@ pub fn start_idle_monitor(app: &AppHandle, state: &AppState) {
                 instance_id,
                 task_name,
                 idle_since,
-            } => apply_pause(&app, &state, &instance_id, &task_name, idle_since, now),
+            } => apply_pause(&app, &state, &instance_id, &task_name, idle_since),
             IdleAction::Returned => apply_return(&app, &state, now),
             IdleAction::ClearPending => clear_pending(&app, &state),
         };

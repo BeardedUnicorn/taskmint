@@ -1,5 +1,5 @@
-//! Commands on whole sessions: edit, clear notes, activate, and move a
-//! finished timer to another task.
+//! Commands on whole sessions: clear notes, activate, and move a finished
+//! timer to another task.
 
 use crate::model::TaskSession;
 use crate::timer::{
@@ -8,43 +8,6 @@ use crate::timer::{
 };
 use crate::zone::DayZone;
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
-
-/// Session fields the frontend may patch. camelCase to match the TS
-/// `Partial<TaskSession>` shape; snake_case aliases keep old callers working.
-/// The task name isn't one: it follows the task (`sync_session_task_names`),
-/// and moving time to another task is `move_timer_instance`.
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionUpdates {
-    #[serde(default)]
-    pub notes: Option<String>,
-    #[serde(default, alias = "is_active")]
-    pub is_active: Option<bool>,
-}
-
-/// update_session: apply the patch and stamp the session. Returns it as
-/// changed.
-pub fn update_session(
-    sessions: &mut [TaskSession],
-    session_id: &str,
-    updates: &SessionUpdates,
-    now: DateTime<Utc>,
-) -> Result<TaskSession, String> {
-    let session = sessions
-        .iter_mut()
-        .find(|s| s.id == session_id)
-        .ok_or_else(|| session_not_found(session_id))?;
-
-    if let Some(notes) = updates.notes.as_ref() {
-        session.notes = Some(notes.clone());
-    }
-    if let Some(is_active) = updates.is_active {
-        session.is_active = is_active;
-    }
-    session.updated_at = now.to_rfc3339();
-    Ok(session.clone())
-}
 
 /// Clears the plain-text notes of the given sessions; returns how many had
 /// text. Session notes now live in the app's notes store, which copies the

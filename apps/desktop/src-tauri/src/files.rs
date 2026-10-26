@@ -1,22 +1,13 @@
-// Backup-related command handlers
+//! Files the user picks: exports through a save dialog, an import through
+//! an open dialog, the backup folder, and showing a file in the file manager.
+//! The webview asks for these through dispatch; it has no file access itself.
 
-use crate::backup;
+use crate::config::DEFAULT_BACKUP_FOLDER_NAME;
+use std::path::PathBuf;
 use taskmint_core::contract::{EXPORT_CANCELLED, IMPORT_CANCELLED, INVALID_JSON_FILE};
-use taskmint_core::model::{BackupResult, PathValidationResult};
-
-#[tauri::command]
-pub async fn validate_backup_path(path: String) -> Result<PathValidationResult, String> {
-    backup::validate_backup_path(&path)
-}
-
-#[tauri::command]
-pub async fn perform_automatic_backup(
-    backup_path: String,
-    current_data_json: String,
-    max_backups: u32,
-) -> Result<BackupResult, String> {
-    backup::perform_automatic_backup(&backup_path, &current_data_json, max_backups)
-}
+use tauri::{AppHandle, Manager};
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 /// A file name for the save dialog: no directory parts, and ending in
 /// `.{extension}` (added when missing).
@@ -34,15 +25,13 @@ pub fn export_file_name(suggested: &str, fallback: &str, extension: &str) -> Str
 /// Asks where to save, then writes `contents` there. Returns the path, or
 /// `EXPORT_CANCELLED` if the dialog was dismissed.
 fn save_with_dialog(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     title: &str,
     filter_name: &str,
     extension: &str,
     file_name: String,
     contents: String,
-) -> Result<std::path::PathBuf, String> {
-    use tauri_plugin_dialog::DialogExt;
-
+) -> Result<PathBuf, String> {
     let file_path = app
         .dialog()
         .file()
@@ -51,14 +40,14 @@ fn save_with_dialog(
         .set_file_name(file_name)
         .blocking_save_file()
         .ok_or_else(|| EXPORT_CANCELLED.to_string())?;
-    let path = std::path::PathBuf::from(file_path.to_string());
+    let path = PathBuf::from(file_path.to_string());
     std::fs::write(&path, contents).map_err(|e| format!("Failed to write export file: {}", e))?;
     Ok(path)
 }
 
-#[tauri::command]
-pub async fn export_data_to_file(
-    app: tauri::AppHandle,
+/// Saves a TaskMint export where the user picks, then opens its folder.
+pub fn export_data_to_file(
+    app: &AppHandle,
     data_json: String,
     suggested_filename: Option<String>,
 ) -> Result<String, String> {
@@ -72,7 +61,7 @@ pub async fn export_data_to_file(
         "json",
     );
     let path = save_with_dialog(
-        &app,
+        app,
         "Export Data",
         "JSON Files",
         "json",
@@ -82,28 +71,26 @@ pub async fn export_data_to_file(
 
     // Open the folder containing the exported file
     if let Some(parent_dir) = path.parent() {
-        let _ = tauri_plugin_opener::OpenerExt::opener(&app)
+        let _ = app
+            .opener()
             .open_path(parent_dir.to_string_lossy().to_string(), None::<String>);
     }
     Ok(path.to_string_lossy().to_string())
 }
 
 /// Saves a CSV the frontend built (Reports / Time Entries export).
-#[tauri::command]
-pub async fn export_csv_file(
-    app: tauri::AppHandle,
+pub fn export_csv_file(
+    app: &AppHandle,
     csv: String,
-    suggested_filename: String,
+    suggested_filename: &str,
 ) -> Result<String, String> {
-    let file_name = export_file_name(&suggested_filename, "taskmint-time-entries", "csv");
-    let path = save_with_dialog(&app, "Export CSV", "CSV Files", "csv", file_name, csv)?;
+    let file_name = export_file_name(suggested_filename, "taskmint-time-entries", "csv");
+    let path = save_with_dialog(app, "Export CSV", "CSV Files", "csv", file_name, csv)?;
     Ok(path.to_string_lossy().to_string())
 }
 
-#[tauri::command]
-pub async fn import_data_from_file(app: tauri::AppHandle) -> Result<String, String> {
-    use tauri_plugin_dialog::DialogExt;
-
+/// The text of a JSON file the user picks, or IMPORT_CANCELLED.
+pub fn import_data_from_file(app: &AppHandle) -> Result<String, String> {
     // Create an open dialog
     let file_path = app
         .dialog()
@@ -132,6 +119,34 @@ pub async fn import_data_from_file(app: tauri::AppHandle) -> Result<String, Stri
         }
         None => Err(IMPORT_CANCELLED.to_string()),
     }
+}
+
+/// A folder the user picks for automatic backups; None when dismissed.
+pub fn pick_backup_dir(app: &AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .set_title("Select Backup Directory")
+        .blocking_pick_folder()
+        .map(|folder| folder.to_string())
+}
+
+/// Where automatic backups go until the user picks a folder.
+pub fn default_backup_dir(app: &AppHandle) -> Result<String, String> {
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|e| format!("Failed to find the Documents folder: {}", e))?;
+    Ok(documents
+        .join(DEFAULT_BACKUP_FOLDER_NAME)
+        .to_string_lossy()
+        .to_string())
+}
+
+/// Shows a file (a just-written export or backup) in the file manager.
+pub fn reveal_path(app: &AppHandle, path: &str) -> Result<(), String> {
+    app.opener()
+        .reveal_item_in_dir(PathBuf::from(path))
+        .map_err(|e| format!("Failed to show {}: {}", path, e))
 }
 
 #[cfg(test)]

@@ -2,26 +2,30 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 // Import all modules
+pub mod backend;
 pub mod backup;
 pub mod capture_server;
-pub mod commands;
 pub mod config;
+mod dispatch;
 pub mod events;
+pub mod files;
 pub mod idle;
 pub mod notifications;
-pub mod startup;
 pub mod state;
-pub mod storage;
+pub mod store;
 pub mod tray;
 pub mod utils;
 
 // Re-export commonly used types
 pub use state::AppState;
 
+use backend::{LocalBackend, Published};
+use store::JsonFileStore;
+use taskmint_core::workspace::Parts;
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app_state = AppState::new();
-
     tauri::Builder::default()
         // Must be the FIRST plugin: a second launch (e.g. a taskmint:// deep
         // link on Windows) forwards its args here and exits; the deep-link
@@ -49,82 +53,29 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
-        .manage(app_state.clone())
-        .setup({
-            let app_state = app_state.clone();
-            move |app| {
-                setup_app(app, &app_state);
-                Ok(())
-            }
+        .setup(|app| {
+            let app_state = AppState::new(open_backend(app.handle())?);
+            app.manage(app_state.clone());
+            setup_app(app, &app_state);
+            Ok(())
         })
         // Closing the window hides it to the tray: timers keep running and the
         // tray stays usable; quit from the tray menu. Without a tray icon the
         // window closes normally, since nothing could bring it back.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                use tauri::Manager;
-                let has_tray = window
-                    .state::<AppState>()
-                    .with_tray_icon(|tray| tray.is_some())
-                    .unwrap_or(false);
+                let has_tray = window.try_state::<AppState>().is_some_and(|state| {
+                    state.with_tray_icon(|tray| tray.is_some()).unwrap_or(false)
+                });
                 if window.label() == "main" && has_tray {
                     api.prevent_close();
                     let _ = window.hide();
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![
-            // Task commands
-            commands::tasks::update_tasks,
-            // Records (tasks, notes, templates, goal) in appdata.json
-            commands::records::get_app_records,
-            commands::records::set_app_record,
-            commands::records::import_app_records,
-            // Session commands
-            commands::sessions::start::start_task,
-            commands::sessions::manual::add_manual_time,
-            commands::sessions::lifecycle::get_sessions,
-            commands::sessions::lifecycle::update_session,
-            commands::sessions::undo::delete_session,
-            commands::sessions::undo::restore_session,
-            commands::sessions::undo::restore_timer_instance,
-            commands::sessions::lifecycle::clear_session_notes,
-            commands::sessions::instances::create_timer_instance,
-            commands::sessions::instances::update_timer_instance,
-            commands::sessions::instances::start_timer_instance,
-            commands::sessions::instances::stop_timer_instance,
-            commands::sessions::instances::pause_timer_instance,
-            commands::sessions::instances::resume_timer_instance,
-            commands::sessions::instances::delete_timer_instance,
-            commands::sessions::lifecycle::move_timer_instance,
-            commands::sessions::lifecycle::set_active_session,
-            commands::sessions::lifecycle::get_session_load_warning,
-            // Idle-detection commands
-            commands::idle::set_idle_settings,
-            commands::idle::get_idle_support,
-            commands::idle::get_idle_pause,
-            commands::idle::resolve_idle_pause,
-            // OS notifications
-            commands::notifications::set_notification_preferences,
-            commands::notifications::show_desktop_notification,
-            // Work-log commands
-            commands::worklogs::get_work_logs,
-            commands::worklogs::apply_work_log_import,
-            // Full app-data reset
-            commands::reset::reset_all_app_data,
-            // Browser-capture commands
-            commands::capture::take_pending_work_log_capture,
-            commands::capture::get_capture_server_status,
-            // Backup commands
-            commands::backup::validate_backup_path,
-            commands::backup::perform_automatic_backup,
-            commands::backup::export_data_to_file,
-            commands::backup::export_csv_file,
-            commands::backup::import_data_from_file,
-            commands::restore::restore_backup_data,
-        ])
+        // Every webview call goes through dispatch (see dispatch.rs)
+        .invoke_handler(tauri::generate_handler![dispatch::dispatch])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, _event| {
@@ -135,7 +86,6 @@ pub fn run() {
                 ..
             } = _event
             {
-                use tauri::Manager;
                 if let Some(window) = _app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
@@ -144,12 +94,34 @@ pub fn run() {
         });
 }
 
-/// Launch work once the app exists: load the data, then start the tray, the
-/// idle monitor, deep links and the capture server.
-fn setup_app(app: &tauri::App, app_state: &AppState) {
-    startup::load_sessions(app.handle(), app_state);
-    startup::load_work_logs(app.handle(), app_state);
+/// The data in the app data folder. Saved changes reach the frontend as
+/// events, and the tray follows the sessions and tasks.
+fn open_backend(app: &tauri::AppHandle) -> Result<LocalBackend, tauri::Error> {
+    let store = JsonFileStore::new(app.path().app_data_dir()?);
+    let handle = app.clone();
+    let publish = move |published: &Published| {
+        for event in published.events {
+            events::emit_quiet(&handle, event.name, &event.payload);
+        }
+        if published
+            .changed
+            .intersects(Parts::SESSIONS | Parts::RECORDS)
+        {
+            if let Some(state) = handle.try_state::<AppState>() {
+                tray::sync_tray(&handle, &state);
+            }
+        }
+    };
+    Ok(LocalBackend::open(
+        store,
+        Box::new(chrono::Utc::now),
+        Box::new(publish),
+    ))
+}
 
+/// Launch work once the data is loaded: the tray, the idle monitor, deep
+/// links and the capture server.
+fn setup_app(app: &tauri::App, app_state: &AppState) {
     // Set up menu event handling
     let app_handle = app.handle().clone();
     let state_for_menu = app_state.clone();

@@ -1,0 +1,86 @@
+{
+  "name": "a timer starts, pauses, resumes and stops",
+  "steps": [
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "hourlyRate": 50,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      },
+      "reply": null
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "reply": { "outcome": "started", "instanceId": "$any", "stoppedTaskName": null },
+      "save": { "timer": "/instanceId" },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "call": "get_sessions",
+      "reply": [
+        {
+          "taskId": "t1",
+          "taskName": "Writing",
+          "isActive": true,
+          "hourlyRate": 50,
+          "timerInstances": [{ "id": "$timer", "isRunning": true, "isPaused": false }]
+        }
+      ]
+    },
+    {
+      "advanceMs": 600000,
+      "call": "pause_timer_instance",
+      "args": { "instanceId": "$timer" },
+      "reply": { "timerInstances": [{ "isPaused": true, "isRunning": false }] },
+      "events": ["timer-instance-paused"]
+    },
+    {
+      "call": "pause_timer_instance",
+      "args": { "instanceId": "$timer" },
+      "error": "Cannot pause timer: timer is not running"
+    },
+    {
+      "advanceMs": 300000,
+      "call": "resume_timer_instance",
+      "args": { "instanceId": "$timer" },
+      "reply": { "timerInstances": [{ "isRunning": true, "pausedDuration": 300000 }] },
+      "events": ["timer-instance-resumed"]
+    },
+    {
+      "advanceMs": 600000,
+      "reload": true,
+      "call": "stop_timer_instance",
+      "args": { "instanceId": "$timer" },
+      "reply": {
+        "totalDuration": 1200000,
+        "timerInstances": [{ "duration": 1200000, "isRunning": false, "isPaused": false }]
+      },
+      "events": ["timer-instance-stopped"]
+    },
+    {
+      "call": "stop_timer_instance",
+      "args": { "instanceId": "$timer" },
+      "error": "Cannot stop timer: timer is not running"
+    },
+    {
+      "call": "stop_timer_instance",
+      "args": { "instanceId": "instance_gone" },
+      "error": "Timer instance with ID instance_gone not found"
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [{ "totalDuration": 1200000, "timerInstances": [{ "duration": 1200000 }] }]
+    },
+    { "call": "get_session_load_warning", "reply": null }
+  ]
+}

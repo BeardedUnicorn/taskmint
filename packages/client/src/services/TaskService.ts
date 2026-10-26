@@ -1,9 +1,9 @@
 /**
  * Task Service
  *
- * Task CRUD and validation over the app-records store. The tray's copy of the
- * task list is kept current by useEnhancedSystemTray (update_tasks on every
- * change), so the service doesn't sync it itself.
+ * Task CRUD and validation over the app-records store. The backend reads the
+ * task list from the same record (for the tray, rates and renames), so
+ * there's nothing else to keep in sync.
  */
 
 import { Task } from '../types/task';

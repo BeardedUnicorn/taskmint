@@ -1,0 +1,55 @@
+{
+  "initialized": true,
+  "taskNotes": [
+    {
+      "content": "Ask about rates",
+      "id": "note_1",
+      "isArchived": false,
+      "taskId": "task_write"
+    }
+  ],
+  "noteTemplates": [
+    {
+      "fields": [],
+      "id": "free-form",
+      "isActive": true,
+      "name": "Free-form Note"
+    }
+  ],
+  "dailyGoalAchievements": [
+    {
+      "date": "2026-03-02",
+      "earnedAmount": 137.5,
+      "goalAmount": 300,
+      "id": "goal_2026-03-02"
+    }
+  ],
+  "predefinedTasks": [
+    {
+      "createdAt": "2026-01-05T10:00:00.000Z",
+      "hourlyRate": 75,
+      "id": "task_write",
+      "isArchived": false,
+      "isFavorite": true,
+      "name": "Writing",
+      "updatedAt": "2026-02-01T10:00:00.000Z"
+    },
+    {
+      "createdAt": "2025-08-01T10:00:00.000Z",
+      "defaultNoteTemplateId": "free-form",
+      "hourlyRate": 40.5,
+      "id": "task_review",
+      "name": "Reviews",
+      "updatedAt": "2025-08-01T10:00:00.000Z"
+    },
+    {
+      "id": "task_no_dates",
+      "name": "Missing its dates"
+    }
+  ],
+  "dailyGoal": {
+    "currency": "USD",
+    "isEnabled": true,
+    "targetAmount": 300
+  }
+}

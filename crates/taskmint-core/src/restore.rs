@@ -8,8 +8,37 @@ use crate::load::parse_sessions;
 use crate::model::{ProjectTaskMapping, TaskSession, WorkLogEntry};
 use crate::timer::{recalculate_total_duration, stop_active_instances};
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+
+/// restore_backup_data's payload: the export's sections, each optional (a
+/// v1 export has no work logs).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePayload {
+    pub mode: RestoreMode,
+    #[serde(default)]
+    pub sessions: serde_json::Value,
+    #[serde(default)]
+    pub work_log_entries: serde_json::Value,
+    #[serde(default)]
+    pub work_log_mappings: serde_json::Value,
+    /// The export's own timestamp; timers that were live when it was taken
+    /// are finalized at this moment (see finalize_time).
+    #[serde(default)]
+    pub exported_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreSummary {
+    pub sessions_restored: usize,
+    pub sessions_already_present: usize,
+    pub work_log_entries_restored: usize,
+    pub work_log_mappings_restored: usize,
+    /// Records in the file that could not be read and were skipped.
+    pub records_skipped: usize,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(rename_all = "lowercase")]
