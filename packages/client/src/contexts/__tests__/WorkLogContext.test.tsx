@@ -46,7 +46,7 @@ function Probe() {
       <span data-testid="entry-count">{context.entries.length}</span>
       <span data-testid="staged">{context.stagedCapture?.payloadText ?? 'none'}</span>
       <button
-        onClick={() => context.stageCapture({ payloadText: '{"workLogs":[]}', receivedAt: 'T1' })}
+        onClick={() => context.stageCapture({ payloadText: '{"workLogs":[]}', receivedAt: 'T1', reason: 'unmapped-project' })}
       >
         stage
       </button>

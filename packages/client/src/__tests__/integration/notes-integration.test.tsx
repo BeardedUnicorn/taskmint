@@ -12,7 +12,6 @@ import { describe, it, beforeEach, expect } from 'vitest';
 describe('Notes Integration', () => {
   let templateService: NoteTemplateService;
   let notesService: TaskNotesService;
-  let storageService: StorageService;
 
   beforeEach(() => {
     // Clear localStorage before each test
@@ -26,7 +25,7 @@ describe('Notes Integration', () => {
     // Get fresh service instances
     templateService = NoteTemplateService.getInstance();
     notesService = TaskNotesService.getInstance();
-    storageService = StorageService.getInstance();
+    StorageService.getInstance();
   });
 
   describe('Template Management', () => {

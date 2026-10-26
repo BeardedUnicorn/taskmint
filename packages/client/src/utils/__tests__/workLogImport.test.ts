@@ -515,7 +515,7 @@ describe('buildRewriteGroups', () => {
     expect(group.deleteInstanceIds).toEqual(['tracked-1']);
     expect(group.blockingInstanceIds).toEqual([]);
     // Replacement contains BOTH ledger entries for the day.
-    expect(group.replacementSession.timerInstances).toHaveLength(2);
+    expect(group.replacementSession!.timerInstances).toHaveLength(2);
     expect(result.blockedDays).toHaveLength(0);
     expect(result.noopDays).toBe(0);
   });

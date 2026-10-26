@@ -7,7 +7,7 @@
  */
 
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach, type Mocked } from 'vitest';
 import { useDataBackup } from '../useDataBackup';
 import { StorageService } from '../../services/StorageService';
 import { invoke } from '@tauri-apps/api/core';
@@ -26,7 +26,7 @@ const mockStorageService = {
   setTaskNotes: vi.fn(),
   setDailyGoal: vi.fn(),
   setGoalAchievements: vi.fn(),
-} as unknown as vi.Mocked<StorageService>;
+} as unknown as Mocked<StorageService>;
 
 // Mock the Tauri invoke function
 vi.mock('@tauri-apps/api/core', () => ({
@@ -92,7 +92,8 @@ describe('useDataBackup', () => {
       {
         id: 'template-1',
         name: 'Test Template',
-        content: 'Test content',
+        fields: [],
+        isActive: true,
         createdAt: '2023-01-01T00:00:00Z',
         updatedAt: '2023-01-01T00:00:00Z',
       },
@@ -102,16 +103,20 @@ describe('useDataBackup', () => {
       {
         id: 'note-1',
         taskId: 'task-1',
-        content: 'Test note',
+        templateId: 'template-1',
+        templateName: 'Test Template',
+        fieldValues: { content: 'Test note' },
         createdAt: '2023-01-01T00:00:00Z',
         updatedAt: '2023-01-01T00:00:00Z',
       },
     ]);
     
     mockStorageService.getDailyGoal.mockResolvedValue({
-      id: 'goal-1',
       targetAmount: 100,
+      currency: 'USD',
       isEnabled: true,
+      lastNotifiedPercent: 0,
+      lastNotificationDate: '2023-01-01',
       createdAt: '2023-01-01T00:00:00Z',
       updatedAt: '2023-01-01T00:00:00Z',
     });
@@ -120,10 +125,13 @@ describe('useDataBackup', () => {
       {
         id: 'achievement-1',
         date: '2023-01-01',
-        targetAmount: 100,
-        actualAmount: 120,
-        achieved: true,
-        createdAt: '2023-01-01T00:00:00Z',
+        goalAmount: 100,
+        earnedAmount: 120,
+        currency: 'USD',
+        percentageAchieved: 120,
+        status: 'exceeded',
+        difference: 20,
+        recordedAt: '2023-01-01T00:00:00Z',
       },
     ]);
 

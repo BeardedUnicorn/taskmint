@@ -14,10 +14,6 @@ import {
   generateChartColors,
   getChartTheme,
   prepareTaskDistributionData,
-  TaskTimeData,
-  DailyData,
-  WeeklyData,
-  MonthlyData,
 } from '../chartDataHelpers';
 import { TimeEntry } from '../../types/timer';
 import { Task } from '../../types/task';

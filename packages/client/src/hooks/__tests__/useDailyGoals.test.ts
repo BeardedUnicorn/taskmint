@@ -122,7 +122,7 @@ describe('useDailyGoals', () => {
     it('should create new goal when none exists', async () => {
       const { result } = renderHook(() => useDailyGoals());
       
-      useLocalStorage.mockImplementation((key: string) => {
+      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [null, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -518,7 +518,7 @@ describe('useDailyGoals', () => {
         percentageAchieved: 0, status: 'missed' as const, difference: 0,
       };
 
-      let achievement: DailyGoalAchievement;
+      let achievement: DailyGoalAchievement | undefined;
       await act(async () => {
         achievement = await result.current.recordAchievement(minimalAchievement);
       });

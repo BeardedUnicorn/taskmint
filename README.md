@@ -117,13 +117,17 @@ off.
 
 ### Checks
 
+`scripts/verify.sh` runs every gate below in order; run it before merging.
+
 ```bash
+pnpm typecheck                    # tsc for sources and tests, every package
 pnpm build                        # tsc for every package + desktop vite build
 pnpm test                         # vitest in every package
 pnpm test:coverage                # vitest with enforced coverage floors
 cargo test                        # Rust workspace tests
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
+node scripts/check-coverage-policy.mjs   # see docs/coverage-policy.md
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of these on pushes to `main` and on

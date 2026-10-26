@@ -175,7 +175,7 @@ describe('PayoutsPage', () => {
     render(<PayoutsPage />);
 
     expect(screen.getByText('Upcoming releases')).toBeInTheDocument();
-    const upcomingTable = screen.getByText('Upcoming releases').closest('.MuiPaper-root')!;
+    const upcomingTable = screen.getByText('Upcoming releases').closest<HTMLElement>('.MuiPaper-root')!;
 
     // Paid and Untransferred should not be in upcoming releases
     expect(within(upcomingTable).queryByText('$100.00')).not.toBeInTheDocument();

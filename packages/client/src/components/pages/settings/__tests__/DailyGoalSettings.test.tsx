@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {act, render, screen, waitFor} from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi, type MockedFunction } from 'vitest';
+import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -12,7 +12,7 @@ import { useDailyGoals } from '../../../../hooks/useDailyGoals';
 
 // Mock the useDailyGoals hook
 vi.mock('../../../../hooks/useDailyGoals');
-const mockUseDailyGoals = useDailyGoals as vi.MockedFunction<typeof useDailyGoals>;
+const mockUseDailyGoals = useDailyGoals as MockedFunction<typeof useDailyGoals>;
 
 // Test wrapper component
 const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {

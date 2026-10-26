@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { listen } from '@tauri-apps/api/event';
 import { useTauriEvent } from '../useTauriEvent';
@@ -8,7 +8,7 @@ const mockListen = vi.mocked(listen);
 
 describe('useTauriEvent', () => {
   let handlers: Record<string, (event: unknown) => void>;
-  let unlisteners: Record<string, ReturnType<typeof vi.fn>>;
+  let unlisteners: Record<string, Mock<() => void>>;
 
   beforeEach(() => {
     vi.clearAllMocks();

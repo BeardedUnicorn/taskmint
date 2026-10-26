@@ -2,7 +2,6 @@
  * Unit Tests for EmptyState Component
  */
 
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';

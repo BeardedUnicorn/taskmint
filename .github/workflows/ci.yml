@@ -27,6 +27,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: node scripts/check-coverage-policy.mjs
+
+      # Sources and tests, every package.
+      - run: pnpm typecheck
+
       # tsc for every package + the desktop vite build. Must run before
       # cargo: tauri::generate_context! embeds apps/desktop/dist.
       - run: pnpm build

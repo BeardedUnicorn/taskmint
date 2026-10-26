@@ -16,6 +16,17 @@ Integration tests count toward the total, including `#[sqlx::test]` against a re
 4. **Delete instead of covering the impossible.** Remove defensive `??`, `?.`, default parameters, or `process.env.NODE_ENV` forks that the types or the boundaries (zod, serde) make unreachable.
 5. **Floors only go up.** `packages/client` starts at its current floors (71/75/79/78) and ratchets to 100 with per-glob thresholds. New packages start at 100.
 
+## How it's wired
+
+- **The list:** [`coverage-policy.json`](../coverage-policy.json) at the repo root.
+- **TypeScript:** each package's `vitest.config.ts` calls `defineTaskmintConfig({ packageDir, … })` from [`vitest.shared.ts`](../vitest.shared.ts). The preset reads the exclusions from the policy and defaults the thresholds to 100. A package may pass lower `thresholds` only while it ratchets up. Today that's `packages/client`, at 71/75/79/78.
+- **The check:** [`scripts/check-coverage-policy.mjs`](../scripts/check-coverage-policy.mjs) fails when any of these happen:
+  - an inline ignore appears in `packages/`, `apps/`, or `crates/`;
+  - a package's vitest config isn't registered in the policy, doesn't use the preset, or declares its own `coverage`/`exclude`;
+  - a policy entry points at a file that doesn't exist.
+- **Rust ignore regex:** `node scripts/check-coverage-policy.mjs --rust-ignore-regex <crate dir>` prints that crate's `--ignore-filename-regex`. That's its excluded files plus every other crate.
+- **Running the gates:** [`scripts/verify.sh`](../scripts/verify.sh) runs all of them locally; CI runs the same steps.
+
 ## Exclusions
 
 | Package | Excluded | Why | Checked by |
