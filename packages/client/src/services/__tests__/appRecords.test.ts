@@ -1,23 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { invoke } from '@tauri-apps/api/core';
 import {
-  appRecordsActive,
   flushAppRecords,
   loadAppRecords,
   readAppRecord,
   resetAppRecordsForTests,
   writeAppRecord,
 } from '../appRecords';
-import { isTauriEnvironment } from '../../utils/tauri';
+import { fakeBackend } from '../../testing';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('../../utils/tauri', () => ({ isTauriEnvironment: vi.fn() }));
-
-const mockInvoke = vi.mocked(invoke);
+const mockInvoke = fakeBackend().call;
 const tasks = [{ id: 't1', name: 'Annotation' }];
 
 /** A fake appdata.json: what get_app_records / import / set operate on. */
-function fakeBackend(initial: Record<string, unknown> = {}) {
+function fakeAppData(initial: Record<string, unknown> = {}) {
   const file = { records: structuredClone(initial) as Record<string, any> };
   mockInvoke.mockImplementation(async (command: string, args?: any) => {
     switch (command) {
@@ -50,14 +45,11 @@ describe('appRecords', () => {
     vi.clearAllMocks();
     resetAppRecordsForTests();
     window.localStorage.clear();
-    vi.mocked(isTauriEnvironment).mockReturnValue(true);
   });
 
-  it('stays inactive outside the app', async () => {
-    vi.mocked(isTauriEnvironment).mockReturnValue(false);
-    await loadAppRecords({ importLegacy: true });
-    expect(appRecordsActive()).toBe(false);
-    expect(mockInvoke).not.toHaveBeenCalled();
+  it('refuses reads and writes before the records load', () => {
+    expect(() => readAppRecord('predefinedTasks')).toThrow('App records are not loaded');
+    expect(() => writeAppRecord('predefinedTasks', tasks)).toThrow('App records are not loaded');
   });
 
   it('moves records from an older version in from localStorage, then removes those copies', async () => {
@@ -68,7 +60,7 @@ describe('appRecords', () => {
       JSON.stringify({ version: 1, data: { targetAmount: 100 }, migratedAt: '2026-10-01T00:00:00Z' })
     );
     window.localStorage.setItem('theme-mode', JSON.stringify('dark'));
-    const file = fakeBackend();
+    const file = fakeAppData();
 
     await loadAppRecords({ importLegacy: true });
 
@@ -86,7 +78,7 @@ describe('appRecords', () => {
   it('adds moved records to the ones already in the file without replacing them', async () => {
     window.localStorage.setItem('predefinedTasks', JSON.stringify([{ id: 't1', name: 'Old copy' }, { id: 't9' }]));
     window.localStorage.setItem('dailyGoal', JSON.stringify({ targetAmount: 999 }));
-    fakeBackend({ predefinedTasks: tasks, dailyGoal: { targetAmount: 100 } });
+    fakeAppData({ predefinedTasks: tasks, dailyGoal: { targetAmount: 100 } });
 
     await loadAppRecords({ importLegacy: true });
 
@@ -100,12 +92,12 @@ describe('appRecords', () => {
 
     await expect(loadAppRecords({ importLegacy: true })).rejects.toThrow('disk full');
 
-    expect(appRecordsActive()).toBe(false);
+    expect(() => readAppRecord('predefinedTasks')).toThrow('App records are not loaded');
     expect(window.localStorage.getItem('predefinedTasks')).not.toBeNull();
   });
 
   it('just loads the file once nothing is left to move', async () => {
-    fakeBackend({ predefinedTasks: tasks });
+    fakeAppData({ predefinedTasks: tasks });
 
     await loadAppRecords({ importLegacy: true });
 
@@ -117,7 +109,7 @@ describe('appRecords', () => {
   it('clears records that are empty in localStorage without moving anything', async () => {
     window.localStorage.setItem('dailyGoal', JSON.stringify({ version: 1, data: null }));
     window.localStorage.setItem('taskNotes', '{ not json');
-    fakeBackend();
+    fakeAppData();
 
     await loadAppRecords({ importLegacy: true });
 
@@ -127,12 +119,11 @@ describe('appRecords', () => {
     expect(window.localStorage.getItem('taskNotes')).toBe('{ not json');
   });
 
-  it("doesn't move localStorage records in a development build", async () => {
-    expect(import.meta.env.DEV).toBe(true);
+  it("doesn't move localStorage records unless asked to (a development build)", async () => {
     window.localStorage.setItem('predefinedTasks', JSON.stringify([{ id: 'dev-only' }]));
-    fakeBackend({ predefinedTasks: tasks });
+    fakeAppData({ predefinedTasks: tasks });
 
-    await loadAppRecords();
+    await loadAppRecords({ importLegacy: false });
 
     expect(mockInvoke).not.toHaveBeenCalledWith('import_app_records', expect.anything());
     expect(readAppRecord('predefinedTasks')).toEqual(tasks);
@@ -149,7 +140,7 @@ describe('appRecords', () => {
     };
     for (const [key, value] of Object.entries(left)) window.localStorage.setItem(key, value);
     window.localStorage.setItem('inactivitySettings', '{}');
-    fakeBackend({ predefinedTasks: tasks });
+    fakeAppData({ predefinedTasks: tasks });
 
     await loadAppRecords({ importLegacy: true });
 
@@ -159,16 +150,16 @@ describe('appRecords', () => {
 
   it('leaves a development build’s leftovers alone', async () => {
     window.localStorage.setItem('predefinedTasks_backup_1', '{}');
-    fakeBackend({ predefinedTasks: tasks });
+    fakeAppData({ predefinedTasks: tasks });
 
-    await loadAppRecords();
+    await loadAppRecords({ importLegacy: false });
 
     expect(window.localStorage.getItem('predefinedTasks_backup_1')).toBe('{}');
   });
 
   it('hands out copies, so callers changing them leave the cache alone', async () => {
-    fakeBackend({ predefinedTasks: tasks });
-    await loadAppRecords();
+    fakeAppData({ predefinedTasks: tasks });
+    await loadAppRecords({ importLegacy: false });
 
     const copy = readAppRecord('predefinedTasks') as typeof tasks;
     copy.push({ id: 't2', name: 'Review' });
@@ -177,8 +168,8 @@ describe('appRecords', () => {
   });
 
   it("writes in order per record, and null removes it", async () => {
-    const file = fakeBackend();
-    await loadAppRecords();
+    const file = fakeAppData();
+    await loadAppRecords({ importLegacy: false });
     const order: string[] = [];
     mockInvoke.mockImplementation(async (_command: string, args?: any) => {
       // The first write is slower than the second
@@ -196,15 +187,15 @@ describe('appRecords', () => {
     expect(file.records.dailyGoal).toBe('second');
     expect(readAppRecord('dailyGoal')).toBe('second');
 
-    fakeBackend(file.records);
+    fakeAppData(file.records);
     await writeAppRecord('dailyGoal', null);
     expect(readAppRecord('dailyGoal')).toBeUndefined();
     expect(mockInvoke).toHaveBeenLastCalledWith('set_app_record', { key: 'dailyGoal', value: null });
   });
 
   it('puts the previous value back when a write fails', async () => {
-    fakeBackend({ predefinedTasks: tasks });
-    await loadAppRecords();
+    fakeAppData({ predefinedTasks: tasks });
+    await loadAppRecords({ importLegacy: false });
     mockInvoke.mockRejectedValueOnce(new Error('disk full'));
 
     const failed = writeAppRecord('predefinedTasks', []);

@@ -7,18 +7,26 @@
     "dev": "vite",
     "build": "tsc -p . && vite build",
     "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "preview": "vite preview",
     "tauri": "tauri",
     "build:win": "tauri build --target x86_64-pc-windows-msvc --runner cargo-xwin"
   },
   "dependencies": {
-    "@taskmint/client": "workspace:*"
+    "@taskmint/client": "workspace:*",
+    "@tauri-apps/api": "~2.11.1",
+    "@tauri-apps/plugin-dialog": "~2.7.2",
+    "@tauri-apps/plugin-opener": "~2.5.4"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "jsdom": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

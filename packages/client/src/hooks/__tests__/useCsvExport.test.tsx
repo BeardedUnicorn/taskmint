@@ -1,8 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { invoke } from '@tauri-apps/api/core';
-import { useCsvExport, EXPORT_CANCELLED } from '../useCsvExport';
-import { isTauriEnvironment } from '../../utils/tauri';
+import { useCsvExport } from '../useCsvExport';
+import { fakeBackend } from '../../testing';
 
 const showSuccess = vi.fn();
 const showError = vi.fn();
@@ -10,25 +9,21 @@ const notifications = { showSuccess, showError };
 vi.mock('../../contexts/NotificationContext', () => ({
   useNotification: () => notifications,
 }));
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('../../utils/tauri', () => ({ isTauriEnvironment: vi.fn() }));
+
+const save = () => fakeBackend().platform.files.save;
 
 describe('useCsvExport', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('saves through the Save dialog in the app and says where', async () => {
-    vi.mocked(isTauriEnvironment).mockReturnValue(true);
-    vi.mocked(invoke).mockResolvedValue('/Users/me/Downloads/entries.csv');
+  it('saves where the user picks and says where', async () => {
+    save().mockResolvedValue({ kind: 'path', path: '/Users/me/Downloads/entries.csv' });
     const { result } = renderHook(() => useCsvExport());
 
     await act(() => result.current.exportCsv('a,b\r\n', 'entries.csv'));
 
-    expect(invoke).toHaveBeenCalledWith('export_csv_file', {
-      csv: 'a,b\r\n',
-      suggestedFilename: 'entries.csv',
-    });
+    expect(save()).toHaveBeenCalledWith({ contents: 'a,b\r\n', suggestedName: 'entries.csv', format: 'csv' });
     expect(showSuccess).toHaveBeenCalledWith('Saved to /Users/me/Downloads/entries.csv', {
       category: 'export',
       actions: [expect.objectContaining({ label: expect.stringMatching(/^Show in (Finder|folder)$/) })],
@@ -36,8 +31,7 @@ describe('useCsvExport', () => {
   });
 
   it('stays quiet when the Save dialog is cancelled', async () => {
-    vi.mocked(isTauriEnvironment).mockReturnValue(true);
-    vi.mocked(invoke).mockRejectedValue(EXPORT_CANCELLED);
+    save().mockResolvedValue(null);
     const { result } = renderHook(() => useCsvExport());
 
     await act(() => result.current.exportCsv('a', 'entries.csv'));
@@ -48,27 +42,20 @@ describe('useCsvExport', () => {
   });
 
   it('reports a failed save', async () => {
-    vi.mocked(isTauriEnvironment).mockReturnValue(true);
-    vi.mocked(invoke).mockRejectedValue('Failed to write export file: disk full');
+    save().mockRejectedValue('Failed to write export file: disk full');
     const { result } = renderHook(() => useCsvExport());
 
     await act(() => result.current.exportCsv('a', 'entries.csv'));
 
-    expect(showError).toHaveBeenCalledWith(
-      "Couldn't export the CSV: Failed to write export file: disk full"
-    );
+    expect(showError).toHaveBeenCalledWith("Couldn't export the CSV: Failed to write export file: disk full");
   });
 
-  it('downloads the file in a browser', async () => {
-    vi.mocked(isTauriEnvironment).mockReturnValue(false);
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  it('says a browser download was downloaded', async () => {
+    save().mockResolvedValue({ kind: 'download', name: 'entries.csv' });
     const { result } = renderHook(() => useCsvExport());
 
     await act(() => result.current.exportCsv('a', 'entries.csv'));
 
-    expect(invoke).not.toHaveBeenCalled();
-    expect(click).toHaveBeenCalled();
     expect(showSuccess).toHaveBeenCalledWith('Downloaded entries.csv', { category: 'export' });
-    click.mockRestore();
   });
 });

@@ -4,14 +4,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { InactivitySettingsSection } from '../InactivitySettingsSection';
 import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import { STORAGE_KEYS } from '../../../../constants';
-import { safeInvoke } from '../../../../utils/tauri';
+import { fakeBackend, installFakeBackendForTest } from '../../../../testing';
 
-vi.mock('../../../../utils/tauri', () => ({
-  isTauriEnvironment: vi.fn(() => true),
-  safeInvoke: vi.fn(),
-}));
-
-const mockSafeInvoke = vi.mocked(safeInvoke);
+const idle = () => fakeBackend().platform.idle;
 
 function renderSection() {
   return render(<InactivitySettingsSection />, { wrapper: NotificationProvider });
@@ -27,9 +22,7 @@ describe('InactivitySettingsSection', () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.clearAllMocks();
-    mockSafeInvoke.mockImplementation(async (command: string) =>
-      command === 'get_idle_support' ? true : null
-    );
+    idle().isSupported.mockResolvedValue(true);
   });
 
   it('starts off and explains that any app counts as activity', () => {
@@ -58,15 +51,13 @@ describe('InactivitySettingsSection', () => {
     expect(screen.queryByText(/Testing Mode/)).not.toBeInTheDocument();
   });
 
-  it('applies a change right away and sends it to the backend monitor', async () => {
+  it('applies a change right away and sends it to the idle monitor', async () => {
     renderSection();
 
     fireEvent.click(screen.getByRole('switch', { name: /Enable Inactivity Detection/ }));
 
     await waitFor(() =>
-      expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: true, thresholdMinutes: 15, longRunHours: 4 },
-      })
+      expect(idle().setSettings).toHaveBeenCalledWith({ enabled: true, thresholdMinutes: 15, longRunHours: 4 })
     );
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.INACTIVITY_SETTINGS)!);
     expect(stored.data).toEqual({ enabled: true, thresholdMinutes: 15, longRunHours: 4 });
@@ -80,19 +71,34 @@ describe('InactivitySettingsSection', () => {
     fireEvent.click(screen.getByRole('option', { name: '2 hours straight' }));
 
     await waitFor(() =>
-      expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: false, thresholdMinutes: 15, longRunHours: 2 },
-      })
+      expect(idle().setSettings).toHaveBeenCalledWith({ enabled: false, thresholdMinutes: 15, longRunHours: 2 })
     );
   });
 
   it('says so, and stays off, where the system reports no idle time', async () => {
-    mockSafeInvoke.mockImplementation(async (command: string) =>
-      command === 'get_idle_support' ? false : null
-    );
+    idle().isSupported.mockResolvedValue(false);
     renderSection();
 
     expect(await screen.findByText(/doesn't report idle time/)).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: /Enable Inactivity Detection/ })).toBeDisabled();
+  });
+
+  it('says so where the platform has no idle detection at all', () => {
+    installFakeBackendForTest({ without: ['idle'] });
+    renderSection();
+
+    expect(screen.getByText(/doesn't report idle time/)).toBeInTheDocument();
+  });
+
+  it('assumes idle time is there when asking fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    idle().isSupported.mockRejectedValue('no monitor');
+    renderSection();
+
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith('Failed to ask whether idle time is available:', 'no monitor')
+    );
+    expect(screen.queryByText(/doesn't report idle time/)).not.toBeInTheDocument();
+    warn.mockRestore();
   });
 });

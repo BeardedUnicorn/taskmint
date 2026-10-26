@@ -1,22 +1,11 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { invoke } from '@tauri-apps/api/core';
 import { useIdleReturn } from '../useIdleReturn';
-import { listen } from '@tauri-apps/api/event';
-import { safeInvoke } from '../../utils/tauri';
 import { IdlePause } from '../../types/timer';
 import { STORAGE_KEYS } from '../../constants';
+import { fakeBackend, installFakeBackendForTest } from '../../testing';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('../../utils/tauri', () => ({
-  isTauriEnvironment: vi.fn(() => true),
-  safeInvoke: vi.fn(),
-}));
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-
-const mockInvoke = vi.mocked(invoke);
-const mockSafeInvoke = vi.mocked(safeInvoke);
-const mockListen = vi.mocked(listen);
+const idle = () => fakeBackend().platform.idle;
 
 const away: IdlePause = {
   instanceId: 'i-1',
@@ -27,22 +16,15 @@ const away: IdlePause = {
 };
 
 describe('useIdleReturn', () => {
-  let handlers: Record<string, (event: { payload?: unknown }) => void>;
-  const unlisten = vi.fn();
-
   beforeEach(() => {
     window.localStorage.clear();
     window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_DEFAULT_OFF_APPLIED, 'true');
     vi.clearAllMocks();
-    handlers = {};
-    mockListen.mockImplementation(async (event, handler) => {
-      handlers[event as string] = handler as (event: { payload?: unknown }) => void;
-      return unlisten;
-    });
-    mockSafeInvoke.mockResolvedValue(null);
+    idle().getPending.mockResolvedValue(null);
+    idle().resolve.mockResolvedValue(undefined);
   });
 
-  it('sends the saved detection settings to the backend at startup', async () => {
+  it('sends the saved detection settings to the platform at startup', async () => {
     window.localStorage.setItem(
       STORAGE_KEYS.INACTIVITY_SETTINGS,
       JSON.stringify({ version: 1, data: { enabled: true, thresholdMinutes: 10 } })
@@ -51,16 +33,12 @@ describe('useIdleReturn', () => {
     renderHook(() => useIdleReturn());
 
     await waitFor(() =>
-      expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: true, thresholdMinutes: 10, longRunHours: 4 },
-      })
+      expect(idle().setSettings).toHaveBeenCalledWith({ enabled: true, thresholdMinutes: 10, longRunHours: 4 })
     );
   });
 
   it('picks up a question raised before it was listening', async () => {
-    mockSafeInvoke.mockImplementation(async (command: string) =>
-      command === 'get_idle_pause' ? away : null
-    );
+    idle().getPending.mockResolvedValue(away);
 
     const { result } = renderHook(() => useIdleReturn());
 
@@ -68,49 +46,66 @@ describe('useIdleReturn', () => {
   });
 
   it('ignores a pending pause while the user is still away', async () => {
-    mockSafeInvoke.mockImplementation(async (command: string) =>
-      command === 'get_idle_pause' ? { ...away, returned: false } : null
-    );
+    idle().getPending.mockResolvedValue({ ...away, returned: false });
 
     const { result } = renderHook(() => useIdleReturn());
 
-    await waitFor(() => expect(mockSafeInvoke).toHaveBeenCalledWith('get_idle_pause'));
+    await waitFor(() => expect(idle().getPending).toHaveBeenCalled());
     expect(result.current.pending).toBeNull();
   });
 
-  it('opens on idle-returned and closes on idle-resolved', async () => {
-    const { result, unmount } = renderHook(() => useIdleReturn());
-    await waitFor(() => expect(handlers['idle-returned']).toBeDefined());
+  it('logs a pending question it could not read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    idle().getPending.mockRejectedValue('no monitor');
 
-    act(() => handlers['idle-returned']({ payload: away }));
+    const { result } = renderHook(() => useIdleReturn());
+
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('Failed to read a pending idle pause:', 'no monitor'));
+    expect(result.current.pending).toBeNull();
+    warn.mockRestore();
+  });
+
+  it('ignores a question that arrives after unmounting', async () => {
+    let answer: (pause: IdlePause) => void = () => {};
+    idle().getPending.mockReturnValue(new Promise(resolve => (answer = resolve)));
+
+    const { result, unmount } = renderHook(() => useIdleReturn());
+    unmount();
+    await act(async () => answer(away));
+
+    expect(result.current.pending).toBeNull();
+  });
+
+  it('opens on idle-returned and closes on idle-resolved', () => {
+    const { result, unmount } = renderHook(() => useIdleReturn());
+
+    act(() => fakeBackend().emit('idle-returned', away));
     expect(result.current.pending).toEqual(away);
 
-    act(() => handlers['idle-resolved']({}));
+    act(() => fakeBackend().emit('idle-resolved'));
     expect(result.current.pending).toBeNull();
 
     unmount();
-    expect(unlisten).toHaveBeenCalledTimes(2);
+    expect(fakeBackend().listenerCount('idle-returned')).toBe(0);
+    expect(fakeBackend().listenerCount('idle-resolved')).toBe(0);
   });
 
   it('sends the choice and clears the question', async () => {
-    mockInvoke.mockResolvedValue(undefined);
     const { result } = renderHook(() => useIdleReturn());
-    await waitFor(() => expect(handlers['idle-returned']).toBeDefined());
-    act(() => handlers['idle-returned']({ payload: away }));
+    act(() => fakeBackend().emit('idle-returned', away));
 
     await act(async () => {
       await result.current.resolve('keepResume');
     });
 
-    expect(mockInvoke).toHaveBeenCalledWith('resolve_idle_pause', { choice: 'keepResume' });
+    expect(idle().resolve).toHaveBeenCalledWith('keepResume');
     expect(result.current.pending).toBeNull();
   });
 
   it('keeps the question open with the reason when the choice fails', async () => {
-    mockInvoke.mockRejectedValue('Another timer instance is already running');
+    idle().resolve.mockRejectedValue('Another timer instance is already running');
     const { result } = renderHook(() => useIdleReturn());
-    await waitFor(() => expect(handlers['idle-returned']).toBeDefined());
-    act(() => handlers['idle-returned']({ payload: away }));
+    act(() => fakeBackend().emit('idle-returned', away));
 
     await act(async () => {
       await result.current.resolve('discardResume');
@@ -118,5 +113,16 @@ describe('useIdleReturn', () => {
 
     expect(result.current.pending).toEqual(away);
     expect(result.current.error).toBe('Another timer instance is already running');
+  });
+
+  it('asks nothing and sends no settings where the platform has no idle detection', () => {
+    const desktop = fakeBackend();
+    installFakeBackendForTest({ without: ['idle'] });
+
+    const { result } = renderHook(() => useIdleReturn());
+
+    expect(result.current.pending).toBeNull();
+    expect(desktop.platform.idle.getPending).not.toHaveBeenCalled();
+    expect(desktop.platform.idle.setSettings).not.toHaveBeenCalled();
   });
 });

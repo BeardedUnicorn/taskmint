@@ -16,12 +16,12 @@ import {
   TrendingUp as TrendingUpIcon,
   Upload as UploadIcon,
 } from '@mui/icons-material';
-import { invoke } from '@tauri-apps/api/core';
+import { getBackend } from '../../../backend';
 import { useSessionManagementContext } from '../../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../../contexts/TaskManagementContext';
 import { useWorkLogContext } from '../../../contexts/WorkLogContext';
 import { Task } from '../../../types/task';
-import { CaptureServerStatus, WorkLogImportPayload } from '../../../types/workLog';
+import { WorkLogImportPayload } from '../../../types/workLog';
 import { centsToDollars } from '../../../utils/payoutCalculator';
 import { formatCurrency } from '../../../utils/formatters';
 import { StatsCard } from '../../ui/display/StatsCard';
@@ -42,14 +42,15 @@ export function PayoutsPage() {
     usePayoutData();
   const [importOpen, setImportOpen] = useState(false);
 
-  // One-shot status of the localhost capture server (port conflicts etc.).
+  // One-shot status of the localhost capture server (port conflicts etc.),
+  // where the platform runs one.
   const [captureServerWarning, setCaptureServerWarning] = useState<string | null>(null);
   useEffect(() => {
-    invoke<CaptureServerStatus>('get_capture_server_status')
-      .then(status => setCaptureServerWarning(status?.warning ?? null))
-      .catch(() => {
-        // Older backend without the command: nothing to surface.
-      });
+    const captureStatus = getBackend().platform.captureStatus;
+    if (!captureStatus) return;
+    captureStatus()
+      .then(status => setCaptureServerWarning(status.warning))
+      .catch(error => console.warn('Failed to read the capture server status:', error));
   }, []);
 
   const handleCreateTask = async (name: string): Promise<Task> => {

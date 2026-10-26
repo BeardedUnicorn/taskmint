@@ -19,7 +19,6 @@ import {
   useSyncExternalStore,
   ReactNode,
 } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { ToastStore, Toast, HoldReason } from '../notifications/store';
 import { routeNotification, ErrorThrottle } from '../notifications/routing';
 import { deliverDesktop } from '../notifications/desktop';
@@ -44,9 +43,8 @@ import type {
   Severity,
 } from '../notifications/types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { useTauriEvent } from '../hooks/useTauriEvent';
 import { BACKEND_EVENTS } from '../constants/events';
-import { isTauriEnvironment } from '../utils/tauri';
+import { getBackend, useBackendEvent } from '../backend';
 import { useOptionalNavigation } from './NavigationContext';
 import { ToastViewport } from '../components/notifications/ToastViewport';
 
@@ -123,10 +121,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     preferencesRef.current = preferences;
   }, [preferences]);
 
-  // The backend applies the same preferences to the notifications it shows.
+  // The shell applies the same preferences to the notifications it shows.
   useEffect(() => {
-    if (!isTauriEnvironment()) return;
-    invoke('set_notification_preferences', { prefs: preferences }).catch(error =>
+    const notifications = getBackend().platform.notifications;
+    if (!notifications.setPreferences) return;
+    notifications.setPreferences(preferences).catch(error =>
       console.error('Failed to send notification preferences:', error)
     );
   }, [preferences]);
@@ -236,7 +235,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (decision.desktop) {
         const shownInWindow = decision.toast;
         void deliverDesktop(decision.desktop, options.title ?? 'TaskMint', options.message).then(shown => {
-          // The OS didn't show it (no permission, the web preview): say it here
+          // The OS didn't show it (no permission, or a category turned off): say it here
           if (!shown && !shownInWindow) store.add(toastInput);
         });
       }
@@ -268,7 +267,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // What the backend showed itself joins the history (and, while you're
   // looking at the app, shows here too).
-  useTauriEvent<PostedNotification>(BACKEND_EVENTS.NOTIFICATION_POSTED, ({ payload }) => {
+  useBackendEvent<PostedNotification>(BACKEND_EVENTS.NOTIFICATION_POSTED, payload => {
     const category = BACKEND_KIND_CATEGORY[payload.kind] ?? 'general';
     const severity: Severity = payload.kind === 'idlePause' ? 'warning' : 'info';
     const isAttended = isWindowAttended();

@@ -8,6 +8,7 @@ import { NoteTemplateService } from '../../services/NoteTemplateService';
 import { TaskNotesService } from '../../services/TaskNotesService';
 import { StorageService } from '../../services/StorageService';
 import { describe, it, beforeEach, expect } from 'vitest';
+import { seedAppRecords } from '../../testing';
 
 describe('Notes Integration', () => {
   let templateService: NoteTemplateService;
@@ -207,7 +208,7 @@ describe('Notes Integration', () => {
   });
 
   describe('Data Persistence', () => {
-    it('should persist templates in localStorage', async () => {
+    it('should persist templates in the app records', async () => {
       const template = await templateService.createTemplate({
         name: 'Persistent Template',
         fields: [],
@@ -225,7 +226,7 @@ describe('Notes Integration', () => {
       expect(persisted?.name).toBe('Persistent Template');
     });
 
-    it('should persist notes in localStorage', async () => {
+    it('should persist notes in the app records', async () => {
       const template = await templateService.createTemplate({
         name: 'Test Template',
         fields: [],
@@ -252,7 +253,7 @@ describe('Notes Integration', () => {
   describe('Field Types Support', () => {
     it('loads templates saved with legacy command fields as text fields', async () => {
       // A template stored before command fields were removed.
-      localStorage.setItem('noteTemplates', JSON.stringify([
+      seedAppRecords({ noteTemplates: [
         {
           id: 'legacy-template',
           name: 'Command Template',
@@ -270,7 +271,7 @@ describe('Notes Integration', () => {
           createdAt: '2024-01-01T00:00:00.000Z',
           updatedAt: '2024-01-01T00:00:00.000Z',
         },
-      ]));
+      ] });
 
       const [template] = await templateService.getAllTemplates();
       expect(template.fields[0].type).toBe('text');

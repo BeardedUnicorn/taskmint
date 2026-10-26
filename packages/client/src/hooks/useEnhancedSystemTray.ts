@@ -1,17 +1,17 @@
 /**
  * System tray bridge.
  *
- * The tray itself lives in Rust: it reads sessions directly and starts/stops
- * timers through the same session logic as the app (the session context
- * reloads on the timer-instance events those actions emit). The frontend only
- * mirrors the task list for the tray's Start submenu and opens the start
- * dialog when the tray's "Choose Task…" / "Add a Task…" asks for it.
+ * The tray itself lives in the desktop app's Rust: it reads sessions directly
+ * and starts/stops timers through the same session logic as the app (the
+ * session context reloads on the timer-instance events those actions emit).
+ * The client mirrors the task list to the backend (for the tray's Start
+ * submenu, and so sessions follow task renames and rates) and opens the
+ * start dialog when the tray's "Choose Task…" / "Add a Task…" asks for it.
  */
 
 import { useEffect } from 'react';
 import { Task } from '../types/task';
-import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
-import { useTauriEvent } from './useTauriEvent';
+import { getBackend, useBackendEvent } from '../backend';
 import { BACKEND_EVENTS } from '../constants/events';
 
 export interface UseEnhancedSystemTrayProps {
@@ -24,11 +24,10 @@ export function useEnhancedSystemTray({ tasks, onShowStartDialog }: UseEnhancedS
   // correct at startup and after task edits; the backend rebuilds the menu
   // only when the list actually changed.
   useEffect(() => {
-    if (!isTauriEnvironment()) {
-      return;
-    }
-    safeInvoke('update_tasks', { tasks });
+    getBackend()
+      .call('update_tasks', { tasks })
+      .catch(error => console.warn('Failed to send the task list to the backend:', error));
   }, [tasks]);
 
-  useTauriEvent(BACKEND_EVENTS.SHOW_START_TASK_DIALOG, () => onShowStartDialog());
+  useBackendEvent(BACKEND_EVENTS.SHOW_START_TASK_DIALOG, () => onShowStartDialog());
 }

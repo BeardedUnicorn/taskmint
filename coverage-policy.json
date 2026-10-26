@@ -8,6 +8,7 @@
       { "glob": "src/**/*.d.ts", "why": "type declarations, no runtime code" }
     ],
     "packages": {
+      "apps/desktop": [],
       "packages/client": []
     }
   },

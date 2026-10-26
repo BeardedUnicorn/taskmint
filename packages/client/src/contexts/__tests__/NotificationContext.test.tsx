@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, renderHook, waitFor } from '@testing-library/react';
 import { ReactNode } from 'react';
-import { listen } from '@tauri-apps/api/event';
 import { NotificationProvider, useNotification, useNotificationState } from '../NotificationContext';
 import { NavigationProvider, useNavigation } from '../NavigationContext';
 import { deliverDesktop } from '../../notifications/desktop';
 import { EXIT_MS } from '../../notifications/store';
+import { fakeBackend, installFakeBackendForTest } from '../../testing';
+import { DEFAULT_NOTIFICATION_PREFERENCES } from '../../notifications/preferences';
 
 let attended = true;
 vi.mock('../../notifications/attention', () => ({
@@ -13,9 +14,7 @@ vi.mock('../../notifications/attention', () => ({
   subscribeAttention: () => () => {},
 }));
 vi.mock('../../notifications/desktop', () => ({ deliverDesktop: vi.fn() }));
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 const mockDeliver = vi.mocked(deliverDesktop);
-const mockListen = vi.mocked(listen);
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <NavigationProvider>
@@ -28,18 +27,11 @@ function useBoth() {
 }
 
 describe('NotificationProvider', () => {
-  let handlers: Record<string, (event: { payload: unknown }) => void>;
-
   beforeEach(() => {
     attended = true;
     localStorage.clear();
     vi.clearAllMocks();
     mockDeliver.mockResolvedValue(true);
-    handlers = {};
-    mockListen.mockImplementation(async (event, handler) => {
-      handlers[event as string] = handler as (event: { payload: unknown }) => void;
-      return () => {};
-    });
   });
 
   afterEach(() => {
@@ -155,13 +147,45 @@ describe('NotificationProvider', () => {
     expect(result.current.state.toasts).toHaveLength(1);
   });
 
+  it('tells the shell the preferences for the notifications it raises itself', async () => {
+    renderHook(useBoth, { wrapper });
+
+    await waitFor(() =>
+      expect(fakeBackend().platform.notifications.setPreferences).toHaveBeenCalledWith(DEFAULT_NOTIFICATION_PREFERENCES)
+    );
+  });
+
+  it('logs preferences the shell refused', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    fakeBackend().platform.notifications.setPreferences.mockRejectedValueOnce('store locked');
+
+    renderHook(useBoth, { wrapper });
+
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith('Failed to send notification preferences:', 'store locked')
+    );
+    error.mockRestore();
+  });
+
+  it('sends no preferences where the shell raises no notifications of its own', () => {
+    const desktop = fakeBackend();
+    const shell = installFakeBackendForTest({});
+    delete (shell.platform.notifications as { setPreferences?: unknown }).setPreferences;
+
+    renderHook(useBoth, { wrapper });
+
+    expect(desktop.platform.notifications.setPreferences).not.toHaveBeenCalled();
+  });
+
   it('adds what the backend showed to the history (and a toast while you are here)', async () => {
     const { result } = renderHook(useBoth, { wrapper });
-    await waitFor(() => expect(handlers['notification-posted']).toBeDefined());
-
     act(() => {
-      handlers['notification-posted']({
-        payload: { id: 'b1', kind: 'longRun', title: 'Still working?', body: 'Running 4h', at: '2026-10-13T12:00:00Z' },
+      fakeBackend().emit('notification-posted', {
+        id: 'b1',
+        kind: 'longRun',
+        title: 'Still working?',
+        body: 'Running 4h',
+        at: '2026-10-13T12:00:00Z',
       });
     });
 

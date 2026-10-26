@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "exports": {
-    "./main": "./src/main.tsx"
+    "./start": "./src/start.tsx",
+    "./backend": "./src/backend/index.ts",
+    "./testing": "./src/testing/index.ts"
   },
   "scripts": {
     "build": "tsc -p .",
@@ -26,9 +28,6 @@
     "@mui/material": "^9.3.1",
     "@mui/x-date-pickers": "^9.11.0",
     "@sentry/react": "^10.70.0",
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-dialog": "^2.7.2",
-    "@tauri-apps/plugin-opener": "^2.5.4",
     "dayjs": "^1.11.23",
     "react": "catalog:",
     "react-big-calendar": "^1.20.0",
@@ -47,7 +46,7 @@
     "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/ui": "^4.1.10",
-    "jsdom": "^30.0.1",
+    "jsdom": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

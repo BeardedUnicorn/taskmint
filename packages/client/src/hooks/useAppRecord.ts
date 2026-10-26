@@ -1,24 +1,17 @@
 /**
  * State kept in an app record (see services/appRecords), with
- * useLocalStorage's API: [value, setValue]. In the desktop app it reads and
- * writes appdata.json through the records cache; outside the app it is
- * useLocalStorage.
+ * useLocalStorage's API: [value, setValue]. It reads and writes the backend's
+ * records through the records cache.
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { AppRecordKey, appRecordsActive, readAppRecord, writeAppRecord } from '../services/appRecords';
-import { useLocalStorage } from './useLocalStorage';
+import { AppRecordKey, readAppRecord, writeAppRecord } from '../services/appRecords';
 
 export function useAppRecord<T>(
   key: AppRecordKey,
   initialValue: T
 ): readonly [T, (value: T | ((previous: T) => T)) => void] {
-  // Always called (hooks can't be conditional); used outside the app
-  const local = useLocalStorage<T>(key, initialValue);
-
-  const active = appRecordsActive();
   const [value, setValue] = useState<T>(() => {
-    if (!active) return initialValue;
     const stored = readAppRecord(key);
     return stored === undefined ? initialValue : (stored as T);
   });
@@ -37,5 +30,5 @@ export function useAppRecord<T>(
     [key]
   );
 
-  return active ? ([value, update] as const) : local;
+  return [value, update] as const;
 }

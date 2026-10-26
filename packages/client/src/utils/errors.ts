@@ -1,5 +1,5 @@
 /**
- * The message to show for a caught failure. Tauri commands reject with plain
+ * The message to show for a caught failure. Backend commands reject with plain
  * strings, services throw Errors, and some code throws `{ message }` objects;
  * anything else (or an empty message) falls back to `fallback`.
  */

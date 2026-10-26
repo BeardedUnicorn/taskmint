@@ -1,10 +1,11 @@
 /**
  * Settings: one scrolling page of sections, with a list of them alongside
  * that jumps to each and follows where you are. Opening Settings for a
- * section (a toast's "Backup settings") scrolls to it.
+ * section (a toast's "Backup settings") scrolls to it. The shell's own
+ * sections (AppExtensions) follow the built-in ones.
  */
 
-import { ComponentType, useCallback, useEffect, useRef, useState } from 'react';
+import { ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, List, ListItemButton, ListItemText } from '@mui/material';
 import {
   AppearanceSettingsSection,
@@ -19,6 +20,7 @@ import { PayoutSettingsSection } from './settings/PayoutSettingsSection';
 import { PageContainer, PageHeader } from '../layout/PageLayout';
 import { useOptionalNavigation } from '../../contexts/NavigationContext';
 import { SETTINGS_SECTION_LABELS, SettingsSectionId } from '../../navigation/views';
+import { useAppExtensions } from '../../app/extensions';
 
 const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
   appearance: AppearanceSettingsSection,
@@ -37,7 +39,7 @@ export const SETTINGS_SECTIONS = (Object.keys(SETTINGS_SECTION_LABELS) as Settin
   Section: SECTION_COMPONENTS[id],
 }));
 
-const sectionElement = (id: SettingsSectionId) => document.getElementById(`settings-${id}`);
+const sectionElement = (id: string) => document.getElementById(`settings-${id}`);
 
 /** A section is "current" once its top is this close to the top of the window. */
 const CURRENT_LINE_PX = 120;
@@ -54,11 +56,15 @@ export function currentSection(tops: number[], atBottom: boolean): number {
   return current;
 }
 
+const NO_EXTENSION_SECTIONS: never[] = [];
+
 export function SettingsPage() {
-  const [active, setActive] = useState<SettingsSectionId>('appearance');
+  const { settingsSections = NO_EXTENSION_SECTIONS } = useAppExtensions();
+  const sections = useMemo(() => [...SETTINGS_SECTIONS, ...settingsSections], [settingsSections]);
+  const [active, setActive] = useState<string>('appearance');
   const clickedAtRef = useRef(0);
 
-  const goTo = useCallback((id: SettingsSectionId) => {
+  const goTo = useCallback((id: string) => {
     clickedAtRef.current = Date.now();
     setActive(id);
     sectionElement(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
@@ -82,9 +88,9 @@ export function SettingsPage() {
       const scroller = event.target instanceof Element ? event.target : document.scrollingElement;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const tops = SETTINGS_SECTIONS.map(({ id }) => sectionElement(id)?.getBoundingClientRect().top ?? Infinity);
+        const tops = sections.map(({ id }) => sectionElement(id)?.getBoundingClientRect().top ?? Infinity);
         const atBottom = !!scroller && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
-        setActive(SETTINGS_SECTIONS[currentSection(tops, atBottom)].id);
+        setActive(sections[currentSection(tops, atBottom)].id);
       });
     };
     window.addEventListener('scroll', onScroll, true);
@@ -92,7 +98,7 @@ export function SettingsPage() {
       window.removeEventListener('scroll', onScroll, true);
       cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [sections]);
 
   return (
     <PageContainer>
@@ -107,7 +113,7 @@ export function SettingsPage() {
           sx={{ display: { xs: 'none', md: 'block' }, width: 200, flexShrink: 0, position: 'sticky', top: 24 }}
         >
           <List dense disablePadding>
-            {SETTINGS_SECTIONS.map(({ id, label }) => (
+            {sections.map(({ id, label }) => (
               <ListItemButton
                 key={id}
                 selected={active === id}
@@ -122,7 +128,7 @@ export function SettingsPage() {
         </Box>
 
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          {SETTINGS_SECTIONS.map(({ id, Section }) => (
+          {sections.map(({ id, Section }) => (
             <Box key={id} id={`settings-${id}`} sx={{ scrollMarginTop: 24 }}>
               <Section />
             </Box>

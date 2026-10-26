@@ -1,29 +1,24 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { useAppRecord } from '../useAppRecord';
 import { useDailyGoals } from '../useDailyGoals';
 import { DailyGoalProvider } from '../../contexts/DailyGoalContext';
 import { loadAppRecords, readAppRecord, resetAppRecordsForTests } from '../../services/appRecords';
-import { isTauriEnvironment } from '../../utils/tauri';
+import { fakeBackend } from '../../testing';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('../../utils/tauri', () => ({ isTauriEnvironment: vi.fn(() => true) }));
-
-const mockInvoke = vi.mocked(invoke);
+const mockInvoke = fakeBackend().call;
 
 async function loadWith(records: Record<string, unknown>) {
   mockInvoke.mockImplementation(async (command: string) =>
     command === 'get_app_records' ? { records } : null
   );
-  await loadAppRecords();
+  await loadAppRecords({ importLegacy: false });
 }
 
 describe('useAppRecord', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isTauriEnvironment).mockReturnValue(true);
     resetAppRecordsForTests();
     window.localStorage.clear();
   });
@@ -50,15 +45,24 @@ describe('useAppRecord', () => {
     expect(window.localStorage.getItem('dailyGoalAchievements')).toBeNull();
   });
 
-  it('is useLocalStorage outside the app', () => {
-    vi.mocked(isTauriEnvironment).mockReturnValue(false);
-    window.localStorage.setItem('dailyGoal', JSON.stringify({ version: 1, data: { targetAmount: 5 } }));
+  it('starts from the initial value when there is no record', async () => {
+    await loadWith({});
     const { result } = renderHook(() => useAppRecord<{ targetAmount: number } | null>('dailyGoal', null));
 
-    expect(result.current[0]).toEqual({ targetAmount: 5 });
+    expect(result.current[0]).toBeNull();
+  });
+
+  it('keeps the new value and logs when the save fails', async () => {
+    await loadWith({});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockInvoke.mockRejectedValueOnce('disk full');
+    const { result } = renderHook(() => useAppRecord<{ targetAmount: number } | null>('dailyGoal', null));
+
     act(() => result.current[1]({ targetAmount: 9 }));
-    expect(JSON.parse(window.localStorage.getItem('dailyGoal')!).data).toEqual({ targetAmount: 9 });
-    expect(mockInvoke).not.toHaveBeenCalled();
+
+    expect(result.current[0]).toEqual({ targetAmount: 9 });
+    await waitFor(() => expect(error).toHaveBeenCalledWith('Failed to save "dailyGoal":', 'disk full'));
+    error.mockRestore();
   });
 
   it('keeps the daily goal in the app records', async () => {

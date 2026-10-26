@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { getBackend, useBackendEvent } from '../backend';
 import {
   TaskSession,
   TimerInstance,
@@ -23,7 +23,6 @@ import { formatDurationCompact } from '../utils/formatters';
 import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
-import { useTauriEvent } from './useTauriEvent';
 import { BACKEND_EVENTS } from '../constants/events';
 import { formatShortDate } from '../utils/locale';
 
@@ -146,7 +145,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     if (!silent) beginBusy();
 
     try {
-      const loadedSessions = await invoke<TaskSession[]>('get_sessions');
+      const loadedSessions = await getBackend().call<TaskSession[]>('get_sessions');
       const normalizedSessions = (loadedSessions || []).map(normalizeSession);
       setSessions(normalizedSessions);
       setActiveSessionState(normalizedSessions.find(s => s.isActive) || null);
@@ -184,7 +183,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
   const createTimerInstance = useCallback((sessionId: string): Promise<TimerInstance | null> =>
     runCommand('Failed to create timer instance', async () => {
-      const newInstance = await invoke<TimerInstance>('create_timer_instance', { sessionId });
+      const newInstance = await getBackend().call<TimerInstance>('create_timer_instance', { sessionId });
       await loadSessions({ silent: true }); // the session with its new instance
       return newInstance;
     }),
@@ -202,7 +201,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
       let handoffTaskName: string | null = null;
       for (let attempt = 1; ; attempt++) {
         try {
-          const updatedSession = await invoke<TaskSession>('start_timer_instance', { instanceId });
+          const updatedSession = await getBackend().call<TaskSession>('start_timer_instance', { instanceId });
           updateLocalSession(updatedSession);
           return handoffTaskName;
         } catch (err) {
@@ -219,7 +218,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
               if (other && other.session.id !== parentSession.id) {
                 handoffTaskName = other.session.taskName;
               }
-              const updatedSessions = await invoke<TaskSession[]>(
+              const updatedSessions = await getBackend().call<TaskSession[]>(
                 'set_active_session',
                 { sessionId: parentSession.id }
               );
@@ -236,7 +235,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
             if (running) {
               handoffTaskName = running.session.taskName;
               try {
-                const stoppedSession = await invoke<TaskSession>('stop_timer_instance', {
+                const stoppedSession = await getBackend().call<TaskSession>('stop_timer_instance', {
                   instanceId: running.instance.id,
                 });
                 updateLocalSession(stoppedSession);
@@ -268,7 +267,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     (command: string, fallback: string) =>
       (instanceId: string): Promise<TaskSession | null> =>
         runCommand(fallback, async () => {
-          const updatedSession = await invoke<TaskSession>(command, { instanceId });
+          const updatedSession = await getBackend().call<TaskSession>(command, { instanceId });
           updateLocalSession(updatedSession);
           return updatedSession;
         }),
@@ -292,7 +291,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
   const restoreTimerInstance = useCallback(
     (sessionId: string, instance: TimerInstance, index: number) =>
       runCommand("Couldn't restore the timer", async () => {
-        const session = await invoke<TaskSession>('restore_timer_instance', { sessionId, instance, index });
+        const session = await getBackend().call<TaskSession>('restore_timer_instance', { sessionId, instance, index });
         updateLocalSession(session);
       }),
     [runCommand, updateLocalSession]
@@ -304,7 +303,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     const snapshot = owner && index >= 0 ? owner.timerInstances[index] : undefined;
 
     const done = await runCommand('Failed to delete timer', async () => {
-      const updatedSession = await invoke<TaskSession>('delete_timer_instance', { instanceId });
+      const updatedSession = await getBackend().call<TaskSession>('delete_timer_instance', { instanceId });
       updateLocalSession(updatedSession);
       return true;
     });
@@ -331,12 +330,12 @@ export function useSessionManagement(): UseSessionManagementReturn {
     runCommand('Failed to update timer', async () => {
       try {
         if (edit.updates) {
-          await invoke('update_timer_instance', { instanceId, updates: edit.updates });
+          await getBackend().call('update_timer_instance', { instanceId, updates: edit.updates });
         }
         let sessionId =
           sessionsRef.current.find(s => s.timerInstances.some(i => i.id === instanceId))?.id ?? null;
         if (edit.moveTo) {
-          sessionId = await invoke<string>('move_timer_instance', {
+          sessionId = await getBackend().call<string>('move_timer_instance', {
             instanceId,
             taskId: edit.moveTo.taskId,
             taskName: edit.moveTo.taskName,
@@ -358,7 +357,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
     if (!loadWarningShownRef.current) {
       loadWarningShownRef.current = true;
-      invoke<string | null>('get_session_load_warning')
+      getBackend().call<string | null>('get_session_load_warning')
         .then(warning => {
           // Records were lost or skipped: stays up until dismissed
           if (warning) showWarning(warning, { category: 'session', duration: null, title: 'Some saved time could not be read' });
@@ -374,7 +373,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
   // sync. Bursts of events (a hand-off stops one timer and starts another)
   // collapse into one reload.
   const reloadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useTauriEvent(TIMER_INSTANCE_EVENTS, () => {
+  useBackendEvent(TIMER_INSTANCE_EVENTS, () => {
     if (reloadTimeoutRef.current) clearTimeout(reloadTimeoutRef.current);
     reloadTimeoutRef.current = setTimeout(() => {
       reloadTimeoutRef.current = null;
@@ -390,7 +389,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
   // any timer it finalized for another task, so the hand-off isn't silent.
   const startTask = useCallback(async (taskId: string, taskName: string): Promise<StartTaskResult | null> => {
     const result = await runCommand('Failed to start the task', async () => {
-      const started = await invoke<StartTaskResult>('start_task', { taskId, taskName });
+      const started = await getBackend().call<StartTaskResult>('start_task', { taskId, taskName });
       await loadSessions({ silent: true });
       return started;
     });
@@ -411,7 +410,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
   // backend's reason (e.g. an overlap) so the dialog can show it in place.
   const addManualTime = useCallback(async (input: AddManualTimeInput): Promise<TaskSession> => {
     try {
-      const session = await invoke<TaskSession>('add_manual_time', {
+      const session = await getBackend().call<TaskSession>('add_manual_time', {
         taskId: input.taskId,
         taskName: input.taskName,
         startTime: input.startTime.toISOString(),
@@ -429,7 +428,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
   // Throws on failure: the caller (the session-notes move) retries next launch.
   const clearSessionNotes = useCallback(async (sessionIds: string[]): Promise<number> => {
     if (sessionIds.length === 0) return 0;
-    const cleared = await invoke<number>('clear_session_notes', { sessionIds });
+    const cleared = await getBackend().call<number>('clear_session_notes', { sessionIds });
     if (cleared > 0) await loadSessions({ silent: true });
     return cleared;
   }, [loadSessions]);
@@ -439,7 +438,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
   const restoreSession = useCallback(
     (snapshot: TaskSession) =>
       runCommand("Couldn't restore the session", async () => {
-        const restored = normalizeSession(await invoke<TaskSession>('restore_session', { session: snapshot }));
+        const restored = normalizeSession(await getBackend().call<TaskSession>('restore_session', { session: snapshot }));
         setSessions(prev => (prev.some(s => s.id === restored.id) ? prev : [...prev, restored]));
       }),
     [runCommand]
@@ -449,7 +448,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     const removed = await runCommand('Failed to delete session', async () => {
       const removedSession = sessionsRef.current.find(s => s.id === sessionId);
       // What was deleted, live timers stopped: what Undo puts back
-      const snapshot = await invoke<TaskSession>('delete_session', { sessionId });
+      const snapshot = await getBackend().call<TaskSession>('delete_session', { sessionId });
 
       setSessions(prev => prev.filter(s => s.id !== sessionId));
       setActiveSessionState(current => (current?.id === sessionId ? null : current));
@@ -482,7 +481,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     // not silent.
     const previousRunner = findRunningInstance(sessionsRef.current);
     const done = await runCommand('Failed to set active session', async () => {
-      const updatedSessions = await invoke<TaskSession[]>('set_active_session', { sessionId: session?.id });
+      const updatedSessions = await getBackend().call<TaskSession[]>('set_active_session', { sessionId: session?.id });
       const normalized = (updatedSessions || []).map(normalizeSession);
       setSessions(normalized);
       setActiveSessionState(session ? normalized.find(s => s.id === session.id) || null : null);

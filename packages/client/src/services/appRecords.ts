@@ -1,20 +1,15 @@
 /**
  * App records: tasks, notes, note templates, the daily goal and its history.
  *
- * In the desktop app they live in appdata.json, owned by the Rust backend
- * next to sessions.json. loadAppRecords() reads them once, before the first
- * render, into this in-memory cache, so every reader stays synchronous.
- * Writes update the cache and go to the backend, in order per record.
- * Records an older version left in the webview's localStorage are moved in
- * at startup.
- *
- * Outside the app (the web preview, tests) the cache stays inactive and
- * callers keep using localStorage.
+ * The backend owns them (appdata.json in the desktop app). loadAppRecords()
+ * reads them once, before the first render, into this in-memory cache, so
+ * every reader stays synchronous. Writes update the cache and go to the
+ * backend, in order per record. The desktop app also moves in records an
+ * older version left in the webview's localStorage.
  */
 
-import { invoke } from '@tauri-apps/api/core';
 import { STORAGE_KEYS } from '../constants';
-import { isTauriEnvironment } from '../utils/tauri';
+import { getBackend } from '../backend/registry';
 
 /** Paired with APP_RECORD_KEYS in crates/taskmint-core/src/contract.rs. */
 export const APP_RECORD_KEYS = [
@@ -37,11 +32,6 @@ const writeChains = new Map<string, Promise<void>>();
 
 export function isAppRecordKey(key: string): key is AppRecordKey {
   return (APP_RECORD_KEYS as readonly string[]).includes(key);
-}
-
-/** True once the records are loaded from the app's data file. */
-export function appRecordsActive(): boolean {
-  return cache !== null;
 }
 
 /**
@@ -94,33 +84,33 @@ export function removeRetiredLocalKeys(): void {
   }
 }
 
-interface LoadOptions {
+export interface LoadOptions {
   /**
-   * Move in records left in this webview's localStorage. Off in development
-   * builds: their webview storage is separate from the installed app's (and
-   * often stale), but appdata.json is shared, so they'd mix old test data
-   * into the real records.
+   * Move in records an older desktop version left in this webview's
+   * localStorage. Only the installed desktop app does: a development build's
+   * webview storage is separate from the installed app's (and often stale),
+   * but appdata.json is shared, so it would mix old test data into the real
+   * records.
    */
-  importLegacy?: boolean;
+  importLegacy: boolean;
 }
 
 /**
- * Loads the records into the cache (desktop app only). Records still in
- * localStorage from before the move are added to the file first (never
- * replacing what's there, with a copy kept beside it), then removed from
- * localStorage so there's one source of truth. Throws if the data file
- * can't be read or the move fails; localStorage is untouched then.
+ * Loads the records into the cache. Records still in localStorage from
+ * before the move are added to the backend first (never replacing what's
+ * there, with a copy kept beside it), then removed from localStorage so
+ * there's one source of truth. Throws if the records can't be read or the
+ * move fails; localStorage is untouched then.
  */
-export async function loadAppRecords({ importLegacy = !import.meta.env.DEV }: LoadOptions = {}): Promise<void> {
-  if (!isTauriEnvironment()) return;
-
+export async function loadAppRecords({ importLegacy }: LoadOptions): Promise<void> {
+  const backend = getBackend();
   const legacy = importLegacy ? readLegacyRecords() : { records: {}, keys: [] };
   let response: AppRecordsResponse;
   if (Object.keys(legacy.records).length > 0) {
-    response = await invoke<AppRecordsResponse>('import_app_records', { records: legacy.records });
+    response = await backend.call<AppRecordsResponse>('import_app_records', { records: legacy.records });
     console.info(`Moved ${Object.keys(legacy.records).join(', ')} into appdata.json`);
   } else {
-    response = await invoke<AppRecordsResponse>('get_app_records');
+    response = await backend.call<AppRecordsResponse>('get_app_records');
   }
   for (const key of legacy.keys) {
     window.localStorage.removeItem(key);
@@ -151,7 +141,7 @@ export function writeAppRecord(key: AppRecordKey, value: unknown): Promise<void>
   else records.set(key, stored);
 
   const write = (writeChains.get(key) ?? Promise.resolve())
-    .then(() => invoke('set_app_record', { key, value: stored }))
+    .then(() => getBackend().call('set_app_record', { key, value: stored }))
     .then(
       () => undefined,
       (error: unknown) => {
@@ -175,8 +165,8 @@ export async function flushAppRecords(): Promise<void> {
   await Promise.all([...writeChains.values()]);
 }
 
-/** Tests only: back to the unloaded state. */
-export function resetAppRecordsForTests(): void {
-  cache = null;
+/** Tests only: the given records as if just loaded, or (null) back to unloaded. */
+export function resetAppRecordsForTests(records: Record<string, unknown> | null = null): void {
+  cache = records === null ? null : new Map(Object.entries(structuredClone(records)));
   writeChains.clear();
 }

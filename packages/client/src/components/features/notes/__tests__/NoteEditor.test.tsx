@@ -20,11 +20,7 @@ const render = (ui: ReactElement) =>
   });
 import { NoteEditor } from '../NoteEditor';
 import { NoteTemplate, TaskNote } from '../../../../types/notes';
-import { invoke } from '@tauri-apps/api/core';
-
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockResolvedValue(undefined),
-}));
+import { fakeBackend } from '../../../../testing';
 
 const existingTemplateNote: TaskNote = {
   id: 'note1',
@@ -105,7 +101,9 @@ describe('NoteEditor', () => {
       expect(screen.getByLabelText('Text Field')).toBeInTheDocument();
     });
     expect(screen.queryByTitle('Run Command')).not.toBeInTheDocument();
-    expect(invoke).not.toHaveBeenCalled();
+    // Saving records is all it may ask of the backend
+    const commands = fakeBackend().call.mock.calls.map(([command]) => command);
+    expect(commands.filter(command => command !== 'set_app_record')).toEqual([]);
   });
 
   it('shows confirmation dialog when cancelling with unsaved changes', async () => {

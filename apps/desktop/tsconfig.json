@@ -9,6 +9,7 @@
   },
   "include": [
     "src",
+    "vitest.config.ts",
     "../../packages/client/src/**/*.d.ts"
   ],
   "references": [

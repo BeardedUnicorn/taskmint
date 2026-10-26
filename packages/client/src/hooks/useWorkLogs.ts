@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { getBackend } from '../backend';
 import {
   ProjectTaskMapping,
   WorkLogEntry,
@@ -46,7 +46,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await invoke<WorkLogsResponse>('get_work_logs');
+      const response = await getBackend().call<WorkLogsResponse>('get_work_logs');
       setEntries(response.entries ?? []);
       setMappings(response.mappings ?? []);
       setLoadWarning(response.loadWarning ?? null);
@@ -63,7 +63,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
     async (payload: WorkLogImportPayload): Promise<WorkLogImportSummary | null> => {
       setError(null);
       try {
-        const summary = await invoke<WorkLogImportSummary>('apply_work_log_import', { payload });
+        const summary = await getBackend().call<WorkLogImportSummary>('apply_work_log_import', { payload });
         await reload();
         return summary;
       } catch (err) {

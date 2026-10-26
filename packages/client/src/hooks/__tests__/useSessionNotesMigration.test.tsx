@@ -8,6 +8,8 @@ import { STORAGE_KEYS } from '../../constants';
 import { Task } from '../../types/task';
 import { TaskSession } from '../../types/timer';
 import { sessionNoteId, sessionNotesToTaskNotes } from '../../utils/notes';
+import { seedAppRecords } from '../../testing';
+import { readAppRecord } from '../../services/appRecords';
 
 vi.mock('../../contexts/NotificationContext', async () => {
   const { createNotificationMock } = await import('../../__tests__/setup/notificationMock');
@@ -30,12 +32,7 @@ const session = (id: string, notes?: string): TaskSession => ({
   notes,
 });
 
-const storedNotes = () => {
-  const raw = window.localStorage.getItem(STORAGE_KEYS.TASK_NOTES);
-  if (!raw) return [];
-  const parsed = JSON.parse(raw);
-  return Array.isArray(parsed) ? parsed : parsed.data;
-};
+const storedNotes = () => (readAppRecord(STORAGE_KEYS.TASK_NOTES) as unknown[] | undefined) ?? [];
 
 const wrapper = ({ children }: { children: ReactNode }) => <TaskNotesProvider>{children}</TaskNotesProvider>;
 
@@ -69,7 +66,7 @@ describe('useSessionNotesMigration', () => {
   it('never duplicates a note when rerun after a crash between the copy and the clear', async () => {
     // The copy landed last time, the clear didn't
     const [alreadyCopied] = sessionNotesToTaskNotes([session('s-1', 'Labelled 40 items')], tasks);
-    window.localStorage.setItem(STORAGE_KEYS.TASK_NOTES, JSON.stringify([alreadyCopied]));
+    seedAppRecords({ [STORAGE_KEYS.TASK_NOTES]: [alreadyCopied] });
 
     const { result, clearSessionNotes } = renderMigration([session('s-1', 'Labelled 40 items')]);
 

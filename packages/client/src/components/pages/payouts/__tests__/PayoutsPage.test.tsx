@@ -6,7 +6,7 @@
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent, within } from '../../../../__tests__/setup/test-helpers';
+import { render, screen, fireEvent, within, waitFor } from '../../../../__tests__/setup/test-helpers';
 import { PayoutsPage } from '../PayoutsPage';
 import { Task } from '../../../../types/task';
 import { TaskSession, TimerState } from '../../../../types/timer';
@@ -18,9 +18,9 @@ import {
   createMockWorkLogEntry,
 } from '../../../../__tests__/setup/session-test-utils';
 import userEvent from '@testing-library/user-event';
-import { invoke } from '@tauri-apps/api/core';
+import { fakeBackend, installFakeBackendForTest } from '../../../../testing';
 
-const mockInvoke = vi.mocked(invoke);
+const mockInvoke = fakeBackend().call;
 
 let mockWorkLogsReturn: WorkLogContextValue;
 vi.mock('../../../../contexts/WorkLogContext', () => ({
@@ -332,15 +332,10 @@ describe('PayoutsPage', () => {
   });
 
   it('shows the capture-server warning when the port could not be bound', async () => {
-    mockInvoke.mockImplementation(async (command: string) => {
-      if (command === 'get_capture_server_status') {
-        return {
-          running: false,
-          port: 43117,
-          warning: 'Browser capture server could not start on 127.0.0.1:43117',
-        };
-      }
-      return undefined;
+    fakeBackend().platform.captureStatus.mockResolvedValueOnce({
+      running: false,
+      port: 43117,
+      warning: 'Browser capture server could not start on 127.0.0.1:43117',
     });
 
     render(<PayoutsPage />);
@@ -348,6 +343,24 @@ describe('PayoutsPage', () => {
     expect(
       await screen.findByText(/Browser capture server could not start/)
     ).toBeInTheDocument();
+  });
+
+  it('logs a capture-server status it could not read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fakeBackend().platform.captureStatus.mockRejectedValueOnce('no server');
+
+    render(<PayoutsPage />);
+
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith('Failed to read the capture server status:', 'no server')
+    );
+    warn.mockRestore();
+  });
+
+  it('asks for no capture-server status where the platform runs none', () => {
+    installFakeBackendForTest({ without: ['captureStatus'] });
+    render(<PayoutsPage />);
+    expect(screen.queryByText(/Browser capture server/)).not.toBeInTheDocument();
   });
 
   it('renders no capture-server alert when the server is healthy', async () => {

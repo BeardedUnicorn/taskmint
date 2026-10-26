@@ -1,18 +1,14 @@
 /**
- * StorageService in the desktop app: the records (tasks, notes, templates,
- * goal) go through the appdata.json cache; other keys stay in localStorage.
+ * StorageService: the records (tasks, notes, templates, goal) go through
+ * the app-records cache; other keys stay in localStorage.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { invoke } from '@tauri-apps/api/core';
 import { StorageService } from '../StorageService';
 import { loadAppRecords, readAppRecord, resetAppRecordsForTests } from '../appRecords';
-import { isTauriEnvironment } from '../../utils/tauri';
+import { fakeBackend } from '../../testing';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('../../utils/tauri', () => ({ isTauriEnvironment: vi.fn(() => true) }));
-
-const mockInvoke = vi.mocked(invoke);
+const mockInvoke = fakeBackend().call;
 const task = {
   id: 't1',
   name: 'Annotation',
@@ -35,7 +31,6 @@ describe('StorageService with app records', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.mocked(isTauriEnvironment).mockReturnValue(true);
     resetAppRecordsForTests();
     window.localStorage.clear();
     mockInvoke.mockImplementation(async (command: string) => {
@@ -44,7 +39,7 @@ describe('StorageService with app records', () => {
       }
       return null;
     });
-    await loadAppRecords();
+    await loadAppRecords({ importLegacy: false });
   });
 
   it('reads tasks and notes from the app records, with schema defaults applied', async () => {

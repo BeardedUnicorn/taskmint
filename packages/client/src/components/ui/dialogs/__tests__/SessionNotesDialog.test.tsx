@@ -11,6 +11,8 @@ import { TaskNote } from '../../../../types/notes';
 import { Task } from '../../../../types/task';
 import { TaskSession, TimerState } from '../../../../types/timer';
 import { noteText } from '../../../../utils/notes';
+import { seedAppRecords } from '../../../../testing';
+import { readAppRecord } from '../../../../services/appRecords';
 
 const tasks: Task[] = [{ id: 'task-1', name: 'Annotation', createdAt: '', updatedAt: '' }];
 
@@ -95,14 +97,13 @@ describe('SessionNotesDialog', () => {
   });
 
   it("lists this session's notes (its own and its timers'), not other sessions'", async () => {
-    window.localStorage.setItem(
-      STORAGE_KEYS.TASK_NOTES,
-      JSON.stringify([
+    seedAppRecords({
+      [STORAGE_KEYS.TASK_NOTES]: [
         note('n-1', 'Session note'),
         note('n-2', 'Timer note', { noteLevel: 'timer', timerInstanceId: 'i-1' }),
         note('n-3', 'Another session', { sessionId: 's-2' }),
-      ])
-    );
+      ],
+    });
     renderDialog();
     const dialog = await screen.findByRole('dialog');
 
@@ -120,8 +121,7 @@ describe('SessionNotesDialog', () => {
     const row = screen.getByRole('list', { name: 'row preview', hidden: true });
     await waitFor(() => expect(within(row).getByText('Labelled batch 7')).toBeInTheDocument());
 
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.TASK_NOTES)!);
-    const [saved] = Array.isArray(stored) ? stored : stored.data;
+    const [saved] = readAppRecord(STORAGE_KEYS.TASK_NOTES) as unknown[];
     expect(saved).toMatchObject({ sessionId: 's-1', noteLevel: 'session', timerInstanceId: null });
   });
 
@@ -131,8 +131,7 @@ describe('SessionNotesDialog', () => {
     await addNote('Paused for a call');
 
     await waitFor(() => {
-      const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.TASK_NOTES)!);
-      const [saved] = Array.isArray(stored) ? stored : stored.data;
+      const [saved] = readAppRecord(STORAGE_KEYS.TASK_NOTES) as unknown[];
       expect(saved).toMatchObject({ sessionId: 's-1', noteLevel: 'timer', timerInstanceId: 'i-1' });
     });
   });

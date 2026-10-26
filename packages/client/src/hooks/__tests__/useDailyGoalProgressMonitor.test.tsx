@@ -8,6 +8,8 @@ import { STORAGE_KEYS } from '../../constants';
 import { Task } from '../../types/task';
 import { TaskSession, TimerState } from '../../types/timer';
 import { formatDateString } from '../../utils/dateHelpers';
+import { seedAppRecords } from '../../testing';
+import { readAppRecord } from '../../services/appRecords';
 
 const mockNotify = vi.hoisted(() => vi.fn(() => 'toast-1'));
 vi.mock('../../contexts/NotificationContext', () => ({
@@ -50,21 +52,17 @@ function runningFor(hours: number): TaskSession[] {
 
 function storeGoal(targetAmount: number) {
   const now = new Date().toISOString();
-  window.localStorage.setItem(
-    STORAGE_KEYS.DAILY_GOAL,
-    JSON.stringify({
-      version: 1,
-      data: {
-        targetAmount,
-        currency: 'USD',
-        isEnabled: true,
-        lastNotifiedPercent: 0,
-        lastNotificationDate: formatDateString(new Date()),
-        createdAt: now,
-        updatedAt: now,
-      },
-    })
-  );
+  seedAppRecords({
+    [STORAGE_KEYS.DAILY_GOAL]: {
+      targetAmount,
+      currency: 'USD',
+      isEnabled: true,
+      lastNotifiedPercent: 0,
+      lastNotificationDate: formatDateString(new Date()),
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
 }
 
 const wrapper = ({ children }: { children: ReactNode }) => <DailyGoalProvider>{children}</DailyGoalProvider>;
@@ -153,8 +151,7 @@ describe('useDailyGoalProgressMonitor', () => {
 
     await waitFor(() => expect(result.current.settings.currentGoal?.lastNotifiedPercent).toBe(75));
     expect(result.current.settings.currentGoal?.targetAmount).toBe(100);
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.DAILY_GOAL)!);
-    expect(stored.data).toMatchObject({ targetAmount: 100, lastNotifiedPercent: 75 });
+    expect(readAppRecord(STORAGE_KEYS.DAILY_GOAL)).toMatchObject({ targetAmount: 100, lastNotifiedPercent: 75 });
   });
 
   it('reports nothing when no goal is set', () => {

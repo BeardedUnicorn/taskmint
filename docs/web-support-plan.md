@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P4 (core extraction) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -195,6 +195,26 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
 **Test codemod:** the global `vi.mock('@tauri-apps/…')` becomes `createFakeBackend()`. In the 21 test files that mock Tauri, `vi.mocked(invoke)` → `backend.call` and captured `listen` handlers → `backend.emit`. The signature is the same, so the change is mechanical.
 
 **Bootstrap:** `startClient(root, { backend, extensions, importLegacyRecords })` does today's `main.tsx` work. `AppExtensions` lets each shell inject Settings sections, filtered by capabilities.
+
+**As built in P3:**
+- **One backend per page, no context.** `setBackend`/`getBackend` hold it (startClient sets it), and hooks call `getBackend()` directly. There's no `BackendProvider`, `useBackend()` or `useCapabilities()`: the backend never changes while a page is open, so a context added nothing, and tests need no provider wrappers.
+- **An optional platform feature is its own capability.** `platform.idle`, `folderBackups`, `reveal` and `captureStatus` exist only where they work, and the client checks for the member. `Capabilities` keeps only what no member expresses: `{ runtime, dataLocation }`.
+- **Platform API:**
+  - `files.save({ contents, suggestedName, format })` resolves to a `SavedFile` (`{kind:'path'}` or `{kind:'download'}`) or `null`; `files.openJson()` resolves to the text or `null`.
+  - `notifications.show(kind, title, body)`, plus an optional `setPreferences`.
+  - `idle.isSupported/setSettings/getPending/resolve`.
+  - `folderBackups.defaultFolder/pickFolder/validateFolder/write`.
+  - On the desktop, `apps/desktop/src/tauriBackend.ts` maps each to today's Tauri commands and plugins. It owns `EXPORT_CANCELLED`/`IMPORT_CANCELLED` (a cancelled dialog resolves `null`) and the default backup folder name.
+- **Behaviour changes:**
+  - Dismissing the import dialog is now silent, like export.
+  - The platform's own reasons ("Invalid JSON file", read errors) reach the user; `safeInvoke` used to swallow them.
+- **Left for later phases:**
+  - `useEnhancedSystemTray` still sends `update_tasks`. The Rust side needs it for the tray, rates and renames until P5 reads tasks from the records.
+  - Error matching stays on literal strings until P6 generates `CORE_ERRORS`.
+  - Record revisions and `app-records-changed` are P9.
+  - The browser implementations are P10, in `apps/web`: the Blob download, the Web Notification API, and hiding the Idle and Backups settings where those features are missing. The client's old browser fallbacks were deleted with the backend-less preview.
+- **Tests:** `src/__tests__/setup/global-mocks.ts` installs one fake backend per test file and starts each test with empty records (`seedAppRecords`). `installFakeBackendForTest({ without: [...] })` swaps in a web-like fake for one test.
+- **`apps/desktop` has its own vitest config at 100%**, listed in `coverage-policy.json`. The Tauri JS packages moved there, pinned with `~` to the Rust crates' minor releases (the Tauri CLI rejects a minor mismatch).
 
 **Web shell:**
 - `start.tsx` matches auth routes. Otherwise it calls `GET auth/me`: a 401 goes to `/login?next=`, a 200 calls `startClient(HttpBackend)`.

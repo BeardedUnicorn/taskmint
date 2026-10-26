@@ -17,8 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { useTauriEvent } from './useTauriEvent';
+import { getBackend, useBackendEvent } from '../backend';
 import { BACKEND_EVENTS } from '../constants/events';
 import { Task } from '../types/task';
 import { TaskSession } from '../types/timer';
@@ -87,7 +86,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
     }
     processingRef.current = true;
     try {
-      const capture = await invoke<PendingWorkLogCapture | null>(
+      const capture = await getBackend().call<PendingWorkLogCapture | null>(
         'take_pending_work_log_capture'
       );
       if (!capture || typeof capture.payload !== 'string') return;
@@ -223,7 +222,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
   useEffect(() => {
     void processPending();
   }, [processPending]);
-  useTauriEvent(WORK_LOG_CAPTURED_EVENT, () => {
+  useBackendEvent(WORK_LOG_CAPTURED_EVENT, () => {
     void processPending();
   });
 }

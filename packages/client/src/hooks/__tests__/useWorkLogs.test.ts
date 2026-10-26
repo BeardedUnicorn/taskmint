@@ -11,13 +11,9 @@ import {
   createMockProjectTaskMapping,
   createMockWorkLogEntry,
 } from '../../__tests__/setup/session-test-utils';
+import { fakeBackend } from '../../testing';
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}));
-
-import { invoke } from '@tauri-apps/api/core';
-const mockInvoke = vi.mocked(invoke);
+const mockInvoke = fakeBackend().call;
 
 const mockShowError = vi.fn();
 const mockShowWarning = vi.fn();

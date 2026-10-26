@@ -2,9 +2,8 @@
  * Tests for useWorkLogCapture: auto-apply, staging, dedupe/retry, and
  * event-driven processing of extension-delivered payloads.
  *
- * Unlike other hook tests, these capture the Tauri listen() callback and
- * invoke it directly to simulate the backend's work-log-payload-captured
- * event.
+ * The fake backend's emit() stands in for the backend's
+ * work-log-payload-captured event.
  */
 
 import { renderHook, act, waitFor } from '@testing-library/react';
@@ -14,18 +13,8 @@ import { deriveTimedWorkDay } from '../../utils/workLogImport';
 import { CaptureSource, PendingWorkLogCapture, WorkLogImportSummary } from '../../types/workLog';
 import { createMockTask } from '../../__tests__/setup/session-test-utils';
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}));
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(),
-  emit: vi.fn(),
-}));
-
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-const mockInvoke = vi.mocked(invoke);
-const mockListen = vi.mocked(listen);
+import { fakeBackend } from '../../testing';
+const mockInvoke = fakeBackend().call;
 
 const notifications = vi.hoisted(() => ({ notify: vi.fn(), showWarning: vi.fn() }));
 vi.mock('../../contexts/NotificationContext', () => ({
@@ -74,7 +63,6 @@ const appliedSummary: WorkLogImportSummary = {
 
 // Command-keyed queues for take_pending_work_log_capture; unprimed → null.
 let takeQueue: Array<PendingWorkLogCapture | null | undefined>;
-let eventHandlers: Record<string, (event: { payload: unknown }) => void>;
 
 function makeDeps(overrides: Partial<UseWorkLogCaptureDeps> = {}): UseWorkLogCaptureDeps {
   return {
@@ -93,7 +81,7 @@ function makeDeps(overrides: Partial<UseWorkLogCaptureDeps> = {}): UseWorkLogCap
 
 async function fireCaptureEvent() {
   await act(async () => {
-    eventHandlers[WORK_LOG_CAPTURED_EVENT]?.({ payload: { receivedAt: 'now' } });
+    fakeBackend().emit(WORK_LOG_CAPTURED_EVENT, { receivedAt: 'now' });
     // Let the async processing settle.
     await Promise.resolve();
   });
@@ -103,18 +91,11 @@ describe('useWorkLogCapture', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     takeQueue = [];
-    eventHandlers = {};
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === 'take_pending_work_log_capture') {
         return takeQueue.length > 0 ? takeQueue.shift() : null;
       }
       return undefined;
-    });
-    mockListen.mockImplementation(async (event, handler) => {
-      eventHandlers[event] = handler as (event: { payload: unknown }) => void;
-      return () => {
-        delete eventHandlers[event];
-      };
     });
   });
 

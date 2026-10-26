@@ -27,10 +27,6 @@ Object.assign(navigator, {
   },
 });
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockResolvedValue('Command output'),
-}));
-
 describe('NoteEditor Copy Functionality', () => {
   const mockTemplate: NoteTemplate = {
     id: 'template1',

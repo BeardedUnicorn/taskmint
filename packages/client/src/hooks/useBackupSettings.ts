@@ -17,8 +17,8 @@ import {
   isBackupDue,
   getNextBackupTime
 } from '../types/backup';
-import { invoke } from '@tauri-apps/api/core';
-import { isTauriEnvironment } from '../utils/tauri';
+import { getBackend } from '../backend';
+import type { FolderBackupPlatform } from '../backend';
 import { errorMessage } from '../utils/errors';
 import { readLocal, writeLocal } from '../utils/localStore';
 import { revealAction } from '../utils/reveal';
@@ -27,7 +27,13 @@ import { useNotificationPreferences } from '../notifications/preferences';
 import { formatDateTime } from '../utils/locale';
 
 export const BACKUP_CONFIG_KEY = 'automaticBackupConfig';
-export const DEFAULT_BACKUP_FOLDER_NAME = 'TaskMint Backups';
+
+/** Folder backups, which only some platforms have (the desktop app). */
+function folderBackups(): FolderBackupPlatform {
+  const folders = getBackend().platform.folderBackups;
+  if (!folders) throw new Error('Automatic backups to a folder are only available in the desktop app');
+  return folders;
+}
 
 /**
  * The last automatic-backup failure announced. A failed backup stays due and
@@ -52,22 +58,22 @@ function shouldAnnounceFailure(message: string, now = Date.now()): boolean {
 export type BackupTrigger = 'manual' | 'automatic';
 
 /**
- * Automatic backups start on in the desktop app: weekly, the newest 10 kept,
- * in Documents/TaskMint Backups. Only when no backup settings were ever saved
+ * Automatic backups start on where the platform has folder backups (the
+ * desktop app): weekly, the newest 10 kept, in its default folder
+ * (Documents/TaskMint Backups). Only when no backup settings were ever saved
  * (a fresh install, or after Reset All Data); a saved choice, including
  * "off", is never touched. Resolves to the config to save, or null.
  */
 export async function firstRunBackupConfig(): Promise<BackupConfig | null> {
-  if (!isTauriEnvironment()) return null;
+  const folders = getBackend().platform.folderBackups;
+  if (!folders) return null;
   try {
     if (window.localStorage.getItem(BACKUP_CONFIG_KEY) !== null) return null;
   } catch {
     return null;
   }
-  const { documentDir, join } = await import('@tauri-apps/api/path');
-  const documents = await documentDir();
-  if (!documents) return null;
-  const backupPath = await join(documents, DEFAULT_BACKUP_FOLDER_NAME);
+  const backupPath = await folders.defaultFolder();
+  if (!backupPath) return null;
   return { ...DEFAULT_BACKUP_CONFIG, enabled: true, frequency: 'weekly', backupPath, maxBackups: 10 };
 }
 
@@ -112,19 +118,12 @@ export function useBackupSettings() {
     }));
   }, [config]);
 
-  // Select backup directory using Tauri dialog
+  // Ask for the backup folder (null when cancelled)
   const selectBackupDirectory = useCallback(async (): Promise<string | null> => {
     try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: 'Select Backup Directory',
-      });
-
-      return selected as string | null;
+      return await folderBackups().pickFolder();
     } catch (error) {
-      // Propagate specific error message from Tauri dialog
+      // The dialog's own reason
       const message = errorMessage(error, 'Failed to open directory selection dialog');
       console.error('Failed to open directory dialog:', error);
       showError(`Directory selection failed: ${message}`);
@@ -164,11 +163,7 @@ export function useBackupSettings() {
     }
 
     try {
-      // Call Tauri command to validate the path
-      const result = await invoke<{ isValid: boolean; error?: string }>('validate_backup_path', {
-        path: path.trim(),
-      });
-      return result;
+      return await folderBackups().validateFolder(path.trim());
     } catch (error) {
       return { isValid: false, error: errorMessage(error, 'Failed to validate backup path') };
     }
@@ -256,9 +251,9 @@ export function useBackupSettings() {
       const backupData = await createBackupData();
       const backupJson = JSON.stringify(backupData, null, 2);
 
-      const result = await invoke<BackupResult>('perform_automatic_backup', {
-        backupPath: config.backupPath,
-        currentDataJson: backupJson,
+      const result = await folderBackups().write({
+        folder: config.backupPath,
+        contents: backupJson,
         maxBackups: config.maxBackups,
       });
 

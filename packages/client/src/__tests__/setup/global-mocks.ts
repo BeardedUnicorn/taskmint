@@ -1,29 +1,23 @@
 /**
  * Global Mocks
  *
- * Mocks for the Tauri APIs every test environment lacks, so tests that don't
- * care about the backend can render without one.
+ * Every test file gets a fake backend (see src/testing), so tests that don't
+ * care about the backend can render without one; a test that does reads it
+ * with fakeBackend(). Each test starts with the app records loaded and empty,
+ * as localStorage starts empty.
  */
-import { vi } from 'vitest';
+import { beforeEach } from 'vitest';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import { installFakeBackend, seedAppRecords } from '../../testing';
 
 // Production code extends dayjs with utc (utils/dateHelpers); do it here too
 // so a module under test doesn't depend on dateHelpers being imported first.
 // Not `timezone`: the app never loads it (see dateHelpers).
 dayjs.extend(utc);
 
-vi.mock('@tauri-apps/api/event', () => ({
-  emit: vi.fn(),
-  listen: vi.fn(() => Promise.resolve(() => {})),
-  once: vi.fn(() => Promise.resolve(() => {})),
-}));
+installFakeBackend();
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(() => Promise.resolve()),
-}));
-
-vi.mock('@tauri-apps/plugin-dialog', () => ({
-  open: vi.fn(() => Promise.resolve(null)),
-  save: vi.fn(() => Promise.resolve(null)),
-}));
+beforeEach(() => {
+  seedAppRecords({});
+});

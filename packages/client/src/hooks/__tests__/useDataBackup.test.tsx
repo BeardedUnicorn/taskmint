@@ -10,8 +10,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach, type Mocked } from 'vitest';
 import { useDataBackup } from '../useDataBackup';
 import { StorageService } from '../../services/StorageService';
-import { invoke } from '@tauri-apps/api/core';
-import { safeInvoke } from '../../utils/tauri';
+import { fakeBackend } from '../../testing';
 
 // Mock the StorageService
 vi.mock('../../services/StorageService');
@@ -27,17 +26,6 @@ const mockStorageService = {
   setDailyGoal: vi.fn(),
   setGoalAchievements: vi.fn(),
 } as unknown as Mocked<StorageService>;
-
-// Mock the Tauri invoke function
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}));
-
-// Mock the Tauri utilities
-vi.mock('../../utils/tauri', () => ({
-  safeInvoke: vi.fn(),
-  isTauriEnvironment: vi.fn(() => true), // Always return true in tests
-}));
 
 const mockSession = {
   id: 'session-1',
@@ -60,8 +48,9 @@ const mockRestoreSummary = {
   recordsSkipped: 0,
 };
 
-// export_data_to_file's result, per test (the save dialog + write)
-let exportImpl: () => Promise<string>;
+// Where the save dialog put the file, per test (null: dismissed)
+let exportImpl: () => Promise<string | null>;
+const files = () => fakeBackend().platform.files;
 
 describe('useDataBackup', () => {
   const mockCallbacks = {
@@ -135,24 +124,26 @@ describe('useDataBackup', () => {
       },
     ]);
 
-    // Imports read the file through safeInvoke
-    (safeInvoke as any).mockResolvedValue('/mock/path/export.json');
+    // Imports read the picked file; exports save where the dialog says
+    files().openJson.mockResolvedValue('/mock/path/export.json');
     exportImpl = async () => '/mock/path/export.json';
+    files().save.mockImplementation(async () => {
+      const path = await exportImpl();
+      return path === null ? null : { kind: 'path', path };
+    });
 
     // Rust-owned data read by createBackupData, and the restore command.
-    (invoke as any).mockImplementation(async (command: string) => {
+    fakeBackend().call.mockImplementation(async (command: string) => {
       if (command === 'get_sessions') return [mockSession];
       if (command === 'get_work_logs') {
         return { entries: [mockWorkLogEntry], mappings: [mockMapping], loadWarning: null };
       }
       if (command === 'restore_backup_data') return mockRestoreSummary;
-      if (command === 'export_data_to_file') return exportImpl();
       return undefined;
     });
   });
 
-  const exportCalls = () =>
-    (invoke as any).mock.calls.filter((call: any[]) => call[0] === 'export_data_to_file');
+  const exportCalls = () => files().save.mock.calls;
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -193,7 +184,7 @@ describe('useDataBackup', () => {
     });
 
     it('fails instead of writing a backup without tracked time when sessions cannot be read', async () => {
-      (invoke as any).mockImplementation(async (command: string) => {
+      fakeBackend().call.mockImplementation(async (command: string) => {
         if (command === 'get_sessions') throw new Error('store locked');
         return { entries: [], mappings: [], loadWarning: null };
       });
@@ -231,18 +222,17 @@ describe('useDataBackup', () => {
         await result.current.exportData();
       });
 
-      expect(invoke).toHaveBeenCalledWith('export_data_to_file', {
-        dataJson: expect.stringContaining('"version": "2"'),
-        suggestedFilename: expect.stringMatching(/^taskmint_export_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.json$/),
+      expect(files().save).toHaveBeenCalledWith({
+        contents: expect.stringContaining('"version": "2"'),
+        suggestedName: expect.stringMatching(/^taskmint_export_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.json$/),
+        format: 'json',
       });
       expect(mockCallbacks.onExportSuccess).toHaveBeenCalledWith('/mock/path/export.json');
       expect(mockCallbacks.onExportError).not.toHaveBeenCalled();
     });
 
     it('says nothing when the save dialog is dismissed', async () => {
-      exportImpl = async () => {
-        throw 'Export cancelled by user';
-      };
+      exportImpl = async () => null;
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
       await act(async () => {
@@ -256,7 +246,7 @@ describe('useDataBackup', () => {
 
     it('should set isExporting to true during export', async () => {
       let resolveExport: (value: string) => void;
-      const exportPromise = new Promise<string>((resolve) => {
+      const exportPromise = new Promise<string | null>((resolve) => {
         resolveExport = resolve;
       });
       exportImpl = () => exportPromise;
@@ -315,7 +305,7 @@ describe('useDataBackup', () => {
 
     it('should not start export if already exporting', async () => {
       let resolveExport: (value: string) => void;
-      const exportPromise = new Promise<string>((resolve) => {
+      const exportPromise = new Promise<string | null>((resolve) => {
         resolveExport = resolve;
       });
       exportImpl = () => exportPromise;
@@ -359,9 +349,10 @@ describe('useDataBackup', () => {
         await result.current.exportData();
       });
 
-      expect(invoke).toHaveBeenCalledWith('export_data_to_file', {
-        dataJson: expect.any(String),
-        suggestedFilename: 'taskmint_export_2023-01-01T10-30-45.json',
+      expect(files().save).toHaveBeenCalledWith({
+        contents: expect.any(String),
+        suggestedName: 'taskmint_export_2023-01-01T10-30-45.json',
+        format: 'json',
       });
     });
 
@@ -374,7 +365,7 @@ describe('useDataBackup', () => {
 
       // Find the export call by command name rather than by position.
       const [exportCall] = exportCalls();
-      const dataJson = exportCall[1].dataJson;
+      const dataJson = exportCall[0].contents;
       const parsedData = JSON.parse(dataJson);
 
       expect(parsedData.version).toBe('2');
@@ -392,7 +383,7 @@ describe('useDataBackup', () => {
 
   describe('importData', () => {
     it('should set isImporting state correctly', async () => {
-      // Mock the Tauri invoke to return valid JSON data
+      // The picked file holds valid JSON
       const validJsonData = JSON.stringify({
         version: '1.0',
         exportDate: '2023-01-01T10:00:00.000Z',
@@ -406,7 +397,7 @@ describe('useDataBackup', () => {
         }
       });
       
-      (safeInvoke as any).mockResolvedValue(validJsonData);
+      files().openJson.mockResolvedValue(validJsonData);
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -438,9 +429,9 @@ describe('useDataBackup', () => {
           workLogs: { entries: [mockWorkLogEntry], mappings: [mockMapping] },
         },
       };
-      (safeInvoke as any).mockResolvedValue(JSON.stringify(exported));
+      files().openJson.mockResolvedValue(JSON.stringify(exported));
       const order: string[] = [];
-      (invoke as any).mockImplementation(async (command: string) => {
+      fakeBackend().call.mockImplementation(async (command: string) => {
         order.push(command);
         return mockRestoreSummary;
       });
@@ -453,7 +444,7 @@ describe('useDataBackup', () => {
         await result.current.importData('merge');
       });
 
-      expect(invoke).toHaveBeenCalledWith('restore_backup_data', {
+      expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
         payload: {
           mode: 'merge',
           sessions: [mockSession],
@@ -469,13 +460,13 @@ describe('useDataBackup', () => {
     it('round-trips: importing an export restores exactly what was exported', async () => {
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
       const exported = await result.current.createBackupData();
-      (safeInvoke as any).mockResolvedValue(JSON.stringify(exported));
+      files().openJson.mockResolvedValue(JSON.stringify(exported));
 
       await act(async () => {
         await result.current.importData('replace');
       });
 
-      expect(invoke).toHaveBeenCalledWith('restore_backup_data', {
+      expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
         payload: {
           mode: 'replace',
           sessions: exported.data.sessions,
@@ -495,7 +486,7 @@ describe('useDataBackup', () => {
     });
 
     it('leaves work logs untouched when importing a v1 export without them', async () => {
-      (safeInvoke as any).mockResolvedValue(JSON.stringify({
+      files().openJson.mockResolvedValue(JSON.stringify({
         version: '1.0',
         exportDate: '2023-01-02T00:00:00.000Z',
         data: { sessions: [mockSession] },
@@ -506,7 +497,7 @@ describe('useDataBackup', () => {
         await result.current.importData('merge');
       });
 
-      expect(invoke).toHaveBeenCalledWith('restore_backup_data', {
+      expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
         payload: expect.objectContaining({
           sessions: [mockSession],
           workLogEntries: null,
@@ -516,22 +507,22 @@ describe('useDataBackup', () => {
     });
 
     it('rejects a JSON file that is not a TaskMint export without restoring anything', async () => {
-      (safeInvoke as any).mockResolvedValue(JSON.stringify({ hello: 'world' }));
+      files().openJson.mockResolvedValue(JSON.stringify({ hello: 'world' }));
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
       await act(async () => {
         await result.current.importData('merge');
       });
 
-      expect(invoke).not.toHaveBeenCalledWith('restore_backup_data', expect.anything());
+      expect(fakeBackend().call).not.toHaveBeenCalledWith('restore_backup_data', expect.anything());
       expect(mockCallbacks.onImportError).toHaveBeenCalledWith(
         expect.stringContaining('not a TaskMint export')
       );
     });
 
     it('should handle invalid JSON data', async () => {
-      // Mock the Tauri invoke to return invalid JSON
-      (invoke as any).mockResolvedValue('invalid json');
+      // The picked file holds invalid JSON
+      files().openJson.mockResolvedValue('invalid json');
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
@@ -540,6 +531,56 @@ describe('useDataBackup', () => {
       });
 
       expect(mockCallbacks.onImportError).toHaveBeenCalledWith(expect.stringContaining('not valid JSON'));
+    });
+  });
+
+  describe('dialogs and platform reasons', () => {
+    it('says nothing when the open dialog is dismissed', async () => {
+      files().openJson.mockResolvedValue(null);
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      await act(async () => {
+        await result.current.importData('merge');
+      });
+
+      expect(mockCallbacks.onImportSuccess).not.toHaveBeenCalled();
+      expect(mockCallbacks.onImportError).not.toHaveBeenCalled();
+      expect(result.current.isImporting).toBe(false);
+    });
+
+    it('explains a file the platform could not parse', async () => {
+      files().openJson.mockRejectedValue('Invalid JSON file: expected value at line 1');
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      await act(async () => {
+        await result.current.importData('merge');
+      });
+
+      expect(mockCallbacks.onImportError).toHaveBeenCalledWith(
+        'Invalid file format. Please select a valid TaskMint export file.'
+      );
+    });
+
+    it("passes on the platform's reason for a file it could not read", async () => {
+      files().openJson.mockRejectedValue('Failed to read import file: permission denied');
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      await act(async () => {
+        await result.current.importData('merge');
+      });
+
+      expect(mockCallbacks.onImportError).toHaveBeenCalledWith('Failed to read import file: permission denied');
+    });
+
+    it('reports a browser download without a path', async () => {
+      files().save.mockResolvedValueOnce({ kind: 'download', name: 'taskmint_export.json' });
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      await act(async () => {
+        await result.current.exportData();
+      });
+
+      expect(mockCallbacks.onExportSuccess).toHaveBeenCalledWith(undefined);
     });
   });
 
@@ -557,9 +598,9 @@ describe('useDataBackup', () => {
       expect(result.current.isExporting).toBe(false);
     });
 
-    it('should handle Tauri command errors', async () => {
+    it('should handle platform errors', async () => {
       exportImpl = async () => {
-        throw new Error('Tauri command failed');
+        throw new Error('Platform call failed');
       };
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
@@ -568,7 +609,7 @@ describe('useDataBackup', () => {
         await result.current.exportData();
       });
 
-      expect(mockCallbacks.onExportError).toHaveBeenCalledWith('Tauri command failed');
+      expect(mockCallbacks.onExportError).toHaveBeenCalledWith('Platform call failed');
       expect(result.current.isExporting).toBe(false);
     });
   });
