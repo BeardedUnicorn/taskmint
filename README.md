@@ -117,14 +117,18 @@ off.
 
 ### Checks
 
+`scripts/verify.sh` runs every gate below in order; run it before merging.
+
 ```bash
+pnpm typecheck                    # tsc for sources and tests, every package
 pnpm build                        # tsc for every package + desktop vite build
 pnpm test                         # vitest in every package
 pnpm test:coverage                # vitest with enforced coverage floors
 cargo test --workspace            # Rust tests (bare `cargo` skips the desktop crate)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
-cargo llvm-cov -p taskmint-core --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
+cargo llvm-cov -p taskmint-core --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100  # verify.sh adds the policy's ignore regex
+node scripts/check-coverage-policy.mjs   # see docs/coverage-policy.md
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of these on pushes to `main` and on

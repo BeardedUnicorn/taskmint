@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR) and P1 (monorepo move) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config) and P4 (core extraction) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context

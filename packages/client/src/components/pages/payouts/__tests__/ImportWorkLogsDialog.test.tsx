@@ -87,7 +87,7 @@ describe('ImportWorkLogsDialog', () => {
     fireEvent.click(applyButton);
 
     await waitFor(() => expect(props.onApply).toHaveBeenCalledTimes(1));
-    const payload = props.onApply.mock.calls[0][0] as WorkLogImportPayload;
+    const payload = vi.mocked(props.onApply).mock.calls[0][0] as WorkLogImportPayload;
     expect(payload.entries).toHaveLength(1);
     expect(payload.entries[0]).toMatchObject({
       id: 'entry-1',
@@ -100,7 +100,7 @@ describe('ImportWorkLogsDialog', () => {
     ]);
     expect(payload.rewriteGroups).toHaveLength(1);
     expect(payload.rewriteGroups[0]).toMatchObject({ taskId: 'task-1', workDay });
-    expect(payload.rewriteGroups[0].replacementSession.timerInstances).toHaveLength(1);
+    expect(payload.rewriteGroups[0].replacementSession!.timerInstances).toHaveLength(1);
 
     expect(await screen.findByText(/1 day was rewritten|0 days were rewritten/)).toBeInTheDocument();
   });
@@ -141,7 +141,7 @@ describe('ImportWorkLogsDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
     await waitFor(() => expect(props.onApply).toHaveBeenCalledTimes(1));
-    const payload = props.onApply.mock.calls[0][0] as WorkLogImportPayload;
+    const payload = vi.mocked(props.onApply).mock.calls[0][0] as WorkLogImportPayload;
     expect(payload.entries).toEqual([
       expect.objectContaining({ id: 'ref-1', kind: 'workLog', taskId: 'task-ref', amountCents: 10000 }),
     ]);

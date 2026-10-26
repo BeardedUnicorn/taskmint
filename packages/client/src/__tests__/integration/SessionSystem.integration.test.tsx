@@ -7,7 +7,7 @@
 
 import '../../setupTests';
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionDashboard } from '../../components/pages/SessionDashboard';
 import { SessionTimerToolbar } from '../../components/layout/SessionTimerToolbar';

@@ -2,7 +2,7 @@
  * NoteEditor Copy Functionality Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { render as rtlRender, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { NoteTemplatesProvider } from '../../../../contexts/NoteTemplatesContext';
@@ -75,7 +75,7 @@ describe('NoteEditor Copy Functionality', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (navigator.clipboard.writeText as vi.Mock).mockResolvedValue(undefined);
+    (navigator.clipboard.writeText as Mock).mockResolvedValue(undefined);
   });
 
   it('renders copy buttons for each field', async () => {
@@ -160,7 +160,7 @@ describe('NoteEditor Copy Functionality', () => {
   });
 
   it('handles clipboard write failure gracefully', async () => {
-    (navigator.clipboard.writeText as vi.Mock).mockRejectedValue(new Error('Clipboard error'));
+    (navigator.clipboard.writeText as Mock).mockRejectedValue(new Error('Clipboard error'));
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 

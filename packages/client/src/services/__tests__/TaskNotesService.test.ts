@@ -4,7 +4,7 @@
  * Tests for the TaskNotesService including archive functionality
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, type Mocked } from 'vitest';
 import { TaskNotesService } from '../TaskNotesService';
 import { NoteTemplateService } from '../NoteTemplateService';
 import { StorageService } from '../StorageService';
@@ -24,8 +24,8 @@ vi.mock('../NoteTemplateService', () => ({
 
 describe('TaskNotesService', () => {
   let service: TaskNotesService;
-  let mockStorageService: vi.Mocked<StorageService>;
-  let mockTemplateService: vi.Mocked<NoteTemplateService>;
+  let mockStorageService: Mocked<StorageService>;
+  let mockTemplateService: Mocked<NoteTemplateService>;
 
   const mockTemplate: NoteTemplate = {
     id: 'template1',
@@ -65,11 +65,11 @@ describe('TaskNotesService', () => {
     // Create mock instances with proper typings
     mockStorageService = {
       getTaskNotes: vi.fn().mockResolvedValue([mockNote]),
-      setTaskNotes: vi.fn().mockResolvedValue(),
-    } as unknown as vi.Mocked<StorageService>;
+      setTaskNotes: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Mocked<StorageService>;
     mockTemplateService = {
       getTemplateById: vi.fn().mockResolvedValue(mockTemplate),
-    } as unknown as vi.Mocked<NoteTemplateService>;
+    } as unknown as Mocked<NoteTemplateService>;
 
     // Mock the static getInstance methods
     vi.mocked(StorageService.getInstance).mockReturnValue(mockStorageService);
