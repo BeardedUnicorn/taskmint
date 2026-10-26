@@ -5,6 +5,10 @@
  * including time entries, timer state, and time-related utilities.
  */
 
+import type { ApplyIdleChoiceArgs, StartTaskResult } from '@taskmint/contracts';
+
+export type { StartTaskResult };
+
 // Timer state machine
 export enum TimerState {
   idle = 'idle',
@@ -30,37 +34,40 @@ export interface TimeEntry {
 // NEW SESSION-BASED TIMER SYSTEM
 // ============================================================================
 
-// Timer Instance - Individual timer within a session
+// Timer Instance - Individual timer within a session. The backend sends a
+// TimerInstance from @taskmint/contracts; the client adds `state`. Times are
+// RFC 3339 strings, as sent.
 export interface TimerInstance {
   id: string;
   sessionId: string; // Link to parent session
-  startTime: Date;
-  endTime?: Date;
-  duration?: number; // in milliseconds
+  startTime: string;
+  endTime?: string | null;
+  duration?: number | null; // in milliseconds
   state: TimerState;
   /** @deprecated use state instead */
   isRunning?: boolean;
   /** @deprecated use state instead */
   isPaused?: boolean;
-  pausedAt?: Date;
-  pausedDuration?: number; // Total time paused in milliseconds
-  resumedAt?: Date; // Last time the timer was resumed
-  externalId?: string; // Site work-entry id for import-synthesized instances
-  notes?: string; // Timer-level notes
+  pausedAt?: string | null;
+  pausedDuration?: number | null; // Total time paused in milliseconds
+  resumedAt?: string | null; // Last time the timer was resumed
+  externalId?: string | null; // Site work-entry id for import-synthesized instances
+  notes?: string | null; // Timer-level notes
   createdAt: string;
   updatedAt: string;
 }
 
-// Task Session - Groups multiple timer instances for a task
+// Task Session - Groups multiple timer instances for a task (the backend's
+// TaskSession, with its instances' states)
 export interface TaskSession {
   id: string;
   taskId: string;
   taskName: string; // Cached for display
   timerInstances: TimerInstance[];
   totalDuration: number; // Sum of all timer instances in milliseconds
-  notes?: string; // Session-level notes
+  notes?: string | null; // Session-level notes
   isActive: boolean; // Whether this session is currently active
-  source?: string; // WORKLOG_IMPORT_SOURCE for sessions synthesized by an import
+  source?: string | null; // WORKLOG_IMPORT_SOURCE for sessions synthesized by an import
   /**
    * The task's hourly rate when the session started (for imports, the rate
    * the site's pay implies), so later rate changes don't rewrite past
@@ -93,7 +100,7 @@ export interface IdlePause {
   awayMs: number;
 }
 
-export type IdleChoice = 'discardResume' | 'keepResume' | 'stayPaused';
+export type IdleChoice = ApplyIdleChoiceArgs['choice'];
 
 // ============================================================================
 // DEFAULT VALUES
@@ -112,21 +119,11 @@ export const DEFAULT_INACTIVITY_SETTINGS: InactivitySettings = {
 // HOOK RETURN TYPES FOR SESSION SYSTEM
 // ============================================================================
 
-/**
- * Provenance marker on sessions created by "Add time". Must match
- * MANUAL_SOURCE in crates/taskmint-core/src/contract.rs.
- */
-export const MANUAL_SOURCE = 'manual';
+/** Provenance marker on sessions created by "Add time". */
+export { MANUAL_SOURCE } from '@taskmint/contracts';
 
 /** What start_task did: began a new timer, resumed a paused one, or nothing. */
-export type StartTaskOutcome = 'started' | 'resumed' | 'alreadyRunning';
-
-export interface StartTaskResult {
-  outcome: StartTaskOutcome;
-  instanceId?: string | null;
-  /** Task whose live timer this start finalized, if any. */
-  stoppedTaskName?: string | null;
-}
+export type StartTaskOutcome = StartTaskResult['outcome'];
 
 export interface AddManualTimeInput {
   taskId: string;

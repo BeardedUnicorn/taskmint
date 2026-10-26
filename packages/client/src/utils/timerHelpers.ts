@@ -10,7 +10,7 @@
 import { TaskSession, TimeEntry, TimerInstance, TimerState } from '../types/timer';
 import { formatDateString } from './dateHelpers';
 
-function toMs(value: Date | string | undefined): number | null {
+function toMs(value: Date | string | null | undefined): number | null {
   if (!value) return null;
   const ms = value instanceof Date ? value.getTime() : new Date(value).getTime();
   return Number.isNaN(ms) ? null : ms;

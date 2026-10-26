@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@taskmint/client": "workspace:*",
+    "@taskmint/contracts": "workspace:*",
     "@tauri-apps/api": "~2.11.1"
   },
   "devDependencies": {

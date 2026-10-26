@@ -1430,15 +1430,16 @@ fn update_rejects_a_bad_patch_before_changing_anything() {
 }
 
 #[test]
-fn updates_accept_camel_case_and_the_old_snake_case_keys() {
+fn updates_take_camel_case_keys_only() {
     let camel: TimerInstanceUpdates =
         serde_json::from_value(serde_json::json!({ "isRunning": false, "endTime": "x" })).unwrap();
+    assert_eq!(camel.is_running, Some(false));
+    assert_eq!(camel.end_time.as_deref(), Some("x"));
+    // The snake_case spellings very old frontends sent are ignored
     let snake: TimerInstanceUpdates =
         serde_json::from_value(serde_json::json!({ "is_running": false, "end_time": "x" }))
             .unwrap();
-    assert_eq!(camel.is_running, Some(false));
-    assert_eq!(snake.is_running, Some(false));
-    assert_eq!(camel.end_time, snake.end_time);
+    assert_eq!((snake.is_running, snake.end_time), (None, None));
 }
 
 // --- session commands ---------------------------------------------------------

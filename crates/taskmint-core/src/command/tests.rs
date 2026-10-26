@@ -59,6 +59,27 @@ fn every_name_is_a_command() {
 }
 
 #[test]
+fn a_reply_must_be_exactly_its_declared_type() {
+    let started = json!({ "outcome": "started", "instanceId": "i1", "stoppedTaskName": null });
+    assert_eq!(check_reply("start_task", &started), Ok(()));
+    assert_eq!(check_reply("set_app_record", &Value::Null), Ok(()));
+
+    assert!(check_reply("start_task", &json!(1))
+        .unwrap_err()
+        .starts_with("it doesn't read as its reply type: "));
+    let mut extra = started.clone();
+    extra["extra"] = json!(true);
+    assert_eq!(
+        check_reply("start_task", &extra),
+        Err(format!("it reads back as {}", started))
+    );
+    assert_eq!(
+        check_reply("launch", &Value::Null),
+        Err("launch has no declared reply".to_string())
+    );
+}
+
+#[test]
 fn errors_read_as_the_client_sees_them() {
     assert_eq!(CoreError::Rejected("No".into()).to_string(), "No");
     assert_eq!(CoreError::InvalidArgs("Bad".into()).to_string(), "Bad");
@@ -212,7 +233,8 @@ fn a_reset_clears_everything_and_has_the_host_purge_its_copies() {
     assert_eq!(workspace, Workspace::default());
     assert_eq!(done.dirty, Parts::ALL);
     assert!(done.purge_backups);
-    assert_eq!(done.reply, Value::Null);
+    // The host fills in how many copies it deleted
+    assert_eq!(done.reply, json!({ "backupsDeleted": 0, "warning": null }));
 }
 
 #[test]

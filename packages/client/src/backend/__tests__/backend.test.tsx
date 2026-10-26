@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { getBackend, setBackend, useBackendEvent } from '..';
-import { createFakeBackend, fakeBackend, installFakeBackend } from '../../testing';
+import { EVENTS } from '@taskmint/contracts';
+import { asBackend, createFakeBackend, fakeBackend, installFakeBackend } from '../../testing';
 
 describe('the page backend', () => {
   it('is the one set last', () => {
-    const backend = createFakeBackend();
+    const backend = asBackend(createFakeBackend());
     setBackend(backend);
     expect(getBackend()).toBe(backend);
     installFakeBackend();
@@ -22,13 +23,13 @@ describe('useBackendEvent', () => {
   it('hands each payload to the latest handler, subscribing once per event list', () => {
     const first = vi.fn();
     const second = vi.fn();
-    const { rerender } = renderHook(({ handler }) => useBackendEvent(['a', 'b'], handler), {
+    const { rerender } = renderHook(({ handler }) => useBackendEvent([EVENTS.IDLE_RETURNED, EVENTS.IDLE_RESOLVED], handler), {
       initialProps: { handler: first },
     });
 
     rerender({ handler: second });
-    fakeBackend().emit('a', 1);
-    fakeBackend().emit('b', 2);
+    fakeBackend().emit(EVENTS.IDLE_RETURNED, 1);
+    fakeBackend().emit(EVENTS.IDLE_RESOLVED, 2);
 
     expect(first).not.toHaveBeenCalled();
     expect(second.mock.calls).toEqual([[1], [2]]);
@@ -37,13 +38,13 @@ describe('useBackendEvent', () => {
 
   it('takes a single event name, and stops listening on unmount', () => {
     const handler = vi.fn();
-    const { unmount } = renderHook(() => useBackendEvent('only', handler));
-    expect(fakeBackend().listenerCount('only')).toBe(1);
+    const { unmount } = renderHook(() => useBackendEvent(EVENTS.SESSIONS_CHANGED, handler));
+    expect(fakeBackend().listenerCount(EVENTS.SESSIONS_CHANGED)).toBe(1);
 
     unmount();
-    fakeBackend().emit('only', 'late');
+    fakeBackend().emit(EVENTS.SESSIONS_CHANGED, 'late');
 
-    expect(fakeBackend().listenerCount('only')).toBe(0);
+    expect(fakeBackend().listenerCount(EVENTS.SESSIONS_CHANGED)).toBe(0);
     expect(handler).not.toHaveBeenCalled();
   });
 });

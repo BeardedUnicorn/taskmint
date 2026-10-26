@@ -24,8 +24,8 @@ const session: TaskSession = {
     {
       id: 'i-1',
       sessionId: 's-1',
-      startTime: new Date(2026, 9, 10, 9, 15),
-      endTime: new Date(2026, 9, 10, 10, 0),
+      startTime: new Date(2026, 9, 10, 9, 15).toISOString(),
+      endTime: new Date(2026, 9, 10, 10, 0).toISOString(),
       duration: 45 * 60_000,
       state: TimerState.stopped,
       createdAt: '2026-10-10T09:15:00Z',

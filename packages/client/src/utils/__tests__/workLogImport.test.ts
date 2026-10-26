@@ -25,6 +25,14 @@ import {
   resolveProjectMappings,
 } from '../workLogImport';
 
+/** A synthesized session as the app holds it once loaded: its timers stopped. */
+function loaded(session: ReturnType<typeof buildSynthesizedSession>): TaskSession {
+  return {
+    ...session,
+    timerInstances: session.timerInstances.map(instance => ({ ...instance, state: TimerState.stopped })),
+  };
+}
+
 /** ISO instant for a LOCAL wall time. */
 function localIso(
   year: number,
@@ -164,8 +172,8 @@ function makeInstance(overrides: Partial<TimerInstance> = {}): TimerInstance {
   return {
     id: 'instance-1',
     sessionId: 'session-1',
-    startTime: new Date(2026, 7, 26, 10, 0),
-    endTime: new Date(2026, 7, 26, 11, 0),
+    startTime: new Date(2026, 7, 26, 10, 0).toISOString(),
+    endTime: new Date(2026, 7, 26, 11, 0).toISOString(),
     duration: 3_600_000,
     state: TimerState.stopped,
     isRunning: false,
@@ -453,9 +461,9 @@ describe('buildSynthesizedSession', () => {
     for (const instance of session.timerInstances) {
       expect(instance.id).toMatch(/^instance_uuid-/);
       expect(instance.sessionId).toBe(session.id);
-      expect(instance.state).toBe(TimerState.stopped);
+      expect([instance.isRunning, instance.isPaused]).toEqual([false, false]);
       const start = new Date(instance.startTime).getTime();
-      const end = new Date(instance.endTime as Date).getTime();
+      const end = new Date(instance.endTime!).getTime();
       expect(end - start).toBe(instance.duration);
     }
   });
@@ -495,11 +503,11 @@ describe('buildRewriteGroups', () => {
     });
     const tracked = makeInstance({
       id: 'tracked-1',
-      startTime: new Date(2026, 7, 26, 10, 0),
+      startTime: new Date(2026, 7, 26, 10, 0).toISOString(),
     });
     const otherDay = makeInstance({
       id: 'tracked-other-day',
-      startTime: new Date(2026, 7, 20, 10, 0),
+      startTime: new Date(2026, 7, 20, 10, 0).toISOString(),
     });
     const sessions = [makeSession({ timerInstances: [tracked, otherDay] })];
 
@@ -536,7 +544,7 @@ describe('buildRewriteGroups', () => {
   it('flags buckets holding a running or paused timer', () => {
     const running = makeInstance({
       id: 'running-1',
-      startTime: new Date(2026, 7, 26, 13, 0),
+      startTime: new Date(2026, 7, 26, 13, 0).toISOString(),
       state: TimerState.running,
       isRunning: true,
       endTime: undefined,
@@ -561,7 +569,7 @@ describe('buildRewriteGroups', () => {
       NOW_ISO,
       () => 'prior'
     );
-    const result = buildRewriteGroups([pasteEntry], [pasteEntry], [synthesized], {
+    const result = buildRewriteGroups([pasteEntry], [pasteEntry], [loaded(synthesized)], {
       nowIso: NOW_ISO,
     });
     expect(result.groups).toHaveLength(0);
@@ -578,7 +586,7 @@ describe('buildRewriteGroups', () => {
       () => 'prior'
     );
     const revised = { ...pasteEntry, reportedTimeInMinutes: 200 };
-    const result = buildRewriteGroups([revised], [revised], [synthesized], { nowIso: NOW_ISO });
+    const result = buildRewriteGroups([revised], [revised], [loaded(synthesized)], { nowIso: NOW_ISO });
     expect(result.noopDays).toBe(0);
     expect(result.groups).toHaveLength(1);
     // The prior synthesized instances land in the delete set.
@@ -591,8 +599,8 @@ describe('buildRewriteGroups', () => {
     // Session created on 2026-08-26, with an instance started at 1:07 AM on 2026-08-27
     const overnightInstance = makeInstance({
       id: 'overnight-1',
-      startTime: new Date(2026, 7, 27, 1, 7),
-      endTime: new Date(2026, 7, 27, 4, 7),
+      startTime: new Date(2026, 7, 27, 1, 7).toISOString(),
+      endTime: new Date(2026, 7, 27, 4, 7).toISOString(),
       duration: 3 * 3600_000,
     });
     const session = makeSession({
@@ -617,7 +625,7 @@ describe('buildImportPreview', () => {
     const entry = makeTimedEntry({ id: 'p1', createdAt, timeInMinutes: 240 });
     const tracked = makeInstance({
       id: 't1',
-      startTime: new Date(2026, 7, 26, 10, 0),
+      startTime: new Date(2026, 7, 26, 10, 0).toISOString(),
       duration: 3_600_000,
     });
     const sessions = [makeSession({ timerInstances: [tracked] })];
@@ -647,7 +655,7 @@ describe('buildImportPreview', () => {
       NOW_ISO,
       () => 'prior'
     );
-    const rows = buildImportPreview([entry], [entry], [synthesized], Date.now());
+    const rows = buildImportPreview([entry], [entry], [loaded(synthesized)], Date.now());
     expect(rows[0].isRemap).toBe(true);
   });
 });
@@ -684,7 +692,7 @@ describe('buildRemapPlan', () => {
   const moving = makeTimedEntry({ id: 'p1-a', createdAt: day(14), timeInMinutes: 60 });
   const workDay = moving.workDay;
   const imported = (taskId: string, entries: WorkLogEntry[], id: string) =>
-    buildSynthesizedSession(taskId, 'x', workDay, entries, NOW_ISO, () => id);
+    loaded(buildSynthesizedSession(taskId, 'x', workDay, entries, NOW_ISO, () => id));
 
   const plan = (args: { ledger: WorkLogEntry[]; sessions: TaskSession[] }) =>
     buildRemapPlan({
@@ -733,12 +741,12 @@ describe('buildRemapPlan', () => {
   it("leaves the old task's tracked time alone and counts the new task's it replaces", () => {
     const oldTracked = makeSession({
       id: 'old-tracked',
-      timerInstances: [makeInstance({ id: 'mine', startTime: new Date(2026, 7, 26, 8, 0) })],
+      timerInstances: [makeInstance({ id: 'mine', startTime: new Date(2026, 7, 26, 8, 0).toISOString() })],
     });
     const newTracked = makeSession({
       id: 'new-tracked',
       taskId: 'task-2',
-      timerInstances: [makeInstance({ id: 'theirs', startTime: new Date(2026, 7, 26, 16, 0), duration: 1_800_000 })],
+      timerInstances: [makeInstance({ id: 'theirs', startTime: new Date(2026, 7, 26, 16, 0).toISOString(), duration: 1_800_000 })],
     });
     const result = plan({
       ledger: [moving],
@@ -759,7 +767,7 @@ describe('buildRemapPlan', () => {
       timerInstances: [
         makeInstance({
           id: 'live',
-          startTime: new Date(2026, 7, 26, 15, 0),
+          startTime: new Date(2026, 7, 26, 15, 0).toISOString(),
           state: TimerState.running,
           isRunning: true,
           endTime: undefined,

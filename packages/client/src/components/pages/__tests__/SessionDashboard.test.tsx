@@ -264,8 +264,8 @@ describe('SessionDashboard', () => {
           {
             id: 'instance-1',
             sessionId: 'session-1',
-            startTime: new Date('2024-01-15T10:00:00Z'),
-            endTime: new Date('2024-01-15T11:00:00Z'),
+            startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
+            endTime: new Date('2024-01-15T11:00:00Z').toISOString(),
             duration: 3600000, // 1 hour
             isRunning: false,
             isPaused: false,
@@ -366,7 +366,7 @@ describe('SessionDashboard', () => {
         {
           id: 'timer-1',
           sessionId: 'session-1',
-          startTime: new Date('2024-01-15T10:00:00Z'),
+          startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
           endTime: undefined,
           duration: 0,
           isRunning: false,
@@ -395,7 +395,7 @@ describe('SessionDashboard', () => {
       const newTimerInstance: TimerInstance = {
         id: 'timer-2',
         sessionId: 'session-1',
-        startTime: new Date(),
+        startTime: new Date().toISOString(),
         endTime: undefined,
         duration: 0,
         isRunning: false,
@@ -513,7 +513,7 @@ describe('SessionDashboard', () => {
         {
           id: 'timer-idle',
           sessionId: 'session-1',
-          startTime: new Date('2024-01-15T12:00:00Z'),
+          startTime: new Date('2024-01-15T12:00:00Z').toISOString(),
           state: TimerState.idle,
           isRunning: false,
           isPaused: false,
@@ -523,8 +523,8 @@ describe('SessionDashboard', () => {
         {
           id: 'timer-done',
           sessionId: 'session-1',
-          startTime: new Date('2024-01-15T10:00:00Z'),
-          endTime: new Date('2024-01-15T11:30:00Z'),
+          startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
+          endTime: new Date('2024-01-15T11:30:00Z').toISOString(),
           duration: 90 * 60_000,
           state: TimerState.stopped,
           isRunning: false,
@@ -624,7 +624,7 @@ describe('SessionDashboard', () => {
         {
           id: 'timer-1',
           sessionId: 'session-1',
-          startTime: new Date(),
+          startTime: new Date().toISOString(),
           endTime: undefined,
           duration: 0,
           isRunning: false,
@@ -723,7 +723,7 @@ describe('SessionDashboard', () => {
           {
             id: 'instance-running',
             sessionId: 'session-running',
-            startTime: new Date(NOW.getTime() - 10 * 60_000), // started 10 min ago
+            startTime: new Date(NOW.getTime() - 10 * 60_000).toISOString(), // started 10 min ago
             state: TimerState.running,
             isRunning: true,
             isPaused: false,
@@ -747,8 +747,8 @@ describe('SessionDashboard', () => {
           {
             id: 'instance-stopped',
             sessionId: 'session-stopped',
-            startTime: new Date(NOW.getTime() - 3 * 3_600_000),
-            endTime: new Date(NOW.getTime() - 2.5 * 3_600_000),
+            startTime: new Date(NOW.getTime() - 3 * 3_600_000).toISOString(),
+            endTime: new Date(NOW.getTime() - 2.5 * 3_600_000).toISOString(),
             duration: 30 * 60_000,
             state: TimerState.stopped,
             isRunning: false,
@@ -833,14 +833,14 @@ describe('SessionDashboard', () => {
             id: 'instance-yesterday',
             sessionId: 'session-yesterday',
             // 30 min run finished yesterday
-            startTime: new Date(NOW.getTime() - 26 * 3_600_000),
-            endTime: new Date(NOW.getTime() - 25.5 * 3_600_000),
+            startTime: new Date(NOW.getTime() - 26 * 3_600_000).toISOString(),
+            endTime: new Date(NOW.getTime() - 25.5 * 3_600_000).toISOString(),
           },
           {
             ...statsSessions[0].timerInstances[0],
             id: 'instance-today',
             sessionId: 'session-yesterday',
-            startTime: new Date(NOW.getTime() - 10 * 60_000),
+            startTime: new Date(NOW.getTime() - 10 * 60_000).toISOString(),
           },
         ],
       };
@@ -865,8 +865,8 @@ describe('SessionDashboard', () => {
         timerInstances: [
           {
             ...statsSessions[1].timerInstances[0],
-            startTime: new Date(LATE.getTime() - 59.5 * 60_000),
-            endTime: new Date(LATE.getTime() - 30_000),
+            startTime: new Date(LATE.getTime() - 59.5 * 60_000).toISOString(),
+            endTime: new Date(LATE.getTime() - 30_000).toISOString(),
             duration: 59 * 60_000,
           },
         ],

@@ -1,0 +1,21 @@
+{
+  "name": "@taskmint/contracts",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "The wire types and constants every TaskMint client shares, generated from crates/taskmint-core",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

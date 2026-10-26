@@ -55,15 +55,5 @@ export interface NotifyOptions {
   history?: boolean;
 }
 
-/** The kinds the backend's show_desktop_notification understands (camelCase serde). */
-export type DesktopKind =
-  | 'general'
-  | 'goalMilestone'
-  | 'longRun'
-  | 'idlePause'
-  | 'workLogCapture'
-  | 'backupFailure'
-  | 'backupSuccess'
-  | 'dailySummary'
-  | 'error'
-  | 'test';
+/** The kinds the backend's show_desktop_notification understands. */
+export type { NotificationKind as DesktopKind } from '@taskmint/contracts';

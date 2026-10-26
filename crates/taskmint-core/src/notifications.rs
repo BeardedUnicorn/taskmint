@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// What a notification is about (camelCase, as the frontend sends it).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum NotificationKind {
     General,
@@ -23,6 +24,7 @@ pub enum NotificationKind {
 /// ones such as the summary time are ignored). Until the app sends them, the
 /// defaults keep reminders working.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", default)]
 pub struct NotificationPrefs {
     pub desktop_enabled: bool,

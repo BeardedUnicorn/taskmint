@@ -125,11 +125,5 @@ export const BackupFileSchema = z.object({
   }),
 });
 
-/** Mirrors RestoreSummary in apps/desktop/src-tauri/src/commands/restore.rs. */
-export interface RestoreSummary {
-  sessionsRestored: number;
-  sessionsAlreadyPresent: number;
-  workLogEntriesRestored: number;
-  workLogMappingsRestored: number;
-  recordsSkipped: number;
-}
+/** restore_backup_data's reply. */
+export type { RestoreSummary } from '@taskmint/contracts';

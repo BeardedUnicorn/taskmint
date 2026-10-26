@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  APP_RECORD_KEYS,
   flushAppRecords,
   loadAppRecords,
   readAppRecord,
@@ -7,6 +8,7 @@ import {
   writeAppRecord,
 } from '../appRecords';
 import { fakeBackend } from '../../testing';
+import { STORAGE_KEYS } from '../../constants';
 
 const mockInvoke = fakeBackend().call;
 const tasks = [{ id: 't1', name: 'Annotation' }];
@@ -41,6 +43,16 @@ function fakeAppData(initial: Record<string, unknown> = {}) {
 }
 
 describe('appRecords', () => {
+  it("are the backend's record keys, under the names older versions stored them by", () => {
+    expect([...APP_RECORD_KEYS]).toEqual([
+      STORAGE_KEYS.PREDEFINED_TASKS,
+      STORAGE_KEYS.TASK_NOTES,
+      STORAGE_KEYS.NOTE_TEMPLATES,
+      STORAGE_KEYS.DAILY_GOAL,
+      STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
+    ]);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     resetAppRecordsForTests();

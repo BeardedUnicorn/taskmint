@@ -131,7 +131,7 @@ describe('Session System Integration', () => {
   const mockTimerInstance: TimerInstance = {
     id: 'instance-1',
     sessionId: 'session-1',
-    startTime: new Date('2024-01-15T10:00:00Z'),
+    startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
     state: TimerState.idle,
     isRunning: false,
     isPaused: false,

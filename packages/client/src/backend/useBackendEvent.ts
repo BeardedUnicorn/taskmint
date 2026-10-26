@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { EventName } from '@taskmint/contracts';
 import { getBackend } from './registry';
 
 /**
@@ -7,7 +8,7 @@ import { getBackend } from './registry';
  * per event list.
  */
 export function useBackendEvent<T = unknown>(
-  events: string | readonly string[],
+  events: EventName | readonly EventName[],
   handler: (payload: T) => void
 ): void {
   const handlerRef = useRef(handler);
@@ -20,7 +21,7 @@ export function useBackendEvent<T = unknown>(
     const backend = getBackend();
     const unsubscribes = key
       .split('\n')
-      .map(name => backend.subscribe<T>(name, payload => handlerRef.current(payload)));
+      .map(name => backend.subscribe<T>(name as EventName, payload => handlerRef.current(payload)));
     return () => unsubscribes.forEach(unsubscribe => unsubscribe());
   }, [key]);
 }

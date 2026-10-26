@@ -20,7 +20,7 @@ describe('SessionTimerDisplay', () => {
   const baseInstance: TimerInstance = {
     id: 'instance-1',
     sessionId: 'session-1',
-    startTime: START,
+    startTime: START.toISOString(),
     endTime: undefined,
     duration: 0,
     state: TimerState.running,
@@ -35,7 +35,7 @@ describe('SessionTimerDisplay', () => {
     id: 'instance-2',
     state: TimerState.stopped,
     isRunning: false,
-    endTime: new Date('2024-01-15T10:30:00Z'),
+    endTime: new Date('2024-01-15T10:30:00Z').toISOString(),
     duration: 30 * 60_000, // 30 minutes
   };
 
@@ -179,7 +179,7 @@ describe('SessionTimerDisplay', () => {
         state: TimerState.paused,
         isRunning: false,
         isPaused: true,
-        pausedAt: new Date(START.getTime() + 15 * 60_000), // ran 15 min
+        pausedAt: new Date(START.getTime() + 15 * 60_000).toISOString(), // ran 15 min
       });
 
       render(<SessionTimerDisplay {...mockProps} session={pausedSession} />);

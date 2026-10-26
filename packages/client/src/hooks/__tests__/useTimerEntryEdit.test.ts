@@ -19,8 +19,8 @@ const updateNote = vi.fn();
 const instance = {
   id: 'instance-1',
   sessionId: 'session-1',
-  startTime: new Date('2026-10-01T10:00:00Z'),
-  endTime: new Date('2026-10-01T11:00:00Z'),
+  startTime: new Date('2026-10-01T10:00:00Z').toISOString(),
+  endTime: new Date('2026-10-01T11:00:00Z').toISOString(),
   duration: 3_600_000,
   pausedDuration: 0,
   state: TimerState.stopped,

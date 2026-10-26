@@ -2,15 +2,17 @@
 //! camelCase argument keys are what the frontend has always sent to the
 //! desktop app; the server takes the same ones.
 
-use super::CoreError;
-use crate::model::{CaptureSource, TaskSession, TimerInstance};
+use super::{AppRecords, CoreError, ResetSummary, WorkLogs};
+use crate::model::{CaptureSource, PendingCapture, TaskSession, TimerInstance};
 use crate::records::RecordMap;
-use crate::restore::RestorePayload;
+use crate::restore::{RestorePayload, RestoreSummary};
 use crate::sessions::instances::TimerInstanceUpdates;
-use crate::worklogs::WorkLogImportPayload;
+use crate::sessions::start::StartTaskResult;
+use crate::worklogs::{WorkLogImportPayload, WorkLogImportSummary};
 use crate::workspace::Parts;
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "command", content = "args", rename_all = "snake_case")]
@@ -53,46 +55,130 @@ pub enum Command {
     ResetAllAppData(NoArgs),
 }
 
-/// Every command's name, as `Command` spells them. A name missing here
-/// can't be called (every one runs in the conformance scenarios).
-pub const COMMAND_NAMES: [&str; 30] = [
-    "get_app_records",
-    "set_app_record",
-    "import_app_records",
-    "get_sessions",
-    "get_session_load_warning",
-    "start_task",
-    "add_manual_time",
-    "set_active_session",
-    "clear_session_notes",
-    "delete_session",
-    "restore_session",
-    "restore_timer_instance",
-    "create_timer_instance",
-    "update_timer_instance",
-    "start_timer_instance",
-    "stop_timer_instance",
-    "pause_timer_instance",
-    "resume_timer_instance",
-    "delete_timer_instance",
-    "move_timer_instance",
-    "stop_live_timer",
-    "pause_live_timer",
-    "pause_timer_at",
-    "apply_idle_choice",
-    "get_work_logs",
-    "apply_work_log_import",
-    "accept_capture",
-    "take_pending_work_log_capture",
-    "restore_backup_data",
-    "reset_all_app_data",
-];
+/// Every command, by name, with its arguments and its reply. It drives the
+/// TypeScript `CommandMap` (packages/contracts, from tests/contracts.rs) and
+/// a check that every reply in the conformance scenarios is its declared
+/// type (`check_reply`).
+macro_rules! command_types {
+    ($($name:literal: $args:ty => $reply:ty,)*) => {
+        /// Every command's name, as `Command` spells them. A name missing
+        /// here can't be called (every one runs in the conformance
+        /// scenarios).
+        pub const COMMAND_NAMES: &[&str] = &[$($name),*];
+
+        /// Whether `reply` is exactly a reply of `command`'s declared type:
+        /// it reads as that type and writes back unchanged.
+        pub fn check_reply(command: &str, reply: &serde_json::Value) -> Result<(), String> {
+            let reread = match command {
+                $($name => reread::<$reply>(reply),)*
+                _ => return Err(format!("{} has no declared reply", command)),
+            };
+            match reread? {
+                again if again == *reply => Ok(()),
+                again => Err(format!("it reads back as {}", again)),
+            }
+        }
+
+        /// Each command's argument and reply types in TypeScript, and the
+        /// generated types they name.
+        #[cfg(feature = "ts")]
+        pub fn command_types(cfg: &ts_rs::Config) -> Vec<CommandTypes> {
+            vec![$(CommandTypes {
+                name: $name,
+                args: <$args as ts_rs::TS>::name(cfg),
+                reply: <$reply as ts_rs::TS>::name(cfg),
+                uses: [type_names::<$args>(cfg), type_names::<$reply>(cfg)].concat(),
+            },)*]
+        }
+    };
+}
+
+command_types! {
+    "get_app_records": NoArgs => AppRecords,
+    "set_app_record": SetAppRecordArgs => (),
+    "import_app_records": ImportAppRecordsArgs => AppRecords,
+    "get_sessions": NoArgs => Vec<TaskSession>,
+    "get_session_load_warning": NoArgs => Option<String>,
+    "start_task": StartTaskArgs => StartTaskResult,
+    "add_manual_time": AddManualTimeArgs => TaskSession,
+    "set_active_session": SetActiveSessionArgs => Vec<TaskSession>,
+    "clear_session_notes": ClearSessionNotesArgs => usize,
+    "delete_session": SessionArgs => TaskSession,
+    "restore_session": RestoreSessionArgs => TaskSession,
+    "restore_timer_instance": RestoreTimerInstanceArgs => TaskSession,
+    "create_timer_instance": SessionArgs => TimerInstance,
+    "update_timer_instance": UpdateTimerInstanceArgs => TimerInstance,
+    "start_timer_instance": InstanceArgs => TaskSession,
+    "stop_timer_instance": InstanceArgs => TaskSession,
+    "pause_timer_instance": InstanceArgs => TaskSession,
+    "resume_timer_instance": InstanceArgs => TaskSession,
+    "delete_timer_instance": InstanceArgs => TaskSession,
+    "move_timer_instance": MoveTimerInstanceArgs => String,
+    "stop_live_timer": NoArgs => Option<String>,
+    "pause_live_timer": NoArgs => Option<String>,
+    "pause_timer_at": PauseTimerAtArgs => bool,
+    "apply_idle_choice": ApplyIdleChoiceArgs => bool,
+    "get_work_logs": NoArgs => WorkLogs,
+    "apply_work_log_import": ApplyWorkLogImportArgs => WorkLogImportSummary,
+    "accept_capture": AcceptCaptureArgs => (),
+    "take_pending_work_log_capture": NoArgs => Option<PendingCapture>,
+    "restore_backup_data": RestoreBackupDataArgs => RestoreSummary,
+    "reset_all_app_data": NoArgs => ResetSummary,
+}
+
+/// `reply` read as a `T` and written back.
+fn reread<T: Serialize + DeserializeOwned>(
+    reply: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    T::deserialize(reply)
+        .map(|typed| serde_json::to_value(typed).expect("replies are plain data"))
+        .map_err(|e| format!("it doesn't read as its reply type: {}", e))
+}
+
+/// One command in TypeScript: `args` is "NoArgs" for a command without any.
+#[cfg(feature = "ts")]
+#[derive(Debug)]
+pub struct CommandTypes {
+    pub name: &'static str,
+    pub args: String,
+    pub reply: String,
+    /// The generated types `args` and `reply` mention.
+    pub uses: Vec<String>,
+}
+
+/// The generated type `T` is, or the one it wraps (`Vec<T>`, `Option<T>`).
+#[cfg(feature = "ts")]
+fn type_names<T: ts_rs::TS + 'static>(cfg: &ts_rs::Config) -> Vec<String> {
+    struct Names<'a> {
+        cfg: &'a ts_rs::Config,
+        found: Vec<String>,
+    }
+    impl ts_rs::TypeVisitor for Names<'_> {
+        fn visit<U: ts_rs::TS + 'static + ?Sized>(&mut self) {
+            if U::output_path().is_some() {
+                self.found.push(U::ident(self.cfg));
+            }
+        }
+    }
+    let mut names = Names {
+        cfg,
+        found: Vec::new(),
+    };
+    if T::output_path().is_some() {
+        names.found.push(T::ident(cfg));
+    } else {
+        T::visit_generics(&mut names);
+    }
+    names.found
+}
 
 /// For commands that take no arguments: `{}`, `null`, or nothing at all.
 #[derive(Debug, Default, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct NoArgs {}
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SetAppRecordArgs {
     pub key: String,
@@ -101,12 +187,14 @@ pub struct SetAppRecordArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ImportAppRecordsArgs {
     pub records: RecordMap,
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct StartTaskArgs {
     pub task_id: String,
@@ -114,6 +202,7 @@ pub struct StartTaskArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct AddManualTimeArgs {
     pub task_id: String,
@@ -124,6 +213,7 @@ pub struct AddManualTimeArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct SetActiveSessionArgs {
     /// None deactivates every session.
@@ -132,24 +222,28 @@ pub struct SetActiveSessionArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ClearSessionNotesArgs {
     pub session_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SessionArgs {
     pub session_id: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreSessionArgs {
     pub session: TaskSession,
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreTimerInstanceArgs {
     pub session_id: String,
@@ -160,6 +254,7 @@ pub struct RestoreTimerInstanceArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateTimerInstanceArgs {
     pub instance_id: String,
@@ -167,12 +262,14 @@ pub struct UpdateTimerInstanceArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct InstanceArgs {
     pub instance_id: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MoveTimerInstanceArgs {
     pub instance_id: String,
@@ -181,6 +278,7 @@ pub struct MoveTimerInstanceArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct PauseTimerAtArgs {
     pub instance_id: String,
@@ -189,20 +287,27 @@ pub struct PauseTimerAtArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyIdleChoiceArgs {
     pub instance_id: String,
     /// "discardResume", "keepResume" or "stayPaused".
+    #[cfg_attr(
+        feature = "ts",
+        ts(type = r#""discardResume" | "keepResume" | "stayPaused""#)
+    )]
     pub choice: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyWorkLogImportArgs {
     pub payload: WorkLogImportPayload,
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct AcceptCaptureArgs {
     /// The raw JSON text, as captured from the site.
@@ -211,6 +316,7 @@ pub struct AcceptCaptureArgs {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreBackupDataArgs {
     pub payload: RestorePayload,

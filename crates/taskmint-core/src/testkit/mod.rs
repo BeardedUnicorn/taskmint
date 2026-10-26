@@ -8,6 +8,9 @@
 //! and exactly the `events` listed (none when absent). `save` keeps parts of
 //! the reply, by JSON pointer, for later steps to use as `"$name"`.
 //!
+//! Every reply is also checked against the reply type the contracts declare
+//! for its command (`command::check_reply`).
+//!
 //! Replies match loosely, so they needn't spell out ids and timestamps: an
 //! object matches when every key it lists matches (`{}` only matches an empty
 //! object), an array when it has as many items and each matches, numbers by
@@ -146,6 +149,11 @@ fn run_step(step: &Step, host: &mut dyn Host, vars: &mut Vars) -> Result<(), Str
             ))
         }
         (Ok(reply), None) => {
+            // Every host's reply has the type the contracts declare for it
+            if crate::command::COMMAND_NAMES.contains(&command.as_str()) {
+                crate::command::check_reply(command, &reply)
+                    .map_err(|e| format!("{} replied {}, but {}", command, reply, e))?;
+            }
             if let Some(expected) = &step.reply {
                 matches(expected, &reply, vars, "")
                     .map_err(|e| format!("{} replied {}: {}", command, reply, e))?;

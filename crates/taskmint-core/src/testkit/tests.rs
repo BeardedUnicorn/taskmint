@@ -318,6 +318,14 @@ fn errors_and_events_must_be_exactly_as_expected() {
 }
 
 #[test]
+fn a_reply_of_the_wrong_type_fails_on_any_host() {
+    assert_eq!(
+        run_with(json!([{ "call": "get_sessions" }]), vec![Ok(json!({ "not": "a list" }))]),
+        Err(r#"check, step 1: get_sessions replied {"not":"a list"}, but it doesn't read as its reply type: invalid type: map, expected a sequence"#.to_string())
+    );
+}
+
+#[test]
 fn every_failing_scenario_is_reported() {
     let report = run_all(&mut || {
         Box::new(ScriptedHost {

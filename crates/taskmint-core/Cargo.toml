@@ -13,6 +13,20 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1.0", features = ["v4"] }
+# TypeScript for the wire types, only when generating packages/contracts
+# (tests/contracts.rs). ts-rs 12: 10 dropped whole serde attributes it
+# couldn't parse (see docs/adr/0001-web-support.md).
+ts-rs = { version = "=12.0.1", optional = true, features = ["chrono-impl", "serde-json-impl"] }
+
+[features]
+ts = ["dep:ts-rs"]
+
+# The contracts generator exists only with the TypeScript derives. Without
+# this, an empty test binary would still link a second, unexercised copy of
+# the library into the coverage report.
+[[test]]
+name = "contracts"
+required-features = ["ts"]
 
 [dev-dependencies]
 # Recomputing the extension ID from apps/extension/manifest.json

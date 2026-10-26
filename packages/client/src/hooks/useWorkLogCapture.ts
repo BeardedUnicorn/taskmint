@@ -22,7 +22,6 @@ import { BACKEND_EVENTS } from '../constants/events';
 import { Task } from '../types/task';
 import { TaskSession } from '../types/timer';
 import {
-  PendingWorkLogCapture,
   ProjectTaskMapping,
   WorkLogEntry,
   WorkLogImportPayload,
@@ -86,9 +85,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
     }
     processingRef.current = true;
     try {
-      const capture = await getBackend().call<PendingWorkLogCapture | null>(
-        'take_pending_work_log_capture'
-      );
+      const capture = await getBackend().call('take_pending_work_log_capture');
       if (!capture || typeof capture.payload !== 'string') return;
 
       // Identical re-deliveries (protocol + confirming POST, extension

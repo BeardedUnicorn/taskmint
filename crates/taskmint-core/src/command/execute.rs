@@ -2,7 +2,7 @@
 //! command used to run under its own locks; the host now does the locking,
 //! saving and announcing for all of them.
 
-use super::{Backup, Command, CoreError, Ctx, Event, Executed};
+use super::{AppRecords, Backup, Command, CoreError, Ctx, Event, Executed, ResetSummary, WorkLogs};
 use crate::capture::payload_shape_ok;
 use crate::contract::events::{
     SESSIONS_CHANGED, TIMER_INSTANCE_DELETED, TIMER_INSTANCE_PAUSED, TIMER_INSTANCE_RESUMED,
@@ -11,7 +11,7 @@ use crate::contract::events::{
 use crate::contract::{ERR_UNEXPECTED_PAYLOAD_SHAPE, TASKS_RECORD_KEY};
 use crate::idle::{apply_idle_choice, pause_for_idle, IdleChoice};
 use crate::load::{parse_project_mappings, parse_work_log_entries};
-use crate::model::{PendingCapture, ProjectTaskMapping, WorkLogEntry};
+use crate::model::PendingCapture;
 use crate::records::{is_app_record_key, merge_imported_records, RecordMap};
 use crate::restore::{
     finalize_time, parse_section, parse_sessions_section, restore_project_mappings,
@@ -31,20 +31,6 @@ use crate::worklogs::{
 use crate::workspace::{Parts, TaskLinks, Workspace};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use serde_json::Value;
-
-#[derive(Serialize)]
-struct AppRecordsReply<'a> {
-    records: &'a RecordMap,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct WorkLogsReply<'a> {
-    entries: &'a [WorkLogEntry],
-    mappings: &'a [ProjectTaskMapping],
-    load_warning: &'a Option<String>,
-}
 
 impl Executed {
     fn event(mut self, event: Event) -> Self {
@@ -120,8 +106,8 @@ pub fn execute(
     Ok(match command {
         Command::GetAppRecords(_) => {
             records_readable(workspace)?;
-            Executed::read(AppRecordsReply {
-                records: &workspace.records,
+            Executed::read(AppRecords {
+                records: workspace.records.clone(),
             })
         }
         Command::SetAppRecord(args) => {
@@ -162,8 +148,8 @@ pub fn execute(
             if changed.iter().any(|key| key == TASKS_RECORD_KEY) {
                 done = done.follow(workspace.sync_task_links());
             }
-            done.reply = super::to_value(AppRecordsReply {
-                records: &workspace.records,
+            done.reply = super::to_value(AppRecords {
+                records: workspace.records.clone(),
             });
             done
         }
@@ -351,10 +337,10 @@ pub fn execute(
             }
         }
 
-        Command::GetWorkLogs(_) => Executed::read(WorkLogsReply {
-            entries: &workspace.work_log_entries,
-            mappings: &workspace.work_log_mappings,
-            load_warning: &workspace.notes.work_log_warning,
+        Command::GetWorkLogs(_) => Executed::read(WorkLogs {
+            entries: workspace.work_log_entries.clone(),
+            mappings: workspace.work_log_mappings.clone(),
+            load_warning: workspace.notes.work_log_warning.clone(),
         }),
         Command::ApplyWorkLogImport(args) => {
             let payload = args.payload;
@@ -429,7 +415,7 @@ pub fn execute(
         Command::RestoreBackupData(args) => restore(args.payload, workspace, now)?,
         Command::ResetAllAppData(_) => {
             *workspace = Workspace::default();
-            let mut done = Executed::new(Value::Null, Parts::ALL);
+            let mut done = Executed::new(ResetSummary::default(), Parts::ALL);
             done.purge_backups = true;
             done
         }

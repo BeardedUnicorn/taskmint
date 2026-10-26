@@ -8,23 +8,13 @@
  * older version left in the webview's localStorage.
  */
 
-import { STORAGE_KEYS } from '../constants';
+import { APP_RECORD_KEYS, type AppRecords, type JsonValue } from '@taskmint/contracts';
 import { getBackend } from '../backend/registry';
 
-/** Paired with APP_RECORD_KEYS in crates/taskmint-core/src/contract.rs. */
-export const APP_RECORD_KEYS = [
-  STORAGE_KEYS.PREDEFINED_TASKS,
-  STORAGE_KEYS.TASK_NOTES,
-  STORAGE_KEYS.NOTE_TEMPLATES,
-  STORAGE_KEYS.DAILY_GOAL,
-  STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
-] as const;
+/** The backend's record keys: STORAGE_KEYS names, so an older version's localStorage copies are found. */
+export { APP_RECORD_KEYS };
 
 export type AppRecordKey = (typeof APP_RECORD_KEYS)[number];
-
-interface AppRecordsResponse {
-  records: Record<string, unknown>;
-}
 
 let cache: Map<string, unknown> | null = null;
 // Each record's last write, so the next one waits for it
@@ -39,8 +29,8 @@ export function isAppRecordKey(key: string): key is AppRecordKey {
  * data (any {version, data} wrapper removed), and the keys they came from.
  * An unreadable value is left where it is rather than moved as garbage.
  */
-function readLegacyRecords(): { records: Record<string, unknown>; keys: string[] } {
-  const records: Record<string, unknown> = {};
+function readLegacyRecords(): { records: Record<string, JsonValue>; keys: string[] } {
+  const records: Record<string, JsonValue> = {};
   const keys: string[] = [];
   for (const key of APP_RECORD_KEYS) {
     try {
@@ -105,12 +95,12 @@ export interface LoadOptions {
 export async function loadAppRecords({ importLegacy }: LoadOptions): Promise<void> {
   const backend = getBackend();
   const legacy = importLegacy ? readLegacyRecords() : { records: {}, keys: [] };
-  let response: AppRecordsResponse;
+  let response: AppRecords;
   if (Object.keys(legacy.records).length > 0) {
-    response = await backend.call<AppRecordsResponse>('import_app_records', { records: legacy.records });
+    response = await backend.call('import_app_records', { records: legacy.records });
     console.info(`Moved ${Object.keys(legacy.records).join(', ')} into appdata.json`);
   } else {
-    response = await backend.call<AppRecordsResponse>('get_app_records');
+    response = await backend.call('get_app_records');
   }
   for (const key of legacy.keys) {
     window.localStorage.removeItem(key);
@@ -141,7 +131,8 @@ export function writeAppRecord(key: AppRecordKey, value: unknown): Promise<void>
   else records.set(key, stored);
 
   const write = (writeChains.get(key) ?? Promise.resolve())
-    .then(() => getBackend().call('set_app_record', { key, value: stored }))
+    // Records are plain data (validated by their readers), so they're JSON
+    .then(() => getBackend().call('set_app_record', { key, value: stored as JsonValue }))
     .then(
       () => undefined,
       (error: unknown) => {
