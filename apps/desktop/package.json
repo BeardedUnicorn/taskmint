@@ -15,9 +15,7 @@
   },
   "dependencies": {
     "@taskmint/client": "workspace:*",
-    "@tauri-apps/api": "~2.11.1",
-    "@tauri-apps/plugin-dialog": "~2.7.2",
-    "@tauri-apps/plugin-opener": "~2.5.4"
+    "@tauri-apps/api": "~2.11.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

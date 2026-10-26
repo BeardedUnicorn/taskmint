@@ -70,8 +70,8 @@ pub fn create(
     Ok(new_instance)
 }
 
-/// Timer-instance fields the frontend may patch. camelCase with snake_case
-/// aliases, same as `SessionUpdates`.
+/// Timer-instance fields the frontend may patch. camelCase, with snake_case
+/// aliases so old callers keep working.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimerInstanceUpdates {

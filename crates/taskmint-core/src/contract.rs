@@ -66,10 +66,14 @@ pub const IDLE_CHOICE_STAY_PAUSED: &str = "stayPaused";
 // RECORDS
 // ============================================================================
 
+/// The record holding the task list. Hosts read the tasks from it (the tray,
+/// hourly rates, and names that follow a rename).
+pub const TASKS_RECORD_KEY: &str = "predefinedTasks";
+
 /// The frontend's records (its STORAGE_KEYS names; APP_RECORD_KEYS in
 /// packages/client/src/services/appRecords.ts).
 pub const APP_RECORD_KEYS: [&str; 5] = [
-    "predefinedTasks",
+    TASKS_RECORD_KEY,
     "taskNotes",
     "noteTemplates",
     "dailyGoal",
@@ -92,6 +96,9 @@ pub const CAPTURE_HEADER: &str = "X-TaskMint-Capture";
 /// The TaskMint capture extension. Its ID is fixed by the public `key` in
 /// apps/extension/manifest.json; any other extension is refused.
 pub const CAPTURE_EXTENSION_ORIGIN: &str = "chrome-extension://akokpjpnondkhammgcndnffildbbapga";
+/// The error for a capture whose payload isn't a work-log list. The capture
+/// endpoints answer it with a 400 rather than a 500.
+pub const ERR_UNEXPECTED_PAYLOAD_SHAPE: &str = "unexpected payload shape";
 /// Largest capture payload accepted.
 pub const MAX_CAPTURE_BODY_BYTES: usize = 8 * 1024 * 1024;
 /// Deep-link payloads ride in a URL, bounded by Windows' ~32K command-line
@@ -203,6 +210,8 @@ mod tests {
         assert_eq!(CAPTURE_SERVER_PORT, 43117);
         assert_eq!(CAPTURE_PATH, "/api/work-log-payload");
         assert_eq!(CAPTURE_HEADER, "X-TaskMint-Capture");
+        assert_eq!(ERR_UNEXPECTED_PAYLOAD_SHAPE, "unexpected payload shape");
+        assert_eq!(TASKS_RECORD_KEY, "predefinedTasks");
         assert_eq!(DEEP_LINK_SCHEME, "taskmint");
     }
 }

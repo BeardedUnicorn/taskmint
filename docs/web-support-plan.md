@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -108,6 +108,45 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
   - The tray and idle monitor act through core commands (`StopLiveTimer`, `PauseLiveTimer`, `StartTask`, `PauseTimerAt`, `ApplyIdleChoice`) against the cache.
   - Captures and deep links are forwarded via `AcceptCapture`.
 
+**As built in P5:**
+- **Core command layer** (`taskmint_core::command`):
+  - `Command::parse(name, args)` takes the 30 commands by their names and camelCase args. Missing or null args count as `{}`, and unknown keys are ignored, as with Tauri.
+  - `access()` gives `{ parts, write }`. `execute(command, &mut Workspace, &Ctx)` returns `Executed { reply, dirty, backups, events, purge_backups }`.
+  - `CoreError` is `Rejected | InvalidArgs | UnknownCommand`; `Conflict` waits for P9's record revisions.
+  - Five commands are new, for the tray, the idle monitor and captures: `stop_live_timer`, `pause_live_timer`, `pause_timer_at`, `apply_idle_choice` and `accept_capture`. The webview doesn't call them; P12's server mode sends them.
+- **Workspace:** the sessions, the ledger, the records, the pending capture, and what the host found at load (warnings, and an unreadable records file).
+  - Tasks are read from the `predefinedTasks` record (`tasks_from_records`). It looks through a `{ version, data }` wrapper and skips items that don't parse.
+  - Saving or importing the tasks record fills in missing rates and follows renames in the same unit of work. `update_tasks` and `update_session` are gone, and the client no longer sends the task list.
+- **Backups are data:** a command asks for `Backup::Saved { parts, failure, required }` or `Backup::Incoming { records, failure }`, and the host makes the copy (files on the desktop, `data_snapshots` rows in P9).
+- **Desktop:**
+  - **`LocalBackend`:** one `Mutex<Workspace>`. A write runs on a clone; the dirty parts are saved, then the clone replaces the live data. If a later file fails, the files saved before it are put back. Reads run on the live data.
+  - **`JsonFileStore`** keeps the plugin's pretty-printed format and writes through tmp + fsync + rename. `.bak` copies are pruned to 10.
+  - **Fixtures:** `tests/fixtures/plugin-store` was written by tauri-plugin-store 2.4.4. The plugin stays as a dev-dependency, so a test proves it can read what the app writes now.
+  - **Startup** repairs stranded timers, stray keys and task links, and saves each repaired file on its own.
+- **One async IPC command, `dispatch`:**
+  - Its 15 shell commands are in `dispatch.rs`. Everything else goes to the backend by name.
+  - Dialogs, the default backup folder and reveal moved to Rust (`pick_backup_dir`, `default_backup_dir`, `reveal_path`).
+  - The capability is `core:default` only, and the JS dialog and opener packages are gone.
+- **Not yet:**
+  - The `DataBackend` trait arrives with its second implementation in P12; `LocalBackend` is concrete until then.
+  - The `Desktop<R>` split and the Platform seams are P7.
+  - `get_capabilities` is P12.
+- **Behaviour changes:**
+  - Rates and renames now follow the tasks at launch, since Rust reads the record; before, this happened once the frontend first sent the task list.
+  - An import that rewrites days fills in its sessions' rates straight away; before, that waited for the next launch or task edit.
+  - The tray menu rebuilds when its listed tasks change, including edits made in the app.
+  - A failed save leaves memory as it is on disk. Before, memory kept the change.
+  - Invalid-argument errors read "Invalid arguments for start_task: missing field `taskId`" instead of Tauri's wording. A reset writes empty-shaped files (`{"sessions": []}`) instead of `{}`.
+- **Conformance:**
+  - Nine JSON scenarios live in `crates/taskmint-core/src/testkit/scenarios`.
+  - Core runs them in memory and checks that each command changes only the parts it declares and reports every part it changed.
+  - The desktop runs them on files, reloading from disk (`tests/conformance.rs`). P9 adds the server.
+- **Coverage findings:**
+  - Core is at 100%, testkit included. `run_all` isn't generic, because llvm-cov scores a generic by one instantiation.
+  - Log macro arguments that call methods (`path.display()`, `keys.join(..)`) leave uncovered regions when no logger is installed. The P0 spike only tried plain arguments, so P7 needs a test logger after all.
+  - The desktop crate is at 60% regions overall, with the store and backend at about 97%. Their I/O failures are left for P7's failpoints.
+- **Checked on real data:** a copy of the installed app's data folder loads with no warnings, and opening it rewrites nothing.
+
 ## 4. Server (`apps/server`)
 
 **Endpoints** (all under `/api/v1` except health):
@@ -209,7 +248,7 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
   - Dismissing the import dialog is now silent, like export.
   - The platform's own reasons ("Invalid JSON file", read errors) reach the user; `safeInvoke` used to swallow them.
 - **Left for later phases:**
-  - `useEnhancedSystemTray` still sends `update_tasks`. The Rust side needs it for the tray, rates and renames until P5 reads tasks from the records.
+  - `useEnhancedSystemTray` kept sending `update_tasks` until P5, when Rust started reading the tasks from their record.
   - Error matching stays on literal strings until P6 generates `CORE_ERRORS`.
   - Record revisions and `app-records-changed` are P9.
   - The browser implementations are P10, in `apps/web`: the Blob download, the Web Notification API, and hiding the Idle and Backups settings where those features are missing. The client's old browser fallbacks were deleted with the backend-less preview.

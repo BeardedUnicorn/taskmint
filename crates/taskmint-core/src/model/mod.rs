@@ -14,8 +14,8 @@ pub struct Task {
     pub name: String,
     pub hourly_rate: Option<f64>,
     pub default_note_template_id: Option<String>,
-    // Older frontends omit this field, so it must default or update_tasks
-    // rejects their payloads wholesale.
+    // Older frontends omit this field, so it must default or the tasks
+    // record from one wouldn't read at all.
     #[serde(default)]
     pub is_archived: bool,
     // Starred tasks lead the tray's Start submenu. Defaults like is_archived.
@@ -136,7 +136,7 @@ pub enum WorkLogKind {
 // entry uuid). Tolerant like TaskSession: everything except id/kind defaults
 // so a schema change cannot wipe the ledger; unreadable records are skipped
 // individually at load time.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkLogEntry {
     pub id: String,
@@ -169,7 +169,7 @@ pub struct WorkLogEntry {
 
 // How a captured payload reached the app. Must match CaptureSource in
 // packages/client/src/types/workLog.ts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureSource {
     /// localhost POST from the pinned TaskMint extension (or a local tool):
@@ -183,7 +183,7 @@ pub enum CaptureSource {
 // A raw work-log payload delivered by the browser extension (over localhost
 // or a taskmint:// deep link), waiting for the frontend to take and process
 // it. Latest delivery wins; take_pending_work_log_capture clears it.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingCapture {
     pub payload: String,     // raw JSON text as captured from the site
@@ -202,7 +202,7 @@ pub struct CaptureServerStatus {
 
 // Remembered mapping from a site project to a TaskMint task, upserted by
 // `project_id`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectTaskMapping {
     pub project_id: String,

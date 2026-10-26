@@ -27,8 +27,8 @@ import { TaskManagementProvider, useTaskManagementContext } from './contexts/Tas
 import { PAGES } from './app/routes';
 
 /**
- * Work that runs whatever page is open: the tray's task list (and its "Choose
- * Task…"), and moving sessions' old plain-text notes into the notes store.
+ * Work that runs whatever page is open: the tray's "Choose Task…", and
+ * moving sessions' old plain-text notes into the notes store.
  */
 function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }) {
   const { sessions, isLoading: sessionsLoading, hasLoaded, clearSessionNotes } = useSessionManagementContext();
@@ -40,7 +40,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
     isLoading: sessionsLoading || tasksLoading,
     clearSessionNotes,
   });
-  useEnhancedSystemTray({ tasks, onShowStartDialog });
+  useEnhancedSystemTray({ onShowStartDialog });
   useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });
   return null;
 }

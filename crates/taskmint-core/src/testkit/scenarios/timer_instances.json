@@ -1,0 +1,136 @@
+{
+  "name": "a session's timers are added, edited, deleted and put back",
+  "steps": [
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "save": { "first": "/instanceId" },
+      "events": ["timer-instance-started"]
+    },
+    { "call": "get_sessions", "save": { "session": "/0/id" } },
+    {
+      "advanceMs": 120000,
+      "call": "stop_timer_instance",
+      "args": { "instanceId": "$first" },
+      "events": ["timer-instance-stopped"]
+    },
+    {
+      "call": "create_timer_instance",
+      "args": { "sessionId": "$session" },
+      "reply": { "sessionId": "$session", "isRunning": false, "duration": null },
+      "save": { "second": "/id" }
+    },
+    {
+      "call": "update_timer_instance",
+      "args": { "instanceId": "$second", "updates": { "notes": "Outline" } },
+      "reply": { "id": "$second", "notes": "Outline" }
+    },
+    {
+      "call": "update_timer_instance",
+      "args": { "instanceId": "$second", "updates": { "isRunning": true } },
+      "error": "Cannot set a timer running via update; use start_timer_instance"
+    },
+    {
+      "call": "start_timer_instance",
+      "args": { "instanceId": "$second" },
+      "reply": { "timerInstances": [{ "id": "$first" }, { "id": "$second", "isRunning": true }] },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "call": "delete_timer_instance",
+      "args": { "instanceId": "$second" },
+      "error": "Cannot delete a running timer; stop it first"
+    },
+    {
+      "advanceMs": 60000,
+      "call": "stop_timer_instance",
+      "args": { "instanceId": "$second" },
+      "reply": { "totalDuration": 180000 },
+      "events": ["timer-instance-stopped"]
+    },
+    { "call": "get_sessions", "save": { "removed": "/0/timerInstances/1" } },
+    {
+      "call": "delete_timer_instance",
+      "args": { "instanceId": "$second" },
+      "reply": { "totalDuration": 120000, "timerInstances": [{ "id": "$first" }] },
+      "events": ["timer-instance-deleted"]
+    },
+    {
+      "call": "restore_timer_instance",
+      "args": { "sessionId": "$session", "instance": "$removed", "index": 1 },
+      "reply": {
+        "totalDuration": 180000,
+        "timerInstances": [{ "id": "$first" }, { "id": "$second", "notes": "Outline" }]
+      },
+      "events": ["sessions-changed"]
+    },
+    {
+      "call": "restore_timer_instance",
+      "args": { "sessionId": "$session", "instance": "$removed" },
+      "error": "This timer already exists"
+    },
+    {
+      "call": "create_timer_instance",
+      "args": { "sessionId": "session_gone" },
+      "error": "Session with ID session_gone not found"
+    },
+    {
+      "call": "set_active_session",
+      "args": { "sessionId": "session_gone" },
+      "error": "Session with ID session_gone not found"
+    },
+    {
+      "call": "resume_timer_instance",
+      "args": { "instanceId": "$first" },
+      "error": "Cannot resume timer: timer is not paused"
+    },
+    { "call": "clear_session_notes", "args": { "sessionIds": ["$session"] }, "reply": 0 },
+    {
+      "call": "set_active_session",
+      "args": { "sessionId": null },
+      "reply": [{ "id": "$session", "isActive": false }]
+    },
+    {
+      "call": "start_timer_instance",
+      "args": { "instanceId": "$first" },
+      "error": "Timer instance has already completed; create a new timer instead"
+    },
+    {
+      "call": "create_timer_instance",
+      "args": { "sessionId": "$session" },
+      "save": { "third": "/id" }
+    },
+    {
+      "call": "start_timer_instance",
+      "args": { "instanceId": "$third" },
+      "error": "Cannot start timer for inactive session"
+    },
+    {
+      "call": "set_active_session",
+      "args": { "sessionId": "$session" },
+      "reply": [{ "id": "$session", "isActive": true }]
+    },
+    {
+      "call": "start_timer_instance",
+      "args": { "instanceId": "$third" },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "advanceMs": 60000,
+      "call": "set_active_session",
+      "args": {},
+      "reply": [
+        {
+          "isActive": false,
+          "timerInstances": [
+            "$any",
+            "$any",
+            { "id": "$third", "isRunning": false, "duration": 60000 }
+          ]
+        }
+      ],
+      "events": ["timer-instance-stopped"]
+    },
+    { "reload": true, "call": "get_sessions", "reply": [{ "totalDuration": 240000 }] }
+  ]
+}

@@ -3,8 +3,8 @@
 // (fired when the app is closed; the OS launches the bundled app and the URL
 // carries the gzip-compressed payload).
 //
-// Both channels feed accept_capture_payload: the raw payload is stored in
-// AppState (latest wins) and a `work-log-payload-captured` event tells the
+// Both channels feed accept_capture_payload: the backend keeps the raw
+// payload (latest wins) and a `work-log-payload-captured` event tells the
 // frontend to fetch it via take_pending_work_log_capture. The event carries
 // only the timestamp so a payload arriving before the frontend mounts shares
 // the same take-on-mount code path.
@@ -20,13 +20,15 @@ use tauri::{AppHandle, Manager};
 use tiny_http::{Header, Method, Request, Response, Server};
 
 use crate::state::AppState;
-use taskmint_core::capture::{is_extension_origin, origin_allowed, payload_shape_ok};
+use taskmint_core::capture::{is_extension_origin, origin_allowed};
+use taskmint_core::command::{AcceptCaptureArgs, Command};
 use taskmint_core::contract::{
     CAPTURE_HEADER, CAPTURE_PATH, CAPTURE_SERVER_PORT, DEEP_LINK_CAPTURE_PENDING,
-    DEEP_LINK_IMPORT_WORKLOGS, DEEP_LINK_PAYLOAD_PARAM, DEEP_LINK_SCHEME, HEALTH_PATH,
-    MAX_CAPTURE_BODY_BYTES as MAX_BODY_BYTES, MAX_ENCODED_LINK_BYTES,
+    DEEP_LINK_IMPORT_WORKLOGS, DEEP_LINK_PAYLOAD_PARAM, DEEP_LINK_SCHEME,
+    ERR_UNEXPECTED_PAYLOAD_SHAPE, HEALTH_PATH, MAX_CAPTURE_BODY_BYTES as MAX_BODY_BYTES,
+    MAX_ENCODED_LINK_BYTES,
 };
-use taskmint_core::model::{CaptureSource, PendingCapture};
+use taskmint_core::model::CaptureSource;
 
 // ============================================================================
 // PURE PARSING (unit-tested; the origin and shape checks are in
@@ -105,32 +107,21 @@ pub fn parse_deep_link(url_str: &str) -> Option<DeepLinkAction> {
 // SHARED ACCEPTANCE PATH (HTTP + deep links)
 // ============================================================================
 
-/// Store a captured payload (latest wins) and notify the frontend.
+/// Keep a captured payload for the frontend (latest wins); the backend
+/// announces it with `work-log-payload-captured`, and the frontend also
+/// takes a pending capture when it mounts.
 pub fn accept_capture_payload(
-    app: &AppHandle,
     state: &AppState,
     body: String,
     source: CaptureSource,
 ) -> Result<(), String> {
-    if !payload_shape_ok(&body) {
-        return Err("unexpected payload shape".to_string());
-    }
-    let received_at = chrono::Utc::now().to_rfc3339();
-    state.with_pending_work_log_capture_mut(|slot| {
-        *slot = Some(PendingCapture {
+    state
+        .backend
+        .call(Command::AcceptCapture(AcceptCaptureArgs {
             payload: body,
-            received_at: received_at.clone(),
             source,
-        });
-    })?;
-    // Non-fatal, like the other backend emits: the frontend also takes the
-    // pending capture on mount.
-    crate::events::emit_quiet(
-        app,
-        crate::events::WORK_LOG_PAYLOAD_CAPTURED,
-        serde_json::json!({ "receivedAt": received_at }),
-    );
-    Ok(())
+        }))
+        .map(|_| ())
 }
 
 fn focus_main_window(app: &AppHandle) {
@@ -149,7 +140,7 @@ pub fn handle_deep_link_urls(app: &AppHandle, state: &AppState, urls: &[String])
             Some(DeepLinkAction::ImportPayload(encoded)) => {
                 recognized = true;
                 let result = decode_protocol_payload(&encoded)
-                    .and_then(|body| accept_capture_payload(app, state, body, CaptureSource::Link));
+                    .and_then(|body| accept_capture_payload(state, body, CaptureSource::Link));
                 if let Err(e) = result {
                     log::warn!("Ignoring taskmint:// import link: {}", e);
                 }
@@ -322,9 +313,9 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
                 );
                 return;
             }
-            match accept_capture_payload(app, state, body, CaptureSource::Extension) {
+            match accept_capture_payload(state, body, CaptureSource::Extension) {
                 Ok(()) => respond_json(request, 200, r#"{"status":"accepted"}"#, cors.as_deref()),
-                Err(e) if e == "unexpected payload shape" => {
+                Err(e) if e == ERR_UNEXPECTED_PAYLOAD_SHAPE => {
                     respond_json(
                         request,
                         400,
@@ -436,43 +427,5 @@ mod tests {
         assert_eq!(parse_deep_link("taskmint://unknown-action"), None);
         assert_eq!(parse_deep_link("taskmint://import-worklogs"), None); // no d param
         assert_eq!(parse_deep_link("not a url"), None);
-    }
-
-    // ---- pending-capture take semantics (plain state, no Tauri harness) ----
-
-    #[test]
-    fn pending_capture_is_taken_once_and_latest_wins() {
-        let state = AppState::new();
-
-        state
-            .with_pending_work_log_capture_mut(|slot| {
-                *slot = Some(PendingCapture {
-                    payload: "first".to_string(),
-                    received_at: "T1".to_string(),
-                    source: CaptureSource::Link,
-                });
-            })
-            .unwrap();
-        state
-            .with_pending_work_log_capture_mut(|slot| {
-                *slot = Some(PendingCapture {
-                    payload: "second".to_string(),
-                    received_at: "T2".to_string(),
-                    source: CaptureSource::Extension,
-                });
-            })
-            .unwrap();
-
-        let taken = state
-            .with_pending_work_log_capture_mut(|slot| slot.take())
-            .unwrap();
-        let taken = taken.unwrap();
-        assert_eq!(taken.payload, "second");
-        assert_eq!(taken.source, CaptureSource::Extension);
-
-        let second_take = state
-            .with_pending_work_log_capture_mut(|slot| slot.take())
-            .unwrap();
-        assert!(second_take.is_none());
     }
 }

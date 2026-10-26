@@ -1444,42 +1444,6 @@ fn updates_accept_camel_case_and_the_old_snake_case_keys() {
 // --- session commands ---------------------------------------------------------
 
 #[test]
-fn update_session_patches_notes_and_the_active_flag() {
-    let mut sessions = vec![
-        session_with("a", false, vec![]),
-        session_with("b", false, vec![]),
-    ];
-    let updates = SessionUpdates {
-        notes: Some("n".to_string()),
-        is_active: Some(true),
-    };
-
-    let updated = lifecycle::update_session(&mut sessions, "b", &updates, ts(9)).unwrap();
-
-    assert_eq!(updated.notes.as_deref(), Some("n"));
-    assert!(updated.is_active);
-    assert_eq!(updated.updated_at, ts(9).to_rfc3339());
-    assert_eq!(sessions[1], updated);
-
-    // An empty patch only stamps the session
-    let stamped =
-        lifecycle::update_session(&mut sessions, "a", &SessionUpdates::default(), ts(10)).unwrap();
-    assert_eq!(stamped.notes, None);
-    assert!(!stamped.is_active);
-    assert_eq!(
-        lifecycle::update_session(&mut sessions, "gone", &updates, ts(0)).unwrap_err(),
-        "Session with ID gone not found"
-    );
-}
-
-#[test]
-fn session_updates_accept_the_old_snake_case_flag() {
-    let updates: SessionUpdates =
-        serde_json::from_value(serde_json::json!({ "is_active": false })).unwrap();
-    assert_eq!(updates.is_active, Some(false));
-}
-
-#[test]
 fn activating_a_session_finalizes_the_others_live_timers() {
     let mut sessions = vec![
         session_with("a", true, vec![running("r", "a", 0)]),

@@ -1,0 +1,174 @@
+{
+  "name": "an imported ledger rewrites its day, and a browser capture is taken once",
+  "steps": [
+    { "call": "get_work_logs", "reply": { "entries": [], "mappings": [], "loadWarning": null } },
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "call": "add_manual_time",
+      "args": {
+        "taskId": "t1",
+        "taskName": "Writing",
+        "startTime": "2026-03-01T12:00:00Z",
+        "durationMs": 1800000
+      },
+      "save": { "tracked": "/timerInstances/0/id" },
+      "events": ["timer-instance-stopped"]
+    },
+    {
+      "call": "apply_work_log_import",
+      "args": {
+        "payload": {
+          "entries": [
+            {
+              "id": "e1",
+              "kind": "timed",
+              "createdAt": "2026-03-01T18:00:00.000Z",
+              "workDay": "2026-03-01",
+              "projectId": "p1",
+              "projectName": "Project One",
+              "taskId": "t1",
+              "taskName": "Writing",
+              "timeInMinutes": 90,
+              "amountCents": 9000,
+              "status": "approved"
+            }
+          ],
+          "mappings": [
+            {
+              "projectId": "p1",
+              "projectName": "Project One",
+              "taskId": "t1",
+              "taskName": "Writing"
+            }
+          ]
+        }
+      },
+      "reply": {
+        "entriesAdded": 1,
+        "entriesUpdated": 0,
+        "mappingsSaved": 1,
+        "groupsApplied": [],
+        "groupsSkipped": []
+      }
+    },
+    {
+      "call": "apply_work_log_import",
+      "args": {
+        "payload": {
+          "rewriteGroups": [
+            {
+              "taskId": "t1",
+              "workDay": "2026-03-01",
+              "deleteInstanceIds": ["$tracked"],
+              "replacementSession": {
+                "id": "session_import_1",
+                "taskId": "t1",
+                "taskName": "Old name",
+                "timerInstances": [
+                  {
+                    "id": "instance_import_1",
+                    "sessionId": "session_import_1",
+                    "startTime": "2026-03-01T16:30:00Z",
+                    "endTime": "2026-03-01T18:00:00Z",
+                    "duration": 5400000,
+                    "pausedAt": null,
+                    "pausedDuration": 0,
+                    "resumedAt": null,
+                    "externalId": "e1",
+                    "notes": null
+                  }
+                ],
+                "notes": null,
+                "date": "2026-03-01"
+              }
+            },
+            { "taskId": "t1", "workDay": "2026-03-02", "blockingInstanceIds": ["instance_live"] }
+          ]
+        }
+      },
+      "reply": {
+        "entriesAdded": 0,
+        "groupsApplied": [
+          {
+            "taskId": "t1",
+            "workDay": "2026-03-01",
+            "deletedInstances": 1,
+            "sessionId": "session_import_1"
+          }
+        ],
+        "groupsSkipped": [
+          {
+            "workDay": "2026-03-02",
+            "reason": "a timer is running or paused on 2026-03-02; stop it first, then re-import"
+          }
+        ]
+      },
+      "events": ["work-logs-imported"]
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [
+        {
+          "id": "session_import_1",
+          "source": "worklog-import",
+          "taskName": "Writing",
+          "hourlyRate": 60,
+          "totalDuration": 5400000
+        }
+      ]
+    },
+    {
+      "call": "get_work_logs",
+      "reply": {
+        "entries": [{ "id": "e1", "amountCents": 9000 }],
+        "mappings": [{ "projectId": "p1" }],
+        "loadWarning": null
+      }
+    },
+    {
+      "call": "move_timer_instance",
+      "args": { "instanceId": "instance_import_1", "taskId": "t1", "taskName": "Writing" },
+      "error": "Imported time changes only through a work-log import"
+    },
+    { "call": "take_pending_work_log_capture", "reply": null },
+    {
+      "call": "accept_capture",
+      "args": { "payload": "{\"timedWorkEntries\": []}", "source": "link" },
+      "reply": null,
+      "events": ["work-log-payload-captured"]
+    },
+    {
+      "call": "accept_capture",
+      "args": { "payload": "{\"workLogs\": []}", "source": "extension" },
+      "events": ["work-log-payload-captured"]
+    },
+    {
+      "call": "accept_capture",
+      "args": { "payload": "[]", "source": "extension" },
+      "error": "unexpected payload shape"
+    },
+    {
+      "call": "take_pending_work_log_capture",
+      "reply": {
+        "payload": "{\"workLogs\": []}",
+        "source": "extension",
+        "receivedAt": "2026-03-02T15:00:00+00:00"
+      }
+    },
+    { "call": "take_pending_work_log_capture", "reply": null }
+  ]
+}

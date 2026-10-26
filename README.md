@@ -280,8 +280,11 @@ packages/client/             React app (@taskmint/client)
 crates/taskmint-core/        Business rules shared by every host: sessions, timers, work-log
                              import, restore, idle, the wire contract (pure: no I/O, no clock)
 apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri shell
-  src-tauri/src/commands/    IPC commands: lock, call taskmint-core, save, emit
-  src-tauri/src/storage.rs   sessions.json / worklogs.json / appdata.json persistence and .bak copies
+  src/tauriBackend.ts        The client's Backend: every call goes through dispatch
+  src-tauri/src/dispatch.rs  The one IPC command: shell commands here, data commands to the backend
+  src-tauri/src/backend/     LocalBackend: one lock, run taskmint-core on a copy, save, then swap
+  src-tauri/src/store/       sessions.json / worklogs.json / appdata.json and their .bak copies
+  src-tauri/src/files.rs     Save/open dialogs, the backup folder, showing a file in Finder
   src-tauri/src/capture_server.rs  localhost capture server and taskmint:// deep links
   src-tauri/src/tray.rs      System tray
   src-tauri/src/config.rs    Constants

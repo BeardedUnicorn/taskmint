@@ -1,0 +1,126 @@
+{
+  "name": "added time moves to another task, and a deleted session comes back",
+  "steps": [
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "hourlyRate": 50,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          },
+          {
+            "id": "t2",
+            "name": "Reviews",
+            "hourlyRate": 40,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "call": "add_manual_time",
+      "args": {
+        "taskId": " t1 ",
+        "taskName": "Writing",
+        "startTime": "2026-03-01T10:00:00Z",
+        "durationMs": 3600000
+      },
+      "reply": {
+        "taskId": "t1",
+        "source": "manual",
+        "isActive": false,
+        "hourlyRate": 50,
+        "totalDuration": 3600000,
+        "timerInstances": [
+          {
+            "startTime": "2026-03-01T10:00:00Z",
+            "endTime": "2026-03-01T11:00:00Z",
+            "duration": 3600000
+          }
+        ]
+      },
+      "save": { "logged": "/timerInstances/0/id" },
+      "events": ["timer-instance-stopped"]
+    },
+    {
+      "call": "add_manual_time",
+      "args": {
+        "taskId": "t1",
+        "taskName": "Writing",
+        "startTime": "yesterday",
+        "durationMs": 60000
+      },
+      "error": "Invalid start time: input contains invalid characters"
+    },
+    {
+      "call": "add_manual_time",
+      "args": {
+        "taskId": "t1",
+        "taskName": "Writing",
+        "startTime": "2026-03-01T12:00:00Z",
+        "durationMs": 0
+      },
+      "error": "Duration must be greater than zero"
+    },
+    {
+      "call": "move_timer_instance",
+      "args": { "instanceId": "$logged", "taskId": "t2", "taskName": "Reviews" },
+      "save": { "session": "" },
+      "events": ["sessions-changed"]
+    },
+    {
+      "call": "move_timer_instance",
+      "args": { "instanceId": "$logged", "taskId": "t2", "taskName": "Reviews" },
+      "reply": "$session"
+    },
+    {
+      "call": "move_timer_instance",
+      "args": { "instanceId": "$logged", "taskId": "t9", "taskName": "Gone" },
+      "error": "That task no longer exists"
+    },
+    {
+      "call": "move_timer_instance",
+      "args": { "instanceId": "$logged", "taskId": "t1", "taskName": " " },
+      "error": "Choose a task to move this time to"
+    },
+    {
+      "call": "get_sessions",
+      "reply": [{ "id": "$session", "taskId": "t2", "taskName": "Reviews", "hourlyRate": 40 }]
+    },
+    {
+      "call": "delete_session",
+      "args": { "sessionId": "$session" },
+      "reply": { "id": "$session", "taskId": "t2" },
+      "save": { "deleted": "" },
+      "events": ["sessions-changed"]
+    },
+    { "call": "get_sessions", "reply": [] },
+    {
+      "call": "delete_session",
+      "args": { "sessionId": "session_gone" },
+      "error": "Session with ID session_gone not found"
+    },
+    {
+      "call": "restore_session",
+      "args": { "session": "$deleted" },
+      "reply": { "id": "$session" },
+      "events": ["sessions-changed"]
+    },
+    {
+      "call": "restore_session",
+      "args": { "session": "$deleted" },
+      "error": "This session already exists"
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [{ "id": "$session", "totalDuration": 3600000 }]
+    }
+  ]
+}
