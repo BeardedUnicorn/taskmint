@@ -3,15 +3,17 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { BACKEND_EVENTS } from '../events';
 
-/** `pub const NAME: &str = "value";` pairs from the backend's events.rs. */
+/** `pub const NAME: &str = "value";` pairs from the `events` module of the core contract. */
 function backendEvents(): Record<string, string> {
-  const source = readFileSync(resolve(__dirname, '../../../../../apps/desktop/src-tauri/src/events.rs'), 'utf8');
-  const pairs = [...source.matchAll(/pub const (\w+): &str = "([^"]+)";/g)];
+  const source = readFileSync(resolve(__dirname, '../../../../../crates/taskmint-core/src/contract.rs'), 'utf8');
+  const [, events = ''] = source.split('pub mod events {');
+  const body = events.split('\n}')[0];
+  const pairs = [...body.matchAll(/pub const (\w+): &str = "([^"]+)";/g)];
   return Object.fromEntries(pairs.map(([, name, value]) => [name, value]));
 }
 
 describe('backend event names', () => {
-  it('match apps/desktop/src-tauri/src/events.rs exactly', () => {
+  it('match the events in crates/taskmint-core/src/contract.rs exactly', () => {
     expect(BACKEND_EVENTS).toEqual(backendEvents());
   });
 });

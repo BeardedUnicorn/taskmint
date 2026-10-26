@@ -32,6 +32,11 @@ cargo run -q -p taskmint-server -- migrate
 step "Rust tests"
 cargo test --workspace
 
+step "Rust coverage: taskmint-core at 100%"
+cargo llvm-cov -p taskmint-core --summary-only \
+  --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex crates/taskmint-core)" \
+  --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
+
 step "Server query metadata (.sqlx) matches the queries"
 (cd apps/server && cargo sqlx prepare --check)
 

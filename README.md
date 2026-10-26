@@ -124,9 +124,12 @@ pnpm typecheck                    # tsc for sources and tests, every package
 pnpm build                        # tsc for every package + desktop vite build
 pnpm test                         # vitest in every package
 pnpm test:coverage                # vitest with enforced coverage floors
-cargo test                        # Rust workspace tests (server tests need DATABASE_URL; see "Server")
+cargo test --workspace            # Rust tests (bare `cargo` skips the desktop crate;
+                                  # server tests need DATABASE_URL, see "Server")
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
+cargo llvm-cov -p taskmint-core --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100  # verify.sh adds the policy's ignore regex
+cargo llvm-cov -p taskmint-server --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100  # likewise; needs DATABASE_URL
 node scripts/check-coverage-policy.mjs   # see docs/coverage-policy.md
 ```
 
@@ -271,8 +274,10 @@ packages/client/             React app (@taskmint/client)
   src/utils/                 Pure logic: time math, payouts, work-log import, Sentry
   src/types/                 Shared types and zod schemas
   public/                    Favicon and logos
+crates/taskmint-core/        Business rules shared by every host: sessions, timers, work-log
+                             import, restore, idle, the wire contract (pure: no I/O, no clock)
 apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri shell
-  src-tauri/src/commands/    IPC commands (sessions, worklogs, restore, backup, reset, …)
+  src-tauri/src/commands/    IPC commands: lock, call taskmint-core, save, emit
   src-tauri/src/storage.rs   sessions.json / worklogs.json / appdata.json persistence and .bak copies
   src-tauri/src/capture_server.rs  localhost capture server and taskmint:// deep links
   src-tauri/src/tray.rs      System tray

@@ -1,7 +1,8 @@
 // Backup-related command handlers
 
 use crate::backup;
-use crate::types::{BackupResult, PathValidationResult};
+use taskmint_core::contract::{EXPORT_CANCELLED, IMPORT_CANCELLED, INVALID_JSON_FILE};
+use taskmint_core::model::{BackupResult, PathValidationResult};
 
 #[tauri::command]
 pub async fn validate_backup_path(path: String) -> Result<PathValidationResult, String> {
@@ -16,10 +17,6 @@ pub async fn perform_automatic_backup(
 ) -> Result<BackupResult, String> {
     backup::perform_automatic_backup(&backup_path, &current_data_json, max_backups)
 }
-
-/// The error a cancelled save dialog returns; the frontend matches it to stay
-/// quiet on cancel.
-pub const EXPORT_CANCELLED: &str = "Export cancelled by user";
 
 /// A file name for the save dialog: no directory parts, and ending in
 /// `.{extension}` (added when missing).
@@ -127,13 +124,13 @@ pub async fn import_data_from_file(app: tauri::AppHandle) -> Result<String, Stri
                     // Validate that it's valid JSON
                     match serde_json::from_str::<serde_json::Value>(&file_contents) {
                         Ok(_) => Ok(file_contents),
-                        Err(e) => Err(format!("Invalid JSON file: {}", e)),
+                        Err(e) => Err(format!("{}: {}", INVALID_JSON_FILE, e)),
                     }
                 }
                 Err(e) => Err(format!("Failed to read import file: {}", e)),
             }
         }
-        None => Err("Import cancelled by user".to_string()),
+        None => Err(IMPORT_CANCELLED.to_string()),
     }
 }
 

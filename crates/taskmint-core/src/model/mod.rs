@@ -1,4 +1,7 @@
-// Core application types and data structures
+//! The records TaskMint stores and the frontend reads. Field names are part
+//! of the wire contract (camelCase, with per-field renames on the session
+//! types), and so is the tolerance on load: new fields default, so older
+//! files and older frontends keep working.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -23,7 +26,7 @@ pub struct Task {
 }
 
 // Backup result structure. camelCase like every type the frontend reads
-// (BackupResult in src/types/backup.ts).
+// (BackupResult in packages/client/src/types/backup.ts).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupResult {
@@ -98,8 +101,8 @@ pub struct TaskSession {
     pub notes: Option<String>,
     #[serde(rename = "isActive", default)]
     pub is_active: bool,
-    // "worklog-import" for sessions synthesized from imported work-log entries
-    // (must match WORKLOG_IMPORT_SOURCE in src/types/workLog.ts).
+    // WORKLOG_IMPORT_SOURCE for sessions synthesized from imported work-log
+    // entries, MANUAL_SOURCE for "Add time" (see contract).
     #[serde(default)]
     pub source: Option<String>,
     // The task's hourly rate when the session started (or, for imports, the
@@ -120,7 +123,7 @@ pub struct TaskSession {
 // ============================================================================
 
 // Ledger record kinds. Wire values match the frontend zod enum in
-// src/types/workLog.ts.
+// packages/client/src/types/workLog.ts.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum WorkLogKind {
     #[serde(rename = "timed")]
@@ -165,7 +168,7 @@ pub struct WorkLogEntry {
 }
 
 // How a captured payload reached the app. Must match CaptureSource in
-// src/types/workLog.ts.
+// packages/client/src/types/workLog.ts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureSource {
@@ -363,5 +366,21 @@ mod tests {
         let value = serde_json::to_value(&mapping).expect("mapping should serialize");
         assert_eq!(value.get("projectId"), Some(&json!("proj-1")));
         assert_eq!(value.get("taskId"), Some(&json!("task-1")));
+    }
+
+    #[test]
+    fn capture_source_reaches_the_frontend_as_lowercase() {
+        let link = PendingCapture {
+            payload: "{}".to_string(),
+            received_at: "T".to_string(),
+            source: CaptureSource::Link,
+        };
+        let json = serde_json::to_value(&link).unwrap();
+        assert_eq!(json["source"], "link");
+        assert_eq!(json["receivedAt"], "T");
+        assert_eq!(
+            serde_json::to_value(CaptureSource::Extension).unwrap(),
+            "extension"
+        );
     }
 }

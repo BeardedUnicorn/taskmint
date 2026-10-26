@@ -2,7 +2,7 @@
  * Timer Instance Helpers
  *
  * Shared elapsed-time math for timer instances. This must mirror the backend's
- * stop computation in apps/desktop/src-tauri/src/commands/sessions.rs: tracked time is
+ * stop computation in crates/taskmint-core/src/timer.rs: tracked time is
  * (elapsed since startTime) minus the accumulated pause time, so the live
  * display never jumps when a timer is paused, resumed, or stopped.
  */

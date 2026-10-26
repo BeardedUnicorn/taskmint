@@ -1,5 +1,7 @@
-//! Events the backend sends the frontend. The names are mirrored in
-//! src/constants/events.ts (a frontend test checks the two lists agree).
+//! Events the backend sends the frontend. The names are in
+//! taskmint_core::contract::events, mirrored in
+//! packages/client/src/constants/events.ts (a frontend test checks the two
+//! lists agree).
 //!
 //! Every event is sent after its change is saved, so a failed emit only
 //! delays the frontend's refresh: it's logged, never turned into a command
@@ -9,22 +11,8 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-pub const TIMER_INSTANCE_STARTED: &str = "timer-instance-started";
-pub const TIMER_INSTANCE_STOPPED: &str = "timer-instance-stopped";
-pub const TIMER_INSTANCE_PAUSED: &str = "timer-instance-paused";
-pub const TIMER_INSTANCE_RESUMED: &str = "timer-instance-resumed";
-pub const TIMER_INSTANCE_DELETED: &str = "timer-instance-deleted";
-/// Sessions changed outside a timer action (a task rename, a moved timer, a
-/// restore); the frontend reloads its sessions.
-pub const SESSIONS_CHANGED: &str = "sessions-changed";
-pub const WORK_LOGS_IMPORTED: &str = "work-logs-imported";
-pub const WORK_LOG_PAYLOAD_CAPTURED: &str = "work-log-payload-captured";
-pub const IDLE_RETURNED: &str = "idle-returned";
-pub const IDLE_RESOLVED: &str = "idle-resolved";
-pub const SHOW_START_TASK_DIALOG: &str = "show-start-task-dialog";
-/// A notification the backend showed itself (long-run, idle pause), for the
-/// frontend's notification history.
-pub const NOTIFICATION_POSTED: &str = "notification-posted";
+// The event names (wire contract, mirrored by the frontend).
+pub use taskmint_core::contract::events::*;
 
 /// Send an event; a failure is logged, not returned (see the module docs).
 pub fn emit_quiet<P: Serialize + Clone>(app: &AppHandle, event: &str, payload: P) {

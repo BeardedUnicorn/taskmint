@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["apps/desktop/src-tauri", "apps/server"]
-# Plain `cargo build/test` skip the desktop crate: it needs WebKitGTK on Linux.
-# Build it with `-p taskmint`.
-default-members = ["apps/server"]
+members = ["crates/taskmint-core", "apps/desktop/src-tauri", "apps/server"]
+# The desktop crate needs WebKitGTK on Linux, so plain `cargo` commands at the
+# root leave it out; `--workspace` or `-p taskmint` includes it.
+default-members = ["crates/taskmint-core", "apps/server"]
 
 # Password hashing is far too slow unoptimized; tests and dev builds hash a lot.
 [profile.dev.package.argon2]

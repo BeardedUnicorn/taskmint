@@ -2,8 +2,9 @@
 // its history) in appdata.json. Values are opaque JSON the frontend
 // validates; these commands only store them.
 
-use crate::storage::{self, RecordMap};
+use crate::storage;
 use serde::Serialize;
+use taskmint_core::records::RecordMap;
 use tauri::AppHandle;
 
 #[derive(Debug, Serialize)]

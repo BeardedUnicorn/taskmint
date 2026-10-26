@@ -10,7 +10,7 @@ import { errorMessage } from '../utils/errors';
 import { isTauriEnvironment } from '../utils/tauri';
 import { revealAction } from '../utils/reveal';
 
-/** Paired with EXPORT_CANCELLED in apps/desktop/src-tauri/src/commands/backup.rs. */
+/** Paired with EXPORT_CANCELLED in crates/taskmint-core/src/contract.rs. */
 export const EXPORT_CANCELLED = 'Export cancelled by user';
 
 function downloadInBrowser(csv: string, fileName: string) {

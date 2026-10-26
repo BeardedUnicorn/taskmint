@@ -20,50 +20,18 @@ use tauri::{AppHandle, Manager};
 use tiny_http::{Header, Method, Request, Response, Server};
 
 use crate::state::AppState;
-use crate::types::{CaptureSource, PendingCapture};
-
-pub const CAPTURE_SERVER_PORT: u16 = 43117;
-const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
-// Deep-link payloads ride in a URL, bounded by Windows' ~32K command-line
-// limit; the extension enforces the same ceiling before firing the link.
-const MAX_ENCODED_LINK_BYTES: usize = 64 * 1024;
+use taskmint_core::capture::{is_extension_origin, origin_allowed, payload_shape_ok};
+use taskmint_core::contract::{
+    CAPTURE_HEADER, CAPTURE_PATH, CAPTURE_SERVER_PORT, DEEP_LINK_CAPTURE_PENDING,
+    DEEP_LINK_IMPORT_WORKLOGS, DEEP_LINK_PAYLOAD_PARAM, DEEP_LINK_SCHEME, HEALTH_PATH,
+    MAX_CAPTURE_BODY_BYTES as MAX_BODY_BYTES, MAX_ENCODED_LINK_BYTES,
+};
+use taskmint_core::model::{CaptureSource, PendingCapture};
 
 // ============================================================================
-// PURE VALIDATION (unit-tested)
+// PURE PARSING (unit-tested; the origin and shape checks are in
+// taskmint_core::capture)
 // ============================================================================
-
-/// The TaskMint capture extension. Its ID is fixed by the public `key` in
-/// apps/extension/manifest.json; any other extension is refused.
-pub const CAPTURE_EXTENSION_ORIGIN: &str = "chrome-extension://akokpjpnondkhammgcndnffildbbapga";
-
-/// A POST without an Origin header comes from a native tool (curl, scripts) —
-/// allowed for local testing; such a process already has the user's access.
-/// Browser requests always carry Origin, and only the TaskMint extension's is
-/// accepted, not every installed extension's.
-pub fn origin_allowed(origin: Option<&str>) -> bool {
-    match origin {
-        None => true,
-        Some(origin) => origin == CAPTURE_EXTENSION_ORIGIN,
-    }
-}
-
-/// Whether CORS response headers should be echoed (the TaskMint extension only).
-pub fn is_extension_origin(origin: Option<&str>) -> bool {
-    origin == Some(CAPTURE_EXTENSION_ORIGIN)
-}
-
-/// Light shape check — full validation happens in the frontend pipeline. A
-/// valid capture is a JSON object with workLogs and/or timedWorkEntries
-/// arrays (the site's payload shape).
-pub fn payload_shape_ok(body: &str) -> bool {
-    match serde_json::from_str::<serde_json::Value>(body) {
-        Ok(serde_json::Value::Object(map)) => {
-            map.get("workLogs").is_some_and(|v| v.is_array())
-                || map.get("timedWorkEntries").is_some_and(|v| v.is_array())
-        }
-        _ => false,
-    }
-}
 
 /// tiny_http's request.url() is path + query; route on the path only.
 pub fn split_path(url: &str) -> &str {
@@ -104,7 +72,7 @@ pub enum DeepLinkAction {
 
 pub fn parse_deep_link(url_str: &str) -> Option<DeepLinkAction> {
     let url = url::Url::parse(url_str).ok()?;
-    if url.scheme() != "taskmint" {
+    if url.scheme() != DEEP_LINK_SCHEME {
         return None;
     }
     // The action may surface as the host (taskmint://import-worklogs) or the
@@ -124,11 +92,11 @@ pub fn parse_deep_link(url_str: &str) -> Option<DeepLinkAction> {
         })?;
 
     match action.as_str() {
-        "import-worklogs" => url
+        DEEP_LINK_IMPORT_WORKLOGS => url
             .query_pairs()
-            .find(|(key, _)| key == "d")
+            .find(|(key, _)| key == DEEP_LINK_PAYLOAD_PARAM)
             .map(|(_, value)| DeepLinkAction::ImportPayload(value.into_owned())),
-        "capture-pending" => Some(DeepLinkAction::CapturePending),
+        DEEP_LINK_CAPTURE_PENDING => Some(DeepLinkAction::CapturePending),
         _ => None,
     }
 }
@@ -285,7 +253,7 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
     let has_capture_marker = request
         .headers()
         .iter()
-        .any(|h| h.field.equiv("X-TaskMint-Capture"));
+        .any(|h| h.field.equiv(CAPTURE_HEADER));
     let origin_ref = origin.as_deref();
     let cors = if is_extension_origin(origin_ref) {
         origin.clone()
@@ -294,7 +262,7 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
     };
 
     match (method, path.as_str()) {
-        (Method::Options, "/api/work-log-payload") => {
+        (Method::Options, CAPTURE_PATH) => {
             match &cors {
                 // Only extension preflights succeed; a cross-origin web
                 // page's JSON POST dies here.
@@ -302,7 +270,7 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
                 None => respond_json(request, 403, r#"{"error":"forbidden origin"}"#, None),
             }
         }
-        (Method::Post, "/api/work-log-payload") => {
+        (Method::Post, CAPTURE_PATH) => {
             if !origin_allowed(origin_ref) {
                 respond_json(request, 403, r#"{"error":"forbidden origin"}"#, None);
                 return;
@@ -374,7 +342,7 @@ fn handle_request(app: &AppHandle, state: &AppState, mut request: Request) {
                 }
             }
         }
-        (Method::Get, "/api/health") => {
+        (Method::Get, HEALTH_PATH) => {
             let body = format!(
                 r#"{{"app":"TaskMint","version":"{}"}}"#,
                 app.package_info().version
@@ -390,11 +358,6 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    fn sha256(data: &[u8]) -> Vec<u8> {
-        use sha2::{Digest, Sha256};
-        Sha256::digest(data).to_vec()
-    }
-
     fn gzip_base64url(text: &str) -> String {
         let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         encoder.write_all(text.as_bytes()).unwrap();
@@ -402,70 +365,7 @@ mod tests {
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(compressed)
     }
 
-    // ---- origin checks -----------------------------------------------------
-
-    #[test]
-    fn origin_allowed_permits_native_callers_and_only_the_taskmint_extension() {
-        assert!(origin_allowed(None));
-        assert!(origin_allowed(Some(CAPTURE_EXTENSION_ORIGIN)));
-        // Any other installed extension is refused.
-        assert!(!origin_allowed(Some("chrome-extension://abcdefghijklmnop")));
-        assert!(!origin_allowed(Some(&format!(
-            "{}x",
-            CAPTURE_EXTENSION_ORIGIN
-        ))));
-        assert!(!origin_allowed(Some("https://evil.example")));
-        assert!(!origin_allowed(Some("http://127.0.0.1:1420")));
-        assert!(!origin_allowed(Some("")));
-        assert!(!origin_allowed(Some("null")));
-    }
-
-    #[test]
-    fn cors_is_echoed_only_for_the_taskmint_extension() {
-        assert!(!is_extension_origin(None));
-        assert!(is_extension_origin(Some(CAPTURE_EXTENSION_ORIGIN)));
-        assert!(!is_extension_origin(Some("chrome-extension://abc")));
-        assert!(!is_extension_origin(Some(
-            "https://app.dataannotation.tech"
-        )));
-    }
-
-    #[test]
-    fn pinned_origin_matches_the_manifest_key() {
-        // The extension ID is the first 32 hex chars of SHA-256(public key DER),
-        // mapped 0-f to a-p. Recompute it from the manifest so the two can't drift.
-        let manifest: serde_json::Value =
-            serde_json::from_str(include_str!("../../../extension/manifest.json")).unwrap();
-        let key = manifest["key"].as_str().expect("manifest key");
-        let der = base64::engine::general_purpose::STANDARD
-            .decode(key)
-            .unwrap();
-        let digest = sha256(&der);
-        let id: String = digest
-            .iter()
-            .take(16)
-            .flat_map(|byte| [byte >> 4, byte & 0x0f])
-            .map(|nibble| (b'a' + nibble) as char)
-            .collect();
-        assert_eq!(
-            format!("chrome-extension://{}", id),
-            CAPTURE_EXTENSION_ORIGIN
-        );
-    }
-
-    // ---- shape + path ------------------------------------------------------
-
-    #[test]
-    fn payload_shape_requires_an_object_with_a_known_array() {
-        assert!(payload_shape_ok(r#"{"workLogs":[]}"#));
-        assert!(payload_shape_ok(r#"{"timedWorkEntries":[{"id":"x"}]}"#));
-        assert!(payload_shape_ok(r#"{"workLogs":[],"timedWorkEntries":[]}"#));
-        assert!(!payload_shape_ok(r#"{"workLogs":{}}"#));
-        assert!(!payload_shape_ok(r#"{}"#));
-        assert!(!payload_shape_ok(r#"[]"#));
-        assert!(!payload_shape_ok(r#""text""#));
-        assert!(!payload_shape_ok("not json"));
-    }
+    // ---- path --------------------------------------------------------------
 
     #[test]
     fn split_path_drops_the_query() {
@@ -574,21 +474,5 @@ mod tests {
             .with_pending_work_log_capture_mut(|slot| slot.take())
             .unwrap();
         assert!(second_take.is_none());
-    }
-
-    #[test]
-    fn capture_source_reaches_the_frontend_as_lowercase() {
-        let link = PendingCapture {
-            payload: "{}".to_string(),
-            received_at: "T".to_string(),
-            source: CaptureSource::Link,
-        };
-        let json = serde_json::to_value(&link).unwrap();
-        assert_eq!(json["source"], "link");
-        assert_eq!(json["receivedAt"], "T");
-        assert_eq!(
-            serde_json::to_value(CaptureSource::Extension).unwrap(),
-            "extension"
-        );
     }
 }
