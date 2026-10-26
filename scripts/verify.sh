@@ -24,7 +24,24 @@ cargo fmt --all --check
 step "Rust lints"
 cargo clippy --workspace --all-targets -- -D warnings
 
+step "Server database (compose db; the server tests make their own databases on it)"
+docker compose up -d --wait db
+export DATABASE_URL="postgres://taskmint:${POSTGRES_PASSWORD:-taskmint}@127.0.0.1:${DB_PORT:-5433}/taskmint"
+cargo run -q -p taskmint-server -- migrate
+
 step "Rust tests"
 cargo test --workspace
+
+step "Server query metadata (.sqlx) matches the queries"
+(cd apps/server && cargo sqlx prepare --check)
+
+step "Server coverage (100%)"
+cargo llvm-cov -p taskmint-server \
+  --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100 \
+  --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/server)"
+
+step "Server image and compose stack"
+docker compose up --build -d --wait db migrate server
+curl -fsS "http://127.0.0.1:${SERVER_PORT:-3000}/healthz" && echo
 
 printf '\nAll gates passed.\n'

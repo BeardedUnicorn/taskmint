@@ -45,6 +45,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # The image's HEALTHCHECK is for `serve`; this one runs and exits.
+    healthcheck:
+      disable: true
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
