@@ -9,7 +9,8 @@
     ],
     "packages": {
       "apps/desktop": [],
-      "packages/client": []
+      "packages/client": [],
+      "packages/contracts": []
     }
   },
   "rust": {

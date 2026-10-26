@@ -28,15 +28,12 @@ pub const IMPORT_CANCELLED: &str = "Import cancelled by user";
 /// message follows); useDataBackup matches "Invalid JSON".
 pub const INVALID_JSON_FILE: &str = "Invalid JSON file";
 
-/// The substrings the frontend looks for in the errors above.
-pub const MATCHED_ERROR_SUBSTRINGS: [&str; 6] = [
-    "inactive session",
-    "Another timer instance is already running",
-    "timer is not running",
-    "Export cancelled by user",
-    "Import cancelled by user",
-    "Invalid JSON",
-];
+/// The parts of those errors the frontend looks for (the cancelled ones it
+/// matches whole).
+pub const PART_INACTIVE_SESSION: &str = "inactive session";
+pub const PART_ANOTHER_TIMER_RUNNING: &str = "Another timer instance is already running";
+pub const PART_NOT_RUNNING: &str = "timer is not running";
+pub const PART_INVALID_JSON: &str = "Invalid JSON";
 
 // ============================================================================
 // SESSIONS
@@ -173,17 +170,13 @@ mod tests {
     }
 
     #[test]
-    fn each_matched_substring_is_in_the_errors_it_recovers_from() {
-        let [inactive, another, not_running, export, import, invalid_json] =
-            MATCHED_ERROR_SUBSTRINGS;
-        assert!(ERR_START_INACTIVE_SESSION.contains(inactive));
-        assert!(ERR_RESUME_INACTIVE_SESSION.contains(inactive));
-        assert!(ERR_ANOTHER_TIMER_RUNNING.contains(another));
-        assert!(ERR_STOP_NOT_RUNNING.contains(not_running));
-        assert!(ERR_PAUSE_NOT_RUNNING.contains(not_running));
-        assert_eq!(EXPORT_CANCELLED, export);
-        assert_eq!(IMPORT_CANCELLED, import);
-        assert!(INVALID_JSON_FILE.contains(invalid_json));
+    fn each_matched_part_is_in_the_errors_it_recovers_from() {
+        assert!(ERR_START_INACTIVE_SESSION.contains(PART_INACTIVE_SESSION));
+        assert!(ERR_RESUME_INACTIVE_SESSION.contains(PART_INACTIVE_SESSION));
+        assert!(ERR_ANOTHER_TIMER_RUNNING.contains(PART_ANOTHER_TIMER_RUNNING));
+        assert!(ERR_STOP_NOT_RUNNING.contains(PART_NOT_RUNNING));
+        assert!(ERR_PAUSE_NOT_RUNNING.contains(PART_NOT_RUNNING));
+        assert!(INVALID_JSON_FILE.contains(PART_INVALID_JSON));
     }
 
     #[test]

@@ -277,6 +277,8 @@ packages/client/             React app (@taskmint/client)
   src/utils/                 Pure logic: time math, payouts, work-log import, Sentry
   src/types/                 Shared types and zod schemas
   public/                    Favicon and logos
+packages/contracts/          Wire types, CommandMap and constants (@taskmint/contracts),
+                             generated from taskmint-core: don't edit src/generated
 crates/taskmint-core/        Business rules shared by every host: sessions, timers, work-log
                              import, restore, idle, the wire contract (pure: no I/O, no clock)
 apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri shell
@@ -295,4 +297,12 @@ apps/server/                 Server (taskmint-server): axum + Postgres, see "Ser
   .sqlx/                     Query metadata for offline builds (cargo sqlx prepare)
   tests/api/                 HTTP and CLI tests against Postgres
 docs/                        ADRs and the coverage policy
+```
+
+After changing a wire type, a command, or a constant in
+`crates/taskmint-core/src/contract.rs`, regenerate the TypeScript and commit
+it with the Rust (`scripts/verify.sh` fails while they differ):
+
+```bash
+cargo test -p taskmint-core --features ts --test contracts
 ```

@@ -25,7 +25,7 @@ function instance(overrides: Partial<TimerInstance>): TimerInstance {
   return {
     id: 'instance_1',
     sessionId: 'session_1',
-    startTime: new Date(T0),
+    startTime: new Date(T0).toISOString(),
     state: TimerState.idle,
     createdAt: new Date(T0).toISOString(),
     updatedAt: new Date(T0).toISOString(),
@@ -52,7 +52,7 @@ describe('getInstanceElapsedMs', () => {
     // ran 60s, paused 30s, resumed, ran 20s, paused again at t=110s
     const i = instance({
       state: TimerState.paused,
-      pausedAt: new Date(T0 + sec(110)),
+      pausedAt: new Date(T0 + sec(110)).toISOString(),
       pausedDuration: sec(30),
     });
     // tracked = 110 - 30 = 80s, regardless of "now"
@@ -71,7 +71,7 @@ describe('getInstanceElapsedMs', () => {
 
     const stopped = instance({
       state: TimerState.stopped,
-      endTime: new Date(T0 + sec(120)),
+      endTime: new Date(T0 + sec(120)).toISOString(),
       duration: sec(90),
       pausedDuration: sec(30),
     });
@@ -86,7 +86,7 @@ describe('getInstanceElapsedMs', () => {
   it('never returns a negative value', () => {
     const i = instance({
       state: TimerState.running,
-      startTime: new Date(T0 + sec(1000)), // start in the future
+      startTime: new Date(T0 + sec(1000)).toISOString(), // start in the future
     });
     expect(getInstanceElapsedMs(i, T0)).toBe(0);
   });
@@ -94,8 +94,8 @@ describe('getInstanceElapsedMs', () => {
   it('accepts ISO-string timestamps as delivered over IPC', () => {
     const i = instance({
       state: TimerState.paused,
-      startTime: new Date(T0).toISOString() as unknown as Date,
-      pausedAt: new Date(T0 + sec(50)).toISOString() as unknown as Date,
+      startTime: new Date(T0).toISOString(),
+      pausedAt: new Date(T0 + sec(50)).toISOString(),
       pausedDuration: sec(10),
     });
     expect(getInstanceElapsedMs(i)).toBe(sec(40));
@@ -124,7 +124,7 @@ describe('getSessionElapsedMs', () => {
       instance({
         id: 'b',
         state: TimerState.paused,
-        pausedAt: new Date(T0 + sec(50)),
+        pausedAt: new Date(T0 + sec(50)).toISOString(),
         pausedDuration: sec(10),
       }),
       // live: (100 - 30) = 70s at nowMs
@@ -148,22 +148,22 @@ describe('getInstanceDateString', () => {
   const localNoon = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0);
 
   it('returns the local date the instance started on', () => {
-    const i = instance({ startTime: localNoon(2026, 8, 18) });
+    const i = instance({ startTime: localNoon(2026, 8, 18).toISOString() });
     expect(getInstanceDateString(i)).toBe('2026-08-18');
   });
 
   it('accepts ISO-string timestamps as delivered over IPC', () => {
     const i = instance({
-      startTime: localNoon(2026, 8, 17).toISOString() as unknown as Date,
+      startTime: localNoon(2026, 8, 17).toISOString(),
     });
     expect(getInstanceDateString(i)).toBe('2026-08-17');
   });
 
   it('falls back to the provided date for missing or invalid startTime', () => {
-    const missing = instance({ startTime: undefined as unknown as Date });
+    const missing = instance({ startTime: undefined });
     expect(getInstanceDateString(missing, '2026-08-01')).toBe('2026-08-01');
 
-    const invalid = instance({ startTime: 'garbage' as unknown as Date });
+    const invalid = instance({ startTime: 'garbage' });
     expect(getInstanceDateString(invalid, '2026-08-01')).toBe('2026-08-01');
     expect(getInstanceDateString(invalid)).toBe('');
   });
@@ -193,8 +193,8 @@ describe('getSessionElapsedMsOnDate', () => {
     const nowMs = todayStart.getTime() + sec(600); // 10 min into today's run
 
     const s = session([
-      instance({ id: 'a', state: TimerState.stopped, startTime: yesterdayStart, duration: sec(1800) }),
-      instance({ id: 'b', state: TimerState.running, startTime: todayStart }),
+      instance({ id: 'a', state: TimerState.stopped, startTime: yesterdayStart.toISOString(), duration: sec(1800) }),
+      instance({ id: 'b', state: TimerState.running, startTime: todayStart.toISOString() }),
     ]);
 
     // The user's live repro: a session dated yesterday whose timer runs today
@@ -220,8 +220,8 @@ describe('sessionsToTimeEntries', () => {
       taskId: 'task_1',
       taskName: 'Deep work',
       timerInstances: [
-        instance({ id: 'a', state: TimerState.running, startTime: localNoon(2026, 8, 18) }),
-        instance({ id: 'b', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 18) }),
+        instance({ id: 'a', state: TimerState.running, startTime: localNoon(2026, 8, 18).toISOString() }),
+        instance({ id: 'b', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 18).toISOString() }),
       ],
       totalDuration: sec(60),
       isActive: true,
@@ -251,10 +251,10 @@ describe('sessionsToTimeEntries', () => {
       taskId: 'task_1',
       taskName: 'Deep work',
       timerInstances: [
-        instance({ id: 'old', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 17) }),
-        instance({ id: 'new', state: TimerState.running, startTime: localNoon(2026, 8, 18) }),
+        instance({ id: 'old', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 17).toISOString() }),
+        instance({ id: 'new', state: TimerState.running, startTime: localNoon(2026, 8, 18).toISOString() }),
         // Invalid startTime falls back to the session date.
-        instance({ id: 'bad', state: TimerState.idle, startTime: 'garbage' as unknown as Date }),
+        instance({ id: 'bad', state: TimerState.idle, startTime: 'garbage' }),
       ],
       totalDuration: sec(60),
       isActive: true,
@@ -300,7 +300,7 @@ describe('buildTimerEditUpdates', () => {
   });
 
   it('accepts string startTime values off the IPC boundary', () => {
-    const i = instance({ startTime: new Date(T0).toISOString() as unknown as Date });
+    const i = instance({ startTime: new Date(T0).toISOString() });
     const updates = buildTimerEditUpdates(i, sec(45));
     expect(updates.endTime).toBe(new Date(T0 + sec(45)).toISOString());
   });
@@ -322,7 +322,7 @@ describe('getEntryElapsedMs', () => {
     const entry = {
       id: 'e1',
       taskName: 'Deep work',
-      startTime: new Date(T0),
+      startTime: new Date(T0).toISOString(),
       duration: sec(60),
       isRunning: false,
       date: '2026-08-18',
@@ -334,7 +334,7 @@ describe('getEntryElapsedMs', () => {
     const entry = {
       id: 'e2',
       taskName: 'Deep work',
-      startTime: new Date(T0),
+      startTime: new Date(T0).toISOString(),
       isRunning: false,
       date: '2026-08-18',
     } as unknown as TimeEntry;

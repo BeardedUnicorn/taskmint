@@ -45,7 +45,7 @@ function finished(id: string, taskId: string, start: Date, hours: number): TaskS
       createMockTimerInstance({
         id: `${id}-i`,
         sessionId: id,
-        startTime: start,
+        startTime: start.toISOString(),
         duration: hours * HOUR,
         state: TimerState.stopped,
       }),
@@ -112,7 +112,7 @@ describe('buildDailySummary', () => {
         createMockTimerInstance({
           id: 'run',
           sessionId: 's-run',
-          startTime: at(18),
+          startTime: at(18).toISOString(),
           pausedDuration: 0,
           state: TimerState.running,
         }),

@@ -33,7 +33,7 @@ describe('SessionTimerToolbar', () => {
   const mockTimerInstance: TimerInstance = {
     id: 'instance-1',
     sessionId: 'session-1',
-    startTime: new Date('2024-01-15T10:00:00Z'),
+    startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
     endTime: undefined,
     duration: 0,
     state: TimerState.running,

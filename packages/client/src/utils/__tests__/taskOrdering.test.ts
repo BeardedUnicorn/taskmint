@@ -14,7 +14,7 @@ const task = (id: string, overrides: Partial<Task> = {}): Task => ({
 const instance = (id: string, start: string): TimerInstance => ({
   id,
   sessionId: 's',
-  startTime: new Date(start),
+  startTime: new Date(start).toISOString(),
   state: TimerState.stopped,
   createdAt: start,
   updatedAt: start,

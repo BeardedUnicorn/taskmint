@@ -1,11 +1,10 @@
 import { useCallback, useState } from 'react';
+import { CORE_ERROR_PARTS } from '@taskmint/contracts';
 import { StorageService } from '../services/StorageService';
 import { Task } from '../types/task';
 import { NoteTemplate, TaskNote } from '../types/notes';
 import { DailyGoalAchievement } from '../types/goal';
-import { TaskSession } from '../types/timer';
-import { WorkLogsResponse } from '../types/workLog';
-import { BACKUP_FORMAT_VERSION, BackupFileSchema, RestoreSummary } from '../types/backup';
+import { BACKUP_FORMAT_VERSION, BackupFileSchema } from '../types/backup';
 import { getBackend } from '../backend';
 import { errorMessage } from '../utils/errors';
 
@@ -48,8 +47,8 @@ export const useDataBackup = ({
         // Tracked time and the work-log ledger live in the backend. A failed
         // read fails the backup rather than produce a file with no tracked
         // time in it.
-        getBackend().call<TaskSession[]>('get_sessions'),
-        getBackend().call<WorkLogsResponse>('get_work_logs'),
+        getBackend().call('get_sessions'),
+        getBackend().call('get_work_logs'),
       ]);
 
       return {
@@ -133,7 +132,7 @@ export const useDataBackup = ({
       // Sessions and work logs first: the backend's restore keeps safety
       // copies of both before changing them. A section the file lacks (v1
       // exports have no work logs) is sent as null and left untouched.
-      const restored = await getBackend().call<RestoreSummary>('restore_backup_data', {
+      const restored = await getBackend().call('restore_backup_data', {
         payload: {
           mode,
           sessions: data.sessions ?? null,
@@ -241,7 +240,7 @@ export const useDataBackup = ({
       // The backend rejects with plain strings, so read the reason either way
       const reason = errorMessage(error, 'Failed to import data');
       onImportError?.(
-        reason.includes('Invalid JSON')
+        reason.includes(CORE_ERROR_PARTS.INVALID_JSON)
           ? 'Invalid file format. Please select a valid TaskMint export file.'
           : reason
       );

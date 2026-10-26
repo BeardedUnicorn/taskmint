@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -254,6 +254,30 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
   - The browser implementations are P10, in `apps/web`: the Blob download, the Web Notification API, and hiding the Idle and Backups settings where those features are missing. The client's old browser fallbacks were deleted with the backend-less preview.
 - **Tests:** `src/__tests__/setup/global-mocks.ts` installs one fake backend per test file and starts each test with empty records (`seedAppRecords`). `installFakeBackendForTest({ without: [...] })` swaps in a web-like fake for one test.
 - **`apps/desktop` has its own vitest config at 100%**, listed in `coverage-policy.json`. The Tauri JS packages moved there, pinned with `~` to the Rust crates' minor releases (the Tauri CLI rejects a minor mismatch).
+
+**As built in P6:**
+- **Generation:** `crates/taskmint-core/tests/contracts.rs` (`cargo test -p taskmint-core --features ts --test contracts`) rebuilds `packages/contracts/src/generated` from scratch:
+  - ts-rs 12 types for every wire type. ts-rs is an optional dependency behind core's `ts` feature, configured in code (large ints as `number`), so `.cargo/config.toml` needs no `TS_RS_*` settings.
+  - `commands.ts`: `CommandMap`, with each command's args (`void` for none) and reply, plus `CommandName`, `CommandArgs<K>` and `CommandReply<K>`.
+  - `constants.ts`: `CORE_ERRORS`, `CORE_ERROR_PARTS` (the substrings clients match), `EVENTS` and `EventName`, `COMMAND_NAMES`, the record keys, sources, start outcomes, idle choices, and the capture and deep-link values.
+  - The generator reads contract.rs and fails if any `pub const` there is missing from `constants.ts`.
+- **One command table** in `command/catalog.rs` (name, argument type, reply type) gives `COMMAND_NAMES`, `CommandMap`, and `check_reply`.
+  - The conformance runner checks every reply against its declared type on every host: the reply must deserialize as that type and serialize back unchanged.
+  - A reset's core reply is now a `ResetSummary` with a count of 0, which the host fills in.
+- **Drift check:** `scripts/check-contracts.sh` regenerates the files and fails on any unstaged or untracked change in the generated folder. It runs early in verify.sh (before the TypeScript checks) and in CI, and clippy now also lints core with `--features ts`.
+- **TypeScript precision:**
+  - Input-only defaults are optional (`ts(optional_fields)`, or `ts(as = "Option<…>", optional)`).
+  - `StartTaskResult.outcome` and the idle `choice` are literal unions.
+  - The snake_case `alias`es on `TimerInstanceUpdates` were dropped: nothing sends them, and ts-rs can't express them.
+- **Client:**
+  - `Backend.call<K extends CommandName>(command, ...args)` is typed by `CommandMap`; explicit `call<T>` type arguments are gone, and `subscribe` takes an `EventName`.
+  - The fake backend stays loosely typed, so tests can make a command return anything; `asBackend(fake)` hands it over as a `Backend`.
+  - Session replies are the generated `TaskSession`. `normalizeSession` turns them into the client's types, which add `state`.
+  - The client's timer types are now honest: timestamps are the strings the backend sends, not `Date`, and fields can be `null`. About 80 test fixtures changed with them.
+  - `buildSynthesizedSession` builds the backend's shape directly, and Undo converts a client timer back with `backendInstance`.
+  - The work-log, capture, restore and reset types, `DesktopKind`, `BACKEND_EVENTS`, `APP_RECORD_KEYS`, `MANUAL_SOURCE` and `WORKLOG_IMPORT_SOURCE` now come from the contracts. Error matching uses `CORE_ERROR_PARTS`.
+  - `events.test.ts`, which read contract.rs, is gone; the drift check replaces it.
+- **Not generated:** the desktop shell's own commands (dialogs, idle, backups, notifications) live in the desktop crate, so `Platform` keeps its hand-written types. Event payloads are untyped beyond their names.
 
 **Web shell:**
 - `start.tsx` matches auth routes. Otherwise it calls `GET auth/me`: a 401 goes to `/login?next=`, a 200 calls `startClient(HttpBackend)`.

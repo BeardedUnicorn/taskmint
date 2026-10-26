@@ -70,24 +70,24 @@ pub fn create(
     Ok(new_instance)
 }
 
-/// Timer-instance fields the frontend may patch. camelCase, with snake_case
-/// aliases so old callers keep working.
+/// Timer-instance fields the frontend may patch; each is optional.
 #[derive(Debug, Default, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct TimerInstanceUpdates {
-    #[serde(default, alias = "is_running")]
+    #[serde(default)]
     pub is_running: Option<bool>,
-    #[serde(default, alias = "is_paused")]
+    #[serde(default)]
     pub is_paused: Option<bool>,
     #[serde(default)]
     pub notes: Option<String>,
     #[serde(default)]
     pub duration: Option<u64>,
-    #[serde(default, alias = "resumed_at")]
+    #[serde(default)]
     pub resumed_at: Option<String>,
-    #[serde(default, alias = "start_time")]
+    #[serde(default)]
     pub start_time: Option<String>,
-    #[serde(default, alias = "end_time")]
+    #[serde(default)]
     pub end_time: Option<String>,
 }
 

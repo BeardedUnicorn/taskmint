@@ -50,7 +50,12 @@ jobs:
         run: cargo fmt --all --check
 
       - name: cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: |
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo clippy -p taskmint-core --features ts --all-targets -- -D warnings
+
+      - name: Contracts match the Rust
+        run: scripts/check-contracts.sh
 
       - name: cargo test
         run: cargo test --workspace

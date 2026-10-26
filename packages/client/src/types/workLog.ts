@@ -5,13 +5,11 @@
  */
 
 import { z } from 'zod';
-import { TaskSession } from './timer';
+import type * as Wire from '@taskmint/contracts';
+import type { ProjectTaskMapping, WorkLogEntry } from '@taskmint/contracts';
 
-/**
- * Provenance marker on sessions synthesized by a work-log import. Must match
- * WORKLOG_IMPORT_SOURCE in crates/taskmint-core/src/contract.rs.
- */
-export const WORKLOG_IMPORT_SOURCE = 'worklog-import';
+/** Provenance marker on sessions synthesized by a work-log import. */
+export { WORKLOG_IMPORT_SOURCE } from '@taskmint/contracts';
 
 // ============================================================================
 // SITE PAYLOAD (pasted JSON)
@@ -74,27 +72,10 @@ export const SiteWorkLogSchema = z
 export type SiteWorkLog = z.infer<typeof SiteWorkLogSchema>;
 
 // ============================================================================
-// PERSISTED LEDGER (mirrors the Rust WorkLogEntry / ProjectTaskMapping)
+// PERSISTED LEDGER (the backend's WorkLogEntry / ProjectTaskMapping)
 // ============================================================================
 
-export type WorkLogKind = 'timed' | 'workLog';
-
-export interface WorkLogEntry {
-  id: string; // the site's entry uuid; the upsert key
-  kind: WorkLogKind;
-  createdAt: string; // site's ISO-UTC timestamp, verbatim
-  workDay: string; // local YYYY-MM-DD the entry's time/money belongs to
-  projectId: string;
-  projectName: string;
-  taskId: string; // mapped TaskMint task, denormalized at import
-  taskName: string;
-  timeInMinutes?: number | null; // timed entries only
-  reportedTimeInMinutes?: number | null; // timed only; null = not reported
-  amountCents: number;
-  status: string; // informational only
-  importedAt: string; // first-seen ISO, preserved on upsert
-  updatedAt: string; // last-upserted ISO
-}
+export type { WorkLogKind, WorkLogEntry, ProjectTaskMapping } from '@taskmint/contracts';
 
 export const WorkLogEntrySchema = z.object({
   id: z.string().min(1),
@@ -113,15 +94,6 @@ export const WorkLogEntrySchema = z.object({
   updatedAt: z.string(),
 });
 
-export interface ProjectTaskMapping {
-  projectId: string; // the upsert key
-  projectName: string;
-  taskId: string;
-  taskName: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export const ProjectTaskMappingSchema = z.object({
   projectId: z.string().min(1),
   projectName: z.string(),
@@ -135,11 +107,7 @@ export const ProjectTaskMappingSchema = z.object({
 // COMMAND WIRE SHAPES
 // ============================================================================
 
-export interface WorkLogsResponse {
-  entries: WorkLogEntry[];
-  mappings: ProjectTaskMapping[];
-  loadWarning: string | null;
-}
+export type { WorkLogs as WorkLogsResponse } from '@taskmint/contracts';
 
 /**
  * One (task, workDay) rewrite the frontend asks the backend to apply: delete
@@ -153,7 +121,7 @@ export interface RewriteGroup {
   /** Running/paused instances found in the bucket; their presence skips the group. */
   blockingInstanceIds: string[];
   /** Null when a remap leaves the day nothing to import for this task: the group only removes. */
-  replacementSession: TaskSession | null;
+  replacementSession: Wire.TaskSession | null;
 }
 
 export interface WorkLogImportPayload {
@@ -164,45 +132,17 @@ export interface WorkLogImportPayload {
   isRemap?: boolean;
 }
 
-export interface AppliedGroup {
-  taskId: string;
-  workDay: string;
-  deletedInstances: number;
-  /** The replacement session; null for a group that only removed time. */
-  sessionId: string | null;
-}
+export type { AppliedGroup, SkippedGroup, WorkLogImportSummary } from '@taskmint/contracts';
 
-export interface SkippedGroup {
-  taskId: string;
-  workDay: string;
-  reason: string;
-}
-
-export interface WorkLogImportSummary {
-  entriesAdded: number;
-  entriesUpdated: number;
-  mappingsSaved: number;
-  groupsApplied: AppliedGroup[];
-  groupsSkipped: SkippedGroup[];
-}
-
-/** Wire shape of take_pending_work_log_capture (Rust PendingCapture). */
 /**
- * How a capture reached the app (CaptureSource in crates/taskmint-core/src/model/mod.rs).
- * 'extension': localhost POST from the pinned TaskMint extension — trusted.
- * 'link': a taskmint:// link, which any web page can open — review first.
+ * How a capture reached the app. 'extension': localhost POST from the pinned
+ * TaskMint extension — trusted. 'link': a taskmint:// link, which any web
+ * page can open — review first. A pending capture is
+ * take_pending_work_log_capture's reply; the server status is
+ * get_capture_server_status'.
  */
-export type CaptureSource = 'extension' | 'link';
-
-export interface PendingWorkLogCapture {
-  payload: string; // raw captured JSON text
-  receivedAt: string; // RFC3339
-  source: CaptureSource;
-}
-
-/** Wire shape of get_capture_server_status. */
-export interface CaptureServerStatus {
-  running: boolean;
-  port: number;
-  warning: string | null;
-}
+export type {
+  CaptureSource,
+  PendingCapture as PendingWorkLogCapture,
+  CaptureServerStatus,
+} from '@taskmint/contracts';

@@ -28,6 +28,7 @@
     "@mui/material": "^9.3.1",
     "@mui/x-date-pickers": "^9.11.0",
     "@sentry/react": "^10.70.0",
+    "@taskmint/contracts": "workspace:*",
     "dayjs": "^1.11.23",
     "react": "catalog:",
     "react-big-calendar": "^1.20.0",

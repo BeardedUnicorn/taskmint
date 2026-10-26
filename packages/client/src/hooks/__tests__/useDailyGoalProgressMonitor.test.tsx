@@ -34,7 +34,7 @@ function runningFor(hours: number): TaskSession[] {
         {
           id: 'i-1',
           sessionId: 's-1',
-          startTime: start,
+          startTime: start.toISOString(),
           pausedDuration: 0,
           state: TimerState.running,
           createdAt: start.toISOString(),

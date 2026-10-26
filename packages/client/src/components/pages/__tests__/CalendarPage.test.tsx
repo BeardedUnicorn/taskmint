@@ -76,8 +76,8 @@ function entriesToSessions(entries: TimeEntry[]): TaskSession[] {
       {
         id: entry.id,
         sessionId: `session-${index}`,
-        startTime: entry.startTime,
-        endTime: entry.endTime,
+        startTime: entry.startTime.toISOString(),
+        endTime: entry.endTime?.toISOString(),
         duration: entry.duration,
         state: entry.isRunning
           ? TimerState.running

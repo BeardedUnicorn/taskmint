@@ -9,6 +9,9 @@ step() { printf '\n==> %s\n' "$*"; }
 step "Coverage policy"
 node scripts/check-coverage-policy.mjs
 
+step "Contracts match the Rust (the TypeScript checks below use them)"
+scripts/check-contracts.sh
+
 step "TypeScript (sources and tests)"
 pnpm typecheck
 
@@ -23,6 +26,8 @@ cargo fmt --all --check
 
 step "Rust lints"
 cargo clippy --workspace --all-targets -- -D warnings
+# With the TypeScript derives and the contracts generator
+cargo clippy -p taskmint-core --features ts --all-targets -- -D warnings
 
 step "Server database (compose db; the server tests make their own databases on it)"
 docker compose up -d --wait db

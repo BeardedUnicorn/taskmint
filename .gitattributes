@@ -1,0 +1,2 @@
+# Generated from crates/taskmint-core; reviews show the Rust change instead.
+packages/contracts/src/generated/** linguist-generated=true

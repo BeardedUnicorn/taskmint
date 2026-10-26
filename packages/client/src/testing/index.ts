@@ -5,6 +5,7 @@
 
 import { onTestFinished } from 'vitest';
 import { setBackend } from '../backend/registry';
+import type { Backend } from '../backend/types';
 import { resetAppRecordsForTests } from '../services/appRecords';
 import { createFakeBackend, type FakeBackend, type FakeBackendOptions } from './fakeBackend';
 
@@ -13,10 +14,15 @@ export type { FakeBackend, FakeBackendOptions, FakePlatform } from './fakeBacken
 
 let installed: FakeBackend | null = null;
 
+/** The fake as the Backend it stands in for (its mocks take any command). */
+export function asBackend(fake: FakeBackend): Backend {
+  return fake as unknown as Backend;
+}
+
 /** Makes a new fake the page's backend and returns it. */
 export function installFakeBackend(options?: FakeBackendOptions): FakeBackend {
   installed = createFakeBackend(options);
-  setBackend(installed);
+  setBackend(asBackend(installed));
   return installed;
 }
 
@@ -28,7 +34,7 @@ export function installFakeBackendForTest(options: FakeBackendOptions): FakeBack
   const previous = fakeBackend();
   onTestFinished(() => {
     installed = previous;
-    setBackend(previous);
+    setBackend(asBackend(previous));
   });
   return installFakeBackend(options);
 }

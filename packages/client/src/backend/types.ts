@@ -3,19 +3,20 @@
  * browser against a TaskMint server later). The client never imports a
  * shell's APIs: each shell builds a Backend and hands it to startClient.
  *
- * Data commands go through `call` with the names and camelCase arguments of
- * the backend's commands, and reject with the backend's reason as a plain
- * string. Events arrive through `subscribe`. Everything that depends on the
+ * Data commands go through `call`, typed by the backend's own CommandMap
+ * (@taskmint/contracts, generated from the Rust), and reject with the
+ * backend's reason as a plain string. Events arrive through `subscribe`. Everything that depends on the
  * machine (files, OS notifications, idle time, backup folders) is `platform`.
  * An optional platform feature is absent where it can't work, and the client
  * leaves out what depends on it.
  */
 
+import type { CommandArgs, CommandName, CommandReply, EventName } from '@taskmint/contracts';
 import type { DesktopKind } from '../notifications/types';
 import type { NotificationPreferences } from '../notifications/preferences';
 import type { BackupResult } from '../types/backup';
 import type { IdleChoice, IdlePause, InactivitySettings } from '../types/timer';
-import type { CaptureServerStatus } from '../types/workLog';
+import type { CaptureServerStatus } from '@taskmint/contracts';
 
 export interface Capabilities {
   /** The shell the client runs in. */
@@ -73,10 +74,13 @@ export interface Platform {
   captureStatus?(): Promise<CaptureServerStatus>;
 }
 
+/** A command's arguments, left out for a command that takes none. */
+export type CommandArgsParam<K extends CommandName> = CommandArgs<K> extends void ? [] : [args: CommandArgs<K>];
+
 export interface Backend {
   readonly capabilities: Capabilities;
-  call<T = unknown>(command: string, args?: Record<string, unknown>): Promise<T>;
+  call<K extends CommandName>(command: K, ...args: CommandArgsParam<K>): Promise<CommandReply<K>>;
   /** Calls `handler` with each payload of `event` until the returned function is called. */
-  subscribe<T = unknown>(event: string, handler: (payload: T) => void): () => void;
+  subscribe<T = unknown>(event: EventName, handler: (payload: T) => void): () => void;
   readonly platform: Platform;
 }

@@ -72,7 +72,7 @@ describe('useSessionManagement', () => {
   const mockTimerInstance: TimerInstance = {
     id: 'instance-1',
     sessionId: 'session-1',
-    startTime: new Date('2024-01-15T10:00:00Z'),
+    startTime: '2024-01-15T10:00:00Z',
     state: TimerState.idle,
     createdAt: '2024-01-15T10:00:00Z',
     updatedAt: '2024-01-15T10:00:00Z',
@@ -380,8 +380,8 @@ describe('useSessionManagement', () => {
     const finished: TimerInstance = {
       id: 'done-1',
       sessionId: 'session-1',
-      startTime: '2024-01-15T10:00:00Z' as unknown as Date,
-      endTime: '2024-01-15T11:05:00Z' as unknown as Date,
+      startTime: '2024-01-15T10:00:00Z',
+      endTime: '2024-01-15T11:05:00Z',
       duration: 65 * 60_000,
       isRunning: false,
       isPaused: false,

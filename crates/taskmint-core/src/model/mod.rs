@@ -28,6 +28,7 @@ pub struct Task {
 // Backup result structure. camelCase like every type the frontend reads
 // (BackupResult in packages/client/src/types/backup.ts).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct BackupResult {
     pub success: bool,
@@ -40,6 +41,7 @@ pub struct BackupResult {
 // Path validation result: `isValid` to the frontend (useBackupSettings
 // rejected every folder while this went out as `is_valid`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct PathValidationResult {
     pub is_valid: bool,
@@ -57,6 +59,7 @@ pub struct PathValidationResult {
 // fields (id, sessionId, startTime) are skipped individually at load time
 // instead of failing the whole file.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct TimerInstance {
     pub id: String,
     #[serde(rename = "sessionId")]
@@ -88,6 +91,7 @@ pub struct TimerInstance {
 
 // Task Session - Groups multiple timer instances for a task
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct TaskSession {
     pub id: String,
     #[serde(rename = "taskId", default)]
@@ -125,6 +129,7 @@ pub struct TaskSession {
 // Ledger record kinds. Wire values match the frontend zod enum in
 // packages/client/src/types/workLog.ts.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum WorkLogKind {
     #[serde(rename = "timed")]
     Timed,
@@ -137,6 +142,7 @@ pub enum WorkLogKind {
 // so a schema change cannot wipe the ledger; unreadable records are skipped
 // individually at load time.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct WorkLogEntry {
     pub id: String,
@@ -170,6 +176,7 @@ pub struct WorkLogEntry {
 // How a captured payload reached the app. Must match CaptureSource in
 // packages/client/src/types/workLog.ts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureSource {
     /// localhost POST from the pinned TaskMint extension (or a local tool):
@@ -183,7 +190,8 @@ pub enum CaptureSource {
 // A raw work-log payload delivered by the browser extension (over localhost
 // or a taskmint:// deep link), waiting for the frontend to take and process
 // it. Latest delivery wins; take_pending_work_log_capture clears it.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct PendingCapture {
     pub payload: String,     // raw JSON text as captured from the site
@@ -193,6 +201,7 @@ pub struct PendingCapture {
 
 // Status of the localhost capture server, surfaced on the Payouts page.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureServerStatus {
     pub running: bool,
@@ -203,6 +212,7 @@ pub struct CaptureServerStatus {
 // Remembered mapping from a site project to a TaskMint task, upserted by
 // `project_id`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectTaskMapping {
     pub project_id: String,

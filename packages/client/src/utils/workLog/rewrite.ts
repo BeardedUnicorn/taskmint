@@ -4,7 +4,8 @@
  */
 
 import dayjs from 'dayjs';
-import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
+import type * as Wire from '@taskmint/contracts';
+import { TaskSession, TimerInstance } from '../../types/timer';
 import { RewriteGroup, WORKLOG_IMPORT_SOURCE, WorkLogEntry } from '../../types/workLog';
 import { formatDateString } from '../dateHelpers';
 import { getInstanceDateString } from '../timerHelpers';
@@ -21,8 +22,9 @@ function instanceSignature(externalId: string, startMs: number, durationMs: numb
 }
 
 /**
- * One finalized synthesized session for a (task, workDay) bucket: one
- * instance per timed ledger entry, ending at the entry's createdAt. Holds the
+ * One finalized synthesized session for a (task, workDay) bucket, as the
+ * backend stores it: one instance per timed ledger entry, ending at the
+ * entry's createdAt. Holds the
  * stored invariant duration = endTime − startTime − pausedDuration exactly,
  * and every startTime's local day is workDay by construction (the same
  * instant derived the workDay).
@@ -34,9 +36,9 @@ export function buildSynthesizedSession(
   timedEntries: WorkLogEntry[],
   nowIso: string,
   idFactory: () => string = defaultIdFactory
-): TaskSession {
+): Wire.TaskSession {
   const sessionId = `session_${idFactory()}`;
-  const instances: TimerInstance[] = [...timedEntries]
+  const instances: Wire.TimerInstance[] = [...timedEntries]
     .sort((a, b) => reconstructedStartMs(a) - reconstructedStartMs(b))
     .map(entry => {
       const durationMs = Math.round(effectiveMinutes(entry) * MS_PER_MINUTE);
@@ -44,13 +46,16 @@ export function buildSynthesizedSession(
       return {
         id: `instance_${idFactory()}`,
         sessionId,
-        startTime: new Date(endMs - durationMs),
-        endTime: new Date(endMs),
+        startTime: new Date(endMs - durationMs).toISOString(),
+        endTime: new Date(endMs).toISOString(),
         duration: durationMs,
-        state: TimerState.stopped,
         isRunning: false,
         isPaused: false,
+        pausedAt: null,
+        pausedDuration: null,
+        resumedAt: null,
         externalId: entry.id,
+        notes: null,
         createdAt: nowIso,
         updatedAt: nowIso,
       };
@@ -70,6 +75,7 @@ export function buildSynthesizedSession(
     taskName,
     timerInstances: instances,
     totalDuration,
+    notes: null,
     isActive: false,
     source: WORKLOG_IMPORT_SOURCE,
     hourlyRate,

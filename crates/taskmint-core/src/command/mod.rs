@@ -12,7 +12,7 @@ use crate::records::RecordMap;
 use crate::workspace::Parts;
 use crate::zone::DayZone;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// What a command runs against besides the data: the time, and the zone
@@ -112,8 +112,8 @@ pub struct Executed {
     pub backups: Vec<Backup>,
     /// For the frontend, once saved.
     pub events: Vec<Event>,
-    /// Delete every safety copy once saved (Reset All Data). The host then
-    /// replies with a ResetSummary.
+    /// Delete every safety copy once saved (Reset All Data), and report it
+    /// in the reply's ResetSummary.
     pub purge_backups: bool,
 }
 
@@ -134,9 +134,28 @@ impl Executed {
     }
 }
 
-/// reset_all_app_data's reply, which the host writes once it has deleted the
-/// safety copies.
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+/// get_app_records' and import_app_records' reply: every record stored.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct AppRecords {
+    pub records: RecordMap,
+}
+
+/// get_work_logs' reply.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct WorkLogs {
+    pub entries: Vec<crate::model::WorkLogEntry>,
+    pub mappings: Vec<crate::model::ProjectTaskMapping>,
+    /// Records the host couldn't read when it loaded them.
+    pub load_warning: Option<String>,
+}
+
+/// reset_all_app_data's reply. Core leaves the count at 0; the host fills it
+/// in once it has deleted its safety copies.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ResetSummary {
     pub backups_deleted: usize,

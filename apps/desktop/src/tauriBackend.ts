@@ -8,12 +8,11 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Backend, Platform } from "@taskmint/client/backend";
+import { CORE_ERRORS, type CommandName, type CommandReply } from "@taskmint/contracts";
+import type { Backend, CommandArgsParam, Platform } from "@taskmint/client/backend";
 
-/** Paired with EXPORT_CANCELLED in crates/taskmint-core/src/contract.rs. */
-export const EXPORT_CANCELLED = "Export cancelled by user";
-/** Paired with IMPORT_CANCELLED in crates/taskmint-core/src/contract.rs. */
-export const IMPORT_CANCELLED = "Import cancelled by user";
+/** What a dismissed save or open dialog rejects with. */
+const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
 
 /** Runs a command in the app's Rust side. */
 function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -86,7 +85,9 @@ const platform: Platform = {
 export function createTauriBackend(): Backend {
   return {
     capabilities: { runtime: "desktop", dataLocation: "local" },
-    call: (name, args) => command(name, args),
+    call<K extends CommandName>(name: K, ...args: CommandArgsParam<K>) {
+      return command<CommandReply<K>>(name, args[0] as Record<string, unknown> | undefined);
+    },
     subscribe,
     platform,
   };

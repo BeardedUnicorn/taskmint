@@ -18,7 +18,6 @@ import {
   WorkLogEntry,
   WorkLogImportPayload,
   WorkLogImportSummary,
-  WorkLogsResponse,
 } from '../types/workLog';
 import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
@@ -46,7 +45,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await getBackend().call<WorkLogsResponse>('get_work_logs');
+      const response = await getBackend().call('get_work_logs');
       setEntries(response.entries ?? []);
       setMappings(response.mappings ?? []);
       setLoadWarning(response.loadWarning ?? null);
@@ -63,7 +62,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
     async (payload: WorkLogImportPayload): Promise<WorkLogImportSummary | null> => {
       setError(null);
       try {
-        const summary = await getBackend().call<WorkLogImportSummary>('apply_work_log_import', { payload });
+        const summary = await getBackend().call('apply_work_log_import', { payload });
         await reload();
         return summary;
       } catch (err) {

@@ -23,6 +23,7 @@ const RETURN_INPUT_MS: u64 = 10_000;
 /// Detection settings, mirrored from the app (localStorage owns them).
 /// Disabled until the app sends them.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct IdleSettings {
     pub enabled: bool,
@@ -55,6 +56,7 @@ pub struct IdleState {
 
 /// What the app shows in its "welcome back" question.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct IdlePausePayload {
     pub instance_id: String,

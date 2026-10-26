@@ -16,7 +16,7 @@ import type {
   NotificationPlatform,
   Platform,
 } from '../backend/types';
-import type { CaptureServerStatus } from '../types/workLog';
+import type { CaptureServerStatus } from '@taskmint/contracts';
 
 type Mocked<T> = {
   [K in keyof T]-?: NonNullable<T[K]> extends (...args: infer A) => infer R ? Mock<(...args: A) => R> : never;
@@ -31,7 +31,12 @@ export interface FakePlatform extends Platform {
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
 }
 
-export interface FakeBackend extends Backend {
+/**
+ * A Backend whose `call` and `subscribe` are loosely typed mocks, so a test
+ * can make any command return anything (installFakeBackend hands it over as
+ * a Backend).
+ */
+export interface FakeBackend extends Omit<Backend, 'call' | 'subscribe'> {
   capabilities: Capabilities;
   // Tests decide what each command returns
   call: Mock<(command: string, args?: Record<string, unknown>) => Promise<any>>;

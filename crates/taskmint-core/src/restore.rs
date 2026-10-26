@@ -14,14 +14,18 @@ use std::collections::HashSet;
 /// restore_backup_data's payload: the export's sections, each optional (a
 /// v1 export has no work logs).
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct RestorePayload {
     pub mode: RestoreMode,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<serde_json::Value>", optional))]
     pub sessions: serde_json::Value,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<serde_json::Value>", optional))]
     pub work_log_entries: serde_json::Value,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<serde_json::Value>", optional))]
     pub work_log_mappings: serde_json::Value,
     /// The export's own timestamp; timers that were live when it was taken
     /// are finalized at this moment (see finalize_time).
@@ -29,7 +33,8 @@ pub struct RestorePayload {
     pub exported_at: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreSummary {
     pub sessions_restored: usize,
@@ -41,6 +46,7 @@ pub struct RestoreSummary {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum RestoreMode {
     /// Add records whose id is not already present; existing data wins.

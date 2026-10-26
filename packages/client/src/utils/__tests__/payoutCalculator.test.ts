@@ -61,8 +61,8 @@ function makeInstance(overrides: Partial<TimerInstance> = {}): TimerInstance {
   return {
     id: 'instance-1',
     sessionId: 'session-1',
-    startTime: new Date(2026, 7, 26, 10, 0),
-    endTime: new Date(2026, 7, 26, 12, 0),
+    startTime: new Date(2026, 7, 26, 10, 0).toISOString(),
+    endTime: new Date(2026, 7, 26, 12, 0).toISOString(),
     duration: 2 * 3_600_000,
     state: TimerState.stopped,
     isRunning: false,
@@ -210,8 +210,8 @@ describe('buildPayoutCells estimates use each session\'s rate', () => {
       timerInstances: [
         makeInstance({
           id: 'pm',
-          startTime: new Date(2026, 7, 26, 18, 0),
-          endTime: new Date(2026, 7, 26, 19, 0),
+          startTime: new Date(2026, 7, 26, 18, 0).toISOString(),
+          endTime: new Date(2026, 7, 26, 19, 0).toISOString(),
           duration: 3_600_000,
         }),
       ],

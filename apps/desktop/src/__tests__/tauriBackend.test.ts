@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event } from "@tauri-apps/api/event";
-import { createTauriBackend, EXPORT_CANCELLED, IMPORT_CANCELLED } from "../tauriBackend";
+import { CORE_ERRORS } from "@taskmint/contracts";
+import { createTauriBackend } from "../tauriBackend";
+
+const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));

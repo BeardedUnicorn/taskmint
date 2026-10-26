@@ -25,8 +25,8 @@ const task = (overrides: Partial<Task> = {}): Task => ({
 const instance = (overrides: Partial<TimerInstance> = {}): TimerInstance => ({
   id: 'i-1',
   sessionId: 's-1',
-  startTime: new Date(2026, 9, 10, 9, 0),
-  endTime: new Date(2026, 9, 10, 10, 0),
+  startTime: new Date(2026, 9, 10, 9, 0).toISOString(),
+  endTime: new Date(2026, 9, 10, 10, 0).toISOString(),
   duration: HOUR,
   state: TimerState.stopped,
   createdAt: '2026-10-10T00:00:00Z',
@@ -108,7 +108,7 @@ describe('earnings', () => {
         instance(),
         instance({
           id: 'i-2',
-          startTime: new Date(2026, 9, 10, 11, 0),
+          startTime: new Date(2026, 9, 10, 11, 0).toISOString(),
           endTime: undefined,
           duration: undefined,
           state: TimerState.running,
@@ -123,7 +123,12 @@ describe('earnings', () => {
     const yesterday = session({
       id: 's-a',
       hourlyRate: 40,
-      timerInstances: [instance({ startTime: new Date(2026, 9, 9, 22, 0), endTime: new Date(2026, 9, 9, 23, 0) })],
+      timerInstances: [
+        instance({
+          startTime: new Date(2026, 9, 9, 22, 0).toISOString(),
+          endTime: new Date(2026, 9, 9, 23, 0).toISOString(),
+        }),
+      ],
     });
     const today = session({ id: 's-b', hourlyRate: 50 });
     const nowMs = new Date(2026, 9, 10, 18, 0).getTime();

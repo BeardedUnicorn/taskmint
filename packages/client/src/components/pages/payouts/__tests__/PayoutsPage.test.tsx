@@ -64,8 +64,8 @@ function stoppedSessionOn(offset: number, taskId: string, hours: number): TaskSe
       {
         id: `instance-${taskId}-${offset}`,
         sessionId: `session-${taskId}-${offset}`,
-        startTime: start,
-        endTime: new Date(start.getTime() + hours * 3_600_000),
+        startTime: start.toISOString(),
+        endTime: new Date(start.getTime() + hours * 3_600_000).toISOString(),
         duration: hours * 3_600_000,
         state: TimerState.stopped,
         isRunning: false,

@@ -17,7 +17,7 @@ use crate::timer::{
 };
 use crate::zone::DayZone;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// The timer the tray shows: the running instance, else a paused one.
 #[derive(Debug, Clone, PartialEq)]
@@ -190,10 +190,14 @@ pub fn start_task_with_handoff(
 }
 
 /// What start_task reports back to the app (camelCase for the frontend).
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct StartTaskResult {
-    /// "started" | "resumed" | "alreadyRunning"
+    #[cfg_attr(
+        feature = "ts",
+        ts(type = r#""started" | "resumed" | "alreadyRunning""#)
+    )]
     pub outcome: String,
     pub instance_id: Option<String>,
     /// Task whose live timer this start finalized, if any.

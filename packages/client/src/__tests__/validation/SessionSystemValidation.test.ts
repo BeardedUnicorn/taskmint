@@ -46,7 +46,7 @@ describe('Session System Validation', () => {
       // Validate timer instance is properly linked to session
       expect(timerInstance.sessionId).toBe(session.id);
       expect(timerInstance.isRunning).toBe(true);
-      expect(timerInstance.startTime).toBeInstanceOf(Date);
+      expect(Date.parse(timerInstance.startTime)).not.toBeNaN();
       expectTimerInstanceToBeRunning(timerInstance);
     });
 
@@ -83,13 +83,13 @@ describe('Session System Validation', () => {
         ...runningInstance,
         isRunning: false,
         isPaused: true,
-        pausedAt: new Date(),
+        pausedAt: new Date().toISOString(),
       };
 
       // Validate pause state
       expect(pausedInstance.isRunning).toBe(false);
       expect(pausedInstance.isPaused).toBe(true);
-      expect(pausedInstance.pausedAt).toBeInstanceOf(Date);
+      expect(Date.parse(pausedInstance.pausedAt!)).not.toBeNaN();
       expect(pausedInstance.sessionId).toBe(session.id);
     });
 
@@ -273,7 +273,7 @@ describe('Session System Validation', () => {
 
       expect(timerInstance.id).toBeDefined();
       expect(timerInstance.sessionId).toBe(session.id);
-      expect(timerInstance.startTime).toBeInstanceOf(Date);
+      expect(Date.parse(timerInstance.startTime)).not.toBeNaN();
       expect(timerInstance.createdAt).toBeDefined();
       expect(timerInstance.updatedAt).toBeDefined();
     });
@@ -330,7 +330,7 @@ describe('Session System Validation', () => {
       const stoppedInstance: TimerInstance = {
         ...timerInstance,
         isRunning: false,
-        endTime: new Date(),
+        endTime: new Date().toISOString(),
         duration: 3600000, // 1 hour
       };
 

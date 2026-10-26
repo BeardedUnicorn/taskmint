@@ -20,8 +20,8 @@ describe('SessionList', () => {
   const mockTimerInstance: TimerInstance = {
     id: 'instance-1',
     sessionId: 'session-1',
-    startTime: new Date('2024-01-15T10:00:00Z'),
-    endTime: new Date('2024-01-15T11:00:00Z'),
+    startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
+    endTime: new Date('2024-01-15T11:00:00Z').toISOString(),
     duration: 3600000, // 1 hour
     state: TimerState.stopped,
     isRunning: false,
@@ -475,11 +475,11 @@ describe('SessionList', () => {
           {
             id: 'instance-paused',
             sessionId: 'session-paused',
-            startTime: new Date('2024-01-15T10:00:00Z'),
+            startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
             state: TimerState.paused,
             isRunning: false,
             isPaused: true,
-            pausedAt: new Date('2024-01-15T10:15:00Z'), // ran 15 min, then paused
+            pausedAt: new Date('2024-01-15T10:15:00Z').toISOString(), // ran 15 min, then paused
             createdAt: '2024-01-15T10:00:00Z',
             updatedAt: '2024-01-15T10:15:00Z',
           },
@@ -534,7 +534,7 @@ describe('SessionList', () => {
       taskName: 'Old Work',
       date: '2023-11-01',
       timerInstances: [
-        { ...mockTimerInstance, id: 'old-1', sessionId: 'session-old', startTime: new Date(2023, 10, 1, 9) },
+        { ...mockTimerInstance, id: 'old-1', sessionId: 'session-old', startTime: new Date(2023, 10, 1, 9).toISOString() },
       ],
     };
     const imported: TaskSession = {

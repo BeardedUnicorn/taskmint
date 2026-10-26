@@ -30,7 +30,7 @@ export const useResetAppData = ({ onError }: UseResetAppDataProps = {}) => {
       // A record write still in flight must land before the wipe, not after
       await flushAppRecords();
       // A backend failure aborts the reset before any local data is cleared
-      const summary = await getBackend().call<ResetAppDataSummary>('reset_all_app_data');
+      const summary = await getBackend().call('reset_all_app_data');
       if (summary?.warning) {
         console.warn(summary.warning);
       }

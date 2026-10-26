@@ -4,7 +4,7 @@ import { startClient } from '../start';
 import { getBackend } from '../backend';
 import { useAppExtensions } from '../app/extensions';
 import { readAppRecord } from '../services/appRecords';
-import { createFakeBackend, installFakeBackend } from '../testing';
+import { asBackend, createFakeBackend, installFakeBackend } from '../testing';
 
 vi.mock('../utils/sentry', () => ({ initSentry: vi.fn() }));
 vi.mock('../App', () => ({
@@ -35,7 +35,7 @@ describe('startClient', () => {
 
     await act(() =>
       startClient(container(), {
-        backend,
+        backend: asBackend(backend),
         extensions: { settingsSections: [{ id: 'account', label: 'Account', Section: Account }] },
         importLegacyRecords: false,
       })
@@ -53,7 +53,7 @@ describe('startClient', () => {
     backend.call.mockResolvedValue({ records: {} });
     localStorage.setItem('predefinedTasks', JSON.stringify([{ id: 't1' }]));
 
-    await act(() => startClient(container(), { backend, extensions: {}, importLegacyRecords: true }));
+    await act(() => startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: true }));
 
     expect(backend.call).toHaveBeenCalledWith('import_app_records', { records: { predefinedTasks: [{ id: 't1' }] } });
   });
@@ -63,7 +63,7 @@ describe('startClient', () => {
     backend.call.mockRejectedValue('appdata.json is corrupt');
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await act(() => startClient(container(), { backend, extensions: {}, importLegacyRecords: false }));
+    await act(() => startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: false }));
 
     expect(screen.getByRole('alert')).toHaveTextContent('appdata.json is corrupt');
     expect(screen.queryByText(/app with/)).not.toBeInTheDocument();
@@ -77,7 +77,7 @@ describe('startClient', () => {
       throw new Error('storage disabled');
     });
 
-    await act(() => startClient(container(), { backend, extensions: {}, importLegacyRecords: false }));
+    await act(() => startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: false }));
 
     expect(screen.getByText('app with')).toBeInTheDocument();
   });

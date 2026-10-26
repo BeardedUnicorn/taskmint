@@ -18,21 +18,27 @@ use std::collections::HashSet;
 /// apply_work_log_import's payload: ledger rows and mappings to upsert, and
 /// the per-day rewrites they drive.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct WorkLogImportPayload {
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<Vec<WorkLogEntry>>", optional))]
     pub entries: Vec<WorkLogEntry>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<Vec<ProjectTaskMapping>>", optional))]
     pub mappings: Vec<ProjectTaskMapping>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<Vec<RewriteGroup>>", optional))]
     pub rewrite_groups: Vec<RewriteGroup>,
     /// A project moved to another task: the entries are re-pointed, not new
     /// from the site, so they keep their `updated_at` (Payouts' "Last import").
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<bool>", optional))]
     pub is_remap: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct WorkLogImportSummary {
     pub entries_added: usize,
@@ -47,21 +53,25 @@ pub struct WorkLogImportSummary {
 /// a day with nothing left to import for this task sends no replacement: the
 /// group only removes that day's imported time.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct RewriteGroup {
     pub task_id: String,
     pub work_day: String,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<Vec<String>>", optional))]
     pub delete_instance_ids: Vec<String>,
     // Running/paused instances the frontend found in the bucket. Their
     // presence skips the group; the backend re-checks regardless.
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<Vec<String>>", optional))]
     pub blocking_instance_ids: Vec<String>,
     #[serde(default)]
     pub replacement_session: Option<TaskSession>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct AppliedGroup {
     pub task_id: String,
@@ -71,7 +81,8 @@ pub struct AppliedGroup {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SkippedGroup {
     pub task_id: String,

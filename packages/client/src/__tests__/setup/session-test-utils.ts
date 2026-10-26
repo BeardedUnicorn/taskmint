@@ -36,7 +36,7 @@ export const createMockTimerInstance = (overrides: Partial<TimerInstance> = {}):
   state: derivedState(overrides),
   id: 'instance-1',
   sessionId: 'session-1',
-  startTime: new Date('2024-01-15T10:00:00Z'),
+  startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
   isRunning: false,
   isPaused: false,
   createdAt: '2024-01-15T10:00:00Z',
@@ -105,8 +105,8 @@ export const createMockImportedSession = (overrides: Partial<TaskSession> = {}):
   const instance = createMockTimerInstance({
     id: 'imported-instance-1',
     sessionId: 'imported-session-1',
-    startTime: new Date('2024-01-15T17:00:00Z'),
-    endTime: new Date('2024-01-15T18:00:00Z'),
+    startTime: new Date('2024-01-15T17:00:00Z').toISOString(),
+    endTime: new Date('2024-01-15T18:00:00Z').toISOString(),
     duration: 3600000,
     externalId: 'worklog-entry-1',
   });
@@ -134,12 +134,12 @@ export const createActiveSessionScenario = () => {
   const task = createMockTask();
   const runningInstance = createMockTimerInstance({
     isRunning: true,
-    startTime: new Date(),
+    startTime: new Date().toISOString(),
   });
   const completedInstance = createMockTimerInstance({
     id: 'instance-2',
     isRunning: false,
-    endTime: new Date(Date.now() - 3600000), // 1 hour ago
+    endTime: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
     duration: 3600000, // 1 hour
   });
   
@@ -304,20 +304,20 @@ export const expectSessionToBeInactive = (session: TaskSession) => {
 export const expectTimerInstanceToBeRunning = (instance: TimerInstance) => {
   expect(instance.isRunning).toBe(true);
   expect(instance.isPaused).toBe(false);
-  expect(instance.startTime).toBeInstanceOf(Date);
+  expect(Date.parse(instance.startTime)).not.toBeNaN();
 };
 
 export const expectTimerInstanceToBeStopped = (instance: TimerInstance) => {
   expect(instance.isRunning).toBe(false);
   expect(instance.isPaused).toBe(false);
-  expect(instance.endTime).toBeInstanceOf(Date);
+  expect(Date.parse(instance.endTime ?? '')).not.toBeNaN();
   expect(instance.duration).toBeGreaterThan(0);
 };
 
 export const expectTimerInstanceToBePaused = (instance: TimerInstance) => {
   expect(instance.isRunning).toBe(false);
   expect(instance.isPaused).toBe(true);
-  expect(instance.pausedAt).toBeInstanceOf(Date);
+  expect(Date.parse(instance.pausedAt ?? '')).not.toBeNaN();
 };
 
 // ============================================================================
