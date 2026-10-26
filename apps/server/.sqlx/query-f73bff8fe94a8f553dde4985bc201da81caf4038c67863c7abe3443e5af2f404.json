@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT u.username, r.expires_at\n        FROM password_resets r JOIN users u ON u.id = r.user_id\n        WHERE r.token_hash = $1 AND r.used_at IS NULL AND r.expires_at > now()\n          AND u.disabled_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "f73bff8fe94a8f553dde4985bc201da81caf4038c67863c7abe3443e5af2f404"
+}

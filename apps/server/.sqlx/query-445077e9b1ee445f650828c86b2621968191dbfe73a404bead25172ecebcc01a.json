@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE auth_sessions s SET last_seen_at = now(), expires_at = $2\n            FROM users u\n            WHERE s.token_hash = $1 AND s.expires_at > now()\n              AND u.id = s.user_id AND u.disabled_at IS NULL\n            RETURNING s.id, s.csrf_token, u.id AS user_id, u.username, u.display_name,\n                      u.role AS \"role: Role\", u.time_zone, u.password_hash\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "csrf_token",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "role: Role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "time_zone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "password_hash",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "445077e9b1ee445f650828c86b2621968191dbfe73a404bead25172ecebcc01a"
+}

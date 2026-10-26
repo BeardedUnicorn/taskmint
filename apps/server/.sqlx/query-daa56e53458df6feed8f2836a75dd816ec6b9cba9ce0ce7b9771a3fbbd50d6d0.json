@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH admin AS (\n            INSERT INTO users (username, password_hash, role)\n            SELECT $1, $2, 'admin'\n            WHERE NOT EXISTS (SELECT 1 FROM users)\n            RETURNING id\n        ), audit AS (\n            INSERT INTO audit_events (action, target_user_id)\n            SELECT 'user.bootstrap', id FROM admin\n        )\n        SELECT count(*) AS \"created!\" FROM admin\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "created!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "daa56e53458df6feed8f2836a75dd816ec6b9cba9ce0ce7b9771a3fbbd50d6d0"
+}

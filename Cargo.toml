@@ -1,3 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["apps/desktop/src-tauri"]
+members = ["apps/desktop/src-tauri", "apps/server"]
+# Plain `cargo build/test` skip the desktop crate: it needs WebKitGTK on Linux.
+# Build it with `-p taskmint`.
+default-members = ["apps/server"]
+
+# Password hashing is far too slow unoptimized; tests and dev builds hash a lot.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
