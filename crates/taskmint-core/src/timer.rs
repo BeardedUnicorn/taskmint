@@ -1,25 +1,28 @@
 //! The timer state machine: what each transition does to a session and its
-//! timer instances, with no storage or events (the commands around it do
-//! that). Kept pure so it can be tested directly.
+//! timer instances, with no storage or events (the hosts around it do that).
+//! Kept pure so it can be tested directly.
 
-use crate::types::{TaskSession, TimerInstance};
-use chrono::{DateTime, Local, Utc};
+use crate::contract::{
+    ERR_ANOTHER_TIMER_RUNNING, ERR_START_INACTIVE_SESSION, ERR_STOP_NOT_RUNNING,
+    MAX_TIMER_INSTANCES_PER_SESSION, WORKLOG_IMPORT_SOURCE,
+};
+use crate::model::{TaskSession, TimerInstance};
+use crate::zone::DayZone;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-pub(crate) const MAX_TIMER_INSTANCES_PER_SESSION: usize = 50;
-
-pub(super) fn new_session_id() -> String {
+pub fn new_session_id() -> String {
     format!("session_{}", Uuid::new_v4())
 }
 
-pub(super) fn new_instance_id() -> String {
+pub fn new_instance_id() -> String {
     format!("instance_{}", Uuid::new_v4())
 }
 
 /// Net tracked duration for a run that ends at `now`, together with the final
 /// accumulated pause total. `active_pause_started_at` covers a stop issued
 /// while the timer is still paused.
-pub(super) fn compute_final_duration(
+pub fn compute_final_duration(
     start_time: DateTime<Utc>,
     accumulated_paused_ms: u64,
     active_pause_started_at: Option<DateTime<Utc>>,
@@ -41,7 +44,7 @@ pub(super) fn compute_final_duration(
 /// instance is final (create a new instance to keep working). The error
 /// strings for the inactive-session and concurrent-run cases are matched by
 /// the frontend's automatic recovery in useSessionManagement.
-pub(super) fn validate_start(
+pub fn validate_start(
     instance: &TimerInstance,
     session_is_active: bool,
     another_running: bool,
@@ -56,10 +59,10 @@ pub(super) fn validate_start(
         return Err("Timer instance has already completed; create a new timer instead".to_string());
     }
     if !session_is_active {
-        return Err("Cannot start timer for inactive session".to_string());
+        return Err(ERR_START_INACTIVE_SESSION.to_string());
     }
     if another_running {
-        return Err("Another timer instance is already running".to_string());
+        return Err(ERR_ANOTHER_TIMER_RUNNING.to_string());
     }
     Ok(())
 }
@@ -67,14 +70,14 @@ pub(super) fn validate_start(
 /// Stop is valid for a running or paused instance. The message is matched by
 /// the frontend's start recovery (a timer stopped between its read and the
 /// call is "not running").
-pub(super) fn ensure_stoppable(instance: &TimerInstance) -> Result<(), String> {
+pub fn ensure_stoppable(instance: &TimerInstance) -> Result<(), String> {
     if !instance.is_running && !instance.is_paused {
-        return Err("Cannot stop timer: timer is not running".to_string());
+        return Err(ERR_STOP_NOT_RUNNING.to_string());
     }
     Ok(())
 }
 
-pub(crate) fn recalculate_total_duration(session: &mut TaskSession) {
+pub fn recalculate_total_duration(session: &mut TaskSession) {
     session.total_duration = session
         .timer_instances
         .iter()
@@ -82,25 +85,29 @@ pub(crate) fn recalculate_total_duration(session: &mut TaskSession) {
         .sum();
 }
 
-/// The local calendar day of an instant, as the YYYY-MM-DD the sessions use.
-pub(super) fn local_day(at: DateTime<Utc>) -> String {
-    at.with_timezone(&Local).format("%Y-%m-%d").to_string()
-}
-
 /// The error for an instance id that isn't in any session.
-pub(crate) fn instance_not_found(instance_id: &str) -> String {
+pub fn instance_not_found(instance_id: &str) -> String {
     format!("Timer instance with ID {} not found", instance_id)
 }
 
+/// The error for a session already holding MAX_TIMER_INSTANCES_PER_SESSION
+/// timers.
+pub fn max_timers_reached() -> String {
+    format!(
+        "Maximum number of timers ({}) reached for this session",
+        MAX_TIMER_INSTANCES_PER_SESSION
+    )
+}
+
 /// The error for a session id that doesn't exist.
-pub(crate) fn session_not_found(session_id: &str) -> String {
+pub fn session_not_found(session_id: &str) -> String {
     format!("Session with ID {} not found", session_id)
 }
 
 /// Imported days are rebuilt from the work-log ledger on every import, so an
 /// edit made here would silently vanish later: they change only by importing.
-pub(super) fn ensure_not_imported(session: &TaskSession) -> Result<(), String> {
-    if session.source.as_deref() == Some(crate::commands::worklogs::WORKLOG_IMPORT_SOURCE) {
+pub fn ensure_not_imported(session: &TaskSession) -> Result<(), String> {
+    if session.source.as_deref() == Some(WORKLOG_IMPORT_SOURCE) {
         return Err("Imported time changes only through a work-log import".to_string());
     }
     Ok(())
@@ -108,11 +115,12 @@ pub(super) fn ensure_not_imported(session: &TaskSession) -> Result<(), String> {
 
 /// A new, active session for a task, carrying the task's current rate.
 /// Callers deactivate the others first.
-pub(super) fn new_task_session(
+pub fn new_task_session(
     task_id: String,
     task_name: String,
     hourly_rate: Option<f64>,
     now: DateTime<Utc>,
+    zone: DayZone,
 ) -> TaskSession {
     TaskSession {
         id: new_session_id(),
@@ -126,14 +134,14 @@ pub(super) fn new_task_session(
         hourly_rate,
         // Local day, not UTC: the dashboard's today-filter and the calendar
         // compare this string against the user's local date.
-        date: local_day(now),
+        date: zone.day(now),
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
     }
 }
 
 /// A fresh (idle, never-run) timer instance.
-pub(super) fn new_timer_instance(session_id: &str, now: DateTime<Utc>) -> TimerInstance {
+pub fn new_timer_instance(session_id: &str, now: DateTime<Utc>) -> TimerInstance {
     TimerInstance {
         id: new_instance_id(),
         session_id: session_id.to_string(),
@@ -153,7 +161,7 @@ pub(super) fn new_timer_instance(session_id: &str, now: DateTime<Utc>) -> TimerI
 }
 
 /// Put a validated, never-run instance into the running state.
-pub(super) fn begin_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+pub fn begin_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
     instance.is_running = true;
     instance.is_paused = false;
     instance.start_time = now;
@@ -164,7 +172,7 @@ pub(super) fn begin_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
 
 /// Resume a validated, paused instance, folding the pause into
 /// `paused_duration` (the frontend's elapsed math subtracts it).
-pub(crate) fn resume_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+pub fn resume_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
     if let Some(paused_at) = instance.paused_at {
         let pause_duration = (now.timestamp_millis() - paused_at.timestamp_millis()).max(0) as u64;
         instance.paused_duration = Some(instance.paused_duration.unwrap_or(0) + pause_duration);
@@ -178,14 +186,14 @@ pub(crate) fn resume_instance(instance: &mut TimerInstance, now: DateTime<Utc>) 
 
 /// Pause a validated, running instance; `paused_at` starts the pause stretch
 /// that resume (or stop) folds into `paused_duration`.
-pub(super) fn pause_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+pub fn pause_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
     pause_instance_at(instance, now, now);
 }
 
 /// Pause a running instance as of an earlier moment (idle detection backdates
 /// the pause to when input stopped, so the away time isn't counted). Callers
 /// keep `paused_at` at or after the run's start.
-pub(crate) fn pause_instance_at(
+pub fn pause_instance_at(
     instance: &mut TimerInstance,
     paused_at: DateTime<Utc>,
     now: DateTime<Utc>,
@@ -199,7 +207,7 @@ pub(crate) fn pause_instance_at(
 /// Resume a paused instance *without* folding the pause into
 /// `paused_duration`, so the paused stretch counts as tracked time ("keep the
 /// away time" after an idle pause).
-pub(crate) fn keep_idle_time(instance: &mut TimerInstance, now: DateTime<Utc>) {
+pub fn keep_idle_time(instance: &mut TimerInstance, now: DateTime<Utc>) {
     instance.is_running = true;
     instance.is_paused = false;
     instance.paused_at = None;
@@ -212,7 +220,7 @@ pub(crate) fn keep_idle_time(instance: &mut TimerInstance, now: DateTime<Utc>) {
 /// the net duration. A live pause stretch is folded into `paused_duration`,
 /// preserving the invariant duration = endTime - startTime - pausedDuration
 /// that the frontend's edit math inverts.
-pub(super) fn finalize_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
+pub fn finalize_instance(instance: &mut TimerInstance, now: DateTime<Utc>) {
     let was_paused = instance.is_paused;
     let paused_at = instance.paused_at;
 
@@ -238,9 +246,9 @@ pub(super) fn finalize_instance(instance: &mut TimerInstance, now: DateTime<Utc>
 /// only), nor a paused timer stranded (resume is rejected in inactive
 /// sessions, so its tracked time would never be recorded). Finalize both, a
 /// paused instance freezing at its pause point. Returns the finalized
-/// instance ids so the caller can emit `timer-instance-stopped` after the
+/// instance ids so the host can emit `timer-instance-stopped` after the
 /// lock is released.
-pub(crate) fn stop_active_instances(session: &mut TaskSession, now: DateTime<Utc>) -> Vec<String> {
+pub fn stop_active_instances(session: &mut TaskSession, now: DateTime<Utc>) -> Vec<String> {
     let mut stopped = Vec::new();
     for instance in session.timer_instances.iter_mut() {
         if instance.is_running || instance.is_paused {

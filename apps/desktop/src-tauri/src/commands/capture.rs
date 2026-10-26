@@ -5,7 +5,7 @@
 use tauri::State;
 
 use crate::state::AppState;
-use crate::types::{CaptureServerStatus, PendingCapture};
+use taskmint_core::model::{CaptureServerStatus, PendingCapture};
 
 /// Returns and clears the pending capture — a payload is processed at most
 /// once. The frontend calls this on mount and on every

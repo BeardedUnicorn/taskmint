@@ -1,13 +1,13 @@
 // Task-related command handlers
 
-use crate::commands::sessions::{
-    fill_imported_session_rates, fill_missing_session_rates, sync_session_task_names,
-};
-use crate::commands::worklogs::sync_work_log_task_names;
 use crate::events::{emit_quiet, SESSIONS_CHANGED};
 use crate::state::AppState;
 use crate::storage;
-use crate::types::Task;
+use taskmint_core::model::Task;
+use taskmint_core::sessions::task_links::{
+    fill_imported_session_rates, fill_missing_session_rates, sync_session_task_names,
+};
+use taskmint_core::worklogs::sync_work_log_task_names;
 use tauri::{AppHandle, State};
 
 #[tauri::command]

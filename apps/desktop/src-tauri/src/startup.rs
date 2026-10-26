@@ -3,7 +3,6 @@
 //! later save can overwrite it, and a warning is recorded for the frontend
 //! (sessions via get_session_load_warning, work logs via get_work_logs).
 
-use crate::commands;
 use crate::state::AppState;
 use crate::storage;
 use std::path::PathBuf;
@@ -57,7 +56,7 @@ pub fn load_sessions(app: &AppHandle, state: &AppState) {
     // find nothing to repair.
     let mut sessions = loaded.sessions;
     let migrated =
-        commands::sessions::finalize_stranded_instances(&mut sessions, chrono::Utc::now());
+        taskmint_core::timer::finalize_stranded_instances(&mut sessions, chrono::Utc::now());
     if migrated > 0 {
         log::warn!(
             "Finalized {} stranded timer instance(s) in inactive sessions",

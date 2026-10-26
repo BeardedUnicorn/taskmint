@@ -2,7 +2,7 @@
  * Tests for the shared timer-instance elapsed math.
  *
  * These sequences mirror the backend's stop computation in
- * apps/desktop/src-tauri/src/commands/sessions.rs (compute_final_duration): the value the
+ * crates/taskmint-core/src/timer.rs (compute_final_duration): the value the
  * UI shows while running/paused must equal what stop would record.
  */
 

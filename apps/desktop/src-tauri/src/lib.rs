@@ -13,12 +13,10 @@ pub mod startup;
 pub mod state;
 pub mod storage;
 pub mod tray;
-pub mod types;
 pub mod utils;
 
 // Re-export commonly used types
 pub use state::AppState;
-pub use types::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

@@ -1,6 +1,6 @@
 /**
- * Backend event names, mirrored from apps/desktop/src-tauri/src/events.rs (a test checks
- * the two lists agree).
+ * Backend event names, mirrored from the `events` module of
+ * crates/taskmint-core/src/contract.rs (a test checks the two lists agree).
  */
 export const BACKEND_EVENTS = {
   TIMER_INSTANCE_STARTED: 'timer-instance-started',

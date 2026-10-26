@@ -40,7 +40,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
 
       - uses: Swatinem/rust-cache@v2
 
@@ -52,3 +54,9 @@ jobs:
 
       - name: cargo test
         run: cargo test --workspace
+
+      - name: taskmint-core coverage (100%)
+        run: >-
+          cargo llvm-cov -p taskmint-core --summary-only
+          --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex crates/taskmint-core)"
+          --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100

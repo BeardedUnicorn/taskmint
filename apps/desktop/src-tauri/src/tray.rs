@@ -1,15 +1,17 @@
 // System tray functionality
 
-use crate::commands::sessions::{self, LiveTimer};
+use crate::commands::sessions;
 use crate::config::{
     ICON_TRAY_FALLBACK, ICON_TRAY_PRIMARY, TRAY_MAX_RECENT_TASKS, TRAY_MENU_REFRESH_INTERVAL,
     TRAY_STATUS_UPDATE_INTERVAL, TRAY_TOOLTIP_APP_NAME,
 };
 use crate::state::AppState;
-use crate::types::{Task, TaskSession};
 use crate::utils::{format_duration_hm, is_macos};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use taskmint_core::idle::IdleChoice;
+use taskmint_core::model::{Task, TaskSession};
+use taskmint_core::sessions::start::{live_timer, LiveTimer};
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -82,7 +84,7 @@ impl TrayLiveKey {
 /// The live timer, read straight from the Rust-owned sessions.
 fn current_live_timer(state: &AppState) -> Option<LiveTimer> {
     state
-        .with_task_sessions(|sessions| sessions::live_timer(sessions, Utc::now()))
+        .with_task_sessions(|sessions| live_timer(sessions, Utc::now()))
         .ok()
         .flatten()
 }
@@ -279,9 +281,9 @@ pub fn handle_menu_event(id: &str, app: &AppHandle, state: &AppState) {
         }
         "idle_discard_resume" | "idle_keep_resume" => {
             let choice = if id == "idle_keep_resume" {
-                crate::idle::IdleChoice::KeepResume
+                IdleChoice::KeepResume
             } else {
-                crate::idle::IdleChoice::DiscardResume
+                IdleChoice::DiscardResume
             };
             if let Err(e) = crate::idle::resolve(app, state, choice) {
                 log::error!("Failed to resume after idle from tray: {}", e);
