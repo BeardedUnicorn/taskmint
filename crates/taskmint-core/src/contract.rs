@@ -18,10 +18,11 @@ pub const ERR_ANOTHER_TIMER_RUNNING: &str = "Another timer instance is already r
 /// (the timer stopped between its read and the call).
 pub const ERR_STOP_NOT_RUNNING: &str = "Cannot stop timer: timer is not running";
 pub const ERR_PAUSE_NOT_RUNNING: &str = "Cannot pause timer: timer is not running";
-/// A dismissed save dialog. useCsvExport matches it whole (EXPORT_CANCELLED)
-/// and useDataBackup matches "cancelled by user", to stay quiet on cancel.
+/// A dismissed save dialog. The desktop shell's files platform
+/// (apps/desktop/src/tauriBackend.ts) matches it whole, so a cancelled export
+/// stays quiet.
 pub const EXPORT_CANCELLED: &str = "Export cancelled by user";
-/// A dismissed open dialog; useDataBackup matches "cancelled by user".
+/// A dismissed open dialog; matched whole there too (IMPORT_CANCELLED).
 pub const IMPORT_CANCELLED: &str = "Import cancelled by user";
 /// Start of the error for an import file that isn't JSON (the parser's
 /// message follows); useDataBackup matches "Invalid JSON".
@@ -33,7 +34,7 @@ pub const MATCHED_ERROR_SUBSTRINGS: [&str; 6] = [
     "Another timer instance is already running",
     "timer is not running",
     "Export cancelled by user",
-    "cancelled by user",
+    "Import cancelled by user",
     "Invalid JSON",
 ];
 
@@ -136,8 +137,8 @@ mod tests {
     use super::*;
 
     /// The frontend matches these messages (useSessionManagement's start
-    /// recovery, useCsvExport's and useDataBackup's quiet cancel); changing
-    /// one breaks it silently.
+    /// recovery, the desktop shell's quiet cancel, useDataBackup's invalid
+    /// file); changing one breaks it silently.
     #[test]
     fn frontend_matched_error_strings_stay_verbatim() {
         assert_eq!(
@@ -166,7 +167,7 @@ mod tests {
 
     #[test]
     fn each_matched_substring_is_in_the_errors_it_recovers_from() {
-        let [inactive, another, not_running, export, cancelled, invalid_json] =
+        let [inactive, another, not_running, export, import, invalid_json] =
             MATCHED_ERROR_SUBSTRINGS;
         assert!(ERR_START_INACTIVE_SESSION.contains(inactive));
         assert!(ERR_RESUME_INACTIVE_SESSION.contains(inactive));
@@ -174,8 +175,7 @@ mod tests {
         assert!(ERR_STOP_NOT_RUNNING.contains(not_running));
         assert!(ERR_PAUSE_NOT_RUNNING.contains(not_running));
         assert_eq!(EXPORT_CANCELLED, export);
-        assert!(EXPORT_CANCELLED.contains(cancelled));
-        assert!(IMPORT_CANCELLED.contains(cancelled));
+        assert_eq!(IMPORT_CANCELLED, import);
         assert!(INVALID_JSON_FILE.contains(invalid_json));
     }
 

@@ -4,6 +4,7 @@ import { GoalFooter } from '../GoalFooter';
 import { DailyGoalProvider } from '../../../contexts/DailyGoalContext';
 import { STORAGE_KEYS } from '../../../constants';
 import { formatDateString } from '../../../utils/dateHelpers';
+import { seedAppRecords } from '../../../testing';
 
 vi.mock('../../../contexts/SessionManagementContext', () => ({
   useSessionManagementContext: () => ({ sessions: [] }),
@@ -31,21 +32,17 @@ describe('GoalFooter', () => {
 
   it("shows today's progress in the goal's currency", () => {
     const now = new Date().toISOString();
-    window.localStorage.setItem(
-      STORAGE_KEYS.DAILY_GOAL,
-      JSON.stringify({
-        version: 1,
-        data: {
-          targetAmount: 200,
-          currency: 'EUR',
-          isEnabled: true,
-          lastNotifiedPercent: 0,
-          lastNotificationDate: formatDateString(new Date()),
-          createdAt: now,
-          updatedAt: now,
-        },
-      })
-    );
+    seedAppRecords({
+      [STORAGE_KEYS.DAILY_GOAL]: {
+        targetAmount: 200,
+        currency: 'EUR',
+        isEnabled: true,
+        lastNotifiedPercent: 0,
+        lastNotificationDate: formatDateString(new Date()),
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
 
     render(
       <DailyGoalProvider>

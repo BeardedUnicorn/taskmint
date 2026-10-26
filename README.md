@@ -105,8 +105,11 @@ there's no session replay or tracing. Turn it off in Settings → Privacy.
 ```bash
 pnpm install
 pnpm tauri dev      # desktop app with hot reload (Vite on :1420)
-pnpm dev            # UI only in a browser; no Rust backend, so sessions won't load
+pnpm dev            # Vite only, for tauri dev; a plain browser has no backend and stops at the startup error
 ```
+
+The browser build that talks to a TaskMint server comes with phase P10 of
+[the web-support plan](docs/web-support-plan.md).
 
 **Quit the installed TaskMint before running `pnpm tauri dev`.** Dev and
 release builds share the app identifier, so they share the data dir. The

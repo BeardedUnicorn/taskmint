@@ -9,25 +9,15 @@
 import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}));
-
-vi.mock('../../utils/tauri', () => ({
-  isTauriEnvironment: vi.fn(() => true),
-}));
-
 vi.mock('../../utils/appReload', () => ({
   reloadApp: vi.fn(),
 }));
 
-import { invoke } from '@tauri-apps/api/core';
-import { isTauriEnvironment } from '../../utils/tauri';
 import { reloadApp } from '../../utils/appReload';
 import { useResetAppData } from '../useResetAppData';
+import { fakeBackend } from '../../testing';
 
-const mockInvoke = vi.mocked(invoke);
-const mockIsTauriEnvironment = vi.mocked(isTauriEnvironment);
+const mockInvoke = fakeBackend().call;
 const mockReloadApp = vi.mocked(reloadApp);
 
 describe('useResetAppData', () => {
@@ -35,7 +25,6 @@ describe('useResetAppData', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIsTauriEnvironment.mockReturnValue(true);
     mockInvoke.mockResolvedValue({ backupsDeleted: 0, warning: null });
   });
 
@@ -70,20 +59,6 @@ describe('useResetAppData', () => {
     expect(result.current.isResetting).toBe(false);
 
     consoleSpy.mockRestore();
-  });
-
-  it('skips the backend command outside Tauri but still clears and reloads', async () => {
-    mockIsTauriEnvironment.mockReturnValue(false);
-
-    const { result } = renderHook(() => useResetAppData());
-
-    await act(async () => {
-      await result.current.resetAllData();
-    });
-
-    expect(mockInvoke).not.toHaveBeenCalled();
-    expect(window.localStorage.clear).toHaveBeenCalled();
-    expect(mockReloadApp).toHaveBeenCalled();
   });
 
   it('logs a summary warning without failing the reset', async () => {

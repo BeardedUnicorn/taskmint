@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, ReactNode } from 'react';
 import { useBackupSettings } from '../hooks/useBackupSettings';
-import { isTauriEnvironment } from '../utils/tauri';
+import { getBackend } from '../backend';
 
 type BackupSettingsContextValue = ReturnType<typeof useBackupSettings>;
 
@@ -29,7 +29,7 @@ export function BackupSettingsProvider({ children }: { children: ReactNode }) {
   const { enabled, backupPath } = backup.config;
 
   useEffect(() => {
-    if (!isTauriEnvironment()) return;
+    if (!getBackend().platform.folderBackups) return;
 
     const check = async () => {
       if (inFlightRef.current) return;

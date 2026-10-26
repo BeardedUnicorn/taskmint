@@ -1088,7 +1088,7 @@ fn imported_sessions_are_read_only() {
 }
 
 /// The frontend matches these messages (useSessionManagement's start
-/// recovery, useCsvExport's quiet cancel); changing one breaks it silently.
+/// recovery, the desktop shell's quiet cancel); changing one breaks it silently.
 #[test]
 fn frontend_matched_error_strings_stay_verbatim() {
     let inactive = validate_start(&fresh_instance(), false, false).unwrap_err();

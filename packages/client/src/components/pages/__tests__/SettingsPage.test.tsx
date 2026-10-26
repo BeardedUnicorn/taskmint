@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { SettingsPage, SETTINGS_SECTIONS, currentSection } from '../SettingsPage';
 import { NavigationProvider } from '../../../contexts/NavigationContext';
+import { AppExtensionsProvider } from '../../../app/extensions';
 
 // The sections have their own tests; here they're placeholders
 vi.mock('../settings', () => ({
@@ -53,5 +54,24 @@ describe('SettingsPage', () => {
 
     expect(within(nav).getByRole('button', { name: 'Backups' })).toHaveAttribute('aria-current', 'location');
     expect(within(nav).getByRole('button', { name: 'Appearance' })).not.toHaveAttribute('aria-current');
+  });
+
+  it("adds the shell's own sections after the built-in ones", () => {
+    const extensions = {
+      settingsSections: [{ id: 'account', label: 'Account', Section: () => <div>Account section</div> }],
+    };
+    render(
+      <AppExtensionsProvider value={extensions}>
+        <SettingsPage />
+      </AppExtensionsProvider>,
+      { wrapper: NavigationProvider }
+    );
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+
+    expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual([
+      ...SETTINGS_SECTIONS.map(section => section.label),
+      'Account',
+    ]);
+    expect(document.getElementById('settings-account')).toHaveTextContent('Account section');
   });
 });

@@ -4,13 +4,14 @@
  * Verifies persistence and error handling for tasks, sessions, notes, and generic schema-validated data
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { z } from 'zod';
 import { StorageService } from '../StorageService';
 import { STORAGE_KEYS } from '../../constants';
 import { Task } from '../../types/task';
 import { TaskNote } from '../../types/notes';
 import { StorageErrorClass } from '../../types/errors';
+import { seedAppRecords } from '../../testing';
 
 const service = StorageService.getInstance();
 
@@ -43,9 +44,11 @@ describe('StorageService', () => {
       expect(result).toEqual([]);
     });
 
-    it('should throw StorageError on invalid JSON', async () => {
-      localStorage.setItem(STORAGE_KEYS.PREDEFINED_TASKS, 'not-json');
+    it('should throw StorageError on a tasks record that is not a task list', async () => {
+      seedAppRecords({ [STORAGE_KEYS.PREDEFINED_TASKS]: 'not-a-list' });
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
       await expect(service.getTasks()).rejects.toBeInstanceOf(StorageErrorClass);
+      error.mockRestore();
     });
   });
 

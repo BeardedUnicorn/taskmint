@@ -14,22 +14,11 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useSessionManagement } from '../useSessionManagement';
 import { ActiveTimerProvider, useActiveTimer } from '../../contexts/ActiveTimerContext';
 import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
-import { listen } from '@tauri-apps/api/event';
-const mockListen = vi.mocked(listen);
+import { fakeBackend } from '../../testing';
+import { BACKEND_EVENTS } from '../../constants/events';
 
-// Mock Tauri API
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}));
-
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(),
-  emit: vi.fn(),
-}));
-
-// Import the mocked invoke function
-import { invoke } from '@tauri-apps/api/core';
-const mockInvoke = vi.mocked(invoke);
+// The fake backend's command mock
+const mockInvoke = fakeBackend().call;
 
 // Mock notification context
 const mockShowError = vi.fn();
@@ -45,7 +34,7 @@ vi.mock('../../contexts/NotificationContext', () => ({
   }),
 }));
 
-// Command-keyed invoke queues: prime per-command results; unprimed commands
+// Command-keyed call queues: prime per-command results; unprimed commands
 // fall back to sensible defaults.
 let commandQueues: Record<string, unknown[]>;
 
@@ -93,7 +82,6 @@ describe('useSessionManagement', () => {
     vi.clearAllMocks();
     commandQueues = {};
     installInvokeMock();
-    mockListen.mockResolvedValue(async () => {});
   });
 
   afterEach(() => {
@@ -890,24 +878,30 @@ describe('useSessionManagement', () => {
 
   describe('event listener management', () => {
     it('registers the backend timer-instance listeners once and cleans them up', async () => {
-      let activeListeners = 0;
-      mockListen.mockImplementation(async () => {
-        activeListeners++;
-        return async () => {
-          activeListeners--;
-        };
-      });
+      // timer-instance started/stopped/paused/resumed/deleted + work-logs-imported + sessions-changed
+      const events = [
+        BACKEND_EVENTS.TIMER_INSTANCE_STARTED,
+        BACKEND_EVENTS.TIMER_INSTANCE_STOPPED,
+        BACKEND_EVENTS.TIMER_INSTANCE_PAUSED,
+        BACKEND_EVENTS.TIMER_INSTANCE_RESUMED,
+        BACKEND_EVENTS.TIMER_INSTANCE_DELETED,
+        BACKEND_EVENTS.WORK_LOGS_IMPORTED,
+        BACKEND_EVENTS.SESSIONS_CHANGED,
+      ];
+      const listening = () => events.filter(event => fakeBackend().listenerCount(event) === 1).length;
 
-      const expectedListenerCount = 7; // timer-instance started/stopped/paused/resumed/deleted + work-logs-imported + sessions-changed
-
-      const { unmount } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-      await waitFor(() => expect(activeListeners).toBe(expectedListenerCount));
+      const { result, unmount, rerender } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+      rerender();
+      expect(listening()).toBe(7);
+      expect(fakeBackend().subscribe).toHaveBeenCalledTimes(7);
 
       unmount();
-      await waitFor(() => expect(activeListeners).toBe(0));
+      expect(listening()).toBe(0);
 
-      renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-      await waitFor(() => expect(activeListeners).toBe(expectedListenerCount));
+      const again = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      expect(listening()).toBe(7);
+      await waitFor(() => expect(again.result.current.hasLoaded).toBe(true));
     });
 
     it('no longer pauses timers on in-window inactivity events (detection runs in the backend)', async () => {

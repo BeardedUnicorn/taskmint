@@ -5,9 +5,8 @@
  * Provides a unified interface for all data persistence operations
  *
  * The records (tasks, notes, note templates, the daily goal and its history)
- * live in the app's appdata.json in the desktop app, through the records
- * cache (services/appRecords); everything else, and every key outside the
- * app, uses localStorage.
+ * belong to the backend and are read through the records cache
+ * (services/appRecords); every other key uses localStorage.
  */
 
 import { z } from 'zod';
@@ -16,16 +15,10 @@ import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../t
 import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
 
 import { STORAGE_KEYS } from '../constants';
-import { migrateData, createBackup, needsMigration, migrateTaskNotes } from '../utils/dataMigration';
+import { migrateData, createBackup, needsMigration } from '../utils/dataMigration';
 import { validateWithSchema } from '../utils/validation';
 import { StorageErrorClass, createStorageError } from '../types/errors';
-import {
-  AppRecordKey,
-  appRecordsActive,
-  isAppRecordKey,
-  readAppRecord,
-  writeAppRecord,
-} from './appRecords';
+import { AppRecordKey, isAppRecordKey, readAppRecord, writeAppRecord } from './appRecords';
 
 export interface IStorageService {
   // Generic storage operations
@@ -53,11 +46,6 @@ export class StorageService implements IStorageService {
       StorageService.instance = new StorageService();
     }
     return StorageService.instance;
-  }
-
-  /** Kept in appdata.json (desktop app) rather than localStorage. */
-  private usesAppRecords(key: string): key is AppRecordKey {
-    return appRecordsActive() && isAppRecordKey(key);
   }
 
   /** A record from the records cache, validated like a localStorage read. */
@@ -89,7 +77,7 @@ export class StorageService implements IStorageService {
     defaultValue: T,
     schema?: z.ZodType<T>
   ): Promise<T> {
-    if (this.usesAppRecords(key)) {
+    if (isAppRecordKey(key)) {
       return this.readRecord(key, defaultValue, schema);
     }
     try {
@@ -184,7 +172,7 @@ export class StorageService implements IStorageService {
         }
       }
 
-      if (this.usesAppRecords(key)) {
+      if (isAppRecordKey(key)) {
         await writeAppRecord(key, value);
         return;
       }
@@ -239,72 +227,7 @@ export class StorageService implements IStorageService {
   }
 
   async getTaskNotes(): Promise<TaskNote[]> {
-    if (this.usesAppRecords(STORAGE_KEYS.TASK_NOTES)) {
-      return this.readRecord(STORAGE_KEYS.TASK_NOTES, [], z.array(TaskNoteSchema));
-    }
-    try {
-      const item = localStorage.getItem(STORAGE_KEYS.TASK_NOTES);
-
-      // If key is not found in localStorage, return empty array
-      if (item === null) {
-        return [];
-      }
-
-      let parsedData = JSON.parse(item);
-
-      // Return early if no migration is required
-      if (parsedData === null || !needsMigration(parsedData)) {
-        if (parsedData !== null && parsedData.version) {
-          parsedData = parsedData.data;
-        }
-
-        // Validate data
-        const validationResult = validateWithSchema(z.array(TaskNoteSchema), parsedData);
-        if (!validationResult.success) {
-          console.error(`Validation failed for task notes:`, validationResult.error);
-          throw createStorageError('STORAGE_VALIDATION_FAILED',
-            `Data validation failed for key "${STORAGE_KEYS.TASK_NOTES}": ${validationResult.error}`,
-            { key: STORAGE_KEYS.TASK_NOTES, validationError: validationResult.error }
-          );
-        }
-
-        return validationResult.data!;
-      }
-
-      // Create backup before migration
-      await this.createBackup(STORAGE_KEYS.TASK_NOTES);
-
-      // Migrate task notes with archive fields
-      const migratedData = migrateTaskNotes(parsedData);
-
-      // Save migrated data back to localStorage
-      localStorage.setItem(STORAGE_KEYS.TASK_NOTES, JSON.stringify(migratedData));
-
-      // Extract actual data from versioned structure
-      parsedData = migratedData.version ? migratedData.data : migratedData;
-
-      // Validate data
-      const validationResult = validateWithSchema(z.array(TaskNoteSchema), parsedData);
-      if (!validationResult.success) {
-        console.error(`Validation failed for task notes:`, validationResult.error);
-        throw createStorageError('STORAGE_VALIDATION_FAILED',
-          `Data validation failed for key "${STORAGE_KEYS.TASK_NOTES}": ${validationResult.error}`,
-          { key: STORAGE_KEYS.TASK_NOTES, validationError: validationResult.error }
-        );
-      }
-
-      return validationResult.data!;
-    } catch (error) {
-      if (error instanceof StorageErrorClass) {
-        throw error;
-      }
-
-      console.error(`Failed to get task notes:`, error);
-      throw createStorageError('STORAGE_READ_FAILED',
-        `Failed to read data for key "${STORAGE_KEYS.TASK_NOTES}"`,
-        { key: STORAGE_KEYS.TASK_NOTES, originalError: error }
-      );
-    }
+    return this.readRecord(STORAGE_KEYS.TASK_NOTES, [], z.array(TaskNoteSchema));
   }
 
   async setTaskNotes(notes: TaskNote[]): Promise<void> {

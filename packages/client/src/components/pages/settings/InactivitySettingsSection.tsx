@@ -37,7 +37,7 @@ import {
 import { SettingsSection } from './SettingsSection';
 import { useEnhancedTimerSettings } from '../../../hooks/useEnhancedTimerSettings';
 import { INACTIVITY_CONSTANTS } from '../../../constants';
-import { isTauriEnvironment, safeInvoke } from '../../../utils/tauri';
+import { getBackend } from '../../../backend';
 import { useNotification } from '../../../contexts/NotificationContext';
 
 /** Hours offered for the long-run reminder (0 = off). */
@@ -61,18 +61,21 @@ export function InactivitySettingsSection() {
 
   // The slider moves freely while dragged and saves when let go
   const [threshold, setThreshold] = useState(inactivitySettings.thresholdMinutes);
-  // The desktop app reports whether this OS exposes system idle time
-  const [supported, setSupported] = useState(true);
+  // Whether this OS exposes system idle time (none where the platform has
+  // no idle detection at all)
+  const [supported, setSupported] = useState(() => getBackend().platform.idle !== undefined);
 
   useEffect(() => {
     setThreshold(inactivitySettings.thresholdMinutes);
   }, [inactivitySettings.thresholdMinutes]);
 
   useEffect(() => {
-    if (!isTauriEnvironment()) return;
-    safeInvoke<boolean>('get_idle_support').then(result => {
-      if (result === false) setSupported(false);
-    });
+    getBackend().platform.idle?.isSupported().then(
+      result => {
+        if (!result) setSupported(false);
+      },
+      error => console.warn('Failed to ask whether idle time is available:', error)
+    );
   }, []);
 
   const handleReset = () => {

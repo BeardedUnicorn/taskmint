@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { StorageService } from '../services/StorageService';
 import { Task } from '../types/task';
 import { NoteTemplate, TaskNote } from '../types/notes';
@@ -7,12 +6,11 @@ import { DailyGoalAchievement } from '../types/goal';
 import { TaskSession } from '../types/timer';
 import { WorkLogsResponse } from '../types/workLog';
 import { BACKUP_FORMAT_VERSION, BackupFileSchema, RestoreSummary } from '../types/backup';
-import { safeInvoke, isTauriEnvironment } from '../utils/tauri';
+import { getBackend } from '../backend';
 import { errorMessage } from '../utils/errors';
-import { EXPORT_CANCELLED } from './useCsvExport';
 
 interface UseDataBackupProps {
-  /** Called with where the file was saved. */
+  /** Called with where the file was saved (none when it was a browser download). */
   onExportSuccess?: (path?: string) => void;
   onExportError?: (error: string) => void;
   onImportSuccess?: (result: any) => void;
@@ -47,11 +45,11 @@ export const useDataBackup = ({
         storageService.getTaskNotes(),
         storageService.getDailyGoal(),
         storageService.getGoalAchievements(),
-        // Tracked time and the work-log ledger live in the Rust stores. Use
-        // invoke, not safeInvoke: a failed read must fail the backup rather
-        // than silently produce a file with no tracked time in it.
-        isTauriEnvironment() ? invoke<TaskSession[]>('get_sessions') : Promise.resolve([]),
-        isTauriEnvironment() ? invoke<WorkLogsResponse>('get_work_logs') : Promise.resolve(null),
+        // Tracked time and the work-log ledger live in the backend. A failed
+        // read fails the backup rather than produce a file with no tracked
+        // time in it.
+        getBackend().call<TaskSession[]>('get_sessions'),
+        getBackend().call<WorkLogsResponse>('get_work_logs'),
       ]);
 
       return {
@@ -85,10 +83,6 @@ export const useDataBackup = ({
     setIsExporting(true);
 
     try {
-      if (!isTauriEnvironment()) {
-        throw new Error('Export functionality is only available in the desktop app');
-      }
-
       // Create the backup data
       const backupData = await createBackupData();
       const dataJson = JSON.stringify(backupData, null, 2);
@@ -97,17 +91,16 @@ export const useDataBackup = ({
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const suggestedFilename = `taskmint_export_${timestamp}.json`;
 
-      // Shows the save dialog, then writes the file. Dismissing the dialog
-      // is not an error: nothing to report.
-      let exportPath: string;
-      try {
-        exportPath = await invoke<string>('export_data_to_file', { dataJson, suggestedFilename });
-      } catch (error) {
-        if (errorMessage(error, '') === EXPORT_CANCELLED) return;
-        throw error;
-      }
+      // Asks where to save it, then writes it. Dismissing the dialog is not
+      // an error: nothing to report.
+      const saved = await getBackend().platform.files.save({
+        contents: dataJson,
+        suggestedName: suggestedFilename,
+        format: 'json',
+      });
+      if (!saved) return;
 
-      onExportSuccess?.(exportPath);
+      onExportSuccess?.(saved.kind === 'path' ? saved.path : undefined);
 
     } catch (error) {
       // Only log in non-test environments
@@ -126,27 +119,21 @@ export const useDataBackup = ({
     setIsImporting(true);
 
     try {
-      if (!isTauriEnvironment()) {
-        throw new Error('Import functionality is only available in the desktop app');
-      }
+      // Asks for the file and reads it. Dismissing the dialog is not an
+      // error: nothing to report.
+      const fileContents = await getBackend().platform.files.openJson();
+      if (fileContents === null) return;
 
-      // Call Tauri command to show open dialog and get file contents
-      const fileContents = await safeInvoke<string>('import_data_from_file');
-
-      if (!fileContents) {
-        throw new Error('Import was cancelled or failed');
-      }
-      
       const parsed = BackupFileSchema.safeParse(JSON.parse(fileContents));
       if (!parsed.success) {
         throw new Error('Invalid backup file format: this is not a TaskMint export');
       }
       const { data, exportDate } = parsed.data;
 
-      // Sessions and work logs first: the Rust restore writes safety copies
-      // of both stores before changing them. A section the file lacks (v1
+      // Sessions and work logs first: the backend's restore keeps safety
+      // copies of both before changing them. A section the file lacks (v1
       // exports have no work logs) is sent as null and left untouched.
-      const restored = await invoke<RestoreSummary>('restore_backup_data', {
+      const restored = await getBackend().call<RestoreSummary>('restore_backup_data', {
         payload: {
           mode,
           sessions: data.sessions ?? null,
@@ -251,19 +238,13 @@ export const useDataBackup = ({
       if (process.env.NODE_ENV !== 'test') {
         console.error('Import failed:', error);
       }
-      let errorMessage = 'Failed to import data';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('cancelled by user')) {
-          errorMessage = 'Import cancelled';
-        } else if (error.message.includes('Invalid JSON')) {
-          errorMessage = 'Invalid file format. Please select a valid TaskMint export file.';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
-      onImportError?.(errorMessage);
+      // The backend rejects with plain strings, so read the reason either way
+      const reason = errorMessage(error, 'Failed to import data');
+      onImportError?.(
+        reason.includes('Invalid JSON')
+          ? 'Invalid file format. Please select a valid TaskMint export file.'
+          : reason
+      );
     } finally {
       setIsImporting(false);
     }

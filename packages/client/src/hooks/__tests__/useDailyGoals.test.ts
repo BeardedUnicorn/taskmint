@@ -5,13 +5,13 @@
 import { renderHook, act } from '@testing-library/react';
 import { useDailyGoalsState as useDailyGoals } from '../useDailyGoals';
 import { DailyGoal, DailyGoalAchievement } from '../../types/goal';
-import { useLocalStorage } from '../useLocalStorage'; // Import the actual module
+import { useAppRecord } from '../useAppRecord';
 
 const mockSetCurrentGoal = vi.fn();
 const mockSetAchievements = vi.fn();
 
-vi.mock('../useLocalStorage', () => ({
-  useLocalStorage: vi.fn((key) => {
+vi.mock('../useAppRecord', () => ({
+  useAppRecord: vi.fn((key) => {
     if (key === 'dailyGoal') {
       return [null, mockSetCurrentGoal];
     }
@@ -57,8 +57,8 @@ describe('useDailyGoals', () => {
     vi.clearAllMocks();
     vi.setSystemTime(new Date('2024-01-02T12:00:00.000Z')); // Control date for tests
 
-    // Reset the mock implementation of useLocalStorage for each test
-    vi.mocked(useLocalStorage).mockImplementation((key) => {
+    // Reset the mock implementation of useAppRecord for each test
+    vi.mocked(useAppRecord).mockImplementation((key) => {
       if (key === 'dailyGoal') {
         return [null, mockSetCurrentGoal];
       }
@@ -83,15 +83,15 @@ describe('useDailyGoals', () => {
       expect(result.current.achievements).toEqual([]);
     });
 
-    it('should call useLocalStorage with correct parameters', () => {
+    it('should call useAppRecord with correct parameters', () => {
       renderHook(() => useDailyGoals());
 
-      expect(useLocalStorage).toHaveBeenCalledWith('dailyGoal', null);
-      expect(useLocalStorage).toHaveBeenCalledWith('dailyGoalAchievements', []);
+      expect(useAppRecord).toHaveBeenCalledWith('dailyGoal', null);
+      expect(useAppRecord).toHaveBeenCalledWith('dailyGoalAchievements', []);
     });
 
     it('should initialize with existing goal and achievements', () => {
-      vi.mocked(useLocalStorage)
+      vi.mocked(useAppRecord)
         .mockReturnValueOnce([mockGoal, mockSetCurrentGoal])
         .mockReturnValueOnce([[mockAchievement], mockSetAchievements]);
 
@@ -104,13 +104,13 @@ describe('useDailyGoals', () => {
 
   describe('getCurrentGoal', () => {
     it('should return null when no goal exists', () => {
-      vi.mocked(useLocalStorage).mockReturnValue([null, vi.fn()]);
+      vi.mocked(useAppRecord).mockReturnValue([null, vi.fn()]);
       const { result } = renderHook(() => useDailyGoals());
       expect(result.current.getCurrentGoal()).toBe(null);
     });
 
     it('should return current goal when it exists', () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, vi.fn()];
         return [[], vi.fn()];
       });      const { result } = renderHook(() => useDailyGoals());
@@ -122,7 +122,7 @@ describe('useDailyGoals', () => {
     it('should create new goal when none exists', async () => {
       const { result } = renderHook(() => useDailyGoals());
       
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [null, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -147,7 +147,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should update existing goal', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -169,7 +169,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should preserve existing timestamps when updating', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -188,7 +188,7 @@ describe('useDailyGoals', () => {
 
   describe('enableDailyGoal', () => {
     it('should enable existing goal', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [{ ...mockGoal, isEnabled: false }, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -206,7 +206,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should disable existing goal', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -224,7 +224,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should create new goal when enabling and no goal exists', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [null, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -265,7 +265,7 @@ describe('useDailyGoals', () => {
     ];
 
     it('should return achievements within date range', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
         return [null, vi.fn()];
       });
@@ -281,7 +281,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should return empty array when no achievements in range', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
         return [null, vi.fn()];
       });
@@ -296,7 +296,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should include boundary dates', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
         return [null, vi.fn()];
       });
@@ -314,7 +314,7 @@ describe('useDailyGoals', () => {
 
   describe('recordAchievement', () => {
     it('should record new achievement', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[mockAchievement], mockSetAchievements];
         return [null, vi.fn()];
       });
@@ -344,7 +344,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should generate unique IDs for multiple achievements', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
         return [null, vi.fn()];
       });
@@ -376,7 +376,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should handle different achievement statuses', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
         return [null, vi.fn()];
       });
@@ -403,7 +403,7 @@ describe('useDailyGoals', () => {
 
   describe('updateNotificationState', () => {
     it('should update notification state for existing goal', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -432,7 +432,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should handle different notification percentages', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -476,7 +476,7 @@ describe('useDailyGoals', () => {
 
   describe('edge cases', () => {
     it('should handle empty achievements array', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
         return [null, vi.fn()];
       });
@@ -491,7 +491,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should handle goal updates with partial data', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
         return [[], vi.fn()];
       });
@@ -507,7 +507,7 @@ describe('useDailyGoals', () => {
     });
 
     it('should handle achievement recording with minimal data', async () => {
-      vi.mocked(useLocalStorage).mockImplementation((key: string) => {
+      vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
         return [null, vi.fn()];
       });

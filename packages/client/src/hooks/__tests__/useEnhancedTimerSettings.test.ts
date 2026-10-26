@@ -1,16 +1,11 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useEnhancedTimerSettings } from '../useEnhancedTimerSettings';
 import { STORAGE_KEYS } from '../../constants';
 import { DEFAULT_INACTIVITY_SETTINGS } from '../../types/timer';
-import { safeInvoke } from '../../utils/tauri';
+import { fakeBackend, installFakeBackendForTest } from '../../testing';
 
-vi.mock('../../utils/tauri', () => ({
-  isTauriEnvironment: vi.fn(() => true),
-  safeInvoke: vi.fn().mockResolvedValue(null),
-}));
-
-const mockSafeInvoke = vi.mocked(safeInvoke);
+const setIdleSettings = () => fakeBackend().platform.idle.setSettings;
 
 function storeInactivitySettings(data: Record<string, unknown>) {
   window.localStorage.setItem(
@@ -85,16 +80,14 @@ describe('useEnhancedTimerSettings', () => {
       window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_DEFAULT_OFF_APPLIED, 'true');
     });
 
-    it('sends each change to the backend monitor', () => {
+    it('sends each change to the idle monitor', () => {
       const { result } = renderHook(() => useEnhancedTimerSettings());
 
       act(() => {
         result.current.updateInactivitySettings({ enabled: true, thresholdMinutes: 5 });
       });
 
-      expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: true, thresholdMinutes: 5, longRunHours: 4 },
-      });
+      expect(setIdleSettings()).toHaveBeenCalledWith({ enabled: true, thresholdMinutes: 5, longRunHours: 4 });
       expect(result.current.inactivitySettings).toEqual({ enabled: true, thresholdMinutes: 5, longRunHours: 4 });
     });
 
@@ -117,16 +110,38 @@ describe('useEnhancedTimerSettings', () => {
       expect(storedSettings()).toEqual({ enabled: true, thresholdMinutes: 10, longRunHours: 4 });
     });
 
-    it('resetting also resets the backend', () => {
+    it('resetting also resets the idle monitor', () => {
       const { result } = renderHook(() => useEnhancedTimerSettings());
 
       act(() => {
         result.current.resetToDefaults();
       });
 
-      expect(mockSafeInvoke).toHaveBeenCalledWith('set_idle_settings', {
-        settings: { enabled: false, thresholdMinutes: 15, longRunHours: 4 },
+      expect(setIdleSettings()).toHaveBeenCalledWith({ enabled: false, thresholdMinutes: 15, longRunHours: 4 });
+    });
+
+    it('logs settings the idle monitor refused', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      setIdleSettings().mockRejectedValueOnce('monitor stopped');
+      const { result } = renderHook(() => useEnhancedTimerSettings());
+
+      act(() => {
+        result.current.updateInactivitySettings({ enabled: true });
       });
+
+      await waitFor(() => expect(warn).toHaveBeenCalledWith('Failed to send the idle settings:', 'monitor stopped'));
+      warn.mockRestore();
+    });
+
+    it('saves the settings where the platform has no idle monitor', () => {
+      installFakeBackendForTest({ without: ['idle'] });
+      const { result } = renderHook(() => useEnhancedTimerSettings());
+
+      act(() => {
+        result.current.updateInactivitySettings({ thresholdMinutes: 25 });
+      });
+
+      expect(storedSettings().thresholdMinutes).toBe(25);
     });
   });
 });

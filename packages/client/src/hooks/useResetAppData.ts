@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { isTauriEnvironment } from '../utils/tauri';
+import { getBackend } from '../backend';
 import { reloadApp } from '../utils/appReload';
 import { flushAppRecords } from '../services/appRecords';
 
-/** Result of the Rust reset_all_app_data command. */
+/** Result of the backend's reset_all_app_data command. */
 export interface ResetAppDataSummary {
   backupsDeleted: number;
   warning: string | null;
@@ -14,10 +14,10 @@ interface UseResetAppDataProps {
 }
 
 /**
- * Full app-data reset: wipes the Rust stores (sessions, work logs, the
- * tasks/notes/templates/goal records, their on-disk backups, tray/timer
- * state), then clears localStorage (settings) and reloads the app so every
- * provider re-initializes from the empty stores.
+ * Full app-data reset: wipes the backend's data (sessions, work logs, the
+ * tasks/notes/templates/goal records, and on the desktop their on-disk
+ * backups and tray/timer state), then clears localStorage (settings) and
+ * reloads the app so every provider re-initializes from the empty stores.
  */
 export const useResetAppData = ({ onError }: UseResetAppDataProps = {}) => {
   const [isResetting, setIsResetting] = useState(false);
@@ -27,16 +27,12 @@ export const useResetAppData = ({ onError }: UseResetAppDataProps = {}) => {
     setIsResetting(true);
 
     try {
-      if (isTauriEnvironment()) {
-        // A record write still in flight must land before the wipe, not after
-        await flushAppRecords();
-        // Direct invoke rather than safeInvoke: a backend failure must abort
-        // the reset before any frontend data is cleared.
-        const { invoke } = await import('@tauri-apps/api/core');
-        const summary = await invoke<ResetAppDataSummary>('reset_all_app_data');
-        if (summary?.warning) {
-          console.warn(summary.warning);
-        }
+      // A record write still in flight must land before the wipe, not after
+      await flushAppRecords();
+      // A backend failure aborts the reset before any local data is cleared
+      const summary = await getBackend().call<ResetAppDataSummary>('reset_all_app_data');
+      if (summary?.warning) {
+        console.warn(summary.warning);
       }
 
       window.localStorage.clear();

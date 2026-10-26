@@ -4,7 +4,7 @@
  * and CSV export.
  */
 
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -15,6 +15,7 @@ import { Task } from '../../../../types/task';
 import { createAppTheme } from '../../../../theme';
 import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import { defaultFilters } from '../../../ui/filters/TimeEntriesFilters';
+import { fakeBackend } from '../../../../testing';
 
 // Stable object: a fresh one per render would re-run the page's memos
 const mockGoals = { achievements: [], currentGoal: null };
@@ -207,16 +208,21 @@ describe('HistoryPage entries table', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('counts only finished entries for export, and exports them', () => {
+  it('counts only finished entries for export, and exports them', async () => {
     const entries = makeEntries();
     entries[29] = { ...entries[29], isRunning: true, duration: undefined, endTime: undefined };
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     renderPage(entries);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV (29)' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export CSV (29)' }));
+    });
 
-    expect(click).toHaveBeenCalled();
-    click.mockRestore();
+    expect(fakeBackend().platform.files.save).toHaveBeenCalledWith(
+      expect.objectContaining({ format: 'csv', suggestedName: expect.stringMatching(/\.csv$/) })
+    );
+    const [{ contents }] = fakeBackend().platform.files.save.mock.calls[0];
+    // A header and the 29 finished entries
+    expect(contents.trim().split('\r\n')).toHaveLength(30);
   });
 });
 

@@ -17,15 +17,10 @@ import { Task } from '../../types/task';
 import { ActiveTimerProvider } from '../../contexts/ActiveTimerContext';
 import { TaskNotesProvider } from '../../contexts/TaskNotesContext';
 import { NoteTemplatesProvider } from '../../contexts/NoteTemplatesContext';
+import { fakeBackend } from '../../testing';
 
-// Mock Tauri API
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}));
-
-// Get the mocked invoke function
-import { invoke } from '@tauri-apps/api/core';
-const mockInvoke = vi.mocked(invoke);
+// The fake backend's command mock
+const mockInvoke = fakeBackend().call;
 
 // Mock notification context
 const mockShowError = vi.fn();

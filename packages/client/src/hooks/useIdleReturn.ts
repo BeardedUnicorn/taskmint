@@ -1,17 +1,15 @@
 /**
  * Idle Return Hook
  *
- * The app side of idle detection (the monitor runs in the backend): sends the
- * saved detection settings at startup, and holds the "you were away" question
- * the backend raises when input returns after an idle pause. Used once, in
- * App.
+ * The client side of idle detection (the monitor runs in the shell, where
+ * the platform has one): sends the saved detection settings at startup, and
+ * holds the "you were away" question the shell raises when input returns
+ * after an idle pause. Used once, in App.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { IdleChoice, IdlePause } from '../types/timer';
-import { isTauriEnvironment, safeInvoke } from '../utils/tauri';
-import { useTauriEvent } from './useTauriEvent';
+import { getBackend, useBackendEvent } from '../backend';
 import { BACKEND_EVENTS } from '../constants/events';
 import { sendIdleSettings, useEnhancedTimerSettings } from './useEnhancedTimerSettings';
 import { errorMessage } from '../utils/errors';
@@ -36,22 +34,26 @@ export function useIdleReturn(): UseIdleReturnResult {
     void sendIdleSettings(inactivitySettings);
   }, [inactivitySettings]);
 
-  useTauriEvent<IdlePause>(BACKEND_EVENTS.IDLE_RETURNED, event => {
+  useBackendEvent<IdlePause>(BACKEND_EVENTS.IDLE_RETURNED, pause => {
     setError(null);
-    setPending(event.payload);
+    setPending(pause);
   });
-  useTauriEvent(BACKEND_EVENTS.IDLE_RESOLVED, () => {
+  useBackendEvent(BACKEND_EVENTS.IDLE_RESOLVED, () => {
     setPending(null);
     setError(null);
   });
 
   // A question raised before the listeners existed (e.g. a reload)
   useEffect(() => {
-    if (!isTauriEnvironment()) return;
+    const idle = getBackend().platform.idle;
+    if (!idle) return;
     let cancelled = false;
-    safeInvoke<IdlePause | null>('get_idle_pause').then(existing => {
-      if (!cancelled && existing?.returned) setPending(existing);
-    });
+    idle.getPending().then(
+      existing => {
+        if (!cancelled && existing?.returned) setPending(existing);
+      },
+      error => console.warn('Failed to read a pending idle pause:', error)
+    );
     return () => {
       cancelled = true;
     };
@@ -61,7 +63,8 @@ export function useIdleReturn(): UseIdleReturnResult {
     setIsResolving(true);
     setError(null);
     try {
-      await invoke('resolve_idle_pause', { choice });
+      // Only raised where the platform detects idle time
+      await getBackend().platform.idle!.resolve(choice);
       setPending(null);
     } catch (err) {
       setError(errorMessage(err, "Couldn't apply that choice"));

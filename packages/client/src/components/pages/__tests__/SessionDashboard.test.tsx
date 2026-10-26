@@ -13,7 +13,7 @@ import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { ActiveTimerProvider } from '../../../contexts/ActiveTimerContext';
 
-// Mock dependencies (Tauri v2 core/event modules are mocked globally in
+// Mock dependencies (the backend is a fake, installed globally in
 // src/__tests__/setup/global-mocks.ts)
 const mockShowError = vi.fn();
 const mockShowSuccess = vi.fn();

@@ -2,9 +2,9 @@
  * Enhanced Timer Settings Hook
  *
  * Manages the inactivity-detection settings and their one-time migrations.
- * Detection runs in the backend (system idle time), so every change is also
- * mirrored to it with set_idle_settings; useIdleReturn sends the saved value
- * at startup.
+ * Detection runs in the shell (system idle time, the desktop app only), so
+ * every change is also mirrored to it; useIdleReturn sends the saved value at
+ * startup.
  *
  * Inactivity settings are stored under STORAGE_KEYS.INACTIVITY_SETTINGS.
  * (They historically lived nested inside STORAGE_KEYS.ENHANCED_TIMER_SETTINGS;
@@ -14,7 +14,7 @@
 import { useMemo } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { STORAGE_KEYS } from '../constants';
-import { safeInvoke } from '../utils/tauri';
+import { getBackend } from '../backend';
 import { InactivitySettings, DEFAULT_INACTIVITY_SETTINGS } from '../types/timer';
 
 /**
@@ -83,15 +83,19 @@ export function prepareInactivitySettings(): void {
   turnInactivityDetectionOffOnce();
 }
 
-/** Mirror detection and reminder settings to the backend's idle monitor. */
-export function sendIdleSettings(settings: InactivitySettings): Promise<unknown> {
-  return safeInvoke('set_idle_settings', {
-    settings: {
+/** Mirror detection and reminder settings to the shell's idle monitor, where there is one. */
+export async function sendIdleSettings(settings: InactivitySettings): Promise<void> {
+  const idle = getBackend().platform.idle;
+  if (!idle) return;
+  try {
+    await idle.setSettings({
       enabled: settings.enabled,
       thresholdMinutes: settings.thresholdMinutes,
       longRunHours: settings.longRunHours,
-    },
-  });
+    });
+  } catch (error) {
+    console.warn('Failed to send the idle settings:', error);
+  }
 }
 
 export function useEnhancedTimerSettings() {

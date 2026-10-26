@@ -1,16 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, act } from '@testing-library/react';
-import { invoke } from '@tauri-apps/api/core';
 import { BackupSettingsProvider, BACKUP_CHECK_INTERVAL_MS } from '../BackupSettingsContext';
-
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}));
-
-vi.mock('../../utils/tauri', () => ({
-  isTauriEnvironment: vi.fn(() => true),
-  safeInvoke: vi.fn(),
-}));
+import { fakeBackend, installFakeBackendForTest } from '../../testing';
 
 const mockNotify = vi.fn();
 vi.mock('../NotificationContext', () => ({
@@ -28,24 +19,22 @@ function storedConfig() {
 }
 
 function mockBackend(backupResult: { success: boolean; error?: string }) {
-  vi.mocked(invoke).mockImplementation(async (command: string) => {
+  fakeBackend().call.mockImplementation(async (command: string) => {
     switch (command) {
-      case 'validate_backup_path':
-        return { isValid: true };
       case 'get_sessions':
         return [];
       case 'get_work_logs':
         return { entries: [], mappings: [], loadWarning: null };
-      case 'perform_automatic_backup':
-        return { ...backupResult, timestamp: new Date().toISOString() };
       default:
         return undefined;
     }
   });
+  const folders = fakeBackend().platform.folderBackups;
+  folders.validateFolder.mockResolvedValue({ isValid: true });
+  folders.write.mockImplementation(async () => ({ ...backupResult, timestamp: new Date().toISOString() }));
 }
 
-const backupCalls = () =>
-  vi.mocked(invoke).mock.calls.filter(([command]) => command === 'perform_automatic_backup');
+const backupCalls = () => fakeBackend().platform.folderBackups.write.mock.calls;
 
 describe('BackupSettingsProvider scheduling', () => {
   beforeEach(() => {
@@ -64,7 +53,7 @@ describe('BackupSettingsProvider scheduling', () => {
     render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
 
     await waitFor(() => expect(backupCalls()).toHaveLength(1));
-    expect(backupCalls()[0][1]).toMatchObject({ backupPath: '/backups', maxBackups: 5 });
+    expect(backupCalls()[0][0]).toMatchObject({ folder: '/backups', maxBackups: 5 });
     await waitFor(() => expect(storedConfig().lastBackupTime).toBeDefined());
   });
 
@@ -75,7 +64,7 @@ describe('BackupSettingsProvider scheduling', () => {
     render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
 
     await act(async () => {});
-    expect(invoke).not.toHaveBeenCalled();
+    expect(fakeBackend().call).not.toHaveBeenCalled();
   });
 
   it('skips a backup that is not yet due', async () => {
@@ -91,7 +80,19 @@ describe('BackupSettingsProvider scheduling', () => {
     render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
 
     await act(async () => {});
-    expect(invoke).not.toHaveBeenCalled();
+    expect(fakeBackend().call).not.toHaveBeenCalled();
+  });
+
+  it('schedules nothing where the platform has no folder backups', async () => {
+    storeConfig({ enabled: true, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
+    const desktop = fakeBackend();
+    installFakeBackendForTest({ without: ['folderBackups'] });
+
+    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+
+    await act(async () => {});
+    expect(fakeBackend().call).not.toHaveBeenCalled();
+    expect(desktop.platform.folderBackups.write).not.toHaveBeenCalled();
   });
 
   it('keeps a failed backup due and retries it on the next hourly check', async () => {
