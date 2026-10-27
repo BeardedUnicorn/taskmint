@@ -190,6 +190,8 @@ pub async fn revoke(
     )
     .fetch_optional(&state.db)
     .await?
-    .map(|_| StatusCode::NO_CONTENT)
-    .ok_or_else(|| ApiError::not_found("no such token"))
+    .ok_or_else(|| ApiError::not_found("no such token"))?;
+    // A stream the token opened ends; the others reconnect
+    state.events.disconnect(session.user.id);
+    Ok(StatusCode::NO_CONTENT)
 }

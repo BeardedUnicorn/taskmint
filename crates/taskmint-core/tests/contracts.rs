@@ -47,6 +47,7 @@ fn export_types(cfg: &Config) {
         cfg,
         // What the commands take and return
         AppRecords,
+        SavedRecord,
         WorkLogs,
         ResetSummary,
         StartTaskResult,
@@ -191,6 +192,11 @@ fn constants() -> Constants {
                 "UNEXPECTED_PAYLOAD_SHAPE",
                 json!(ERR_UNEXPECTED_PAYLOAD_SHAPE),
             ),
+            (
+                "ERR_RECORD_CONFLICT",
+                "RECORD_CONFLICT",
+                json!(ERR_RECORD_CONFLICT),
+            ),
         ],
     );
     out.group(
@@ -259,6 +265,12 @@ fn constants() -> Constants {
                 "WORK_LOG_PAYLOAD_CAPTURED",
                 json!(events::WORK_LOG_PAYLOAD_CAPTURED),
             ),
+            (
+                "APP_RECORDS_CHANGED",
+                "APP_RECORDS_CHANGED",
+                json!(events::APP_RECORDS_CHANGED),
+            ),
+            ("RESYNC", "RESYNC", json!(events::RESYNC)),
             (
                 "IDLE_RETURNED",
                 "IDLE_RETURNED",
@@ -355,6 +367,15 @@ fn constants() -> Constants {
                 json!(IDLE_CHOICE_STAY_PAUSED),
             ),
         ],
+    );
+    out.group(
+        "What the server's API reads besides each endpoint's body.",
+        "SERVER_API",
+        &[(
+            "TIME_ZONE_HEADER",
+            "TIME_ZONE_HEADER",
+            json!(TIME_ZONE_HEADER),
+        )],
     );
     out.group(
         "The desktop app's capture server, which the browser extension posts to.",

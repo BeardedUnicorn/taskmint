@@ -2,6 +2,7 @@
 import type { JsonValue } from "./serde_json/JsonValue";
 
 /**
- * get_app_records' and import_app_records' reply: every record stored.
+ * get_app_records' and import_app_records' reply: every record stored, and
+ * every record key's revision (0 for one never saved).
  */
-export type AppRecords = { records: { [key in string]: JsonValue }, };
+export type AppRecords = { records: { [key in string]: JsonValue }, revisions: { [key in string]: number }, };

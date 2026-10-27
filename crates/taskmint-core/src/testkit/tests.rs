@@ -7,10 +7,13 @@ use crate::workspace::{Parts, Workspace};
 use crate::zone::DayZone;
 use serde_json::json;
 
-/// Core in memory, as a host would run it: each command on a copy, kept
-/// only when it succeeds. It also checks what every host relies on: a
-/// command changes only the parts it declares, and reports every part it
-/// changed, so a host that saves the dirty parts saves all of it.
+/// Core in memory, run the way each host runs it: on the whole workspace,
+/// as the desktop does, and on just the parts the command declares, as the
+/// server loads them. The server's run is the one kept, so a command that
+/// reads more than it declares fails its scenario. The desktop's run checks
+/// what every host relies on: a command changes only the parts it declares,
+/// and reports every part it changed, so a host that saves the dirty parts
+/// saves all of it.
 struct MemoryHost {
     workspace: Workspace,
     now: DateTime<Utc>,
@@ -38,7 +41,7 @@ fn changed(before: &Workspace, after: &Workspace) -> Parts {
     {
         parts |= Parts::WORK_LOGS;
     }
-    if before.records != after.records {
+    if before.records != after.records || before.record_revisions != after.record_revisions {
         parts |= Parts::RECORDS;
     }
     if before.pending_capture != after.pending_capture {
@@ -47,16 +50,33 @@ fn changed(before: &Workspace, after: &Workspace) -> Parts {
     parts
 }
 
-impl Host for MemoryHost {
-    fn call(&mut self, command: &str, args: Value) -> Result<Value, String> {
-        let command = Command::parse(command, args).map_err(|e| e.to_string())?;
+/// `workspace` with `parts` taken from `from`: the parts a host loaded for
+/// a command, and saves after it.
+fn with_parts(workspace: &Workspace, from: &Workspace, parts: Parts) -> Workspace {
+    let mut merged = workspace.clone();
+    if parts.contains(Parts::SESSIONS) {
+        merged.sessions = from.sessions.clone();
+    }
+    if parts.contains(Parts::WORK_LOGS) {
+        merged.work_log_entries = from.work_log_entries.clone();
+        merged.work_log_mappings = from.work_log_mappings.clone();
+    }
+    if parts.contains(Parts::RECORDS) {
+        merged.records = from.records.clone();
+        merged.record_revisions = from.record_revisions.clone();
+    }
+    if parts.contains(Parts::CAPTURE) {
+        merged.pending_capture = from.pending_capture.clone();
+    }
+    merged
+}
+
+impl MemoryHost {
+    /// The desktop's way: the whole workspace in memory.
+    fn check_whole(&self, command: Command, ctx: &Ctx) -> Result<(), String> {
         let access = command.access();
         let mut draft = self.workspace.clone();
-        let ctx = Ctx {
-            now: self.now,
-            zone: DayZone::Named(chrono_tz::UTC),
-        };
-        let done = execute(command, &mut draft, &ctx).map_err(|e| e.to_string())?;
+        let done = execute(command, &mut draft, ctx).map_err(|e| e.to_string())?;
         let changed = changed(&self.workspace, &draft);
         assert!(
             access.parts.contains(changed),
@@ -70,13 +90,40 @@ impl Host for MemoryHost {
             changed,
             done.dirty
         );
+        // A host saves the dirty parts of what it loaded
+        assert!(
+            access.parts.contains(done.dirty),
+            "dirty {:?}, declared {:?}",
+            done.dirty,
+            access
+        );
         // A host runs a read on the live data, and saves nothing after it
         assert!(
             access.write || (changed.is_empty() && done.dirty.is_empty()),
             "a read changed {:?}",
             changed
         );
-        self.workspace = draft;
+        Ok(())
+    }
+}
+
+impl Host for MemoryHost {
+    fn call(&mut self, command: &str, args: Value) -> Result<Value, String> {
+        let ctx = Ctx {
+            now: self.now,
+            zone: DayZone::UTC,
+        };
+        let whole = Command::parse(command, args.clone()).map_err(|e| e.to_string())?;
+        let checked = self.check_whole(whole, &ctx);
+
+        // The server's way: only the declared parts
+        let command = Command::parse(command, args).unwrap();
+        let access = command.access();
+        let mut loaded = with_parts(&Workspace::default(), &self.workspace, access.parts);
+        let done = execute(command, &mut loaded, &ctx).map_err(|e| e.to_string());
+        assert_eq!(checked.as_ref().err(), done.as_ref().err());
+        let done = done?;
+        self.workspace = with_parts(&self.workspace, &loaded, access.parts);
         self.events
             .extend(done.events.iter().map(|e| e.name.to_string()));
         Ok(done.reply)
@@ -92,7 +139,9 @@ impl Host for MemoryHost {
 
     /// What a host saves goes through JSON; the capture waiting for the
     /// frontend is kept (the server stores it; scenarios don't reload with
-    /// one waiting, since the desktop keeps it in memory only).
+    /// one waiting, since the desktop keeps it in memory only). Record
+    /// revisions count afresh, as on the desktop, so scenarios read them
+    /// again after a reload (the server keeps counting).
     fn reload(&mut self) {
         fn round_trip<T: serde::Serialize + serde::de::DeserializeOwned>(value: &T) -> T {
             serde_json::from_value(serde_json::to_value(value).unwrap()).unwrap()
@@ -103,6 +152,7 @@ impl Host for MemoryHost {
             work_log_entries: round_trip::<Vec<WorkLogEntry>>(&saved.work_log_entries),
             work_log_mappings: round_trip::<Vec<ProjectTaskMapping>>(&saved.work_log_mappings),
             records: saved.records.clone(),
+            record_revisions: Default::default(),
             pending_capture: saved.pending_capture.clone(),
             notes: Default::default(),
         };

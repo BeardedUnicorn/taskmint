@@ -5,4 +5,9 @@ export type SetAppRecordArgs = { key: string,
 /**
  * null removes the record.
  */
-value: JsonValue, };
+value: JsonValue, 
+/**
+ * The record's revision when the client read it; the save is refused
+ * if it has changed since. Absent: saved whatever the revision.
+ */
+baseRevision?: number | null, };

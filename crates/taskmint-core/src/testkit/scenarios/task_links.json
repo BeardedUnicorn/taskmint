@@ -13,7 +13,8 @@
             "updatedAt": "2026-01-01T00:00:00Z"
           }
         ]
-      }
+      },
+      "events": ["app-records-changed"]
     },
     {
       "call": "start_task",
@@ -42,7 +43,7 @@
           }
         ]
       },
-      "events": ["sessions-changed"]
+      "events": ["app-records-changed", "sessions-changed"]
     },
     {
       "reload": true,
@@ -62,7 +63,8 @@
             "updatedAt": "2026-01-03T00:00:00Z"
           }
         ]
-      }
+      },
+      "events": ["app-records-changed"]
     },
     { "call": "get_sessions", "reply": [{ "taskName": "Drafting", "hourlyRate": 60 }] },
     {
@@ -80,7 +82,8 @@
           ]
         }
       },
-      "reply": { "records": { "predefinedTasks": [{ "id": "t1" }, { "id": "t2" }] } }
+      "reply": { "records": { "predefinedTasks": [{ "id": "t1" }, { "id": "t2" }] } },
+      "events": ["app-records-changed"]
     },
     {
       "call": "start_task",

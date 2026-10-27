@@ -258,6 +258,8 @@ mod tests {
         assert_eq!(
             f.platform.event_names(),
             [
+                // with_tasks saved the tasks
+                "app-records-changed",
                 "timer-instance-started",
                 "timer-instance-paused",
                 "timer-instance-resumed",

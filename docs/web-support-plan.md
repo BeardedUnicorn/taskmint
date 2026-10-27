@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth) and P9 (server workspace and realtime) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -112,7 +112,7 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
 - **Core command layer** (`taskmint_core::command`):
   - `Command::parse(name, args)` takes the 30 commands by their names and camelCase args. Missing or null args count as `{}`, and unknown keys are ignored, as with Tauri.
   - `access()` gives `{ parts, write }`. `execute(command, &mut Workspace, &Ctx)` returns `Executed { reply, dirty, backups, events, purge_backups }`.
-  - `CoreError` is `Rejected | InvalidArgs | UnknownCommand`; `Conflict` waits for P9's record revisions.
+  - `CoreError` is `Rejected | InvalidArgs | UnknownCommand`; P9 added `Conflict` for record revisions.
   - Five commands are new, for the tray, the idle monitor and captures: `stop_live_timer`, `pause_live_timer`, `pause_timer_at`, `apply_idle_choice` and `accept_capture`. The webview doesn't call them; P12's server mode sends them.
 - **Workspace:** the sessions, the ledger, the records, the pending capture, and what the host found at load (warnings, and an unreadable records file).
   - Tasks are read from the `predefinedTasks` record (`tasks_from_records`). It looks through a `{ version, data }` wrapper and skips items that don't parse.
@@ -140,7 +140,7 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
 - **Conformance:**
   - Nine JSON scenarios live in `crates/taskmint-core/src/testkit/scenarios`.
   - Core runs them in memory and checks that each command changes only the parts it declares and reports every part it changed.
-  - The desktop runs them on files, reloading from disk (`tests/conformance.rs`). P9 adds the server.
+  - The desktop runs them on files, reloading from disk (`tests/conformance.rs`). P9 added the server, over HTTP.
 - **Coverage findings:**
   - Core is at 100%, testkit included. `run_all` isn't generic, because llvm-cov scores a generic by one instantiation.
   - Log macro arguments that call methods (`path.display()`, `keys.join(..)`) leave uncovered regions when no logger is installed. The P0 spike only tried plain arguments, so P7 needs a test logger after all.
@@ -234,9 +234,39 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
 - Two additions:
   - `GET password-resets/:token`, so the reset page can show whose password it sets.
   - `api_tokens.kind` (`api` or `device`), so the tokens list can tell device tokens apart.
-- Accepting an invite creates the user and a session only. P9 adds the `workspaces` row.
+- Accepting an invite creates the user and a session only. The `workspaces` row comes with the user's first change (P9).
 - Compose publishes the server on `127.0.0.1:${SERVER_PORT:-3000}` for the Vite proxy, and `db` on `${DB_PORT:-5433}`.
 - The image's `test` stage and the compose `test` profile are left for P11.
+
+**As built in P9:**
+- **Endpoints:**
+  - `POST commands/{name}` (a cookie session with its CSRF token, or a `full` token). The body is the arguments, and an empty one means none.
+  - Errors are `{error, code}` with core's message: 400 `rejected`, `invalid_args`, `invalid_body` or `invalid_time_zone`; 404 `unknown_command`; 409 `conflict`.
+  - `X-TaskMint-TZ` (`SERVER_API.TIME_ZONE_HEADER` in the contracts) names the zone. Without it the account's `time_zone` is used, and UTC if that isn't a zone.
+  - `GET events` is server-sent events named as the desktop's, with JSON data, a 15 s keep-alive and a 64-event buffer. A stream gets `resync` when it falls behind, and every stream gets it after a reset.
+  - Streams close when access changes: sign-out, a password change or reset, a revoked token, any admin change to the user. Clients still signed in reconnect.
+  - `POST capture` and `GET capture/ping` take a `capture` or `full` token, `X-TaskMint-Capture`, and no Origin or the pinned extension's. They sit outside the CSRF layer, since only bearer tokens reach them, with an 8 MB limit. The ping returns `{app, version, username}`.
+- **Store** (`apps/server/src/workspace`):
+  - A read is one `SELECT` over the declared parts (`jsonb_agg` per table), so it's one consistent snapshot without a transaction.
+  - A change runs lock, load, execute, keep copies, save, commit, then publish. The lock is an upsert on `workspaces`, which also counts `version` and makes the row on the user's first change.
+  - Rows keep core's order by `seq`. `diff_rows` writes only changed and new rows; a reorder (a replace-mode restore) writes the whole list again.
+  - Rows that can't be read (bad JSON, or a record whose id isn't the row's) are skipped with a load warning ("… They're kept as they are.") and never written over, unless a record with that id comes back.
+  - Copies go in `data_snapshots` (kinds `sessions`, `work_logs`, `records`, `incoming_records`; `reason` is the command), inside the change's transaction. So every copy is required on the server: a database that can't take the copy can't take the change either.
+  - Reset All Data deletes every row and copy of the user's in one statement.
+- **Core:**
+  - Records carry revisions (`Workspace.record_revisions`). `get_app_records` and `import_app_records` reply `revisions` for every key (0 for one never saved).
+  - `set_app_record` takes an optional `baseRevision` and replies `{ revision }`. A stale base is `CoreError::Conflict(ERR_RECORD_CONFLICT)`. A removed record keeps counting.
+  - The desktop keeps revisions in memory and counts afresh at each launch, when its one webview reads the records again.
+  - `app-records-changed {key, revision}` goes out for each saved record.
+  - A replace-mode restore keeps the first record with each id, since rows are keyed by it. Duplicates count as already present.
+  - Also new: `DayZone::named`, `DayZone::UTC`, `events::RESYNC` and `TIME_ZONE_HEADER`.
+- **Conformance:**
+  - Core's memory host runs each command twice. On the whole workspace (the desktop's way) it checks what the command changed. On just the declared parts (the server's way) it keeps the result, so a command that reads more than it declares fails its scenario.
+  - The server passes every scenario over HTTP (`tests/api/conformance.rs`), each as a new user. `resync` is left out there and tested on its own.
+  - `tests/api/isolation.rs` shows one account can't see or change another's data or events.
+- **Not yet:**
+  - Event streams live in the server process, so there's one server instance (`LISTEN/NOTIFY` is deferred).
+  - A change loads all of each part it declares, as the desktop holds them in memory. That's fine for one person's history; revisit if it grows large.
 
 ## 5. Frontend
 
@@ -275,7 +305,7 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
 - **Left for later phases:**
   - `useEnhancedSystemTray` kept sending `update_tasks` until P5, when Rust started reading the tasks from their record.
   - Error matching stays on literal strings until P6 generates `CORE_ERRORS`.
-  - Record revisions and `app-records-changed` are P9.
+  - Record revisions and `app-records-changed` came in P9; using them (and the conflict message) is P10's.
   - The browser implementations are P10, in `apps/web`: the Blob download, the Web Notification API, and hiding the Idle and Backups settings where those features are missing. The client's old browser fallbacks were deleted with the backend-less preview.
 - **Tests:** `src/__tests__/setup/global-mocks.ts` installs one fake backend per test file and starts each test with empty records (`seedAppRecords`). `installFakeBackendForTest({ without: [...] })` swaps in a web-like fake for one test.
 - **`apps/desktop` has its own vitest config at 100%**, listed in `coverage-policy.json`. The Tauri JS packages moved there, pinned with `~` to the Rust crates' minor releases (the Tauri CLI rejects a minor mismatch).

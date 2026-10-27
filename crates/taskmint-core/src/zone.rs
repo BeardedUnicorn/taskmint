@@ -18,6 +18,13 @@ pub enum DayZone {
 }
 
 impl DayZone {
+    pub const UTC: DayZone = DayZone::Named(chrono_tz::UTC);
+
+    /// The IANA zone `name` (as a browser's `Intl` names it), if it is one.
+    pub fn named(name: &str) -> Option<DayZone> {
+        name.parse().ok().map(DayZone::Named)
+    }
+
     fn format(self, at: DateTime<Utc>, pattern: &str) -> String {
         match self {
             DayZone::Local => at.with_timezone(&Local).format(pattern).to_string(),
@@ -51,6 +58,14 @@ mod tests {
     }
 
     const NEW_YORK: DayZone = DayZone::Named(chrono_tz::America::New_York);
+
+    #[test]
+    fn a_zone_is_named_as_iana_names_it() {
+        assert_eq!(DayZone::named("America/New_York"), Some(NEW_YORK));
+        assert_eq!(DayZone::named("UTC"), Some(DayZone::UTC));
+        assert_eq!(DayZone::named("Mars/Olympus_Mons"), None);
+        assert_eq!(DayZone::named(""), None);
+    }
 
     #[test]
     fn local_reads_the_machine_zone_as_before() {

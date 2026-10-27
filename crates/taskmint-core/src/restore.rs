@@ -100,9 +100,9 @@ pub fn restore_sessions(
     }
     match mode {
         RestoreMode::Replace => {
-            let restored = incoming.len();
-            *store = incoming;
-            (restored, 0)
+            let total = incoming.len();
+            *store = first_of_each(incoming, |s| s.id.as_str());
+            (store.len(), total - store.len())
         }
         RestoreMode::Merge => {
             let mut existing: HashSet<String> = store.iter().map(|s| s.id.clone()).collect();
@@ -121,6 +121,17 @@ pub fn restore_sessions(
     }
 }
 
+/// `records` without repeats: the first record with each key. Stores keep
+/// one record per key (the server's rows are keyed by it), so a file that
+/// lists one twice restores it once.
+fn first_of_each<T>(records: Vec<T>, key: fn(&T) -> &str) -> Vec<T> {
+    let mut seen = HashSet::new();
+    records
+        .into_iter()
+        .filter(|record| seen.insert(key(record).to_string()))
+        .collect()
+}
+
 /// Replace or merge records keyed by `key`. Merge keeps the store's version of
 /// a record that is already present (for work logs it reflects the site's
 /// latest status); only records the store lacks are added. Returns how many
@@ -133,9 +144,8 @@ fn restore_keyed<T>(
 ) -> usize {
     match mode {
         RestoreMode::Replace => {
-            let restored = incoming.len();
-            *store = incoming;
-            restored
+            *store = first_of_each(incoming, key);
+            store.len()
         }
         RestoreMode::Merge => {
             let mut present: HashSet<String> = store.iter().map(|r| key(r).to_string()).collect();
@@ -288,6 +298,28 @@ mod tests {
     }
 
     #[test]
+    fn a_file_listing_a_session_twice_restores_it_once() {
+        let mut store = Vec::new();
+        let mut second = session("b", vec![], false);
+        second.task_name = "Second copy".to_string();
+        let incoming = vec![
+            session("b", vec![], false),
+            session("c", vec![], false),
+            second,
+        ];
+
+        let (restored, present) =
+            restore_sessions(&mut store, incoming, RestoreMode::Replace, ts(1000));
+
+        assert_eq!((restored, present), (2, 1));
+        assert_eq!(
+            store.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["b", "c"]
+        );
+        assert_ne!(store[0].task_name, "Second copy");
+    }
+
+    #[test]
     fn restored_sessions_are_inactive_with_live_timers_finalized_at_export_time() {
         let mut running = instance("r", 100);
         running.is_running = true;
@@ -351,14 +383,17 @@ mod tests {
 
         let entries_restored = restore_work_log_entries(
             &mut entries,
-            vec![entry("e9", "Paid")],
+            vec![entry("e9", "Paid"), entry("e9", "Pending")],
             RestoreMode::Replace,
         );
         let mappings_restored =
             restore_project_mappings(&mut mappings, vec![], RestoreMode::Replace);
 
+        // One record per id: the file's first
         assert_eq!((entries_restored, mappings_restored), (1, 0));
+        assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].id, "e9");
+        assert_eq!(entries[0].status, "Paid");
         assert!(mappings.is_empty());
     }
 

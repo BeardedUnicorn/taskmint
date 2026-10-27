@@ -91,6 +91,8 @@ pub async fn logout(
     sqlx::query!("DELETE FROM auth_sessions WHERE id = $1", session.id)
         .execute(&state.db)
         .await?;
+    // This session's streams end; the user's others reconnect
+    state.events.disconnect(session.user.id);
     Ok((
         CookieJar::new().add(cleared_session_cookie(&state.settings)),
         StatusCode::NO_CONTENT,
@@ -126,7 +128,8 @@ pub struct PasswordChange {
     new_password: String,
 }
 
-/// Changes the password and signs out every other session.
+/// Changes the password and signs out every other session (and every event
+/// stream; this session's reconnect).
 pub async fn change_password(
     session: CookieSession,
     State(state): State<AppState>,
@@ -164,6 +167,7 @@ pub async fn change_password(
     )
     .execute(&state.db)
     .await?;
+    state.events.disconnect(session.user.id);
     Ok(StatusCode::NO_CONTENT)
 }
 

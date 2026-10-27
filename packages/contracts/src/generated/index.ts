@@ -29,6 +29,7 @@ export type { RestoreSessionArgs } from "./RestoreSessionArgs";
 export type { RestoreSummary } from "./RestoreSummary";
 export type { RestoreTimerInstanceArgs } from "./RestoreTimerInstanceArgs";
 export type { RewriteGroup } from "./RewriteGroup";
+export type { SavedRecord } from "./SavedRecord";
 export type { SessionArgs } from "./SessionArgs";
 export type { SetActiveSessionArgs } from "./SetActiveSessionArgs";
 export type { SetAppRecordArgs } from "./SetAppRecordArgs";

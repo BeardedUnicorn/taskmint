@@ -1,11 +1,24 @@
 {
-  "name": "records are saved, read back, and merged in without overwriting",
+  "name": "records are saved, read back, and merged in without overwriting, each counting its revisions",
   "steps": [
-    { "call": "get_app_records", "reply": { "records": {} } },
+    {
+      "call": "get_app_records",
+      "reply": {
+        "records": {},
+        "revisions": {
+          "predefinedTasks": 0,
+          "taskNotes": 0,
+          "noteTemplates": 0,
+          "dailyGoal": 0,
+          "dailyGoalAchievements": 0
+        }
+      }
+    },
     {
       "call": "set_app_record",
       "args": { "key": "dailyGoal", "value": { "targetAmount": 100 } },
-      "reply": null
+      "reply": { "revision": 1 },
+      "events": ["app-records-changed"]
     },
     {
       "call": "set_app_record",
@@ -28,13 +41,18 @@
           "taskNotes": [{ "id": "n1" }],
           "noteTemplates": "$absent",
           "theme-mode": "$absent"
-        }
-      }
+        },
+        "revisions": { "dailyGoal": 1, "taskNotes": 1, "noteTemplates": 0 }
+      },
+      "events": ["app-records-changed"]
     },
     {
       "call": "import_app_records",
       "args": { "records": { "dailyGoal": { "targetAmount": 5 }, "theme-mode": "dark" } },
-      "reply": { "records": { "dailyGoal": { "targetAmount": 100 } } }
+      "reply": {
+        "records": { "dailyGoal": { "targetAmount": 100 } },
+        "revisions": { "dailyGoal": 1 }
+      }
     },
     {
       "call": "import_app_records",
@@ -44,19 +62,61 @@
     {
       "call": "import_app_records",
       "args": { "records": { "taskNotes": [{ "id": "n1" }, { "id": "n2" }] } },
-      "reply": { "records": { "taskNotes": [{ "id": "n1" }, { "id": "n2" }] } }
+      "reply": {
+        "records": { "taskNotes": [{ "id": "n1" }, { "id": "n2" }] },
+        "revisions": { "taskNotes": 2 }
+      },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 120 }, "baseRevision": 1 },
+      "reply": { "revision": 2 },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 90 }, "baseRevision": 1 },
+      "error": "This was changed on another device. Reload to see the latest."
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "noteTemplates", "value": [], "baseRevision": 3 },
+      "error": "This was changed on another device. Reload to see the latest."
+    },
+    {
+      "call": "get_app_records",
+      "reply": {
+        "records": { "dailyGoal": { "targetAmount": 120 }, "noteTemplates": "$absent" },
+        "revisions": { "dailyGoal": 2, "taskNotes": 2, "noteTemplates": 0 }
+      }
     },
     {
       "reload": true,
       "call": "get_app_records",
       "reply": {
         "records": {
-          "dailyGoal": { "targetAmount": 100 },
+          "dailyGoal": { "targetAmount": 120 },
           "taskNotes": [{ "id": "n1" }, { "id": "n2" }]
         }
-      }
+      },
+      "save": { "goalRevision": "/revisions/dailyGoal" }
     },
-    { "call": "set_app_record", "args": { "key": "dailyGoal", "value": null }, "reply": null },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": null, "baseRevision": "$goalRevision" },
+      "reply": { "revision": "$any" },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "dailyGoal",
+        "value": { "targetAmount": 1 },
+        "baseRevision": "$goalRevision"
+      },
+      "error": "This was changed on another device. Reload to see the latest."
+    },
     {
       "call": "import_app_records",
       "args": {},

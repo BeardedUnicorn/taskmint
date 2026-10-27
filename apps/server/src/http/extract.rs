@@ -1,16 +1,19 @@
-//! Request extractors: JSON bodies and paths with JSON errors, the client
-//! address, and the three ways a caller authenticates.
+//! Request extractors: bodies and paths with JSON errors, the client
+//! address, and the ways a caller authenticates.
 
 use std::net::{IpAddr, SocketAddr};
 
-use axum::extract::{ConnectInfo, FromRequest, FromRequestParts};
-use axum::http::header::{AUTHORIZATION, USER_AGENT};
+use axum::body::Bytes;
+use axum::extract::{ConnectInfo, FromRequest, FromRequestParts, Request};
+use axum::http::header::{AUTHORIZATION, ORIGIN, USER_AGENT};
 use axum::http::request::Parts;
 use axum::http::HeaderMap;
 use axum_extra::extract::CookieJar;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
+use taskmint_core::capture::origin_allowed;
+use taskmint_core::contract::CAPTURE_HEADER;
 use uuid::Uuid;
 
 use crate::accounts::{Role, User};
@@ -22,6 +25,28 @@ use crate::state::AppState;
 #[derive(FromRequest)]
 #[from_request(via(axum::Json), rejection(ApiError))]
 pub struct JsonBody<T>(pub T);
+
+/// The body as it came, for endpoints that read it themselves.
+pub struct RawBody(pub Bytes);
+
+impl<S: Send + Sync> FromRequest<S> for RawBody {
+    type Rejection = ApiError;
+
+    async fn from_request(request: Request, state: &S) -> Result<Self, ApiError> {
+        Ok(Self(Bytes::from_request(request, state).await?))
+    }
+}
+
+/// The body as text.
+pub struct TextBody(pub String);
+
+impl<S: Send + Sync> FromRequest<S> for TextBody {
+    type Rejection = ApiError;
+
+    async fn from_request(request: Request, state: &S) -> Result<Self, ApiError> {
+        Ok(Self(String::from_request(request, state).await?))
+    }
+}
 
 /// `axum::extract::Path`, where a segment that doesn't parse is a 404.
 #[derive(FromRequestParts)]
@@ -231,5 +256,46 @@ impl FromRequestParts<AppState> for Caller {
                 .await
                 .map(Self::Session),
         }
+    }
+}
+
+impl Caller {
+    pub fn user(&self) -> &User {
+        match self {
+            Self::Session(session) => &session.user,
+            Self::Token(auth) => &auth.user,
+        }
+    }
+}
+
+/// The browser extension sending a capture: a bearer token of either scope,
+/// with `X-TaskMint-Capture`, from no Origin (a script) or the TaskMint
+/// extension's. A web page can't add that header without a preflight, which
+/// fails here (there's no CORS).
+pub struct CaptureCaller(pub User);
+
+impl FromRequestParts<AppState> for CaptureCaller {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        // An Origin that isn't text matches none allowed
+        let origin = parts
+            .headers
+            .get(ORIGIN)
+            .map(|value| value.to_str().unwrap_or_default());
+        if !origin_allowed(origin) {
+            return Err(ApiError::forbidden(
+                "forbidden_origin",
+                "only the TaskMint extension can send captures",
+            ));
+        }
+        if !parts.headers.contains_key(CAPTURE_HEADER) {
+            return Err(ApiError::forbidden(
+                "missing_capture_header",
+                "a capture needs the X-TaskMint-Capture header",
+            ));
+        }
+        let token = bearer(&parts.headers).ok_or_else(ApiError::unauthenticated)?;
+        Ok(Self(TokenAuth::authenticate(state, token).await?.user))
     }
 }

@@ -12,6 +12,7 @@ export const CORE_ERRORS = {
   IMPORT_CANCELLED: "Import cancelled by user",
   INVALID_JSON_FILE: "Invalid JSON file",
   UNEXPECTED_PAYLOAD_SHAPE: "unexpected payload shape",
+  RECORD_CONFLICT: "This was changed on another device. Reload to see the latest.",
 } as const;
 
 /** The parts of those errors the frontend looks for (the cancelled ones it matches whole). */
@@ -32,6 +33,8 @@ export const EVENTS = {
   SESSIONS_CHANGED: "sessions-changed",
   WORK_LOGS_IMPORTED: "work-logs-imported",
   WORK_LOG_PAYLOAD_CAPTURED: "work-log-payload-captured",
+  APP_RECORDS_CHANGED: "app-records-changed",
+  RESYNC: "resync",
   IDLE_RETURNED: "idle-returned",
   IDLE_RESOLVED: "idle-resolved",
   SHOW_START_TASK_DIALOG: "show-start-task-dialog",
@@ -106,6 +109,11 @@ export const IDLE_CHOICES = {
   DISCARD_RESUME: "discardResume",
   KEEP_RESUME: "keepResume",
   STAY_PAUSED: "stayPaused",
+} as const;
+
+/** What the server's API reads besides each endpoint's body. */
+export const SERVER_API = {
+  TIME_ZONE_HEADER: "X-TaskMint-TZ",
 } as const;
 
 /** The desktop app's capture server, which the browser extension posts to. */

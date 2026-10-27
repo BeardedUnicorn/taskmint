@@ -1,16 +1,21 @@
 //! The HTTP API. Everything but the health checks is under `/api/v1`.
 //!
 //! There is no CORS: browsers reach the API same-origin through the web
-//! app's proxy, and other clients (desktop, scripts) aren't browsers.
-//! Unsafe requests from another origin are refused by [`CsrfLayer`]
-//! (`Sec-Fetch-Site` / `Origin`); cookie-authenticated ones also need the
-//! session's `X-CSRF-Token`.
+//! app's proxy, and other clients (desktop, scripts, the browser extension
+//! on hosts it was granted) aren't held to it. Unsafe requests from another
+//! origin are refused by [`CsrfLayer`] (`Sec-Fetch-Site` / `Origin`);
+//! cookie-authenticated ones also need the session's `X-CSRF-Token`. The
+//! capture endpoints take only bearer tokens, which a browser never sends
+//! on its own, so they check the extension's Origin themselves instead.
 
 mod admin;
 mod auth;
+mod capture;
+mod commands;
 mod extract;
 mod health;
 mod links;
+mod stream;
 mod tokens;
 
 use axum::extract::DefaultBodyLimit;
@@ -23,6 +28,7 @@ use axum_extra::extract::cookie::{Cookie, SameSite};
 use axum_extra::extract::CookieJar;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use taskmint_core::contract::MAX_CAPTURE_BODY_BYTES;
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::csrf::{CsrfLayer, ProtectionError};
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -65,14 +71,24 @@ pub fn router(state: AppState) -> Router {
             "/admin/invites",
             get(admin::list_invites).post(admin::create_invite),
         )
-        .route("/admin/invites/{id}", delete(admin::revoke_invite));
-    Router::new()
+        .route("/admin/invites/{id}", delete(admin::revoke_invite))
+        .route("/commands/{name}", post(commands::run))
+        .route("/events", get(stream::events));
+    let checked = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
         .nest("/api/v1", api)
         .fallback(not_found)
+        .layer(csrf);
+    let captures = Router::new()
+        .route(
+            "/api/v1/capture",
+            post(capture::capture).layer(DefaultBodyLimit::max(MAX_CAPTURE_BODY_BYTES)),
+        )
+        .route("/api/v1/capture/ping", get(capture::ping));
+    checked
+        .merge(captures)
         .layer(DefaultBodyLimit::max(state.settings.max_body_bytes))
-        .layer(csrf)
         .layer(SetResponseHeaderLayer::overriding(
             CACHE_CONTROL,
             HeaderValue::from_static("no-store"),

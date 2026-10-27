@@ -28,6 +28,12 @@ pub const IMPORT_CANCELLED: &str = "Import cancelled by user";
 /// message follows); useDataBackup matches "Invalid JSON".
 pub const INVALID_JSON_FILE: &str = "Invalid JSON file";
 
+/// A record saved with a `baseRevision` that's no longer its revision: it
+/// was changed somewhere else (another tab or device) since the client read
+/// it. The client reads it again rather than overwrite that change.
+pub const ERR_RECORD_CONFLICT: &str =
+    "This was changed on another device. Reload to see the latest.";
+
 /// The parts of those errors the frontend looks for (the cancelled ones it
 /// matches whole).
 pub const PART_INACTIVE_SESSION: &str = "inactive session";
@@ -76,6 +82,14 @@ pub const APP_RECORD_KEYS: [&str; 5] = [
     "dailyGoal",
     "dailyGoalAchievements",
 ];
+
+// ============================================================================
+// THE SERVER'S API
+// ============================================================================
+
+/// The IANA time zone a web client is in (`Intl` reads it). The server dates
+/// that request's sessions in it, falling back to the account's zone.
+pub const TIME_ZONE_HEADER: &str = "X-TaskMint-TZ";
 
 // ============================================================================
 // BROWSER CAPTURE
@@ -128,6 +142,12 @@ pub mod events {
     pub const SESSIONS_CHANGED: &str = "sessions-changed";
     pub const WORK_LOGS_IMPORTED: &str = "work-logs-imported";
     pub const WORK_LOG_PAYLOAD_CAPTURED: &str = "work-log-payload-captured";
+    /// A record was saved: `{ key, revision }`. Other tabs and devices read
+    /// it again.
+    pub const APP_RECORDS_CHANGED: &str = "app-records-changed";
+    /// The server's event stream may have missed events (it fell behind, or
+    /// the data was reset): the client reads everything again.
+    pub const RESYNC: &str = "resync";
     pub const IDLE_RETURNED: &str = "idle-returned";
     pub const IDLE_RESOLVED: &str = "idle-resolved";
     pub const SHOW_START_TASK_DIALOG: &str = "show-start-task-dialog";
@@ -155,6 +175,7 @@ mod tests {
                 EXPORT_CANCELLED,
                 IMPORT_CANCELLED,
                 INVALID_JSON_FILE,
+                ERR_RECORD_CONFLICT,
             ],
             [
                 "Cannot start timer for inactive session",
@@ -165,6 +186,7 @@ mod tests {
                 "Export cancelled by user",
                 "Import cancelled by user",
                 "Invalid JSON file",
+                "This was changed on another device. Reload to see the latest.",
             ]
         );
     }
@@ -206,5 +228,8 @@ mod tests {
         assert_eq!(ERR_UNEXPECTED_PAYLOAD_SHAPE, "unexpected payload shape");
         assert_eq!(TASKS_RECORD_KEY, "predefinedTasks");
         assert_eq!(DEEP_LINK_SCHEME, "taskmint");
+        assert_eq!(TIME_ZONE_HEADER, "X-TaskMint-TZ");
+        assert_eq!(events::APP_RECORDS_CHANGED, "app-records-changed");
+        assert_eq!(events::RESYNC, "resync");
     }
 }

@@ -16,6 +16,7 @@ base64 = "0.23"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 cookie = "0.18"
+futures-util = { version = "0.3", default-features = false }
 getrandom = "0.4"
 governor = "0.10"
 http-body-util = "0.1"
@@ -23,9 +24,10 @@ hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
-sqlx = { version = "0.8", default-features = false, features = ["chrono", "macros", "migrate", "postgres", "runtime-tokio", "tls-rustls-ring-webpki", "uuid"] }
+sqlx = { version = "0.8", default-features = false, features = ["chrono", "json", "macros", "migrate", "postgres", "runtime-tokio", "tls-rustls-ring-webpki", "uuid"] }
 subtle = "2"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "time"] }
+taskmint-core = { path = "../../crates/taskmint-core" }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tower-http = { version = "0.7", features = ["catch-panic", "csrf", "set-header", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }

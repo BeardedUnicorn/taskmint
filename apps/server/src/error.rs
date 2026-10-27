@@ -3,7 +3,7 @@
 
 use std::borrow::Cow;
 
-use axum::extract::rejection::{JsonRejection, PathRejection};
+use axum::extract::rejection::{BytesRejection, JsonRejection, PathRejection, StringRejection};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -40,6 +40,14 @@ impl ApiError {
     /// 400 for a request that is well-formed but not acceptable.
     pub fn invalid(message: &'static str) -> Self {
         Self::new(StatusCode::BAD_REQUEST, "invalid_request", message)
+    }
+
+    pub fn invalid_time_zone() -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "invalid_time_zone",
+            "X-TaskMint-TZ must be an IANA time zone, such as America/New_York",
+        )
     }
 
     pub fn unauthenticated() -> Self {
@@ -104,6 +112,18 @@ impl From<sqlx::Error> for ApiError {
 
 impl From<JsonRejection> for ApiError {
     fn from(rejection: JsonRejection) -> Self {
+        Self::new(rejection.status(), "invalid_body", rejection.body_text())
+    }
+}
+
+impl From<BytesRejection> for ApiError {
+    fn from(rejection: BytesRejection) -> Self {
+        Self::new(rejection.status(), "invalid_body", rejection.body_text())
+    }
+}
+
+impl From<StringRejection> for ApiError {
+    fn from(rejection: StringRejection) -> Self {
         Self::new(rejection.status(), "invalid_body", rejection.body_text())
     }
 }

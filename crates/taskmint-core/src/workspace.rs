@@ -2,8 +2,9 @@
 //! A host loads the parts a command needs, runs it, and saves the parts it
 //! changed (see `command::Executed`).
 
+use crate::contract::APP_RECORD_KEYS;
 use crate::model::{PendingCapture, ProjectTaskMapping, Task, TaskSession, WorkLogEntry};
-use crate::records::{tasks_from_records, RecordMap};
+use crate::records::{tasks_from_records, RecordMap, RecordRevisions};
 use crate::sessions::task_links::{
     fill_imported_session_rates, fill_missing_session_rates, sync_session_task_names,
 };
@@ -70,6 +71,10 @@ pub struct Workspace {
     pub work_log_entries: Vec<WorkLogEntry>,
     pub work_log_mappings: Vec<ProjectTaskMapping>,
     pub records: RecordMap,
+    /// Revisions of the records saved since they were loaded or created: the
+    /// server stores them, the desktop counts afresh at each launch (a
+    /// relaunched app reads every record again).
+    pub record_revisions: RecordRevisions,
     /// The latest capture from the browser extension, until the frontend
     /// takes it.
     pub pending_capture: Option<PendingCapture>,
@@ -85,6 +90,25 @@ pub struct TaskLinks {
 }
 
 impl Workspace {
+    /// Every record key's revision.
+    pub fn revisions(&self) -> RecordRevisions {
+        APP_RECORD_KEYS
+            .iter()
+            .map(|key| (key.to_string(), self.revision(key)))
+            .collect()
+    }
+
+    pub fn revision(&self, key: &str) -> u64 {
+        self.record_revisions.get(key).copied().unwrap_or(0)
+    }
+
+    /// Counts a save of the record `key`; returns its new revision.
+    pub fn bump_revision(&mut self, key: &str) -> u64 {
+        let revision = self.revision(key) + 1;
+        self.record_revisions.insert(key.to_string(), revision);
+        revision
+    }
+
     /// The task list, from the tasks record.
     pub fn tasks(&self) -> Vec<Task> {
         tasks_from_records(&self.records)

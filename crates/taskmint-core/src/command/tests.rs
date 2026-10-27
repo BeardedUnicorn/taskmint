@@ -62,7 +62,11 @@ fn every_name_is_a_command() {
 fn a_reply_must_be_exactly_its_declared_type() {
     let started = json!({ "outcome": "started", "instanceId": "i1", "stoppedTaskName": null });
     assert_eq!(check_reply("start_task", &started), Ok(()));
-    assert_eq!(check_reply("set_app_record", &Value::Null), Ok(()));
+    assert_eq!(
+        check_reply("set_app_record", &json!({ "revision": 1 })),
+        Ok(())
+    );
+    assert_eq!(check_reply("accept_capture", &Value::Null), Ok(()));
 
     assert!(check_reply("start_task", &json!(1))
         .unwrap_err()
@@ -83,6 +87,7 @@ fn a_reply_must_be_exactly_its_declared_type() {
 fn errors_read_as_the_client_sees_them() {
     assert_eq!(CoreError::Rejected("No".into()).to_string(), "No");
     assert_eq!(CoreError::InvalidArgs("Bad".into()).to_string(), "Bad");
+    assert_eq!(CoreError::Conflict("Stale".into()).to_string(), "Stale");
     assert_eq!(
         CoreError::UnknownCommand("x".into()).to_string(),
         "Unknown command: x"
@@ -168,7 +173,41 @@ fn saving_the_tasks_record_changes_sessions_only_when_they_follow() {
     )
     .unwrap();
     assert_eq!(done.dirty, Parts::RECORDS);
-    assert!(done.events.is_empty());
+    assert_eq!(
+        done.events,
+        [Event::new(
+            crate::contract::events::APP_RECORDS_CHANGED,
+            json!({ "key": TASKS_RECORD_KEY, "revision": 1 })
+        )]
+    );
+}
+
+#[test]
+fn a_record_saved_from_a_stale_revision_is_a_conflict_that_changes_nothing() {
+    let mut workspace = Workspace::default();
+    let save = |workspace: &mut Workspace, base: Value| {
+        run(
+            workspace,
+            "set_app_record",
+            json!({ "key": "dailyGoal", "value": { "targetAmount": 1 }, "baseRevision": base }),
+        )
+    };
+    assert_eq!(
+        save(&mut workspace, json!(0)).unwrap().reply,
+        json!({ "revision": 1 })
+    );
+    let before = workspace.clone();
+
+    assert_eq!(
+        save(&mut workspace, json!(0)).unwrap_err(),
+        CoreError::Conflict(crate::contract::ERR_RECORD_CONFLICT.to_string())
+    );
+    assert_eq!(workspace, before);
+    // No base: saved whatever the revision
+    assert_eq!(
+        save(&mut workspace, Value::Null).unwrap().reply,
+        json!({ "revision": 2 })
+    );
 }
 
 #[test]

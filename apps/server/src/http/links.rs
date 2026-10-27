@@ -154,7 +154,8 @@ pub struct AcceptPasswordReset {
     password: String,
 }
 
-/// Sets the new password, signs out every session, and signs this one in.
+/// Sets the new password, signs out every session (closing its event
+/// streams), and signs this one in.
 pub async fn accept_password_reset(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -205,5 +206,6 @@ pub async fn accept_password_reset(
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(reset_gone)?;
+    state.events.disconnect(user.id);
     Ok(session.respond(&state.settings, user))
 }

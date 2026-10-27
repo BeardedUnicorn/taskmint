@@ -15,7 +15,8 @@
           }
         ]
       },
-      "reply": null
+      "reply": { "revision": "$any" },
+      "events": ["app-records-changed"]
     },
     {
       "call": "start_task",

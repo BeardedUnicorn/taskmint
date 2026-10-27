@@ -2,7 +2,7 @@
 //! camelCase argument keys are what the frontend has always sent to the
 //! desktop app; the server takes the same ones.
 
-use super::{AppRecords, CoreError, ResetSummary, WorkLogs};
+use super::{AppRecords, CoreError, ResetSummary, SavedRecord, WorkLogs};
 use crate::model::{CaptureSource, PendingCapture, TaskSession, TimerInstance};
 use crate::records::RecordMap;
 use crate::restore::{RestorePayload, RestoreSummary};
@@ -95,7 +95,7 @@ macro_rules! command_types {
 
 command_types! {
     "get_app_records": NoArgs => AppRecords,
-    "set_app_record": SetAppRecordArgs => (),
+    "set_app_record": SetAppRecordArgs => SavedRecord,
     "import_app_records": ImportAppRecordsArgs => AppRecords,
     "get_sessions": NoArgs => Vec<TaskSession>,
     "get_session_load_warning": NoArgs => Option<String>,
@@ -178,12 +178,16 @@ fn type_names<T: ts_rs::TS + 'static>(cfg: &ts_rs::Config) -> Vec<String> {
 pub struct NoArgs {}
 
 #[derive(Debug, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct SetAppRecordArgs {
     pub key: String,
     /// null removes the record.
     pub value: serde_json::Value,
+    /// The record's revision when the client read it; the save is refused
+    /// if it has changed since. Absent: saved whatever the revision.
+    #[serde(default)]
+    pub base_revision: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]

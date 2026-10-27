@@ -1,15 +1,18 @@
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
+use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::extract::connect_info::MockConnectInfo;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE, COOKIE, SET_COOKIE};
 use axum::http::{HeaderMap, HeaderValue, Method, Request, StatusCode};
 use axum::Router;
+use chrono::{DateTime, Utc};
 use governor::Quota;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use sqlx::PgPool;
+use taskmint_core::testkit::start_time;
 use taskmint_server::config::{Config, Settings};
 use taskmint_server::passwords::Passwords;
 use taskmint_server::ratelimit::RateLimits;
@@ -45,6 +48,9 @@ pub fn strict_limits() -> RateLimits {
 
 pub struct App {
     pub db: PgPool,
+    pub state: AppState,
+    /// The time commands run at; tests move it on.
+    pub now: Arc<Mutex<DateTime<Utc>>>,
     router: Router,
 }
 
@@ -54,10 +60,43 @@ impl App {
     }
 
     pub fn with(db: PgPool, settings: Settings, limits: RateLimits) -> Self {
-        let state = AppState::new(db.clone(), settings, passwords(), limits);
+        let now = Arc::new(Mutex::new(start_time()));
+        let clock = now.clone();
+        let state = AppState::new(
+            db.clone(),
+            settings,
+            passwords(),
+            limits,
+            Arc::new(move || *clock.lock().unwrap()),
+        );
         let peer: SocketAddr = PEER.parse().unwrap();
-        let router = taskmint_server::http::router(state).layer(MockConnectInfo(peer));
-        Self { db, router }
+        let router = taskmint_server::http::router(state.clone()).layer(MockConnectInfo(peer));
+        Self {
+            db,
+            state,
+            now,
+            router,
+        }
+    }
+
+    pub fn advance_ms(&self, ms: i64) {
+        *self.now.lock().unwrap() += chrono::Duration::milliseconds(ms);
+    }
+
+    /// Runs a command for a signed-in browser; the reply, or the error.
+    pub async fn call(&self, session: &Session, command: &str, args: Value) -> Res {
+        self.post(&format!("/api/v1/commands/{command}"))
+            .session(session)
+            .json(args)
+            .send()
+            .await
+    }
+
+    /// Runs a command that must succeed; its reply.
+    #[track_caller]
+    pub fn ok(res: Res) -> Value {
+        assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+        res.body
     }
 
     pub fn get(&self, path: &str) -> Req<'_> {
@@ -120,6 +159,26 @@ impl App {
         self.login(username).await
     }
 
+    /// A new API token of `scope` for the session's user; its secret.
+    pub async fn token(&self, session: &Session, scope: &str) -> String {
+        let res = self
+            .post("/api/v1/tokens")
+            .session(session)
+            .json(json!({"name": scope, "scope": scope}))
+            .send()
+            .await;
+        assert_eq!(res.status, StatusCode::CREATED, "{}", res.body);
+        res.body["token"].as_str().unwrap().to_owned()
+    }
+
+    /// Undoes [`App::fail_on`].
+    pub async fn heal(&self, event: &str, table: &str) {
+        sqlx::raw_sql(&format!("DROP TRIGGER fail_{event}_{table} ON {table}"))
+            .execute(&self.db)
+            .await
+            .unwrap();
+    }
+
     /// Makes every `event` (INSERT, UPDATE or DELETE) on `table` fail.
     pub async fn fail_on(&self, event: &str, table: &str) {
         sqlx::raw_sql(&format!(
@@ -136,6 +195,14 @@ impl App {
     /// Makes every statement that touches `table` fail.
     pub async fn break_table(&self, table: &str) {
         sqlx::raw_sql(&format!("ALTER TABLE {table} RENAME TO {table}_broken"))
+            .execute(&self.db)
+            .await
+            .unwrap();
+    }
+
+    /// Undoes [`App::break_table`].
+    pub async fn mend_table(&self, table: &str) {
+        sqlx::raw_sql(&format!("ALTER TABLE {table}_broken RENAME TO {table}"))
             .execute(&self.db)
             .await
             .unwrap();
@@ -205,6 +272,18 @@ impl Req<'_> {
         self.header(AUTHORIZATION.as_str(), format!("Bearer {token}").as_str())
     }
 
+    /// Sends it and returns the response as it streams.
+    pub async fn open(self) -> Stream {
+        let request = self.request.body(self.body).unwrap();
+        let response = self.app.router.clone().oneshot(request).await.unwrap();
+        Stream {
+            status: response.status(),
+            headers: response.headers().clone(),
+            body: response.into_body(),
+            text: String::new(),
+        }
+    }
+
     pub async fn send(self) -> Res {
         let request = self.request.body(self.body).unwrap();
         let response = self.app.router.clone().oneshot(request).await.unwrap();
@@ -248,5 +327,48 @@ impl Res {
     #[track_caller]
     pub fn expect(&self, status: StatusCode, code: &str) {
         assert_eq!((self.status, self.code()), (status, code), "{}", self.body);
+    }
+}
+
+/// A response read as it arrives: an event stream.
+pub struct Stream {
+    pub status: StatusCode,
+    pub headers: HeaderMap,
+    body: Body,
+    text: String,
+}
+
+/// How long a test waits for a stream to say something.
+const STREAM_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+impl Stream {
+    /// The next server-sent event: its name and its data. None when the
+    /// stream ends.
+    pub async fn next_event(&mut self) -> Option<(String, Value)> {
+        loop {
+            if let Some(end) = self.text.find("\n\n") {
+                let block: String = self.text.drain(..end + 2).collect();
+                let field = |name: &str| {
+                    block
+                        .lines()
+                        .find_map(|line| line.strip_prefix(name))
+                        .map(str::to_owned)
+                };
+                let (Some(event), Some(data)) = (field("event: "), field("data: ")) else {
+                    continue;
+                };
+                return Some((event, serde_json::from_str(&data).unwrap()));
+            }
+            let frame = tokio::time::timeout(STREAM_WAIT, self.body.frame())
+                .await
+                .expect("the stream said nothing");
+            let bytes = frame?.unwrap().into_data().unwrap();
+            self.text.push_str(std::str::from_utf8(&bytes).unwrap());
+        }
+    }
+
+    /// The next event's name.
+    pub async fn next_name(&mut self) -> Option<String> {
+        self.next_event().await.map(|(name, _)| name)
     }
 }
