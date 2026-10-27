@@ -1,7 +1,9 @@
 # Local stack. Copy .env.example to .env first; every variable has a default,
 # so `docker compose up` also works without one.
 #
-#   docker compose up --build -d --wait db migrate server
+#   docker compose up --build -d --wait
+#
+# Then open http://localhost:${WEB_PORT:-8080}.
 #
 # The database is published on 127.0.0.1 only, for `cargo llvm-cov` /
 # `#[sqlx::test]` (see README "Server").
@@ -61,7 +63,8 @@ services:
       TASKMINT_BIND: 0.0.0.0:3000
       TASKMINT_PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8080}
       TASKMINT_COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      TASKMINT_TRUST_PROXY: ${TRUST_PROXY:-false}
+      # The web app's nginx is in front, and adds the client's address
+      TASKMINT_TRUST_PROXY: ${TRUST_PROXY:-true}
       TASKMINT_ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       TASKMINT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       RUST_LOG: ${RUST_LOG:-info}
@@ -75,6 +78,29 @@ services:
       # Loopback only: the web app's dev server proxies /api here.
       - "127.0.0.1:${SERVER_PORT:-3000}:3000"
     read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  web:
+    image: taskmint-web:local
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+    environment:
+      TASKMINT_SERVER: http://server:3000
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    read_only: true
+    # nginx (uid 101) writes its rendered config and temp files
+    tmpfs:
+      - /etc/nginx/conf.d:uid=101,gid=101
+      - /tmp:uid=101,gid=101
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     restart: unless-stopped

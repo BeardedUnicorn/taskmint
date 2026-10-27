@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { installFakeBackendForTest } from '../../../testing';
 import '@testing-library/jest-dom/vitest';
 import { render, renderHook, screen, fireEvent } from '@testing-library/react';
 import { ReactNode } from 'react';
@@ -143,6 +144,18 @@ describe('useCommands', () => {
 
     expect(all).toEqual(expect.arrayContaining(['Go to Sessions', 'Go to Settings', 'Settings: Notifications', 'New task', 'Add time', 'Switch to light theme']));
     expect(all.filter(label => label.startsWith('Start "'))).toEqual(['Start "Review"', 'Start "Annotation"']);
+  });
+
+  it('in a browser, offers the settings it has and no shortcuts the browser keeps', () => {
+    installFakeBackendForTest({ capabilities: { runtime: 'web' }, without: ['idle', 'folderBackups'] });
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const byId = (id: string) => result.current.find(command => command.id === id);
+
+    expect(byId('settings-idle')).toBeUndefined();
+    expect(byId('settings-backups')).toBeUndefined();
+    expect(byId('settings-appearance')?.hint).toBeUndefined();
+    expect(byId('new-task')?.hint).toBeUndefined();
+    expect(byId('view-sessions')?.hint).toBeDefined();
   });
 
   it('starts a task the same way the start picker does', () => {

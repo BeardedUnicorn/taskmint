@@ -66,7 +66,8 @@
         "workLogEntriesRestored": 1,
         "workLogMappingsRestored": 0,
         "recordsSkipped": 1
-      }
+      },
+      "events": ["sessions-changed", "work-logs-imported"]
     },
     {
       "reload": true,
@@ -84,7 +85,8 @@
     {
       "call": "restore_backup_data",
       "args": { "payload": { "mode": "replace", "workLogMappings": [{ "projectId": "p1" }] } },
-      "reply": { "sessionsRestored": 0, "workLogMappingsRestored": 1, "recordsSkipped": 0 }
+      "reply": { "sessionsRestored": 0, "workLogMappingsRestored": 1, "recordsSkipped": 0 },
+      "events": ["work-logs-imported"]
     },
     {
       "call": "get_work_logs",
@@ -108,7 +110,8 @@
           ]
         }
       },
-      "reply": { "sessionsRestored": 2, "sessionsAlreadyPresent": 1, "recordsSkipped": 0 }
+      "reply": { "sessionsRestored": 2, "sessionsAlreadyPresent": 1, "recordsSkipped": 0 },
+      "events": ["sessions-changed"]
     },
     {
       "reload": true,
@@ -132,7 +135,8 @@
           ]
         }
       },
-      "reply": { "sessionsRestored": 2, "sessionsAlreadyPresent": 0 }
+      "reply": { "sessionsRestored": 2, "sessionsAlreadyPresent": 0 },
+      "events": ["sessions-changed"]
     },
     {
       "reload": true,

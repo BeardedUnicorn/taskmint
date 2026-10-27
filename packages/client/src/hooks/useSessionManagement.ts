@@ -29,8 +29,9 @@ import { BACKEND_EVENTS } from '../constants/events';
 import { formatShortDate } from '../utils/locale';
 
 // Backend events that signal session data changed outside this hook's own
-// calls (timer-instance changes, work-log imports that rewrite sessions, and
-// task renames or moved timers)
+// calls (timer-instance changes, work-log imports that rewrite sessions,
+// task renames or moved timers, and a server's resync after its event
+// stream missed some)
 const TIMER_INSTANCE_EVENTS = [
   BACKEND_EVENTS.TIMER_INSTANCE_STARTED,
   BACKEND_EVENTS.TIMER_INSTANCE_STOPPED,
@@ -39,6 +40,7 @@ const TIMER_INSTANCE_EVENTS = [
   BACKEND_EVENTS.TIMER_INSTANCE_DELETED,
   BACKEND_EVENTS.WORK_LOGS_IMPORTED,
   BACKEND_EVENTS.SESSIONS_CHANGED,
+  BACKEND_EVENTS.RESYNC,
 ] as const;
 
 // Helper to ensure timer instances always have a state value. The Rust

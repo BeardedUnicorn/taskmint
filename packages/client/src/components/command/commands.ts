@@ -9,10 +9,11 @@ import { useNavigation } from '../../contexts/NavigationContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
-import { SETTINGS_SECTION_LABELS, SettingsSectionId, VIEWS, VIEW_LABELS } from '../../navigation/views';
+import { SETTINGS_SECTION_LABELS, VIEWS, VIEW_LABELS, availableSettingsSections } from '../../navigation/views';
 import { TimerState } from '../../types/timer';
 import { orderTasksForStart } from '../../utils/taskOrdering';
-import { modifierLabel, viewShortcut } from '../../hooks/useKeyboardShortcuts';
+import { browserTakesShortcuts, modifierLabel, viewShortcut } from '../../hooks/useKeyboardShortcuts';
+import { getBackend } from '../../backend';
 
 export type CommandGroup = 'Timer' | 'Actions' | 'Pages' | 'Settings' | 'Start';
 
@@ -66,6 +67,7 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
 
   return useMemo(() => {
     const mod = modifierLabel();
+    const inBrowser = browserTakesShortcuts();
     const live = activeSession?.timerInstances.find(
       instance => instance.state === TimerState.running || instance.state === TimerState.paused
     );
@@ -89,7 +91,7 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
         id: 'new-task',
         label: 'New task',
         group: 'Actions',
-        hint: `${mod}N`,
+        hint: inBrowser ? undefined : `${mod}N`,
         keywords: 'create add',
         run: () => navigate('tasks', { intent: 'new-task' }),
       },
@@ -111,11 +113,11 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
       run: () => navigate(view),
     }));
 
-    const settings: Command[] = (Object.keys(SETTINGS_SECTION_LABELS) as SettingsSectionId[]).map(section => ({
+    const settings: Command[] = availableSettingsSections(getBackend().platform).map(section => ({
       id: `settings-${section}`,
       label: `Settings: ${SETTINGS_SECTION_LABELS[section]}`,
       group: 'Settings',
-      hint: section === 'appearance' ? `${mod},` : undefined,
+      hint: section === 'appearance' && !inBrowser ? `${mod},` : undefined,
       run: () => navigate('settings', { section }),
     }));
 

@@ -51,3 +51,13 @@ export interface NavigationParams {
 export function isSidebarView(value: unknown): value is SidebarView {
   return typeof value === 'string' && (VIEWS as readonly string[]).includes(value);
 }
+
+/**
+ * The Settings sections this platform can use: idle detection and folder
+ * backups need the desktop app.
+ */
+export function availableSettingsSections(platform: { idle?: unknown; folderBackups?: unknown }): SettingsSectionId[] {
+  return (Object.keys(SETTINGS_SECTION_LABELS) as SettingsSectionId[]).filter(
+    id => (id !== 'idle' || platform.idle !== undefined) && (id !== 'backups' || platform.folderBackups !== undefined)
+  );
+}

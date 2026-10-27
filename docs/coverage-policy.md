@@ -57,7 +57,7 @@ Found while building the server's workspace (P9):
 - **One statement per step.** The store reads every part a command needs in one query, and saves through one list of statements run behind a single `?`. So a fault anywhere in a step is one region, and a renamed table or a raising trigger reaches it.
 - **A commit failure** comes from a deferred constraint trigger, which raises only at `COMMIT`.
 - **Connection errors** are reached by calling `workspace::run` with a closed pool. Over HTTP, the authentication extractor would fail first.
-- **Stale instrumented binaries:** right after the server's coverage run, a core run counted about 1,000 regions too many until `cargo llvm-cov clean --workspace`. `verify.sh` runs core first.
+- **Stale instrumented binaries:** after the server's coverage run, a later core run counted `command/execute.rs` twice over (about 650 to 1,000 regions too many) until `cargo llvm-cov clean --workspace`. `verify.sh` now cleans before measuring.
 
 Found while bringing the desktop shell to 100% (P7):
 - **`log` macros do add regions when their arguments call methods** (`path.display()`, `.join(..)`): the arguments are evaluated only when a logger takes the level. The desktop's tests install a logger that takes every level before any test runs (`src/testing.rs`, with `ctor`).

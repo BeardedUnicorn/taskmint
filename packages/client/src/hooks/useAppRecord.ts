@@ -6,6 +6,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { AppRecordKey, readAppRecord, writeAppRecord } from '../services/appRecords';
+import { useAppRecordsChanged } from './useAppRecordsChanged';
 
 export function useAppRecord<T>(
   key: AppRecordKey,
@@ -17,6 +18,14 @@ export function useAppRecord<T>(
   });
   // Functional updates build on the latest value, not a stale render's
   const latest = useRef(value);
+  const initial = useRef(initialValue);
+
+  // Saved in another tab or device
+  useAppRecordsChanged([key], () => {
+    const stored = readAppRecord(key);
+    latest.current = stored === undefined ? initial.current : (stored as T);
+    setValue(latest.current);
+  });
 
   const update = useCallback(
     (next: T | ((previous: T) => T)) => {

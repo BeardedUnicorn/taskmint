@@ -7,12 +7,15 @@
  * - ⌘K: the command palette (open or close)
  *
  * They wait while a dialog or menu is open, so they never act behind one;
- * ⌘K still closes the palette itself.
+ * ⌘K still closes the palette itself. In a browser, ⌘N and ⌘, are the
+ * browser's own (a new window, its settings), so the web app leaves them
+ * out; the palette still offers both.
  */
 
 import { useEffect, useRef } from 'react';
 import { VIEWS, SidebarView } from '../navigation/views';
 import { useNavigation } from '../contexts/NavigationContext';
+import { getBackend } from '../backend';
 
 export type ShortcutAction =
   | { type: 'view'; view: SidebarView }
@@ -35,10 +38,15 @@ export function viewShortcut(view: SidebarView, mac = isMacPlatform()): string {
   return `${modifierLabel(mac)}${VIEWS.indexOf(view) + 1}`;
 }
 
+/** Whether the browser keeps ⌘N and ⌘, for itself (the web app). */
+export function browserTakesShortcuts(): boolean {
+  return getBackend().capabilities.runtime === 'web';
+}
+
 type KeyPress = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'repeat' | 'isComposing'>;
 
 /** What a key press asks for, if it's one of the shortcuts. */
-export function shortcutFor(event: KeyPress, mac: boolean): ShortcutAction | null {
+export function shortcutFor(event: KeyPress, mac: boolean, inBrowser = false): ShortcutAction | null {
   if (event.repeat || event.isComposing || event.altKey || event.shiftKey) return null;
   const modifier = mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
   if (!modifier) return null;
@@ -46,8 +54,8 @@ export function shortcutFor(event: KeyPress, mac: boolean): ShortcutAction | nul
   const key = event.key.toLowerCase();
   const page = Number(key);
   if (Number.isInteger(page) && page >= 1 && page <= VIEWS.length) return { type: 'view', view: VIEWS[page - 1] };
-  if (key === 'n') return { type: 'new-task' };
-  if (key === ',') return { type: 'settings' };
+  if (key === 'n' && !inBrowser) return { type: 'new-task' };
+  if (key === ',' && !inBrowser) return { type: 'settings' };
   if (key === 'k') return { type: 'palette' };
   return null;
 }
@@ -75,8 +83,9 @@ export function useKeyboardShortcuts({
 
   useEffect(() => {
     const mac = isMacPlatform();
+    const inBrowser = browserTakesShortcuts();
     const onKeyDown = (event: KeyboardEvent) => {
-      const action = shortcutFor(event, mac);
+      const action = shortcutFor(event, mac, inBrowser);
       if (!action) return;
       const { paletteOpen, onTogglePalette, navigate } = latestRef.current;
 

@@ -40,6 +40,9 @@ step "Rust tests"
 cargo test --workspace
 
 step "Rust coverage: taskmint-core at 100%"
+# Instrumented binaries from an earlier run count too (a function is scored
+# by its best build), so each run measures from a clean slate
+cargo llvm-cov clean --workspace
 cargo llvm-cov -p taskmint-core --summary-only \
   --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex crates/taskmint-core)" \
   --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
@@ -57,8 +60,10 @@ cargo llvm-cov -p taskmint-server \
   --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100 \
   --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/server)"
 
-step "Server image and compose stack"
-docker compose up --build -d --wait db migrate server
+step "Images and the compose stack (server, and the web app in front of it)"
+docker compose up --build -d --wait db migrate server web
 curl -fsS "http://127.0.0.1:${SERVER_PORT:-3000}/healthz" && echo
+curl -fsS "http://127.0.0.1:${WEB_PORT:-8080}/healthz"
+curl -fsS "http://127.0.0.1:${WEB_PORT:-8080}/api/v1/meta" && echo
 
 printf '\nAll gates passed.\n'

@@ -11,6 +11,8 @@ import { TaskNotesService } from '../services/TaskNotesService';
 import { useAsyncError } from './useAsyncError';
 import { errorMessage } from '../utils/errors';
 import { useNotification } from '../contexts/NotificationContext';
+import { useAppRecordsChanged } from './useAppRecordsChanged';
+import { STORAGE_KEYS } from '../constants';
 
 export const TaskNotesContext = createContext<UseTaskNotesReturn | null>(null);
 
@@ -165,6 +167,11 @@ export function useTaskNotesState(): UseTaskNotesReturn {
   useEffect(() => {
     void loadNotes();
   }, [loadNotes]);
+
+  // Notes saved in another tab or device
+  useAppRecordsChanged([STORAGE_KEYS.TASK_NOTES], () => {
+    notesService.getAllNotes().then(setNotes, err => console.error('Failed to reload notes:', err));
+  });
 
   return useMemo(() => ({
     notes,

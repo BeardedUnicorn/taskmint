@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth) and P9 (server workspace and realtime) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime) and P10 (the web app) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -354,6 +354,29 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
 | Legacy localStorage record import | yes | no | no |
 
 Device settings (theme, filters, backup schedule, idle) stay in localStorage, per device.
+
+**As built in P10:**
+- **`apps/web`** (`@taskmint/web`, 100% covered): `start.tsx` routes `/login`, `/invite/<token>` and `/reset/<token>` to its own pages. Every other path checks `auth/me`: a 401 goes to `/login?next=` (only same-site paths are honoured), and a 200 loads the client (a dynamic import) with `HttpBackend`. Signing in and out reload the page, so each page load has one backend.
+- **`server.ts`:** fetch with `X-TaskMint-TZ` (the browser's zone), and `X-CSRF-Token` on a session's changes. Failures are `ServerError { status, code, message }`; no answer is `unreachable`.
+- **`HttpBackend`:**
+  - Commands go to `POST /commands/{name}`. A failure rejects with the server's message as a plain string, as the desktop's does.
+  - One `EventSource` opens with the first subscription.
+  - The client listens for `resync` itself, instead of the planned fan-out of reload events. The stream sends it on lag and after a reset; the backend adds one after the browser reconnects a dropped stream.
+  - When the server ends the stream for good (a revoked session), the backend checks `auth/me` every 5 s. A 401 there sends the page to sign in.
+- **Web platform:** exports are Blob downloads, and imports use `<input type=file>` (null on cancel; "Invalid JSON file: …" as on the desktop). Notifications use the Web Notification API, asking for permission at the first one, and otherwise fall back to the toast.
+- **Settings sections:** Account (change password, sign out), API tokens (create with a shown-once dialog, revoke, device tokens marked), and for admins Users (role, disable/enable, reset links) and Invites. The client exports `@taskmint/client/ui` (the theme provider, `SettingsSection`, `ConfirmDialog`, `useNotification`) for them.
+- **Client changes:**
+  - **Records:** saves send `baseRevision`; a save's new revision is base + 1, as both hosts count. On a conflict the cache takes the newer version, saves queued behind the stale one are dropped, and a warning says the change wasn't saved.
+  - **Following other tabs:** `app-records-changed` from elsewhere and `resync` re-read the records. Tasks, notes, templates and `useAppRecord` follow along (`useAppRecordsChanged`).
+  - **Other refreshes:** sessions reload on `resync`, the ledger on `work-logs-imported` and `resync`, and a pending capture is taken on `resync`.
+  - **Desktop-only parts hidden:** the Idle and Backups sections (and their palette commands) are hidden without `platform.idle` and `folderBackups`. ⌘N and ⌘, are left to the browser.
+  - The startup error names the server, not `appdata.json`.
+- **Core:** `apply_work_log_import` now always sends `work-logs-imported`, and a restore sends `sessions-changed` and `work-logs-imported` for what it replaced, so other tabs and devices refresh.
+- **Image:**
+  - `apps/web/Dockerfile` runs `pnpm fetch`, then `install --offline --filter @taskmint/web...` on Node 24, and serves the app with `nginx-unprivileged`.
+  - nginx sets CSP (`style-src 'unsafe-inline'` for emotion), nosniff, a Referrer-Policy, COOP and a Permissions-Policy. Hashed assets are immutable. `/api/v1/events` is unbuffered, with a 1 h read timeout.
+- **Compose:** `web` runs on `127.0.0.1:${WEB_PORT:-8080}`, read-only, with tmpfs owned by uid 101 for the rendered config and temp files. `TRUST_PROXY` now defaults to true, since nginx adds the client's address. `verify.sh` brings `web` up and checks `/healthz` and `/api/v1/meta` through it.
+- **Not yet:** the smoke script and CI's docker job (P11). Saving the account's time zone (the header covers each request).
 
 ## 6. Extension (`apps/extension`)
 

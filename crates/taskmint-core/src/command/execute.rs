@@ -95,6 +95,15 @@ fn all_records(workspace: &Workspace) -> AppRecords {
     }
 }
 
+/// `work-logs-imported`: the ledger changed, and maybe the sessions
+/// (`groupsApplied` days were rewritten).
+fn ledger_changed(groups_applied: usize) -> Event {
+    Event::new(
+        WORK_LOGS_IMPORTED,
+        serde_json::json!({ "groupsApplied": groups_applied }),
+    )
+}
+
 /// `app-records-changed` for a saved record.
 fn record_changed(key: &str, revision: u64) -> Event {
     Event::new(
@@ -400,11 +409,8 @@ pub fn execute(
                 // no event of its own.
                 let links = workspace.sync_task_links();
                 done.dirty |= Parts::SESSIONS | links.dirty;
-                done = done.event(Event::new(
-                    WORK_LOGS_IMPORTED,
-                    serde_json::json!({ "groupsApplied": groups_applied.len() }),
-                ));
             }
+            done = done.event(ledger_changed(groups_applied.len()));
             done.reply = super::to_value(WorkLogImportSummary {
                 entries_added,
                 entries_updated,
@@ -489,9 +495,17 @@ fn restore(
         dirty |= Parts::WORK_LOGS;
     }
     // Never without a copy of what's being replaced.
-    Ok(Executed::new(summary, dirty).backup(Backup::Saved {
+    let mut done = Executed::new(summary, dirty).backup(Backup::Saved {
         parts: Parts::SESSIONS | Parts::WORK_LOGS,
         failure: "Restore cancelled",
         required: true,
-    }))
+    });
+    // Every view of what was restored reads it again
+    if dirty.contains(Parts::SESSIONS) {
+        done = done.event(Event::new(SESSIONS_CHANGED, ()));
+    }
+    if dirty.contains(Parts::WORK_LOGS) {
+        done = done.event(ledger_changed(0));
+    }
+    Ok(done)
 }

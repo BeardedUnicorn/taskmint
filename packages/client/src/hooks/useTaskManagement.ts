@@ -4,6 +4,8 @@ import { ServiceFactory } from '../services';
 import { useAsyncError } from './useAsyncError';
 import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
+import { useAppRecordsChanged } from './useAppRecordsChanged';
+import { STORAGE_KEYS } from '../constants';
 
 export function useTaskManagement(): UseTaskManagementReturn {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -37,6 +39,11 @@ export function useTaskManagement(): UseTaskManagementReturn {
 
     loadTasks();
   }, [taskService, showError]);
+
+  // Tasks saved in another tab or device
+  useAppRecordsChanged([STORAGE_KEYS.PREDEFINED_TASKS], () => {
+    taskService.getAllTasks().then(setTasks, error => console.error('Failed to reload tasks:', error));
+  });
 
   const addTask = useCallback(async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     return executeAsync(

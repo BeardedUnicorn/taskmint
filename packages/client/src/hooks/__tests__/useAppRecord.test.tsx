@@ -11,7 +11,7 @@ const mockInvoke = fakeBackend().call;
 
 async function loadWith(records: Record<string, unknown>) {
   mockInvoke.mockImplementation(async (command: string) =>
-    command === 'get_app_records' ? { records } : null
+    command === 'get_app_records' ? { records, revisions: {} } : null
   );
   await loadAppRecords({ importLegacy: false });
 }
@@ -40,6 +40,8 @@ describe('useAppRecord', () => {
       expect(mockInvoke).toHaveBeenLastCalledWith('set_app_record', {
         key: 'dailyGoalAchievements',
         value: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+        // Each save builds on the one before
+        baseRevision: 1,
       })
     );
     expect(window.localStorage.getItem('dailyGoalAchievements')).toBeNull();

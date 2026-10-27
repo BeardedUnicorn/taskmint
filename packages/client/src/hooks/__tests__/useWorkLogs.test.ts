@@ -12,6 +12,7 @@ import {
   createMockWorkLogEntry,
 } from '../../__tests__/setup/session-test-utils';
 import { fakeBackend } from '../../testing';
+import { BACKEND_EVENTS } from '../../constants/events';
 
 const mockInvoke = fakeBackend().call;
 
@@ -67,6 +68,31 @@ describe('useWorkLogs', () => {
     expect(result.current.mappings).toEqual([mapping]);
     expect(result.current.error).toBeNull();
     expect(mockShowError).not.toHaveBeenCalled();
+  });
+
+  it('reads the ledger again when it changes elsewhere, or the stream missed events', async () => {
+    const entry = createMockWorkLogEntry();
+    let stored = { entries: [] as unknown[], mappings: [] as unknown[], loadWarning: null };
+    mockInvoke.mockImplementation(async (command: string) => (command === 'get_work_logs' ? stored : undefined));
+    const { result } = renderHook(() => useWorkLogs());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    stored = { entries: [entry], mappings: [], loadWarning: null };
+    act(() => fakeBackend().emit(BACKEND_EVENTS.WORK_LOGS_IMPORTED, { groupsApplied: 0 }));
+    await waitFor(() => expect(result.current.entries).toEqual([entry]));
+
+    stored = { entries: [], mappings: [], loadWarning: null };
+    act(() => fakeBackend().emit(BACKEND_EVENTS.RESYNC, {}));
+    await waitFor(() => expect(result.current.entries).toEqual([]));
+    // A quiet reload: no spinner, no toast
+    expect(result.current.isLoading).toBe(false);
+
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockInvoke.mockRejectedValueOnce('offline');
+    act(() => fakeBackend().emit(BACKEND_EVENTS.RESYNC, {}));
+    await waitFor(() => expect(error).toHaveBeenCalledWith('Failed to reload work logs:', 'offline'));
+    expect(mockShowError).not.toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it('surfaces the backend error string when loading fails', async () => {

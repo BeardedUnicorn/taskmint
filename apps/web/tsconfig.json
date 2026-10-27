@@ -1,0 +1,16 @@
+// The web entry imports the client's sources, so it needs the client's
+// ambient declarations too.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "../../packages/client/src/**/*.d.ts"
+  ]
+}
