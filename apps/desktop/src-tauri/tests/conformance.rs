@@ -41,7 +41,7 @@ impl DesktopHost {
         let events = events.clone();
         LocalBackend::open(
             JsonFileStore::new(dir),
-            Box::new(move || *now.lock().unwrap()),
+            Arc::new(move || *now.lock().unwrap()),
             Box::new(move |published| {
                 let names = published.events.iter().map(|e| e.name.to_string());
                 events.lock().unwrap().extend(names);

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use taskmint_core::idle::IdleSettings;
 use taskmint_core::notifications::{NotificationKind, NotificationPrefs};
-use tauri::{AppHandle, State};
+use tauri::State;
 
 /// The shell's commands, by the names and camelCase arguments the webview
 /// sends.
@@ -110,32 +110,29 @@ fn reply(value: impl Serialize) -> Value {
     serde_json::to_value(value).expect("replies are plain data")
 }
 
-fn run_shell(app: &AppHandle, state: &AppState, shell: Shell) -> Result<Value, String> {
+fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
     Ok(match shell {
         Shell::SetIdleSettings { settings } => {
-            reply(state.with_idle_mut(|idle| idle.settings = settings)?)
+            state.with_idle_mut(|idle| idle.settings = settings);
+            Value::Null
         }
         Shell::GetIdleSupport {} => reply(crate::idle::is_supported()),
         Shell::GetIdlePause {} => {
-            let now = chrono::Utc::now();
-            reply(state.with_idle(|idle| idle.pause.as_ref().map(|pause| pause.payload(now)))?)
+            let now = (state.clock)();
+            reply(state.with_idle(|idle| idle.pause.as_ref().map(|pause| pause.payload(now))))
         }
-        Shell::ResolveIdlePause { choice } => reply(crate::idle::resolve(app, state, &choice)?),
+        Shell::ResolveIdlePause { choice } => reply(crate::idle::resolve(state, &choice)?),
         Shell::SetNotificationPreferences { prefs } => {
-            reply(state.with_notification_prefs_mut(|current| *current = prefs)?)
+            state.with_notification_prefs_mut(|current| *current = prefs);
+            Value::Null
         }
-        Shell::ShowDesktopNotification { kind, title, body } => reply(notifications::post(
-            app,
-            state,
-            kind,
-            &title,
-            &body,
-            Origin::App,
-        )),
+        Shell::ShowDesktopNotification { kind, title, body } => {
+            reply(notifications::post(state, kind, &title, &body, Origin::App))
+        }
         Shell::GetCaptureServerStatus {} => {
-            reply(state.with_capture_server_status(|status| status.clone())?)
+            reply(state.with_capture_server_status(|status| status.clone()))
         }
-        Shell::ValidateBackupPath { path } => reply(crate::backup::validate_backup_path(&path)?),
+        Shell::ValidateBackupPath { path } => reply(crate::backup::validate_backup_path(&path)),
         Shell::PerformAutomaticBackup {
             backup_path,
             current_data_json,
@@ -144,44 +141,55 @@ fn run_shell(app: &AppHandle, state: &AppState, shell: Shell) -> Result<Value, S
             &backup_path,
             &current_data_json,
             max_backups,
-        )?),
-        Shell::DefaultBackupDir {} => reply(files::default_backup_dir(app)?),
-        Shell::PickBackupDir {} => reply(files::pick_backup_dir(app)),
+            (state.clock)(),
+        )),
+        Shell::DefaultBackupDir {} => reply(files::default_backup_dir(state)?),
+        Shell::PickBackupDir {} => reply(files::pick_backup_dir(state)),
         Shell::ExportDataToFile {
             data_json,
             suggested_filename,
         } => reply(files::export_data_to_file(
-            app,
+            state,
             data_json,
             suggested_filename,
         )?),
         Shell::ExportCsvFile {
             csv,
             suggested_filename,
-        } => reply(files::export_csv_file(app, csv, &suggested_filename)?),
-        Shell::ImportDataFromFile {} => reply(files::import_data_from_file(app)?),
-        Shell::RevealPath { path } => reply(files::reveal_path(app, &path)?),
+        } => reply(files::export_csv_file(state, csv, &suggested_filename)?),
+        Shell::ImportDataFromFile {} => reply(files::import_data_from_file(state)?),
+        Shell::RevealPath { path } => reply(files::reveal_path(state, &path)?),
     })
 }
 
+/// Runs a command by name with the webview's arguments.
+fn route(state: &AppState, command: &str, args: Value) -> Result<Value, String> {
+    match parse_shell(command, &args) {
+        Some(shell) => run_shell(state, shell?),
+        None => state.backend.call_named(command, args),
+    }
+}
+
+/// The webview always sends `args` (`{}` for none).
 #[tauri::command]
 pub async fn dispatch(
-    app: AppHandle,
     state: State<'_, AppState>,
     command: String,
-    args: Option<Value>,
+    args: Value,
 ) -> Result<Value, String> {
-    let args = args.unwrap_or(Value::Null);
-    match parse_shell(&command, &args) {
-        Some(shell) => run_shell(&app, &state, shell?),
-        None => state.backend.call_named(&command, args),
-    }
+    route(&state, &command, args)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::{fixture, Fixture};
     use serde_json::json;
+    use std::path::PathBuf;
+
+    fn run(f: &Fixture, command: &str, args: Value) -> Result<Value, String> {
+        route(&f.state, command, args)
+    }
 
     #[test]
     fn shell_commands_take_the_webviews_arguments() {
@@ -227,5 +235,237 @@ mod tests {
         }
         assert_eq!(parse_shell("start_task", &json!({})), None);
         assert_eq!(parse_shell("anything_else", &Value::Null), None);
+    }
+
+    #[test]
+    fn idle_detection_is_set_up_and_answered_through_the_shell() {
+        let f = fixture();
+        let settings =
+            json!({ "settings": { "enabled": true, "thresholdMinutes": 5, "longRunHours": 2 } });
+        assert_eq!(run(&f, "set_idle_settings", settings), Ok(Value::Null));
+        assert!(f.state.with_idle(|idle| idle.settings.enabled));
+        assert_eq!(
+            run(&f, "get_idle_support", Value::Null),
+            Ok(json!(crate::idle::is_supported()))
+        );
+        assert_eq!(run(&f, "get_idle_pause", json!({})), Ok(Value::Null));
+        f.state.with_idle_mut(|idle| {
+            idle.pause = Some(taskmint_core::idle::IdlePause {
+                instance_id: "i1".to_string(),
+                task_name: "Writing".to_string(),
+                idle_since: crate::testing::start() - chrono::Duration::minutes(10),
+                returned_at: None,
+            })
+        });
+        assert_eq!(
+            run(&f, "get_idle_pause", json!({})).map(|pause| pause["awayMs"].clone()),
+            Ok(json!(600_000))
+        );
+        assert_eq!(
+            run(&f, "resolve_idle_pause", json!({ "choice": "stayPaused" })),
+            Ok(Value::Null)
+        );
+        assert_eq!(
+            run(&f, "resolve_idle_pause", json!({ "choice": "later" })),
+            Err("Unknown choice: later".to_string())
+        );
+    }
+
+    #[test]
+    fn notifications_follow_the_apps_preferences() {
+        let f = fixture();
+        let prefs = json!({ "prefs": { "desktopEnabled": true, "sound": true } });
+        assert_eq!(
+            run(&f, "set_notification_preferences", prefs),
+            Ok(Value::Null)
+        );
+        let shown = run(
+            &f,
+            "show_desktop_notification",
+            json!({ "kind": "general", "title": "Saved", "body": "All good" }),
+        );
+        assert_eq!(shown, Ok(json!(true)));
+        assert_eq!(
+            f.platform.recorded().notifications,
+            [("Saved".to_string(), "All good".to_string(), true)]
+        );
+    }
+
+    #[test]
+    fn the_capture_servers_status_is_reported() {
+        let f = fixture();
+        assert_eq!(
+            run(&f, "get_capture_server_status", json!({})),
+            Ok(json!({ "running": false, "port": 43117, "warning": null }))
+        );
+    }
+
+    #[test]
+    fn backups_are_checked_and_written() {
+        let f = fixture();
+        let folder = f.dir.0.join("backups");
+        let path = folder.to_string_lossy().to_string();
+        assert_eq!(
+            run(&f, "validate_backup_path", json!({ "path": path })),
+            Ok(json!({ "isValid": true, "error": null }))
+        );
+        let written = run(
+            &f,
+            "perform_automatic_backup",
+            json!({ "backupPath": path, "currentDataJson": "{}", "maxBackups": 3 }),
+        )
+        .unwrap();
+        assert_eq!(written["success"], true);
+        assert_eq!(written["timestamp"], "2026-03-02T15:00:00+00:00");
+
+        f.platform.set_documents("/Users/me/Documents");
+        assert_eq!(
+            run(&f, "default_backup_dir", json!({})),
+            Ok(json!("/Users/me/Documents/TaskMint Backups"))
+        );
+        f.platform.answer(Some(folder.clone()));
+        assert_eq!(run(&f, "pick_backup_dir", json!({})), Ok(json!(path)));
+    }
+
+    #[test]
+    fn files_are_exported_imported_and_shown_through_the_shell() {
+        let f = fixture();
+        let export = f.dir.0.join("export.json");
+        f.platform.answer(Some(export.clone()));
+        assert_eq!(
+            run(
+                &f,
+                "export_data_to_file",
+                json!({ "dataJson": "{}", "suggestedFilename": "mine" })
+            ),
+            Ok(json!(export.to_string_lossy()))
+        );
+        let csv = f.dir.0.join("entries.csv");
+        f.platform.answer(Some(csv.clone()));
+        assert_eq!(
+            run(
+                &f,
+                "export_csv_file",
+                json!({ "csv": "a", "suggestedFilename": "entries" })
+            ),
+            Ok(json!(csv.to_string_lossy()))
+        );
+        f.platform.answer(Some(export.clone()));
+        assert_eq!(run(&f, "import_data_from_file", json!({})), Ok(json!("{}")));
+        assert_eq!(
+            run(&f, "reveal_path", json!({ "path": "/tmp/export.json" })),
+            Ok(Value::Null)
+        );
+        assert_eq!(
+            f.platform.recorded().revealed,
+            [PathBuf::from("/tmp/export.json")]
+        );
+    }
+
+    #[test]
+    fn the_shells_refusals_reach_the_webview() {
+        let f = fixture();
+        f.platform.fail("reveal");
+        for (command, args) in [
+            ("default_backup_dir", json!({})),
+            ("export_data_to_file", json!({ "dataJson": "{}" })),
+            (
+                "export_csv_file",
+                json!({ "csv": "a", "suggestedFilename": "x" }),
+            ),
+            ("import_data_from_file", json!({})),
+            ("reveal_path", json!({ "path": "/tmp/x" })),
+            ("reveal_path", json!({})),
+        ] {
+            assert!(run(&f, command, args).is_err(), "{}", command);
+        }
+    }
+
+    #[test]
+    fn data_commands_go_to_the_backend() {
+        let f = fixture();
+        assert_eq!(run(&f, "get_sessions", json!({})), Ok(json!([])));
+        assert_eq!(
+            run(&f, "launch", json!({})),
+            Err("Unknown command: launch".to_string())
+        );
+    }
+
+    /// The webview's view: an app on the mock runtime, managing `state`.
+    fn webview(
+        f: &Fixture,
+    ) -> (
+        tauri::App<tauri::test::MockRuntime>,
+        tauri::WebviewWindow<tauri::test::MockRuntime>,
+    ) {
+        let app = tauri::test::mock_builder()
+            .manage(f.state.clone())
+            .invoke_handler(tauri::generate_handler![dispatch])
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        (app, webview)
+    }
+
+    fn invoke(
+        webview: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+        body: Value,
+    ) -> Result<Value, Value> {
+        tauri::test::get_ipc_response(
+            webview,
+            tauri::webview::InvokeRequest {
+                cmd: "dispatch".into(),
+                callback: tauri::ipc::CallbackFn(0),
+                error: tauri::ipc::CallbackFn(1),
+                url: "tauri://localhost".parse().unwrap(),
+                body: tauri::ipc::InvokeBody::Json(body),
+                headers: Default::default(),
+                invoke_key: tauri::test::INVOKE_KEY.to_string(),
+            },
+        )
+        .map(|response| response.deserialize::<Value>().unwrap())
+    }
+
+    #[test]
+    fn the_webview_reaches_both_kinds_of_command_through_ipc() {
+        let f = fixture();
+        let (_app, webview) = webview(&f);
+        assert_eq!(
+            invoke(&webview, json!({ "command": "get_sessions", "args": {} })),
+            Ok(json!([]))
+        );
+        assert_eq!(
+            invoke(&webview, json!({ "command": "get_idle_pause", "args": {} })),
+            Ok(Value::Null)
+        );
+        // The backend's own words come back as the error
+        assert_eq!(
+            invoke(
+                &webview,
+                json!({ "command": "start_task", "args": { "taskId": "", "taskName": "" } })
+            ),
+            Err(json!("Choose a task to start"))
+        );
+    }
+
+    #[test]
+    fn a_call_without_a_command_or_its_args_is_refused() {
+        let f = fixture();
+        let (_app, webview) = webview(&f);
+        for body in [
+            json!({ "args": {} }),
+            json!({ "command": 7, "args": {} }),
+            json!({ "command": "get_sessions" }),
+        ] {
+            let error = invoke(&webview, body.clone()).unwrap_err();
+            assert!(
+                error.as_str().unwrap().contains("dispatch"),
+                "{}: {}",
+                body,
+                error
+            );
+        }
     }
 }

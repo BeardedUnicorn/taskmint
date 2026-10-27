@@ -19,7 +19,9 @@
       { "file": "src/main.rs", "why": "#[tokio::main] and signal wiring that call the tested cli::run" }
     ],
     "apps/desktop/src-tauri": [
-      { "file": "src/main.rs", "why": "binary entry; calls taskmint_lib::run" }
+      { "file": "src/main.rs", "why": "binary entry; calls taskmint_lib::run" },
+      { "file": "src/app.rs", "why": "tauri::Builder, plugins, generate_context! and the run loop: they need a real event loop and main thread" },
+      { "file": "src/platform/os.rs", "why": "the Platform on Tauri: tray and menu rendering, dialogs, OS notifications, window focus. They need a real UI session" }
     ]
   }
 }

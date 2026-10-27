@@ -13,12 +13,12 @@
 use crate::events;
 use crate::notifications::{self, Origin};
 use crate::state::AppState;
+use crate::ticker::Ticker;
 use chrono::{DateTime, Utc};
 use taskmint_core::command::{ApplyIdleChoiceArgs, Command, PauseTimerAtArgs};
 use taskmint_core::idle::{idle_tick, long_run_tick, IdleAction, IdleChoice, IdlePause, LongRun};
 use taskmint_core::notifications::NotificationKind;
 use taskmint_core::DayZone;
-use tauri::AppHandle;
 
 /// How often the monitor samples the system idle time.
 const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
@@ -81,77 +81,74 @@ pub fn is_supported() -> bool {
 /// Pause the running timer as of `idle_since`, and record the pending
 /// question.
 fn apply_pause(
-    app: &AppHandle,
     state: &AppState,
-    instance_id: &str,
-    task_name: &str,
+    instance_id: String,
+    task_name: String,
     idle_since: DateTime<Utc>,
 ) -> Result<(), String> {
     let paused = state.backend.call(Command::PauseTimerAt(PauseTimerAtArgs {
-        instance_id: instance_id.to_string(),
+        instance_id: instance_id.clone(),
         idle_since,
     }))?;
+    // The timer stopped running in the meantime
     if paused != serde_json::Value::Bool(true) {
         return Ok(());
     }
-
-    state.with_idle_mut(|idle| {
-        idle.pause = Some(IdlePause {
-            instance_id: instance_id.to_string(),
-            task_name: task_name.to_string(),
-            idle_since,
-            returned_at: None,
-        });
-    })?;
+    let since = DayZone::Local.time_label(idle_since);
     log::info!(
         "Idle: paused '{}' as of {} (no input since then)",
         task_name,
-        idle_since.to_rfc3339()
+        since
     );
     notifications::post(
-        app,
         state,
         NotificationKind::IdlePause,
         "Timer paused",
         &format!(
             "{} — no activity since {}. The away time isn't counted unless you keep it.",
-            task_name,
-            DayZone::Local.time_label(idle_since)
+            task_name, since
         ),
         Origin::Backend,
     );
-    crate::tray::sync_tray(app, state);
+    state.with_idle_mut(|idle| {
+        idle.pause = Some(IdlePause {
+            instance_id,
+            task_name,
+            idle_since,
+            returned_at: None,
+        })
+    });
+    crate::tray::sync(state);
     Ok(())
 }
 
-fn apply_return(app: &AppHandle, state: &AppState, now: DateTime<Utc>) -> Result<(), String> {
+/// Input came back: bring the app forward with the question.
+fn apply_return(state: &AppState, now: DateTime<Utc>) {
     let payload = state.with_idle_mut(|idle| {
         idle.pause.as_mut().map(|pause| {
             pause.returned_at = Some(now);
             pause.payload(now)
         })
-    })?;
+    });
     if let Some(payload) = payload {
         log::info!("Idle: input returned after {} ms away", payload.away_ms);
-        events::emit_quiet(app, events::IDLE_RETURNED, &payload);
-        crate::tray::show_main_window(app);
-        crate::tray::sync_tray(app, state);
+        events::emit_quiet(state, events::IDLE_RETURNED, &payload);
+        state.platform.show_main_window();
+        crate::tray::sync(state);
     }
-    Ok(())
 }
 
-fn clear_pending(app: &AppHandle, state: &AppState) -> Result<(), String> {
-    state.with_idle_mut(|idle| idle.pause = None)?;
-    events::emit_quiet(app, events::IDLE_RESOLVED, ());
-    crate::tray::sync_tray(app, state);
-    Ok(())
+fn clear_pending(state: &AppState) {
+    state.with_idle_mut(|idle| idle.pause = None);
+    events::emit_quiet(state, events::IDLE_RESOLVED, ());
+    crate::tray::sync(state);
 }
 
 /// Answer the pending question (from the app's dialog or the tray):
 /// "discardResume", "keepResume" or "stayPaused".
-pub fn resolve(app: &AppHandle, state: &AppState, choice: &str) -> Result<(), String> {
+pub fn resolve(state: &AppState, choice: &str) -> Result<(), String> {
     IdleChoice::parse(choice)?;
-    let Some(pause) = state.with_idle(|idle| idle.pause.clone())? else {
+    let Some(pause) = state.with_idle(|idle| idle.pause.clone()) else {
         return Ok(());
     };
     state
@@ -160,15 +157,14 @@ pub fn resolve(app: &AppHandle, state: &AppState, choice: &str) -> Result<(), St
             instance_id: pause.instance_id,
             choice: choice.to_string(),
         }))?;
-    clear_pending(app, state)
+    clear_pending(state);
+    Ok(())
 }
 
 /// Remind once per run, with a native notification.
-fn apply_long_run(app: &AppHandle, state: &AppState, long_run: LongRun) -> Result<(), String> {
-    state.with_idle_mut(|idle| idle.long_run_reminded = Some(long_run.key.clone()))?;
+fn apply_long_run(state: &AppState, long_run: LongRun) {
     log::info!("Long-run reminder for '{}'", long_run.task_name);
     notifications::post(
-        app,
         state,
         NotificationKind::LongRun,
         "Still working?",
@@ -179,68 +175,65 @@ fn apply_long_run(app: &AppHandle, state: &AppState, long_run: LongRun) -> Resul
         ),
         Origin::Backend,
     );
-    Ok(())
+    state.with_idle_mut(|idle| idle.long_run_reminded = Some(long_run.key));
 }
 
-/// Every few seconds: the long-run reminder, and (where the system reports
-/// idle time) idle detection.
-pub fn start_idle_monitor(app: &AppHandle, state: &AppState) {
-    if !is_supported() {
-        log::info!("Idle detection is not supported on this platform");
+/// One monitor step: the long-run reminder, and (where the system reports
+/// idle time, `idle_ms`) idle detection.
+pub fn tick(state: &AppState, idle_ms: Option<u64>) {
+    let now = (state.clock)();
+    let idle_state = state.with_idle(|idle| idle.clone());
+    let long_run = state.backend.read(|workspace| {
+        long_run_tick(
+            &workspace.sessions,
+            idle_state.long_run_reminded.as_deref(),
+            idle_state.settings.long_run_hours,
+            now,
+        )
+    });
+    if let Some(long_run) = long_run {
+        apply_long_run(state, long_run);
     }
-    let app = app.clone();
-    let state = state.clone();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(POLL_INTERVAL);
-        let now = Utc::now();
-        let Ok(idle_state) = state.with_idle(|idle| idle.clone()) else {
-            continue;
-        };
 
-        let long_run = state
-            .backend
-            .read(|workspace| {
-                long_run_tick(
-                    &workspace.sessions,
-                    idle_state.long_run_reminded.as_deref(),
-                    idle_state.settings.long_run_hours,
-                    now,
-                )
-            })
-            .ok()
-            .flatten();
-        if let Some(long_run) = long_run {
-            if let Err(e) = apply_long_run(&app, &state, long_run) {
-                log::error!("Long-run reminder: {}", e);
+    let Some(idle_ms) = idle_ms else {
+        return;
+    };
+    let action = state
+        .backend
+        .read(|workspace| idle_tick(&workspace.sessions, &idle_state, idle_ms, now));
+    match action {
+        IdleAction::None => {}
+        IdleAction::Pause {
+            instance_id,
+            task_name,
+            idle_since,
+        } => {
+            if let Err(e) = apply_pause(state, instance_id, task_name, idle_since) {
+                log::error!("Idle monitor: {}", e);
             }
         }
+        IdleAction::Returned => apply_return(state, now),
+        IdleAction::ClearPending => clear_pending(state),
+    }
+}
 
-        let Some(idle_ms) = system_idle_ms() else {
-            continue;
-        };
-        let action = state
-            .backend
-            .read(|workspace| idle_tick(&workspace.sessions, &idle_state, idle_ms, now))
-            .unwrap_or(IdleAction::None);
-        let result = match action {
-            IdleAction::None => Ok(()),
-            IdleAction::Pause {
-                instance_id,
-                task_name,
-                idle_since,
-            } => apply_pause(&app, &state, &instance_id, &task_name, idle_since),
-            IdleAction::Returned => apply_return(&app, &state, now),
-            IdleAction::ClearPending => clear_pending(&app, &state),
-        };
-        if let Err(e) = result {
-            log::error!("Idle monitor: {}", e);
-        }
-    });
+/// Every few seconds, for as long as the app runs.
+pub fn start_monitor(state: &AppState) -> Ticker {
+    log::info!("System idle time is available: {}", is_supported());
+    monitor(state, POLL_INTERVAL)
+}
+
+fn monitor(state: &AppState, interval: std::time::Duration) -> Ticker {
+    let state = state.clone();
+    Ticker::start("idle", interval, move || tick(&state, system_idle_ms()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::{fixture, Fixture};
+    use serde_json::json;
+    use taskmint_core::idle::IdleSettings;
 
     const MIN_MS: u64 = 60_000;
 
@@ -252,5 +245,189 @@ mod tests {
         let idle_ms = system_idle_ms().expect("macOS reports system idle time");
         assert!(idle_ms < 365 * 24 * 60 * MIN_MS);
         assert!(is_supported());
+    }
+
+    /// A fixture with a running timer and the given detection settings.
+    fn running(settings: IdleSettings) -> (Fixture, String) {
+        let f = fixture();
+        let started = f
+            .state
+            .backend
+            .call_named(
+                "start_task",
+                json!({ "taskId": "t1", "taskName": "Writing" }),
+            )
+            .unwrap();
+        f.state.with_idle_mut(|idle| idle.settings = settings);
+        (f, started["instanceId"].as_str().unwrap().to_string())
+    }
+
+    fn detecting() -> IdleSettings {
+        IdleSettings {
+            enabled: true,
+            threshold_minutes: 5,
+            long_run_hours: 0,
+        }
+    }
+
+    fn is_paused(f: &Fixture) -> bool {
+        f.state
+            .backend
+            .read(|w| w.sessions[0].timer_instances[0].is_paused)
+    }
+
+    #[test]
+    fn going_idle_pauses_the_timer_as_of_when_input_stopped() {
+        let (f, instance_id) = running(detecting());
+        f.advance_ms(20 * MIN_MS as i64);
+
+        tick(&f.state, Some(10 * MIN_MS));
+
+        assert!(is_paused(&f));
+        let pause = f.state.with_idle(|idle| idle.pause.clone()).unwrap();
+        assert_eq!(pause.instance_id, instance_id);
+        assert_eq!(
+            pause.idle_since,
+            crate::testing::start() + chrono::Duration::minutes(10)
+        );
+        assert_eq!(f.platform.recorded().notifications[0].0, "Timer paused");
+        assert_eq!(
+            f.platform.event_names()[1..],
+            ["timer-instance-paused", "notification-posted"]
+        );
+
+        // Input comes back: the app comes forward with the question
+        tick(&f.state, Some(1_000));
+        assert_eq!(f.platform.event_names().last().unwrap(), "idle-returned");
+        assert_eq!(f.platform.recorded().windows_shown, 1);
+        assert!(f
+            .state
+            .with_idle(|idle| idle.pause.as_ref().unwrap().returned_at.is_some()));
+
+        // Answered in the app: the timer resumes and the question goes
+        resolve(&f.state, "discardResume").unwrap();
+        assert!(!is_paused(&f));
+        assert_eq!(f.platform.event_names().last().unwrap(), "idle-resolved");
+        assert!(f.state.with_idle(|idle| idle.pause.is_none()));
+    }
+
+    #[test]
+    fn a_question_whose_timer_was_resumed_elsewhere_goes_away() {
+        let (f, instance_id) = running(detecting());
+        f.advance_ms(20 * MIN_MS as i64);
+        tick(&f.state, Some(10 * MIN_MS));
+        f.state
+            .backend
+            .call_named(
+                "resume_timer_instance",
+                json!({ "instanceId": instance_id }),
+            )
+            .unwrap();
+
+        tick(&f.state, Some(10 * MIN_MS));
+
+        assert!(f.state.with_idle(|idle| idle.pause.is_none()));
+        assert_eq!(f.platform.event_names().last().unwrap(), "idle-resolved");
+    }
+
+    #[test]
+    fn short_idle_spells_and_no_sample_change_nothing() {
+        let (f, _) = running(detecting());
+        tick(&f.state, Some(MIN_MS));
+        tick(&f.state, None);
+        assert!(!is_paused(&f));
+    }
+
+    #[test]
+    fn a_pause_that_cant_be_saved_is_logged_and_asks_nothing() {
+        let (f, _) = running(detecting());
+        std::fs::create_dir(f.dir.0.join("sessions.json.tmp")).unwrap();
+        f.advance_ms(20 * MIN_MS as i64);
+
+        tick(&f.state, Some(10 * MIN_MS));
+
+        assert!(f.state.with_idle(|idle| idle.pause.is_none()));
+        assert!(f.platform.recorded().notifications.is_empty());
+    }
+
+    #[test]
+    fn a_timer_already_stopped_isnt_paused() {
+        let f = fixture();
+        assert_eq!(
+            apply_pause(
+                &f.state,
+                "gone".to_string(),
+                "Writing".to_string(),
+                crate::testing::start()
+            ),
+            Ok(())
+        );
+        assert!(f.state.with_idle(|idle| idle.pause.is_none()));
+        // Nothing pending: nothing to come back to
+        apply_return(&f.state, crate::testing::start());
+        assert!(f.platform.event_names().is_empty());
+    }
+
+    #[test]
+    fn answering_checks_the_choice_and_needs_a_question() {
+        let f = fixture();
+        assert_eq!(
+            resolve(&f.state, "maybe"),
+            Err("Unknown choice: maybe".to_string())
+        );
+        assert_eq!(resolve(&f.state, "keepResume"), Ok(()));
+        f.state.with_idle_mut(|idle| {
+            idle.pause = Some(IdlePause {
+                instance_id: "gone".to_string(),
+                task_name: "Writing".to_string(),
+                idle_since: crate::testing::start(),
+                returned_at: None,
+            })
+        });
+        assert_eq!(
+            resolve(&f.state, "keepResume"),
+            Err("The paused timer no longer exists".to_string())
+        );
+    }
+
+    #[test]
+    fn a_long_run_is_reminded_about_once() {
+        let (f, _) = running(IdleSettings {
+            enabled: false,
+            threshold_minutes: 0,
+            long_run_hours: 2,
+        });
+        f.advance_ms(2 * 60 * MIN_MS as i64);
+
+        tick(&f.state, None);
+        tick(&f.state, None);
+
+        let notifications = &f.platform.recorded().notifications;
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(
+            notifications[0].1,
+            "Writing's timer has been running for 02:00."
+        );
+    }
+
+    #[test]
+    fn the_monitor_samples_the_system_until_stopped() {
+        let (f, _) = running(IdleSettings {
+            enabled: false,
+            threshold_minutes: 0,
+            long_run_hours: 1,
+        });
+        f.advance_ms(60 * MIN_MS as i64);
+        let ticker = monitor(&f.state, std::time::Duration::from_millis(1));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while f.platform.recorded().notifications.is_empty() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the monitor never ticked"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        ticker.stop();
+        start_monitor(&f.state).stop();
     }
 }

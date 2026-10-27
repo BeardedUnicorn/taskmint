@@ -9,7 +9,7 @@ use crate::store::{JsonFileStore, RECORDS_FILE, SESSIONS_FILE, WORK_LOGS_FILE};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use taskmint_core::command::{execute, Backup, Command, Ctx, Event, ResetSummary};
 use taskmint_core::load::{parse_project_mappings, parse_sessions, parse_work_log_entries};
 use taskmint_core::records::is_app_record_key;
@@ -21,7 +21,8 @@ const SESSIONS_KEY: &str = "sessions";
 const ENTRIES_KEY: &str = "entries";
 const MAPPINGS_KEY: &str = "mappings";
 
-pub type Clock = Box<dyn Fn() -> DateTime<Utc> + Send + Sync>;
+/// The time: `Utc::now` in the app, a fixed one in tests.
+pub type Clock = Arc<dyn Fn() -> DateTime<Utc> + Send + Sync>;
 
 /// What a command changed, once it's saved: its events for the frontend,
 /// and the parts that changed (the tray follows the sessions and tasks).
@@ -41,10 +42,12 @@ pub struct LocalBackend {
 
 /// The sentence a load warning ends with: where the copy went, or why there
 /// isn't one.
+/// (Only a file that exists is copied, and these files do.)
 fn backup_note(result: Result<Option<PathBuf>, String>) -> String {
     match result {
-        Ok(Some(path)) => format!(" A backup was saved to {}.", path.display()),
-        Ok(None) => String::new(),
+        Ok(path) => path
+            .map(|path| format!(" A backup was saved to {}.", path.display()))
+            .unwrap_or_default(),
         Err(e) => format!(" Backing up the previous data also failed: {}.", e),
     }
 }
@@ -253,12 +256,17 @@ impl LocalBackend {
         self.call(command)
     }
 
+    /// The live data. A command that panicked while holding the lock did so
+    /// on its copy, so the live data is whole and the lock stays usable.
+    fn live(&self) -> MutexGuard<'_, Workspace> {
+        self.workspace
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     pub fn call(&self, command: Command) -> Result<Value, String> {
         let access = command.access();
-        let mut live = self
-            .workspace
-            .lock()
-            .map_err(|e| format!("Failed to lock the data: {}", e))?;
+        let mut live = self.live();
         let now = (self.clock)();
         let ctx = Ctx {
             now,
@@ -290,12 +298,8 @@ impl LocalBackend {
     }
 
     /// Reads the live data.
-    pub fn read<R>(&self, read: impl FnOnce(&Workspace) -> R) -> Result<R, String> {
-        let live = self
-            .workspace
-            .lock()
-            .map_err(|e| format!("Failed to lock the data: {}", e))?;
-        Ok(read(&live))
+    pub fn read<R>(&self, read: impl FnOnce(&Workspace) -> R) -> R {
+        read(&self.live())
     }
 
     /// Keeps the copies a command asks for before it saves.
@@ -343,7 +347,7 @@ impl LocalBackend {
         for (part, file) in files_in(dirty) {
             if let Err(e) = self.store.save(file, &file_contents(next, part)) {
                 for (part, file) in saved {
-                    if let Err(undo) = self.store.save(file, &file_contents(previous, part)) {
+                    if let Err(undo) = self.put_back(file, &file_contents(previous, part)) {
                         log::error!("Couldn't put {} back after a failed save: {}", file, undo);
                     }
                 }
@@ -352,6 +356,13 @@ impl LocalBackend {
             saved.push((part, file));
         }
         Ok(())
+    }
+
+    /// Saves a file again as it was. Only a disk that fails between two saves
+    /// can stop it, so tests make it fail with a failpoint.
+    fn put_back(&self, file: &str, contents: &JsonMap) -> Result<(), String> {
+        fail::fail_point!("local-backend.put-back", |_| Err("disk gone".to_string()));
+        self.store.save(file, contents)
     }
 
     /// Deletes the safety copies after a full reset. The data is already
@@ -398,7 +409,7 @@ mod tests {
         let sink = log.clone();
         let backend = LocalBackend::open(
             JsonFileStore::new(&dir.0),
-            Box::new(now),
+            Arc::new(now),
             Box::new(move |published: &Published| {
                 let names = published.events.iter().map(|e| e.name).collect();
                 sink.lock().unwrap().push((names, published.changed));
@@ -412,7 +423,7 @@ mod tests {
     }
 
     fn sessions(backend: &LocalBackend) -> Vec<taskmint_core::model::TaskSession> {
-        backend.read(|w| w.sessions.clone()).unwrap()
+        backend.read(|w| w.sessions.clone())
     }
 
     fn start(backend: &LocalBackend) -> Result<Value, String> {
@@ -435,7 +446,7 @@ mod tests {
 
         let (backend, log) = open(&dir);
 
-        let workspace = backend.read(|w| w.clone()).unwrap();
+        let workspace = backend.read(|w| w.clone());
         let ids: Vec<&str> = workspace.sessions.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(
             ids,
@@ -507,14 +518,8 @@ mod tests {
             4
         );
         let (again, _) = open(&dir);
-        assert_eq!(
-            again.read(|w| w.sessions.clone()).unwrap(),
-            workspace.sessions
-        );
-        assert_eq!(
-            again.read(|w| w.notes.session_warning.clone()).unwrap(),
-            None
-        );
+        assert_eq!(again.read(|w| w.sessions.clone()), workspace.sessions);
+        assert_eq!(again.read(|w| w.notes.session_warning.clone()), None);
         // Loading announces nothing
         assert!(log.lock().unwrap().is_empty());
     }
@@ -523,7 +528,7 @@ mod tests {
     fn a_fresh_install_starts_empty_and_writes_nothing_until_a_change() {
         let dir = TempDir::new("fresh");
         let (backend, _) = open(&dir);
-        assert_eq!(backend.read(|w| w.clone()).unwrap(), Workspace::default());
+        assert_eq!(backend.read(|w| w.clone()), Workspace::default());
         assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 0);
 
         start(&backend).unwrap();
@@ -543,7 +548,7 @@ mod tests {
 
         let (backend, _) = open(&dir);
 
-        let notes = backend.read(|w| w.notes.clone()).unwrap();
+        let notes = backend.read(|w| w.notes.clone());
         let sessions = notes.session_warning.unwrap();
         assert!(
             sessions.starts_with("Failed to load saved sessions: Failed to read sessions.json: ")
@@ -586,7 +591,7 @@ mod tests {
 
         let (backend, _) = open(&dir);
 
-        let workspace = backend.read(|w| w.clone()).unwrap();
+        let workspace = backend.read(|w| w.clone());
         assert_eq!(
             workspace.sessions[0].timer_instances[0].duration,
             Some(20 * 60_000)
@@ -604,6 +609,31 @@ mod tests {
     }
 
     #[test]
+    fn a_repair_goes_ahead_when_its_copy_cant_be_made() {
+        let dir = TempDir::new("stranded-no-copy");
+        let stranded = json!({ "sessions": [{
+            "id": "s1", "taskId": "t1", "taskName": "A", "isActive": false, "notes": null,
+            "timerInstances": [{
+                "id": "i1", "sessionId": "s1", "startTime": "2026-03-01T15:00:00Z",
+                "endTime": null, "duration": null, "isPaused": true,
+                "pausedAt": "2026-03-01T15:20:00Z", "pausedDuration": 0,
+                "resumedAt": null, "notes": null
+            }]
+        }]});
+        fs::write(dir.0.join("sessions.json"), stranded.to_string()).unwrap();
+        fs::create_dir(dir.0.join("sessions.json.bak-20260302150000")).unwrap();
+
+        let (backend, _) = open(&dir);
+
+        let instance = backend.read(|w| w.sessions[0].timer_instances[0].clone());
+        assert!(!instance.is_paused);
+        assert_eq!(
+            read_file(&dir, "sessions.json")["sessions"][0]["timerInstances"][0]["isPaused"],
+            false
+        );
+    }
+
+    #[test]
     fn a_warning_says_when_the_copy_could_not_be_made() {
         let dir = TempDir::new("no-copy");
         fs::write(
@@ -615,10 +645,7 @@ mod tests {
 
         let (backend, _) = open(&dir);
 
-        let warning = backend
-            .read(|w| w.notes.session_warning.clone())
-            .unwrap()
-            .unwrap();
+        let warning = backend.read(|w| w.notes.session_warning.clone()).unwrap();
         assert!(warning.starts_with(
             "Failed to load saved sessions: Stored sessions value is not an array. Backing up the previous data also failed: Failed to back up sessions.json: "
         ));
@@ -677,12 +704,25 @@ mod tests {
             "workLogEntries": [{ "id": "e1", "kind": "workLog" }]
         }});
         let error = backend
-            .call_named("restore_backup_data", restore)
+            .call_named("restore_backup_data", restore.clone())
             .unwrap_err();
 
         assert!(error.starts_with("Failed to save worklogs.json: "));
         assert_eq!(fs::read(dir.0.join("sessions.json")).unwrap(), saved);
         assert_eq!(sessions(&backend).len(), 1);
+
+        // If even that fails, it's logged: the restore still reports its own
+        // failure. (One test, so nothing else saves while the failpoint is on.)
+        #[cfg(feature = "failpoints")]
+        {
+            let scenario = fail::FailScenario::setup();
+            fail::cfg("local-backend.put-back", "return").unwrap();
+            let again = backend.call_named("restore_backup_data", restore.clone());
+            assert!(again
+                .unwrap_err()
+                .starts_with("Failed to save worklogs.json: "));
+            scenario.teardown();
+        }
     }
 
     #[test]
@@ -740,7 +780,7 @@ mod tests {
         assert!(error.starts_with(
             "Moving the records in was cancelled: Failed to save a copy beside appdata.json: "
         ));
-        assert_eq!(backend.read(|w| w.records.clone()).unwrap(), JsonMap::new());
+        assert_eq!(backend.read(|w| w.records.clone()), JsonMap::new());
     }
 
     #[test]
