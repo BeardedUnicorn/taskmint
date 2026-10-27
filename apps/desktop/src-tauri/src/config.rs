@@ -3,10 +3,9 @@
 
 use std::time::Duration;
 
-/// How often the tray re-reads the live timer to update its title and tooltip.
+/// How often the tray re-reads the live timer. Its menu and tooltip show
+/// minutes, so they change about once a minute while a timer runs.
 pub const TRAY_STATUS_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
-/// How often the tray menu is rebuilt while a timer runs (its elapsed label).
-pub const TRAY_MENU_REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 /// Shown in the tray tooltip.
 pub const TRAY_TOOLTIP_APP_NAME: &str = "TaskMint";
 /// Most tasks listed in the tray's Start submenu.

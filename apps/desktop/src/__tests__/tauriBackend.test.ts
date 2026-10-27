@@ -18,8 +18,8 @@ const { platform } = backend;
 function dispatched() {
   return mockInvoke.mock.calls.map(([name, payload]) => {
     expect(name).toBe("dispatch");
-    const { command, args } = payload as { command: string; args?: unknown };
-    return args === undefined ? [command] : [command, args];
+    const { command, args } = payload as { command: string; args: Record<string, unknown> };
+    return Object.keys(args).length === 0 ? [command] : [command, args];
   });
 }
 

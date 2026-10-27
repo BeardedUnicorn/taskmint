@@ -47,14 +47,13 @@ impl JsonFileStore {
     /// disk and then renamed over it, so a crash leaves the old file or the
     /// new one, never half of one.
     pub fn save(&self, file: &str, contents: &JsonMap) -> Result<(), String> {
-        let fail = |e: std::io::Error| format!("Failed to save {}: {}", file, e);
         let bytes = pretty(contents);
-        fs::create_dir_all(&self.dir).map_err(fail)?;
         let temp = self.path(&format!("{}.tmp", file));
-        let mut out = fs::File::create(&temp).map_err(fail)?;
-        out.write_all(&bytes).map_err(fail)?;
-        out.sync_all().map_err(fail)?;
-        fs::rename(&temp, self.path(file)).map_err(fail)?;
+        fs::create_dir_all(&self.dir)
+            .and_then(|()| fs::File::create(&temp))
+            .and_then(|mut out| out.write_all(&bytes).and_then(|()| out.sync_all()))
+            .and_then(|()| fs::rename(&temp, self.path(file)))
+            .map_err(|e| format!("Failed to save {}: {}", file, e))?;
         // The rename itself is durable once the folder is flushed. Not every
         // platform can open a folder for that, so it's best effort.
         let _ = fs::File::open(&self.dir).and_then(|dir| dir.sync_all());
@@ -83,10 +82,10 @@ impl JsonFileStore {
         contents: &JsonMap,
         at: DateTime<Utc>,
     ) -> Result<PathBuf, String> {
-        let fail = |e: String| format!("Failed to save a copy beside {}: {}", file, e);
-        fs::create_dir_all(&self.dir).map_err(|e| fail(e.to_string()))?;
         let copy = self.copy_path(file, at);
-        fs::write(&copy, pretty(contents)).map_err(|e| fail(e.to_string()))?;
+        fs::create_dir_all(&self.dir)
+            .and_then(|()| fs::write(&copy, pretty(contents)))
+            .map_err(|e| format!("Failed to save a copy beside {}: {}", file, e))?;
         self.prune(file);
         Ok(copy)
     }
@@ -102,15 +101,10 @@ impl JsonFileStore {
             .collect())
     }
 
-    /// Best effort: a copy that can't be deleted stays.
+    /// Best effort: a copy that can't be deleted stays. (It runs just after
+    /// a copy was written to the folder, so the folder can be listed.)
     fn prune(&self, file: &str) {
-        let names = match self.names() {
-            Ok(names) => names,
-            Err(e) => {
-                log::warn!("Couldn't list old {} copies: {}", file, e);
-                return;
-            }
-        };
+        let names = self.names().unwrap_or_default();
         for name in backups_to_prune(&names, file, BACKUPS_KEPT) {
             if let Err(e) = fs::remove_file(self.path(&name)) {
                 log::warn!("Couldn't delete old copy {}: {}", name, e);
@@ -335,6 +329,19 @@ pub(crate) mod tests {
         names.sort();
         assert_eq!(names.len(), 1 + BACKUPS_KEPT);
         assert_eq!(names[1], "sessions.json.bak-19700101000300");
+    }
+
+    #[test]
+    fn an_old_copy_that_cant_be_deleted_stays() {
+        let dir = TempDir::new("prune-fails");
+        let store = JsonFileStore::new(&dir.0);
+        fs::write(dir.0.join(SESSIONS_FILE), b"{}").unwrap();
+        // The oldest "copy" is a folder, which remove_file refuses
+        fs::create_dir(dir.0.join("sessions.json.bak-19690101000000")).unwrap();
+        for n in 0..BACKUPS_KEPT as i64 {
+            store.back_up(SESSIONS_FILE, at(n * 60)).unwrap();
+        }
+        assert!(dir.0.join("sessions.json.bak-19690101000000").is_dir());
     }
 
     #[test]

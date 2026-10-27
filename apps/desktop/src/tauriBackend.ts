@@ -14,8 +14,8 @@ import type { Backend, CommandArgsParam, Platform } from "@taskmint/client/backe
 /** What a dismissed save or open dialog rejects with. */
 const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
 
-/** Runs a command in the app's Rust side. */
-function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+/** Runs a command in the app's Rust side (dispatch takes `{}` for no arguments). */
+function command<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
   return invoke<T>("dispatch", { command: name, args });
 }
 

@@ -53,6 +53,7 @@ jobs:
         run: |
           cargo clippy --workspace --all-targets -- -D warnings
           cargo clippy -p taskmint-core --features ts --all-targets -- -D warnings
+          cargo clippy -p taskmint --features failpoints --all-targets -- -D warnings
 
       - name: Contracts match the Rust
         run: scripts/check-contracts.sh
@@ -64,4 +65,10 @@ jobs:
         run: >-
           cargo llvm-cov -p taskmint-core --summary-only
           --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex crates/taskmint-core)"
+          --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
+
+      - name: desktop shell coverage (100%)
+        run: >-
+          cargo llvm-cov -p taskmint --features failpoints --summary-only
+          --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/desktop/src-tauri)"
           --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100

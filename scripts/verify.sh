@@ -26,8 +26,10 @@ cargo fmt --all --check
 
 step "Rust lints"
 cargo clippy --workspace --all-targets -- -D warnings
-# With the TypeScript derives and the contracts generator
+# With the TypeScript derives and the contracts generator, and the desktop's
+# failpoints
 cargo clippy -p taskmint-core --features ts --all-targets -- -D warnings
+cargo clippy -p taskmint --features failpoints --all-targets -- -D warnings
 
 step "Server database (compose db; the server tests make their own databases on it)"
 docker compose up -d --wait db
@@ -40,6 +42,11 @@ cargo test --workspace
 step "Rust coverage: taskmint-core at 100%"
 cargo llvm-cov -p taskmint-core --summary-only \
   --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex crates/taskmint-core)" \
+  --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
+
+step "Rust coverage: the desktop shell at 100% (failpoints on)"
+cargo llvm-cov -p taskmint --features failpoints --summary-only \
+  --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/desktop/src-tauri)" \
   --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
 
 step "Server query metadata (.sqlx) matches the queries"

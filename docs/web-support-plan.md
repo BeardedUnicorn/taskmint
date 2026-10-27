@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%) and P8 (server auth) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -146,6 +146,31 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
   - Log macro arguments that call methods (`path.display()`, `keys.join(..)`) leave uncovered regions when no logger is installed. The P0 spike only tried plain arguments, so P7 needs a test logger after all.
   - The desktop crate is at 60% regions overall, with the store and backend at about 97%. Their I/O failures are left for P7's failpoints.
 - **Checked on real data:** a copy of the installed app's data folder loads with no warnings, and opening it rewrites nothing.
+
+**As built in P7:**
+- **Platform seam:** `platform::Platform` covers emit, notify, the save/open/folder dialogs, documents_dir, reveal, open_dir, show_main_window, `render_tray(&TrayMenu)`, `set_tray_status`, has_tray and app_version.
+  - `platform/os.rs` implements it on Tauri. It's excluded from coverage and holds calls only.
+  - Tests use `platform::fake::FakePlatform`, which records every call, answers dialogs from a queue, and can be told to fail a call mid-test.
+- **Shell state:** `AppState` (an `Arc<Shell>`) holds the backend, the platform, the clock, and the tray, idle, notification and capture state.
+  - `AppState::open(store, clock, platform)` builds it with `Arc::new_cyclic`, so the backend publishes events and tray updates through the shell without a `tauri::AppHandle`.
+  - Nothing outside `app.rs` and `os.rs` touches Tauri. `dispatch` takes only `State<AppState>`, so its tests go through the mock runtime's IPC.
+- **Tray:** `tray/model.rs` is pure: a snapshot, the menu and status as data (`TrayMenu`, `TrayStatus`), and `TrayAction::from_id`.
+  - `tray/mod.rs` redraws only what changed: the whole menu, compared by value, and the status. That replaces the live-timer key and the 60-second refresh, since the menu shows elapsed minutes. It also runs the menu's actions through backend commands.
+- **Ticker and monitors:** `ticker.rs` (a stoppable interval thread) replaces the bare `loop {}` threads.
+  - The idle monitor is one `idle::tick(state, idle_ms)`.
+  - The capture server is `CaptureServer::start(state, address)`, stopped on drop. Tests bind it to `127.0.0.1:0` and send real HTTP.
+- **`app.rs`** (excluded) holds the builder, the plugins, setup wiring and the run loop. `lib.rs` only declares modules.
+- **Coverage:** 100% of regions, functions and lines with only `src/main.rs`, `src/app.rs` and `src/platform/os.rs` excluded. `verify.sh` and CI gate it with `--features failpoints`.
+  - A `ctor` test logger takes every level, so log arguments run.
+  - There's one failpoint: putting a file back after a later save failed.
+  - The other error paths are reached with real faults, or restructured where no fault can reach them (see docs/coverage-policy.md).
+- **Behaviour changes:**
+  - The tray tooltip updates when its minute changes rather than every second, and a menu rebuild follows the same rule.
+  - The shell's locks recover from poisoning instead of failing the call.
+  - Backups take their timestamp from the shell's clock.
+  - `dispatch` now requires `args`; the desktop shell sends `{}` when there are none.
+  - A tray call no longer holds a lock while Tauri waits on the main thread. The old code did, which could deadlock against a menu click.
+- **Not yet:** `SecretStore` and `platform/keychain.rs` arrive with their first caller, P12's `connect_server`. Built now, they would be an untested keychain adapter with nothing calling it.
 
 ## 4. Server (`apps/server`)
 

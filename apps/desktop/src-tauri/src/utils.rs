@@ -7,11 +7,6 @@ pub fn format_duration_hm(ms: u64) -> String {
     format!("{:02}:{:02}", total_minutes / 60, total_minutes % 60)
 }
 
-// Platform detection
-pub fn is_macos() -> bool {
-    cfg!(target_os = "macos")
-}
-
 /// Whether a backup file's stamp is a real `YYYYMMDD_HHMMSS` time (in a
 /// plausible year), so only TaskMint's own backups are ever pruned.
 pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
