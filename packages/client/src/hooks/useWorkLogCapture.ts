@@ -219,7 +219,8 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
   useEffect(() => {
     void processPending();
   }, [processPending]);
-  useBackendEvent(WORK_LOG_CAPTURED_EVENT, () => {
+  // A server's resync: a capture may have arrived while the stream was down
+  useBackendEvent([WORK_LOG_CAPTURED_EVENT, BACKEND_EVENTS.RESYNC], () => {
     void processPending();
   });
 }

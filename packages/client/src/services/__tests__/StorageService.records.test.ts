@@ -35,7 +35,7 @@ describe('StorageService with app records', () => {
     window.localStorage.clear();
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === 'get_app_records') {
-        return { records: { predefinedTasks: [task], taskNotes: [note] } };
+        return { records: { predefinedTasks: [task], taskNotes: [note] }, revisions: {} };
       }
       return null;
     });
@@ -53,7 +53,11 @@ describe('StorageService with app records', () => {
     const renamed = { ...task, name: 'Annotation v2' };
     await storage.setTasks([renamed]);
 
-    expect(mockInvoke).toHaveBeenCalledWith('set_app_record', { key: 'predefinedTasks', value: [renamed] });
+    expect(mockInvoke).toHaveBeenCalledWith('set_app_record', {
+      key: 'predefinedTasks',
+      value: [renamed],
+      baseRevision: 0,
+    });
     expect(readAppRecord('predefinedTasks')).toEqual([renamed]);
     expect(window.localStorage.getItem('predefinedTasks')).toBeNull();
   });

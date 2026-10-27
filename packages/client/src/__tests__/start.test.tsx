@@ -30,7 +30,7 @@ describe('startClient', () => {
 
   it("makes the shell's backend the page's, loads the records, then renders the app with its extensions", async () => {
     const backend = createFakeBackend();
-    backend.call.mockResolvedValue({ records: { dailyGoal: { targetAmount: 50 } } });
+    backend.call.mockResolvedValue({ records: { dailyGoal: { targetAmount: 50 } }, revisions: {} });
     localStorage.setItem('userSubscription', 'pro');
 
     await act(() =>
@@ -50,7 +50,7 @@ describe('startClient', () => {
 
   it("moves an older version's records in when the shell asks", async () => {
     const backend = createFakeBackend();
-    backend.call.mockResolvedValue({ records: {} });
+    backend.call.mockResolvedValue({ records: {}, revisions: {} });
     localStorage.setItem('predefinedTasks', JSON.stringify([{ id: 't1' }]));
 
     await act(() => startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: true }));
@@ -70,9 +70,21 @@ describe('startClient', () => {
     error.mockRestore();
   });
 
+  it("says the records are on the server when that's where they live", async () => {
+    const backend = createFakeBackend({ capabilities: { runtime: 'web', dataLocation: 'server' } });
+    backend.call.mockRejectedValue("Can't reach the TaskMint server");
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await act(() => startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: false }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('kept on your TaskMint server');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('appdata.json');
+    error.mockRestore();
+  });
+
   it('starts even when storage refuses the cleanup', async () => {
     const backend = createFakeBackend();
-    backend.call.mockResolvedValue({ records: {} });
+    backend.call.mockResolvedValue({ records: {}, revisions: {} });
     vi.mocked(localStorage.removeItem).mockImplementationOnce(() => {
       throw new Error('storage disabled');
     });

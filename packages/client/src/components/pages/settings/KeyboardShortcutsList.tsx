@@ -1,6 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import { VIEWS, VIEW_LABELS } from '../../../navigation/views';
-import { modifierLabel } from '../../../hooks/useKeyboardShortcuts';
+import { browserTakesShortcuts, modifierLabel } from '../../../hooks/useKeyboardShortcuts';
 
 /** The app's keyboard shortcuts, for Settings → Appearance. */
 export function KeyboardShortcutsList() {
@@ -8,8 +8,13 @@ export function KeyboardShortcutsList() {
   const rows: Array<[string, string]> = [
     [`${mod}K`, 'Command palette: pages, actions, start or stop a timer'],
     [`${mod}1–${VIEWS.length}`, VIEWS.map(view => VIEW_LABELS[view]).join(', ')],
-    [`${mod}N`, 'New task'],
-    [`${mod},`, 'Settings'],
+    // The browser keeps these for itself
+    ...(browserTakesShortcuts()
+      ? []
+      : ([
+          [`${mod}N`, 'New task'],
+          [`${mod},`, 'Settings'],
+        ] as Array<[string, string]>)),
   ];
   return (
     <Box component="dl" sx={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', columnGap: 3, rowGap: 1, m: 0 }}>

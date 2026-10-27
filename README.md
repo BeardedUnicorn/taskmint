@@ -158,16 +158,15 @@ above, dev builds include `debug`.
 and later the desktop app's server mode, talk to: Rust, axum and PostgreSQL.
 Accounts are invite-only: an admin hands out one-time invite and
 password-reset links, and there's no email. It runs the same rules as the
-desktop app (`crates/taskmint-core`) on each account's data in Postgres;
-the web app that uses it is phase P10 of
-[the web-support plan](docs/web-support-plan.md).
+desktop app (`crates/taskmint-core`) on each account's data in Postgres.
+The web app (`apps/web`, below) is how people use it.
 
 ### Run it with Docker
 
 ```bash
 cp .env.example .env    # optional: every value has a default
-docker compose up --build -d --wait db migrate server
-curl http://127.0.0.1:3000/healthz
+docker compose up --build -d --wait
+open http://localhost:8080
 ```
 
 - `db`: Postgres 18, published on `127.0.0.1:${DB_PORT:-5433}` (5433, since a
@@ -175,6 +174,8 @@ curl http://127.0.0.1:3000/healthz
 - `migrate`: applies the database migrations, then exits.
 - `server`: the API, on `127.0.0.1:${SERVER_PORT:-3000}`. Read-only root
   filesystem, no Linux capabilities, non-root user.
+- `web`: the web app on `127.0.0.1:${WEB_PORT:-8080}`, served by nginx,
+  which passes `/api` to `server`. Read-only too.
 
 `docker compose down` stops the stack; `down -v` also deletes the database.
 
@@ -284,6 +285,43 @@ cargo sqlx prepare        # rewrite .sqlx; commit it
 
 Migrations are forward-only: never edit one that has shipped.
 
+## Web app
+
+`apps/web` (`@taskmint/web`) is TaskMint in a browser, against the server:
+the same app as the desktop's (`packages/client`), with its data on the
+server instead of in local files.
+
+- **Pages of its own:** signing in (`/login`), and the one-time links an
+  admin hands out: `/invite/<token>` creates an account, `/reset/<token>`
+  sets a new password. Every other path is the app.
+- **Settings** gains *Account* (change password, sign out) and *API tokens*
+  (for the browser extension and scripts; a secret is shown once), and for
+  admins *Users* (roles, disable, reset links) and *Invites*.
+- **Live across tabs and devices:** timers, sessions, records and imports
+  follow the server's event stream. A change saved from an out-of-date view
+  is refused rather than writing over a newer one: the app then shows the
+  newer version and says so.
+- **What only the desktop app has:** idle detection and the long-run
+  reminder, automatic backups into a folder, the system tray, and the
+  localhost capture server. Their settings are hidden. Exports are
+  downloads, and imports use the browser's file picker. ⌘N and ⌘, belong
+  to the browser, so the command palette (⌘K) offers both instead.
+- **Many tabs:** each tab holds one event stream open, and a browser opens
+  at most six connections to a site over HTTP/1.1, so a seventh tab of the
+  app stalls until one closes. Serving it over HTTP/2 removes the limit.
+
+Develop it against the compose server (`/api` is proxied to it):
+
+```bash
+docker compose up -d --wait db migrate server
+pnpm --filter @taskmint/web dev    # http://localhost:1421
+```
+
+The image (`apps/web/Dockerfile`) builds the app with Node 24 and serves it
+with unprivileged nginx (`apps/web/nginx/default.conf.template`): content
+security policy, long caching for the hashed assets, and an unbuffered proxy
+for the event stream.
+
 ## Project layout
 
 A pnpm workspace and a Cargo workspace share the repo root. The plan for
@@ -313,6 +351,10 @@ apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri
   src-tauri/src/tray.rs      System tray
   src-tauri/src/config.rs    Constants
   src-tauri/capabilities/    Frontend permission grants
+apps/web/                    Web app (@taskmint/web): Vite entry, sign-in pages, HttpBackend
+  src/httpBackend.ts         The client's Backend: /api/v1/commands, and the event stream
+  src/settings/              Account, API tokens, Users and Invites sections
+  nginx/                     The image's nginx config
 apps/extension/              Work-log capture extension (MV3)
 apps/server/                 Server (taskmint-server): axum + Postgres, see "Server" above
   migrations/                SQL migrations, embedded in the binary

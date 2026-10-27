@@ -6,7 +6,11 @@
 import { onTestFinished } from 'vitest';
 import { setBackend } from '../backend/registry';
 import type { Backend } from '../backend/types';
-import { resetAppRecordsForTests } from '../services/appRecords';
+import {
+  announceAppRecordsChangeForTests,
+  resetAppRecordsForTests,
+  type RecordsChange,
+} from '../services/appRecords';
 import { createFakeBackend, type FakeBackend, type FakeBackendOptions } from './fakeBackend';
 
 export { createFakeBackend };
@@ -48,4 +52,9 @@ export function fakeBackend(): FakeBackend {
 /** The app records as if just loaded from the backend (the test setup starts each test with none). */
 export function seedAppRecords(records: Record<string, unknown>): void {
   resetAppRecordsForTests(records);
+}
+
+/** Records changed in another tab or device: whatever reads them hears of it. */
+export function announceAppRecordsChange(change: RecordsChange): void {
+  announceAppRecordsChangeForTests(change);
 }

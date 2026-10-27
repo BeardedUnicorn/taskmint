@@ -887,20 +887,21 @@ describe('useSessionManagement', () => {
         BACKEND_EVENTS.TIMER_INSTANCE_DELETED,
         BACKEND_EVENTS.WORK_LOGS_IMPORTED,
         BACKEND_EVENTS.SESSIONS_CHANGED,
+        BACKEND_EVENTS.RESYNC,
       ];
       const listening = () => events.filter(event => fakeBackend().listenerCount(event) === 1).length;
 
       const { result, unmount, rerender } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
       await waitFor(() => expect(result.current.hasLoaded).toBe(true));
       rerender();
-      expect(listening()).toBe(7);
-      expect(fakeBackend().subscribe).toHaveBeenCalledTimes(7);
+      expect(listening()).toBe(8);
+      expect(fakeBackend().subscribe).toHaveBeenCalledTimes(8);
 
       unmount();
       expect(listening()).toBe(0);
 
       const again = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
-      expect(listening()).toBe(7);
+      expect(listening()).toBe(8);
       await waitFor(() => expect(again.result.current.hasLoaded).toBe(true));
     });
 

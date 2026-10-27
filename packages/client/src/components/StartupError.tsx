@@ -1,7 +1,10 @@
 /**
- * Shown instead of the app when its data file can't be read at startup.
- * Nothing has been written at that point, so trying again is safe.
+ * Shown instead of the app when its data (the desktop's file, or the
+ * server's records) can't be read at startup. Nothing has been written at
+ * that point, so trying again is safe.
  */
+
+import { getBackend } from '../backend';
 
 interface StartupErrorProps {
   message: string;
@@ -23,8 +26,15 @@ export function StartupError({ message }: StartupErrorProps) {
         TaskMint couldn't open your data
       </h1>
       <p style={{ marginTop: 0 }}>
-        Your tasks, notes and goal are kept in <code>appdata.json</code> in the app's data
-        folder, and it couldn't be read. Nothing has been changed.
+        {getBackend().capabilities.dataLocation === 'server' ? (
+          <>Your tasks, notes and goal are kept on your TaskMint server, and they couldn't be read.</>
+        ) : (
+          <>
+            Your tasks, notes and goal are kept in <code>appdata.json</code> in the app's data
+            folder, and it couldn't be read.
+          </>
+        )}{' '}
+        Nothing has been changed.
       </p>
       <pre
         style={{

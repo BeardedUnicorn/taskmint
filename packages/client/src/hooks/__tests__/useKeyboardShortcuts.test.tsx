@@ -37,6 +37,13 @@ describe('shortcutFor', () => {
     expect(shortcutFor(press('K', { metaKey: true }), true)).toEqual({ type: 'palette' });
   });
 
+  it('leaves N and comma to the browser in the web app', () => {
+    expect(shortcutFor(press('n', { metaKey: true }), true, true)).toBeNull();
+    expect(shortcutFor(press(',', { metaKey: true }), true, true)).toBeNull();
+    expect(shortcutFor(press('k', { metaKey: true }), true, true)).toEqual({ type: 'palette' });
+    expect(shortcutFor(press('2', { metaKey: true }), true, true)).toEqual({ type: 'view', view: 'tasks' });
+  });
+
   it('ignores repeats, typing in an input method, and other modifiers', () => {
     expect(shortcutFor(press('k', { metaKey: true, repeat: true }), true)).toBeNull();
     expect(shortcutFor(press('k', { metaKey: true, isComposing: true }), true)).toBeNull();

@@ -63,7 +63,8 @@
         "mappingsSaved": 1,
         "groupsApplied": [],
         "groupsSkipped": []
-      }
+      },
+      "events": ["work-logs-imported"]
     },
     {
       "call": "apply_work_log_import",

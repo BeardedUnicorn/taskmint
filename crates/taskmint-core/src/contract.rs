@@ -140,6 +140,8 @@ pub mod events {
     /// Sessions changed outside a timer action (a task rename, a moved timer, a
     /// restore); the frontend reloads its sessions.
     pub const SESSIONS_CHANGED: &str = "sessions-changed";
+    /// The work-log ledger changed (an import or a restore):
+    /// `{ groupsApplied }`, the days whose sessions it rewrote.
     pub const WORK_LOGS_IMPORTED: &str = "work-logs-imported";
     pub const WORK_LOG_PAYLOAD_CAPTURED: &str = "work-log-payload-captured";
     /// A record was saved: `{ key, revision }`. Other tabs and devices read

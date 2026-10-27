@@ -5,14 +5,16 @@
  * store (worklogs.json) and applies imports. Session state is deliberately
  * NOT read here — consumers take sessions from SessionManagementProvider,
  * which refreshes itself via the backend's `work-logs-imported` event after
- * an apply.
+ * an apply. The ledger reloads on that event too, so an import or restore
+ * made in another tab or device shows here.
  *
  * Intended for a single consumer: WorkLogProvider (src/contexts/
  * WorkLogContext.tsx). Pages read the shared instance via useWorkLogContext.
  */
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { getBackend } from '../backend';
+import { getBackend, useBackendEvent } from '../backend';
+import { BACKEND_EVENTS } from '../constants/events';
 import {
   ProjectTaskMapping,
   WorkLogEntry,
@@ -74,6 +76,19 @@ export function useWorkLogs(): UseWorkLogsReturn {
     },
     [reload, showError]
   );
+
+  // Changed elsewhere (or this tab's own import, already shown): read it again
+  useBackendEvent([BACKEND_EVENTS.WORK_LOGS_IMPORTED, BACKEND_EVENTS.RESYNC], () => {
+    getBackend()
+      .call('get_work_logs')
+      .then(
+        response => {
+          setEntries(response.entries);
+          setMappings(response.mappings);
+        },
+        err => console.error('Failed to reload work logs:', err)
+      );
+  });
 
   // Surface a startup load problem (skipped/unreadable worklogs.json records)
   // once per mount.

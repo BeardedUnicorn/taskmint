@@ -11,6 +11,8 @@ import { NoteTemplate, UseNoteTemplatesReturn } from '../types/notes';
 import { NoteTemplateService } from '../services/NoteTemplateService';
 import { useAsyncError } from './useAsyncError';
 import { errorMessage } from '../utils/errors';
+import { useAppRecordsChanged } from './useAppRecordsChanged';
+import { STORAGE_KEYS } from '../constants';
 
 export const NoteTemplatesContext = createContext<UseNoteTemplatesReturn | null>(null);
 
@@ -137,6 +139,13 @@ export function useNoteTemplatesState(): UseNoteTemplatesReturn {
   useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
+
+  // Templates saved in another tab or device
+  useAppRecordsChanged([STORAGE_KEYS.NOTE_TEMPLATES], () => {
+    templateService
+      .getAllTemplates()
+      .then(setTemplates, err => console.error('Failed to reload templates:', err));
+  });
 
   return useMemo(() => ({
     templates,

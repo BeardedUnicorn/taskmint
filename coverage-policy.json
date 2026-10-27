@@ -9,6 +9,7 @@
     ],
     "packages": {
       "apps/desktop": [],
+      "apps/web": [],
       "packages/client": [],
       "packages/contracts": []
     }

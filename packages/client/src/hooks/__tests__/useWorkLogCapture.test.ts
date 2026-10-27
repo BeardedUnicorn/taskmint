@@ -9,6 +9,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useWorkLogCapture, UseWorkLogCaptureDeps, WORK_LOG_CAPTURED_EVENT } from '../useWorkLogCapture';
+import { BACKEND_EVENTS } from '../../constants/events';
 import { deriveTimedWorkDay } from '../../utils/workLogImport';
 import { CaptureSource, PendingWorkLogCapture, WorkLogImportSummary } from '../../types/workLog';
 import { createMockTask } from '../../__tests__/setup/session-test-utils';
@@ -299,6 +300,20 @@ describe('useWorkLogCapture', () => {
 
     takeQueue.push(capture(samplePayloadText));
     await fireCaptureEvent();
+
+    await waitFor(() => expect(deps.applyImport).toHaveBeenCalledTimes(1));
+  });
+
+  it("looks again when a server's event stream says it missed some", async () => {
+    const deps = makeDeps();
+    renderHook(() => useWorkLogCapture(deps));
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+
+    takeQueue.push(capture(samplePayloadText));
+    await act(async () => {
+      fakeBackend().emit(BACKEND_EVENTS.RESYNC, {});
+      await Promise.resolve();
+    });
 
     await waitFor(() => expect(deps.applyImport).toHaveBeenCalledTimes(1));
   });

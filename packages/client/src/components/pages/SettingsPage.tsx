@@ -19,8 +19,9 @@ import { NotificationSettingsSection } from './settings/NotificationSettingsSect
 import { PayoutSettingsSection } from './settings/PayoutSettingsSection';
 import { PageContainer, PageHeader } from '../layout/PageLayout';
 import { useOptionalNavigation } from '../../contexts/NavigationContext';
-import { SETTINGS_SECTION_LABELS, SettingsSectionId } from '../../navigation/views';
+import { SETTINGS_SECTION_LABELS, SettingsSectionId, availableSettingsSections } from '../../navigation/views';
 import { useAppExtensions } from '../../app/extensions';
+import { getBackend } from '../../backend';
 
 const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
   appearance: AppearanceSettingsSection,
@@ -60,7 +61,10 @@ const NO_EXTENSION_SECTIONS: never[] = [];
 
 export function SettingsPage() {
   const { settingsSections = NO_EXTENSION_SECTIONS } = useAppExtensions();
-  const sections = useMemo(() => [...SETTINGS_SECTIONS, ...settingsSections], [settingsSections]);
+  const sections = useMemo(() => {
+    const available = availableSettingsSections(getBackend().platform);
+    return [...SETTINGS_SECTIONS.filter(({ id }) => available.includes(id)), ...settingsSections];
+  }, [settingsSections]);
   const [active, setActive] = useState<string>('appearance');
   const clickedAtRef = useRef(0);
 
@@ -104,7 +108,11 @@ export function SettingsPage() {
     <PageContainer>
       <PageHeader
         title="Settings"
-        subtitle="Appearance, payouts, idle detection, your daily goal, notifications, backups and data"
+        subtitle={
+          sections.some(({ id }) => id === 'idle')
+            ? 'Appearance, payouts, idle detection, your daily goal, notifications, backups and data'
+            : 'Appearance, payouts, your daily goal, notifications and data'
+        }
       />
       <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
         <Box
