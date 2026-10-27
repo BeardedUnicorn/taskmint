@@ -40,6 +40,9 @@ step "Rust tests"
 cargo test --workspace
 
 step "Rust coverage: taskmint-core at 100%"
+# Instrumented binaries from an earlier run count too (a function is scored
+# by its best build), so each run measures from a clean slate
+cargo llvm-cov clean --workspace
 cargo llvm-cov -p taskmint-core --summary-only \
   --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex crates/taskmint-core)" \
   --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
