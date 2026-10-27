@@ -157,9 +157,10 @@ above, dev builds include `debug`.
 `apps/server` (`taskmint-server`) is the multi-user server that the web app,
 and later the desktop app's server mode, talk to: Rust, axum and PostgreSQL.
 Accounts are invite-only: an admin hands out one-time invite and
-password-reset links, and there's no email. So far it does accounts and
-sign-in (phase P8 of [the web-support plan](docs/web-support-plan.md)); the
-time-tracking API comes next.
+password-reset links, and there's no email. It runs the same rules as the
+desktop app (`crates/taskmint-core`) on each account's data in Postgres;
+the web app that uses it is phase P10 of
+[the web-support plan](docs/web-support-plan.md).
 
 ### Run it with Docker
 
@@ -204,6 +205,9 @@ Everything except the health checks is under `/api/v1`. Errors are JSON
 | `GET/POST tokens`, `DELETE tokens/:id` | session | API tokens, scope `capture` (browser extension) or `full`; the secret is shown once |
 | `GET admin/users`, `PATCH admin/users/:id`, `POST admin/users/:id/password-reset` | admin session | disable/enable and change roles (never the last active admin); reset links |
 | `GET/POST admin/invites`, `DELETE admin/invites/:id` | admin session | invite links with a role and a note |
+| `POST commands/:name` | session or `full` token | a desktop command by name (`get_sessions`, `start_task`, …) with its arguments as the JSON body; replies and errors are the desktop's |
+| `GET events` | session or `full` token | the account's events as server-sent events |
+| `POST capture`, `GET capture/ping` | `capture` or `full` token, `X-TaskMint-Capture` | the browser extension's captures, and its "Test" button |
 
 **Sessions** are an `HttpOnly`, `SameSite=Strict` cookie that slides to 30
 days on use. Requests that change something and use the cookie must send the
@@ -213,6 +217,24 @@ the web app's origin. **Tokens** go in `Authorization: Bearer tmk_…`.
 Passwords are hashed with argon2id; tokens, cookies and links are stored as
 SHA-256 hashes. Disabling a user signs them out and revokes their tokens.
 Admin actions, password changes and token changes go to `audit_events`.
+
+**Commands** run on the caller's own data; no request names a user. A
+command's sessions are dated in the zone the client sends in
+`X-TaskMint-TZ` (an IANA name such as `America/New_York`), or else the
+account's. Errors carry core's message, word for word: 400 `rejected` or
+`invalid_args`, 404 `unknown_command`, and 409 `conflict` when a record is
+saved with a stale `baseRevision` (another tab or device changed it). Each
+record, session, ledger entry and mapping is a row of its own, and a row
+the server can't read is reported and left as it is. Before a change that
+replaces data (a restore, an import that rewrites days), a copy goes in
+`data_snapshots`; the newest 10 of each kind are kept.
+
+**Events** are named as the desktop app's (`timer-instance-started`,
+`app-records-changed`, …) with their JSON payloads as data. A stream that
+falls behind, and every stream after Reset All Data, gets `resync`: read
+everything again. Signing out, a password change or reset, a revoked token
+or an admin's change to the account closes the account's streams; clients
+still signed in reconnect.
 
 ### Configuration
 

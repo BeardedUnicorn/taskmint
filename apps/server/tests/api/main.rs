@@ -4,8 +4,13 @@
 
 mod admin;
 mod auth;
+mod capture;
 mod cli;
+mod commands;
 mod common;
+mod conformance;
 mod health;
+mod isolation;
 mod links;
+mod stream;
 mod tokens;

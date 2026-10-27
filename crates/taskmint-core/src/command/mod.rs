@@ -8,7 +8,7 @@ mod execute;
 pub use catalog::*;
 pub use execute::execute;
 
-use crate::records::RecordMap;
+use crate::records::{RecordMap, RecordRevisions};
 use crate::workspace::Parts;
 use crate::zone::DayZone;
 use chrono::{DateTime, Utc};
@@ -32,12 +32,17 @@ pub enum CoreError {
     /// The arguments didn't fit the command.
     InvalidArgs(String),
     UnknownCommand(String),
+    /// The change was based on data that has changed since (a record saved
+    /// with a stale revision); nothing changed.
+    Conflict(String),
 }
 
 impl std::fmt::Display for CoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CoreError::Rejected(message) | CoreError::InvalidArgs(message) => f.write_str(message),
+            CoreError::Rejected(message)
+            | CoreError::InvalidArgs(message)
+            | CoreError::Conflict(message) => f.write_str(message),
             CoreError::UnknownCommand(name) => write!(f, "Unknown command: {}", name),
         }
     }
@@ -134,11 +139,21 @@ impl Executed {
     }
 }
 
-/// get_app_records' and import_app_records' reply: every record stored.
+/// get_app_records' and import_app_records' reply: every record stored, and
+/// every record key's revision (0 for one never saved).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct AppRecords {
     pub records: RecordMap,
+    pub revisions: RecordRevisions,
+}
+
+/// set_app_record's reply: the record's revision now, for the next save's
+/// `baseRevision`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct SavedRecord {
+    pub revision: u64,
 }
 
 /// get_work_logs' reply.

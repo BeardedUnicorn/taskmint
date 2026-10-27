@@ -1,7 +1,11 @@
 {
   "name": "an export restores alongside what's there, and a reset clears everything",
   "steps": [
-    { "call": "set_app_record", "args": { "key": "dailyGoal", "value": { "targetAmount": 100 } } },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 100 } },
+      "events": ["app-records-changed"]
+    },
     {
       "call": "start_task",
       "args": { "taskId": "t1", "taskName": "Writing" },
@@ -85,6 +89,55 @@
     {
       "call": "get_work_logs",
       "reply": { "entries": [{ "id": "e1" }], "mappings": [{ "projectId": "p1" }] }
+    },
+    {
+      "call": "restore_backup_data",
+      "args": {
+        "payload": {
+          "mode": "replace",
+          "sessions": [
+            { "id": "s_b", "taskId": "t3", "taskName": "B", "timerInstances": [], "notes": null },
+            { "id": "s_a", "taskId": "t3", "taskName": "A", "timerInstances": [], "notes": null },
+            {
+              "id": "s_b",
+              "taskId": "t3",
+              "taskName": "B again",
+              "timerInstances": [],
+              "notes": null
+            }
+          ]
+        }
+      },
+      "reply": { "sessionsRestored": 2, "sessionsAlreadyPresent": 1, "recordsSkipped": 0 }
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [{ "id": "s_b", "taskName": "B" }, { "id": "s_a" }]
+    },
+    {
+      "call": "restore_backup_data",
+      "args": {
+        "payload": {
+          "mode": "replace",
+          "sessions": [
+            { "id": "s_a", "taskId": "t3", "taskName": "A", "timerInstances": [], "notes": null },
+            {
+              "id": "s_b",
+              "taskId": "t3",
+              "taskName": "B, renamed",
+              "timerInstances": [],
+              "notes": null
+            }
+          ]
+        }
+      },
+      "reply": { "sessionsRestored": 2, "sessionsAlreadyPresent": 0 }
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [{ "id": "s_a" }, { "id": "s_b", "taskName": "B, renamed" }]
     },
     {
       "call": "accept_capture",

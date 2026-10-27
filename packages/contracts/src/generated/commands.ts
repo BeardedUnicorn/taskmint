@@ -16,6 +16,7 @@ import type { RestoreBackupDataArgs } from "./RestoreBackupDataArgs";
 import type { RestoreSessionArgs } from "./RestoreSessionArgs";
 import type { RestoreSummary } from "./RestoreSummary";
 import type { RestoreTimerInstanceArgs } from "./RestoreTimerInstanceArgs";
+import type { SavedRecord } from "./SavedRecord";
 import type { SessionArgs } from "./SessionArgs";
 import type { SetActiveSessionArgs } from "./SetActiveSessionArgs";
 import type { SetAppRecordArgs } from "./SetAppRecordArgs";
@@ -30,7 +31,7 @@ import type { WorkLogs } from "./WorkLogs";
 /** Every command's arguments (`void` for none) and reply. */
 export interface CommandMap {
   get_app_records: { args: void; reply: AppRecords };
-  set_app_record: { args: SetAppRecordArgs; reply: null };
+  set_app_record: { args: SetAppRecordArgs; reply: SavedRecord };
   import_app_records: { args: ImportAppRecordsArgs; reply: AppRecords };
   get_sessions: { args: void; reply: Array<TaskSession> };
   get_session_load_warning: { args: void; reply: string | null };

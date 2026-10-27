@@ -5,9 +5,15 @@
 use crate::contract::{APP_RECORD_KEYS, TASKS_RECORD_KEY};
 use crate::model::Task;
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 pub type RecordMap = serde_json::Map<String, serde_json::Value>;
+
+/// Each record's revision: how many times it has been saved. A client sends
+/// the revision it last saw with a change (`baseRevision`), so a change made
+/// from out-of-date data is refused instead of overwriting a newer one. A
+/// record never saved is at 0, and a removed record keeps counting.
+pub type RecordRevisions = BTreeMap<String, u64>;
 
 pub fn is_app_record_key(key: &str) -> bool {
     APP_RECORD_KEYS.contains(&key)

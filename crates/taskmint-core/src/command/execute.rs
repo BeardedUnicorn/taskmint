@@ -2,13 +2,17 @@
 //! command used to run under its own locks; the host now does the locking,
 //! saving and announcing for all of them.
 
-use super::{AppRecords, Backup, Command, CoreError, Ctx, Event, Executed, ResetSummary, WorkLogs};
+use super::{
+    AppRecords, Backup, Command, CoreError, Ctx, Event, Executed, ResetSummary, SavedRecord,
+    WorkLogs,
+};
 use crate::capture::payload_shape_ok;
 use crate::contract::events::{
-    SESSIONS_CHANGED, TIMER_INSTANCE_DELETED, TIMER_INSTANCE_PAUSED, TIMER_INSTANCE_RESUMED,
-    TIMER_INSTANCE_STARTED, TIMER_INSTANCE_STOPPED, WORK_LOGS_IMPORTED, WORK_LOG_PAYLOAD_CAPTURED,
+    APP_RECORDS_CHANGED, SESSIONS_CHANGED, TIMER_INSTANCE_DELETED, TIMER_INSTANCE_PAUSED,
+    TIMER_INSTANCE_RESUMED, TIMER_INSTANCE_STARTED, TIMER_INSTANCE_STOPPED, WORK_LOGS_IMPORTED,
+    WORK_LOG_PAYLOAD_CAPTURED,
 };
-use crate::contract::{ERR_UNEXPECTED_PAYLOAD_SHAPE, TASKS_RECORD_KEY};
+use crate::contract::{ERR_RECORD_CONFLICT, ERR_UNEXPECTED_PAYLOAD_SHAPE, TASKS_RECORD_KEY};
 use crate::idle::{apply_idle_choice, pause_for_idle, IdleChoice};
 use crate::load::{parse_project_mappings, parse_work_log_entries};
 use crate::model::PendingCapture;
@@ -83,6 +87,22 @@ fn records_readable(workspace: &Workspace) -> Result<(), CoreError> {
     }
 }
 
+/// Every record, with every key's revision.
+fn all_records(workspace: &Workspace) -> AppRecords {
+    AppRecords {
+        records: workspace.records.clone(),
+        revisions: workspace.revisions(),
+    }
+}
+
+/// `app-records-changed` for a saved record.
+fn record_changed(key: &str, revision: u64) -> Event {
+    Event::new(
+        APP_RECORDS_CHANGED,
+        serde_json::json!({ "key": key, "revision": revision }),
+    )
+}
+
 /// A task's id and name as given, trimmed; an error when either is blank.
 fn chosen_task<'a>(
     task_id: &'a str,
@@ -106,21 +126,27 @@ pub fn execute(
     Ok(match command {
         Command::GetAppRecords(_) => {
             records_readable(workspace)?;
-            Executed::read(AppRecords {
-                records: workspace.records.clone(),
-            })
+            Executed::read(all_records(workspace))
         }
         Command::SetAppRecord(args) => {
             if !is_app_record_key(&args.key) {
                 return Err(format!("Unknown record \"{}\"", args.key).into());
             }
             records_readable(workspace)?;
+            if args
+                .base_revision
+                .is_some_and(|base| base != workspace.revision(&args.key))
+            {
+                return Err(CoreError::Conflict(ERR_RECORD_CONFLICT.to_string()));
+            }
             if args.value.is_null() {
                 workspace.records.remove(&args.key);
             } else {
                 workspace.records.insert(args.key.clone(), args.value);
             }
-            let done = Executed::new((), Parts::RECORDS);
+            let revision = workspace.bump_revision(&args.key);
+            let done = Executed::new(SavedRecord { revision }, Parts::RECORDS)
+                .event(record_changed(&args.key, revision));
             if args.key == TASKS_RECORD_KEY {
                 done.follow(workspace.sync_task_links())
             } else {
@@ -145,12 +171,14 @@ pub fn execute(
             if !changed.is_empty() {
                 done.dirty |= Parts::RECORDS;
             }
+            for key in &changed {
+                let revision = workspace.bump_revision(key);
+                done = done.event(record_changed(key, revision));
+            }
             if changed.iter().any(|key| key == TASKS_RECORD_KEY) {
                 done = done.follow(workspace.sync_task_links());
             }
-            done.reply = super::to_value(AppRecords {
-                records: workspace.records.clone(),
-            });
+            done.reply = super::to_value(all_records(workspace));
             done
         }
 

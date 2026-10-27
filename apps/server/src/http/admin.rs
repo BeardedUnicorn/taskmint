@@ -56,8 +56,9 @@ pub struct UserChange {
 }
 
 /// Disables or enables a user and/or changes their role. Disabling signs
-/// the user out everywhere and revokes their API tokens. Refused (409) if
-/// it would leave no active admin.
+/// the user out everywhere and revokes their API tokens. Either way their
+/// event streams close (an enabled user's clients reconnect). Refused (409)
+/// if it would leave no active admin.
 pub async fn update_user(
     AdminSession(admin): AdminSession,
     State(state): State<AppState>,
@@ -131,6 +132,7 @@ pub async fn update_user(
             "there must be at least one active admin",
         ));
     }
+    state.events.disconnect(row.id);
     Ok(Json(AdminUser {
         id: row.id,
         username: row.username,

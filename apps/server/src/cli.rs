@@ -6,9 +6,11 @@ use std::future::Future;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
+use chrono::Utc;
 use clap::{Parser, Subcommand};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -132,7 +134,13 @@ async fn serve(config: Config, shutdown: Shutdown) -> anyhow::Result<()> {
         .await
         .with_context(|| format!("can't listen on {}", config.bind))?;
     tracing::info!(address = %config.bind, "listening");
-    let state = AppState::new(db, config.settings, passwords, RateLimits::production());
+    let state = AppState::new(
+        db,
+        config.settings,
+        passwords,
+        RateLimits::production(),
+        Arc::new(Utc::now),
+    );
     let app = http::router(state).into_make_service_with_connect_info::<SocketAddr>();
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
