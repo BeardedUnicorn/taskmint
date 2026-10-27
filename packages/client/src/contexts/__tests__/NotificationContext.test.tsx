@@ -185,7 +185,8 @@ describe('NotificationProvider', () => {
         kind: 'longRun',
         title: 'Still working?',
         body: 'Running 4h',
-        at: '2026-10-13T12:00:00Z',
+        // Now: the history drops entries older than 14 days
+        at: new Date().toISOString(),
       });
     });
 

@@ -58,8 +58,9 @@ jobs:
       - name: Contracts match the Rust
         run: scripts/check-contracts.sh
 
+      # The server's tests need Postgres: the docker job runs them
       - name: cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude taskmint-server
 
       - name: taskmint-core coverage (100%)
         run: >-
@@ -72,3 +73,37 @@ jobs:
           cargo llvm-cov -p taskmint --features failpoints --summary-only
           --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/desktop/src-tauri)"
           --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
+
+  docker:
+    # Linux, where the images run. The server's own gates run in the compose
+    # test profile (its tests need Postgres), then the whole stack is built
+    # from scratch and smoke-tested through the web app.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # The smoke test is plain Node, with nothing to install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The defaults, with the bootstrap admin the smoke test signs in as
+      - run: cp .env.example .env
+
+      - name: Server query metadata and tests (100% coverage)
+        run: docker compose --profile test run --rm --build server-tests
+
+      - name: Build and start the stack
+        run: docker compose up --build -d --wait
+
+      - name: Smoke test
+        run: node scripts/smoke.mjs
+
+      - name: Logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose --profile test down -v

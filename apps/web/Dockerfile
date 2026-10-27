@@ -25,6 +25,7 @@ RUN pnpm --filter @taskmint/web build
 FROM nginxinc/nginx-unprivileged:1.29-alpine
 # Rendered into /etc/nginx/conf.d at start, with TASKMINT_SERVER filled in
 COPY apps/web/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY apps/web/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /src/apps/web/dist /usr/share/nginx/html
 ENV TASKMINT_SERVER=http://server:3000
 EXPOSE 8080

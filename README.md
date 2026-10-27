@@ -108,8 +108,8 @@ pnpm tauri dev      # desktop app with hot reload (Vite on :1420)
 pnpm dev            # Vite only, for tauri dev; a plain browser has no backend and stops at the startup error
 ```
 
-The browser build that talks to a TaskMint server comes with phase P10 of
-[the web-support plan](docs/web-support-plan.md).
+TaskMint in a browser runs against the server: see [Run the stack](#run-the-stack)
+and [Web app](#web-app).
 
 **Quit the installed TaskMint before running `pnpm tauri dev`.** Dev and
 release builds share the app identifier, so they share the data dir. The
@@ -121,6 +121,9 @@ off.
 ### Checks
 
 `scripts/verify.sh` runs every gate below in order; run it before merging.
+It needs Docker: it ends with the server's gates in the compose `test`
+profile, and the images built and smoke-tested as a stack of their own
+([Run the stack](#run-the-stack)).
 
 ```bash
 pnpm typecheck                    # tsc for sources and tests, every package
@@ -132,12 +135,14 @@ cargo test --workspace            # Rust tests (bare `cargo` skips the desktop c
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 cargo llvm-cov -p taskmint-core --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100  # verify.sh adds the policy's ignore regex
-cargo llvm-cov -p taskmint-server --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100  # likewise; needs DATABASE_URL
+scripts/check-server.sh            # the server's .sqlx check and coverage; needs DATABASE_URL
 node scripts/check-coverage-policy.mjs   # see docs/coverage-policy.md
+node scripts/smoke.mjs             # the running stack, end to end
 ```
 
-CI (`.github/workflows/ci.yml`) runs all of these on pushes to `main` and on
-pull requests.
+CI (`.github/workflows/ci.yml`) runs them on pushes to `main` and on pull
+requests: everything but the server on macOS, and the server's gates and the
+smoke-tested stack in a Linux docker job.
 
 ### Building
 
@@ -152,6 +157,114 @@ The backend logs through `tauri-plugin-log` to stdout and to the app log dir
 (`~/Library/Logs/com.taskmint.app/` on macOS). Release builds log `info` and
 above, dev builds include `debug`.
 
+## Run the stack
+
+TaskMint in a browser is three services and a migration job, all in
+`compose.yaml`: Postgres, the server, and the web app's nginx in front of
+it. Docker with Compose v2 is all it needs.
+
+```bash
+cp .env.example .env                  # then set ADMIN_PASSWORD
+docker compose up --build -d --wait   # builds the images, waits until healthy
+node scripts/smoke.mjs                # optional: checks the stack end to end
+open http://localhost:8080
+```
+
+| Service | What it is | Published on |
+|---|---|---|
+| `db` | Postgres 18; its data is in the `db-data` volume | `127.0.0.1:${DB_PORT:-5433}` (for the server's tests) |
+| `migrate` | the server image, applying the migrations before the server starts, then exiting | – |
+| `server` | the API (`apps/server`) | `127.0.0.1:${SERVER_PORT:-3000}` (for the web app's dev server) |
+| `web` | the web app (`apps/web`), served by nginx, which passes `/api` to `server` | `127.0.0.1:${WEB_PORT:-8080}`: open this one |
+| `server-tests` | profile `test` only: the server's gates in Linux (below) | – |
+
+**The first admin.** Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env`
+before the first start: a server that starts with no users creates that
+admin. Sign in, then invite people from Settings → Invites. To recover
+access, print a one-time link from the command line:
+
+```bash
+docker compose exec server taskmint-server admin create-invite --role admin
+docker compose exec server taskmint-server admin reset-password <username>
+```
+
+**`PUBLIC_ORIGIN`** must be the address you open, `http://localhost:8080`
+by default. Invite and reset links start with it, and the server refuses
+changes from any other origin, so `http://127.0.0.1:8080` in the address bar
+gets "cross-origin request refused". Change it along with `WEB_PORT`.
+
+### Check it
+
+`scripts/smoke.mjs` (plain Node 22+, nothing to install) goes through the
+stack the way people use it. Through nginx, it signs in as the admin from
+`ADMIN_USERNAME`/`ADMIN_PASSWORD` (the environment, or `.env`). It invites a
+new user, who signs up, makes tokens and opens an event stream. It saves a
+task, starts and stops a timer, and posts a capture as the browser
+extension would. Each change must reach the stream, and a stale save must be
+refused. It then checks the security headers, that a capture token can't
+run commands, and that the admin can't see the new user's data. Last, it
+revokes the tokens and checks that the stream closes, then signs the user
+out and disables them. Each run leaves one disabled `smoke-…` user behind,
+so `verify.sh` runs it on a throwaway stack of its own (project
+`taskmint-verify`, ports 18080, 13000 and 15433). Set `TASKMINT_URL` to
+test another address.
+
+The server's own gates (the `.sqlx` check, and its tests at 100% coverage)
+run in Linux in the `test` profile, the same way CI runs them. The tests
+make their own databases on `db`:
+
+```bash
+docker compose --profile test run --rm --build server-tests
+```
+
+The first run builds everything, which takes several minutes. The
+`server-tests-*` volumes keep the build for the next run.
+
+### Day to day
+
+```bash
+docker compose ps                     # health of each service
+docker compose logs -f server         # JSON lines; LOG_FORMAT=text in .env for plain text
+docker compose up --build -d --wait   # after pulling changes; migrations run first
+docker compose down                   # stop (the data stays)
+docker compose --profile test down -v # stop, and delete the database and the test build
+```
+
+A copy of the database, and putting one back (into an empty database:
+`down -v`, then `up` once before restoring):
+
+```bash
+docker compose exec -T db pg_dump -U taskmint --clean --if-exists taskmint > taskmint.sql
+docker compose exec -T db psql -U taskmint -v ON_ERROR_STOP=1 taskmint < taskmint.sql
+```
+
+### How it's locked down
+
+- **Containers:** each has a read-only root filesystem (with tmpfs where
+  nginx and Postgres write), no Linux capabilities, and no-new-privileges.
+  Each runs as a non-root user: the server is distroless with no shell, nginx
+  runs as uid 101, and Postgres as uid 70 from the start. Each has memory and
+  process limits, and logs rotate at 3 × 10 MB.
+- **Networks:** `web` shares a network with `server` only. `db` is on
+  another network, so the web app can't reach it. Everything is published on
+  127.0.0.1 only.
+- **Headers:** nginx sends a content security policy, nosniff, a referrer
+  policy, COOP, CORP, `X-Frame-Options` and a permissions policy, and hides
+  its version. The server sets `Cache-Control: no-store` on the API.
+- **Stopping:** the server ends its event streams when it's told to stop, so
+  `docker compose down` takes a moment, not the 10 s before a kill. Open
+  tabs reconnect when it's back.
+- **Load:** password hashing (argon2id, 19 MiB each) runs one per CPU at a
+  time, so a burst of sign-ins waits instead of exhausting the server's
+  memory. Sign-ins and links are rate-limited per address and per account.
+
+**Before the internet.** This stack is for one machine. It has no TLS, and
+`COOKIE_SECURE=false` sends the session cookie over plain HTTP. To expose
+it, put an HTTPS proxy in front of `web` (adding HSTS there). Set
+`COOKIE_SECURE=true` and `PUBLIC_ORIGIN` to the `https://` address, use a
+strong `POSTGRES_PASSWORD`, and stop publishing `db` and `server`. Each
+server variable also takes `<NAME>_FILE`, for Docker secrets.
+
 ## Server
 
 `apps/server` (`taskmint-server`) is the multi-user server that the web app,
@@ -161,33 +274,7 @@ password-reset links, and there's no email. It runs the same rules as the
 desktop app (`crates/taskmint-core`) on each account's data in Postgres.
 The web app (`apps/web`, below) is how people use it.
 
-### Run it with Docker
-
-```bash
-cp .env.example .env    # optional: every value has a default
-docker compose up --build -d --wait
-open http://localhost:8080
-```
-
-- `db`: Postgres 18, published on `127.0.0.1:${DB_PORT:-5433}` (5433, since a
-  local Postgres often has 5432).
-- `migrate`: applies the database migrations, then exits.
-- `server`: the API, on `127.0.0.1:${SERVER_PORT:-3000}`. Read-only root
-  filesystem, no Linux capabilities, non-root user.
-- `web`: the web app on `127.0.0.1:${WEB_PORT:-8080}`, served by nginx,
-  which passes `/api` to `server`. Read-only too.
-
-`docker compose down` stops the stack; `down -v` also deletes the database.
-
-**The first admin.** Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env`
-before the first start: when the server starts with no users, it creates
-that admin. To recover access later, print a one-time link from the
-command line:
-
-```bash
-docker compose exec server taskmint-server admin create-invite --role admin
-docker compose exec server taskmint-server admin reset-password <username>
-```
+Run it with the rest of the stack in Docker: [Run the stack](#run-the-stack).
 
 ### API
 
@@ -267,10 +354,12 @@ database on the compose `db`.
 docker compose up -d --wait db
 export DATABASE_URL=postgres://taskmint:taskmint@127.0.0.1:5433/taskmint
 cargo test -p taskmint-server
-cargo llvm-cov -p taskmint-server --fail-under-lines 100 --fail-under-functions 100 \
-  --fail-under-regions 100 \
-  --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/server)"
+scripts/check-server.sh    # the .sqlx check, then coverage at 100%
 ```
+
+`check-server.sh` is what the compose `test` profile runs in Linux
+(`docker compose --profile test run --rm --build server-tests`), so it also
+works with no Rust tools on the host.
 
 SQL queries are checked at compile time against `apps/server/.sqlx`, so
 builds need no database (`.cargo/config.toml` sets `SQLX_OFFLINE`). After

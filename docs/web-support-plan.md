@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime) and P10 (the web app) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app) and P11 (stack hardening) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -413,6 +413,22 @@ Device settings (theme, filters, backup schedule, idle) stay in localStorage, pe
   - Profile `test`: `server-tests`.
   - `.env.example` holds the admin bootstrap, `COOKIE_SECURE=false`, and `PUBLIC_ORIGIN=http://localhost:8080`.
 - **`scripts/smoke.mjs`:** admin login → invite → accept → token → start/stop a timer → assert the SSE event → POST a capture.
+
+**As built in P11:**
+- **`scripts/smoke.mjs`** (plain Node, no dependencies) runs through nginx:
+  - It checks the security headers on the app, and that the API sends one `nosniff`.
+  - The admin (`ADMIN_USERNAME`/`ADMIN_PASSWORD` from the environment or `.env`) invites a user, who accepts and makes a `full` and a `capture` token. An event stream opens with the full token.
+  - It saves a task, starts and stops a timer, and posts a capture, waiting for each change's event. A stale `baseRevision` must be refused (409).
+  - It checks that a capture token can't run commands, and that the admin can't see the user's data.
+  - Revoking the tokens must end the stream. The user is signed out and disabled, and the admin signs out. Failure messages leave out link tokens and secrets.
+- **Test profile:** the server Dockerfile's `test` stage has llvm-tools, cargo-llvm-cov 0.9.1, sqlx-cli 0.8.6, and node (copied from `node:24-trixie-slim`, for the coverage policy). The compose `server-tests` service runs `scripts/check-server.sh` against `db`: migrate, `sqlx prepare --check`, then llvm-cov at 100%. Its build is kept in the `server-tests-*` volumes, and the release build copies only the sources, so the test stage's scripts don't rebuild it.
+- **CI:** the macOS `check` job skips the server's tests (`--exclude taskmint-server`). A Linux `docker` job runs the test profile, then `up --build --wait`, the smoke test and `down -v`, printing the logs on failure.
+- **`verify.sh`:** after the host Rust tests and the core and desktop coverage, it runs the test profile, then builds the images and smoke-tests them as a throwaway project (`taskmint-verify`, ports 18080/13000/15433, a random admin password, `down -v` on exit). The dev stack and its data are untouched.
+- **Hardening:**
+  - **Compose:** every long-running service is read-only, with no capabilities, no-new-privileges, `json-file` logs at 3 × 10 MB, and memory and pids limits. `db` runs as uid 70 from the start, with tmpfs for its socket, so its entrypoint needs no capabilities. `web` is on a `frontend` network with `server` only; `db` is on `backend`.
+  - **nginx:** the headers live in one `security-headers.conf` snippet, included wherever a location adds headers, with CORP and `X-Frame-Options` added. The API's own `nosniff` is hidden, since nginx adds its own.
+  - **Shutdown:** a graceful shutdown waited for every response, and an event stream never ends, so with a tab open `docker stop` ended in SIGKILL (exit 137). Now `EventHub::close` ends every stream, and any opened later, when shutdown begins.
+  - **Hashing:** argon2 runs one hash per CPU at a time (a semaphore), so the 512 MB limit holds under a burst of sign-ins.
 
 ## 8. 100% coverage policy
 

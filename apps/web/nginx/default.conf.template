@@ -9,14 +9,7 @@ server {
     # Restore and import payloads (the server's own limit is 32 MB)
     client_max_body_size 32m;
 
-    # On every response; a location that adds headers of its own repeats them
-    # (nginx doesn't merge add_header across levels).
-    set $csp "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.ingest.sentry.io https://*.ingest.us.sentry.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
-    add_header Content-Security-Policy $csp always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header Referrer-Policy strict-origin-when-cross-origin always;
-    add_header Cross-Origin-Opener-Policy same-origin always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    include /etc/nginx/snippets/security-headers.conf;
 
     location = /healthz {
         access_log off;
@@ -32,6 +25,8 @@ server {
         proxy_set_header Connection "";
         proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # The server sends it too; the snippet's is the one kept
+        proxy_hide_header X-Content-Type-Options;
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 1h;
@@ -43,27 +38,20 @@ server {
         proxy_set_header Connection "";
         proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_hide_header X-Content-Type-Options;
     }
 
     # Built files are named by their content
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
-        add_header Content-Security-Policy $csp always;
-        add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy strict-origin-when-cross-origin always;
-        add_header Cross-Origin-Opener-Policy same-origin always;
-        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+        include /etc/nginx/snippets/security-headers.conf;
         try_files $uri =404;
     }
 
     # Every other path is the app (its own pages: /login, /invite/…, /reset/…)
     location / {
         add_header Cache-Control no-cache;
-        add_header Content-Security-Policy $csp always;
-        add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy strict-origin-when-cross-origin always;
-        add_header Cross-Origin-Opener-Policy same-origin always;
-        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+        include /etc/nginx/snippets/security-headers.conf;
         try_files $uri $uri/ /index.html;
     }
 }

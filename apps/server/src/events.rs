@@ -15,7 +15,14 @@ const BUFFER: usize = 64;
 
 #[derive(Default)]
 pub struct EventHub {
-    streams: Mutex<HashMap<Uuid, broadcast::Sender<Event>>>,
+    streams: Mutex<Streams>,
+}
+
+#[derive(Default)]
+struct Streams {
+    by_user: HashMap<Uuid, broadcast::Sender<Event>>,
+    /// The server is shutting down: no stream opens again.
+    closed: bool,
 }
 
 /// `resync`: the stream may have missed events, so the client reads
@@ -26,7 +33,13 @@ pub fn resync() -> Event {
 
 impl EventHub {
     pub fn subscribe(&self, user: Uuid) -> broadcast::Receiver<Event> {
-        self.streams()
+        let mut streams = self.streams();
+        if streams.closed {
+            // Its sender is gone, so it ends at once
+            return broadcast::channel(1).1;
+        }
+        streams
+            .by_user
             .entry(user)
             .or_insert_with(|| broadcast::channel(BUFFER).0)
             .subscribe()
@@ -34,12 +47,12 @@ impl EventHub {
 
     pub fn publish(&self, user: Uuid, events: &[Event]) {
         let mut streams = self.streams();
-        let Some(sender) = streams.get(&user) else {
+        let Some(sender) = streams.by_user.get(&user) else {
             return;
         };
         if sender.receiver_count() == 0 {
             // Every stream has closed
-            streams.remove(&user);
+            streams.by_user.remove(&user);
             return;
         }
         for event in events {
@@ -52,17 +65,26 @@ impl EventHub {
     /// were disabled, or signed out, or a password or token was revoked).
     /// A client still signed in reconnects; one that isn't can't.
     pub fn disconnect(&self, user: Uuid) {
-        self.streams().remove(&user);
+        self.streams().by_user.remove(&user);
+    }
+
+    /// Ends every stream, and any opened later, as the server shuts down:
+    /// a stream never ends by itself, so it would hold the graceful
+    /// shutdown open until the process is killed.
+    pub fn close(&self) {
+        let mut streams = self.streams();
+        streams.closed = true;
+        streams.by_user.clear();
     }
 
     /// How many users have a stream open, for tests.
     pub fn users(&self) -> usize {
-        self.streams().len()
+        self.streams().by_user.len()
     }
 
-    /// The streams. A thread that panicked while holding the lock left the
-    /// map whole (every change to it is a single call).
-    fn streams(&self) -> MutexGuard<'_, HashMap<Uuid, broadcast::Sender<Event>>> {
+    /// The streams. A thread that panicked while holding the lock left them
+    /// whole (every change to them is a single call).
+    fn streams(&self) -> MutexGuard<'_, Streams> {
         self.streams.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
@@ -116,6 +138,22 @@ mod tests {
         assert_eq!(stream.try_recv().unwrap().name, "a");
         assert_eq!(stream.try_recv(), Err(TryRecvError::Closed));
         assert_eq!(resync().name, "resync");
+    }
+
+    #[test]
+    fn closing_ends_every_stream_for_good() {
+        let hub = EventHub::default();
+        let user = Uuid::new_v4();
+        let mut open = hub.subscribe(user);
+        hub.close();
+        assert_eq!(open.try_recv(), Err(TryRecvError::Closed));
+        assert_eq!(hub.users(), 0);
+
+        // A stream opened while the server stops ends at once
+        let mut late = hub.subscribe(user);
+        hub.publish(user, &[event("a")]);
+        assert_eq!(late.try_recv(), Err(TryRecvError::Closed));
+        assert_eq!(hub.users(), 0);
     }
 
     #[test]
