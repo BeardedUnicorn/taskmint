@@ -141,9 +141,13 @@ async fn serve(config: Config, shutdown: Shutdown) -> anyhow::Result<()> {
         RateLimits::production(),
         Arc::new(Utc::now),
     );
-    let app = http::router(state).into_make_service_with_connect_info::<SocketAddr>();
+    let app = http::router(state.clone()).into_make_service_with_connect_info::<SocketAddr>();
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
+        .with_graceful_shutdown(async move {
+            shutdown.await;
+            // Requests in flight finish; event streams would never
+            state.events.close();
+        })
         .await
         .context("serving")
 }

@@ -10,3 +10,7 @@
 !apps/desktop/src-tauri/Cargo.toml
 !apps/desktop/src-tauri/build.rs
 !apps/desktop/src-tauri/src/
+# The test stage: its gate script and the coverage policy it reads
+!coverage-policy.json
+!scripts/check-server.sh
+!scripts/check-coverage-policy.mjs

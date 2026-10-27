@@ -34,7 +34,6 @@ cargo clippy -p taskmint --features failpoints --all-targets -- -D warnings
 step "Server database (compose db; the server tests make their own databases on it)"
 docker compose up -d --wait db
 export DATABASE_URL="postgres://taskmint:${POSTGRES_PASSWORD:-taskmint}@127.0.0.1:${DB_PORT:-5433}/taskmint"
-cargo run -q -p taskmint-server -- migrate
 
 step "Rust tests"
 cargo test --workspace
@@ -52,18 +51,18 @@ cargo llvm-cov -p taskmint --features failpoints --summary-only \
   --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/desktop/src-tauri)" \
   --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
 
-step "Server query metadata (.sqlx) matches the queries"
-(cd apps/server && cargo sqlx prepare --check)
+step "The server's gates in Linux: query metadata, 100% coverage (compose test profile, as CI runs them)"
+docker compose --profile test run --rm --build server-tests
 
-step "Server coverage (100%)"
-cargo llvm-cov -p taskmint-server \
-  --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100 \
-  --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/server)"
-
-step "Images and the compose stack (server, and the web app in front of it)"
-docker compose up --build -d --wait db migrate server web
-curl -fsS "http://127.0.0.1:${SERVER_PORT:-3000}/healthz" && echo
-curl -fsS "http://127.0.0.1:${WEB_PORT:-8080}/healthz"
-curl -fsS "http://127.0.0.1:${WEB_PORT:-8080}/api/v1/meta" && echo
+step "The images, smoke-tested as a stack of their own (the dev stack and its data are left alone)"
+(
+  export COMPOSE_PROJECT_NAME=taskmint-verify
+  export DB_PORT=15433 SERVER_PORT=13000 WEB_PORT=18080
+  export PUBLIC_ORIGIN="http://localhost:${WEB_PORT}" COOKIE_SECURE=false
+  export ADMIN_USERNAME=verify-admin ADMIN_PASSWORD="$(openssl rand -hex 16)"
+  trap 'docker compose down -v >/dev/null 2>&1' EXIT
+  docker compose up --build -d --wait
+  node scripts/smoke.mjs
+)
 
 printf '\nAll gates passed.\n'

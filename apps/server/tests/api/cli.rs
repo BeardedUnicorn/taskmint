@@ -6,6 +6,8 @@ use std::time::Duration;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool};
 use taskmint_server::cli::{self, Shutdown};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::net::TcpStream;
 
 struct Output {
     code: u8,
@@ -234,6 +236,83 @@ async fn serve_bootstraps_the_first_admin_and_answers_health_checks(
         .await
         .unwrap();
     assert_eq!(users, 1);
+}
+
+/// Opens a connection to the server, sends `request`, and reads the
+/// response's head; the body is left on the connection.
+async fn send(port: u16, request: &str) -> (BufReader<TcpStream>, String) {
+    let mut conn = BufReader::new(TcpStream::connect(("127.0.0.1", port)).await.unwrap());
+    conn.get_mut().write_all(request.as_bytes()).await.unwrap();
+    let mut head = String::new();
+    loop {
+        let mut line = String::new();
+        conn.read_line(&mut line).await.unwrap();
+        if line == "\r\n" {
+            return (conn, head);
+        }
+        head.push_str(&line);
+    }
+}
+
+#[sqlx::test(migrator = "taskmint_server::MIGRATOR")]
+async fn serve_stops_promptly_with_event_streams_open(_: PgPoolOptions, options: PgConnectOptions) {
+    let db_url = url(&options);
+    let port = free_port();
+    let bind = format!("127.0.0.1:{port}");
+    let vars = [
+        ("DATABASE_URL", db_url.as_str()),
+        ("TASKMINT_BIND", bind.as_str()),
+        ("TASKMINT_ADMIN_USERNAME", "root"),
+        ("TASKMINT_ADMIN_PASSWORD", "bootstrap password"),
+    ];
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    let server = run_until(
+        &["serve"],
+        &vars,
+        Box::pin(async move {
+            let _ = stopped.await;
+        }),
+    );
+    let client = async move {
+        wait_until_healthy(port).await;
+        let body = r#"{"username": "root", "password": "bootstrap password"}"#;
+        let (_, head) = send(
+            port,
+            &format!(
+                "POST /api/v1/auth/login HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n\
+                 Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            ),
+        )
+        .await;
+        let cookie = head
+            .lines()
+            .find_map(|line| {
+                line.to_lowercase()
+                    .starts_with("set-cookie:")
+                    .then(|| line[11..].trim())
+            })
+            .and_then(|value| value.split(';').next())
+            .unwrap_or_else(|| panic!("no session cookie in {head}"))
+            .to_owned();
+        let (mut events, head) = send(
+            port,
+            &format!("GET /api/v1/events HTTP/1.1\r\nHost: localhost\r\nCookie: {cookie}\r\n\r\n"),
+        )
+        .await;
+        assert!(head.contains("text/event-stream"), "{head}");
+
+        stop.send(()).unwrap();
+        // The server ends the stream, then the connection
+        let mut rest = Vec::new();
+        events.read_to_end(&mut rest).await.unwrap();
+    };
+    let (res, ()) = tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::join!(server, client)
+    })
+    .await
+    .expect("serve stops while an event stream is open");
+    assert_eq!((res.code, res.err.as_str()), (0, ""));
 }
 
 #[sqlx::test(migrator = "taskmint_server::MIGRATOR")]
