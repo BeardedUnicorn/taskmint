@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>TaskMint capture</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 16px; min-width: 420px; color: #1f2933; }
+      h1 { font-size: 16px; margin: 0 0 12px; }
+      label { display: block; margin: 6px 0; }
+      fieldset { border: 0; margin: 4px 0 8px 24px; padding: 0; }
+      fieldset:disabled { opacity: 0.5; }
+      input[type="url"], input[type="password"] { display: block; width: 100%; box-sizing: border-box; margin-top: 2px; padding: 4px 6px; }
+      .hint { color: #52606d; font-size: 12px; margin: 0 0 8px 24px; }
+      fieldset .hint { margin-left: 0; }
+      button { margin-right: 8px; padding: 4px 14px; }
+      #status { min-height: 1.5em; margin-top: 12px; }
+      #status.problem { color: #b42318; }
+    </style>
+  </head>
+  <body>
+    <h1>Where captures go</h1>
+    <form id="target">
+      <label><input type="radio" name="kind" value="desktop" /> The TaskMint app on this computer</label>
+      <p class="hint">A closed app is launched through a taskmint:// link.</p>
+      <label><input type="radio" name="kind" value="server" /> A TaskMint server</label>
+      <fieldset id="server">
+        <label>Address <input id="url" type="url" placeholder="https://taskmint.example.com" autocomplete="url" /></label>
+        <label>Token <input id="token" type="password" placeholder="tmk_…" autocomplete="off" /></label>
+        <p class="hint">Make one in the web app: Settings → API tokens, as a "Browser extension" token.</p>
+        <button type="button" id="test">Test</button>
+      </fieldset>
+      <button type="submit">Save</button>
+    </form>
+    <p id="status" role="status"></p>
+    <script src="options.js"></script>
+  </body>
+</html>

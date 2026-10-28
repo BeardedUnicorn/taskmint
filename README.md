@@ -102,7 +102,8 @@ and restarts on the server's data.
 `apps/extension/` is a Chrome extension that captures your DataAnnotation
 work logs from the payments page and delivers them to the app over
 `http://127.0.0.1:43117`, or through a `taskmint://` link that launches the app
-if it's closed. The app accepts localhost deliveries only from this
+if it's closed. Its options can send them to a TaskMint server instead, with
+a "Browser extension" token from the web app. The app accepts localhost deliveries only from this
 extension's fixed ID. Payloads that arrive only by link wait in Payouts for
 review, since any web page can open a link. When the app window isn't in
 front, each capture's result also shows as a desktop notification. See

@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode) and P13a (the extension in TypeScript) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript) and P13b (the extension's server target) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -439,6 +439,23 @@ Device settings (theme, filters, backup schedule, idle) stay in localStorage, pe
   - The service worker runs in node with only `setTimeout` faked, so hashing and gzip run for real. The page scripts run in jsdom at the payments URL.
   - `navigate.ts` is its own module, since jsdom can't navigate to `taskmint://`.
   - A manifest test derives the extension ID from its `key` and checks it against `CAPTURE.EXTENSION_ORIGIN`.
+
+**As built in P13b:**
+- **Target:** `src/target.ts` keeps `{kind:'desktop'} | {kind:'server', url, token}` under `target` in storage.local. Anything else reads as the desktop app.
+- **Delivery:** `delivery/desktop.ts` holds today's localhost POST and deep-link launch. `delivery/server.ts` posts to `<url>/api/v1/capture` with `Authorization: Bearer` and `X-TaskMint-Capture`.
+  - A 401 or 403 throws `TokenRejected`. Other refusals throw the server's own `error` text.
+- **`background.ts`** is shared by both targets: the dedupe, the queue, the alarms and the badge (its titles name the target).
+  - A refused token keeps the capture queued, sets `tokenRejected`, clears the retry alarm and shows `✕`. The alarm, a startup and the badge sync leave it paused.
+  - Fresh captures still try. Only the desktop target launches through a deep link.
+  - `storage.onChanged` on `target` clears `tokenRejected` and the delivered hash (a new target hasn't had the payload), then retries what's queued. The toolbar button clears `tokenRejected` too.
+- **Options page** (`options.html` + `src/options.ts`, `options_ui`): radio buttons for the app or a server, the address and token fields, Test (`GET /capture/ping`) and Save.
+  - Both buttons call `chrome.permissions.request` for the server's origin before their first await, since Chrome only grants it inside the click.
+  - Saving away from a server removes its permission. The page says when the last delivery's token was refused.
+  - The manifest adds `optional_host_permissions: ["https://*/*", "http://*/*"]` and becomes version 0.2.0, with the same key and ID.
+- **Checks:**
+  - 50 tests at 100%. The options page's markup is loaded with `?raw`.
+  - `apps/extension/live-check.mjs` runs the built service worker in a VM against a real server: a capture arrives live and the web app takes it, a revoked token shows `✕` and pauses retries, and a new token delivers what was queued. verify.sh runs it on its throwaway stack.
+  - Revoking any token ends all the account's streams, so its event follower reconnects. In the built-in browser, a capture delivered this way showed up on an open Payouts page as "review to finish the import".
 
 ## 7. Docker and compose
 

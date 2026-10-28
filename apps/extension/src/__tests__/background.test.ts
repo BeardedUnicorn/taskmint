@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CAPTURE } from '@taskmint/contracts';
 import { badge, installChromeFake, type ChromeFake } from './chromeFake';
+import { fakeWaits, passTimeUntil, withTimePassing } from './time';
+import { CAPTURE_PENDING_LINK } from '../delivery/desktop';
 
 type Worker = typeof import('../background');
 
-const ENDPOINT = `http://127.0.0.1:${CAPTURE.SERVER_PORT}${CAPTURE.PATH}`;
+const DESKTOP_ENDPOINT = `http://127.0.0.1:${CAPTURE.SERVER_PORT}${CAPTURE.PATH}`;
+const SERVER = { kind: 'server', url: 'https://taskmint.example.com', token: 'tmk_capture' } as const;
 const PAYLOAD = '{"workLogs":[{"id":"w1","minutes":30}]}';
 const SITE_TAB = 5;
 
@@ -19,52 +22,26 @@ async function start(): Promise<Worker> {
   return worker;
 }
 
-function taskMintUp() {
-  fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
+function reachable(status = 204) {
+  fetchMock.mockImplementation(async () => new Response(null, { status }));
 }
 
-function taskMintDown() {
+function unreachable() {
   fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
 }
 
-/** What a taskmint://import-worklogs link carries, decompressed. */
-async function linkPayload(url: string): Promise<string> {
-  const encoded = new URL(url).searchParams.get('d')!;
-  const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-  return new Response(stream).text();
+function refuses(status: number) {
+  fetchMock.mockImplementation(async () => Response.json({ error: 'sign in first', code: 'unauthenticated' }, { status }));
 }
 
-/** Only the worker's waits are faked: hashing and compression run for real. */
-function fakeWaits() {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-}
-
-/** Moves the fake clock on until `done`, letting real work run in between. */
-async function passTimeUntil(done: () => boolean): Promise<void> {
-  for (let tries = 0; !done(); tries++) {
-    expect(tries).toBeLessThan(1000);
-    await vi.advanceTimersByTimeAsync(500);
-    await new Promise(resolve => setImmediate(resolve));
-  }
-}
-
-/** Runs `delivery` while the fake clock passes its waits. */
-async function withTimePassing<T>(delivery: Promise<T>): Promise<T> {
-  let settled = false;
-  delivery.then(
-    () => (settled = true),
-    () => (settled = true),
-  );
-  await passTimeUntil(() => settled);
-  return delivery;
+function useServer() {
+  chrome.storage.local.data.target = SERVER;
 }
 
 beforeEach(async () => {
   chrome = installChromeFake();
   fetchMock.mockReset();
-  taskMintUp();
+  reachable();
   vi.stubGlobal('fetch', fetchMock);
   await start();
 });
@@ -74,11 +51,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('delivering a capture', () => {
+describe('delivering to the app on this computer', () => {
   it('posts it to TaskMint and shows it delivered', async () => {
     await worker.handleCapture(PAYLOAD, SITE_TAB);
 
-    expect(fetchMock).toHaveBeenCalledWith(ENDPOINT, {
+    expect(fetchMock).toHaveBeenCalledWith(DESKTOP_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-TaskMint-Capture': '1' },
       body: PAYLOAD,
@@ -91,110 +68,134 @@ describe('delivering a capture', () => {
 
   it('delivers an unchanged payload again only while TaskMint is up, and never launches it', async () => {
     await worker.handleCapture(PAYLOAD, SITE_TAB);
-    taskMintDown();
+    unreachable();
     await worker.handleCapture(PAYLOAD, SITE_TAB);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(chrome.storage.local.data.pendingCapture).toBeUndefined();
     expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
 
     // After a reset in the app, say
-    taskMintUp();
+    reachable();
     await worker.handleCapture(PAYLOAD, SITE_TAB);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(badge(chrome).text).toBe('✓');
   });
 
   it('counts an error reply as not delivered', async () => {
-    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+    reachable(500);
     expect(await worker.attemptDelivery({ payloadText: PAYLOAD, capturedAt: 'then' })).toBe(false);
     expect(chrome.storage.local.data.pendingCapture).toEqual({ payloadText: PAYLOAD, capturedAt: 'then' });
   });
+
+  describe('when TaskMint is closed', () => {
+    beforeEach(() => {
+      fakeWaits();
+      unreachable();
+    });
+
+    it('queues a fresh capture, launches TaskMint through the page, and keeps trying', async () => {
+      await withTimePassing(worker.handleCapture(PAYLOAD, SITE_TAB));
+
+      const pending = chrome.storage.local.data.pendingCapture as { payloadText: string; capturedAt: string };
+      expect(pending.payloadText).toBe(PAYLOAD);
+      expect(new Date(pending.capturedAt).toISOString()).toBe(pending.capturedAt);
+      expect(badge(chrome)).toEqual({
+        text: '!',
+        color: '#d32f2f',
+        title: 'TaskMint capture: waiting for TaskMint — retrying every minute',
+      });
+      expect(chrome.alarms.armed.get(worker.RETRY_ALARM)).toEqual({ periodInMinutes: 1 });
+      // The first try and three while it starts
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      const [tabId, message] = chrome.tabs.sendMessage.mock.calls[0];
+      expect(tabId).toBe(SITE_TAB);
+      expect((message as { url: string }).url).toMatch(/^taskmint:\/\/import-worklogs\?v=1&d=/);
+    });
+
+    it('delivers once TaskMint has started', async () => {
+      fetchMock
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValue(new Response(null, { status: 204 }));
+      const capture = { payloadText: PAYLOAD, capturedAt: 'now' };
+      expect(await withTimePassing(worker.attemptDelivery(capture, { viaTabId: SITE_TAB, launchIfUnreachable: true }))).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(chrome.storage.local.data.pendingCapture).toBeUndefined();
+      expect(chrome.alarms.armed.has(worker.RETRY_ALARM)).toBe(false);
+      expect(badge(chrome).text).toBe('✓');
+    });
+
+    it('retries a queued capture without launching TaskMint again', async () => {
+      chrome.storage.local.data.pendingCapture = { payloadText: PAYLOAD, capturedAt: '2026-10-27T12:00:00.000Z' };
+      await worker.retryPending();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+
+      reachable();
+      await worker.retryPending();
+      expect(chrome.storage.local.data.pendingCapture).toBeUndefined();
+    });
+  });
 });
 
-describe('when TaskMint is closed', () => {
-  beforeEach(() => {
-    fakeWaits();
-    taskMintDown();
+describe('delivering to a TaskMint server', () => {
+  beforeEach(useServer);
+
+  it('posts it with the token and shows it delivered there', async () => {
+    reachable(200);
+    await worker.handleCapture(PAYLOAD, SITE_TAB);
+    expect(fetchMock).toHaveBeenCalledWith('https://taskmint.example.com/api/v1/capture', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer tmk_capture',
+        'X-TaskMint-Capture': '1',
+        'Content-Type': 'application/json',
+      },
+      body: PAYLOAD,
+    });
+    expect(badge(chrome).title).toBe('TaskMint capture: delivered to the TaskMint server');
   });
 
-  it('queues a fresh capture, launches TaskMint through the page, and keeps trying', async () => {
-    await withTimePassing(worker.handleCapture(PAYLOAD, SITE_TAB));
-
-    const pending = chrome.storage.local.data.pendingCapture as { payloadText: string; capturedAt: string };
-    expect(pending.payloadText).toBe(PAYLOAD);
-    expect(new Date(pending.capturedAt).toISOString()).toBe(pending.capturedAt);
+  it("queues what the server can't take now, and never launches the desktop app", async () => {
+    unreachable();
+    await worker.handleCapture(PAYLOAD, SITE_TAB);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(chrome.alarms.armed.has(worker.RETRY_ALARM)).toBe(true);
     expect(badge(chrome)).toEqual({
       text: '!',
       color: '#d32f2f',
-      title: 'TaskMint capture: waiting for TaskMint — retrying every minute',
+      title: 'TaskMint capture: waiting for the TaskMint server — retrying every minute',
     });
-    expect(chrome.alarms.armed.get(worker.RETRY_ALARM)).toEqual({ periodInMinutes: 1 });
-    // The first try and three while it starts
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-
-    const [tabId, message] = chrome.tabs.sendMessage.mock.calls[0];
-    expect(tabId).toBe(SITE_TAB);
-    const { type, url } = message as { type: string; url: string };
-    expect(type).toBe('open-deep-link');
-    expect(url).toMatch(/^taskmint:\/\/import-worklogs\?v=1&d=[A-Za-z0-9_-]+$/);
-    expect(await linkPayload(url)).toBe(PAYLOAD);
-    expect(chrome.tabs.create).not.toHaveBeenCalled();
   });
 
-  it('delivers once TaskMint has started', async () => {
-    fetchMock
-      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
-      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
-      .mockResolvedValue(new Response(null, { status: 204 }));
-    expect(await withTimePassing(worker.attemptDelivery({ payloadText: PAYLOAD, capturedAt: 'now' }, { viaTabId: SITE_TAB, launchIfUnreachable: true }))).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(chrome.storage.local.data.pendingCapture).toBeUndefined();
+  it('stops retrying when the server refuses the token, until the options change', async () => {
+    for (const status of [401, 403]) {
+      refuses(status);
+      await worker.handleCapture(`{"try":${status}}`, SITE_TAB);
+      expect(chrome.storage.local.data.tokenRejected).toBe(true);
+    }
+    expect(chrome.storage.local.data.pendingCapture).toEqual(expect.objectContaining({ payloadText: '{"try":403}' }));
     expect(chrome.alarms.armed.has(worker.RETRY_ALARM)).toBe(false);
-    expect(badge(chrome).text).toBe('✓');
-  });
+    expect(badge(chrome)).toEqual({
+      text: '✕',
+      color: '#d32f2f',
+      title: "TaskMint capture: the server refused the token — set a new one in the extension's options",
+    });
 
-  it('opens the link in a background tab when the page is gone, then closes it', async () => {
-    chrome.tabs.sendMessage.mockRejectedValue(new Error('Could not establish connection'));
-    await withTimePassing(worker.fireDeepLink(PAYLOAD, SITE_TAB));
-    expect(chrome.tabs.create).toHaveBeenCalledWith({ url: expect.stringMatching(/^taskmint:\/\/import-worklogs/), active: false });
-    expect(chrome.tabs.remove).toHaveBeenCalledWith(70);
-
-    // Without a tab to ask, straight to one; a tab that's already gone is fine
-    chrome.tabs.remove.mockRejectedValue(new Error('No tab with id: 70'));
-    await withTimePassing(worker.fireDeepLink(PAYLOAD, null));
-    expect(chrome.tabs.create).toHaveBeenCalledTimes(2);
-  });
-
-  it('leaves it to the retry alarm when no tab can be opened', async () => {
-    chrome.tabs.create.mockResolvedValueOnce({} as chrome.tabs.Tab);
-    await withTimePassing(worker.fireDeepLink(PAYLOAD, null));
-    expect(chrome.tabs.remove).not.toHaveBeenCalled();
-
-    chrome.tabs.create.mockRejectedValueOnce(new Error('no windows'));
-    await expect(withTimePassing(worker.fireDeepLink(PAYLOAD, null))).resolves.toBeUndefined();
-  });
-
-  it('launches without the payload when it is too big for a link, or compression is missing', async () => {
-    const random = crypto.getRandomValues(new Uint8Array(40_000));
-    const big = JSON.stringify([...random].map(n => n.toString(36)));
-    await withTimePassing(worker.fireDeepLink(big, SITE_TAB));
-    expect(chrome.tabs.sendMessage).toHaveBeenLastCalledWith(SITE_TAB, { type: 'open-deep-link', url: worker.CAPTURE_PENDING_LINK });
-
-    vi.stubGlobal('CompressionStream', undefined);
-    await withTimePassing(worker.fireDeepLink(PAYLOAD, SITE_TAB));
-    expect(chrome.tabs.sendMessage).toHaveBeenLastCalledWith(SITE_TAB, { type: 'open-deep-link', url: worker.CAPTURE_PENDING_LINK });
-  });
-
-  it('retries a queued capture without launching TaskMint again', async () => {
-    const queued = { payloadText: PAYLOAD, capturedAt: '2026-10-27T12:00:00.000Z' };
-    chrome.storage.local.data.pendingCapture = queued;
+    // The alarm and a restart don't try again
+    fetchMock.mockClear();
     await worker.retryPending();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(badge(chrome).text).toBe('✕');
 
-    taskMintUp();
-    await worker.retryPending();
-    expect(chrome.storage.local.data.pendingCapture).toBeUndefined();
+    // A new token in the options does
+    reachable(200);
+    chrome.storage.local.data.target = { ...SERVER, token: 'tmk_new' };
+    chrome.storage.onChanged.emit({ target: { newValue: chrome.storage.local.data.target } }, 'local');
+    await vi.waitFor(() => expect(badge(chrome).text).toBe('✓'));
+    expect(fetchMock.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({ Authorization: 'Bearer tmk_new' }));
+    expect(chrome.storage.local.data).toEqual({ target: { ...SERVER, token: 'tmk_new' } });
   });
 });
 
@@ -211,17 +212,33 @@ describe('the retry queue', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('shows the queued badge again when the worker starts', async () => {
-    chrome = installChromeFake();
-    chrome.storage.local.data.pendingCapture = { payloadText: PAYLOAD, capturedAt: 'then' };
-    await start();
-    await vi.waitFor(() => expect(badge(chrome).text).toBe('!'));
+  it('shows the queued or refused badge again when the worker starts', async () => {
+    for (const [rejected, text] of [
+      [false, '!'],
+      [true, '✕'],
+    ] as const) {
+      chrome = installChromeFake();
+      chrome.storage.local.data.pendingCapture = { payloadText: PAYLOAD, capturedAt: 'then' };
+      if (rejected) chrome.storage.local.data.tokenRejected = true;
+      await start();
+      await vi.waitFor(() => expect(badge(chrome).text).toBe(text));
+    }
 
     // Nothing queued: the badge is left alone
     chrome = installChromeFake();
     await start();
     await vi.waitFor(() => expect(chrome.storage.local.get).toHaveBeenCalled());
     expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
+  });
+
+  it('starts over for a new target: what was delivered and refused is forgotten', async () => {
+    chrome.storage.session.data.lastDeliveredHash = await worker.sha256Hex(PAYLOAD);
+    chrome.storage.local.data.tokenRejected = true;
+    await worker.targetChanged();
+    expect(chrome.storage.session.data).toEqual({});
+    expect(chrome.storage.local.data).toEqual({});
+    await worker.handleCapture(PAYLOAD, SITE_TAB);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -232,11 +249,13 @@ describe('the listeners', () => {
     chrome.runtime.onMessage.emit({ type: 'worklog-payload', payloadText: PAYLOAD }, fromSite);
     await vi.waitFor(() => expect(badge(chrome).text).toBe('✓'));
 
-    taskMintDown();
+    unreachable();
     fakeWaits();
     chrome.runtime.onMessage.emit({ type: 'worklog-payload', payloadText: '{"other":1}' }, { url: fromSite.url });
     // No tab to navigate: a background one opens the link
     await passTimeUntil(() => chrome.tabs.create.mock.calls.length > 0);
+    expect(chrome.tabs.create).toHaveBeenCalledWith({ url: expect.stringMatching(/^taskmint:/), active: false });
+    expect(CAPTURE_PENDING_LINK).toBe('taskmint://capture-pending');
   });
 
   it('ignore anything else', async () => {
@@ -249,8 +268,11 @@ describe('the listeners', () => {
     ] as [unknown, chrome.runtime.MessageSender][]) {
       chrome.runtime.onMessage.emit(message, sender);
     }
+    chrome.storage.onChanged.emit({ pendingCapture: {} }, 'local');
+    chrome.storage.onChanged.emit({ target: {} }, 'sync');
     await new Promise(resolve => setTimeout(resolve, 10));
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(chrome.storage.session.remove).not.toHaveBeenCalled();
 
     // A capture that fails before delivering is dropped quietly
     chrome.storage.session.get.mockRejectedValueOnce(new Error('storage gone'));
@@ -258,11 +280,13 @@ describe('the listeners', () => {
     await vi.waitFor(() => expect(chrome.storage.session.get).toHaveBeenCalled());
   });
 
-  it('retry on the alarm and at startup, and clear the badge on its alarm and at install', async () => {
+  it('retry on the alarm, at startup and for new options, and clear the badge on its alarm and at install', async () => {
     chrome.alarms.onAlarm.emit({ name: worker.RETRY_ALARM } as chrome.alarms.Alarm);
     await vi.waitFor(() => expect(chrome.alarms.clear).toHaveBeenCalledWith(worker.RETRY_ALARM));
     chrome.runtime.onStartup.emit();
     await vi.waitFor(() => expect(chrome.alarms.clear).toHaveBeenCalledTimes(2));
+    chrome.storage.onChanged.emit({ target: { newValue: SERVER } }, 'local');
+    await vi.waitFor(() => expect(chrome.alarms.clear).toHaveBeenCalledTimes(3));
 
     chrome.action.setTitle.mockClear();
     chrome.alarms.onAlarm.emit({ name: worker.BADGE_CLEAR_ALARM } as chrome.alarms.Alarm);
@@ -273,14 +297,18 @@ describe('the listeners', () => {
 
   it('swallow what fails in the background', async () => {
     chrome.storage.local.get.mockRejectedValue(new Error('storage gone'));
+    chrome.storage.local.remove.mockRejectedValue(new Error('storage gone'));
     chrome.action.setBadgeText.mockRejectedValue(new Error('no action'));
     chrome.alarms.onAlarm.emit({ name: worker.RETRY_ALARM } as chrome.alarms.Alarm);
     chrome.alarms.onAlarm.emit({ name: worker.BADGE_CLEAR_ALARM } as chrome.alarms.Alarm);
     chrome.runtime.onStartup.emit();
     chrome.runtime.onInstalled.emit();
+    chrome.storage.onChanged.emit({ target: {} }, 'local');
     chrome.action.onClicked.emit({ id: SITE_TAB, url: fromSite.url } as chrome.tabs.Tab);
-    await vi.waitFor(() => expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(3));
-    await vi.waitFor(() => expect(chrome.storage.local.get).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(1));
+    // The worker's own read at startup, then the alarm's, the badge alarm's and the restart's
+    await vi.waitFor(() => expect(chrome.storage.local.get).toHaveBeenCalledTimes(4));
+    await vi.waitFor(() => expect(chrome.storage.local.remove).toHaveBeenCalledTimes(2));
 
     // Starting with storage gone
     chrome = installChromeFake();
@@ -289,9 +317,10 @@ describe('the listeners', () => {
     await vi.waitFor(() => expect(chrome.storage.local.get).toHaveBeenCalled());
   });
 
-  it('the toolbar button forgets what was sent, and captures the payments page again', async () => {
+  it('the toolbar button forgets what was sent and refused, and captures the payments page again', async () => {
     chrome.storage.session.data.lastDeliveredHash = 'abc';
     chrome.storage.local.data.pendingCapture = { payloadText: PAYLOAD, capturedAt: 'then' };
+    chrome.storage.local.data.tokenRejected = true;
     chrome.action.onClicked.emit({ id: SITE_TAB, url: fromSite.url } as chrome.tabs.Tab);
     await vi.waitFor(() => expect(chrome.tabs.reload).toHaveBeenCalledWith(SITE_TAB));
     expect(chrome.storage.session.data).toEqual({});
@@ -306,12 +335,6 @@ describe('the listeners', () => {
   });
 });
 
-describe('encoding', () => {
-  it('hashes and compresses as the desktop app reads them', async () => {
-    expect(await worker.sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
-    // Longer than one chunk of the base64 conversion
-    const long = 'x'.repeat(100).concat(...Array.from({ length: 3000 }, (_, i) => `${i * 7919}`));
-    const url = `taskmint://import-worklogs?v=1&d=${await worker.gzipBase64Url(long)}`;
-    expect(await linkPayload(url)).toBe(long);
-  });
+it('hashes payloads as the dedupe compares them', async () => {
+  expect(await worker.sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
 });

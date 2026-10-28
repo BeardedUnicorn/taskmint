@@ -1,29 +1,28 @@
-// Service worker: delivers captured work-log payloads to TaskMint.
+// Service worker: delivers captured work-log payloads to TaskMint, the app
+// on this computer (delivery/desktop.ts) or a TaskMint server
+// (delivery/server.ts), as the options page says (target.ts).
 //
-// Primary channel is a localhost POST (real delivery confirmation; drives the
-// badge and the retry queue). When TaskMint is closed, a taskmint:// deep
-// link — carrying the gzip-compressed payload when it fits in a URL — asks
-// the OS to launch the bundled app, and quick follow-up POSTs confirm the
-// hand-off. Periodic retries never re-launch the app; only a fresh capture
-// does.
+// A delivery is confirmed by its reply, which drives the badge and the retry
+// queue. Identical payloads are delivered once. When the app is closed, a
+// fresh capture launches it through a taskmint:// link and quick follow-up
+// tries confirm the hand-off; periodic retries never re-launch it. A server
+// that refuses the token pauses the retries until the options change.
 //
 // MV3 notes: all listeners are registered synchronously at top level; alarms
 // (never bare setTimeout) do the scheduling across service-worker restarts —
 // awaited inline delays are fine while a handler's promise keeps the worker
 // alive.
 
-import { CAPTURE, DEEP_LINK } from '@taskmint/contracts';
+import { deliverToDesktop, launchDesktop, sleep } from './delivery/desktop';
+import { deliverToServer, TokenRejected } from './delivery/server';
 import { ignore } from './ignore';
-import { OPEN_DEEP_LINK, WORKLOG_PAYLOAD } from './messages';
+import { WORKLOG_PAYLOAD } from './messages';
+import { DESKTOP, loadTarget, TARGET_KEY, TOKEN_REJECTED, type Target } from './target';
 
-const ENDPOINT = `http://127.0.0.1:${CAPTURE.SERVER_PORT}${CAPTURE.PATH}`;
 export const SITE_ORIGIN = 'https://app.dataannotation.tech/';
 export const RETRY_ALARM = 'taskmint-retry-delivery';
 export const BADGE_CLEAR_ALARM = 'taskmint-clear-badge';
 const RETRY_PERIOD_MINUTES = 1;
-// Windows caps process command lines at ~32K chars; stay comfortably under.
-export const DEEP_LINK_MAX_URL = 30000;
-export const CAPTURE_PENDING_LINK = `${DEEP_LINK.SCHEME}://${DEEP_LINK.CAPTURE_PENDING}`;
 
 /** A payload waiting for TaskMint, kept in storage.local. */
 export interface Capture {
@@ -31,38 +30,34 @@ export interface Capture {
   capturedAt: string;
 }
 
-export type BadgeState = 'ok' | 'queued' | 'idle';
+export type BadgeState = 'ok' | 'queued' | 'rejected' | 'idle';
 
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function gzipBase64Url(text: string): Promise<string> {
-  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
-  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
-  let binary = '';
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+/** What the badge's title calls where captures go. */
+function destination(target: Target): string {
+  return target.kind === 'desktop' ? 'TaskMint' : 'the TaskMint server';
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-export async function setBadge(state: BadgeState): Promise<void> {
+export async function setBadge(state: BadgeState, target: Target): Promise<void> {
   if (state === 'ok') {
     await chrome.action.setBadgeText({ text: '✓' });
     await chrome.action.setBadgeBackgroundColor({ color: '#2e7d32' });
-    await chrome.action.setTitle({ title: 'TaskMint capture: delivered to TaskMint' });
+    await chrome.action.setTitle({ title: `TaskMint capture: delivered to ${destination(target)}` });
   } else if (state === 'queued') {
     await chrome.action.setBadgeText({ text: '!' });
     await chrome.action.setBadgeBackgroundColor({ color: '#d32f2f' });
     await chrome.action.setTitle({
-      title: 'TaskMint capture: waiting for TaskMint — retrying every minute',
+      title: `TaskMint capture: waiting for ${destination(target)} — retrying every minute`,
+    });
+  } else if (state === 'rejected') {
+    await chrome.action.setBadgeText({ text: '✕' });
+    await chrome.action.setBadgeBackgroundColor({ color: '#d32f2f' });
+    await chrome.action.setTitle({
+      title: "TaskMint capture: the server refused the token — set a new one in the extension's options",
     });
   } else {
     await chrome.action.setBadgeText({ text: '' });
@@ -72,89 +67,55 @@ export async function setBadge(state: BadgeState): Promise<void> {
   }
 }
 
-async function deliver(payloadText: string): Promise<void> {
-  const response = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      [CAPTURE.HEADER]: '1',
-    },
-    body: payloadText,
-  });
-  if (!response.ok) {
-    throw new Error(`TaskMint responded ${response.status}`);
-  }
+function deliverTo(target: Target, payloadText: string): Promise<void> {
+  return target.kind === 'desktop' ? deliverToDesktop(payloadText) : deliverToServer(target, payloadText);
 }
 
-async function markDelivered(payloadText: string): Promise<void> {
+async function markDelivered(payloadText: string, target: Target): Promise<void> {
   await chrome.storage.session.set({ lastDeliveredHash: await sha256Hex(payloadText) });
-  await chrome.storage.local.remove('pendingCapture');
+  await chrome.storage.local.remove(['pendingCapture', TOKEN_REJECTED]);
   await chrome.alarms.clear(RETRY_ALARM);
-  await setBadge('ok');
+  await setBadge('ok', target);
   await chrome.alarms.create(BADGE_CLEAR_ALARM, { delayInMinutes: 1 });
 }
 
-/**
- * Ask the OS to launch TaskMint via taskmint://, carrying the compressed
- * payload when it fits in a URL (otherwise a data-less capture-pending link —
- * the queued POST delivers the payload once the app is up).
- */
-export async function fireDeepLink(payloadText: string, tabId: number | null): Promise<void> {
-  let url = CAPTURE_PENDING_LINK;
-  try {
-    const encoded = await gzipBase64Url(payloadText);
-    const candidate = `${DEEP_LINK.SCHEME}://${DEEP_LINK.IMPORT_WORKLOGS}?v=1&${DEEP_LINK.PAYLOAD_PARAM}=${encoded}`;
-    if (candidate.length <= DEEP_LINK_MAX_URL) url = candidate;
-  } catch {
-    /* compression unavailable — fall back to the launch-only link */
-  }
-
-  // Navigating the originating tab keeps Chrome's "Always allow" choice tied
-  // to the site origin (and an external scheme never unloads the page).
-  if (tabId != null) {
-    try {
-      await chrome.tabs.sendMessage(tabId, { type: OPEN_DEEP_LINK, url });
-      return;
-    } catch {
-      /* tab closed or content script gone — fall through */
-    }
-  }
-  try {
-    const tab = await chrome.tabs.create({ url, active: false });
-    await sleep(2000);
-    if (tab.id != null) {
-      await chrome.tabs.remove(tab.id).catch(ignore);
-    }
-  } catch {
-    /* nothing else to try; the retry alarm keeps the payload queued */
-  }
+/** Delivers to `target`, then marks it delivered. */
+async function deliverAndMark(target: Target, payloadText: string): Promise<void> {
+  await deliverTo(target, payloadText);
+  await markDelivered(payloadText, target);
 }
 
 /**
- * Try the localhost channel; on failure queue the payload, arm the retry
- * alarm, and (for fresh captures only) launch the app via deep link with
- * quick confirmation attempts while it cold-starts.
+ * Try the target; on failure queue the payload and arm the retry alarm, and
+ * (for fresh captures to the desktop app) launch the app via deep link with
+ * quick confirmation attempts while it cold-starts. A refused token keeps
+ * the payload queued but pauses the retries.
  */
 export async function attemptDelivery(
   capture: Capture,
   { viaTabId = null, launchIfUnreachable = false }: { viaTabId?: number | null; launchIfUnreachable?: boolean } = {},
 ): Promise<boolean> {
+  const target = await loadTarget();
   try {
-    await deliver(capture.payloadText);
-    await markDelivered(capture.payloadText);
+    await deliverAndMark(target, capture.payloadText);
     return true;
-  } catch {
+  } catch (error) {
     await chrome.storage.local.set({ pendingCapture: capture });
-    await setBadge('queued');
+    if (error instanceof TokenRejected) {
+      await chrome.storage.local.set({ [TOKEN_REJECTED]: true });
+      await chrome.alarms.clear(RETRY_ALARM);
+      await setBadge('rejected', target);
+      return false;
+    }
+    await setBadge('queued', target);
     await chrome.alarms.create(RETRY_ALARM, { periodInMinutes: RETRY_PERIOD_MINUTES });
 
-    if (launchIfUnreachable) {
-      await fireDeepLink(capture.payloadText, viaTabId);
+    if (launchIfUnreachable && target.kind === 'desktop') {
+      await launchDesktop(capture.payloadText, viaTabId);
       for (const delayMs of [3000, 6000, 12000]) {
         await sleep(delayMs);
         try {
-          await deliver(capture.payloadText);
-          await markDelivered(capture.payloadText);
+          await deliverAndMark(target, capture.payloadText);
           return true;
         } catch {
           /* app still starting — keep waiting */
@@ -168,14 +129,12 @@ export async function attemptDelivery(
 export async function handleCapture(payloadText: string, tabId: number | null): Promise<void> {
   const currentHash = await sha256Hex(payloadText);
   const { lastDeliveredHash } = await chrome.storage.session.get('lastDeliveredHash');
-  const isUnchanged = lastDeliveredHash === currentHash;
 
-  if (isUnchanged) {
-    // If the payload hasn't changed, deliver if TaskMint is running (e.g. after a data reset in the app),
-    // but do not queue or fire a deep link if unreachable.
+  if (lastDeliveredHash === currentHash) {
+    // If the payload hasn't changed, deliver if TaskMint is reachable (e.g. after a data reset in the app),
+    // but do not queue or fire a deep link if it isn't.
     try {
-      await deliver(payloadText);
-      await markDelivered(payloadText);
+      await deliverAndMark(await loadTarget(), payloadText);
     } catch {
       // TaskMint is closed and this data was already delivered; do nothing.
     }
@@ -189,10 +148,13 @@ export async function handleCapture(payloadText: string, tabId: number | null): 
 }
 
 export async function retryPending(): Promise<void> {
-  const { pendingCapture } = await chrome.storage.local.get('pendingCapture');
-  if (!pendingCapture) {
+  const { pendingCapture, [TOKEN_REJECTED]: rejected } = await chrome.storage.local.get([
+    'pendingCapture',
+    TOKEN_REJECTED,
+  ]);
+  if (!pendingCapture || rejected) {
     await chrome.alarms.clear(RETRY_ALARM);
-    await setBadge('idle');
+    await setBadge(pendingCapture ? 'rejected' : 'idle', await loadTarget());
     return;
   }
   await attemptDelivery(pendingCapture as Capture);
@@ -200,17 +162,31 @@ export async function retryPending(): Promise<void> {
 
 /** Restore the queued badge after a browser restart cleared it. */
 export async function syncBadgeFromQueue(): Promise<void> {
-  const { pendingCapture } = await chrome.storage.local.get('pendingCapture');
+  const { pendingCapture, [TOKEN_REJECTED]: rejected } = await chrome.storage.local.get([
+    'pendingCapture',
+    TOKEN_REJECTED,
+  ]);
   if (pendingCapture) {
-    await setBadge('queued');
+    await setBadge(rejected ? 'rejected' : 'queued', await loadTarget());
   }
+}
+
+/**
+ * The options changed where captures go: a new token may be accepted, and a
+ * new target hasn't had any payload yet, so what's queued goes there now and
+ * the next capture is delivered even if it's unchanged.
+ */
+export async function targetChanged(): Promise<void> {
+  await chrome.storage.local.remove(TOKEN_REJECTED);
+  await chrome.storage.session.remove('lastDeliveredHash');
+  await retryPending();
 }
 
 /** Forgets what was delivered and queued, then reloads the payments page to capture again. */
 export async function resetAndRecapture(tab: chrome.tabs.Tab): Promise<void> {
   await chrome.storage.session.remove('lastDeliveredHash');
-  await chrome.storage.local.remove('pendingCapture');
-  await setBadge('idle');
+  await chrome.storage.local.remove(['pendingCapture', TOKEN_REJECTED]);
+  await setBadge('idle', await loadTarget());
   if (tab.id != null && tab.url?.startsWith(SITE_ORIGIN)) {
     await chrome.tabs.reload(tab.id);
   }
@@ -233,7 +209,15 @@ chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name === RETRY_ALARM) {
     retryPending().catch(ignore);
   } else if (alarm.name === BADGE_CLEAR_ALARM) {
-    setBadge('idle').catch(ignore);
+    loadTarget()
+      .then(target => setBadge('idle', target))
+      .catch(ignore);
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && TARGET_KEY in changes) {
+    targetChanged().catch(ignore);
   }
 });
 
@@ -242,7 +226,7 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  setBadge('idle').catch(ignore);
+  setBadge('idle', DESKTOP).catch(ignore);
 });
 
 chrome.action.onClicked.addListener(tab => {
