@@ -256,9 +256,12 @@ A copy of the database, and putting one back (into an empty database:
 `down -v`, then `up` once before restoring):
 
 ```bash
-docker compose exec -T db pg_dump -U taskmint --clean --if-exists taskmint > taskmint.sql
-docker compose exec -T db psql -U taskmint -v ON_ERROR_STOP=1 taskmint < taskmint.sql
+mkdir -p backups    # git ignores it
+docker compose exec -T db pg_dump -U taskmint --clean --if-exists taskmint > backups/taskmint.sql
+docker compose exec -T db psql -U taskmint -v ON_ERROR_STOP=1 taskmint < backups/taskmint.sql
 ```
+
+[docs/runbook.md](docs/runbook.md) has scheduled backups and checking that one restores.
 
 ### How it's locked down
 

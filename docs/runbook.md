@@ -29,7 +29,8 @@ docker compose logs --since 1h web       # nginx access log (link secrets redact
 
 Everything is in Postgres: accounts, every account's data, the server's own
 copies (`data_snapshots`) and the audit log. Back it up with `pg_dump`, and
-keep copies somewhere other than this machine.
+keep copies somewhere other than this machine. `backups/` is ignored by git,
+since its files hold every account's data.
 
 ```bash
 mkdir -p backups
@@ -78,7 +79,7 @@ inspection and hand repair:
 
 ```bash
 tmsql -c "SELECT s.id, s.kind, s.reason, s.created_at FROM data_snapshots s JOIN users u ON u.id = s.user_id WHERE u.username = 'alice' ORDER BY s.id DESC"
-tmsql -At -c "SELECT data FROM data_snapshots WHERE id = 123" > snapshot-123.json
+tmsql -At -c "SELECT data FROM data_snapshots WHERE id = 123" > backups/snapshot-123.json
 ```
 
 ## Upgrading

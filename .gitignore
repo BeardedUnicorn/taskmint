@@ -36,5 +36,13 @@ coverage/
 # Rust build output (Cargo workspace at the repo root)
 /target
 
+# Build output left from before the monorepo move (the desktop crate is
+# apps/desktop/src-tauri now)
+/src-tauri/
+
+# Database dumps and copies of account data (docs/runbook.md)
+/backups/
+*.dump
+
 # Local Claude Code launch config
 .claude/
