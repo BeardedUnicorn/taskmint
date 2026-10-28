@@ -48,9 +48,9 @@ export function useWorkLogs(): UseWorkLogsReturn {
     setError(null);
     try {
       const response = await getBackend().call('get_work_logs');
-      setEntries(response.entries ?? []);
-      setMappings(response.mappings ?? []);
-      setLoadWarning(response.loadWarning ?? null);
+      setEntries(response.entries);
+      setMappings(response.mappings);
+      setLoadWarning(response.loadWarning);
     } catch (err) {
       const message = errorMessage(err, 'Failed to load work logs');
       setError(message);

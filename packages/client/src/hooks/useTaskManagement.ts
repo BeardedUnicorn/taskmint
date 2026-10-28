@@ -19,8 +19,6 @@ export function useTaskManagement(): UseTaskManagementReturn {
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
-  // Archive's Undo (unarchiveTask is defined after it)
-  const unarchiveRef = useRef<(taskId: string) => Promise<unknown>>(async () => null);
 
   // Load tasks on mount
   useEffect(() => {
@@ -54,7 +52,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'addTask',
-        errorHandler: error => showError(error.message || 'Failed to create task.')
+        errorHandler: error => showError(error.message)
       }
     );
   }, [taskService, executeAsync, showSuccess, showError]);
@@ -75,7 +73,23 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'updateTask',
-        errorHandler: error => showError(error.message || 'Failed to update task.')
+        errorHandler: error => showError(error.message)
+      }
+    );
+  }, [taskService, executeAsync, showError]);
+
+  const unarchiveTask = useCallback(async (taskId: string) => {
+    return executeAsync(
+      async () => {
+        const unarchivedTask = await taskService.unarchiveTask(taskId);
+        setTasks(prev => prev.map(task =>
+          task.id === taskId ? unarchivedTask : task
+        ));
+        return unarchivedTask;
+      },
+      {
+        operation: 'unarchiveTask',
+        errorHandler: error => showError(error.message)
       }
     );
   }, [taskService, executeAsync, showError]);
@@ -89,36 +103,16 @@ export function useTaskManagement(): UseTaskManagementReturn {
         ));
         showSuccess(`Archived "${archivedTask.name}"`, {
           category: 'task',
-          actions: [{ label: 'Undo', onClick: () => void unarchiveRef.current(taskId) }],
+          actions: [{ label: 'Undo', onClick: () => void unarchiveTask(taskId) }],
         });
         return archivedTask;
       },
       {
         operation: 'archiveTask',
-        errorHandler: error => showError(error.message || 'Failed to archive task.')
+        errorHandler: error => showError(error.message)
       }
     );
-  }, [taskService, executeAsync, showSuccess, showError]);
-
-  const unarchiveTask = useCallback(async (taskId: string) => {
-    return executeAsync(
-      async () => {
-        const unarchivedTask = await taskService.unarchiveTask(taskId);
-        setTasks(prev => prev.map(task =>
-          task.id === taskId ? unarchivedTask : task
-        ));
-        return unarchivedTask;
-      },
-      {
-        operation: 'unarchiveTask',
-        errorHandler: error => showError(error.message || 'Failed to unarchive task.')
-      }
-    );
-  }, [taskService, executeAsync, showError]);
-
-  useEffect(() => {
-    unarchiveRef.current = unarchiveTask;
-  }, [unarchiveTask]);
+  }, [taskService, executeAsync, showSuccess, showError, unarchiveTask]);
 
   // The star is its own feedback, so unlike updateTask this doesn't toast.
   const toggleFavorite = useCallback(async (taskId: string) => {
@@ -132,7 +126,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'toggleFavorite',
-        errorHandler: error => showError(error.message || 'Failed to update the favorite.')
+        errorHandler: error => showError(error.message)
       }
     );
   }, [taskService, executeAsync, showError]);
@@ -164,7 +158,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       },
       {
         operation: 'deleteTask',
-        errorHandler: error => showError(error.message || 'Failed to delete task.')
+        errorHandler: error => showError(error.message)
       }
     );
   }, [taskService, executeAsync, showSuccess, showError, restoreTask]);

@@ -42,13 +42,37 @@ function primeCommand(command: string, ...results: unknown[]) {
   commandQueues[command] = [...(commandQueues[command] ?? []), ...results];
 }
 
+/**
+ * A reply as the backend sends it: timers carry isRunning/isPaused (and a
+ * finished one its duration) rather than a `state`, so fixtures can say
+ * `state` and still reach the hook in wire form.
+ */
+function toWire(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(toWire);
+  if (value && typeof value === 'object') {
+    if ('timerInstances' in value) {
+      return { ...value, timerInstances: (value as TaskSession).timerInstances.map(toWire) };
+    }
+    if ('state' in value) {
+      const { state, ...instance } = value as TimerInstance;
+      return {
+        ...instance,
+        isRunning: state === TimerState.running,
+        isPaused: state === TimerState.paused,
+        duration: instance.duration ?? (state === TimerState.stopped ? 0 : null),
+      };
+    }
+  }
+  return value;
+}
+
 function installInvokeMock() {
   mockInvoke.mockImplementation(async (command: string) => {
     const queue = commandQueues[command];
     if (queue && queue.length > 0) {
       const next = queue.shift();
       if (next instanceof Error) throw next;
-      return next;
+      return toWire(next);
     }
     if (command === 'get_sessions') return [];
     if (command === 'get_session_load_warning') return null;
@@ -417,7 +441,8 @@ describe('useSessionManagement', () => {
         actions[0].onClick();
       });
       await waitFor(() => expect(result.current.sessions.map(s => s.id)).toEqual(['session-1']));
-      expect(mockInvoke).toHaveBeenCalledWith('restore_session', { session: withTime });
+      // What delete_session sent back
+      expect(mockInvoke).toHaveBeenCalledWith('restore_session', { session: toWire(withTime) });
     });
 
     it('reports a failed delete without an Undo', async () => {
@@ -524,7 +549,7 @@ describe('useSessionManagement', () => {
 
       await act(async () => {
         const instance = await result.current.createTimerInstance('session-1');
-        expect(instance).toEqual(mockTimerInstance);
+        expect(instance).toMatchObject(mockTimerInstance);
       });
 
       expect(mockInvoke).toHaveBeenCalledWith('create_timer_instance', {
@@ -1057,6 +1082,442 @@ describe('useSessionManagement', () => {
         expect(mockInvoke).toHaveBeenCalledWith('stop_timer_instance', {
           instanceId: 'instance-1',
         });
+      });
+    });
+  });
+
+  describe('the rest of what it does', () => {
+    const running = (id: string, sessionId = 'session-1'): TimerInstance =>
+      ({ ...mockTimerInstance, id, sessionId, state: TimerState.running });
+    const paused = (id: string, pausedAt: string | null): TimerInstance =>
+      ({ ...mockTimerInstance, id, state: TimerState.paused, pausedAt });
+    const ready = async () => {
+      const hook = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
+      await waitFor(() => expect(hook.result.current.hasLoaded).toBe(true));
+      return hook;
+    };
+    const calls = (command: string) => mockInvoke.mock.calls.filter(([cmd]) => cmd === command);
+
+    describe('loading', () => {
+      it('asks for the load warning once, even when mounted twice in StrictMode', async () => {
+        primeCommand('get_session_load_warning', 'Skipped 2 unreadable sessions');
+        const { result } = renderHook(() => useSessionManagement(), {
+          wrapper: ActiveTimerProvider,
+          reactStrictMode: true,
+        });
+        await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+
+        expect(calls('get_session_load_warning')).toHaveLength(1);
+        await waitFor(() => expect(mockShowWarning).toHaveBeenCalledTimes(1));
+      });
+
+      it("shows nothing when the load warning can't be read", async () => {
+        primeCommand('get_session_load_warning', new Error('unreachable'));
+        await ready();
+
+        expect(mockShowWarning).not.toHaveBeenCalled();
+        expect(mockShowError).not.toHaveBeenCalled();
+      });
+
+      it('reloads quietly, once per burst of backend events', async () => {
+        primeCommand('get_sessions', [mockSession]);
+        const { result } = await ready();
+        vi.useFakeTimers();
+        try {
+          primeCommand('get_sessions', [mockSession, { ...mockSession, id: 'session-2' }]);
+          act(() => {
+            fakeBackend().emit(BACKEND_EVENTS.TIMER_INSTANCE_STOPPED, {});
+            fakeBackend().emit(BACKEND_EVENTS.TIMER_INSTANCE_STARTED, {});
+          });
+          expect(calls('get_sessions')).toHaveLength(1);
+
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(300);
+          });
+          expect(calls('get_sessions')).toHaveLength(2);
+          expect(result.current.sessions.map(s => s.id)).toEqual(['session-1', 'session-2']);
+          expect(result.current.isLoading).toBe(false);
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it('keeps the list, and says nothing, when a quiet reload fails', async () => {
+        primeCommand('get_sessions', [mockSession], new Error('unreachable'));
+        const { result } = await ready();
+        vi.useFakeTimers();
+        try {
+          act(() => fakeBackend().emit(BACKEND_EVENTS.SESSIONS_CHANGED, {}));
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(300);
+          });
+        } finally {
+          vi.useRealTimers();
+        }
+
+        expect(calls('get_sessions')).toHaveLength(2);
+        expect(result.current.sessions).toHaveLength(1);
+        expect(mockShowError).not.toHaveBeenCalled();
+      });
+
+      it('drops a pending reload when unmounted', async () => {
+        const { unmount } = await ready();
+        vi.useFakeTimers();
+        try {
+          act(() => fakeBackend().emit(BACKEND_EVENTS.RESYNC, {}));
+          unmount();
+          await vi.advanceTimersByTimeAsync(300);
+        } finally {
+          vi.useRealTimers();
+        }
+
+        expect(calls('get_sessions')).toHaveLength(1);
+      });
+    });
+
+    describe('starting a timer', () => {
+      it('updates only its own session', async () => {
+        const other = { ...mockSession, id: 'session-2', taskName: 'Other' };
+        const mine = { ...mockSession, isActive: true, timerInstances: [mockTimerInstance] };
+        primeCommand('get_sessions', [mine, other]);
+        primeCommand('start_timer_instance', { ...mine, timerInstances: [running('instance-1')] });
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.startTimerInstance('instance-1');
+        });
+
+        expect(result.current.sessions[0].timerInstances[0].state).toBe(TimerState.running);
+        expect(result.current.sessions[1]).toEqual(other);
+      });
+
+      it('announces the timer it stopped by activating the session', async () => {
+        const elsewhere = { ...mockSession, id: 'session-2', taskName: 'Review', isActive: true,
+          timerInstances: [running('other', 'session-2')] };
+        const mine = { ...mockSession, timerInstances: [mockTimerInstance] };
+        primeCommand('get_sessions', [elsewhere, mine]);
+        primeCommand('start_timer_instance', new Error('Cannot start timer for inactive session'),
+          { ...mine, isActive: true, timerInstances: [running('instance-1')] });
+        primeCommand('set_active_session', [{ ...elsewhere, isActive: false, timerInstances: [] }, { ...mine, isActive: true }]);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.startTimerInstance('instance-1');
+        });
+
+        expect(mockShowInfo).toHaveBeenCalledWith('Stopped the running timer for "Review"', { category: 'timer' });
+        expect(result.current.activeSession?.id).toBe('session-1');
+      });
+
+      it('activates without a hand-off when the running timer is in the same session', async () => {
+        const mine = { ...mockSession, timerInstances: [running('other'), mockTimerInstance] };
+        primeCommand('get_sessions', [mine]);
+        primeCommand('start_timer_instance', new Error('Cannot start timer for inactive session'),
+          { ...mine, isActive: true });
+        primeCommand('set_active_session', [{ ...mine, isActive: true }]);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.startTimerInstance('instance-1');
+        });
+
+        expect(calls('set_active_session')).toHaveLength(1);
+        expect(mockShowInfo).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ['an inactive session it never listed', 'Cannot start timer for inactive session'],
+        ['another timer it never saw running', 'Another timer instance is already running'],
+      ])('gives up on %s', async (_, reason) => {
+        primeCommand('start_timer_instance', new Error(reason));
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.startTimerInstance('unknown');
+        });
+
+        expect(calls('start_timer_instance')).toHaveLength(1);
+        expect(mockShowError).toHaveBeenCalledWith(reason, { category: 'timer' });
+      });
+
+      it("gives up when the other timer can't be stopped", async () => {
+        const mine = { ...mockSession, isActive: true, timerInstances: [running('other'), mockTimerInstance] };
+        primeCommand('get_sessions', [mine]);
+        primeCommand('start_timer_instance', new Error('Another timer instance is already running'));
+        primeCommand('stop_timer_instance', new Error('disk full'));
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.startTimerInstance('instance-1');
+        });
+
+        expect(calls('start_timer_instance')).toHaveLength(1);
+        expect(mockShowError).toHaveBeenCalledWith('disk full', { category: 'timer' });
+        expect(mockShowInfo).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('starting a task', () => {
+      it('says it resumed the task, and whose timer it stopped', async () => {
+        primeCommand('start_task', { outcome: 'resumed', instanceId: 'i-1', stoppedTaskName: 'Review' });
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.startTask('task-1', 'Annotation');
+        });
+
+        expect(mockShowInfo).toHaveBeenCalledWith(
+          'Resumed "Annotation" — stopped the running timer for "Review"',
+          { category: 'timer' }
+        );
+      });
+    });
+
+    describe('deleting a timer', () => {
+      it('reports a failed delete without an Undo', async () => {
+        const stopped = { ...mockTimerInstance, state: TimerState.stopped, duration: 60_000 };
+        primeCommand('get_sessions', [{ ...mockSession, timerInstances: [stopped] }]);
+        primeCommand('delete_timer_instance', new Error('disk full'));
+        const { result } = await ready();
+
+        let deleted = true;
+        await act(async () => {
+          deleted = await result.current.deleteTimerInstance('instance-1');
+        });
+
+        expect(deleted).toBe(false);
+        expect(mockShowError).toHaveBeenCalledWith('disk full', { category: 'timer' });
+        expect(mockShowInfo).not.toHaveBeenCalled();
+      });
+
+      it('offers no Undo for a timer it never listed', async () => {
+        primeCommand('delete_timer_instance', mockSession);
+        const { result } = await ready();
+
+        await act(async () => {
+          await expect(result.current.deleteTimerInstance('unknown')).resolves.toBe(true);
+        });
+        expect(mockShowInfo).not.toHaveBeenCalled();
+      });
+
+      it('counts a finished timer without a duration as no time', async () => {
+        const ended = { ...mockTimerInstance, endTime: '2024-01-15T11:00:00Z' };
+        primeCommand('get_sessions', [{ ...mockSession, timerInstances: [ended] }]);
+        primeCommand('delete_timer_instance', mockSession);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.deleteTimerInstance('instance-1');
+        });
+        expect(mockShowInfo).toHaveBeenCalledWith('Deleted 0m from "Test Task"', expect.anything());
+      });
+    });
+
+    describe('editing a timer', () => {
+      it('reports no session for a timer it never listed', async () => {
+        const { result } = await ready();
+
+        let sessionId: string | null = 'x';
+        await act(async () => {
+          sessionId = await result.current.editTimerEntry('unknown', { updates: { duration: 60_000 } });
+        });
+        expect(sessionId).toBeNull();
+      });
+    });
+
+    describe('session notes', () => {
+      it('clears nothing for no sessions', async () => {
+        const { result } = await ready();
+        await expect(result.current.clearSessionNotes([])).resolves.toBe(0);
+        expect(calls('clear_session_notes')).toHaveLength(0);
+      });
+
+      it('reloads only when notes were cleared', async () => {
+        primeCommand('clear_session_notes', 2, 0);
+        const { result } = await ready();
+
+        await act(async () => {
+          await expect(result.current.clearSessionNotes(['session-1', 'session-2'])).resolves.toBe(2);
+        });
+        expect(calls('get_sessions')).toHaveLength(2);
+
+        await act(async () => {
+          await expect(result.current.clearSessionNotes(['session-1'])).resolves.toBe(0);
+        });
+        expect(calls('get_sessions')).toHaveLength(2);
+      });
+    });
+
+    describe('deleting a session', () => {
+      it("counts the timers, and doesn't restore a session that came back", async () => {
+        const stopped = { ...mockTimerInstance, state: TimerState.stopped, duration: 60_000 };
+        const withTwo = {
+          ...mockSession,
+          timerInstances: [stopped, { ...stopped, id: 'instance-2' }],
+          totalDuration: 120_000,
+        };
+        primeCommand('get_sessions', [withTwo], [withTwo]);
+        primeCommand('delete_session', withTwo);
+        primeCommand('restore_session', withTwo);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.deleteSession('session-1');
+        });
+        expect(mockShowInfo).toHaveBeenCalledWith('Deleted the "Test Task" session (2 timers, 2m)', expect.anything());
+
+        // Back already (another device restored it, and a reload brought it
+        // in): Undo adds no second copy
+        primeCommand('clear_session_notes', 1);
+        await act(async () => {
+          await result.current.clearSessionNotes(['session-1']);
+        });
+        expect(result.current.sessions).toHaveLength(1);
+        const [, { actions }] = mockShowInfo.mock.calls[0];
+        await act(async () => {
+          await actions[0].onClick();
+        });
+        expect(calls('restore_session')).toHaveLength(1);
+        expect(result.current.sessions).toHaveLength(1);
+      });
+
+      it('names no timers for a session without any', async () => {
+        primeCommand('get_sessions', [mockSession]);
+        primeCommand('delete_session', mockSession);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.deleteSession('session-1');
+        });
+        expect(mockShowInfo).toHaveBeenCalledWith('Deleted the "Test Task" session', expect.anything());
+      });
+    });
+
+    describe('activating a session', () => {
+      it("announces no hand-off when nothing was running elsewhere", async () => {
+        primeCommand('get_sessions', [mockSession]);
+        primeCommand('set_active_session', [{ ...mockSession, isActive: true }]);
+        const { result } = await ready();
+
+        await act(async () => {
+          await expect(result.current.setActiveSession(mockSession)).resolves.toBe(true);
+        });
+        expect(result.current.activeSession?.id).toBe('session-1');
+        expect(mockShowInfo).not.toHaveBeenCalled();
+      });
+
+      it('reports a failed change', async () => {
+        primeCommand('set_active_session', new Error('disk full'));
+        const { result } = await ready();
+
+        await act(async () => {
+          await expect(result.current.setActiveSession(mockSession)).resolves.toBe(false);
+        });
+        expect(mockShowError).toHaveBeenCalledWith('disk full', { category: 'timer' });
+      });
+    });
+
+    describe('ending the active session', () => {
+      it('does nothing without one', async () => {
+        const { result } = await ready();
+        await act(async () => {
+          await result.current.endActiveSession();
+        });
+        expect(calls('set_active_session')).toHaveLength(0);
+      });
+
+      it('stops only its live timers, then deactivates it', async () => {
+        const stopped = { ...mockTimerInstance, id: 'done', state: TimerState.stopped, duration: 60_000 };
+        const active = { ...mockSession, isActive: true, timerInstances: [stopped, running('live')] };
+        primeCommand('get_sessions', [active]);
+        primeCommand('stop_timer_instance', { ...active, timerInstances: [stopped, { ...stopped, id: 'live' }] });
+        primeCommand('set_active_session', [{ ...active, isActive: false }]);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.endActiveSession();
+        });
+
+        expect(calls('stop_timer_instance').map(([, args]) => args)).toEqual([{ instanceId: 'live' }]);
+        expect(result.current.activeSession).toBeNull();
+      });
+
+      it("stays active when a timer can't be stopped", async () => {
+        const active = { ...mockSession, isActive: true, timerInstances: [running('live')] };
+        primeCommand('get_sessions', [active]);
+        primeCommand('stop_timer_instance', new Error('disk full'));
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.endActiveSession();
+        });
+
+        expect(mockShowError).toHaveBeenCalledWith('Session not ended: a timer could not be stopped.', {
+          category: 'session',
+        });
+        expect(calls('set_active_session')).toHaveLength(0);
+        expect(result.current.activeSession?.id).toBe('session-1');
+        expect(result.current.isLoading).toBe(false);
+      });
+    });
+
+    describe('pausing and resuming the active session', () => {
+      it('does nothing without an active session', async () => {
+        primeCommand('get_sessions', [{ ...mockSession, timerInstances: [running('a'), paused('b', null)] }]);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.pauseAllTimersInActiveSession();
+          await result.current.resumeAllTimersInActiveSession();
+        });
+        expect(calls('pause_timer_instance')).toHaveLength(0);
+        expect(calls('resume_timer_instance')).toHaveLength(0);
+      });
+
+      it('pauses each running timer', async () => {
+        const active = { ...mockSession, isActive: true, timerInstances: [running('a'), mockTimerInstance] };
+        primeCommand('get_sessions', [active]);
+        primeCommand('pause_timer_instance', { ...active, timerInstances: [paused('a', null), mockTimerInstance] });
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.pauseAllTimersInActiveSession();
+        });
+
+        expect(calls('pause_timer_instance').map(([, args]) => args)).toEqual([{ instanceId: 'a' }]);
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      it('resumes the timer paused last', async () => {
+        const active = {
+          ...mockSession,
+          isActive: true,
+          timerInstances: [
+            paused('never-said', null),
+            paused('latest', '2024-01-15T12:00:00Z'),
+            paused('earlier', '2024-01-15T11:00:00Z'),
+            paused('also-unsaid', null),
+          ],
+        };
+        primeCommand('get_sessions', [active]);
+        primeCommand('resume_timer_instance', active);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.resumeAllTimersInActiveSession();
+        });
+
+        expect(calls('resume_timer_instance').map(([, args]) => args)).toEqual([{ instanceId: 'latest' }]);
+      });
+
+      it('resumes nothing when none is paused', async () => {
+        primeCommand('get_sessions', [{ ...mockSession, isActive: true, timerInstances: [running('a')] }]);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.resumeAllTimersInActiveSession();
+        });
+        expect(calls('resume_timer_instance')).toHaveLength(0);
       });
     });
   });

@@ -8,7 +8,7 @@ import { STORAGE_KEYS } from '../../constants';
 import { Task } from '../../types/task';
 import { TaskSession, TimerState } from '../../types/timer';
 import { formatDateString } from '../../utils/dateHelpers';
-import { seedAppRecords } from '../../testing';
+import { announceAppRecordsChange, fakeBackend, seedAppRecords } from '../../testing';
 import { readAppRecord } from '../../services/appRecords';
 
 const mockNotify = vi.hoisted(() => vi.fn(() => 'toast-1'));
@@ -50,7 +50,7 @@ function runningFor(hours: number): TaskSession[] {
   ];
 }
 
-function storeGoal(targetAmount: number) {
+function storeGoal(targetAmount: number, lastNotificationDate = formatDateString(new Date())) {
   const now = new Date().toISOString();
   seedAppRecords({
     [STORAGE_KEYS.DAILY_GOAL]: {
@@ -58,7 +58,7 @@ function storeGoal(targetAmount: number) {
       currency: 'USD',
       isEnabled: true,
       lastNotifiedPercent: 0,
-      lastNotificationDate: formatDateString(new Date()),
+      lastNotificationDate,
       createdAt: now,
       updatedAt: now,
     },
@@ -211,6 +211,50 @@ describe('goal notifications', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('starts each day over, without a notification on its first check', async () => {
+    mockNotify.mockClear();
+    storeGoal(100, '2020-01-01');
+    const { result } = renderHook(
+      () => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(1), tasks }), goals: useDailyGoals() }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.goals.currentGoal?.lastNotificationDate).toBe(formatDateString(new Date())));
+  });
+
+  it('saves a day as hit at its target, and exceeded past it', async () => {
+    storeGoal(60);
+    const today = formatDateString(new Date());
+    const hit = renderHook(() => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(1), tasks }), goals: useDailyGoals() }), { wrapper });
+    await waitFor(() => expect(hit.result.current.goals.achievements.find(r => r.date === today)?.status).toBe('hit'));
+    hit.unmount();
+
+    storeGoal(60);
+    const exceeded = renderHook(() => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(2), tasks }), goals: useDailyGoals() }), { wrapper });
+    await waitFor(() => expect(exceeded.result.current.goals.achievements.find(r => r.date === today)?.status).toBe('exceeded'));
+  });
+
+  it("doesn't send a milestone again when its save fails and the goal goes back", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockNotify.mockClear();
+    storeGoal(100);
+    fakeBackend().call.mockImplementation(async (command: string) => {
+      if (command === 'set_app_record') throw new Error('disk full');
+      return undefined;
+    });
+    const { result } = renderHook(
+      () => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(1), tasks }), goals: useDailyGoals() }),
+      { wrapper }
+    );
+    await waitFor(() => expect(mockNotify).toHaveBeenCalledTimes(1));
+    // The failed save left the stored goal as it was, and the page reads it again
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      announceAppRecordsChange({ keys: [STORAGE_KEYS.DAILY_GOAL], conflict: false });
+    });
+    await waitFor(() => expect(result.current.goals.currentGoal?.lastNotifiedPercent).toBe(0));
+    expect(mockNotify).toHaveBeenCalledTimes(1);
   });
 
   it("doesn't send a milestone twice while the first one is still being saved", async () => {

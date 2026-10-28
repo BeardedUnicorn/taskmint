@@ -14,8 +14,7 @@ import {
   BackupResult,
   BackupFrequency,
   DEFAULT_BACKUP_CONFIG,
-  isBackupDue,
-  getNextBackupTime
+  isBackupDue
 } from '../types/backup';
 import { getBackend } from '../backend';
 import type { FolderBackupPlatform } from '../backend';
@@ -96,27 +95,11 @@ export function useBackupSettings() {
     };
   }, [setConfig]);
 
-  const [status, setStatus] = useState<BackupStatus>({
-    isRunning: false,
-    lastBackupTime: config.lastBackupTime,
-    lastBackupSuccess: undefined,
-    lastBackupError: undefined,
-  });
+  const [status, setStatus] = useState<BackupStatus>({ isRunning: false });
 
   const { createBackupData } = useDataBackup({});
   const { notify, showError } = useNotification();
   const [notificationPreferences] = useNotificationPreferences();
-
-  // Update status when config changes
-  useEffect(() => {
-    setStatus(prev => ({
-      ...prev,
-      lastBackupTime: config.lastBackupTime,
-      nextScheduledBackup: config.enabled && config.lastBackupTime 
-        ? getNextBackupTime(config.frequency, config.lastBackupTime).toISOString()
-        : undefined,
-    }));
-  }, [config]);
 
   // Ask for the backup folder (null when cancelled)
   const selectBackupDirectory = useCallback(async (): Promise<string | null> => {
@@ -131,49 +114,21 @@ export function useBackupSettings() {
     }
   }, [showError]);
 
-  // Update backup configuration
-  const updateConfig = useCallback((updates: Partial<BackupConfig>) => {
-    setConfig(prev => ({ ...prev, ...updates }));
-  }, [setConfig]);
-
-  // Enable/disable automatic backups
   const toggleEnabled = useCallback(() => {
     setConfig(prev => ({ ...prev, enabled: !prev.enabled }));
   }, [setConfig]);
 
-  // Update backup frequency
   const updateFrequency = useCallback((frequency: BackupFrequency) => {
     setConfig(prev => ({ ...prev, frequency }));
   }, [setConfig]);
 
-  // Update backup path
   const updateBackupPath = useCallback((backupPath: string) => {
     setConfig(prev => ({ ...prev, backupPath }));
   }, [setConfig]);
 
-  // Update max backups
   const updateMaxBackups = useCallback((maxBackups: number) => {
     setConfig(prev => ({ ...prev, maxBackups }));
   }, [setConfig]);
-
-  // Validate backup path
-  const validateBackupPath = useCallback(async (path: string): Promise<{ isValid: boolean; error?: string }> => {
-    if (!path || path.trim() === '') {
-      return { isValid: false, error: 'Backup path cannot be empty' };
-    }
-
-    try {
-      return await folderBackups().validateFolder(path.trim());
-    } catch (error) {
-      return { isValid: false, error: errorMessage(error, 'Failed to validate backup path') };
-    }
-  }, []);
-
-  const failed = (error: string): BackupResult => ({
-    success: false,
-    error,
-    timestamp: new Date().toISOString(),
-  });
 
   /**
    * Back up now. A manual backup reports either way; an automatic one is
@@ -183,30 +138,29 @@ export function useBackupSettings() {
    * app is in the background.
    */
   const performBackup = useCallback(async (trigger: BackupTrigger): Promise<BackupResult> => {
-    const report = (result: BackupResult) => {
-      if (result.success) {
-        writeLocal<FailureNotice | null>(BACKUP_FAILURE_NOTICE_KEY, null, null);
-        if (trigger === 'manual') {
-          notify({
-            severity: 'success',
-            category: 'backup',
-            message: result.filePath ? `Backed up to ${result.filePath}` : 'Backup saved',
-            actions: revealAction(result.filePath),
-            desktop: 'never',
-          });
-        } else if (notificationPreferences.backupSuccess) {
-          notify({
-            severity: 'success',
-            category: 'backup',
-            title: 'Automatic backup saved',
-            message: result.filePath ?? 'Your data was backed up.',
-            actions: revealAction(result.filePath),
-          });
-        }
-        return result;
+    const succeeded = (result: BackupResult): BackupResult => {
+      writeLocal<FailureNotice | null>(BACKUP_FAILURE_NOTICE_KEY, null, null);
+      if (trigger === 'manual') {
+        notify({
+          severity: 'success',
+          category: 'backup',
+          message: result.filePath ? `Backed up to ${result.filePath}` : 'Backup saved',
+          actions: revealAction(result.filePath),
+          desktop: 'never',
+        });
+      } else if (notificationPreferences.backupSuccess) {
+        notify({
+          severity: 'success',
+          category: 'backup',
+          title: 'Automatic backup saved',
+          message: result.filePath ?? 'Your data was backed up.',
+          actions: revealAction(result.filePath),
+        });
       }
+      return result;
+    };
 
-      const reason = result.error || 'Backup failed for an unknown reason';
+    const failedWith = (reason: string): BackupResult => {
       if (trigger === 'manual') {
         notify({
           severity: 'error',
@@ -230,63 +184,38 @@ export function useBackupSettings() {
       } else {
         console.warn('Automatic backup failed again:', reason);
       }
-      return result;
+      return { success: false, error: reason, timestamp: new Date().toISOString() };
     };
 
-    if (!config.backupPath) {
-      return report(failed('No backup folder selected'));
-    }
-    const validation = await validateBackupPath(config.backupPath);
-    if (!validation.isValid) {
-      const reason = validation.error || 'The backup folder is not usable';
-      setStatus(prev => ({ ...prev, lastBackupSuccess: false, lastBackupError: reason }));
-      return report(failed(reason));
-    }
+    const folder = config.backupPath.trim();
+    if (!folder) return failedWith('No backup folder selected');
 
     setStatus(prev => ({ ...prev, isRunning: true }));
-
     try {
+      const validation = await folderBackups().validateFolder(folder);
+      if (!validation.isValid) throw new Error(validation.error || 'The backup folder is not usable');
+
       // Create backup data (async — stringifying the pending promise would
       // write "{}" as the backup file)
       const backupData = await createBackupData();
-      const backupJson = JSON.stringify(backupData, null, 2);
-
       const result = await folderBackups().write({
-        folder: config.backupPath,
-        contents: backupJson,
+        folder,
+        contents: JSON.stringify(backupData, null, 2),
         maxBackups: config.maxBackups,
       });
+      if (!result.success) throw new Error(result.error || 'Backup failed for an unknown reason');
 
       // Only a successful backup resets the schedule; a failed one stays
       // due and is retried on the next check.
-      const now = new Date().toISOString();
-      if (result.success) {
-        setConfig(prev => ({ ...prev, lastBackupTime: now }));
-      }
-
-      setStatus(prev => ({
-        ...prev,
-        isRunning: false,
-        lastBackupTime: result.success ? now : prev.lastBackupTime,
-        lastBackupSuccess: result.success,
-        lastBackupError: result.success ? undefined : result.error,
-        nextScheduledBackup: config.enabled && result.success
-          ? getNextBackupTime(config.frequency, now).toISOString()
-          : prev.nextScheduledBackup,
-      }));
-
-      return report(result);
+      setConfig(prev => ({ ...prev, lastBackupTime: new Date().toISOString() }));
+      setStatus({ isRunning: false, lastBackupSuccess: true });
+      return succeeded(result);
     } catch (error) {
-      const message = errorMessage(error, 'Unknown error occurred during backup');
-      setStatus(prev => ({
-        ...prev,
-        isRunning: false,
-        lastBackupSuccess: false,
-        lastBackupError: message,
-      }));
-      return report(failed(message));
+      const reason = errorMessage(error, 'Unknown error occurred during backup');
+      setStatus({ isRunning: false, lastBackupSuccess: false, lastBackupError: reason });
+      return failedWith(reason);
     }
-  }, [config, createBackupData, setConfig, validateBackupPath, notify, notificationPreferences.backupSuccess]);
+  }, [config, createBackupData, setConfig, notify, notificationPreferences.backupSuccess]);
 
   // Retry buttons call the latest version (the config may have changed since)
   const performBackupRef = useRef(performBackup);
@@ -296,73 +225,28 @@ export function useBackupSettings() {
 
   const performManualBackup = useCallback(() => performBackup('manual'), [performBackup]);
 
-  // Check if backup is due
-  const checkBackupDue = useCallback((): boolean => {
-    return isBackupDue(config);
-  }, [config]);
-
-  // Perform automatic backup if due
   const performAutomaticBackupIfDue = useCallback(async (): Promise<BackupResult | null> => {
-    if (!checkBackupDue()) {
-      return null;
-    }
+    if (!isBackupDue(config)) return null;
+    return performBackup('automatic');
+  }, [config, performBackup]);
 
-    return await performBackup('automatic');
-  }, [checkBackupDue, performBackup]);
-
-  // Reset backup configuration
-  const resetConfig = useCallback(() => {
-    setConfig(DEFAULT_BACKUP_CONFIG);
-    setStatus({
-      isRunning: false,
-      lastBackupTime: undefined,
-      lastBackupSuccess: undefined,
-      lastBackupError: undefined,
-      nextScheduledBackup: undefined,
-    });
-  }, [setConfig]);
-
-  // Get backup status summary
   const getStatusSummary = useCallback((): string => {
-    if (!config.enabled) {
-      return 'Automatic backups are disabled';
-    }
-
-    if (status.isRunning) {
-      return 'Backup in progress...';
-    }
-
-    if (!config.backupPath) {
-      return 'No backup directory selected';
-    }
-
-    if (!status.lastBackupTime) {
-      return 'No backups performed yet';
-    }
-
-    if (status.lastBackupSuccess === false) {
-      return `Last backup failed: ${status.lastBackupError || 'Unknown error'}`;
-    }
-
-    const lastBackup = new Date(status.lastBackupTime);
-    const nextBackup = status.nextScheduledBackup ? new Date(status.nextScheduledBackup) : null;
-    
-    if (nextBackup && nextBackup <= new Date()) {
-      return 'Backup is due';
-    }
-
-    return `Last backup: ${formatDateTime(lastBackup)}`;
+    if (!config.enabled) return 'Automatic backups are disabled';
+    if (status.isRunning) return 'Backup in progress...';
+    if (!config.backupPath) return 'No backup directory selected';
+    if (status.lastBackupSuccess === false) return `Last backup failed: ${status.lastBackupError}`;
+    if (!config.lastBackupTime) return 'No backups performed yet';
+    if (isBackupDue(config)) return 'Backup is due';
+    return `Last backup: ${formatDateTime(new Date(config.lastBackupTime))}`;
   }, [config, status]);
 
   return useMemo(() => ({
     // Configuration
     config,
-    updateConfig,
     toggleEnabled,
     updateFrequency,
     updateBackupPath,
     updateMaxBackups,
-    resetConfig,
 
     // Status
     status,
@@ -372,11 +256,8 @@ export function useBackupSettings() {
     selectBackupDirectory,
     performManualBackup,
     performAutomaticBackupIfDue,
-    checkBackupDue,
-    validateBackupPath,
   }), [
-    config, updateConfig, toggleEnabled, updateFrequency, updateBackupPath, updateMaxBackups,
-    resetConfig, status, getStatusSummary, selectBackupDirectory, performManualBackup,
-    performAutomaticBackupIfDue, checkBackupDue, validateBackupPath,
+    config, toggleEnabled, updateFrequency, updateBackupPath, updateMaxBackups,
+    status, getStatusSummary, selectBackupDirectory, performManualBackup, performAutomaticBackupIfDue,
   ]);
 }

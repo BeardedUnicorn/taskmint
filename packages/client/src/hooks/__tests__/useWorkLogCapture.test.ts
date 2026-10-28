@@ -353,6 +353,93 @@ describe('useWorkLogCapture', () => {
     expect(mockNotify).not.toHaveBeenCalled();
   });
 
+  it('counts days, tasks and unreadable records in the plural', async () => {
+    const entry = (id: string, projectId: string, name: string, createdAt: string) => ({
+      type: 'TimedWorkEntry',
+      id,
+      createdAt,
+      timeInMinutes: 240,
+      reportedTimeInMinutes: null,
+      status: 'Pending Approval',
+      amountInCents: 30000,
+      project: { id: projectId, name, hasHourlyPrice: true },
+    });
+    const payload = JSON.stringify({
+      workLogs: [],
+      timedWorkEntries: [
+        entry('e1', 'proj-1', 'Raccoon - SWE', CREATED_AT),
+        entry('e2', 'proj-2', 'Otter - QA', '2026-08-27T20:00:00.000Z'),
+        { type: 'TimedWorkEntry', id: 'broken-1' },
+        { type: 'TimedWorkEntry', id: 'broken-2' },
+      ],
+    });
+    takeQueue.push(capture(payload));
+    const deps = makeDeps({
+      tasks: [
+        createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 50 }),
+        createMockTask({ id: 'task-2', name: 'Otter - QA', hourlyRate: 50 }),
+      ],
+      applyImport: vi.fn(async () => ({
+        ...appliedSummary,
+        entriesAdded: 2,
+        groupsApplied: [appliedSummary.groupsApplied[0], { ...appliedSummary.groupsApplied[0], taskId: 'task-2' }],
+      })),
+    });
+
+    renderHook(() => useWorkLogCapture(deps));
+
+    await waitFor(() => expect(notified('success')).toHaveLength(1));
+    expect(notified('success')[0].message).toBe('2 new, 0 updated, 2 days rewritten · rates updated for 2 tasks.');
+    expect(mockShowWarning).toHaveBeenCalledWith('2 captured records could not be read and will be skipped.', {
+      category: 'workLog',
+      desktop: 'never',
+    });
+  });
+
+  it('says one unreadable record in the singular, and ignores a capture with nothing in it', async () => {
+    const oneBroken = JSON.parse(samplePayloadText);
+    oneBroken.timedWorkEntries.push({ type: 'TimedWorkEntry', id: 'broken' });
+    takeQueue.push(capture(JSON.stringify(oneBroken)));
+    const deps = makeDeps();
+    renderHook(() => useWorkLogCapture(deps));
+    await waitFor(() =>
+      expect(mockShowWarning).toHaveBeenCalledWith('1 captured record could not be read and will be skipped.', expect.anything())
+    );
+
+    vi.clearAllMocks();
+    takeQueue.push(capture('{}'));
+    const empty = makeDeps();
+    renderHook(() => useWorkLogCapture(empty));
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalled());
+    await act(async () => {});
+    expect(empty.applyImport).not.toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
+  });
+
+  it('points to Payouts when a failure says nothing', async () => {
+    takeQueue.push(capture(samplePayloadText));
+    renderHook(() => useWorkLogCapture(makeDeps({ applyImport: vi.fn(async () => Promise.reject('')) })));
+    await waitFor(() => expect(notified('error')[0]?.message).toBe('Open Payouts to try again.'));
+  });
+
+  it('takes a capture that arrives mid-import once the import is done', async () => {
+    let finish: (summary: WorkLogImportSummary) => void = () => {};
+    const deps = makeDeps({ applyImport: vi.fn(() => new Promise<WorkLogImportSummary>(resolve => (finish = resolve))) });
+    takeQueue.push(capture(samplePayloadText));
+    renderHook(() => useWorkLogCapture(deps));
+    await waitFor(() => expect(deps.applyImport).toHaveBeenCalledTimes(1));
+
+    takeQueue.push(null);
+    await fireCaptureEvent();
+    // Still importing: the event waits
+    expect(mockInvoke.mock.calls.filter(([command]) => command === 'take_pending_work_log_capture')).toHaveLength(1);
+
+    await act(async () => finish(appliedSummary));
+    await waitFor(() =>
+      expect(mockInvoke.mock.calls.filter(([command]) => command === 'take_pending_work_log_capture')).toHaveLength(2)
+    );
+  });
+
   it('reports a failure while processing, with a way to Payouts', async () => {
     takeQueue.push(capture(samplePayloadText));
     const deps = makeDeps({ applyImport: vi.fn(async () => Promise.reject(new Error('locked'))) });

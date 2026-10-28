@@ -19,13 +19,12 @@ export interface BackupConfig {
   lastBackupTime?: string;
 }
 
-// Backup status interface
+/** This run of the app's latest backup (when it was is the config's lastBackupTime). */
 export interface BackupStatus {
   isRunning: boolean;
-  lastBackupTime?: string;
   lastBackupSuccess?: boolean;
+  /** Why the latest backup failed; set whenever lastBackupSuccess is false. */
   lastBackupError?: string;
-  nextScheduledBackup?: string;
 }
 
 // Backup result interface

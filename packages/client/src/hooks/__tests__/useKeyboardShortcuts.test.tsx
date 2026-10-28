@@ -91,8 +91,11 @@ describe('useKeyboardShortcuts', () => {
     expect(result.current.params).toEqual({ intent: 'new-task' });
   });
 
-  it('opens the palette', () => {
-    setup();
+  it('opens the palette, and leaves other keys alone', () => {
+    const { result } = setup();
+    ctrl('x');
+    fireEvent.keyDown(window, { key: '2' });
+    expect(result.current.view).toBe('sessions');
     ctrl('k');
     expect(onTogglePalette).toHaveBeenCalledTimes(1);
   });
