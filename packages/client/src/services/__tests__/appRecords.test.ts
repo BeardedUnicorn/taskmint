@@ -233,6 +233,40 @@ describe('appRecords', () => {
     expect(readAppRecord('predefinedTasks')).toEqual(tasks);
   });
 
+  it("brings back a record whose removal failed, but not over a newer write", async () => {
+    fakeAppData({ predefinedTasks: tasks });
+    await loadAppRecords({ importLegacy: false });
+    mockInvoke.mockRejectedValueOnce(new Error('disk full'));
+    await expect(writeAppRecord('predefinedTasks', null)).rejects.toThrow('disk full');
+    expect(readAppRecord('predefinedTasks')).toEqual(tasks);
+    // A record that wasn't there isn't there after a failed first save
+    mockInvoke.mockRejectedValueOnce(new Error('disk full'));
+    await expect(writeAppRecord('dailyGoal', { targetAmount: 1 })).rejects.toThrow('disk full');
+    expect(readAppRecord('dailyGoal')).toBeUndefined();
+
+    // The first write fails after a second one replaced its value
+    mockInvoke.mockImplementationOnce(async () => {
+      throw new Error('disk full');
+    });
+    const failed = writeAppRecord('predefinedTasks', []);
+    void writeAppRecord('predefinedTasks', [{ id: 't3', name: 'Later' }]).catch(() => {});
+    await expect(failed).rejects.toThrow('disk full');
+    expect(readAppRecord('predefinedTasks')).toEqual([{ id: 't3', name: 'Later' }]);
+  });
+
+  it("carries on when it can't list what's in localStorage", async () => {
+    fakeAppData({ predefinedTasks: tasks });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    window.localStorage.setItem('timeEntries', '[]');
+    vi.mocked(window.localStorage.key).mockImplementationOnce(() => {
+      throw new Error('SecurityError');
+    });
+    await loadAppRecords({ importLegacy: true });
+    expect(error).toHaveBeenCalledWith('Failed to remove retired localStorage keys:', expect.any(Error));
+    expect(readAppRecord('predefinedTasks')).toEqual(tasks);
+    error.mockRestore();
+  });
+
   describe('changes made elsewhere', () => {
     /** Another tab saves `key`: the stored record and its revision move on. */
     function savedElsewhere(file: ReturnType<typeof fakeAppData>, key: string, value: unknown) {

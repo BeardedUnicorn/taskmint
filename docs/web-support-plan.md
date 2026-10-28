@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript) and P13b (the extension's server target) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target) and P14a (client utils, services, types and theme at 100%) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -521,6 +521,27 @@ Device settings (theme, filters, backup schedule, idle) stay in localStorage, pe
   - Desktop: `tauri::test::mock_builder` + `get_ipc_response`, `FakePlatform`, an in-memory `SecretStore`, and the capture server on port 0.
   - Infrastructure error paths use the `fail` crate's failpoints (a `failpoints` feature, serial tests). A TRACE-level test logger covers the `log`/`tracing` macro regions.
   - Shared `testkit` conformance scenarios run against core in memory, desktop `LocalBackend` on a temp directory, and the server over HTTP. This gives parity without async/sync trait gymnastics.
+
+**As built in P14a:**
+- **Gate:** `src/utils/**`, `src/services/**`, `src/types/**` and `src/theme/**` in `packages/client` are held at 100% through the preset's new `fullyCovered` globs. The client's global floors went up to 77/79/84/83 (actual 78.1/80.0/84.9/84.2 across 1121 tests).
+- **Deleted, unused:** `getChartTheme`, `ServiceErrorHandler.logWarning`, sentry's `captureMessage`/`setUser`/`setTag` and its `Sentry` re-export, `TaskService.getTask`, and `StorageService`'s private `createBackup`.
+- **Deleted, unreachable:**
+  - `Error.captureStackTrace` in `AppError`.
+  - `localStore`'s `typeof window` guard, and its two version checks that can't fail.
+  - `dataMigration`'s migration loop and its test-only logging forks.
+  - `planWorkLogImport`'s second "empty" check.
+  - `isAlreadyConverged`'s `bucketSize` (an imported session's timers all sit on its day).
+  - `updateTask`'s second read of the tasks.
+  - The payout cells' `?? 0` on fields that are required.
+- **Fixed on the way:**
+  - The History charts sorted weeks by labels with no year ("Jan 01"). They now sort weeks and months by their ISO keys.
+  - The release schedule ordered same-day releases by time text ("10:00 AM" before "9:00 AM"). It now orders by `releaseMs`.
+  - `StorageService` wrote device settings unversioned, so each read made a backup and wrapped them again. They now go through `localStore`, and a value that can't be read falls back to the default instead of throwing.
+- **Simplified:**
+  - `summarizePayouts` takes the schedule; the app always passed one.
+  - `buildReleaseSchedule` has one path for entries and estimates.
+  - `errorHandler` and sentry's unhandled-rejection handler use `errorMessage` for whatever was thrown.
+  - Backup frequency labels are a lookup table.
 
 ## 9. CI (`.github/workflows/ci.yml`)
 

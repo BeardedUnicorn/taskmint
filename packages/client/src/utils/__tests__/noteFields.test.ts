@@ -90,6 +90,10 @@ describe('validateFieldValues', () => {
       l: 'Long must be at most 3 characters',
     });
     expect(validateFieldValues(fields, { n: 0, t: 'ABC', l: 'ab' })).toEqual({ n: 'Count must be at least 1' });
+
+    const short = [field({ id: 's', type: 'text', label: 'Summary', validation: { min: 5 } })];
+    expect(validateFieldValues(short, { s: 'abc' })).toEqual({ s: 'Summary must be at least 5 characters' });
+    expect(validateFieldValues(short, { s: 12345 })).toEqual({ s: 'Summary must be text' });
   });
 
   it('checks dates, checkboxes and select options', () => {

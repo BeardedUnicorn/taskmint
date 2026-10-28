@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { noteText, sessionNoteId, sessionNotesToTaskNotes } from '../notes';
+import { newestFirst, noteText, sessionNoteId, sessionNotesToTaskNotes } from '../notes';
 import { TaskNoteSchema, TaskNote } from '../../types/notes';
 import { Task } from '../../types/task';
 import { TaskSession } from '../../types/timer';
@@ -55,6 +55,16 @@ describe('sessionNotesToTaskNotes', () => {
     expect(notes.map(note => [note.sessionId, note.taskId])).toEqual([['s-2', 'task-2']]);
   });
 
+  it("dates the note now when the session's own dates are missing or unreadable", () => {
+    const now = '2026-10-27T12:00:00.000Z';
+    const [note] = sessionNotesToTaskNotes(
+      [session({ notes: 'text', createdAt: '', updatedAt: 'not a date' })],
+      tasks,
+      now
+    );
+    expect([note.createdAt, note.updatedAt]).toEqual([now, now]);
+  });
+
   it('gives a session the same note id every time', () => {
     const first = sessionNotesToTaskNotes([session({ notes: 'a' })], tasks);
     const again = sessionNotesToTaskNotes([session({ notes: 'a' })], tasks);
@@ -77,5 +87,15 @@ describe('noteText', () => {
     expect(noteText(note({ content: 'hello' }))).toBe('hello');
     expect(noteText(note({ a: 'Batch 7', b: '', c: 12, d: true, e: null }))).toBe('Batch 7 · 12');
     expect(noteText(note({}))).toBe('');
+    expect(noteText(note({ a: Number.NaN, b: Infinity }))).toBe('');
+    expect(noteText({ ...note({}), fieldValues: undefined } as unknown as TaskNote)).toBe('');
+  });
+});
+
+describe('newestFirst', () => {
+  it('sorts by the last edit, newest first', () => {
+    const at = (id: string, updatedAt: string) => ({ id, updatedAt }) as TaskNote;
+    const sorted = [at('old', '2026-10-01T00:00:00Z'), at('new', '2026-10-03T00:00:00Z'), at('mid', '2026-10-02T00:00:00Z')].sort(newestFirst);
+    expect(sorted.map(n => n.id)).toEqual(['new', 'mid', 'old']);
   });
 });

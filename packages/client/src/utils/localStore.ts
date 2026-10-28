@@ -10,7 +10,7 @@
  * older unversioned values are migrated (with a backup) on first read.
  */
 
-import { migrateData, createBackup, needsMigration } from './dataMigration';
+import { migrateData, createBackup, needsMigration, type VersionedData } from './dataMigration';
 
 type Listener = () => void;
 
@@ -22,12 +22,12 @@ function parseStored(key: string, raw: string): { raw: string; value: unknown } 
   if (parsed === null) return { raw, value: null };
   if (needsMigration(parsed)) {
     createBackup(key, parsed);
-    const migrated = migrateData(key, parsed);
+    const migrated: VersionedData = migrateData(key, parsed);
     const migratedRaw = JSON.stringify(migrated);
     window.localStorage.setItem(key, migratedRaw);
-    return { raw: migratedRaw, value: migrated?.version ? migrated.data : migrated };
+    return { raw: migratedRaw, value: migrated.data };
   }
-  return { raw, value: parsed.version ? parsed.data : parsed };
+  return { raw, value: parsed.data };
 }
 
 /** The stored value for `key`, or `initial` when there is none or it can't be read. */
@@ -90,13 +90,12 @@ function notify(key: string): void {
   listeners.get(key)?.forEach(listener => listener());
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', event => {
-    if (event.key === null) {
-      // clear(): every key may have changed
-      listeners.forEach((_, key) => notify(key));
-    } else {
-      notify(event.key);
-    }
-  });
-}
+// Writes from other windows
+window.addEventListener('storage', event => {
+  if (event.key === null) {
+    // clear(): every key may have changed
+    listeners.forEach((_, key) => notify(key));
+  } else {
+    notify(event.key);
+  }
+});

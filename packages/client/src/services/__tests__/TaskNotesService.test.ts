@@ -290,5 +290,30 @@ describe('TaskNotesService', () => {
       expect(result.isArchived).toBe(true);
       expect(result.archivedAt).toBe('2023-01-02T00:00:00.000Z');
     });
+
+    it("refuses a template that's gone, values the template rejects, and a note the schema rejects", async () => {
+      mockTemplateService.getTemplateById.mockResolvedValueOnce(null);
+      await expect(service.updateNote('note1', { fieldValues: { field1: 'x' } })).rejects.toThrow('Template with ID template1 not found');
+      await expect(service.updateNote('note1', { fieldValues: { field1: '' } })).rejects.toThrow('Note validation failed: Test Field is required');
+      await expect(service.updateNote('note1', { taskId: '' })).rejects.toThrow(/^Note schema validation failed/);
+      expect(mockStorageService.setTaskNotes).not.toHaveBeenCalled();
+    });
+  });
+
+  it('refuses a new note the schema rejects', async () => {
+    const freeForm = {
+      taskId: '',
+      templateId: 'free-form',
+      templateName: 'Note',
+      fieldValues: { content: 'hello' },
+      timeEntryId: null,
+      isArchived: false,
+      archivedAt: null,
+    };
+    await expect(service.createNote(freeForm)).rejects.toThrow(/^Note schema validation failed/);
+  });
+
+  it('refuses to delete a note that is not there', async () => {
+    await expect(service.deleteNote('missing')).rejects.toThrow('Note with ID missing not found');
   });
 });

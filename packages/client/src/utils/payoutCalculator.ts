@@ -151,15 +151,8 @@ export function buildPayoutCells(
     let releaseTime: string | undefined;
     let releaseIso: string | undefined;
     if (hasTimedImport) {
-      const latestTimed = timed.reduce((latest, e) => {
-        if (!latest) return e;
-        return e.createdAt > latest.createdAt ? e : latest;
-      }, timed[0]);
-      if (
-        latestTimed?.createdAt &&
-        !isNaN(Date.parse(latestTimed.createdAt)) &&
-        isValidCreatedAtForWorkDay(latestTimed.createdAt, workDay)
-      ) {
+      const latestTimed = timed.reduce((latest, e) => (e.createdAt > latest.createdAt ? e : latest));
+      if (isValidCreatedAtForWorkDay(latestTimed.createdAt, workDay)) {
         const d = dayjs(latestTimed.createdAt).add(fundsReleaseDays, 'day');
         releaseDay = formatDateString(d.toDate());
         releaseTime = d.local().format('h:mm A');
@@ -262,77 +255,45 @@ export interface PayoutSummary {
   overduePendingCents: number;
 }
 
+/** Whether a cell's money is released after now (by its exact time when it has one). */
+function isFutureRelease(cell: PayoutDayCell, todayStr: string, nowMs: number): boolean {
+  return cell.releaseIso ? new Date(cell.releaseIso).getTime() > nowMs : cell.releaseDay > todayStr;
+}
+
+/**
+ * The Payouts cards: what's available now and overdue (from the cells), and
+ * what's pending and released next (from `schedule`, buildReleaseSchedule's
+ * rows for the same cells).
+ */
 export function summarizePayouts(
   cells: PayoutDayCell[],
   todayStr: string,
-  schedule?: ReleaseScheduleRow[],
+  schedule: ReleaseScheduleRow[],
   nowMs: number = Date.now()
 ): PayoutSummary {
   let availableCents = 0;
   let overduePendingCents = 0;
-
   for (const cell of cells) {
-    // Available now card: only include Untransferred, never Paid or Pending Approval
-    availableCents += cell.untransferredCents ?? 0;
-
-    const nonPending = (cell.untransferredCents ?? 0) + (cell.paidCents ?? 0);
-    const pendingActual = (cell.untransferredCents !== undefined || cell.paidCents !== undefined)
-      ? Math.max(0, cell.actualCents - nonPending)
-      : (cell.releaseDay > todayStr ? cell.actualCents : 0);
-
-    const isFuture = cell.releaseIso
-      ? new Date(cell.releaseIso).getTime() > nowMs
-      : cell.releaseDay > todayStr;
-
-    if (!isFuture && pendingActual > 0) {
-      overduePendingCents += pendingActual;
+    // Available now: Untransferred only, never Paid or Pending Approval
+    availableCents += cell.untransferredCents;
+    // Imported money neither available nor paid is pending; past its release, it's overdue
+    if (!isFutureRelease(cell, todayStr, nowMs)) {
+      overduePendingCents += Math.max(0, cell.actualCents - cell.untransferredCents - cell.paidCents);
     }
   }
 
-  let pendingCents = 0;
-  let estimatedCents = 0;
-  let nextReleaseDay: string | null = null;
-  let nextReleaseCents = 0;
-
-  if (schedule) {
-    pendingCents = schedule.reduce((sum, row) => sum + row.actualCents, 0);
-    estimatedCents = schedule.reduce((sum, row) => sum + row.estimatedCents, 0);
-    if (schedule.length > 0) {
-      nextReleaseDay = schedule[0].releaseDay;
-      const nextDayRows = schedule.filter(r => r.releaseDay === schedule[0].releaseDay);
-      nextReleaseCents = nextDayRows.reduce((sum, r) => sum + r.actualCents + r.estimatedCents, 0);
-    }
-  } else {
-    const futureByDay = new Map<string, number>();
-    for (const cell of cells) {
-      const nonPending = (cell.untransferredCents ?? 0) + (cell.paidCents ?? 0);
-      const pendingActual = (cell.untransferredCents !== undefined || cell.paidCents !== undefined)
-        ? Math.max(0, cell.actualCents - nonPending)
-        : (cell.releaseDay > todayStr ? cell.actualCents : 0);
-
-      const isFuture = cell.releaseIso
-        ? new Date(cell.releaseIso).getTime() > nowMs
-        : cell.releaseDay > todayStr;
-
-      if (isFuture) {
-        pendingCents += pendingActual;
-        estimatedCents += cell.estimatedCents;
-        const dayCents = pendingActual + cell.estimatedCents;
-        if (dayCents > 0) {
-          futureByDay.set(cell.releaseDay, (futureByDay.get(cell.releaseDay) ?? 0) + dayCents);
-        }
-      }
-    }
-    nextReleaseDay = [...futureByDay.keys()].sort()[0] ?? null;
-    nextReleaseCents = nextReleaseDay ? futureByDay.get(nextReleaseDay)! : 0;
-  }
-
+  const nextReleaseDay = schedule[0]?.releaseDay ?? null;
+  const sum = (rows: ReleaseScheduleRow[], pick: (row: ReleaseScheduleRow) => number) =>
+    rows.reduce((total, row) => total + pick(row), 0);
   return {
     availableCents,
-    pendingCents,
-    estimatedCents,
+    pendingCents: sum(schedule, row => row.actualCents),
+    estimatedCents: sum(schedule, row => row.estimatedCents),
     nextReleaseDay,
-    nextReleaseCents,
+    nextReleaseCents: sum(
+      schedule.filter(row => row.releaseDay === nextReleaseDay),
+      row => row.actualCents + row.estimatedCents
+    ),
     overduePendingCents,
   };
 }
@@ -341,133 +302,70 @@ export interface ReleaseScheduleRow {
   releaseDay: string;
   releaseTime?: string;
   releaseIso?: string;
+  /** When it's released, to order the rows (local midnight for a row without a time). */
+  releaseMs: number;
   actualCents: number;
   estimatedCents: number;
 }
 
+/** When an imported entry's money is released: its report time plus the release days, else its day's. */
+function entryRelease(entry: WorkLogEntry, fundsReleaseDays: number): ReleaseScheduleRow {
+  if (isValidCreatedAtForWorkDay(entry.createdAt, entry.workDay)) {
+    const release = dayjs(entry.createdAt).add(fundsReleaseDays, 'day');
+    return {
+      releaseDay: formatDateString(release.toDate()),
+      releaseTime: release.local().format('h:mm A'),
+      releaseIso: release.toISOString(),
+      releaseMs: release.valueOf(),
+      actualCents: 0,
+      estimatedCents: 0,
+    };
+  }
+  const releaseDay = addDays(entry.workDay, fundsReleaseDays);
+  return {
+    releaseDay,
+    releaseMs: parseDateStringLocal(releaseDay).getTime(),
+    actualCents: 0,
+    estimatedCents: 0,
+  };
+}
+
 /**
- * Upcoming releases (strictly after now / today).
- * Includes release time under release date, and does not group on date.
+ * Upcoming releases (strictly after now), soonest first, one row per release
+ * time: imported money still pending (not Paid, not Untransferred), and the
+ * estimates of days not imported yet.
  */
 export function buildReleaseSchedule(
   cells: PayoutDayCell[],
   todayStr: string,
-  entries?: WorkLogEntry[],
+  entries: WorkLogEntry[],
   fundsReleaseDays: number = 7,
   nowMs: number = Date.now()
 ): ReleaseScheduleRow[] {
-  if (entries && entries.length > 0) {
-    const byKey = new Map<string, ReleaseScheduleRow>();
-
-    // 1. Process imported entries that are pending release (not Paid, not Untransferred)
-    for (const entry of entries) {
-      if (isPaid(entry.status) || isUntransferred(entry.status)) continue;
-      if (entry.amountCents <= 0) continue;
-
-      let releaseDay: string;
-      let releaseTime: string | undefined;
-      let releaseIso: string | undefined;
-      let releaseMs: number;
-
-      if (
-        entry.createdAt &&
-        !isNaN(Date.parse(entry.createdAt)) &&
-        isValidCreatedAtForWorkDay(entry.createdAt, entry.workDay)
-      ) {
-        const releaseDate = dayjs(entry.createdAt).add(fundsReleaseDays, 'day');
-        releaseMs = releaseDate.valueOf();
-        releaseDay = formatDateString(releaseDate.toDate());
-        releaseTime = releaseDate.local().format('h:mm A');
-        releaseIso = releaseDate.toISOString();
-      } else {
-        releaseDay = addDays(entry.workDay, fundsReleaseDays);
-        releaseMs = dayjs(parseDateStringLocal(releaseDay)).valueOf();
-      }
-
-      if (releaseMs <= nowMs) continue;
-
-      const key = releaseTime ? `${releaseDay} ${releaseTime}` : releaseDay;
-      const existing = byKey.get(key) ?? {
-        releaseDay,
-        releaseTime,
-        releaseIso,
-        actualCents: 0,
-        estimatedCents: 0,
-      };
-      existing.actualCents += entry.amountCents;
-      byKey.set(key, existing);
-    }
-
-    // 2. Process estimate cells (days with tracked time but no timed import)
-    for (const cell of cells) {
-      if (!cell.isEstimate || cell.estimatedCents <= 0) continue;
-      const isFuture = cell.releaseIso
-        ? new Date(cell.releaseIso).getTime() > nowMs
-        : cell.releaseDay > todayStr;
-      if (!isFuture) continue;
-
-      const key = cell.releaseTime ? `${cell.releaseDay} ${cell.releaseTime}` : cell.releaseDay;
-      const existing = byKey.get(key) ?? {
-        releaseDay: cell.releaseDay,
-        releaseTime: cell.releaseTime,
-        releaseIso: cell.releaseIso,
-        actualCents: 0,
-        estimatedCents: 0,
-      };
-      existing.estimatedCents += cell.estimatedCents;
-      byKey.set(key, existing);
-    }
-
-    return [...byKey.values()].sort((a, b) => {
-      if (a.releaseIso && b.releaseIso) {
-        return a.releaseIso.localeCompare(b.releaseIso);
-      }
-      const dayComp = a.releaseDay.localeCompare(b.releaseDay);
-      if (dayComp !== 0) return dayComp;
-      return (a.releaseTime ?? '').localeCompare(b.releaseTime ?? '');
-    });
-  }
-
-  // Fallback: build from cells (used when entries are not passed or empty)
   const byKey = new Map<string, ReleaseScheduleRow>();
-  for (const cell of cells) {
-    const isFuture = cell.releaseIso
-      ? new Date(cell.releaseIso).getTime() > nowMs
-      : cell.releaseDay > todayStr;
-    if (!isFuture) continue;
-
-    const nonPending = (cell.untransferredCents ?? 0) + (cell.paidCents ?? 0);
-    const pendingActual = Math.max(0, cell.actualCents - nonPending);
-    const hasMoney = (cell.untransferredCents !== undefined || cell.paidCents !== undefined)
-      ? (pendingActual > 0 || cell.estimatedCents > 0)
-      : (cell.actualCents > 0 || cell.estimatedCents > 0);
-    if (!hasMoney) continue;
-
-    const actualToAdd = (cell.untransferredCents !== undefined || cell.paidCents !== undefined)
-      ? pendingActual
-      : cell.actualCents;
-
-    const key = cell.releaseTime ? `${cell.releaseDay} ${cell.releaseTime}` : cell.releaseDay;
-    const row = byKey.get(key) ?? {
-      releaseDay: cell.releaseDay,
-      releaseTime: cell.releaseTime,
-      releaseIso: cell.releaseIso,
-      actualCents: 0,
-      estimatedCents: 0,
-    };
-    row.actualCents += actualToAdd;
-    row.estimatedCents += cell.estimatedCents;
+  const rowFor = (release: ReleaseScheduleRow): ReleaseScheduleRow => {
+    const key = release.releaseTime ? `${release.releaseDay} ${release.releaseTime}` : release.releaseDay;
+    const row = byKey.get(key) ?? release;
     byKey.set(key, row);
+    return row;
+  };
+
+  for (const entry of entries) {
+    if (isPaid(entry.status) || isUntransferred(entry.status) || entry.amountCents <= 0) continue;
+    const release = entryRelease(entry, fundsReleaseDays);
+    if (release.releaseMs <= nowMs) continue;
+    rowFor(release).actualCents += entry.amountCents;
   }
 
-  return [...byKey.values()].sort((a, b) => {
-    if (a.releaseIso && b.releaseIso) {
-      return a.releaseIso.localeCompare(b.releaseIso);
-    }
-    const dayComp = a.releaseDay.localeCompare(b.releaseDay);
-    if (dayComp !== 0) return dayComp;
-    return (a.releaseTime ?? '').localeCompare(b.releaseTime ?? '');
-  });
+  // An estimate cell has tracked time on its day, so its release has an exact time
+  for (const cell of cells) {
+    if (!cell.isEstimate || !isFutureRelease(cell, todayStr, nowMs)) continue;
+    const { releaseDay, releaseTime, releaseIso } = cell;
+    rowFor({ releaseDay, releaseTime, releaseIso, releaseMs: Date.parse(String(releaseIso)), actualCents: 0, estimatedCents: 0 })
+      .estimatedCents += cell.estimatedCents;
+  }
+
+  return [...byKey.values()].sort((a, b) => a.releaseMs - b.releaseMs);
 }
 
 /** Convert ledger cents to the float dollars formatCurrency expects. */

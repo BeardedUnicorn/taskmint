@@ -1,21 +1,14 @@
 /**
- * Data Migration System
- * 
- * This file contains utilities for migrating data between different versions
- * of the application to ensure backward compatibility and data integrity.
+ * Versioned localStorage values: each is stored as `{ version, data,
+ * migratedAt }`. A value saved before versioning (version 0) is wrapped once,
+ * after a copy of it is kept under `<key>_backup_<time>` (the newest five).
  */
 
-// Current data version
 export const CURRENT_DATA_VERSION = 1;
 
-// Migration interface
-export interface Migration {
-  version: number;
-  description: string;
-  migrate: (data: any) => any;
-}
+/** Copies kept of each key's values from before a migration. */
+const BACKUPS_KEPT = 5;
 
-// Data structure with version info
 export interface VersionedData {
   version: number;
   data: any;
@@ -23,174 +16,48 @@ export interface VersionedData {
   originalVersion?: number;
 }
 
-/**
- * Migration definitions
- * Each migration should transform data from the previous version to the current version
- */
-const migrations: Migration[] = [
-  {
-    version: 1,
-    description: 'Initial data structure with version tracking',
-    migrate: (data: any) => {
-      // First migration: add version tracking to existing data
-      if (typeof data === 'object' && data !== null) {
-        return {
-          version: 1,
-          data: data,
-          migratedAt: new Date().toISOString(),
-          originalVersion: 0, // Assume data without version is version 0
-        };
-      }
-      return {
-        version: 1,
-        data: data,
-        migratedAt: new Date().toISOString(),
-        originalVersion: 0,
-      };
-    },
-  },
-  // Future migrations would be added here
-  // {
-  //   version: 2,
-  //   description: 'Add new field to TimeEntry',
-  //   migrate: (data: VersionedData) => {
-  //     // Transform data from version 1 to version 2
-  //     return {
-  //       ...data,
-  //       version: 2,
-  //       data: {
-  //         ...data.data,
-  //         // Add new fields or transform existing ones
-  //       },
-  //       migratedAt: new Date().toISOString(),
-  //     };
-  //   },
-  // },
-];
-
-/**
- * Get the current version of data
- */
+/** The value's version; 0 for one saved before versioning. */
 export function getDataVersion(data: any): number {
-  if (typeof data === 'object' && data !== null && typeof data.version === 'number') {
-    return data.version;
-  }
-  return 0; // Assume unversioned data is version 0
+  return typeof data?.version === 'number' ? data.version : 0;
 }
 
-/**
- * Check if data needs migration
- */
 export function needsMigration(data: any): boolean {
-  const currentVersion = getDataVersion(data);
-  return currentVersion < CURRENT_DATA_VERSION;
+  return getDataVersion(data) < CURRENT_DATA_VERSION;
 }
 
-/**
- * Migrate data to the current version
- */
-export function migrateData(key: string, data: any): any {
-  try {
-    const currentVersion = getDataVersion(data);
-    
-    if (currentVersion >= CURRENT_DATA_VERSION) {
-      // Data is already at current version or newer
-      return data;
-    }
-
-    // Only log migration info in non-test environments
-    if (process.env.NODE_ENV !== 'test') {
-      console.log(`Migrating data for key "${key}" from version ${currentVersion} to ${CURRENT_DATA_VERSION}`);
-    }
-
-    // Apply migrations sequentially
-    let migratedData = data;
-    const applicableMigrations = migrations.filter(m => m.version > currentVersion);
-
-    for (const migration of applicableMigrations) {
-      // Only log migration steps in non-test environments
-      if (process.env.NODE_ENV !== 'test') {
-        console.log(`Applying migration ${migration.version}: ${migration.description}`);
-      }
-      try {
-        migratedData = migration.migrate(migratedData);
-      } catch (error) {
-        console.error(`Migration ${migration.version} failed:`, error);
-        throw new Error(`Migration ${migration.version} failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    // Only log success in non-test environments
-    if (process.env.NODE_ENV !== 'test') {
-      console.log(`Successfully migrated data for key "${key}" to version ${CURRENT_DATA_VERSION}`);
-    }
-    return migratedData;
-
-  } catch (error) {
-    console.error(`Data migration failed for key "${key}":`, error);
-    // Return original data if migration fails
-    return data;
-  }
+/** The value in the current shape: an unversioned one is wrapped as version 1. */
+export function migrateData(_key: string, data: any): any {
+  if (!needsMigration(data)) return data;
+  return {
+    version: CURRENT_DATA_VERSION,
+    data,
+    migratedAt: new Date().toISOString(),
+    originalVersion: 0,
+  };
 }
 
-/**
- * Create a backup of data before migration
- */
+/** Keeps a copy of `data` before it's migrated, and drops the oldest copies. */
 export function createBackup(key: string, data: any): void {
+  const prefix = `${key}_backup_`;
   try {
-    const backupKey = `${key}_backup_${Date.now()}`;
-    const backupData = {
-      originalKey: key,
-      data: data,
-      backedUpAt: new Date().toISOString(),
-      version: getDataVersion(data),
-    };
-    
-    localStorage.setItem(backupKey, JSON.stringify(backupData));
-    // Only log backup creation in non-test environments
-    if (process.env.NODE_ENV !== 'test') {
-      console.log(`Created backup for "${key}" as "${backupKey}"`);
+    localStorage.setItem(
+      `${prefix}${Date.now()}`,
+      JSON.stringify({
+        originalKey: key,
+        data,
+        backedUpAt: new Date().toISOString(),
+        version: getDataVersion(data),
+      })
+    );
+    // Newest first: the names end in equal-length millisecond times
+    const copies = Array.from({ length: localStorage.length }, (_, i) => String(localStorage.key(i)))
+      .filter(name => name.startsWith(prefix))
+      .sort()
+      .reverse();
+    for (const old of copies.slice(BACKUPS_KEPT)) {
+      localStorage.removeItem(old);
     }
-    
-    // Clean up old backups (keep only the last 5)
-    cleanupOldBackups(key);
   } catch (error) {
     console.error(`Failed to create backup for "${key}":`, error);
-  }
-}
-
-/**
- * Clean up old backup files
- */
-function cleanupOldBackups(key: string): void {
-  try {
-    const backupKeys: string[] = [];
-    
-    // Find all backup keys for this data key
-    for (let i = 0; i < localStorage.length; i++) {
-      const storageKey = localStorage.key(i);
-      if (storageKey && storageKey.startsWith(`${key}_backup_`)) {
-        backupKeys.push(storageKey);
-      }
-    }
-    
-    // Sort by timestamp (newest first)
-    backupKeys.sort((a, b) => {
-      const timestampA = parseInt(a.split('_backup_')[1] || '0');
-      const timestampB = parseInt(b.split('_backup_')[1] || '0');
-      return timestampB - timestampA;
-    });
-    
-    // Remove old backups (keep only the last 5)
-    const backupsToRemove = backupKeys.slice(5);
-    for (const backupKey of backupsToRemove) {
-      localStorage.removeItem(backupKey);
-      // Only log backup removal in non-test environments
-      if (process.env.NODE_ENV !== 'test') {
-        console.log(`Removed old backup: ${backupKey}`);
-      }
-    }
-  } catch (error) {
-    console.error('Failed to cleanup old backups:', error);
   }
 }

@@ -12,7 +12,6 @@ import {
   millisecondsToHours,
   formatTimeForChart,
   generateChartColors,
-  getChartTheme,
   prepareTaskDistributionData,
 } from '../chartDataHelpers';
 import { TimeEntry } from '../../types/timer';
@@ -382,25 +381,33 @@ describe('chartDataHelpers', () => {
     });
   });
 
-  describe('getChartTheme', () => {
-    it('should return dark theme colors when isDarkMode is true', () => {
-      const theme = getChartTheme(true);
-      
-      expect(theme.backgroundColor).toBe('#121212');
-      expect(theme.textColor).toBe('#ffffff');
-      expect(theme.gridColor).toBe('#333333');
-      expect(theme.tooltipBackground).toBe('#333333');
-      expect(theme.tooltipBorder).toBe('#555555');
+  describe('ordering and empty totals', () => {
+    const at = (id: string, startTime: string, duration = 3_600_000): TimeEntry => ({
+      ...mockTimeEntries[0],
+      id,
+      startTime: new Date(startTime),
+      endTime: new Date(startTime),
+      duration,
+      date: startTime.slice(0, 10),
     });
 
-    it('should return light theme colors when isDarkMode is false', () => {
-      const theme = getChartTheme(false);
-      
-      expect(theme.backgroundColor).toBe('#ffffff');
-      expect(theme.textColor).toBe('#000000');
-      expect(theme.gridColor).toBe('#e0e0e0');
-      expect(theme.tooltipBackground).toBe('#ffffff');
-      expect(theme.tooltipBorder).toBe('#cccccc');
+    it('lists weeks and months oldest first, across a new year and whatever order the entries came in', () => {
+      const entries = [at('b', '2024-01-03T10:00:00'), at('a', '2023-12-20T10:00:00'), at('c', '2023-11-14T10:00:00')];
+      expect(aggregateByMonth(entries, mockTasks).map(month => month.month)).toEqual(['Nov 2023', 'Dec 2023', 'Jan 2024']);
+      expect(aggregateByWeek(entries, mockTasks).map(week => week.week)).toEqual([
+        'Nov 12 - Nov 18',
+        'Dec 17 - Dec 23',
+        'Dec 31 - Jan 06',
+      ]);
+    });
+
+    it('dates an entry by its start when it has no day of its own', () => {
+      expect(aggregateByDay([{ ...at('d', '2024-02-05T10:00:00'), date: '' }], mockTasks)[0].date).toBe('2024-02-05');
+    });
+
+    it('gives no task a share when no time was tracked', () => {
+      expect(prepareTaskDistributionData([at('z', '2024-01-10T10:00:00', 0)], mockTasks)).toEqual([]);
+      expect(prepareTaskDistributionData([], mockTasks)).toEqual([]);
     });
   });
 

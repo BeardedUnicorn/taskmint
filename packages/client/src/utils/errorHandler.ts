@@ -6,6 +6,7 @@
  */
 
 import { captureException, addBreadcrumb, setContext } from './sentry';
+import { errorMessage } from './errors';
 
 export interface ErrorContext {
   service?: string;
@@ -40,11 +41,6 @@ export class AppError extends Error {
     this.context = context;
     this.timestamp = new Date().toISOString();
     this.severity = severity;
-
-    // Maintain proper stack trace
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, AppError);
-    }
   }
 }
 
@@ -66,23 +62,9 @@ export class ServiceErrorHandler {
     method: string,
     context: Omit<ErrorContext, 'service' | 'method'> = {}
   ): AppError {
-    // Properly handle different error types
-    let errorObj: Error;
-    let errorMessage: string;
-    
-    if (error instanceof Error) {
-      errorObj = error;
-      errorMessage = error.message;
-    } else if (typeof error === 'object' && error !== null) {
-      // Handle objects that might have message properties
-      const errorAsAny = error as any;
-      errorMessage = errorAsAny.message || errorAsAny.toString() || JSON.stringify(error);
-      errorObj = new Error(errorMessage);
-    } else {
-      errorMessage = String(error);
-      errorObj = new Error(errorMessage);
-    }
-    
+    // Backend commands reject with strings, and some code throws { message }
+    const errorObj = error instanceof Error ? error : new Error(errorMessage(error, String(error)));
+
     const fullContext: ErrorContext = {
       service: this.serviceName,
       method,
@@ -92,7 +74,7 @@ export class ServiceErrorHandler {
     // The message stays the original one (it may be shown to the user); the
     // service and method travel in the context.
     const appError = new AppError(
-      errorMessage,
+      errorObj.message,
       fullContext,
       this.determineSeverity(errorObj, method)
     );
@@ -161,22 +143,6 @@ export class ServiceErrorHandler {
       `${this.serviceName}.${method}: ${message}`,
       'info',
       'info',
-      {
-        service: this.serviceName,
-        method,
-        ...data,
-      }
-    );
-  }
-
-  /**
-   * Log warning message with breadcrumb
-   */
-  logWarning(message: string, method: string, data?: Record<string, any>) {
-    addBreadcrumb(
-      `${this.serviceName}.${method}: ${message}`,
-      'warning',
-      'warning',
       {
         service: this.serviceName,
         method,

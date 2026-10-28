@@ -6,13 +6,14 @@ export default defineTaskmintConfig({
   environment: 'jsdom',
   plugins: [react()],
   setupFiles: ['./src/__tests__/setup/global-mocks.ts', './src/setupTests.ts'],
-  // Floors a little under actual coverage (ratcheted 2026-10-14 at the end
-  // of app review 3: 79.8 / 72.4 / 77.0 / 80.7). They rise to 100 slice by
-  // slice in phase P14 of docs/web-support-plan.md.
+  // Floors a little under actual coverage (ratcheted 2026-10-27 after P14a:
+  // 78.1 / 80.0 / 84.9 / 84.2). They rise to 100 slice by slice in phase P14
+  // of docs/web-support-plan.md; the slices done so far are held at 100.
   thresholds: {
-    branches: 71,
-    functions: 75,
-    lines: 79,
-    statements: 78,
+    branches: 77,
+    functions: 79,
+    lines: 84,
+    statements: 83,
   },
+  fullyCovered: ['src/utils/**', 'src/services/**', 'src/types/**', 'src/theme/**'],
 });

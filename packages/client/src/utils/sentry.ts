@@ -4,6 +4,7 @@ import type { Breadcrumb, ErrorEvent } from '@sentry/react';
 // Import package.json to get version dynamically
 import packageJson from '../../package.json';
 import { STORAGE_KEYS } from '../constants';
+import { errorMessage } from './errors';
 
 // Error reports only: no session replay, no performance tracing. Events are
 // scrubbed down to diagnostic fields so task names, notes, earnings and
@@ -131,7 +132,7 @@ export function initSentry() {
 
   Sentry.init({
     dsn: sentryDsn,
-    environment: import.meta.env.MODE || 'development',
+    environment: import.meta.env.MODE,
     release: `${packageJson.name}@${packageJson.version}`,
     sendDefaultPii: false,
     beforeSend(event) {
@@ -165,23 +166,12 @@ function setupGlobalErrorHandlers() {
   // Handle unhandled promise rejections
   window.addEventListener('unhandledrejection', (event) => {
     console.error('Unhandled promise rejection:', event.reason);
-    
-    // Properly serialize the error reason
-    let error: Error;
-    let reasonString: string;
-    
-    if (event.reason instanceof Error) {
-      error = event.reason;
-      reasonString = event.reason.message;
-    } else if (typeof event.reason === 'object' && event.reason !== null) {
-      const reasonAsAny = event.reason as any;
-      reasonString = reasonAsAny.message || reasonAsAny.toString() || JSON.stringify(event.reason);
-      error = new Error(reasonString);
-    } else {
-      reasonString = String(event.reason);
-      error = new Error(reasonString);
-    }
-    
+
+    // Backend commands reject with strings, and some code with { message }
+    const error =
+      event.reason instanceof Error ? event.reason : new Error(errorMessage(event.reason, String(event.reason)));
+    const reasonString = error.message;
+
     addBreadcrumb(
       'Unhandled promise rejection',
       'error',
@@ -235,16 +225,6 @@ export function captureException(error: Error, context?: Record<string, any>) {
 }
 
 /**
- * Capture a message with additional context
- */
-export function captureMessage(message: string, level: Sentry.SeverityLevel = 'info', context?: Record<string, any>) {
-  Sentry.captureMessage(message, level);
-  if (context) {
-    Sentry.setContext('message_context', context);
-  }
-}
-
-/**
  * Add breadcrumb for debugging
  */
 export function addBreadcrumb(message: string, category: string, level: Sentry.SeverityLevel = 'info', data?: Record<string, any>) {
@@ -257,24 +237,8 @@ export function addBreadcrumb(message: string, category: string, level: Sentry.S
 }
 
 /**
- * Set user context
- */
-export function setUser(user: { id?: string; email?: string; username?: string }) {
-  Sentry.setUser(user);
-}
-
-/**
  * Set additional context
  */
 export function setContext(key: string, context: Record<string, any>) {
   Sentry.setContext(key, context);
 }
-
-/**
- * Set tags for filtering
- */
-export function setTag(key: string, value: string) {
-  Sentry.setTag(key, value);
-}
-
-export { Sentry };

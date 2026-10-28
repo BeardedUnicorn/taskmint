@@ -108,6 +108,15 @@ export function aggregateByDay(entries: TimeEntry[], tasks: Task[]): DailyData[]
 }
 
 /**
+ * The map's values, oldest first: its keys are ISO days or months
+ * ("2026-01-04", "2026-01"), which sort as text. (The labels have no year,
+ * so they can't be sorted.)
+ */
+function byKey<T>(map: Map<string, T>): T[] {
+  return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, value]) => value);
+}
+
+/**
  * Aggregate time entries by week for line chart
  */
 export function aggregateByWeek(entries: TimeEntry[], tasks: Task[]): WeeklyData[] {
@@ -136,11 +145,7 @@ export function aggregateByWeek(entries: TimeEntry[], tasks: Task[]): WeeklyData
     }
   });
   
-  return Array.from(weekMap.values()).sort((a, b) => {
-    const aDate = dayjs(a.week.split(' - ')[0]);
-    const bDate = dayjs(b.week.split(' - ')[0]);
-    return aDate.isBefore(bDate) ? -1 : 1;
-  });
+  return byKey(weekMap);
 }
 
 /**
@@ -171,11 +176,7 @@ export function aggregateByMonth(entries: TimeEntry[], tasks: Task[]): MonthlyDa
     }
   });
   
-  return Array.from(monthMap.values()).sort((a, b) => {
-    const aDate = dayjs(a.month, 'MMM YYYY');
-    const bDate = dayjs(b.month, 'MMM YYYY');
-    return aDate.isBefore(bDate) ? -1 : 1;
-  });
+  return byKey(monthMap);
 }
 
 /**
@@ -213,19 +214,6 @@ export function generateChartColors(count: number): string[] {
 }
 
 /**
- * Get chart theme colors based on Material-UI theme mode
- */
-export function getChartTheme(isDarkMode: boolean) {
-  return {
-    backgroundColor: isDarkMode ? '#121212' : '#ffffff',
-    textColor: isDarkMode ? '#ffffff' : '#000000',
-    gridColor: isDarkMode ? '#333333' : '#e0e0e0',
-    tooltipBackground: isDarkMode ? '#333333' : '#ffffff',
-    tooltipBorder: isDarkMode ? '#555555' : '#cccccc',
-  };
-}
-
-/**
  * Prepare data for pie chart showing task distribution
  */
 export function prepareTaskDistributionData(entries: TimeEntry[], tasks: Task[] = []): Array<{
@@ -236,9 +224,10 @@ export function prepareTaskDistributionData(entries: TimeEntry[], tasks: Task[] 
   const taskData = aggregateByTask(entries, tasks);
   const totalTime = taskData.reduce((sum, task) => sum + task.totalTime, 0);
   
+  // Every task listed has time (aggregateByTask skips untimed entries), so the total isn't 0
   return taskData.map(task => ({
     name: task.taskName,
     value: millisecondsToHours(task.totalTime),
-    percentage: totalTime > 0 ? (task.totalTime / totalTime) * 100 : 0,
+    percentage: (task.totalTime / totalTime) * 100,
   }));
 }

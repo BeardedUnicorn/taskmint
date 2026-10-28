@@ -83,9 +83,9 @@ export class TaskService {
     updates: Partial<Omit<Task, 'id' | 'createdAt'>>
   ): Promise<Task> {
     try {
-
-      const existingTask = await this.getTask(taskId);
-      if (!existingTask) {
+      const tasks = await this.getAllTasks();
+      const taskIndex = tasks.findIndex(t => t.id === taskId);
+      if (taskIndex === -1) {
         throw createTaskError(
           'TASK_NOT_FOUND',
           `Task with ID ${taskId} not found`,
@@ -93,6 +93,7 @@ export class TaskService {
           'updateTask'
         );
       }
+      const existingTask = tasks[taskIndex];
 
       // Validate updates
       const updatedTaskData = { ...existingTask, ...updates };
@@ -125,18 +126,6 @@ export class TaskService {
         name: updates.name ? updates.name.trim() : existingTask.name,
         updatedAt: new Date().toISOString(),
       };
-
-      // Update in storage
-      const tasks = await this.getAllTasks();
-      const taskIndex = tasks.findIndex(t => t.id === taskId);
-      if (taskIndex === -1) {
-        throw createTaskError(
-          'TASK_NOT_FOUND',
-          `Task with ID ${taskId} not found in storage`,
-          { taskId },
-          'updateTask'
-        );
-      }
 
       tasks[taskIndex] = updatedTask;
       await this.storageService.setTasks(tasks);
@@ -223,24 +212,6 @@ export class TaskService {
     const at = Math.max(0, Math.min(index, tasks.length));
     await this.storageService.setTasks([...tasks.slice(0, at), task, ...tasks.slice(at)]);
     return task;
-  }
-
-  /**
-   * Get a single task by ID
-   */
-  async getTask(taskId: string): Promise<Task | null> {
-    try {
-      const tasks = await this.getAllTasks();
-      return tasks.find(t => t.id === taskId) || null;
-    } catch (error) {
-      console.error('Failed to get task:', error);
-      throw createTaskError(
-        'TASK_NOT_FOUND',
-        'Failed to retrieve task',
-        { originalError: error, taskId },
-        'getTask'
-      );
-    }
   }
 
   /**

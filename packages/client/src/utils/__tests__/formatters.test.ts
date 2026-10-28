@@ -6,6 +6,9 @@ import {
   formatTime,
   formatDuration,
   formatDurationCompact,
+  formatCurrency,
+  formatMultilineText,
+  createTextPreview,
 } from '../formatters';
 
 describe('formatTime', () => {
@@ -43,5 +46,41 @@ describe('formatDuration', () => {
     expect(formatDuration(60000)).toBe('0h 1m');
     expect(formatDuration(3600000)).toBe('1h 0m');
     expect(formatDuration(3661000)).toBe('1h 1m');
+  });
+});
+
+describe('formatCurrency', () => {
+  it('reads amounts given as text, and shows ones it cannot read as zero', () => {
+    expect(formatCurrency('$1,234.50')).toBe(formatCurrency(1234.5));
+    expect(formatCurrency('n/a')).toBe(formatCurrency(0));
+  });
+
+  it('falls back to dollars for a code that is not a currency', () => {
+    expect(formatCurrency(5, 'not-a-currency')).toBe(formatCurrency(5, 'USD'));
+  });
+});
+
+describe('formatMultilineText', () => {
+  it('normalizes line breaks and shortens long text', () => {
+    expect(formatMultilineText('a\r\nb\rc')).toBe('a\nb\nc');
+    expect(formatMultilineText('abcdef', 3)).toBe('abc...');
+    expect(formatMultilineText('abc', 3)).toBe('abc');
+  });
+
+  it('is empty for no text', () => {
+    expect(formatMultilineText('')).toBe('');
+    expect(formatMultilineText(undefined as unknown as string)).toBe('');
+  });
+});
+
+describe('createTextPreview', () => {
+  it('puts the lines on one line, and shortens a long preview', () => {
+    expect(createTextPreview('first\n\nsecond   line')).toBe('first • second line');
+    expect(createTextPreview('abcdef', 3)).toBe('abc...');
+  });
+
+  it('says there is no content', () => {
+    expect(createTextPreview('')).toBe('No content');
+    expect(createTextPreview(42 as unknown as string)).toBe('No content');
   });
 });
