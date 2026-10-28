@@ -1,0 +1,25 @@
+{
+  "name": "@taskmint/extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The Chrome extension that captures DataAnnotation work logs for TaskMint",
+  "scripts": {
+    "build": "tsc -p . && node build.mjs",
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@taskmint/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.6",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "esbuild": "^0.28.2",
+    "jsdom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

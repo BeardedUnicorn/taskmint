@@ -36,6 +36,12 @@ jobs:
       # cargo: tauri::generate_context! embeds apps/desktop/dist.
       - run: pnpm build
 
+      # Load unpacked from the unzipped folder (apps/extension/README.md)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taskmint-extension
+          path: apps/extension/dist/
+
       - run: pnpm test:coverage
 
       - uses: dtolnay/rust-toolchain@stable

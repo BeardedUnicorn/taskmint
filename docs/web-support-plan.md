@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening) and P12 (desktop server mode) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode) and P13a (the extension in TypeScript) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -425,6 +425,20 @@ Device settings (theme, filters, backup schedule, idle) stay in localStorage, pe
   - The queue, alarms, and hash dedupe are shared by both.
 - **Tests:** vitest + jsdom with a typed `chromeFake.ts`.
 - **No Docker image:** CI uploads `dist/` as a zip.
+
+**As built in P13a:**
+- **Package:** `@taskmint/extension` (in the pnpm workspace, at 100% in `coverage-policy.json`). The three scripts moved to `src/*.ts` with their behaviour unchanged.
+  - The capture server's port, path and header, and the deep-link names, now come from `@taskmint/contracts`. The message names the scripts share are in `src/messages.ts`.
+  - A failed best-effort promise goes to one shared `ignore`.
+  - Defensive checks Chrome 120+ makes moot are gone: `sendMessage` always returns a promise, and a clicked or created tab always exists.
+- **Build:** `build.mjs` runs esbuild with every entry as an IIFE classic script, the background included. So `manifest.json` is copied unchanged (no `"type": "module"`), and `pnpm build` writes `dist/`.
+  - esbuild's install script is marked reviewed (`allowBuilds: esbuild: false`); the binary works without it.
+  - CI uploads `dist/` as the `taskmint-extension` artifact.
+- **Tests:**
+  - `src/__tests__/chromeFake.ts` is a typed fake of the chrome.* parts used.
+  - The service worker runs in node with only `setTimeout` faked, so hashing and gzip run for real. The page scripts run in jsdom at the payments URL.
+  - `navigate.ts` is its own module, since jsdom can't navigate to `taskmint://`.
+  - A manifest test derives the extension ID from its `key` and checks it against `CAPTURE.EXTENSION_ORIGIN`.
 
 ## 7. Docker and compose
 

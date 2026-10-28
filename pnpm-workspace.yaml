@@ -1,7 +1,13 @@
 packages:
   - apps/desktop
+  - apps/extension
   - apps/web
   - packages/*
+
+# Dependencies' install scripts, reviewed. esbuild's only checks its platform
+# binary, which it finds without it.
+allowBuilds:
+  esbuild: false
 
 # Versions shared by more than one package; packages refer to them as "catalog:".
 catalog:
