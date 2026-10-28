@@ -47,6 +47,14 @@ describe('lastUsedByTask', () => {
     expect(lastUsed.get('b')).toBe(Date.parse('2026-10-02T12:00:00Z'));
     expect(lastUsed.has('c')).toBe(false);
   });
+
+  it('skips sessions without timers and starts that are not dates', () => {
+    const lastUsed = lastUsedByTask([
+      { ...session('s1', 'a', []), timerInstances: undefined } as unknown as TaskSession,
+      { ...session('s2', 'b', []), timerInstances: [{ ...instance('i', '2026-10-01T09:00:00Z'), startTime: 'not a date' }] },
+    ]);
+    expect(lastUsed.size).toBe(0);
+  });
 });
 
 describe('orderTasksForStart', () => {

@@ -3,6 +3,7 @@
  * the app-records cache; other keys stay in localStorage.
  */
 
+import { z } from 'zod';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StorageService } from '../StorageService';
 import { loadAppRecords, readAppRecord, resetAppRecordsForTests } from '../appRecords';
@@ -62,6 +63,19 @@ describe('StorageService with app records', () => {
     expect(window.localStorage.getItem('predefinedTasks')).toBeNull();
   });
 
+  it('reads a record restored inside an old version wrapper, and nothing else as one', async () => {
+    resetAppRecordsForTests();
+    mockInvoke.mockImplementation(async (command: string) =>
+      command === 'get_app_records'
+        ? { records: { predefinedTasks: { version: 1, data: [task] }, taskNotes: { version: 1, notes: [] } }, revisions: {} }
+        : null
+    );
+    await loadAppRecords({ importLegacy: false });
+    expect(await storage.getTasks()).toEqual([expect.objectContaining({ id: 't1' })]);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(storage.getTaskNotes()).rejects.toMatchObject({ code: 'STORAGE_VALIDATION_FAILED' });
+  });
+
   it('rejects invalid data without saving it', async () => {
     await expect(storage.setTasks([{ id: '' } as never])).rejects.toMatchObject({
       code: 'STORAGE_VALIDATION_FAILED',
@@ -75,8 +89,8 @@ describe('StorageService with app records', () => {
   });
 
   it('keeps other keys in localStorage', async () => {
-    await storage.setItem('someSetting', { on: true });
-    expect(JSON.parse(window.localStorage.getItem('someSetting')!)).toEqual({ on: true });
+    await storage.setItem('someSetting', { on: true }, z.object({ on: z.boolean() }));
+    expect(JSON.parse(window.localStorage.getItem('someSetting')!)).toMatchObject({ version: 1, data: { on: true } });
     expect(mockInvoke).not.toHaveBeenCalledWith('set_app_record', expect.anything());
   });
 });

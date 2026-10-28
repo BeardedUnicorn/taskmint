@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { REVEAL_LABEL, revealAction } from '../reveal';
 import { fakeBackend, installFakeBackendForTest } from '../../testing';
 
@@ -22,4 +22,12 @@ describe('revealAction', () => {
     installFakeBackendForTest({ without: ['reveal'] });
     expect(revealAction('/Users/me/export.json')).toEqual([]);
   });
+});
+
+it("says Finder on a Mac", async () => {
+  const userAgent = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)');
+  vi.resetModules();
+  const { REVEAL_LABEL: label } = await import('../reveal');
+  expect(label).toBe('Show in Finder');
+  userAgent.mockRestore();
 });

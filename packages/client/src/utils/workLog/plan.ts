@@ -75,8 +75,8 @@ export function planWorkLogImport(parsed: ParsedSitePayload, context: ImportCont
   const { merged } = mergeLedger(context.entries, entries);
   const details = { unmatched: resolution.unresolved, mappings, entries, merged };
 
+  // Every project is mapped now, so every record has an entry
   if (unresolved.length > 0) return { status: 'needs-mapping', unresolved, ...details };
-  if (entries.length === 0) return { status: 'empty' };
 
   const { groups } = buildRewriteGroups(entries, merged, context.sessions, { nowIso: context.nowIso });
   return {

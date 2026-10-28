@@ -430,6 +430,12 @@ describe('mergeLedger', () => {
     expect(merged[0].amountCents).toBe(9999);
     expect(merged[0].importedAt).toBe('FIRST');
   });
+
+  it("dates an updated entry's import now when it had no date of its own", () => {
+    const undated = makeTimedEntry({ createdAt: localIso(2026, 8, 26, 14), importedAt: '' });
+    const revision = makeTimedEntry({ createdAt: localIso(2026, 8, 26, 14), importedAt: 'SECOND' });
+    expect(mergeLedger([undated], [revision]).merged[0].importedAt).toBe('SECOND');
+  });
 });
 
 describe('buildSynthesizedSession', () => {
@@ -617,6 +623,32 @@ describe('buildRewriteGroups', () => {
     expect(result.groups[0].workDay).toBe('2026-08-26');
     expect(result.groups[0].deleteInstanceIds).toEqual(['overnight-1']);
   });
+
+  it("leaves an overnight session's next-afternoon timer on its own day", () => {
+    const afternoon = makeInstance({ id: 'next-afternoon', startTime: new Date(2026, 7, 27, 15, 0).toISOString() });
+    const result = buildRewriteGroups([pasteEntry], [pasteEntry], [makeSession({ date: '2026-08-26', timerInstances: [afternoon] })], {
+      nowIso: NOW_ISO,
+      idFactory: () => 'fixed',
+    });
+    expect(result.groups[0].deleteInstanceIds).toEqual([]);
+  });
+
+  it('rewrites nothing for a day the ledger has no entries for', () => {
+    expect(buildRewriteGroups([pasteEntry], [], [], { nowIso: NOW_ISO }).groups).toEqual([]);
+  });
+
+  it("rebuilds an imported day that doesn't match its ledger one-for-one", () => {
+    const synthesized = loaded(buildSynthesizedSession('task-1', 'Raccoon - SWE', workDay, [pasteEntry], NOW_ISO, () => 'prior'));
+    const second = makeTimedEntry({ id: 'paste-2', createdAt: localIso(2026, 8, 26, 18, 0), timeInMinutes: 30 });
+    const rebuilt = (sessions: TaskSession[], ledger = [pasteEntry]) =>
+      buildRewriteGroups([pasteEntry], ledger, sessions, { nowIso: NOW_ISO }).groups.length;
+
+    // The ledger gained an entry
+    expect(rebuilt([synthesized], [pasteEntry, second])).toBe(1);
+    // Its timer lost what tied it to the entry
+    const [instance] = synthesized.timerInstances;
+    expect(rebuilt([{ ...synthesized, timerInstances: [{ ...instance, externalId: undefined, duration: undefined }] }])).toBe(1);
+  });
 });
 
 describe('buildImportPreview', () => {
@@ -657,6 +689,39 @@ describe('buildImportPreview', () => {
     );
     const rows = buildImportPreview([entry], [entry], [loaded(synthesized)], Date.now());
     expect(rows[0].isRemap).toBe(true);
+  });
+
+  it('blocks a day with a running timer, and counts only that task and day', () => {
+    const createdAt = localIso(2026, 8, 26, 14, 0);
+    const entry = makeTimedEntry({ id: 'p1', createdAt, timeInMinutes: 60 });
+    const running = makeInstance({ id: 'live', startTime: new Date(2026, 7, 26, 9, 0).toISOString(), state: TimerState.running, isRunning: true, duration: undefined });
+    const otherDay = makeInstance({ id: 'before', startTime: new Date(2026, 7, 20, 9, 0).toISOString() });
+    const sessions = [
+      makeSession({ timerInstances: [running, otherDay] }),
+      makeSession({ id: 'other-task', taskId: 'task-2', timerInstances: [makeInstance({ id: 'theirs' })] }),
+    ];
+    const [row] = buildImportPreview([entry], [entry], sessions, new Date(2026, 7, 26, 10, 0).getTime());
+    expect(row).toMatchObject({ blocked: true, trackedMs: 3_600_000 });
+  });
+
+  it('lists each task and day once, newest day first then by task, and skips unmapped entries', () => {
+    const day1 = localIso(2026, 8, 26, 14, 0);
+    const day2 = localIso(2026, 8, 27, 14, 0);
+    const entries = [
+      makeTimedEntry({ id: 'a1', createdAt: day1 }),
+      makeTimedEntry({ id: 'a2', createdAt: day1 }),
+      makeTimedEntry({ id: 'b1', createdAt: day1, taskId: 'task-2', taskName: 'Annotation' }),
+      makeTimedEntry({ id: 'c1', createdAt: day2 }),
+      makeTimedEntry({ id: 'unmapped', createdAt: day2, taskId: '' }),
+    ];
+    const rows = buildImportPreview(entries, entries, [], Date.now());
+    expect(rows.map(row => [row.workDay, row.taskName])).toEqual([
+      [entries[3].workDay, 'Raccoon - SWE'],
+      [entries[0].workDay, 'Annotation'],
+      [entries[0].workDay, 'Raccoon - SWE'],
+    ]);
+    // A paste whose entries the ledger doesn't hold (yet) has no task name to show
+    expect(buildImportPreview([entries[0]], [], [], Date.now())[0].taskName).toBe('');
   });
 });
 
@@ -789,5 +854,37 @@ describe('buildRemapPlan', () => {
       nowIso: NOW_ISO,
     });
     expect(result).toEqual({ error: 'Already mapped to "Raccoon - SWE"' });
+  });
+
+  it('refuses a project that has no mapping yet', () => {
+    expect(buildRemapPlan({ projectId: 'proj-9', newTask: other, ledger: [], sessions: [], mappings: [makeMapping()], nowIso: NOW_ISO })).toEqual({
+      error: 'That project has no mapping yet',
+    });
+  });
+
+  it("refuses while a timer runs in the old task's imported day", () => {
+    const synthesized = buildSynthesizedSession('task-1', 'x', workDay, [moving], NOW_ISO, () => 'old');
+    const running = {
+      ...loaded(synthesized),
+      timerInstances: [{ ...loaded(synthesized).timerInstances[0], state: TimerState.running, isRunning: true }],
+    };
+    expect(plan({ ledger: [moving], sessions: [running] })).toEqual({ error: `Stop the running timer first (${workDay})` });
+  });
+
+  it("leaves the old task alone on a day it had nothing imported for", () => {
+    const result = plan({ ledger: [moving], sessions: [] });
+    if ('error' in result) throw new Error(result.error);
+    expect(result.groups.map(group => group.taskId)).toEqual(['task-2']);
+  });
+
+  it("doesn't count the new task's time on other days", () => {
+    const elsewhere = makeSession({
+      id: 'new-elsewhere',
+      taskId: 'task-2',
+      timerInstances: [makeInstance({ id: 'kept', startTime: new Date(2026, 7, 20, 16, 0).toISOString() })],
+    });
+    const result = plan({ ledger: [moving], sessions: [elsewhere, imported('task-1', [moving], 'old')] });
+    if ('error' in result) throw new Error(result.error);
+    expect(result.replacedTrackedMs).toBe(0);
   });
 });

@@ -138,5 +138,38 @@ describe('NoteTemplateService', () => {
       expect(mockStorageService.setNoteTemplates).not.toHaveBeenCalled();
     });
   });
+
+  describe('templates that are missing or unreadable', () => {
+    const field = (id: string, order: number) => ({ id, label: id, type: 'text' as const, required: false, order });
+    const existing: NoteTemplate = { ...freeFormTemplate, id: 'template1', name: 'Daily Log', isActive: true };
+
+    beforeEach(() => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    it("refuses to update or delete a template that isn't there", async () => {
+      await expect(service.updateTemplate('missing', { name: 'x' })).rejects.toThrow('Failed to update note template');
+      await expect(service.deleteTemplate('missing')).rejects.toThrow('Failed to delete note template');
+    });
+
+    it("says when the templates can't be read, and finds none", async () => {
+      mockStorageService.getNoteTemplates.mockRejectedValue(new Error('storage gone'));
+      await expect(service.getAllTemplates()).rejects.toThrow('Failed to load note templates');
+      expect(await service.getTemplateById('template1')).toBeNull();
+    });
+
+    it('numbers fields in their order', async () => {
+      mockStorageService.getNoteTemplates.mockResolvedValue([existing, freeFormTemplate]);
+      const updated = await service.updateTemplate('template1', { fields: [field('b', 5), field('a', 2)] });
+      expect(updated.fields.map(f => [f.id, f.order])).toEqual([['a', 0], ['b', 1]]);
+    });
+
+    it('knows whether a name is taken, ignoring case and the template being renamed', async () => {
+      mockStorageService.getNoteTemplates.mockResolvedValue([existing, freeFormTemplate]);
+      expect(await service.isTemplateNameUnique('daily log')).toBe(false);
+      expect(await service.isTemplateNameUnique('Daily Log', 'template1')).toBe(true);
+      expect(await service.isTemplateNameUnique('Weekly')).toBe(true);
+    });
+  });
 });
 

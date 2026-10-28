@@ -11,9 +11,11 @@ import {
   buildPayoutCells,
   buildReleaseSchedule,
   centsToDollars,
+  formatPayoutAmount,
   groupCellsByMonth,
   summarizePayouts,
   PayoutDayCell,
+  ReleaseScheduleRow,
 } from '../payoutCalculator';
 
 function pad(n: number): string {
@@ -181,10 +183,74 @@ describe('buildPayoutCells', () => {
     expect(cells[0].releaseDay).toBe(cells[0].workDay);
   });
 
-  it('sorts newest day first', () => {
+  it('sorts newest day first, then tasks by name', () => {
     const older = makeEntry({ id: 'old', workDay: dayStr(2026, 8, 20) });
-    const cells = buildPayoutCells([older, makeEntry()], [], [], 7, NOW_MS);
-    expect(cells.map(c => c.workDay)).toEqual([dayStr(2026, 8, 26), dayStr(2026, 8, 20)]);
+    const other = makeEntry({ id: 'other', taskId: 'task-2', taskName: 'Annotation' });
+    const cells = buildPayoutCells([older, makeEntry(), other], [], [], 7, NOW_MS);
+    expect(cells.map(c => [c.workDay, c.taskName])).toEqual([
+      [dayStr(2026, 8, 26), 'Annotation'],
+      [dayStr(2026, 8, 26), 'Raccoon - SWE'],
+      [dayStr(2026, 8, 20), 'Raccoon - SWE'],
+    ]);
+  });
+
+  it('drops days with nothing on them, and timers with no day', () => {
+    const empty = makeSession({ timerInstances: [makeInstance({ endTime: makeInstance().startTime, duration: 0 })] });
+    const undated = makeSession({ id: 's2', date: '', timerInstances: [makeInstance({ id: 'x', startTime: 'garbled' })] });
+    expect(buildPayoutCells([], [empty, undated], [makeTask()], 7, NOW_MS)).toEqual([]);
+  });
+
+  it("releases an estimate a week after the day's last timer, or after now for one still running", () => {
+    const finished = makeSession({ timerInstances: [makeInstance()] });
+    const [cell] = buildPayoutCells([], [finished], [makeTask()], 7, NOW_MS);
+    expect(cell.releaseIso).toBe(new Date(2026, 8, 2, 12, 0).toISOString());
+    expect(cell.releaseTime).toBe('12:00 PM');
+
+    const running = makeInstance({ id: 'live', endTime: undefined, state: TimerState.running, isRunning: true, startTime: new Date(2026, 7, 31, 11, 0).toISOString() });
+    const [live] = buildPayoutCells([], [makeSession({ date: dayStr(2026, 8, 31), timerInstances: [running] })], [makeTask()], 7, NOW_MS);
+    expect(live.releaseIso).toBe(new Date(NOW_MS + 7 * 86_400_000).toISOString());
+  });
+
+  it('releases a day without timers, or with an odd report time, on its work day plus the release days', () => {
+    const workLog = makeEntry({ id: 'wl', kind: 'workLog', timeInMinutes: null, amountCents: 500, status: 'Paid' });
+    const [bonus] = buildPayoutCells([workLog], [], [makeTask()], 7, NOW_MS);
+    expect([bonus.releaseDay, bonus.releaseTime, bonus.paidCents]).toEqual([dayStr(2026, 9, 2), undefined, 500]);
+
+    for (const createdAt of ['2026-09-20T12:00:00.000Z', 'not a date']) {
+      const [cell] = buildPayoutCells([makeEntry({ createdAt })], [], [makeTask()], 7, NOW_MS);
+      expect([cell.releaseDay, cell.releaseTime]).toEqual([dayStr(2026, 9, 2), undefined]);
+    }
+  });
+
+  it("releases an imported day a week after its latest report, apart from other tasks' time", () => {
+    const first = makeEntry({ id: 'first', createdAt: '2026-08-26T16:00:00.000Z' });
+    const latest = makeEntry({ id: 'latest', createdAt: '2026-08-26T22:00:00.000Z' });
+    const others = makeSession({ id: 'others', taskId: 'task-2', timerInstances: [makeInstance({ id: 'theirs' })] });
+    // And an estimate day of its own, earlier
+    const mine = makeSession({
+      id: 'mine',
+      date: dayStr(2026, 8, 20),
+      timerInstances: [makeInstance({ id: 'mine', startTime: new Date(2026, 7, 20, 10, 0).toISOString(), endTime: new Date(2026, 7, 20, 11, 0).toISOString() })],
+    });
+    const cells = buildPayoutCells([first, latest], [others, mine], [makeTask(), makeTask({ id: 'task-2', name: 'Annotation' })], 7, NOW_MS);
+    const imported = cells.find(cell => cell.taskId === 'task-1')!;
+    expect(imported.releaseIso).toBe('2026-09-02T22:00:00.000Z');
+    expect(imported.trackedMs).toBe(0);
+    expect(cells.find(cell => cell.taskId === 'task-2')!.estimatedCents).toBe(15000);
+  });
+
+  it("leaves a tracked day's name blank when its task is gone", () => {
+    const [cell] = buildPayoutCells([], [makeSession({ taskId: 'deleted', timerInstances: [makeInstance()] })], [], 7, NOW_MS);
+    expect(cell.taskName).toBe('');
+  });
+});
+
+describe('formatPayoutAmount', () => {
+  it('shows imported money, then estimates, or a dash', () => {
+    expect(formatPayoutAmount(0, 0)).toBe('—');
+    expect(formatPayoutAmount(123400, 0)).toBe('$1,234.00');
+    expect(formatPayoutAmount(0, 8000)).toBe('~$80.00');
+    expect(formatPayoutAmount(123400, 8000)).toBe('$1,234.00 + ~$80.00');
   });
 });
 
@@ -223,39 +289,49 @@ describe('buildPayoutCells estimates use each session\'s rate', () => {
 
 describe('summarizePayouts', () => {
   const today = dayStr(2026, 8, 31);
+  const row = (releaseDay: string, actualCents: number, estimatedCents = 0): ReleaseScheduleRow => ({
+    releaseDay,
+    releaseMs: 0,
+    actualCents,
+    estimatedCents,
+  });
 
-  it('only includes untransferred cents in available, excluding paid and pending', () => {
+  it("counts untransferred money as available, and released money that isn't as overdue", () => {
     const summary = summarizePayouts(
       [
         makeCell({ actualCents: 1000, untransferredCents: 1000, releaseDay: dayStr(2026, 8, 30) }),
         makeCell({ actualCents: 2000, untransferredCents: 2000, releaseDay: today }),
         makeCell({ actualCents: 4000, releaseDay: dayStr(2026, 9, 1) }),
         makeCell({ actualCents: 5000, paidCents: 5000, releaseDay: dayStr(2026, 8, 20) }),
+        makeCell({ actualCents: 30000, releaseDay: dayStr(2026, 8, 20) }),
+        // Released an hour ago, by its exact time; and one released in an hour
+        makeCell({ actualCents: 700, releaseDay: today, releaseIso: new Date(NOW_MS - 3_600_000).toISOString() }),
+        makeCell({ actualCents: 900, releaseDay: today, releaseIso: new Date(NOW_MS + 3_600_000).toISOString() }),
       ],
-      today
+      today,
+      [],
+      NOW_MS
     );
     expect(summary.availableCents).toBe(3000);
-    expect(summary.pendingCents).toBe(4000);
-    expect(summary.nextReleaseDay).toBe(dayStr(2026, 9, 1));
-    expect(summary.nextReleaseCents).toBe(4000);
+    expect(summary.overduePendingCents).toBe(30700);
   });
 
-  it('totals estimates separately and includes them in the next release', () => {
-    const summary = summarizePayouts(
-      [
-        makeCell({ estimatedCents: 1500, releaseDay: dayStr(2026, 9, 3), isEstimate: true }),
-        makeCell({ actualCents: 4000, releaseDay: dayStr(2026, 9, 3) }),
-      ],
-      today
-    );
-    expect(summary.estimatedCents).toBe(1500);
-    expect(summary.pendingCents).toBe(4000);
-    expect(summary.nextReleaseCents).toBe(5500);
+  it('takes what is pending and released next from the schedule', () => {
+    const summary = summarizePayouts([], today, [
+      row(dayStr(2026, 9, 1), 18750),
+      row(dayStr(2026, 9, 1), 1000, 250),
+      row(dayStr(2026, 9, 2), 15000, 5000),
+    ]);
+    expect(summary).toMatchObject({
+      pendingCents: 34750,
+      estimatedCents: 5250,
+      nextReleaseDay: dayStr(2026, 9, 1),
+      nextReleaseCents: 20000,
+    });
   });
 
   it('handles an empty ledger', () => {
-    const summary = summarizePayouts([], today);
-    expect(summary).toEqual({
+    expect(summarizePayouts([], today, [])).toEqual({
       availableCents: 0,
       pendingCents: 0,
       estimatedCents: 0,
@@ -264,120 +340,57 @@ describe('summarizePayouts', () => {
       overduePendingCents: 0,
     });
   });
-
-  it('aligns pendingCents and next release with schedule when schedule is provided', () => {
-    const schedule = [
-      {
-        releaseDay: dayStr(2026, 9, 1),
-        releaseTime: '8:22 PM',
-        releaseIso: '2026-09-02T02:22:00.000Z',
-        actualCents: 18750,
-        estimatedCents: 0,
-      },
-      {
-        releaseDay: dayStr(2026, 9, 2),
-        releaseTime: '1:47 AM',
-        releaseIso: '2026-09-02T07:47:00.000Z',
-        actualCents: 15000,
-        estimatedCents: 5000,
-      },
-    ];
-
-    const summary = summarizePayouts([], today, schedule);
-    expect(summary.pendingCents).toBe(33750);
-    expect(summary.estimatedCents).toBe(5000);
-    expect(summary.nextReleaseDay).toBe(dayStr(2026, 9, 1));
-    expect(summary.nextReleaseCents).toBe(18750);
-  });
-
-  it('excludes past estimates from estimatedCents in fallback mode', () => {
-    const pastEstimateCell = makeCell({
-      estimatedCents: 15000,
-      releaseDay: dayStr(2026, 8, 20),
-      isEstimate: true,
-    });
-    const futureEstimateCell = makeCell({
-      estimatedCents: 8000,
-      releaseDay: dayStr(2026, 9, 5),
-      isEstimate: true,
-    });
-
-    const summary = summarizePayouts([pastEstimateCell, futureEstimateCell], today);
-    expect(summary.estimatedCents).toBe(8000);
-  });
-
-  it('computes overduePendingCents for pending entries whose release date has passed', () => {
-    const pastPendingCell = makeCell({
-      actualCents: 30000,
-      untransferredCents: 0,
-      paidCents: 0,
-      releaseDay: dayStr(2026, 8, 20),
-    });
-
-    const summary = summarizePayouts([pastPendingCell], today);
-    expect(summary.overduePendingCents).toBe(30000);
-    expect(summary.pendingCents).toBe(0);
-  });
 });
 
 describe('buildReleaseSchedule', () => {
-  it('groups future releases by day, ascending when using cells fallback', () => {
-    const today = dayStr(2026, 8, 31);
-    const rows = buildReleaseSchedule(
-      [
-        makeCell({ actualCents: 1000, releaseDay: dayStr(2026, 9, 2) }),
-        makeCell({ estimatedCents: 500, releaseDay: dayStr(2026, 9, 2) }),
-        makeCell({ actualCents: 3000, releaseDay: dayStr(2026, 9, 1) }),
-        makeCell({ actualCents: 9000, releaseDay: today }), // already released
-        makeCell({ releaseDay: dayStr(2026, 9, 5) }), // empty cell dropped
-      ],
-      today
-    );
-    expect(rows).toEqual([
-      { releaseDay: dayStr(2026, 9, 1), releaseTime: undefined, releaseIso: undefined, actualCents: 3000, estimatedCents: 0 },
-      { releaseDay: dayStr(2026, 9, 2), releaseTime: undefined, releaseIso: undefined, actualCents: 1000, estimatedCents: 500 },
+  const today = dayStr(2026, 8, 31);
+
+  it('lists pending imports by release time, leaving out paid, available, empty and released ones', () => {
+    const e1 = makeEntry({ id: 'e1', createdAt: '2026-08-25T14:30:00.000Z', amountCents: 2500 });
+    const e2 = makeEntry({ id: 'e2', createdAt: '2026-08-25T18:00:00.000Z', amountCents: 4000 });
+    const sameTime = makeEntry({ id: 'e3', createdAt: '2026-08-25T18:00:00.000Z', amountCents: 1000 });
+    const skipped = [
+      makeEntry({ id: 'paid', createdAt: '2026-08-25T10:00:00.000Z', status: 'Paid' }),
+      makeEntry({ id: 'available', createdAt: '2026-08-25T11:00:00.000Z', status: 'Untransferred' }),
+      makeEntry({ id: 'nothing', createdAt: '2026-08-25T12:00:00.000Z', amountCents: 0 }),
+      makeEntry({ id: 'released', createdAt: '2026-08-20T12:00:00.000Z', workDay: dayStr(2026, 8, 20) }),
+    ];
+
+    const rows = buildReleaseSchedule([], today, [e2, e1, sameTime, ...skipped], 7, NOW_MS);
+
+    // Both release on 9/1, at their own times
+    expect(rows.map(r => [r.releaseDay, r.releaseIso, r.actualCents])).toEqual([
+      [dayStr(2026, 9, 1), '2026-09-01T14:30:00.000Z', 2500],
+      [dayStr(2026, 9, 1), '2026-09-01T18:00:00.000Z', 5000],
     ]);
+    expect(rows[0].releaseTime).not.toBe(rows[1].releaseTime);
   });
 
-  it('includes release time and does not group on date for entries with different times', () => {
-    const today = dayStr(2026, 8, 31);
-    const e1 = makeEntry({
-      id: 'e1',
-      createdAt: '2026-08-25T14:30:00.000Z',
-      amountCents: 2500,
-      status: 'Pending Approval',
-    });
-    const e2 = makeEntry({
-      id: 'e2',
-      createdAt: '2026-08-25T18:00:00.000Z',
-      amountCents: 4000,
-      status: 'Pending Approval',
-    });
-    const paid = makeEntry({
-      id: 'e-paid',
-      createdAt: '2026-08-25T10:00:00.000Z',
-      amountCents: 10000,
-      status: 'Paid',
-    });
-    const untransferred = makeEntry({
-      id: 'e-untransferred',
-      createdAt: '2026-08-25T11:00:00.000Z',
-      amountCents: 5000,
-      status: 'Untransferred',
-    });
-
-    const rows = buildReleaseSchedule([], today, [e1, e2, paid, untransferred], 7, NOW_MS);
-
-    // Both e1 and e2 release 7 days after 8/25 = 9/01, but they are NOT grouped on date
-    expect(rows).toHaveLength(2);
-    expect(rows[0].releaseDay).toBe(dayStr(2026, 9, 1));
-    expect(rows[0].releaseTime).toBeDefined();
-    expect(rows[0].actualCents).toBe(2500);
-
-    expect(rows[1].releaseDay).toBe(dayStr(2026, 9, 1));
+  it('puts an import with an odd report time at the start of its release day', () => {
+    const odd = makeEntry({ id: 'odd', createdAt: 'not a date', amountCents: 300 });
+    const timed = makeEntry({ id: 'timed', createdAt: '2026-08-26T20:00:00.000Z', amountCents: 700 });
+    const rows = buildReleaseSchedule([], today, [timed, odd], 7, NOW_MS);
+    expect(rows.map(r => [r.releaseDay, r.releaseTime, r.actualCents])).toEqual([
+      [dayStr(2026, 9, 2), undefined, 300],
+      [dayStr(2026, 9, 2), rows[1].releaseTime, 700],
+    ]);
     expect(rows[1].releaseTime).toBeDefined();
-    expect(rows[1].actualCents).toBe(4000);
-    expect(rows[0].releaseTime).not.toBe(rows[1].releaseTime);
+  });
+
+  it('adds the estimates still to come, beside imports released at the same time', () => {
+    const tracked = makeSession({ timerInstances: [makeInstance()] });
+    const old = makeSession({
+      id: 'old',
+      date: dayStr(2026, 8, 10),
+      timerInstances: [makeInstance({ id: 'old', startTime: new Date(2026, 7, 10, 10, 0).toISOString(), endTime: new Date(2026, 7, 10, 12, 0).toISOString() })],
+    });
+    const cells = buildPayoutCells([], [tracked, old], [makeTask()], 7, NOW_MS);
+    const sameRelease = makeEntry({ id: 'same', taskId: 'task-2', createdAt: new Date(2026, 7, 26, 12, 0).toISOString(), amountCents: 100 });
+
+    const rows = buildReleaseSchedule([...cells, makeCell({ actualCents: 999 })], today, [sameRelease], 7, NOW_MS);
+    expect(rows).toEqual([
+      expect.objectContaining({ releaseDay: dayStr(2026, 9, 2), actualCents: 100, estimatedCents: 15000 }),
+    ]);
   });
 });
 

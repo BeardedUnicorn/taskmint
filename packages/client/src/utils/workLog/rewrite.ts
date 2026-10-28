@@ -64,7 +64,8 @@ export function buildSynthesizedSession(
   // The rate the site's pay implies for this (task, day), unrounded, so
   // rate × time reproduces the imported cents on every page that shows
   // earnings (and a later change to the task's rate leaves it alone).
-  const totalDuration = instances.reduce((sum, i) => sum + (i.duration ?? 0), 0);
+  // Each instance's duration was set just above
+  const totalDuration = instances.reduce((sum, i) => sum + Number(i.duration), 0);
   const totalCents = timedEntries.reduce((sum, entry) => sum + entry.amountCents, 0);
   const hourlyRate =
     totalDuration > 0 && totalCents > 0 ? totalCents / 100 / (totalDuration / 3_600_000) : null;
@@ -111,7 +112,8 @@ export function instanceBelongsToWorkDay(
   // Overnight shift: session created on workDay with an instance starting the following morning (before noon)
   const nextDay = formatDateString(dayjs(workDay).add(1, 'day').toDate());
   if (session.date === workDay && instWorkDay === nextDay) {
-    const startHour = instance.startTime ? new Date(instance.startTime).getHours() : 0;
+    // It has a start: without one, its day would be the session's
+    const startHour = new Date(instance.startTime).getHours();
     if (startHour < 12) {
       return true;
     }
@@ -163,12 +165,10 @@ export function buildRewriteGroups(
     const deleteInstanceIds: string[] = [];
     const blockingInstanceIds: string[] = [];
     const bucketSessions = new Set<TaskSession>();
-    let bucketSize = 0;
     for (const session of sessions) {
       if (session.taskId !== taskId) continue;
       for (const instance of session.timerInstances) {
         if (!instanceBelongsToWorkDay(instance, session, workDay)) continue;
-        bucketSize += 1;
         bucketSessions.add(session);
         if (isRunningOrPaused(instance)) blockingInstanceIds.push(instance.id);
         else deleteInstanceIds.push(instance.id);
@@ -178,7 +178,7 @@ export function buildRewriteGroups(
     const taskName = ledgerForKey[0].taskName;
     if (blockingInstanceIds.length > 0) {
       blockedDays.push({ taskId, taskName, workDay });
-    } else if (isAlreadyConverged(ledgerForKey, bucketSessions, bucketSize, workDay)) {
+    } else if (isAlreadyConverged(ledgerForKey, bucketSessions, workDay)) {
       noopDays += 1;
       continue;
     }
@@ -210,13 +210,12 @@ export function buildRewriteGroups(
 function isAlreadyConverged(
   ledgerForKey: WorkLogEntry[],
   bucketSessions: Set<TaskSession>,
-  bucketSize: number,
   workDay: string
 ): boolean {
   if (bucketSessions.size !== 1) return false;
   const [session] = bucketSessions;
+  // An imported session's timers all belong to its day, so they're the bucket
   if (session.source !== WORKLOG_IMPORT_SOURCE || session.date !== workDay) return false;
-  if (session.timerInstances.length !== bucketSize) return false;
   if (session.timerInstances.length !== ledgerForKey.length) return false;
 
   const fromLedger = ledgerForKey

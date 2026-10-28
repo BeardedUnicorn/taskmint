@@ -22,6 +22,8 @@ export interface TaskmintTestOptions {
   setupFiles?: string[];
   /** Floors under 100, only while a package is still ratcheting up. */
   thresholds?: Thresholds;
+  /** While it ratchets: globs already at 100%, held there. */
+  fullyCovered?: string[];
 }
 
 const packages: Record<string, { glob: string }[]> = policy.typescript.packages;
@@ -32,6 +34,7 @@ export function defineTaskmintConfig({
   plugins,
   setupFiles,
   thresholds,
+  fullyCovered = [],
 }: TaskmintTestOptions) {
   const own = packages[packageDir];
   if (!own) {
@@ -52,7 +55,9 @@ export function defineTaskmintConfig({
         reporter: ['text', 'json', 'html'],
         include: ['src/**/*.{ts,tsx}'],
         exclude: [...policy.typescript.allPackages, ...own].map(entry => entry.glob),
-        thresholds: thresholds ?? { 100: true },
+        thresholds: thresholds
+          ? { ...thresholds, ...Object.fromEntries(fullyCovered.map(glob => [glob, { 100: true }])) }
+          : { 100: true },
       },
     },
   });

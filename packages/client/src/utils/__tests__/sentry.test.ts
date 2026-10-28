@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ErrorEvent } from '@sentry/react';
 
 vi.mock('@sentry/react', () => ({
@@ -92,4 +92,97 @@ describe('error reporting preference', () => {
     await setErrorReportingEnabled(true);
     expect(isErrorReportingEnabled()).toBe(true);
   });
+});
+
+describe('initSentry', () => {
+  const DSN = 'https://key@o1.ingest.sentry.io/1';
+  /** A fresh copy of the module (it installs its window handlers once). */
+  const load = async () => {
+    vi.resetModules();
+    return import('../sentry');
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('stays off without a DSN, or when the user turned reports off', async () => {
+    for (const dsn of ['', 'your_sentry_dsn_here']) {
+      vi.stubEnv('VITE_SENTRY_DSN', dsn);
+      (await load()).initSentry();
+    }
+    vi.stubEnv('VITE_SENTRY_DSN', DSN);
+    localStorage.setItem('errorReportingEnabled', 'false');
+    (await load()).initSentry();
+    expect(Sentry.init).not.toHaveBeenCalled();
+  });
+
+  it('starts scrubbed, as this install, and reports what the page lets slip, once', async () => {
+    vi.stubEnv('VITE_SENTRY_DSN', DSN);
+    const sentry = await load();
+    sentry.initSentry();
+    // Again, as turning reports back on does
+    sentry.initSentry();
+
+    const options = vi.mocked(Sentry.init).mock.calls[0][0]!;
+    expect(options).toMatchObject({ dsn: DSN, sendDefaultPii: false, environment: 'test' });
+    const event = { type: undefined, extra: { taskName: 'secret', service: 'TaskService' } } as ErrorEvent;
+    expect(options.beforeSend!(event, {})).toMatchObject({ extra: { service: 'TaskService' } });
+    expect(options.beforeBreadcrumb!({ category: 'console' }, {})).toBeNull();
+    const [[first], [second]] = vi.mocked(Sentry.setUser).mock.calls;
+    expect(first).toEqual({ id: expect.any(String) });
+    expect(second).toEqual(first);
+
+    const rejected = (reason: unknown, promise?: Promise<unknown>) =>
+      window.dispatchEvent(Object.assign(new Event('unhandledrejection'), { reason, promise }));
+    const pending = new Promise(() => {});
+    rejected(new Error('disk full'), pending);
+    rejected('Session not found');
+    rejected({ message: 'quota exceeded' });
+    window.dispatchEvent(new ErrorEvent('error', { error: new TypeError('x is undefined'), message: 'x is undefined', filename: 'a.js', lineno: 1, colno: 2 }));
+    window.dispatchEvent(new ErrorEvent('error', { message: 'Script error.' }));
+
+    const reported = vi.mocked(Sentry.captureException).mock.calls.map(([error, hint]) => [
+      (error as Error).message,
+      (hint as { extra: { type: string } }).extra.type,
+    ]);
+    expect(reported).toEqual([
+      ['disk full', 'unhandledrejection'],
+      ['Session not found', 'unhandledrejection'],
+      ['quota exceeded', 'unhandledrejection'],
+      ['x is undefined', 'uncaught'],
+      ['Script error.', 'uncaught'],
+    ]);
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Unhandled promise rejection', data: { reason: 'disk full', promise: '[object Promise]' } })
+    );
+  });
+
+  it('keeps going when storage is unavailable', async () => {
+    vi.stubEnv('VITE_SENTRY_DSN', DSN);
+    const sentry = await load();
+    vi.mocked(localStorage.getItem).mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    vi.mocked(localStorage.setItem).mockImplementationOnce(() => {
+      throw new Error('SecurityError');
+    });
+    expect(sentry.isErrorReportingEnabled()).toBe(true);
+    await sentry.setErrorReportingEnabled(true);
+    expect(Sentry.setUser).toHaveBeenCalledWith({ id: 'unknown' });
+  });
+});
+
+it('passes context on to Sentry', async () => {
+  const { setContext } = await import('../sentry');
+  setContext('serviceError', { service: 'TaskService' });
+  expect(Sentry.setContext).toHaveBeenCalledWith('serviceError', { service: 'TaskService' });
 });

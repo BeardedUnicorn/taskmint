@@ -93,6 +93,11 @@ describe('buildGoalHistory', () => {
     expect(rows).toEqual([]);
   });
 
+  it("shows dollars when neither the day nor the goal says which currency", () => {
+    const rows = build({ currentGoal: { ...goal(100), currency: undefined as unknown as string }, timeEntries: [entry('2026-10-05', 1)] });
+    expect(rows[0].currency).toBe('USD');
+  });
+
   it('lists the newest day first', () => {
     const rows = build({ timeEntries: [entry('2026-10-02', 1), entry('2026-10-09', 1), entry('2026-10-04', 1)] });
     expect(rows.map(r => r.date)).toEqual(['2026-10-09', '2026-10-04', '2026-10-02']);

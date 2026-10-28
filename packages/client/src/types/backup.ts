@@ -45,35 +45,31 @@ export const DEFAULT_BACKUP_CONFIG: BackupConfig = {
   maxBackups: 10,
 };
 
-// Helper functions
+const FREQUENCY_LABELS: Record<BackupFrequency, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+};
+
 export function getBackupFrequencyLabel(frequency: BackupFrequency): string {
-  switch (frequency) {
-    case 'daily':
-      return 'Daily';
-    case 'weekly':
-      return 'Weekly';
-    case 'monthly':
-      return 'Monthly';
-    default:
-      return 'Unknown';
-  }
+  return FREQUENCY_LABELS[frequency];
 }
 
+/** When the next backup is due: a day, a week or a month after the last (or now). */
 export function getNextBackupTime(frequency: BackupFrequency, lastBackupTime?: string): Date {
-  const now = new Date();
-  const lastBackup = lastBackupTime ? new Date(lastBackupTime) : now;
-  
+  const lastBackup = lastBackupTime ? new Date(lastBackupTime) : new Date();
+  const DAY_MS = 24 * 60 * 60 * 1000;
   switch (frequency) {
-    case 'daily':
-      return new Date(lastBackup.getTime() + 24 * 60 * 60 * 1000);
     case 'weekly':
-      return new Date(lastBackup.getTime() + 7 * 24 * 60 * 60 * 1000);
-    case 'monthly':
+      return new Date(lastBackup.getTime() + 7 * DAY_MS);
+    case 'monthly': {
       const nextMonth = new Date(lastBackup);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       return nextMonth;
+    }
     default:
-      return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      // Daily, and anything a stored setting may hold instead
+      return new Date(lastBackup.getTime() + DAY_MS);
   }
 }
 

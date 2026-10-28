@@ -104,11 +104,52 @@ describe('StorageService', () => {
       expect(result).toEqual(def);
     });
 
-    it('should throw StorageError on invalid JSON', async () => {
+    it("falls back to the default for a setting it can't read", async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
       localStorage.setItem(KEY, 'invalid');
-      await expect(
-        service.getItem(KEY, { name: 'x', count: 0 }, RecordSchema)
-      ).rejects.toBeInstanceOf(StorageErrorClass);
+      expect(await service.getItem(KEY, { name: 'x', count: 0 }, RecordSchema)).toEqual({ name: 'x', count: 0 });
+      error.mockRestore();
+    });
+
+    it("refuses a setting the schema doesn't accept, stored or saved", async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      localStorage.setItem(KEY, JSON.stringify({ version: 1, data: { name: 'saved' } }));
+      await expect(service.getItem(KEY, { name: 'x', count: 0 }, RecordSchema)).rejects.toBeInstanceOf(StorageErrorClass);
+      await expect(service.setItem(KEY, { name: 'x' } as never, RecordSchema)).rejects.toMatchObject({
+        code: 'STORAGE_VALIDATION_FAILED',
+      });
+      error.mockRestore();
+    });
+  });
+
+  describe('the daily goal', () => {
+    const goal = {
+      targetAmount: 200,
+      currency: 'USD',
+      isEnabled: true,
+      lastNotifiedPercent: 0,
+      lastNotificationDate: '2026-10-01',
+      createdAt: '2026-10-01T00:00:00.000Z',
+      updatedAt: '2026-10-01T00:00:00.000Z',
+    };
+
+    it('saves the goal and its history as records', async () => {
+      seedAppRecords({});
+      await service.setDailyGoal(goal);
+      expect(await service.getDailyGoal()).toEqual(goal);
+      const achievement = {
+        id: 'goal_2026-10-01',
+        date: '2026-10-01',
+        goalAmount: 200,
+        earnedAmount: 250,
+        currency: 'USD',
+        percentageAchieved: 125,
+        status: 'exceeded' as const,
+        difference: 50,
+        recordedAt: '2026-10-01T23:00:00.000Z',
+      };
+      await service.setGoalAchievements([achievement]);
+      expect(await service.getGoalAchievements()).toEqual([achievement]);
     });
   });
 });

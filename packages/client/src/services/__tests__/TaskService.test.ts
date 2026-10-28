@@ -207,9 +207,82 @@ describe('TaskService', () => {
       expect(mockStorageService.setTasks).not.toHaveBeenCalled();
     });
 
-    it('should throw when getTask encounters storage error', async () => {
+    it("says so when the tasks can't be read", async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
       mockStorageService.getTasks = vi.fn().mockRejectedValue(new Error('failure'));
-      await expect(service.getTask('task1')).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
+      await expect(service.getAllTasks()).rejects.toMatchObject({ code: 'TASK_NOT_FOUND', message: 'Failed to retrieve tasks' });
+    });
+
+    it('reports a save that failed as such', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }]);
+      mockStorageService.setTasks = vi.fn().mockRejectedValue(new Error('disk full'));
+      await expect(service.createTask({ name: 'New' })).rejects.toMatchObject({ code: 'TASK_CREATE_FAILED' });
+      await expect(service.updateTask('task1', { hourlyRate: 5 })).rejects.toMatchObject({ code: 'TASK_UPDATE_FAILED' });
+      await expect(service.deleteTask('task1')).rejects.toMatchObject({ code: 'TASK_DELETE_FAILED' });
+    });
+  });
+
+  describe('creating and changing tasks', () => {
+    beforeEach(() => {
+      // As stored: a fresh copy on each read
+      mockStorageService.getTasks = vi.fn(async () => [{ ...baseTask }, { ...baseTask, id: 'task2', name: 'Other Task' }]);
+    });
+
+    it('creates a task with a trimmed name and an id of its own', async () => {
+      const task = await service.createTask({ name: '  Review  ', hourlyRate: 40 });
+      expect(task).toMatchObject({ name: 'Review', hourlyRate: 40, id: expect.stringMatching(/^task_/) });
+      expect(vi.mocked(mockStorageService.setTasks).mock.calls[0][0]).toHaveLength(3);
+    });
+
+    it('renames a task to a trimmed name not already taken, and leaves the name alone otherwise', async () => {
+      expect((await service.updateTask('task1', { name: ' Renamed ' })).name).toBe('Renamed');
+      expect((await service.updateTask('task1', { hourlyRate: 60 })).name).toBe('Existing Task');
+      expect((await service.updateTask('task1', { name: 'Existing Task' })).name).toBe('Existing Task');
+      await expect(service.updateTask('task1', { name: 'other task' })).rejects.toMatchObject({ code: 'TASK_DUPLICATE_NAME' });
+      await expect(service.updateTask('task1', { hourlyRate: -1 })).rejects.toMatchObject({ code: 'TASK_VALIDATION_FAILED' });
+    });
+
+    it('checks the rate and the default note template', async () => {
+      const errors = async (task: Partial<Task>) => (await service.validateTask({ name: 'Ok', ...task })).errors;
+      expect(await errors({ hourlyRate: 1001 })).toEqual(['Hourly rate cannot exceed $1000']);
+      expect(await errors({ hourlyRate: '12' as never })).toEqual(['Hourly rate must be a positive number']);
+      expect(await errors({ defaultNoteTemplateId: '  ' })).toEqual(['Default note template ID must be a valid string']);
+      expect(await errors({ defaultNoteTemplateId: 'tmpl', hourlyRate: 20 })).toEqual([]);
+      expect(await errors({ name: 'x'.repeat(101) })).toEqual(['Task name cannot exceed 100 characters']);
+    });
+
+    it("treats a name as taken when the tasks can't be read", async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockStorageService.getTasks = vi.fn().mockRejectedValue(new Error('failure'));
+      expect(await service.isTaskNameUnique('Anything')).toBe(false);
+    });
+  });
+
+  describe('legacy favorites, as older versions left them', () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask, isFavorite: true }]);
+    });
+
+    it('reads an unversioned list, and drops it when there is nothing new to carry over', async () => {
+      window.localStorage.setItem('favoriteTasks', JSON.stringify({ favoriteTaskIds: ['task1', 7] }));
+      await service.getAllTasks();
+      expect(mockStorageService.setTasks).not.toHaveBeenCalled();
+      expect(window.localStorage.getItem('favoriteTasks')).toBeNull();
+    });
+
+    it("drops a list it can't read", async () => {
+      window.localStorage.setItem('favoriteTasks', 'not json');
+      expect(await service.getAllTasks()).toEqual([{ ...baseTask, isFavorite: true }]);
+      expect(window.localStorage.getItem('favoriteTasks')).toBeNull();
+    });
+
+    it("leaves the tasks as they are when localStorage can't be read", async () => {
+      vi.mocked(window.localStorage.getItem).mockImplementationOnce(() => {
+        throw new Error('SecurityError');
+      });
+      expect(await service.getAllTasks()).toEqual([{ ...baseTask, isFavorite: true }]);
     });
   });
 });

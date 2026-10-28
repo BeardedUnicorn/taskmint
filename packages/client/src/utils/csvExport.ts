@@ -42,7 +42,8 @@ export function timeEntriesToCsv(entries: TimeEntry[], tasks: Task[]): string {
     .map(entry => ({ entry, start: new Date(entry.startTime) }))
     .sort((a, b) => a.start.getTime() - b.start.getTime())
     .map(({ entry, start }) => {
-      const durationMs = entry.duration ?? 0;
+      // Exportable entries have one
+      const durationMs = Number(entry.duration);
       const end = entry.endTime ? new Date(entry.endTime) : new Date(start.getTime() + durationMs);
       return [
         entry.date || formatDateString(start),

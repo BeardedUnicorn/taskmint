@@ -6,7 +6,8 @@
  *
  * The records (tasks, notes, note templates, the daily goal and its history)
  * belong to the backend and are read through the records cache
- * (services/appRecords); every other key uses localStorage.
+ * (services/appRecords); every other key is a device setting in localStorage
+ * (utils/localStore).
  */
 
 import { z } from 'zod';
@@ -15,15 +16,15 @@ import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../t
 import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
 
 import { STORAGE_KEYS } from '../constants';
-import { migrateData, createBackup, needsMigration } from '../utils/dataMigration';
+import { readLocal, writeLocal } from '../utils/localStore';
 import { validateWithSchema } from '../utils/validation';
-import { StorageErrorClass, createStorageError } from '../types/errors';
+import { createStorageError } from '../types/errors';
 import { AppRecordKey, isAppRecordKey, readAppRecord, writeAppRecord } from './appRecords';
 
 export interface IStorageService {
   // Generic storage operations
-  getItem<T>(key: string, defaultValue: T, schema?: z.ZodType<T>): Promise<T>;
-  setItem<T>(key: string, value: T, schema?: z.ZodType<T>): Promise<void>;
+  getItem<T>(key: string, defaultValue: T, schema: z.ZodType<T>): Promise<T>;
+  setItem<T>(key: string, value: T, schema: z.ZodType<T>): Promise<void>;
 
   // Typed storage operations
   getTasks(): Promise<Task[]>;
@@ -48,16 +49,8 @@ export class StorageService implements IStorageService {
     return StorageService.instance;
   }
 
-  /** A record from the records cache, validated like a localStorage read. */
-  private readRecord<T>(key: AppRecordKey, defaultValue: T, schema?: z.ZodType<T>): T {
-    let data = readAppRecord(key);
-    if (data === undefined) return defaultValue;
-    // Plain data is stored; tolerate a version wrapper restored from old data
-    if (data && typeof data === 'object' && typeof (data as { version?: unknown }).version === 'number' && 'data' in data) {
-      data = (data as { data: unknown }).data;
-    }
-    if (!schema) return data as T;
-
+  /** `data` checked against `schema`; a value that fails is refused, not repaired. */
+  private validated<T>(key: string, data: unknown, schema: z.ZodType<T>): T {
     const validationResult = validateWithSchema(schema, data);
     if (!validationResult.success) {
       console.error(`Validation failed for key "${key}":`, validationResult.error);
@@ -69,124 +62,42 @@ export class StorageService implements IStorageService {
     return validationResult.data!;
   }
 
-  /**
-   * Generic method to get data from localStorage with validation and migration
-   */
-  async getItem<T>(
-    key: string,
-    defaultValue: T,
-    schema?: z.ZodType<T>
-  ): Promise<T> {
-    if (isAppRecordKey(key)) {
-      return this.readRecord(key, defaultValue, schema);
+  /** A record from the records cache, validated like a localStorage read. */
+  private readRecord<T>(key: AppRecordKey, defaultValue: T, schema: z.ZodType<T>): T {
+    let data = readAppRecord(key);
+    if (data === undefined) return defaultValue;
+    // Plain data is stored; tolerate a version wrapper restored from old data
+    if (data && typeof data === 'object' && typeof (data as { version?: unknown }).version === 'number' && 'data' in data) {
+      data = (data as { data: unknown }).data;
     }
-    try {
-      const item = localStorage.getItem(key);
-
-      // If key is not found in localStorage, return defaultValue immediately
-      if (item === null) {
-        return defaultValue;
-      }
-
-      let parsedData = JSON.parse(item);
-
-      // Return early if no migration is required
-      if (parsedData === null || !needsMigration(parsedData)) {
-        if (parsedData !== null && parsedData.version) {
-          // Data is already versioned, extract the actual data
-          parsedData = parsedData.data;
-        }
-
-        // Validate data if schema provided
-        if (schema) {
-          const validationResult = validateWithSchema(schema, parsedData);
-          if (!validationResult.success) {
-            console.error(`Validation failed for key "${key}":`, validationResult.error);
-            throw createStorageError('STORAGE_VALIDATION_FAILED',
-              `Data validation failed for key "${key}": ${validationResult.error}`,
-              { key, validationError: validationResult.error }
-            );
-          }
-          return validationResult.data!;
-        }
-
-        return parsedData;
-      }
-
-      // Create backup before migration
-      await this.createBackup(key);
-
-      // Migrate data
-      const migratedData = migrateData(key, parsedData);
-
-      // Save migrated data back to localStorage
-      localStorage.setItem(key, JSON.stringify(migratedData));
-
-      // Extract actual data from versioned structure
-      parsedData = migratedData.version ? migratedData.data : migratedData;
-
-      // Validate data if schema provided
-      if (schema) {
-        const validationResult = validateWithSchema(schema, parsedData);
-        if (!validationResult.success) {
-          console.error(`Validation failed for key "${key}":`, validationResult.error);
-          throw createStorageError('STORAGE_VALIDATION_FAILED',
-            `Data validation failed for key "${key}": ${validationResult.error}`,
-            { key, validationError: validationResult.error }
-          );
-        }
-        return validationResult.data!;
-      }
-
-      return parsedData;
-    } catch (error) {
-      if (error instanceof StorageErrorClass) {
-        throw error;
-      }
-
-      console.error(`Failed to get item from localStorage for key "${key}":`, error);
-      throw createStorageError('STORAGE_READ_FAILED',
-        `Failed to read data for key "${key}"`,
-        { key, originalError: error }
-      );
-    }
+    return this.validated(key, data, schema);
   }
 
   /**
-   * Generic method to set data in localStorage with validation
+   * The value at `key`, checked against `schema`: a record, or a device
+   * setting (`defaultValue` when there's none, or it can't be read).
    */
-  async setItem<T>(
-    key: string, 
-    value: T, 
-    schema?: z.ZodType<T>
-  ): Promise<void> {
+  async getItem<T>(key: string, defaultValue: T, schema: z.ZodType<T>): Promise<T> {
+    if (isAppRecordKey(key)) {
+      return this.readRecord(key, defaultValue, schema);
+    }
+    const data = readLocal<unknown>(key, undefined);
+    return data === undefined ? defaultValue : this.validated(key, data, schema);
+  }
+
+  /** Saves `value` at `key` once `schema` accepts it. */
+  async setItem<T>(key: string, value: T, schema: z.ZodType<T>): Promise<void> {
+    this.validated(key, value, schema);
+    if (!isAppRecordKey(key)) {
+      writeLocal(key, value, undefined);
+      return;
+    }
     try {
-      // Validate data if schema provided
-      if (schema) {
-        const validationResult = validateWithSchema(schema, value);
-        if (!validationResult.success) {
-          throw createStorageError('STORAGE_VALIDATION_FAILED', 
-            `Data validation failed for key "${key}": ${validationResult.error}`, 
-            { key, validationError: validationResult.error }
-          );
-        }
-      }
-
-      if (isAppRecordKey(key)) {
-        await writeAppRecord(key, value);
-        return;
-      }
-
-      const serializedValue = JSON.stringify(value);
-      localStorage.setItem(key, serializedValue);
+      await writeAppRecord(key, value);
     } catch (error) {
-      if (error instanceof StorageErrorClass) {
-        throw error;
-      }
-      
       console.error(`Failed to save data for key "${key}":`, error);
-      throw createStorageError('STORAGE_WRITE_FAILED', 
-        `Failed to write data for key "${key}"`, 
+      throw createStorageError('STORAGE_WRITE_FAILED',
+        `Failed to write data for key "${key}"`,
         { key, originalError: error }
       );
     }
@@ -268,24 +179,5 @@ export class StorageService implements IStorageService {
       achievements,
       z.array(DailyGoalAchievementSchema)
     );
-  }
-
-  // Session data lives in the Rust backend (sessions.json); the legacy
-  // localStorage copies of sessions/timer instances were removed with
-  // SessionService.
-
-  private async createBackup(key: string): Promise<void> {
-    try {
-      const data = localStorage.getItem(key);
-      if (data) {
-        createBackup(key, JSON.parse(data));
-      }
-    } catch (error) {
-      console.error(`Failed to create backup for key "${key}":`, error);
-      throw createStorageError('STORAGE_BACKUP_FAILED', 
-        `Failed to create backup for key "${key}"`, 
-        { key, originalError: error }
-      );
-    }
   }
 }

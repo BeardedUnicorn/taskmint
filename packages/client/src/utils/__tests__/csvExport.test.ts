@@ -85,3 +85,12 @@ describe('csvFileName', () => {
     expect(csvFileName([])).toBe('taskmint-time-entries.csv');
   });
 });
+
+describe('entries missing their end, duration or day', () => {
+  it('end at start plus duration, are dated by their start, and are left out without a duration', () => {
+    const open = entry({ endTime: undefined, date: '', duration: 30 * 60_000 });
+    const csv = timeEntriesToCsv([open, entry({ id: 'none', duration: undefined })], tasks);
+    expect(lines(csv).slice(1)).toEqual(['2026-10-10,Annotation,2026-10-10 09:05,2026-10-10 09:35,0.50,40.00,20.00,Tracked']);
+    expect(csvFileName([open])).toBe('taskmint-time-entries-2026-10-10.csv');
+  });
+});

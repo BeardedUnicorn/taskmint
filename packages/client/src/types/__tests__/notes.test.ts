@@ -102,6 +102,12 @@ describe('Enhanced Notes Types', () => {
       expect(parsed).not.toHaveProperty('command');
     });
 
+    it("refuses a field that isn't one, as it always did", () => {
+      for (const notAField of [null, 'text', 7]) {
+        expect(TemplateFieldSchema.safeParse(notAField).success).toBe(false);
+      }
+    });
+
     it('keeps a stored template with a legacy command field loadable', () => {
       const parsed = NoteTemplateSchema.parse({
         id: 'legacy',
