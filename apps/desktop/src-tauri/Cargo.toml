@@ -37,6 +37,15 @@ base64 = "0.22"
 uuid = { version = "1.0", features = ["v4"] }
 tiny_http = "0.12"
 flate2 = "1"
+# Server mode: a blocking client suits the shell's threads (and works inside
+# dispatch's async runtime, where reqwest's blocking client would panic)
+ureq = { version = "2.12", default-features = false, features = ["tls", "json"] }
+# The server token lives in the OS keychain (platform/keychain.rs)
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "linux-native"] }
+# The zone server mode dates sessions in (X-TaskMint-TZ), and the name the
+# device's token gets
+iana-time-zone = "0.1"
+whoami = "1.6"
 # Failpoints (fail_point!) are no-ops unless the failpoints feature is on;
 # the coverage run turns it on to reach errors no real fault can.
 fail = "=0.5.1"

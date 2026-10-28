@@ -16,6 +16,7 @@ pub type JsonMap = serde_json::Map<String, serde_json::Value>;
 /// write one each, so older ones are deleted when a new copy is written.
 pub const BACKUPS_KEPT: usize = 10;
 
+#[derive(Clone)]
 pub struct JsonFileStore {
     dir: PathBuf,
 }
@@ -58,6 +59,16 @@ impl JsonFileStore {
         // platform can open a folder for that, so it's best effort.
         let _ = fs::File::open(&self.dir).and_then(|dir| dir.sync_all());
         Ok(())
+    }
+
+    /// Deletes the file; one that isn't there is already gone.
+    pub fn remove(&self, file: &str) -> Result<(), String> {
+        match fs::remove_file(self.path(file)) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                Err(format!("Failed to delete {}: {}", file, e))
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Copies the file aside as `<file>.bak-<stamp>` before something could
@@ -439,6 +450,25 @@ pub(crate) mod tests {
         );
         assert!(backups_to_prune(&names, "sessions.json", 10).is_empty());
         assert!(backups_to_prune(&names, "worklogs.json", 1).is_empty());
+    }
+
+    #[test]
+    fn removing_a_file_is_done_once_it_is_gone() {
+        let dir = TempDir::new("remove");
+        let store = JsonFileStore::new(&dir.0);
+        store.save("server.json", &JsonMap::new()).unwrap();
+        store.remove("server.json").unwrap();
+        assert_eq!(store.load("server.json").unwrap(), None);
+        store.remove("server.json").unwrap();
+
+        // A folder in its place can't be deleted as a file
+        fs::create_dir(dir.0.join("server.json")).unwrap();
+        let error = store.remove("server.json").unwrap_err();
+        assert!(
+            error.starts_with("Failed to delete server.json: "),
+            "{}",
+            error
+        );
     }
 
     #[test]

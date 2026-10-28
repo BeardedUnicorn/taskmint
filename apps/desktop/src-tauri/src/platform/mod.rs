@@ -1,11 +1,14 @@
-//! What the desktop shell needs from the OS and from Tauri, as one seam.
-//! `os.rs` is the real thing (and needs a real UI session, so the coverage
-//! policy leaves it to the manual QA checklist); tests use `fake::FakePlatform`.
+//! What the desktop shell needs from the OS and from Tauri, as two seams:
+//! `Platform`, and `SecretStore` for the server token. `os.rs` and
+//! `keychain.rs` are the real things (they need a real UI session, so the
+//! coverage policy leaves them to the manual QA checklist); tests use
+//! `fake::FakePlatform` and `fake::MemorySecrets`.
 
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
+pub mod keychain;
 pub mod os;
 
 #[cfg(test)]
@@ -44,6 +47,19 @@ pub trait Platform: Send + Sync {
     fn set_tray_status(&self, status: &TrayStatus) -> Result<(), String>;
     /// Whether the tray icon exists (closing the window then hides it).
     fn has_tray(&self) -> bool;
-    /// The app's version, for the capture server's health check.
+    /// The app's version, for the capture server's health check and the
+    /// server's version check.
     fn app_version(&self) -> String;
+    /// Starts the app again: switching between local data and a server
+    /// takes effect at launch, since the webview starts with one backend.
+    fn restart(&self);
+}
+
+/// Secrets kept out of the data folder and the webview (the server token),
+/// by name.
+pub trait SecretStore: Send + Sync {
+    fn get(&self, name: &str) -> Result<Option<String>, String>;
+    fn set(&self, name: &str, secret: &str) -> Result<(), String>;
+    /// Deleting one that isn't there succeeds.
+    fn delete(&self, name: &str) -> Result<(), String>;
 }

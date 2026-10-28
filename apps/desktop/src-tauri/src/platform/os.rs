@@ -201,4 +201,8 @@ impl Platform for TauriPlatform {
     fn app_version(&self) -> String {
         self.app.package_info().version.to_string()
     }
+
+    fn restart(&self) {
+        self.app.restart()
+    }
 }

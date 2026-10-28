@@ -23,7 +23,6 @@ use tiny_http::{Header, Method, Request, Response, Server};
 
 use crate::state::AppState;
 use taskmint_core::capture::{is_extension_origin, origin_allowed};
-use taskmint_core::command::{AcceptCaptureArgs, Command};
 use taskmint_core::contract::{
     CAPTURE_HEADER, CAPTURE_PATH, CAPTURE_SERVER_PORT, DEEP_LINK_CAPTURE_PENDING,
     DEEP_LINK_IMPORT_WORKLOGS, DEEP_LINK_PAYLOAD_PARAM, DEEP_LINK_SCHEME,
@@ -119,10 +118,10 @@ pub fn accept_capture_payload(
 ) -> Result<(), String> {
     state
         .backend
-        .call(Command::AcceptCapture(AcceptCaptureArgs {
-            payload: body,
-            source,
-        }))
+        .call(
+            "accept_capture",
+            json!({ "payload": body, "source": source }),
+        )
         .map(|_| ())
 }
 
@@ -430,7 +429,7 @@ mod tests {
         let taken = f
             .state
             .backend
-            .call_named("take_pending_work_log_capture", serde_json::Value::Null)
+            .call("take_pending_work_log_capture", serde_json::Value::Null)
             .unwrap();
         (!taken.is_null()).then_some(taken)
     }

@@ -3,11 +3,13 @@
 //! manual QA checklist: it only wires up code that's tested elsewhere.
 
 use crate::capture_server::{self, CaptureServer};
+use crate::platform::keychain::Keychain;
 use crate::platform::os::TauriPlatform;
 use crate::state::AppState;
 use crate::store::JsonFileStore;
 use crate::ticker::Ticker;
 use crate::{dispatch, idle, tray};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -52,10 +54,25 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let handle = app.handle().clone();
+            // A development build can use a folder (and keychain items) of
+            // its own, so trying server mode leaves the installed app's alone
+            let dev_data = std::env::var_os("TASKMINT_DATA_DIR")
+                .filter(|_| cfg!(debug_assertions))
+                .map(PathBuf::from);
+            let identifier = &app.config().identifier;
+            let service = match dev_data {
+                Some(_) => format!("{}.dev", identifier),
+                None => identifier.clone(),
+            };
+            let data_dir = match dev_data {
+                Some(dir) => dir,
+                None => app.path().app_data_dir()?,
+            };
             let state = AppState::open(
-                JsonFileStore::new(app.path().app_data_dir()?),
+                JsonFileStore::new(data_dir),
                 Arc::new(chrono::Utc::now),
                 Arc::new(TauriPlatform::new(handle.clone())),
+                Arc::new(Keychain::new(service)),
             );
             app.manage(state.clone());
 

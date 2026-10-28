@@ -90,6 +90,8 @@ pub struct TraySnapshot {
     pub idle_paused: bool,
     /// The Start submenu's tasks, in order.
     pub tasks: Vec<Task>,
+    /// Server mode: what's wrong with the link to the server, if anything.
+    pub server_problem: Option<&'static str>,
 }
 
 impl TraySnapshot {
@@ -107,6 +109,7 @@ impl TraySnapshot {
                 .into_iter()
                 .cloned()
                 .collect(),
+            server_problem: None,
         }
     }
 
@@ -116,6 +119,11 @@ impl TraySnapshot {
 
     pub fn menu(&self) -> TrayMenu {
         let mut items = Vec::new();
+        // Its actions fail until the server is back (or signed in again)
+        if let Some(problem) = self.server_problem {
+            items.push(TrayItem::Label(format!("⚠️ {}", problem)));
+            items.push(TrayItem::Separator);
+        }
         match &self.live {
             Some(live) if self.idle_paused => {
                 // Idle detection paused it as of when input stopped: the
@@ -186,6 +194,14 @@ impl TraySnapshot {
     }
 
     pub fn status(&self) -> TrayStatus {
+        let mut status = self.timer_status();
+        if let Some(problem) = self.server_problem {
+            status.tooltip = format!("⚠️ {} - {}", problem, status.tooltip);
+        }
+        status
+    }
+
+    fn timer_status(&self) -> TrayStatus {
         match &self.live {
             Some(live) => {
                 let elapsed = format_duration_hm(live.elapsed_ms);
@@ -309,6 +325,7 @@ mod tests {
             live,
             idle_paused,
             tasks,
+            server_problem: None,
         }
     }
 
@@ -407,6 +424,28 @@ mod tests {
             TrayStatus {
                 tooltip: "TaskMint - No active timer (Click for menu)".to_string(),
                 title: String::new()
+            }
+        );
+    }
+
+    #[test]
+    fn a_problem_with_the_server_leads_the_menu_and_the_tooltip() {
+        let mut down = snapshot(Some(live(false)), false, vec![]);
+        down.server_problem = Some("Can't reach the TaskMint server");
+        assert_eq!(
+            labels(&down.menu().0)[..3],
+            [
+                "label ⚠️ Can't reach the TaskMint server",
+                "-",
+                "label ⏱️ Running: Writing (01:30)"
+            ]
+        );
+        assert_eq!(
+            down.status(),
+            TrayStatus {
+                tooltip: "⚠️ Can't reach the TaskMint server - ⏱️ Writing - 01:30 (Click for menu)"
+                    .to_string(),
+                title: "01:30".to_string()
             }
         );
     }

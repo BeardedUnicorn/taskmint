@@ -58,7 +58,9 @@ export async function startClient(
     await loadAppRecords({ importLegacy: importLegacyRecords });
   } catch (error) {
     console.error("Failed to load app records:", error);
-    root.render(<StartupError message={errorMessage(error, "Unknown error")} />);
+    root.render(
+      <StartupError message={errorMessage(error, "Unknown error")} Actions={extensions.StartupErrorActions} />,
+    );
     return;
   }
   root.render(

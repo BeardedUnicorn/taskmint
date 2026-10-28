@@ -16,6 +16,12 @@ export interface SettingsSectionExtension {
 export interface AppExtensions {
   /** Shown after the built-in sections, in this order. */
   settingsSections?: readonly SettingsSectionExtension[];
+  /**
+   * Shown under "Try again" when the data can't be opened at startup (the
+   * desktop's way back to the data on the computer when its server can't be
+   * used). It renders outside the app's theme and notifications.
+   */
+  StartupErrorActions?: ComponentType;
 }
 
 const AppExtensionsContext = createContext<AppExtensions>({});

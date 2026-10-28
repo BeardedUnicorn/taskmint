@@ -4,13 +4,16 @@
  * that point, so trying again is safe.
  */
 
+import type { ComponentType } from 'react';
 import { getBackend } from '../backend';
 
 interface StartupErrorProps {
   message: string;
+  /** The shell's other ways out (AppExtensions.StartupErrorActions). */
+  Actions?: ComponentType;
 }
 
-export function StartupError({ message }: StartupErrorProps) {
+export function StartupError({ message, Actions }: StartupErrorProps) {
   return (
     <div
       role="alert"
@@ -55,6 +58,7 @@ export function StartupError({ message }: StartupErrorProps) {
       >
         Try again
       </button>
+      {Actions && <Actions />}
     </div>
   );
 }

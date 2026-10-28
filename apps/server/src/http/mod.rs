@@ -51,7 +51,10 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/logout", post(auth::logout))
         .route("/auth/me", get(auth::me))
         .route("/auth/password", post(auth::change_password))
-        .route("/auth/device-token", post(auth::device_token))
+        .route(
+            "/auth/device-token",
+            post(auth::device_token).delete(auth::revoke_device_token),
+        )
         .route("/invites/{token}", get(links::invite))
         .route("/invites/{token}/accept", post(links::accept_invite))
         .route("/password-resets/{token}", get(links::password_reset))

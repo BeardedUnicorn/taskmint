@@ -10,15 +10,21 @@ use crate::events::{emit_quiet, SHOW_START_TASK_DIALOG};
 use crate::state::AppState;
 use crate::ticker::Ticker;
 use model::{TrayAction, TraySnapshot};
-use taskmint_core::command::{Command, NoArgs, StartTaskArgs};
+use serde_json::{json, Value};
 
-/// The tray as the data stands now.
+/// The tray as the data stands now (in server mode, with the link to the
+/// server when it's down).
 fn snapshot(state: &AppState) -> TraySnapshot {
     let idle_paused = state.with_idle(|idle| idle.pause.as_ref().map(|p| p.instance_id.clone()));
     let now = (state.clock)();
-    state
+    let mut snapshot = state
         .backend
-        .read(|workspace| TraySnapshot::read(workspace, idle_paused.as_deref(), now))
+        .read(|workspace| TraySnapshot::read(workspace, idle_paused.as_deref(), now));
+    snapshot.server_problem = state
+        .backend
+        .remote()
+        .and_then(|remote| remote.status().problem());
+    snapshot
 }
 
 /// Creates the tray icon and its menu. False when that failed: there's no
@@ -73,8 +79,8 @@ pub fn start_ticker(state: &AppState) -> Ticker {
 }
 
 /// Runs a tray action; a failure is logged (the tray has nowhere to show it).
-fn act(state: &AppState, what: &str, command: Command) {
-    if let Err(e) = state.backend.call(command) {
+fn act(state: &AppState, what: &str, command: &str, args: Value) {
+    if let Err(e) = state.backend.call(command, args) {
         log::error!("Failed to {} from the tray: {}", what, e);
     }
 }
@@ -83,7 +89,8 @@ fn start_task(state: &AppState, task_id: String, task_name: String) {
     act(
         state,
         "start a timer",
-        Command::StartTask(StartTaskArgs { task_id, task_name }),
+        "start_task",
+        json!({ "taskId": task_id, "taskName": task_name }),
     );
 }
 
@@ -94,8 +101,8 @@ pub fn handle_menu_event(state: &AppState, id: &str) {
         return;
     };
     match action {
-        TrayAction::StopTimer => act(state, "stop the timer", Command::StopLiveTimer(NoArgs {})),
-        TrayAction::PauseTimer => act(state, "pause the timer", Command::PauseLiveTimer(NoArgs {})),
+        TrayAction::StopTimer => act(state, "stop the timer", "stop_live_timer", json!({})),
+        TrayAction::PauseTimer => act(state, "pause the timer", "pause_live_timer", json!({})),
         TrayAction::ResumeTimer => {
             if let Some(live) = snapshot(state).live.filter(|live| live.is_paused) {
                 start_task(state, live.task_id, live.task_name);
@@ -137,11 +144,75 @@ mod tests {
     use serde_json::json;
     use taskmint_core::idle::IdlePause;
 
+    #[test]
+    fn in_server_mode_the_tray_shows_the_servers_timers_and_its_link() {
+        let server = crate::testing::FakeServer::start();
+        let records: Value = serde_json::from_slice(
+            &std::fs::read(crate::store::json_file::tests::fixtures().join("appdata.json"))
+                .unwrap(),
+        )
+        .unwrap();
+        server.reply(
+            "POST",
+            "/api/v1/commands/get_app_records",
+            200,
+            json!({
+                "records": { "predefinedTasks": records["predefinedTasks"] },
+                "revisions": {},
+            }),
+        );
+        let f = crate::testing::server_fixture(&server);
+        server.wait_for_streams(1);
+        crate::testing::eventually("the tasks", || {
+            f.state.backend.read(|w| !w.tasks().is_empty())
+        });
+        assert!(start(&f.state));
+        let first = |f: &Fixture| first_label(f.platform.recorded().menus.last().unwrap());
+        assert_eq!(first(&f), label("No active timer"));
+
+        // Starting from the tray goes to the server
+        server.reply(
+            "POST",
+            "/api/v1/commands/start_task",
+            200,
+            json!({ "outcome": "started" }),
+        );
+        handle_menu_event(&f.state, "start_task_task_write");
+        assert_eq!(
+            server.seen_at("/api/v1/commands/start_task")[0].json(),
+            json!({ "taskId": "task_write", "taskName": "Writing" })
+        );
+
+        // The server signs this computer out
+        server.reply(
+            "GET",
+            "/api/v1/events",
+            401,
+            json!({ "error": "sign in first" }),
+        );
+        server.end_streams();
+        crate::testing::eventually("the tray to say so", || {
+            first(&f) == label("⚠️ Signed out of the TaskMint server")
+        });
+        assert!(f
+            .platform
+            .recorded()
+            .statuses
+            .last()
+            .unwrap()
+            .tooltip
+            .starts_with("⚠️ Signed out of the TaskMint server - "));
+        assert!(f
+            .platform
+            .event_names()
+            .contains(&"server-connection-changed".to_string()));
+    }
+
     fn with_tasks() -> Fixture {
         let f = fixture();
         f.state
             .backend
-            .call_named(
+            .call(
                 "set_app_record",
                 json!({ "key": "predefinedTasks", "value": [
                     { "id": "t1", "name": "Writing", "createdAt": "x", "updatedAt": "x" }
@@ -175,7 +246,7 @@ mod tests {
         // Starting in the app rebuilds the menu once
         f.state
             .backend
-            .call_named(
+            .call(
                 "start_task",
                 json!({ "taskId": "t1", "taskName": "Writing" }),
             )
@@ -215,7 +286,7 @@ mod tests {
         f.platform.fail("status");
         f.state
             .backend
-            .call_named(
+            .call(
                 "start_task",
                 json!({ "taskId": "t1", "taskName": "Writing" }),
             )
@@ -273,7 +344,7 @@ mod tests {
         let f = fixture();
         f.state
             .backend
-            .call_named(
+            .call(
                 "set_app_record",
                 json!({ "key": "predefinedTasks", "value": [
                     { "id": "blank", "name": " ", "createdAt": "x", "updatedAt": "x" }
@@ -302,7 +373,7 @@ mod tests {
         let started = f
             .state
             .backend
-            .call_named(
+            .call(
                 "start_task",
                 json!({ "taskId": "t1", "taskName": "Writing" }),
             )
@@ -310,7 +381,7 @@ mod tests {
         let instance_id = started["instanceId"].as_str().unwrap().to_string();
         f.state
             .backend
-            .call_named(
+            .call(
                 "pause_timer_at",
                 json!({ "instanceId": instance_id, "idleSince": "2026-03-02T14:59:00Z" }),
             )
@@ -346,7 +417,7 @@ mod tests {
         assert!(start(&f.state));
         f.state
             .backend
-            .call_named(
+            .call(
                 "start_task",
                 json!({ "taskId": "t1", "taskName": "Writing" }),
             )

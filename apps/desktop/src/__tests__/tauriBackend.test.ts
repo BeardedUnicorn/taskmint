@@ -11,7 +11,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 const mockInvoke = vi.mocked(invoke);
 const mockListen = vi.mocked(listen);
-const backend = createTauriBackend();
+const backend = createTauriBackend({ runtime: "desktop", dataLocation: "local" });
 const { platform } = backend;
 
 /** The commands dispatch was asked to run, with their args. */
@@ -29,8 +29,9 @@ describe("createTauriBackend", () => {
     mockInvoke.mockResolvedValue("result");
   });
 
-  it("is a local desktop", () => {
+  it("is the desktop the Rust side reported", () => {
     expect(backend.capabilities).toEqual({ runtime: "desktop", dataLocation: "local" });
+    expect(createTauriBackend({ runtime: "desktop", dataLocation: "server" }).capabilities.dataLocation).toBe("server");
   });
 
   it("runs data commands by name through dispatch", async () => {

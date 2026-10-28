@@ -291,6 +291,11 @@ fn constants() -> Constants {
                 "NOTIFICATION_POSTED",
                 json!(events::NOTIFICATION_POSTED),
             ),
+            (
+                "SERVER_CONNECTION_CHANGED",
+                "SERVER_CONNECTION_CHANGED",
+                json!(events::SERVER_CONNECTION_CHANGED),
+            ),
         ],
     );
     out.line("export type EventName = (typeof EVENTS)[keyof typeof EVENTS];\n");
