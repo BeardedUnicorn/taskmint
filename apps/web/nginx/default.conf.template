@@ -1,10 +1,21 @@
 # The web app's files, and /api passed to the TaskMint server
 # (${TASKMINT_SERVER}). The browser sees one origin, so the API needs no CORS.
+# Invite and reset links carry their secret in the path, the page's and its
+# API calls': the access log keeps those paths with the secret replaced, and
+# leaves out the Referer, which would repeat it.
+map $request_uri $logged_uri {
+    "~^(?<link>/(?:invite|reset|api/v1/invites|api/v1/password-resets)/)[^/?]+(?<rest>.*)$" "$link[redacted]$rest";
+    default $request_uri;
+}
+log_format taskmint '$remote_addr - $remote_user [$time_local] "$request_method $logged_uri $server_protocol" '
+                    '$status $body_bytes_sent "$http_user_agent"';
+
 server {
     listen 8080;
     server_name _;
     root /usr/share/nginx/html;
     server_tokens off;
+    access_log /var/log/nginx/access.log taskmint;
 
     # Restore and import payloads (the server's own limit is 32 MB)
     client_max_body_size 32m;

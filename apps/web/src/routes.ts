@@ -20,10 +20,23 @@ export function matchRoute(pathname: string, search: string): Route {
   return { kind: 'app' };
 }
 
-/** Where to go after signing in: a path on this site, never another one. */
+/** A stand-in origin for resolving `next`; never visited. */
+const THIS_SITE = 'https://taskmint.invalid';
+
+/**
+ * Where to go after signing in: a page on this site, never another one.
+ * `next` is resolved the way the browser will resolve it (which drops tabs
+ * and newlines, so "/\t/evil.example" is "//evil.example") and kept only if
+ * it stays on this site.
+ */
 export function safeNext(next: string | null): string {
-  if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return '/';
-  return next;
+  try {
+    const url = new URL(next ?? '/', THIS_SITE);
+    if (url.origin === THIS_SITE) return url.pathname + url.search + url.hash;
+  } catch {
+    // Not a URL at all
+  }
+  return '/';
 }
 
 /** The sign-in page, coming back to `location` afterwards. */

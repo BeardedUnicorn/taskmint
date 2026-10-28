@@ -12,8 +12,20 @@ describe('routes', () => {
   });
 
   it('only come back to a page on this site after signing in', () => {
-    expect(safeNext('/settings?x=1')).toBe('/settings?x=1');
-    for (const unsafe of [null, '', 'https://evil.example', '//evil.example', '/\\evil.example']) {
+    expect(safeNext('/settings?x=1#top')).toBe('/settings?x=1#top');
+    for (const unsafe of [
+      null,
+      '',
+      'https://evil.example',
+      '//evil.example',
+      '/\\evil.example',
+      // The browser drops tabs and newlines, which leaves "//evil.example"
+      '/\t/evil.example',
+      '/\n/evil.example',
+      'javascript:alert(1)',
+      // Not a URL: an unclosed IPv6 host
+      '//[',
+    ]) {
       expect(safeNext(unsafe)).toBe('/');
     }
   });

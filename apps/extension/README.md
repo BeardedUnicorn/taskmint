@@ -34,7 +34,8 @@ to a server instead (the web app, or the desktop app in server mode):
    **Browser extension**. It's shown once.
 2. Open the extension's options (right-click its toolbar icon → **Options**).
 3. Choose **A TaskMint server**, enter its address (the one you open in a
-   browser) and the token, and click **Test**. Chrome asks to let the
+   browser; `https://`, or `http://` only for a server on this computer) and
+   the token, and click **Test**. Chrome asks to let the
    extension reach that address: allow it.
 4. Click **Save**. Anything queued is delivered straight away.
 

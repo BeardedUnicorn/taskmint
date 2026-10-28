@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installChromeFake, type ChromeFake } from './chromeFake';
-import { DESKTOP, loadTarget, originPattern, saveTarget, serverUrl } from '../target';
+import { DESKTOP, loadTarget, originPattern, saveTarget, sendsInTheClear, serverUrl } from '../target';
 
 let chrome: ChromeFake;
 
@@ -30,6 +30,15 @@ describe('where captures go', () => {
     expect(serverUrl('ftp://files.example.com')).toBeNull();
     expect(serverUrl('localhost:8080')).toBeNull();
     expect(serverUrl('not an address')).toBeNull();
+  });
+
+  it('allows plain http only to this computer', () => {
+    for (const local of ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://127.1', 'http://[::1]:8080', 'https://time.example.com']) {
+      expect(sendsInTheClear(local)).toBe(false);
+    }
+    for (const remote of ['http://time.example.com', 'http://192.168.1.5:8080', 'http://127.0.0.1.example.com', 'http://[2001:db8::1]']) {
+      expect(sendsInTheClear(remote)).toBe(true);
+    }
   });
 
   it("asks for the server's origin only", () => {

@@ -129,8 +129,10 @@ pub struct PasswordChange {
     new_password: String,
 }
 
-/// Changes the password and signs out every other session (and every event
-/// stream; this session's reconnect).
+/// Changes the password and signs out every other session, including the
+/// desktop apps signed in with the old one (their device tokens), and every
+/// event stream (this session's reconnect). Tokens made on the tokens page
+/// stay: they weren't issued for the password.
 pub async fn change_password(
     session: CookieSession,
     State(state): State<AppState>,
@@ -157,6 +159,9 @@ pub async fn change_password(
             WHERE id = $1
         ), signed_out AS (
             DELETE FROM auth_sessions WHERE user_id = $1 AND id <> $3
+        ), devices AS (
+            UPDATE api_tokens SET revoked_at = now()
+            WHERE user_id = $1 AND kind = 'device' AND revoked_at IS NULL
         )
         INSERT INTO audit_events (actor_id, action, target_user_id, ip)
         VALUES ($1, 'password.change', $1, $4)

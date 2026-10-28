@@ -18,7 +18,7 @@ mod links;
 mod stream;
 mod tokens;
 
-use axum::extract::DefaultBodyLimit;
+use axum::extract::{DefaultBodyLimit, MatchedPath, Request};
 use axum::http::header::{CACHE_CONTROL, X_CONTENT_TYPE_OPTIONS};
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -101,8 +101,18 @@ pub fn router(state: AppState) -> Router {
             HeaderValue::from_static("nosniff"),
         ))
         .layer(CatchPanicLayer::new())
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(request_span))
         .with_state(state)
+}
+
+/// A request's log span names its route (`/api/v1/invites/{token}`), not its
+/// path, so the secrets in invite and reset links never reach the logs.
+fn request_span(request: &Request) -> tracing::Span {
+    let route = request
+        .extensions()
+        .get::<MatchedPath>()
+        .map(MatchedPath::as_str);
+    tracing::debug_span!("request", method = %request.method(), route)
 }
 
 async fn not_found() -> ApiError {

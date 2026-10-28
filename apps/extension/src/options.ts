@@ -4,7 +4,16 @@
 // asks before anything it awaits.
 
 import { pingServer, TokenRejected } from './delivery/server';
-import { DESKTOP, loadTarget, originPattern, saveTarget, serverUrl, TOKEN_REJECTED, type Target } from './target';
+import {
+  DESKTOP,
+  loadTarget,
+  originPattern,
+  saveTarget,
+  sendsInTheClear,
+  serverUrl,
+  TOKEN_REJECTED,
+  type Target,
+} from './target';
 
 function byId<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -35,6 +44,10 @@ function typedServer(): { url: string; token: string } | null {
   const address = serverUrl(url.value);
   if (!address) {
     say('The address starts with http:// or https://, like https://taskmint.example.com.', true);
+    return null;
+  }
+  if (sendsInTheClear(address)) {
+    say('http:// would send the token unencrypted. Use https://, or http:// only for this computer (localhost).', true);
     return null;
   }
   if (!token.value.trim()) {

@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target), P14a (client utils, services, types and theme at 100%), P14b (client hooks at 100%), P14c (client contexts and notifications at 100%) and P14d (client components, pages and App at 100%: the whole client) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target), P14a (client utils, services, types and theme at 100%), P14b (client hooks at 100%), P14c (client contexts and notifications at 100%), P14d (client components, pages and App at 100%: the whole client) and P15 (security review, QA checklist, runbook) are done: every phase is; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -616,6 +616,16 @@ Device settings (theme, filters, backup schedule, idle) stay in localStorage, pe
   - `App.test.tsx` runs the real app on a fake backend: every page, starting work, adding time, editing an entry, and the archived-task hand-off.
   - Recharts renders in jsdom with `ResponsiveContainer` mocked to a fixed size and reduced motion on, so labels draw without animating. MUI X pickers are driven through their calendar, or typed into with `userEvent`.
   - `setupTests.ts` stubs `Element.prototype.scrollIntoView`, so components call it unguarded.
+
+**As built in P15:**
+- **Security review:** [docs/security-review.md](security-review.md) has the threats considered, what was checked, the accepted risks and the deployment requirements. It fixed five findings:
+  - An open redirect after sign-in: `safeNext` missed `/\t/host`, which the browser reads as `//host`. It now resolves `next` and keeps it only on this site.
+  - Invite and reset secrets in nginx's access log, in the path and the Referer. A `taskmint` log format redacts them, and `verify.sh` checks the stack's logs after the smoke test.
+  - Password changes and resets left desktop device tokens working. Both now revoke them; tokens made on the tokens page stay.
+  - The desktop's server mode and the extension sent the password and tokens over `http://` to any host. Plain http is now for this computer only.
+  - The server's request spans held the full URI at debug level. They hold the matched route.
+- **QA checklist:** [docs/qa/excluded-code-checklist.md](qa/excluded-code-checklist.md) covers, by hand, each file the coverage policy excludes, plus the Windows and Linux code the macOS run doesn't compile.
+- **Runbook:** [docs/runbook.md](runbook.md) covers health and logs, `pg_dump` backups (a cron line, a restore check in a throwaway container, a full restore), upgrades and going back, and account recovery from the CLI and SQL. Its incident steps cover a compromised account, a misdirected link, signing everyone out and rotating the database password. The backup and query commands were run against the compose database.
 
 ## 9. CI (`.github/workflows/ci.yml`)
 

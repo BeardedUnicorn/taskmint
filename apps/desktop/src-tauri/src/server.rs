@@ -110,9 +110,26 @@ fn server_url(typed: &str) -> Result<String, String> {
     if !matches!(url.scheme(), "http" | "https") {
         return Err(invalid());
     }
+    // The password and the token travel over it: unencrypted only within
+    // this computer
+    if url.scheme() == "http" && !on_this_computer(&url) {
+        return Err(format!(
+            "\"{}\" would send your password and token unencrypted. Use https://, or http:// only for this computer (localhost).",
+            typed
+        ));
+    }
     url.set_query(None);
     url.set_fragment(None);
     Ok(url.as_str().trim_end_matches('/').to_string())
+}
+
+/// Whether the address is this computer's own: localhost, 127.x.x.x or ::1.
+fn on_this_computer(url: &url::Url) -> bool {
+    url.host().is_some_and(|host| match host {
+        url::Host::Domain(name) => name == "localhost",
+        url::Host::Ipv4(ip) => ip.is_loopback(),
+        url::Host::Ipv6(ip) => ip.is_loopback(),
+    })
 }
 
 /// A version's numbers, to compare (a part that isn't one counts as 0).
@@ -419,6 +436,23 @@ mod tests {
         ] {
             let error = server_url(typed).unwrap_err();
             assert!(error.contains("isn't a server address"), "{}", error);
+        }
+        // Plain http only to this computer
+        for local in [
+            "http://127.0.0.1:8080",
+            "http://127.8.0.1",
+            "http://[::1]:8080",
+        ] {
+            assert_eq!(server_url(local), Ok(local.to_string()));
+        }
+        for typed in [
+            "http://time.example.com",
+            "http://192.168.1.5:8080",
+            "http://localhost.example.com",
+            "http://[2001:db8::1]",
+        ] {
+            let error = server_url(typed).unwrap_err();
+            assert!(error.contains("unencrypted"), "{}", error);
         }
     }
 
