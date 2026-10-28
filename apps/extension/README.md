@@ -2,9 +2,10 @@
 
 Automatically captures the work-log payload from
 `https://app.dataannotation.tech/workers/payments` and delivers it to the
-TaskMint desktop app, which imports it through the Payouts reconciliation
-pipeline (auto-applied when every project already has a task match, staged
-for review otherwise).
+TaskMint desktop app or to a TaskMint server, whichever its options say.
+TaskMint imports it through the Payouts reconciliation pipeline
+(auto-applied when every project already has a task match, staged for review
+otherwise).
 
 ## How it works
 
@@ -23,6 +24,26 @@ for review otherwise).
   automatically.
 - Identical payloads are deduplicated — revisiting the page with no new data
   delivers nothing and never launches the app.
+
+## Deliver to a TaskMint server
+
+Captures go to the desktop app until the options say otherwise. To send them
+to a server instead (the web app, or the desktop app in server mode):
+
+1. In the web app, Settings → API tokens: make a token with the scope
+   **Browser extension**. It's shown once.
+2. Open the extension's options (right-click its toolbar icon → **Options**).
+3. Choose **A TaskMint server**, enter its address (the one you open in a
+   browser) and the token, and click **Test**. Chrome asks to let the
+   extension reach that address: allow it.
+4. Click **Save**. Anything queued is delivered straight away.
+
+The server is reached past CORS through that permission, and the extension
+asks for the one address only. Switching back to the desktop app (or to
+another server) gives it up. If the server refuses the token (it was revoked,
+or the account was disabled), the badge shows `✕`, the capture stays queued,
+and retries stop until a new token is saved. The web app picks up each
+capture as it arrives, in any open tab.
 
 ## Install (load unpacked)
 
@@ -45,8 +66,9 @@ taskmint links"** so future launches are silent.
 
 | Badge | Meaning |
 |---|---|
-| `✓` (green) | Payload delivered to TaskMint (clears after a minute) |
-| `!` (red) | TaskMint unreachable — payload queued, retrying every minute |
+| `✓` (green) | Payload delivered to TaskMint or the server (clears after a minute) |
+| `!` (red) | TaskMint or the server unreachable — payload queued, retrying every minute |
+| `✕` (red) | The server refused the token — payload queued; save a new token in the options |
 | _(empty)_ | Idle — waiting for the payments page |
 
 ## Troubleshooting
@@ -78,7 +100,10 @@ one classic script per entry, under the names `manifest.json` gives them:
 |---|---|---|
 | `src/interceptor.ts` | the page's MAIN world, at document start | wraps the page's `fetch` and `XMLHttpRequest` and posts the work-log response to the window |
 | `src/content.ts` | the content script's isolated world | relays those posts to the service worker, and opens `taskmint://` links in the page |
-| `src/background.ts` | the service worker | dedupe, delivery to `127.0.0.1:43117`, the deep-link launch, the retry queue and the badge |
+| `src/background.ts` | the service worker | dedupe, the retry queue and the badge, for either target |
+| `src/delivery/desktop.ts` | (the service worker) | delivery to `127.0.0.1:43117`, and the deep-link launch |
+| `src/delivery/server.ts` | (the service worker, the options page) | delivery to a server's `/api/v1/capture` with the token, and the Test ping |
+| `src/options.ts` | `options.html` | where captures go: the target in `storage.local`, and the host permission a server needs |
 
 The capture server's port, path and header, and the deep-link names, come from
 `@taskmint/contracts`, so they match the desktop app's. The build copies
@@ -88,4 +113,9 @@ desktop app checks, and a test derives the ID from it.
 ```bash
 pnpm --filter @taskmint/extension build           # dist/
 pnpm --filter @taskmint/extension test:coverage   # vitest at 100%, with a typed chrome.* fake
+node apps/extension/live-check.mjs                # dist/ against a running server (see the file)
 ```
+
+`scripts/verify.sh` runs the live check on its throwaway stack: a capture
+from the built service worker reaches the account and the web app takes it, a
+revoked token is shown as refused, and a new one delivers what was queued.

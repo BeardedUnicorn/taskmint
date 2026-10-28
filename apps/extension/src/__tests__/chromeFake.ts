@@ -22,14 +22,17 @@ export class FakeEvent<A extends unknown[]> {
 class FakeStorageArea {
   readonly data: Record<string, unknown> = {};
 
-  get = vi.fn(async (key: string): Promise<Record<string, unknown>> => (key in this.data ? { [key]: this.data[key] } : {}));
+  get = vi.fn(async (keys: string | string[]): Promise<Record<string, unknown>> => {
+    const found = [keys].flat().filter(key => key in this.data);
+    return Object.fromEntries(found.map(key => [key, this.data[key]]));
+  });
 
   set = vi.fn(async (items: Record<string, unknown>) => {
     Object.assign(this.data, items);
   });
 
-  remove = vi.fn(async (key: string) => {
-    delete this.data[key];
+  remove = vi.fn(async (keys: string | string[]) => {
+    for (const key of [keys].flat()) delete this.data[key];
   });
 }
 
@@ -59,6 +62,11 @@ export function createChromeFake() {
     storage: {
       local: new FakeStorageArea(),
       session: new FakeStorageArea(),
+      onChanged: new FakeEvent<[Record<string, chrome.storage.StorageChange>, string]>(),
+    },
+    permissions: {
+      request: vi.fn(async (_permissions: chrome.permissions.Permissions) => true),
+      remove: vi.fn(async (_permissions: chrome.permissions.Permissions) => true),
     },
     tabs: {
       sendMessage: vi.fn(async (_tabId: number, _message: unknown): Promise<unknown> => undefined),
