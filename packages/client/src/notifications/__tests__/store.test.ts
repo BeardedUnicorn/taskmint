@@ -125,19 +125,89 @@ describe('ToastStore', () => {
     expect(visibleMessages()).toEqual(['Held twice']);
   });
 
-  it('keeps a sticky toast until dismissed, and dismissAll clears everything', () => {
-    store.add(toast('Sticky', { duration: null }));
+  it('keeps a sticky toast until dismissed', () => {
+    const id = store.add(toast('Sticky', { duration: null }));
     vi.advanceTimersByTime(600_000);
     expect(visibleMessages()).toEqual(['Sticky']);
 
-    store.dismissAll();
+    store.dismiss(id);
     settle();
     expect(store.getSnapshot()).toEqual({ visible: [], queued: [] });
   });
 
-  it('updates a toast in place', () => {
-    const id = store.add(toast('Uploading…'));
-    store.update(id, { message: 'Uploaded', severity: 'success' });
-    expect(store.getSnapshot().visible[0]).toMatchObject({ message: 'Uploaded', severity: 'success' });
+  it('dismisses once: again while it leaves, or an id it never showed, changes nothing', () => {
+    const id = store.add(toast('Bye'));
+    store.dismiss(id);
+    const leaving = store.getSnapshot();
+
+    store.dismiss(id);
+    store.dismiss('toast-unknown');
+    expect(store.getSnapshot()).toBe(leaving);
+  });
+
+  it('merges a repeat into a waiting toast, which keeps waiting', () => {
+    for (let i = 0; i < MAX_VISIBLE; i++) store.add(toast(`sticky ${i}`, { duration: null }));
+    store.add(toast('Waiting'));
+    store.add(toast('Waiting, again', { key: 'Waiting' }));
+
+    expect(store.getSnapshot().queued).toEqual([expect.objectContaining({ message: 'Waiting, again', count: 2 })]);
+    expect(visibleMessages()).toHaveLength(MAX_VISIBLE);
+  });
+
+  it('makes a toast sticky when its repeat is', () => {
+    store.add(toast('Syncing'));
+    store.add(toast('Syncing', { duration: null }));
+    vi.advanceTimersByTime(600_000);
+    expect(visibleMessages()).toEqual(['Syncing']);
+  });
+
+  it('starts the time of a sticky toast whose repeat has one', () => {
+    store.add(toast('Offline', { duration: null }));
+    store.add(toast('Offline', { duration: 1000 }));
+    vi.advanceTimersByTime(1000);
+    expect(visibleMessages()).toEqual([]);
+  });
+
+  it('keeps a repeat waiting while it is hovered, or while you are away', () => {
+    const id = store.add(toast('Hovered'));
+    store.hold(id, 'hover');
+    store.add(toast('Hovered'));
+    vi.advanceTimersByTime(60_000);
+    expect(visibleMessages()).toEqual(['Hovered']);
+
+    store.setWindowHeld(true);
+    store.release(id, 'hover');
+    store.add(toast('Hovered'));
+    vi.advanceTimersByTime(60_000);
+    expect(visibleMessages()).toEqual(['Hovered']);
+  });
+
+  it('ignores holds on a sticky toast, and a release without a hold', () => {
+    const sticky = store.add(toast('Sticky', { duration: null }));
+    store.hold(sticky, 'hover');
+    store.release(sticky, 'hover');
+
+    const timed = store.add(toast('Timed', { duration: 1000 }));
+    store.release(timed, 'focus');
+    vi.advanceTimersByTime(1000);
+    expect(visibleMessages()).toEqual(['Sticky']);
+  });
+
+  it('tells subscribers about each change until they unsubscribe', () => {
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
+    store.add(toast('One'));
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    store.add(toast('Two'));
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('changes nothing when told the window state it already has', () => {
+    store.add(toast('Here'));
+    store.setWindowHeld(false);
+    vi.advanceTimersByTime(5000);
+    expect(visibleMessages()).toEqual([]);
   });
 });

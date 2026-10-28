@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor, act } from '@testing-library/react';
-import { BackupSettingsProvider, BACKUP_CHECK_INTERVAL_MS } from '../BackupSettingsContext';
+import { render, renderHook, waitFor, act } from '@testing-library/react';
+import { BackupSettingsProvider, BACKUP_CHECK_INTERVAL_MS, useBackupSettingsContext } from '../BackupSettingsContext';
 import { fakeBackend, installFakeBackendForTest } from '../../testing';
 
 const mockNotify = vi.fn();
@@ -146,5 +146,30 @@ describe('BackupSettingsProvider scheduling', () => {
 
     await waitFor(() => expect(storedConfig().lastBackupTime).toBeDefined());
     expect(mockNotify).not.toHaveBeenCalled();
+  });
+
+  it('starts no second backup while one is still running', async () => {
+    storeConfig({ enabled: true, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
+    mockBackend({ success: true });
+    let finish!: () => void;
+    fakeBackend().platform.folderBackups.write.mockImplementationOnce(
+      () => new Promise(resolve => (finish = () => resolve({ success: true, timestamp: new Date().toISOString() })))
+    );
+    const { result } = renderHook(() => useBackupSettingsContext(), { wrapper: BackupSettingsProvider });
+    await waitFor(() => expect(backupCalls()).toHaveLength(1));
+
+    // Pointed elsewhere mid-backup: the check it triggers waits its turn
+    act(() => result.current.updateBackupPath('/elsewhere'));
+    await act(async () => {});
+    expect(backupCalls()).toHaveLength(1);
+
+    await act(async () => finish());
+    await waitFor(() => expect(storedConfig().lastBackupTime).toBeDefined());
+  });
+});
+
+describe('useBackupSettingsContext', () => {
+  it('needs the provider', () => {
+    expect(() => renderHook(() => useBackupSettingsContext())).toThrow(/BackupSettingsProvider/);
   });
 });

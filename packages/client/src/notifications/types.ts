@@ -27,7 +27,7 @@ export type NotificationCategory =
 
 /** A button on a toast: run something, or open a page. */
 export type NotificationAction =
-  | { label: string; onClick: () => void | Promise<void>; keepOpen?: boolean }
+  | { label: string; onClick: () => void | Promise<void> }
   | { label: string; view: SidebarView; section?: SettingsSectionId };
 
 /**
@@ -45,9 +45,6 @@ export interface NotifyOptions {
   actions?: NotificationAction[];
   /** How long the toast stays, in ms; null keeps it until dismissed. */
   duration?: number | null;
-  /** Legacy aliases for `duration`. */
-  persist?: boolean;
-  autoHideDuration?: number;
   /** Toasts with the same key merge (a "×2" count) instead of stacking. */
   dedupeKey?: string;
   desktop?: DesktopRoute;

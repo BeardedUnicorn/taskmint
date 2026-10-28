@@ -7,16 +7,10 @@ import type { NotificationApi } from '../../contexts/NotificationContext';
 
 export function createNotificationMock(): { [K in keyof NotificationApi]: ReturnType<typeof vi.fn> } {
   return {
-    notify: vi.fn(() => 'toast-1'),
-    update: vi.fn(),
-    dismiss: vi.fn(),
-    dismissAll: vi.fn(),
-    showNotification: vi.fn(() => 'toast-1'),
-    showSuccess: vi.fn(() => 'toast-1'),
-    showError: vi.fn(() => 'toast-1'),
-    showWarning: vi.fn(() => 'toast-1'),
-    showInfo: vi.fn(() => 'toast-1'),
-    hideNotification: vi.fn(),
-    hideAllNotifications: vi.fn(),
+    notify: vi.fn(),
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showWarning: vi.fn(),
+    showInfo: vi.fn(),
   };
 }

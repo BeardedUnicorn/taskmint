@@ -6,6 +6,7 @@ import {
   addHistoryEntry,
   bumpHistoryEntry,
   markAllRead,
+  markHistoryUnread,
   normalizeHistory,
   persistableActions,
   unreadCount,
@@ -50,6 +51,22 @@ describe('notification history', () => {
     expect(normalizeHistory('corrupt', NOW)).toEqual([]);
   });
 
+  it('skips saved entries that are no object, and counts a missing or bad count as one', () => {
+    const history = normalizeHistory(
+      [null, 'entry', entry('zero', 1, { count: 0 }), entry('none', 2, { count: undefined as never })],
+      NOW
+    );
+    expect(history.map(e => [e.id, e.count])).toEqual([
+      ['zero', 1],
+      ['none', 1],
+    ]);
+  });
+
+  it('marks one entry unread, leaving the rest', () => {
+    const history = [entry('a', 1, { read: true }), entry('b', 2, { read: true })];
+    expect(markHistoryUnread(history, 'b').map(e => e.read)).toEqual([true, false]);
+  });
+
   it('caps the list', () => {
     const many = Array.from({ length: MAX_HISTORY_ENTRIES + 5 }, (_, i) => entry(String(i), i));
     expect(addHistoryEntry([], many[0], NOW)).toHaveLength(1);
@@ -57,9 +74,11 @@ describe('notification history', () => {
   });
 
   it('counts repeats, keeping one unread if any arrival was missed', () => {
-    let history = [entry('a', 5, { read: true })];
+    const other = entry('b', 6, { read: true });
+    let history = [entry('a', 5, { read: true }), other];
     history = bumpHistoryEntry(history, 'a', { at: new Date(NOW).toISOString(), message: 'again', title: undefined, read: false });
     expect(history[0]).toMatchObject({ count: 2, message: 'again', read: false });
+    expect(history[1]).toBe(other);
     expect(unreadCount(history)).toBe(1);
     expect(unreadCount(markAllRead(history))).toBe(0);
   });

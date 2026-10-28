@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target) P14a (client utils, services, types and theme at 100%) and P14b (client hooks at 100%) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target) P14a (client utils, services, types and theme at 100%), P14b (client hooks at 100%) and P14c (client contexts and notifications at 100%) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -564,6 +564,28 @@ Device settings (theme, filters, backup schedule, idle) stay in localStorage, pe
   - `useDataBackup` imports every list section through one `importList`: replace takes the file's list, or empties a missing one; merge adds only new ids (achievements by day).
   - `useBackupSettings` runs a backup through one failure path, so the status, notification and result always agree.
   - `useSessionManagement` derives `activeSession` from the list instead of keeping a second copy. Whole-list replies go through one `applySessions`.
+
+**As built in P14c:**
+- **Gate:** `src/contexts/**` and `src/notifications/**` join the `fullyCovered` globs. The global floors went up to 81/84/88/87 (actual 82.4/84.5/88.2/88.1 across 1256 tests).
+- **Deleted, unused:**
+  - The notification API keeps `notify` and the four `show*` shorthands, which now return nothing (no caller used the id).
+  - Gone from the API: `update`, `dismiss`, `dismissAll`, `showNotification`, `hideNotification` and `hideAllNotifications`. Gone from the store: `update` and `dismissAll`.
+  - The options `persist` and `autoHideDuration` (legacy aliases of `duration`) and a button's `keepOpen`.
+  - The bell's state no longer carries `toasts`, `dismiss`, `hold` or `release`. The toast viewport gets those from the provider directly.
+  - The theme context's `theme` and `systemTheme`, and its default export.
+- **Deleted, unreachable:**
+  - `typeof window`/`typeof document` guards, and the theme's legacy `addListener` path (every supported webview has `addEventListener` on media queries).
+  - The `useSyncExternalStore` server snapshots: nothing renders on a server.
+  - Dismissing a queued toast: nothing can address one now.
+  - `enqueue`'s empty-queue break, and `stopClock`'s check for a clock that never started.
+  - The `at` fallback on what the backend posts, which always has one.
+- **Simplified:**
+  - `isDark` is one expression: dark unless chosen otherwise, so a stored mode this version doesn't know is dark too.
+  - A toast's button runs through `runToastAction`, which runs it and dismisses that toast; the bell's history buttons only run.
+  - `enqueue` drops at most the one oldest waiting non-error.
+- **Tests:**
+  - The notification tests read toasts from the screen, as the user sees them.
+  - New provider tests prove each shared provider hands out one instance and that its hook needs it.
 
 ## 9. CI (`.github/workflows/ci.yml`)
 

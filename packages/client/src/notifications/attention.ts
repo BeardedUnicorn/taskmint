@@ -6,7 +6,6 @@
  */
 
 export function isWindowAttended(): boolean {
-  if (typeof document === 'undefined') return false;
   return document.visibilityState !== 'hidden' && document.hasFocus();
 }
 

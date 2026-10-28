@@ -4,7 +4,7 @@ import { ReactNode } from 'react';
 import { NotificationProvider, useNotification, useNotificationState } from '../NotificationContext';
 import { NavigationProvider, useNavigation } from '../NavigationContext';
 import { deliverDesktop } from '../../notifications/desktop';
-import { EXIT_MS } from '../../notifications/store';
+import { EXIT_MS, MAX_QUEUED, MAX_VISIBLE } from '../../notifications/store';
 import { fakeBackend, installFakeBackendForTest } from '../../testing';
 import { DEFAULT_NOTIFICATION_PREFERENCES } from '../../notifications/preferences';
 
@@ -25,6 +25,10 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 function useBoth() {
   return { api: useNotification(), state: useNotificationState(), navigation: useNavigation() };
 }
+
+/** The toasts on screen, top to bottom: title, message, count and buttons as text. */
+const toasts = () =>
+  Array.from(document.querySelectorAll('[role="status"], [role="alert"]'), toast => toast.textContent);
 
 describe('NotificationProvider', () => {
   beforeEach(() => {
@@ -67,7 +71,7 @@ describe('NotificationProvider', () => {
       vi.advanceTimersByTime(EXIT_MS);
     });
 
-    expect(result.current.state.toasts.map(t => t.message)).toEqual(['Second']);
+    expect(toasts()).toEqual(['Second']);
   });
 
   it('runs a button and dismisses the toast; a page button navigates', () => {
@@ -134,8 +138,8 @@ describe('NotificationProvider', () => {
     act(() => {
       result.current.api.notify({ category: 'goal', severity: 'success', title: 'Goal Achieved!', message: 'Well done' });
     });
-    expect(result.current.state.toasts).toHaveLength(0);
-    await waitFor(() => expect(result.current.state.toasts.map(t => t.title)).toEqual(['Goal Achieved!']));
+    expect(toasts()).toHaveLength(0);
+    await waitFor(() => expect(toasts()).toEqual(['Goal Achieved!Well done']));
   });
 
   it("leaves 'history: false' messages out of the history", () => {
@@ -144,7 +148,7 @@ describe('NotificationProvider', () => {
       result.current.api.notify({ message: 'Copied', history: false });
     });
     expect(result.current.state.history).toEqual([]);
-    expect(result.current.state.toasts).toHaveLength(1);
+    expect(toasts()).toEqual(['Copied']);
   });
 
   it('tells the shell the preferences for the notifications it raises itself', async () => {
@@ -196,30 +200,194 @@ describe('NotificationProvider', () => {
       category: 'longRun',
       read: false,
     });
-    expect(result.current.state.toasts.map(t => t.message)).toEqual(['Running 4h']);
+    expect(toasts()).toEqual(['Still working?Running 4h']);
   });
 
-  it('keeps the legacy shorthands working (persist keeps a toast)', () => {
+  it('keeps a toast with no duration until dismissed', () => {
     vi.useFakeTimers();
     const { result } = renderHook(useBoth, { wrapper });
     act(() => {
-      result.current.api.showInfo('Stays', { persist: true });
+      result.current.api.showInfo('Stays', { duration: null });
     });
     act(() => {
       vi.advanceTimersByTime(600_000);
     });
-    expect(result.current.state.toasts.map(t => t.message)).toEqual(['Stays']);
-    act(() => result.current.api.hideAllNotifications());
+    expect(toasts()).toEqual(['Stays']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' }));
     act(() => {
       vi.advanceTimersByTime(EXIT_MS);
     });
-    expect(result.current.state.toasts).toEqual([]);
+    expect(toasts()).toEqual([]);
+  });
+
+  it("holds a toast's time while it's hovered", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => {
+      result.current.api.showInfo('Read me', { duration: 1000 });
+    });
+
+    fireEvent.mouseEnter(screen.getByRole('status'));
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(toasts()).toEqual(['Read me']);
+
+    fireEvent.mouseLeave(screen.getByRole('status'));
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(toasts()).toEqual([]);
+  });
+
+  it('merges a repeat within a minute into one history entry', () => {
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => {
+      result.current.api.showInfo('Saved');
+      result.current.api.showInfo('Saved');
+    });
+
+    expect(result.current.state.history).toEqual([expect.objectContaining({ message: 'Saved', count: 2 })]);
+    expect(toasts()).toEqual(['Saved×2']);
+  });
+
+  it('starts the history over when cleared, so a repeat is new again', () => {
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => result.current.api.showInfo('Saved'));
+    act(() => result.current.state.clearHistory());
+    expect(result.current.state.history).toEqual([]);
+
+    act(() => result.current.api.showInfo('Saved'));
+    expect(result.current.state.history).toEqual([expect.objectContaining({ count: 1 })]);
+  });
+
+  it('keeps unread a toast dropped from the queue unseen', () => {
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => {
+      for (let i = 0; i < MAX_VISIBLE; i++) result.current.api.showInfo(`sticky ${i}`, { duration: null });
+      for (let i = 0; i <= MAX_QUEUED; i++) result.current.api.showInfo(`waiting ${i}`);
+    });
+
+    const dropped = result.current.state.history.find(entry => entry.message === 'waiting 0');
+    expect(dropped?.read).toBe(false);
+    expect(result.current.state.unread).toBe(1);
+  });
+
+  it('drops a queued toast kept out of the history without a trace', () => {
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => {
+      for (let i = 0; i < MAX_VISIBLE; i++) result.current.api.showInfo(`sticky ${i}`, { duration: null });
+      result.current.api.showInfo('Copied', { history: false });
+      for (let i = 0; i < MAX_QUEUED; i++) result.current.api.showInfo(`waiting ${i}`);
+    });
+
+    expect(result.current.state.history.some(entry => entry.message === 'Copied')).toBe(false);
+    expect(result.current.state.unread).toBe(0);
+  });
+
+  it('sends the same error to the OS only as often as the throttle allows', async () => {
+    attended = false;
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => {
+      result.current.api.showError('Sync failed');
+      result.current.api.showError('Sync failed');
+    });
+
+    await waitFor(() => expect(mockDeliver).toHaveBeenCalledTimes(1));
+    expect(mockDeliver).toHaveBeenCalledWith('error', 'TaskMint', 'Sync failed');
+  });
+
+  it('sends nothing, nor keeps it, when its category is off and you are away', () => {
+    localStorage.setItem('notificationPreferences', JSON.stringify({ version: 1, data: { dailySummary: false } }));
+    attended = false;
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => {
+      result.current.api.notify({ category: 'dailySummary', message: 'Today: 3h' });
+    });
+
+    expect(toasts()).toEqual([]);
+    expect(result.current.state.history).toEqual([]);
+    expect(mockDeliver).not.toHaveBeenCalled();
+  });
+
+  it("keeps what the backend showed while you were away, as a warning for an idle pause", () => {
+    attended = false;
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => {
+      fakeBackend().emit('notification-posted', {
+        id: 'b2',
+        kind: 'idlePause',
+        title: 'Paused',
+        body: 'Away 10m',
+        at: new Date().toISOString(),
+      });
+      fakeBackend().emit('notification-posted', {
+        id: 'b3',
+        kind: 'general',
+        title: 'Note',
+        body: 'Something else',
+        at: new Date().toISOString(),
+      });
+    });
+
+    expect(toasts()).toEqual([]);
+    expect(result.current.state.history.map(entry => [entry.category, entry.severity, entry.delivery])).toEqual(
+      expect.arrayContaining([
+        ['idle', 'warning', 'desktop'],
+        ['general', 'info', 'desktop'],
+      ])
+    );
+  });
+
+  it("opens a page button's section, dismissing its toast", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(useBoth, { wrapper });
+    act(() => {
+      result.current.api.notify({
+        message: 'Backup failed',
+        actions: [{ label: 'Backup settings', view: 'settings', section: 'backups' }],
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Backup settings' }));
+    act(() => {
+      vi.advanceTimersByTime(EXIT_MS);
+    });
+
+    expect(result.current.navigation).toMatchObject({ view: 'settings', params: { section: 'backups' } });
+    expect(toasts()).toEqual([]);
+  });
+
+  it("runs the history's buttons, logging one that fails", async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result } = renderHook(useBoth, { wrapper });
+
+    act(() => result.current.state.runAction({ label: 'Payouts', view: 'payouts' }));
+    expect(result.current.navigation.view).toBe('payouts');
+
+    act(() =>
+      result.current.state.runAction({
+        label: 'Retry',
+        onClick: () => {
+          throw new Error('offline');
+        },
+      })
+    );
+    await waitFor(() => expect(error).toHaveBeenCalledWith('Notification action "Retry" failed:', expect.any(Error)));
+    error.mockRestore();
   });
 });
 
 describe('useNotification', () => {
   it('needs the provider', () => {
     expect(() => render(<Probe />)).toThrow(/NotificationProvider/);
+  });
+});
+
+describe('useNotificationState', () => {
+  it('needs the provider', () => {
+    expect(() => renderHook(() => useNotificationState())).toThrow(/NotificationProvider/);
   });
 });
 

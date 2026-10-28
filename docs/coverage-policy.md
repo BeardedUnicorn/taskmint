@@ -19,7 +19,7 @@ Integration tests count toward the total, including `#[sqlx::test]` against a re
 ## How it's wired
 
 - **The list:** [`coverage-policy.json`](../coverage-policy.json) at the repo root.
-- **TypeScript:** each package's `vitest.config.ts` calls `defineTaskmintConfig({ packageDir, … })` from [`vitest.shared.ts`](../vitest.shared.ts). The preset reads the exclusions from the policy and defaults the thresholds to 100. A package may pass lower `thresholds` only while it ratchets up, with `fullyCovered` globs held at 100 meanwhile. Today that's `packages/client`: floors of 80/83/87/86 (branches/functions/lines/statements), and `src/utils`, `src/services`, `src/types` and `src/theme` (P14a) and `src/hooks` (P14b) at 100.
+- **TypeScript:** each package's `vitest.config.ts` calls `defineTaskmintConfig({ packageDir, … })` from [`vitest.shared.ts`](../vitest.shared.ts). The preset reads the exclusions from the policy and defaults the thresholds to 100. A package may pass lower `thresholds` only while it ratchets up, with `fullyCovered` globs held at 100 meanwhile. Today that's `packages/client`: floors of 81/84/88/87 (branches/functions/lines/statements), and `src/utils`, `src/services`, `src/types` and `src/theme` (P14a), `src/hooks` (P14b), and `src/contexts` and `src/notifications` (P14c) at 100.
 - **The check:** [`scripts/check-coverage-policy.mjs`](../scripts/check-coverage-policy.mjs) fails when any of these happen:
   - an inline ignore appears in `packages/`, `apps/`, or `crates/`;
   - a package's vitest config isn't registered in the policy, doesn't use the preset, or declares its own `coverage`/`exclude`;
