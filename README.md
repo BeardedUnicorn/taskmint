@@ -81,9 +81,10 @@ files, their `.bak` copies and `localStorage`.
 
 **Server mode.** Settings → Server connects this computer to a TaskMint
 server ([Run the stack](#run-the-stack)). Enter the address you open it at in a
-browser, a username and a password. The app signs this computer in with a
-device token, which stays in the OS keychain (never in a file or the webview),
-and restarts on the server's data.
+browser, a username and a password. It must be `https://`, except for a
+server on this computer (`http://localhost:8080`). The app signs this
+computer in with a device token, which stays in the OS keychain (never in a
+file or the webview), and restarts on the server's data.
 - The tray, idle detection, the long-run reminder, captures and folder
   backups keep working, and what they change is changed on the server.
   Changes made in a browser or on another computer show up live.
@@ -92,7 +93,8 @@ and restarts on the server's data.
   replaced, and timers still running in the files are stopped as of then.
   **Disconnect** signs this computer out and restarts on its files.
 - Without the server, changes fail and the tray says so; the app reconnects
-  by itself. A revoked token ("Signed out") needs signing in again.
+  by itself. A revoked token ("Signed out") needs signing in again; so does
+  changing or resetting the account's password.
 - Sessions are dated in the time zone of the computer that started them.
 - To try it with a development build, set `TASKMINT_DATA_DIR` to a scratch
   folder: the installed app's files and keychain item are then left alone.
@@ -149,7 +151,7 @@ it (`apps/desktop/src-tauri/tests/server_mode.rs`).
 pnpm typecheck                    # tsc for sources and tests, every package
 pnpm build                        # tsc for every package + desktop vite build
 pnpm test                         # vitest in every package
-pnpm test:coverage                # vitest with enforced coverage floors
+pnpm test:coverage                # vitest, held at 100% coverage
 cargo test --workspace            # Rust tests (bare `cargo` skips the desktop crate;
                                   # server tests need DATABASE_URL, see "Server")
 cargo clippy --workspace --all-targets -- -D warnings
@@ -277,6 +279,15 @@ docker compose exec -T db psql -U taskmint -v ON_ERROR_STOP=1 taskmint < taskmin
 - **Load:** password hashing (argon2id, 19 MiB each) runs one per CPU at a
   time, so a burst of sign-ins waits instead of exhausting the server's
   memory. Sign-ins and links are rate-limited per address and per account.
+
+- **Logs:** nginx's access log writes invite and reset links with the
+  secret replaced by `[redacted]`, and leaves out the Referer. The server's
+  request spans name the route, never the path.
+
+[docs/runbook.md](docs/runbook.md) has the operator's procedures: backups and
+restores, upgrades, account recovery, and what to do in an incident.
+[docs/security-review.md](docs/security-review.md) has what was reviewed,
+the accepted risks, and what a deployment others can reach needs.
 
 **Before the internet.** This stack is for one machine. It has no TLS, and
 `COOKIE_SECURE=false` sends the session cookie over plain HTTP. To expose
@@ -470,7 +481,8 @@ apps/server/                 Server (taskmint-server): axum + Postgres, see "Ser
   migrations/                SQL migrations, embedded in the binary
   .sqlx/                     Query metadata for offline builds (cargo sqlx prepare)
   tests/api/                 HTTP and CLI tests against Postgres
-docs/                        ADRs and the coverage policy
+docs/                        ADRs, the coverage policy, the security review, the runbook
+  qa/                        The manual checklist for the code coverage leaves out
 ```
 
 After changing a wire type, a command, or a constant in

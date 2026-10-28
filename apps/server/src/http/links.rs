@@ -154,8 +154,9 @@ pub struct AcceptPasswordReset {
     password: String,
 }
 
-/// Sets the new password, signs out every session (closing its event
-/// streams), and signs this one in.
+/// Sets the new password, signs out every session and every desktop app
+/// signed in with the old one (closing their event streams), and signs
+/// this one in.
 pub async fn accept_password_reset(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -182,6 +183,9 @@ pub async fn accept_password_reset(
             RETURNING id, username, display_name, role, time_zone
         ), signed_out AS (
             DELETE FROM auth_sessions WHERE user_id = (SELECT id FROM updated)
+        ), devices AS (
+            UPDATE api_tokens SET revoked_at = now()
+            WHERE user_id = (SELECT id FROM updated) AND kind = 'device' AND revoked_at IS NULL
         ), session AS (
             INSERT INTO auth_sessions (token_hash, csrf_token, user_id, expires_at, user_agent, ip)
             SELECT $3, $4, id, $5, $6, $7 FROM updated

@@ -89,6 +89,9 @@ describe('the options page', () => {
     type('url', 'taskmint.example.com');
     test();
     await says('The address starts with http:// or https://, like https://taskmint.example.com.', true);
+    type('url', 'http://taskmint.example.com');
+    test();
+    await says('http:// would send the token unencrypted. Use https://, or http:// only for this computer (localhost).', true);
     type('url', 'https://taskmint.example.com');
     save();
     await says('Paste a token from the web app (Settings → API tokens).', true);

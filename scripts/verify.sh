@@ -63,6 +63,15 @@ step "The images, smoke-tested as a stack of their own, with the desktop's serve
   trap 'docker compose down -v >/dev/null 2>&1' EXIT
   docker compose up --build -d --wait
   node scripts/smoke.mjs
+  # The smoke test accepted an invite through the web app: its access log
+  # has the link with the secret replaced, and no log has the secret
+  # (Read first: grep -q stops reading early, which pipefail counts as failing)
+  logs=$(docker compose logs web server)
+  grep -q '/api/v1/invites/\[redacted\]/accept' <<<"$logs"
+  if grep -E '/(invite|reset|invites|password-resets)/[A-Za-z0-9_-]{43}' <<<"$logs"; then
+    echo "A link's secret reached the logs" >&2
+    exit 1
+  fi
   # The desktop's server mode on the same stack (apps/desktop/src-tauri/tests/server_mode.rs)
   TASKMINT_SERVER_URL="http://localhost:${WEB_PORT}" cargo test -q -p taskmint --test server_mode -- --ignored
   # The built browser extension delivering to it (apps/extension/live-check.mjs)

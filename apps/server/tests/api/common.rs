@@ -171,6 +171,17 @@ impl App {
         res.body["token"].as_str().unwrap().to_owned()
     }
 
+    /// A desktop app's token for `username`, signed in with [`PASSWORD`].
+    pub async fn device_token(&self, username: &str) -> String {
+        let res = self
+            .post("/api/v1/auth/device-token")
+            .json(json!({"username": username, "password": PASSWORD, "deviceName": "Mac"}))
+            .send()
+            .await;
+        assert_eq!(res.status, StatusCode::CREATED, "{}", res.body);
+        res.body["token"].as_str().unwrap().to_owned()
+    }
+
     /// Undoes [`App::fail_on`].
     pub async fn heal(&self, event: &str, table: &str) {
         sqlx::raw_sql(&format!("DROP TRIGGER fail_{event}_{table} ON {table}"))

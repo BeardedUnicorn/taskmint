@@ -351,6 +351,8 @@ async fn changing_the_password_signs_out_other_sessions(db: PgPool) {
     let app = App::new(db);
     let session = app.member("alice").await;
     let other = app.login("alice").await;
+    let desktop = app.device_token("alice").await;
+    let api = app.token(&session, "full").await;
     let res = app
         .post("/api/v1/auth/password")
         .session(&session)
@@ -372,6 +374,13 @@ async fn changing_the_password_signs_out_other_sessions(db: PgPool) {
         .send()
         .await;
     res.expect(StatusCode::UNAUTHORIZED, "unauthenticated");
+    // The desktop app signed in with the old password is signed out; a token
+    // from the tokens page isn't
+    let me = |token: &str| app.get("/api/v1/auth/me").bearer(token).send();
+    me(&desktop)
+        .await
+        .expect(StatusCode::UNAUTHORIZED, "unauthenticated");
+    assert_eq!(me(&api).await.status, StatusCode::OK);
     let res = app
         .post("/api/v1/auth/login")
         .json(credentials("alice", "a brand new one"))

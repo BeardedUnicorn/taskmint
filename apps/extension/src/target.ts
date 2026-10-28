@@ -36,6 +36,16 @@ export function serverUrl(typed: string): string | null {
   }
 }
 
+/**
+ * Whether the token would cross the network unencrypted: http to anywhere
+ * but this computer (localhost, 127.x.x.x, ::1).
+ */
+export function sendsInTheClear(url: string): boolean {
+  const { protocol, hostname } = new URL(url);
+  const local = hostname === 'localhost' || hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(hostname);
+  return protocol === 'http:' && !local;
+}
+
 /** The host permission a server needs: the extension's fetches reach it past CORS. */
 export function originPattern(url: string): string {
   return `${new URL(url).origin}/*`;

@@ -201,6 +201,8 @@ async fn a_reset_link_sets_a_new_password_and_signs_out_everywhere(db: PgPool) {
     let app = App::new(db);
     let admin = app.admin().await;
     let alice = app.member("alice").await;
+    let desktop = app.device_token("alice").await;
+    let api = app.token(&alice, "full").await;
     let token = reset_link(&app, &admin, alice.user_id).await;
 
     let res = app
@@ -232,6 +234,11 @@ async fn a_reset_link_sets_a_new_password_and_signs_out_everywhere(db: PgPool) {
         .send()
         .await;
     res.expect(StatusCode::UNAUTHORIZED, "unauthenticated");
+    let me = |token: &str| app.get("/api/v1/auth/me").bearer(token).send();
+    me(&desktop)
+        .await
+        .expect(StatusCode::UNAUTHORIZED, "unauthenticated");
+    assert_eq!(me(&api).await.status, StatusCode::OK);
     let res = app
         .post("/api/v1/auth/login")
         .json(json!({"username": "alice", "password": "a brand new one"}))
