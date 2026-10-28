@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useEnhancedTimerSettings } from '../useEnhancedTimerSettings';
+import { prepareInactivitySettings, useEnhancedTimerSettings } from '../useEnhancedTimerSettings';
 import { STORAGE_KEYS } from '../../constants';
 import { DEFAULT_INACTIVITY_SETTINGS } from '../../types/timer';
 import { fakeBackend, installFakeBackendForTest } from '../../testing';
@@ -72,6 +72,47 @@ describe('useEnhancedTimerSettings', () => {
       const { result } = renderHook(() => useEnhancedTimerSettings());
 
       expect(result.current.inactivitySettings).toEqual({ enabled: false, thresholdMinutes: 45, longRunHours: 4 });
+    });
+  });
+
+  describe('settings older builds saved', () => {
+    it('seeds the settings from the old combined blob, versioned or not', () => {
+      window.localStorage.setItem(STORAGE_KEYS.ENHANCED_TIMER_SETTINGS, JSON.stringify({ inactivity: { thresholdMinutes: 20 } }));
+      prepareInactivitySettings();
+      expect(storedSettings()).toMatchObject({ thresholdMinutes: 20, enabled: false });
+    });
+
+    it("seeds nothing from a blob without inactivity settings, or one it can't read", () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      window.localStorage.setItem(STORAGE_KEYS.ENHANCED_TIMER_SETTINGS, JSON.stringify({ version: 1, data: { theme: 'dark' } }));
+      prepareInactivitySettings();
+      expect(storedSettings()).toBeNull();
+
+      window.localStorage.clear();
+      window.localStorage.setItem(STORAGE_KEYS.ENHANCED_TIMER_SETTINGS, '{not json');
+      prepareInactivitySettings();
+      expect(error).toHaveBeenCalledWith('Failed to migrate legacy inactivity settings:', expect.any(SyntaxError));
+      error.mockRestore();
+    });
+
+    it('turns off detection saved unversioned, and gets past settings it can\'t read', () => {
+      window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_SETTINGS, JSON.stringify({ enabled: true, thresholdMinutes: 10 }));
+      prepareInactivitySettings();
+      expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.INACTIVITY_SETTINGS)!)).toEqual({ enabled: false, thresholdMinutes: 10 });
+
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      window.localStorage.clear();
+      window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_SETTINGS, '{not json');
+      prepareInactivitySettings();
+      expect(error).toHaveBeenCalledWith('Failed to apply the inactivity default-off migration:', expect.any(SyntaxError));
+      error.mockRestore();
+    });
+
+    it('fills in fields a partial save left out', () => {
+      storeInactivitySettings({ longRunHours: 6 });
+      window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_DEFAULT_OFF_APPLIED, 'true');
+      const { result } = renderHook(() => useEnhancedTimerSettings());
+      expect(result.current.inactivitySettings).toEqual({ enabled: false, thresholdMinutes: 15, longRunHours: 6 });
     });
   });
 

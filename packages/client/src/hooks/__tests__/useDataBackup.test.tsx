@@ -60,8 +60,12 @@ describe('useDataBackup', () => {
     onImportError: vi.fn(),
   };
 
+  // Failures are logged for diagnosis, and asserted where it matters
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     
     // Mock StorageService.getInstance to return our mock
     vi.mocked(StorageService.getInstance).mockReturnValue(mockStorageService);
@@ -284,6 +288,7 @@ describe('useDataBackup', () => {
       });
 
       expect(mockCallbacks.onExportError).toHaveBeenCalledWith('Export failed');
+      expect(consoleError).toHaveBeenCalledWith('Export failed:', mockError);
       expect(mockCallbacks.onExportSuccess).not.toHaveBeenCalled();
       expect(result.current.isExporting).toBe(false);
     });
@@ -637,6 +642,86 @@ describe('useDataBackup', () => {
       });
 
       expect(mockCallbacks.onExportSuccess).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('merge and replace', () => {
+    const importFile = async (mode: 'merge' | 'replace', file: object) => {
+      files().openJson.mockResolvedValue(JSON.stringify(file));
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+      await act(async () => {
+        await result.current.importData(mode);
+      });
+    };
+
+    it('merges in only the items not stored yet: by id, and achievements by day', async () => {
+      const [task] = await mockStorageService.getTasks();
+      const [template] = await mockStorageService.getNoteTemplates();
+      const [note] = await mockStorageService.getTaskNotes();
+      const [achievement] = await mockStorageService.getGoalAchievements();
+
+      await importFile('merge', {
+        data: {
+          tasks: [{ ...task, name: 'Renamed in the file' }, { ...task, id: 'task-2' }],
+          noteTemplates: [template, { ...template, id: 'template-2' }],
+          taskNotes: [note, { ...note, id: 'note-2' }],
+          goalAchievements: [{ ...achievement, id: 'other-id' }, { ...achievement, date: '2023-01-02' }],
+        },
+      });
+
+      // What's stored wins over the file's copy of the same item
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([task, { ...task, id: 'task-2' }]);
+      expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith([template, { ...template, id: 'template-2' }]);
+      expect(mockStorageService.setTaskNotes).toHaveBeenCalledWith([note, { ...note, id: 'note-2' }]);
+      expect(mockStorageService.setGoalAchievements).toHaveBeenCalledWith([
+        achievement,
+        { ...achievement, date: '2023-01-02' },
+      ]);
+      expect(mockStorageService.setDailyGoal).not.toHaveBeenCalled();
+    });
+
+    it('leaves what a merged file lacks alone', async () => {
+      await importFile('merge', { data: {} });
+
+      expect(mockStorageService.setTasks).not.toHaveBeenCalled();
+      expect(mockStorageService.setNoteTemplates).not.toHaveBeenCalled();
+      expect(mockStorageService.setTaskNotes).not.toHaveBeenCalled();
+      expect(mockStorageService.setGoalAchievements).not.toHaveBeenCalled();
+    });
+
+    it('empties what a replacing file lacks, and counts none of it', async () => {
+      await importFile('replace', { data: {} });
+
+      expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
+        payload: { mode: 'replace', sessions: null, workLogEntries: null, workLogMappings: null, exportedAt: null },
+      });
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([]);
+      expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith([]);
+      expect(mockStorageService.setTaskNotes).toHaveBeenCalledWith([]);
+      expect(mockStorageService.setGoalAchievements).toHaveBeenCalledWith([]);
+      expect(mockCallbacks.onImportSuccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          importedCounts: expect.objectContaining({ tasks: 0, noteTemplates: 0, taskNotes: 0, goalAchievements: 0 }),
+        })
+      );
+    });
+
+    it('imports one file at a time', async () => {
+      let pick!: (contents: string | null) => void;
+      files().openJson.mockImplementation(() => new Promise(resolve => (pick = resolve)));
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      await act(async () => {
+        void result.current.importData();
+      });
+      expect(result.current.isImporting).toBe(true);
+      await act(async () => {
+        await result.current.importData();
+      });
+      expect(files().openJson).toHaveBeenCalledTimes(1);
+
+      await act(async () => pick(null));
+      expect(result.current.isImporting).toBe(false);
     });
   });
 });

@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target) and P14a (client utils, services, types and theme at 100%) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target) P14a (client utils, services, types and theme at 100%) and P14b (client hooks at 100%) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -542,6 +542,28 @@ Device settings (theme, filters, backup schedule, idle) stay in localStorage, pe
   - `buildReleaseSchedule` has one path for entries and estimates.
   - `errorHandler` and sentry's unhandled-rejection handler use `errorMessage` for whatever was thrown.
   - Backup frequency labels are a lookup table.
+
+**As built in P14b:**
+- **Gate:** `src/hooks/**` joins the `fullyCovered` globs. The global floors went up to 80/83/87/86 (actual 81.0/83.4/87.3/87.0 across 1219 tests).
+- **Deleted, unused:**
+  - `useBackupSettings`' `updateConfig`, `resetConfig`, `checkBackupDue` and `validateBackupPath`.
+  - The backup status' `lastBackupTime` and `nextScheduledBackup`, which only copied the config.
+- **Deleted, unreachable:**
+  - `useDataBackup`'s `NODE_ENV` logging forks (failures are always logged now), its success log, the `?? []` on the work-log reply, and `Array.isArray` on lists the backup schema already checks.
+  - `useSessionManagement`:
+    - The `state` shortcut in `normalizeTimerInstance`. The backend never sends a `state`, so its tests now send wire-shaped timers.
+    - The `|| []` on session replies, and `totalDuration ?? 0`.
+  - `useDailyGoalProgressMonitor`'s `.catch` on record setters that never reject (`useAppRecord` reports a failed save itself), and `useWorkLogs`' fallbacks for reply fields that are required.
+  - `isMacPlatform`'s `typeof navigator` guard.
+  - `useTaskManagement`'s `unarchiveRef` (the Undo calls `unarchiveTask` directly), and its errors' `||` fallbacks.
+- **Fixed on the way:**
+  - A first automatic backup that failed showed a red status chip reading "No backups performed yet". The status line now gives the failure first.
+  - A failed backup the platform gave no reason for showed "Unknown error" in the status line and a different text in its notification. Both now show the same reason.
+  - A backup folder path with surrounding spaces was checked trimmed but written untrimmed. It's trimmed once and used for both.
+- **Simplified:**
+  - `useDataBackup` imports every list section through one `importList`: replace takes the file's list, or empties a missing one; merge adds only new ids (achievements by day).
+  - `useBackupSettings` runs a backup through one failure path, so the status, notification and result always agree.
+  - `useSessionManagement` derives `activeSession` from the list instead of keeping a second copy. Whole-list replies go through one `applySessions`.
 
 ## 9. CI (`.github/workflows/ci.yml`)
 

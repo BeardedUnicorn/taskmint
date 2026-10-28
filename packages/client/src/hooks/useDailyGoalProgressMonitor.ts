@@ -106,7 +106,7 @@ export function useDailyGoalProgressMonitor({
 
   const progress = useMemo((): DailyGoalProgressData => {
     const earned = earningsOnDate(sessions, tasks, today, nowMs);
-    const enabled = !!currentGoal?.isEnabled && (currentGoal?.targetAmount ?? 0) > 0;
+    const enabled = currentGoal?.isEnabled === true && currentGoal.targetAmount > 0;
     const target = enabled ? currentGoal!.targetAmount : 0;
     return {
       enabled,
@@ -142,9 +142,8 @@ export function useDailyGoalProgressMonitor({
       title: milestone.title,
       message: milestone.body,
     });
-    updateNotificationState(milestone.tier, today).catch(error =>
-      console.error('Failed to save the goal notification state:', error)
-    );
+    // The record's own save reports a failure (useAppRecord)
+    void updateNotificationState(milestone.tier, today);
   }, [progress, currentGoal, today, updateNotificationState, notify]);
 
   // Save today's target (again if it changes today), so later goal changes
@@ -162,7 +161,7 @@ export function useDailyGoalProgressMonitor({
       percentageAchieved,
       status: percentageAchieved > 100 ? 'exceeded' : percentageAchieved >= 100 ? 'hit' : 'missed',
       difference: progress.earned - progress.target,
-    }).catch(error => console.error('Failed to save today\'s goal:', error));
+    });
     // Keyed on the target and day only: the saved earned amount is
     // informational (Reports recomputes it), so it isn't re-saved every tick.
   }, [progress.enabled, progress.target, today, achievements, recordAchievement]);

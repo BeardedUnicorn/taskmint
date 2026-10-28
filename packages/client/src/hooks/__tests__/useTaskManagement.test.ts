@@ -341,9 +341,37 @@ describe('useTaskManagement', () => {
       await expect(result.current.archiveTask('task-1')).rejects.toThrow('Failed to archive task');
       expect(mockShowError).toHaveBeenCalledWith('Failed to archive task');
     });
+
+    it('says why an unarchive or a favorite failed', async () => {
+      mockTaskService.unarchiveTask.mockRejectedValue(new Error('Task with ID task-1 not found'));
+      mockTaskService.updateTask.mockRejectedValue(new Error('disk full'));
+      const { result } = renderHook(() => useTaskManagement());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await expect(result.current.unarchiveTask('task-1')).rejects.toThrow();
+      expect(mockShowError).toHaveBeenCalledWith('Task with ID task-1 not found');
+      await expect(result.current.toggleFavorite('task-1')).rejects.toThrow();
+      expect(mockShowError).toHaveBeenCalledWith('disk full');
+    });
+
+    it("doesn't favorite a task it doesn't have", async () => {
+      const { result } = renderHook(() => useTaskManagement());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(await result.current.toggleFavorite('nope')).toBeNull();
+      expect(mockTaskService.updateTask).not.toHaveBeenCalled();
+    });
   });
 
   describe('deleteTask', () => {
+    it("deletes a task it didn't have listed, without an Undo", async () => {
+      const { result } = renderHook(() => useTaskManagement());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await act(async () => {
+        await result.current.deleteTask('elsewhere');
+      });
+      expect(mockShowSuccess).toHaveBeenCalledWith('Deleted "the task"', { category: 'task', actions: undefined });
+    });
+
     it('should delete a task', async () => {
       mockTaskService.getAllTasks.mockResolvedValueOnce(sampleTasks);
 

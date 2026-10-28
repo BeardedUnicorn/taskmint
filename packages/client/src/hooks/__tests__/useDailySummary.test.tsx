@@ -91,6 +91,13 @@ describe('buildDailySummary', () => {
     expect(buildDailySummary({ sessions: [yesterday], tasks, goal: null, date: '2026-10-14', nowMs })).toBeNull();
   });
 
+  it('says under a minute for a moment of tracking', () => {
+    const blink = finished('s-1', 'task-1', at(9), 30 / 3600);
+    expect(buildDailySummary({ sessions: [blink], tasks, goal: null, date: '2026-10-14', nowMs })?.title).toBe(
+      'Today: under a minute tracked'
+    );
+  });
+
   it("totals today's time and earnings across tasks", () => {
     const sessions = [
       finished('s-1', 'task-1', at(9), 2),

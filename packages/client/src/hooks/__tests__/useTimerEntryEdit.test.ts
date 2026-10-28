@@ -71,6 +71,16 @@ describe('useTimerEntryEdit', () => {
     expect(updateNote).not.toHaveBeenCalled();
   });
 
+  it("does nothing for a timer that isn't there any more", async () => {
+    const { result } = renderHook(() => useTimerEntryEdit());
+    let saved = true;
+    await act(async () => {
+      saved = await result.current({ id: 'gone', taskId: 'task-a', durationMs: 1_000 });
+    });
+    expect(saved).toBe(false);
+    expect(editTimerEntry).not.toHaveBeenCalled();
+  });
+
   it('moves the timer and its own notes to the picked task', async () => {
     editTimerEntry.mockResolvedValue('session-new');
     const { result } = renderHook(() => useTimerEntryEdit());
