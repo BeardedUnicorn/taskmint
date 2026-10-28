@@ -33,6 +33,12 @@ pub struct Published<'a> {
 
 pub type Publish = Box<dyn Fn(&Published) + Send + Sync>;
 
+/// Publishes nothing: for a backend opened only to read the files (server
+/// mode uploading them).
+pub fn quiet() -> Publish {
+    Box::new(|_| {})
+}
+
 pub struct LocalBackend {
     store: JsonFileStore,
     workspace: Mutex<Workspace>,
@@ -399,6 +405,14 @@ mod tests {
 
     fn now() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 3, 2, 15, 0, 0).unwrap()
+    }
+
+    #[test]
+    fn a_quiet_backend_publishes_nothing() {
+        quiet()(&Published {
+            events: &[],
+            changed: Parts::ALL,
+        });
     }
 
     /// What the backend published: event names and changed parts, per call.

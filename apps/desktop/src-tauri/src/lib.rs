@@ -12,6 +12,7 @@ pub mod files;
 pub mod idle;
 pub mod notifications;
 pub mod platform;
+pub mod server;
 pub mod state;
 pub mod store;
 pub mod ticker;

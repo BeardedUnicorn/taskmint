@@ -222,7 +222,7 @@ impl TokenAuth {
     }
 }
 
-fn bearer(headers: &HeaderMap) -> Option<&str> {
+pub fn bearer(headers: &HeaderMap) -> Option<&str> {
     headers
         .get(AUTHORIZATION)?
         .to_str()

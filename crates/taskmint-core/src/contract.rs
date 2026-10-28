@@ -156,6 +156,9 @@ pub mod events {
     /// A notification the backend showed itself (long-run, idle pause), for the
     /// frontend's notification history.
     pub const NOTIFICATION_POSTED: &str = "notification-posted";
+    /// The desktop app's link to its TaskMint server came up, dropped, or
+    /// was signed out (server mode only): `{ status, detail }`.
+    pub const SERVER_CONNECTION_CHANGED: &str = "server-connection-changed";
 }
 
 #[cfg(test)]

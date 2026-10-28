@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app) and P11 (stack hardening) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening) and P12 (desktop server mode) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -171,6 +171,40 @@ Error type: `CoreError { Rejected(String) | InvalidArgs | UnknownCommand | Confl
   - `dispatch` now requires `args`; the desktop shell sends `{}` when there are none.
   - A tray call no longer holds a lock while Tauri waits on the main thread. The old code did, which could deadlock against a menu click.
 - **Not yet:** `SecretStore` and `platform/keychain.rs` arrive with their first caller, P12's `connect_server`. Built now, they would be an untested keychain adapter with nothing calling it.
+
+**As built in P12:**
+- **`DataBackend`** (`backend/mod.rs`) is an enum, `Local(Box<LocalBackend>)` or `Remote(RemoteBackend)`, not a trait.
+  - The shell calls it by the webview's command names and JSON arguments: `call(name, args)`. The tray, idle monitor and captures build `json!` arguments instead of typed `Command`s, since `Command` only deserializes.
+  - `read(|workspace| …)` reads the live data in local mode, and a copy of the server's sessions and records in server mode.
+- **HTTP:** `backend/server_api.rs` uses ureq 2 (blocking, rustls), not reqwest. The shell is threads and blocking calls, and `dispatch` already blocks its async worker on dialogs. A blocking reqwest client would panic inside that runtime.
+  - Every request carries `Authorization: Bearer` and `X-TaskMint-TZ` (from `iana-time-zone`; none if unknown, so the account's zone applies).
+  - Failures are `Unreachable`, `Unauthorized` (401) or `Refused` (the server's own `error` message). Commands reject with the server's message, as they do on the web.
+- **`RemoteBackend`** (`backend/remote.rs`):
+  - A command is parsed locally first, so a bad name or bad arguments fail before anything is sent, and `access()` says what it touches. After a successful write, the copy re-reads the sessions and records it may have changed and publishes them, so the tray updates at once.
+  - A thread follows `GET /events` through a `Weak` reference. Each forwarded event refreshes what it changed (timer events, sessions, records, work logs) before it reaches the webview. Unknown events are dropped.
+  - Each (re)connect refreshes everything and sends the webview `resync`. A dropped or silent stream (45 s against the server's 15 s keep-alive) reconnects with a doubling wait (1 to 30 s). A 401 stops the thread: only signing in again helps.
+  - The link (`connecting`, `connected`, `unreachable`, `signedOut`) goes to the webview as the new core event `server-connection-changed` `{status, detail}`. The tray shows a problem as its first line and in its tooltip.
+- **Connection** (`server.rs`):
+  - `server.json` beside the data files holds `{url, username, deviceName}`. The token is the keychain item `server-token` (`platform/keychain.rs`, keyring 3, excluded from coverage like `os.rs`), behind the `SecretStore` seam.
+  - No file means local mode, and so does a file that can't be read. A missing token means signed out.
+- **Shell commands:**
+  - `get_capabilities` is read before the client starts.
+  - `get_server_connection`.
+  - `connect_server {url, username, password}`: the URL is checked, then `/meta` (API version 1, `minDesktopVersion`), then a device token named `TaskMint on <device>`. A token or file that can't be kept is signed out again, and a connection it replaces is signed out.
+  - `disconnect_server` → `{signedOut}`.
+  - `upload_local_data` opens the local files with `LocalBackend` and sends `import_app_records`, then `restore_backup_data` `{mode: merge, exportedAt: now}`. Load warnings are returned.
+  - `restart_app` (`Platform::restart`).
+  - Switching modes always goes through a restart. Uploading is a separate, confirmed action after connecting, not part of it.
+- **Server:** `DELETE /api/v1/auth/device-token` lets a bearer token revoke itself (and end its user's streams). Token management otherwise needs a cookie session, which the desktop doesn't have.
+- **Client and desktop TS:**
+  - `AppExtensions.StartupErrorActions` puts "Disconnect and use this computer's data" on the startup error in server mode.
+  - `apps/desktop` gained React and MUI for `settings/ServerSection.tsx`: connect, sign in again, copy data here, disconnect.
+  - Legacy localStorage records are imported only in local mode.
+- **Dev builds:** `TASKMINT_DATA_DIR` (debug builds only) points the app at another folder and keychain service (`<identifier>.dev`), so server mode can be tried while the installed app's data is left alone.
+- **Tests:**
+  - `testing::FakeServer` is a `TcpListener` with canned replies, recorded requests and writable event streams.
+  - `tests/server_mode.rs` (`#[ignore]`) runs connect → restart → upload → tray start/stop heard by a second device → disconnect against the real stack. verify.sh runs it on its throwaway stack after the smoke test.
+  - Generic test helpers delegate to non-generic ones, since llvm-cov scores a generic by its best instantiation.
 
 ## 4. Server (`apps/server`)
 

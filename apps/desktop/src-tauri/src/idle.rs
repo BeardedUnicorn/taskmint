@@ -15,7 +15,7 @@ use crate::notifications::{self, Origin};
 use crate::state::AppState;
 use crate::ticker::Ticker;
 use chrono::{DateTime, Utc};
-use taskmint_core::command::{ApplyIdleChoiceArgs, Command, PauseTimerAtArgs};
+use serde_json::json;
 use taskmint_core::idle::{idle_tick, long_run_tick, IdleAction, IdleChoice, IdlePause, LongRun};
 use taskmint_core::notifications::NotificationKind;
 use taskmint_core::DayZone;
@@ -86,10 +86,10 @@ fn apply_pause(
     task_name: String,
     idle_since: DateTime<Utc>,
 ) -> Result<(), String> {
-    let paused = state.backend.call(Command::PauseTimerAt(PauseTimerAtArgs {
-        instance_id: instance_id.clone(),
-        idle_since,
-    }))?;
+    let paused = state.backend.call(
+        "pause_timer_at",
+        json!({ "instanceId": instance_id, "idleSince": idle_since }),
+    )?;
     // The timer stopped running in the meantime
     if paused != serde_json::Value::Bool(true) {
         return Ok(());
@@ -151,12 +151,10 @@ pub fn resolve(state: &AppState, choice: &str) -> Result<(), String> {
     let Some(pause) = state.with_idle(|idle| idle.pause.clone()) else {
         return Ok(());
     };
-    state
-        .backend
-        .call(Command::ApplyIdleChoice(ApplyIdleChoiceArgs {
-            instance_id: pause.instance_id,
-            choice: choice.to_string(),
-        }))?;
+    state.backend.call(
+        "apply_idle_choice",
+        json!({ "instanceId": pause.instance_id, "choice": choice }),
+    )?;
     clear_pending(state);
     Ok(())
 }
@@ -253,7 +251,7 @@ mod tests {
         let started = f
             .state
             .backend
-            .call_named(
+            .call(
                 "start_task",
                 json!({ "taskId": "t1", "taskName": "Writing" }),
             )
@@ -318,7 +316,7 @@ mod tests {
         tick(&f.state, Some(10 * MIN_MS));
         f.state
             .backend
-            .call_named(
+            .call(
                 "resume_timer_instance",
                 json!({ "instanceId": instance_id }),
             )

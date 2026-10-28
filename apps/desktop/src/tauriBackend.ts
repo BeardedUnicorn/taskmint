@@ -3,19 +3,20 @@
  * one IPC command, `dispatch` (apps/desktop/src-tauri/src/dispatch.rs): data
  * commands by their own names, and the platform (dialogs, files, OS
  * notifications, idle time, backups) as the Rust shell's commands. Events are
- * Tauri events.
+ * Tauri events. In server mode the Rust side passes the data commands on to
+ * the server and its events back, so nothing here changes.
  */
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { CORE_ERRORS, type CommandName, type CommandReply } from "@taskmint/contracts";
-import type { Backend, CommandArgsParam, Platform } from "@taskmint/client/backend";
+import type { Backend, Capabilities, CommandArgsParam, Platform } from "@taskmint/client/backend";
 
 /** What a dismissed save or open dialog rejects with. */
 const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
 
 /** Runs a command in the app's Rust side (dispatch takes `{}` for no arguments). */
-function command<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+export function command<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
   return invoke<T>("dispatch", { command: name, args });
 }
 
@@ -82,9 +83,10 @@ const platform: Platform = {
   captureStatus: () => command("get_capture_server_status"),
 };
 
-export function createTauriBackend(): Backend {
+/** `capabilities` are what get_capabilities said, before the client started. */
+export function createTauriBackend(capabilities: Capabilities): Backend {
   return {
-    capabilities: { runtime: "desktop", dataLocation: "local" },
+    capabilities,
     call<K extends CommandName>(name: K, ...args: CommandArgsParam<K>) {
       return command<CommandReply<K>>(name, args[0] as Record<string, unknown> | undefined);
     },

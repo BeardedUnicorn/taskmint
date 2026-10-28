@@ -496,6 +496,52 @@ async fn device_token_requests_are_checked(db: PgPool) {
 }
 
 #[sqlx::test(migrator = "taskmint_server::MIGRATOR")]
+async fn a_device_token_signs_itself_out(db: PgPool) {
+    let app = App::new(db);
+    app.user("alice", "user").await;
+    let sign_in = || {
+        app.post("/api/v1/auth/device-token")
+            .json(device("alice", PASSWORD, "Mac"))
+    };
+    let token = sign_in().send().await.body["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let sign_out = |token: &str| app.delete("/api/v1/auth/device-token").bearer(token);
+
+    assert_eq!(sign_out(&token).send().await.status, StatusCode::NO_CONTENT);
+    app.get("/api/v1/auth/me")
+        .bearer(&token)
+        .send()
+        .await
+        .expect(StatusCode::UNAUTHORIZED, "unauthenticated");
+    let audited = app
+        .count("SELECT count(*) FROM audit_events WHERE action = 'token.revoke'")
+        .await;
+    assert_eq!(audited, 1);
+
+    // Once only, and only with a token
+    sign_out(&token)
+        .send()
+        .await
+        .expect(StatusCode::UNAUTHORIZED, "unauthenticated");
+    app.delete("/api/v1/auth/device-token")
+        .send()
+        .await
+        .expect(StatusCode::UNAUTHORIZED, "unauthenticated");
+
+    let token = sign_in().send().await.body["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    app.fail_on("UPDATE", "api_tokens").await;
+    sign_out(&token)
+        .send()
+        .await
+        .expect(StatusCode::INTERNAL_SERVER_ERROR, "internal");
+}
+
+#[sqlx::test(migrator = "taskmint_server::MIGRATOR")]
 async fn bearer_tokens_need_the_full_scope_and_a_live_user(db: PgPool) {
     let app = App::new(db);
     let session = app.member("alice").await;

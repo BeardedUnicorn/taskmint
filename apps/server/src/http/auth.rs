@@ -10,11 +10,12 @@ use axum::Json;
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
-use super::extract::{user_agent, Caller, ClientIp, CookieSession, JsonBody, Scope};
+use super::extract::{bearer, user_agent, Caller, ClientIp, CookieSession, JsonBody, Scope};
 use super::tokens::{new_token, token_name, NewToken, TokenKind};
 use super::{cleared_session_cookie, created, session_cookie, NewSession, SessionInfo};
 use crate::accounts::{self, Role, User};
 use crate::error::ApiError;
+use crate::secrets;
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -197,4 +198,35 @@ pub async fn device_token(
     let user = sign_in(&state, ip, &body.username, body.password).await?;
     let token = new_token(&state, user.id, &name, Scope::Full, TokenKind::Device, ip).await?;
     Ok(created(DeviceToken { token, user }))
+}
+
+/// Desktop sign-out: the token that calls revokes itself (the desktop app
+/// has no cookie session to manage its tokens with), and its user's event
+/// streams end, as when a token is revoked from the web app.
+pub async fn revoke_device_token(
+    State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
+    headers: HeaderMap,
+) -> Result<StatusCode, ApiError> {
+    let token = bearer(&headers).ok_or_else(ApiError::unauthenticated)?;
+    let user_id = sqlx::query_scalar!(
+        r#"
+        WITH token AS (
+            UPDATE api_tokens SET revoked_at = now()
+            WHERE token_hash = $1 AND revoked_at IS NULL
+            RETURNING id, user_id
+        ), audit AS (
+            INSERT INTO audit_events (actor_id, action, target_user_id, detail, ip)
+            SELECT user_id, 'token.revoke', user_id, jsonb_build_object('tokenId', id), $2 FROM token
+        )
+        SELECT user_id AS "user_id!" FROM token
+        "#,
+        secrets::hash(token),
+        ip.to_string(),
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(ApiError::unauthenticated)?;
+    state.events.disconnect(user_id);
+    Ok(StatusCode::NO_CONTENT)
 }

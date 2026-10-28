@@ -79,6 +79,24 @@ to Documents) unless you've saved a backup setting before.
 **Reset.** Settings → Data Management → Reset All Data wipes all three data
 files, their `.bak` copies and `localStorage`.
 
+**Server mode.** Settings → Server connects this computer to a TaskMint
+server ([Run the stack](#run-the-stack)). Enter the address you open it at in a
+browser, a username and a password. The app signs this computer in with a
+device token, which stays in the OS keychain (never in a file or the webview),
+and restarts on the server's data.
+- The tray, idle detection, the long-run reminder, captures and folder
+  backups keep working, and what they change is changed on the server.
+  Changes made in a browser or on another computer show up live.
+- The files on this computer are left as they were. **Copy this computer's
+  data here** adds them to the server's: lists merge by id, nothing there is
+  replaced, and timers still running in the files are stopped as of then.
+  **Disconnect** signs this computer out and restarts on its files.
+- Without the server, changes fail and the tray says so; the app reconnects
+  by itself. A revoked token ("Signed out") needs signing in again.
+- Sessions are dated in the time zone of the computer that started them.
+- To try it with a development build, set `TASKMINT_DATA_DIR` to a scratch
+  folder: the installed app's files and keychain item are then left alone.
+
 ## Browser capture (optional)
 
 `apps/extension/` is a Chrome extension that captures your DataAnnotation
@@ -123,7 +141,8 @@ off.
 `scripts/verify.sh` runs every gate below in order; run it before merging.
 It needs Docker: it ends with the server's gates in the compose `test`
 profile, and the images built and smoke-tested as a stack of their own
-([Run the stack](#run-the-stack)).
+([Run the stack](#run-the-stack)), with the desktop's server mode run against
+it (`apps/desktop/src-tauri/tests/server_mode.rs`).
 
 ```bash
 pnpm typecheck                    # tsc for sources and tests, every package
@@ -267,8 +286,8 @@ server variable also takes `<NAME>_FILE`, for Docker secrets.
 
 ## Server
 
-`apps/server` (`taskmint-server`) is the multi-user server that the web app,
-and later the desktop app's server mode, talk to: Rust, axum and PostgreSQL.
+`apps/server` (`taskmint-server`) is the multi-user server that the web app
+and the desktop app's server mode talk to: Rust, axum and PostgreSQL.
 Accounts are invite-only: an admin hands out one-time invite and
 password-reset links, and there's no email. It runs the same rules as the
 desktop app (`crates/taskmint-core`) on each account's data in Postgres.
@@ -288,6 +307,7 @@ Everything except the health checks is under `/api/v1`. Errors are JSON
 | `POST auth/login` | anyone, rate-limited | sets the session cookie, returns `{user, csrfToken}` |
 | `POST auth/logout`, `GET auth/me`, `POST auth/password` | session | a password change signs out the other sessions; `me` also accepts a `full` token |
 | `POST auth/device-token` | username and password, rate-limited | a `full` token for the desktop app |
+| `DELETE auth/device-token` | the token itself | revokes it (the desktop app disconnecting) |
 | `GET invites/:token`, `POST invites/:token/accept` | anyone, rate-limited | accepting creates the account and signs it in |
 | `GET password-resets/:token`, `POST password-resets/:token/accept` | anyone, rate-limited | sets the password, signs out everywhere, signs in |
 | `GET/POST tokens`, `DELETE tokens/:id` | session | API tokens, scope `capture` (browser extension) or `full`; the secret is shown once |

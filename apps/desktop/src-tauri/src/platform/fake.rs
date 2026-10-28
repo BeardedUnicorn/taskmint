@@ -1,10 +1,11 @@
 //! A Platform for tests: it records what the shell asked of it, and answers
-//! dialogs with what the test queued.
+//! dialogs with what the test queued. MemorySecrets stands in for the
+//! keychain.
 
-use super::{Platform, SaveDialog};
+use super::{Platform, SaveDialog, SecretStore};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -20,6 +21,7 @@ pub struct Recorded {
     pub windows_shown: usize,
     pub menus: Vec<TrayMenu>,
     pub statuses: Vec<TrayStatus>,
+    pub restarts: usize,
 }
 
 #[derive(Default)]
@@ -144,5 +146,45 @@ impl Platform for FakePlatform {
 
     fn app_version(&self) -> String {
         "1.2.3".to_string()
+    }
+
+    fn restart(&self) {
+        self.recorded().restarts += 1;
+    }
+}
+
+/// The keychain, in memory. `fail()` makes every call fail from then on.
+#[derive(Default)]
+pub struct MemorySecrets {
+    secrets: Mutex<HashMap<String, String>>,
+    failing: Mutex<bool>,
+}
+
+impl MemorySecrets {
+    pub fn fail(&self) {
+        *self.failing.lock().unwrap() = true;
+    }
+
+    fn check(&self) -> Result<std::sync::MutexGuard<'_, HashMap<String, String>>, String> {
+        match *self.failing.lock().unwrap() {
+            true => Err("the keychain is locked".to_string()),
+            false => Ok(self.secrets.lock().unwrap()),
+        }
+    }
+}
+
+impl SecretStore for MemorySecrets {
+    fn get(&self, name: &str) -> Result<Option<String>, String> {
+        Ok(self.check()?.get(name).cloned())
+    }
+
+    fn set(&self, name: &str, secret: &str) -> Result<(), String> {
+        self.check()?.insert(name.to_string(), secret.to_string());
+        Ok(())
+    }
+
+    fn delete(&self, name: &str) -> Result<(), String> {
+        self.check()?.remove(name);
+        Ok(())
     }
 }

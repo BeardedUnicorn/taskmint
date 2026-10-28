@@ -54,7 +54,7 @@ cargo llvm-cov -p taskmint --features failpoints --summary-only \
 step "The server's gates in Linux: query metadata, 100% coverage (compose test profile, as CI runs them)"
 docker compose --profile test run --rm --build server-tests
 
-step "The images, smoke-tested as a stack of their own (the dev stack and its data are left alone)"
+step "The images, smoke-tested as a stack of their own, with the desktop's server mode on it (the dev stack and its data are left alone)"
 (
   export COMPOSE_PROJECT_NAME=taskmint-verify
   export DB_PORT=15433 SERVER_PORT=13000 WEB_PORT=18080
@@ -63,6 +63,8 @@ step "The images, smoke-tested as a stack of their own (the dev stack and its da
   trap 'docker compose down -v >/dev/null 2>&1' EXIT
   docker compose up --build -d --wait
   node scripts/smoke.mjs
+  # The desktop's server mode on the same stack (apps/desktop/src-tauri/tests/server_mode.rs)
+  TASKMINT_SERVER_URL="http://localhost:${WEB_PORT}" cargo test -q -p taskmint --test server_mode -- --ignored
 )
 
 printf '\nAll gates passed.\n'

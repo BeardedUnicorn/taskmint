@@ -22,7 +22,8 @@
     "apps/desktop/src-tauri": [
       { "file": "src/main.rs", "why": "binary entry; calls taskmint_lib::run" },
       { "file": "src/app.rs", "why": "tauri::Builder, plugins, generate_context! and the run loop: they need a real event loop and main thread" },
-      { "file": "src/platform/os.rs", "why": "the Platform on Tauri: tray and menu rendering, dialogs, OS notifications, window focus. They need a real UI session" }
+      { "file": "src/platform/os.rs", "why": "the Platform on Tauri: tray and menu rendering, dialogs, OS notifications, window focus. They need a real UI session" },
+      { "file": "src/platform/keychain.rs", "why": "the SecretStore on the OS keychain, which can prompt the user. Calls only" }
     ]
   }
 }

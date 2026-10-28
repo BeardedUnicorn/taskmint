@@ -34,7 +34,7 @@ Integration tests count toward the total, including `#[sqlx::test]` against a re
 | `crates/taskmint-core` | nothing | pure code | – |
 | `apps/server` | `src/main.rs` | `#[tokio::main]` and signal wiring that call the tested `cli::run` | compose smoke test |
 | `apps/desktop/src-tauri` | `src/main.rs`, `src/app.rs` | binary entry; `tauri::Builder`, plugins, `generate_context!`, run loop. They need a real event loop and main thread | manual QA checklist |
-| `apps/desktop/src-tauri` | `src/platform/os.rs` (and `src/platform/keychain.rs` when server mode adds it in P12) | the Platform on Tauri: tray and menu rendering, dialogs, OS notifications, window focus; later keychain prompts. They need a real UI session, so they hold calls only, and every decision is in tested code | manual QA checklist |
+| `apps/desktop/src-tauri` | `src/platform/os.rs`, `src/platform/keychain.rs` | the Platform on Tauri (tray and menu rendering, dialogs, OS notifications, window focus) and the SecretStore on the OS keychain, which can prompt. They need a real UI session, so they hold calls only, and every decision is in tested code | manual QA checklist |
 | `apps/desktop/src-tauri` (implicit) | `cfg(target_os = "windows" \| "linux")` code | not compiled on the macOS coverage runner (the macOS idle FFI *is* covered by a real call) | `cargo xwin clippy` for Windows |
 | all TS packages | `**/test/**`, `**/__tests__/**`, `*.config.ts`, `*.d.ts`, build scripts | not shipped runtime code | – |
 
