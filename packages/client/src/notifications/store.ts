@@ -62,7 +62,8 @@ export type HoldReason = 'hover' | 'focus' | 'window';
 
 interface TimerState {
   remaining: number;
-  startedAt: number | null;
+  /** When the clock last started; read only while it runs (handle set). */
+  startedAt: number;
   handle: ReturnType<typeof setTimeout> | null;
   holds: Set<HoldReason>;
 }
@@ -90,7 +91,7 @@ export class ToastStore {
   private timers = new Map<string, TimerState>();
   private windowHeld = false;
 
-  /** Called with a toast's id when it is dropped from the queue unseen. */
+  /** Called with a toast dropped from the queue unseen. */
   onDropped?: (toast: Toast) => void;
 
   subscribe = (listener: () => void): (() => void) => {
@@ -149,28 +150,13 @@ export class ToastStore {
     return toast.id;
   }
 
-  /** Changes a toast's text or buttons in place. */
-  update(id: string, changes: Partial<Pick<Toast, 'title' | 'message' | 'actions' | 'severity'>>): void {
-    const toast = this.find(id);
-    if (toast) this.replace(id, { ...toast, ...changes });
-  }
-
+  /** Animates a showing toast out (a waiting one isn't on screen to dismiss). */
   dismiss(id: string): void {
-    const queuedIndex = this.snapshot.queued.findIndex(t => t.id === id);
-    if (queuedIndex >= 0) {
-      this.set({ ...this.snapshot, queued: this.snapshot.queued.filter(t => t.id !== id) });
-      return;
-    }
     const toast = this.snapshot.visible.find(t => t.id === id);
     if (!toast || toast.exiting) return;
     this.clearTimer(id);
     this.replace(id, { ...toast, exiting: true });
     setTimeout(() => this.remove(id), EXIT_MS);
-  }
-
-  dismissAll(): void {
-    this.set({ ...this.snapshot, queued: [] });
-    this.snapshot.visible.forEach(t => this.dismiss(t.id));
   }
 
   /** Stops a toast's time running down until every hold on it is released. */
@@ -206,7 +192,7 @@ export class ToastStore {
   private show(toast: Toast): void {
     this.set({ ...this.snapshot, visible: [...this.snapshot.visible, toast] });
     if (toast.duration !== null) {
-      const timer: TimerState = { remaining: toast.duration, startedAt: null, handle: null, holds: new Set() };
+      const timer: TimerState = { remaining: toast.duration, startedAt: 0, handle: null, holds: new Set() };
       this.timers.set(toast.id, timer);
       if (this.windowHeld) timer.holds.add('window');
       else this.startClock(toast.id, timer);
@@ -214,14 +200,13 @@ export class ToastStore {
   }
 
   private enqueue(toast: Toast): void {
-    let queued = [...this.snapshot.queued, toast];
-    while (queued.filter(t => t.severity !== 'error').length > MAX_QUEUED) {
-      const oldest = queued.find(t => t.severity !== 'error');
-      if (!oldest) break;
-      queued = queued.filter(t => t !== oldest);
-      this.onDropped?.(oldest);
-    }
-    this.set({ ...this.snapshot, queued });
+    const queued = [...this.snapshot.queued, toast];
+    // Errors always wait. One toast came in, so at most one other goes: the
+    // oldest non-error, once there are more than MAX_QUEUED.
+    const others = queued.filter(t => t.severity !== 'error');
+    const dropped = others.length > MAX_QUEUED ? others[0] : null;
+    this.set({ ...this.snapshot, queued: queued.filter(t => t !== dropped) });
+    if (dropped) this.onDropped?.(dropped);
   }
 
   private remove(id: string): void {
@@ -246,7 +231,7 @@ export class ToastStore {
       return;
     }
     const holds = this.timers.get(id)?.holds ?? new Set<HoldReason>();
-    const timer: TimerState = { remaining: duration, startedAt: null, handle: null, holds };
+    const timer: TimerState = { remaining: duration, startedAt: 0, handle: null, holds };
     if (this.windowHeld) timer.holds.add('window');
     this.timers.set(id, timer);
     if (timer.holds.size === 0) this.startClock(id, timer);
@@ -265,20 +250,13 @@ export class ToastStore {
     if (!timer.handle) return;
     clearTimeout(timer.handle);
     timer.handle = null;
-    if (timer.startedAt !== null) {
-      timer.remaining = Math.max(0, timer.remaining - (Date.now() - timer.startedAt));
-      timer.startedAt = null;
-    }
+    timer.remaining = Math.max(0, timer.remaining - (Date.now() - timer.startedAt));
   }
 
   private clearTimer(id: string): void {
     const timer = this.timers.get(id);
     if (timer?.handle) clearTimeout(timer.handle);
     if (timer) timer.handle = null;
-  }
-
-  private find(id: string): Toast | undefined {
-    return [...this.snapshot.visible, ...this.snapshot.queued].find(t => t.id === id);
   }
 
   private isVisible(id: string): boolean {

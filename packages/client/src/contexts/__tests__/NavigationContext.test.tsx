@@ -46,4 +46,16 @@ describe('NavigationProvider', () => {
     act(() => result.current.navigate('notes'));
     expect(readLocal(ACTIVE_VIEW_KEY, null)).toBeNull();
   });
+
+  it('keeps the same value when there are no params to clear', () => {
+    const { result } = renderHook(() => useNavigation(), { wrapper: NavigationProvider });
+    const before = result.current;
+
+    act(() => result.current.clearParams());
+    expect(result.current).toBe(before);
+  });
+
+  it('needs the provider', () => {
+    expect(() => renderHook(() => useNavigation())).toThrow(/NavigationProvider/);
+  });
 });

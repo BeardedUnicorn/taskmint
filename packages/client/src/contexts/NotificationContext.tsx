@@ -19,7 +19,7 @@ import {
   useSyncExternalStore,
   ReactNode,
 } from 'react';
-import { ToastStore, Toast, HoldReason } from '../notifications/store';
+import { ToastStore, HoldReason } from '../notifications/store';
 import { routeNotification, ErrorThrottle } from '../notifications/routing';
 import { deliverDesktop } from '../notifications/desktop';
 import { isWindowAttended, subscribeAttention } from '../notifications/attention';
@@ -53,31 +53,22 @@ export type { NotifyOptions, NotificationAction, Severity, NotificationCategory 
 export type NotificationOptions = Omit<NotifyOptions, 'message' | 'severity'>;
 
 export interface NotificationApi {
-  /** Sends a notification; returns its toast id (or history id when it has no toast). */
-  notify: (options: NotifyOptions) => string;
-  update: (id: string, changes: Partial<Pick<Toast, 'title' | 'message' | 'actions' | 'severity'>>) => void;
-  dismiss: (id: string) => void;
-  dismissAll: () => void;
-  showNotification: (message: string, options?: Partial<Omit<NotifyOptions, 'message'>>) => string;
-  showSuccess: (message: string, options?: NotificationOptions) => string;
-  showError: (message: string, options?: NotificationOptions) => string;
-  showWarning: (message: string, options?: NotificationOptions) => string;
-  showInfo: (message: string, options?: NotificationOptions) => string;
-  hideNotification: (id: string) => void;
-  hideAllNotifications: () => void;
+  /** Sends a notification where it should go (see notifications/routing). */
+  notify: (options: NotifyOptions) => void;
+  showSuccess: (message: string, options?: NotificationOptions) => void;
+  showError: (message: string, options?: NotificationOptions) => void;
+  showWarning: (message: string, options?: NotificationOptions) => void;
+  showInfo: (message: string, options?: NotificationOptions) => void;
 }
 
+/** The history, for the sidebar bell. */
 export interface NotificationState {
-  toasts: readonly Toast[];
   history: HistoryEntry[];
   unread: number;
   markAllRead: () => void;
   clearHistory: () => void;
-  /** Runs a toast or history button (opens its page, or calls it). */
-  runAction: (action: NotificationAction, toastId?: string) => void;
-  dismiss: (id: string) => void;
-  hold: (id: string, reason: HoldReason) => void;
-  release: (id: string, reason: HoldReason) => void;
+  /** Runs a history button (opens its page, or calls it). */
+  runAction: (action: NotificationAction) => void;
 }
 
 const NotificationApiContext = createContext<NotificationApi | null>(null);
@@ -105,7 +96,7 @@ const newHistoryId = () => `notification-${Date.now()}-${++nextHistoryId}`;
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [store] = useState(() => new ToastStore());
-  const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
   const [storedHistory, setStoredHistory] = useLocalStorage<unknown>(NOTIFICATION_HISTORY_KEY, []);
   const history = useMemo(() => normalizeHistory(storedHistory), [storedHistory]);
@@ -132,7 +123,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // While you're away, toasts wait (their time doesn't run) and errors may go
   // to the OS; coming back starts the error allowance over.
-  const attended = useSyncExternalStore(subscribeAttention, isWindowAttended, () => true);
+  const attended = useSyncExternalStore(subscribeAttention, isWindowAttended);
   const throttle = useRef(new ErrorThrottle()).current;
   useEffect(() => {
     store.setWindowHeld(!attended);
@@ -183,16 +174,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   );
 
   const notify = useCallback(
-    (options: NotifyOptions): string => {
+    (options: NotifyOptions): void => {
       const severity = options.severity ?? 'info';
       const category = options.category ?? 'general';
       const key = options.dedupeKey ?? `${severity}|${category}|${options.title ?? ''}|${options.message}`;
-      const duration =
-        options.duration !== undefined
-          ? options.duration
-          : options.persist
-            ? null
-            : options.autoHideDuration;
       const isAttended = isWindowAttended();
 
       let decision = routeNotification(
@@ -202,7 +187,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (decision.desktop === 'error' && !throttle.allow(key)) {
         decision = { ...decision, desktop: null };
       }
-      if (!decision.toast && !decision.desktop) return '';
+      if (!decision.toast && !decision.desktop) return;
 
       const historyId =
         options.history === false
@@ -227,10 +212,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         message: options.message,
         category,
         actions: options.actions,
-        duration,
+        duration: options.duration,
         historyId,
       };
-      const toastId = decision.toast ? store.add(toastInput) : '';
+      if (decision.toast) store.add(toastInput);
 
       if (decision.desktop) {
         const shownInWindow = decision.toast;
@@ -239,31 +224,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           if (!shown && !shownInWindow) store.add(toastInput);
         });
       }
-      return toastId || historyId || '';
     },
     [record, store, throttle]
   );
-
-  const dismiss = useCallback((id: string) => store.dismiss(id), [store]);
-  const dismissAll = useCallback(() => store.dismissAll(), [store]);
 
   const api = useMemo<NotificationApi>(() => {
     const withSeverity = (severity: Severity) => (message: string, options?: NotificationOptions) =>
       notify({ ...options, message, severity });
     return {
       notify,
-      update: (id, changes) => store.update(id, changes),
-      dismiss,
-      dismissAll,
-      showNotification: (message, options) => notify({ ...options, message }),
       showSuccess: withSeverity('success'),
       showError: withSeverity('error'),
       showWarning: withSeverity('warning'),
       showInfo: withSeverity('info'),
-      hideNotification: dismiss,
-      hideAllNotifications: dismissAll,
     };
-  }, [notify, store, dismiss, dismissAll]);
+  }, [notify]);
 
   // What the backend showed itself joins the history (and, while you're
   // looking at the app, shows here too).
@@ -273,7 +248,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const isAttended = isWindowAttended();
     const key = `backend|${payload.kind}|${payload.body}`;
     const historyId = record(key, {
-      at: payload.at || new Date().toISOString(),
+      at: payload.at,
       severity,
       title: payload.title,
       message: payload.body,
@@ -287,20 +262,24 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  const runAction = useCallback(
-    (action: NotificationAction, toastId?: string) => {
-      if ('view' in action) {
-        navigationRef.current?.navigate(action.view, action.section ? { section: action.section } : undefined);
-        if (toastId) store.dismiss(toastId);
-        return;
-      }
-      Promise.resolve()
-        .then(action.onClick)
-        .catch(error => console.error(`Notification action "${action.label}" failed:`, error));
-      if (toastId && !action.keepOpen) store.dismiss(toastId);
+  // A button opens its page or runs; on a toast, it dismisses the toast too
+  const runAction = useCallback((action: NotificationAction) => {
+    if ('view' in action) {
+      navigationRef.current?.navigate(action.view, action.section ? { section: action.section } : undefined);
+      return;
+    }
+    Promise.resolve()
+      .then(action.onClick)
+      .catch(error => console.error(`Notification action "${action.label}" failed:`, error));
+  }, []);
+  const runToastAction = useCallback(
+    (action: NotificationAction, toastId: string) => {
+      runAction(action);
+      store.dismiss(toastId);
     },
-    [store]
+    [runAction, store]
   );
+  const dismiss = useCallback((id: string) => store.dismiss(id), [store]);
 
   const markAllRead = useCallback(() => updateHistory(markAllEntriesRead), [updateHistory]);
   const clearHistory = useCallback(() => {
@@ -311,18 +290,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const release = useCallback((id: string, reason: HoldReason) => store.release(id, reason), [store]);
 
   const state = useMemo<NotificationState>(
-    () => ({
-      toasts: snapshot.visible,
-      history,
-      unread: unreadCount(history),
-      markAllRead,
-      clearHistory,
-      runAction,
-      dismiss,
-      hold,
-      release,
-    }),
-    [snapshot.visible, history, markAllRead, clearHistory, runAction, dismiss, hold, release]
+    () => ({ history, unread: unreadCount(history), markAllRead, clearHistory, runAction }),
+    [history, markAllRead, clearHistory, runAction]
   );
 
   return (
@@ -332,7 +301,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         <ToastViewport
           toasts={snapshot.visible}
           onDismiss={dismiss}
-          onAction={runAction}
+          onAction={runToastAction}
           onHold={hold}
           onRelease={release}
         />

@@ -28,6 +28,8 @@ describe('notification preferences', () => {
     expect(parsed.dailySummaryTime).toBe('18:00');
     expect(parsed.goalMilestones).toBe(true);
     expect(parseNotificationPreferences(null)).toEqual(DEFAULT_NOTIFICATION_PREFERENCES);
+    // Not an object of fields at all (an array saved by mistake)
+    expect(parseNotificationPreferences([true])).toEqual(DEFAULT_NOTIFICATION_PREFERENCES);
   });
 
   it('saves updates on top of what is stored', () => {

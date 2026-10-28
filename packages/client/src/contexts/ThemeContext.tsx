@@ -6,7 +6,7 @@
  */
 
 import { createContext, useCallback, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
-import { ThemeProvider as MuiThemeProvider, Theme } from '@mui/material/styles';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { createAppTheme } from '../theme';
 
@@ -17,8 +17,6 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 interface ThemeContextType {
   mode: ThemeMode;
   isDark: boolean;
-  theme: Theme;
-  systemTheme: 'light' | 'dark';
   setMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
 }
@@ -46,62 +44,29 @@ export function useTheme(): ThemeContextType {
   return context;
 }
 
-/**
- * Detect system theme preference
- */
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+
 function getSystemTheme(): 'light' | 'dark' {
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return 'dark'; // Default to dark if unable to detect
+  return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
 }
 
 /**
  * Theme Provider Component
  */
 export function ThemeProvider({ children, defaultMode = 'dark' }: ThemeProviderProps) {
-  const [mode, setStoredMode] = useLocalStorage<ThemeMode>('theme-mode', defaultMode);
+  const [mode, setMode] = useLocalStorage<ThemeMode>('theme-mode', defaultMode);
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(getSystemTheme);
 
-  // Listen for system theme changes
+  // Follow the system's light/dark changes
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      
-      const handleChange = (e: MediaQueryListEvent) => {
-        setSystemTheme(e.matches ? 'dark' : 'light');
-      };
-
-      // Modern browsers
-      if (mediaQuery.addEventListener) {
-        mediaQuery.addEventListener('change', handleChange);
-        return () => mediaQuery.removeEventListener('change', handleChange);
-      } 
-      // Legacy browsers
-      else if (mediaQuery.addListener) {
-        mediaQuery.addListener(handleChange);
-        return () => mediaQuery.removeListener(handleChange);
-      }
-    }
+    const mediaQuery = window.matchMedia(DARK_QUERY);
+    const handleChange = (e: MediaQueryListEvent) => setSystemTheme(e.matches ? 'dark' : 'light');
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // Determine actual theme based on mode
-  const isDark = useMemo(() => {
-    switch (mode) {
-      case 'light':
-        return false;
-      case 'dark':
-        return true;
-      case 'system':
-        return systemTheme === 'dark';
-      default:
-        return true;
-    }
-  }, [mode, systemTheme]);
-
-  const theme = isDark ? THEMES.dark : THEMES.light;
-
-  const setMode = setStoredMode;
+  // Dark unless chosen otherwise (also for a stored mode this version doesn't know)
+  const isDark = mode === 'system' ? systemTheme === 'dark' : mode !== 'light';
 
   // Toggle between light and dark (from System: the opposite of what the
   // system shows now)
@@ -110,17 +75,15 @@ export function ThemeProvider({ children, defaultMode = 'dark' }: ThemeProviderP
   }, [isDark, setMode]);
 
   const contextValue = useMemo<ThemeContextType>(
-    () => ({ mode, isDark, theme, systemTheme, setMode, toggleTheme }),
-    [mode, isDark, theme, systemTheme, setMode, toggleTheme]
+    () => ({ mode, isDark, setMode, toggleTheme }),
+    [mode, isDark, setMode, toggleTheme]
   );
 
   return (
     <ThemeContext.Provider value={contextValue}>
-      <MuiThemeProvider theme={theme}>
+      <MuiThemeProvider theme={isDark ? THEMES.dark : THEMES.light}>
         {children}
       </MuiThemeProvider>
     </ThemeContext.Provider>
   );
 }
-
-export default ThemeProvider;

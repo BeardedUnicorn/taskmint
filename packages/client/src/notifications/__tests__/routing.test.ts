@@ -37,6 +37,11 @@ describe('routeNotification', () => {
     });
   });
 
+  it("sends the backend's own reminders to the OS always", () => {
+    expect(routeNotification({ category: 'longRun', severity: 'info' }, away).desktop).toBe('longRun');
+    expect(routeNotification({ category: 'idle', severity: 'warning' }, away).desktop).toBe('idlePause');
+  });
+
   it('silences a reminder whose category is off', () => {
     const off = { ...here, preferences: { ...defaults, dailySummary: false } };
     expect(routeNotification({ category: 'dailySummary', severity: 'info' }, off)).toEqual({
