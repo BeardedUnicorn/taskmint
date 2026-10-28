@@ -5,7 +5,7 @@
  * Shows historical performance against daily earnings goals
  */
 
-import { useMemo } from 'react';
+import { ReactElement, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -20,173 +20,64 @@ import {
   LinearProgress,
   Tooltip,
 } from '@mui/material';
-import {
-  CheckCircle,
-  Cancel,
-  TrendingUp,
-  TrendingDown,
-  Remove,
-  Schedule,
-} from '@mui/icons-material';
+import { CheckCircle, Cancel, TrendingUp, TrendingDown, Schedule } from '@mui/icons-material';
 import { DailyGoalAchievement } from '../../../types/goal';
 import { formatCurrency } from '../../../utils/formatters';
 import { isToday, formatLocalDate, formatLocalDateWithDay } from '../../../utils/dateHelpers';
 
 export interface GoalAchievementsTableProps {
   achievements: DailyGoalAchievement[];
-  loading?: boolean;
 }
 
-export function GoalAchievementsTable({
-  achievements,
-  loading = false,
-}: GoalAchievementsTableProps) {
-  // Sort achievements by date (most recent first)
-  const sortedAchievements = useMemo(() => {
-    return [...achievements].sort((a, b) => b.date.localeCompare(a.date));
-  }, [achievements]);
+/** A day's result: today short of the goal is still in progress. */
+type RowKind = 'inProgress' | DailyGoalAchievement['status'];
 
-  const getStatusChip = (achievement: DailyGoalAchievement) => {
-    // Check if this achievement is for today
-    const isCurrentDay = isToday(achievement.date);
+const KINDS: Record<
+  RowKind,
+  { label: string; icon: ReactElement; color: 'info' | 'success' | 'error'; filled: boolean; tooltip: string }
+> = {
+  inProgress: { label: 'In Progress', icon: <Schedule />, color: 'info', filled: false, tooltip: 'Amount remaining to reach goal today' },
+  hit: { label: 'Hit', icon: <CheckCircle />, color: 'success', filled: false, tooltip: 'Exact goal achievement' },
+  exceeded: { label: 'Exceeded', icon: <TrendingUp />, color: 'success', filled: true, tooltip: 'Amount over goal' },
+  missed: { label: 'Missed', icon: <Cancel />, color: 'error', filled: false, tooltip: 'Amount short of goal' },
+};
 
-    // If it's today and the status is 'missed', show 'In Progress' instead
-    if (isCurrentDay && achievement.status === 'missed') {
-      return (
-        <Chip
-          icon={<Schedule />}
-          label="In Progress"
-          color="info"
-          size="small"
-          variant="outlined"
-        />
-      );
-    }
+const kindOf = (achievement: DailyGoalAchievement): RowKind =>
+  achievement.status === 'missed' && isToday(achievement.date) ? 'inProgress' : achievement.status;
 
-    switch (achievement.status) {
-      case 'hit':
-        return (
-          <Chip
-            icon={<CheckCircle />}
-            label="Hit"
-            color="success"
-            size="small"
-            variant="outlined"
-          />
-        );
-      case 'exceeded':
-        return (
-          <Chip
-            icon={<TrendingUp />}
-            label="Exceeded"
-            color="success"
-            size="small"
-          />
-        );
-      case 'missed':
-        return (
-          <Chip
-            icon={<Cancel />}
-            label="Missed"
-            color="error"
-            size="small"
-            variant="outlined"
-          />
-        );
-      default:
-        return (
-          <Chip
-            icon={<Remove />}
-            label="Unknown"
-            color="default"
-            size="small"
-            variant="outlined"
-          />
-        );
-    }
-  };
+const amountSx = { fontWeight: 600, fontFamily: 'monospace' } as const;
 
-  const getDifferenceDisplay = (achievement: DailyGoalAchievement) => {
-    const { difference, status } = achievement;
-    const isPositive = difference >= 0;
-    const isCurrentDay = isToday(achievement.date);
-
-    // For current day with 'missed' status, show remaining amount instead of negative difference
-    if (isCurrentDay && status === 'missed') {
-      const remainingAmount = Math.abs(difference);
-      return (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Schedule color="info" fontSize="small" />
-          <Typography
-            variant="body2"
-            sx={{
-              color: 'info.main',
-              fontWeight: 600,
-              fontFamily: 'monospace',
-            }}
-          >
-            {formatCurrency(remainingAmount)} remaining
-          </Typography>
-        </Box>
-      );
-    }
-
+function Difference({ achievement, kind }: { achievement: DailyGoalAchievement; kind: RowKind }) {
+  const { difference } = achievement;
+  if (kind === 'inProgress') {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {status === 'exceeded' && <TrendingUp color="success" fontSize="small" />}
-        {status === 'missed' && <TrendingDown color="error" fontSize="small" />}
-        <Typography
-          variant="body2"
-          sx={{
-            color: isPositive ? 'success.main' : 'error.main',
-            fontWeight: 600,
-            fontFamily: 'monospace',
-          }}
-        >
-          {isPositive ? '+' : ''}{formatCurrency(Math.abs(difference))}
-        </Typography>
-      </Box>
-    );
-  };
-
-  const getProgressBar = (achievement: DailyGoalAchievement) => {
-    const percentage = Math.min(100, achievement.percentageAchieved);
-    const isCurrentDay = isToday(achievement.date);
-
-    // Determine color based on status and whether it's the current day
-    let color: 'error' | 'success' | 'info' = 'success';
-    if (achievement.status === 'missed') {
-      color = isCurrentDay ? 'info' : 'error';
-    }
-
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 120 }}>
-        <LinearProgress
-          variant="determinate"
-          value={percentage}
-          color={color}
-          sx={{
-            flex: 1,
-            height: 8,
-            borderRadius: 4,
-          }}
-        />
-        <Typography variant="body2" sx={{ minWidth: 40, textAlign: 'right' }}>
-          {Math.round(achievement.percentageAchieved)}%
-        </Typography>
-      </Box>
-    );
-  };
-
-  if (loading) {
-    return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Typography variant="body1" color="text.secondary">
-          Loading goal achievements...
+        <Schedule color="info" fontSize="small" />
+        <Typography variant="body2" sx={{ ...amountSx, color: 'info.main' }}>
+          {formatCurrency(Math.abs(difference))} remaining
         </Typography>
       </Box>
     );
   }
+  const isPositive = difference >= 0;
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {kind === 'exceeded' && <TrendingUp color="success" fontSize="small" />}
+      {kind === 'missed' && <TrendingDown color="error" fontSize="small" />}
+      <Typography variant="body2" sx={{ ...amountSx, color: isPositive ? 'success.main' : 'error.main' }}>
+        {isPositive ? '+' : ''}
+        {formatCurrency(Math.abs(difference))}
+      </Typography>
+    </Box>
+  );
+}
+
+export function GoalAchievementsTable({ achievements }: GoalAchievementsTableProps) {
+  // Most recent first
+  const sortedAchievements = useMemo(
+    () => [...achievements].sort((a, b) => b.date.localeCompare(a.date)),
+    [achievements]
+  );
 
   if (sortedAchievements.length === 0) {
     return (
@@ -239,66 +130,70 @@ export function GoalAchievementsTable({
           </TableRow>
         </TableHead>
         <TableBody>
-          {sortedAchievements.map((achievement) => (
-            <TableRow
-              key={achievement.id}
-              hover
-              sx={{
-                '&:hover': {
-                  backgroundColor: 'action.hover',
-                },
-              }}
-            >
-              <TableCell>
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {formatLocalDate(achievement.date)}
+          {sortedAchievements.map(achievement => {
+            const kind = kindOf(achievement);
+            const look = KINDS[kind];
+            return (
+              <TableRow key={achievement.id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                <TableCell>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {formatLocalDate(achievement.date)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {formatLocalDateWithDay(achievement.date)}
+                    </Typography>
+                  </Box>
+                </TableCell>
+
+                <TableCell align="right">
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {formatCurrency(achievement.goalAmount)}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {formatLocalDateWithDay(achievement.date)}
+                </TableCell>
+
+                <TableCell align="right">
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {formatCurrency(achievement.earnedAmount)}
                   </Typography>
-                </Box>
-              </TableCell>
-              
-              <TableCell align="right">
-                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                  {formatCurrency(achievement.goalAmount)}
-                </Typography>
-              </TableCell>
-              
-              <TableCell align="right">
-                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                  {formatCurrency(achievement.earnedAmount)}
-                </Typography>
-              </TableCell>
-              
-              <TableCell align="center">
-                <Tooltip title={`${achievement.percentageAchieved.toFixed(1)}% of goal achieved`}>
-                  <Box>{getProgressBar(achievement)}</Box>
-                </Tooltip>
-              </TableCell>
-              
-              <TableCell align="center">
-                {getStatusChip(achievement)}
-              </TableCell>
-              
-              <TableCell align="center">
-                <Tooltip
-                  title={
-                    isToday(achievement.date) && achievement.status === 'missed'
-                      ? 'Amount remaining to reach goal today'
-                      : achievement.status === 'exceeded'
-                      ? 'Amount over goal'
-                      : achievement.status === 'missed'
-                      ? 'Amount short of goal'
-                      : 'Exact goal achievement'
-                  }
-                >
-                  <Box>{getDifferenceDisplay(achievement)}</Box>
-                </Tooltip>
-              </TableCell>
-            </TableRow>
-          ))}
+                </TableCell>
+
+                <TableCell align="center">
+                  <Tooltip title={`${achievement.percentageAchieved.toFixed(1)}% of goal achieved`}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 120 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.min(100, achievement.percentageAchieved)}
+                        color={look.color}
+                        sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                      />
+                      <Typography variant="body2" sx={{ minWidth: 40, textAlign: 'right' }}>
+                        {Math.round(achievement.percentageAchieved)}%
+                      </Typography>
+                    </Box>
+                  </Tooltip>
+                </TableCell>
+
+                <TableCell align="center">
+                  <Chip
+                    icon={look.icon}
+                    label={look.label}
+                    color={look.color}
+                    size="small"
+                    variant={look.filled ? 'filled' : 'outlined'}
+                  />
+                </TableCell>
+
+                <TableCell align="center">
+                  <Tooltip title={look.tooltip}>
+                    <Box>
+                      <Difference achievement={achievement} kind={kind} />
+                    </Box>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </TableContainer>

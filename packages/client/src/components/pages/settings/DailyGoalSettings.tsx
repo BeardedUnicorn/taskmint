@@ -62,7 +62,8 @@ export function DailyGoalSettings() {
 
   // Saves when typing pauses
   useEffect(() => {
-    if (!enabled || amountText.trim() === String(savedAmount ?? '')) return;
+    // (An enabled goal has an amount saved)
+    if (!enabled || amountText.trim() === String(savedAmount)) return;
     const timeout = setTimeout(() => commitRef.current(amountText), GOAL_SAVE_DELAY_MS);
     return () => clearTimeout(timeout);
   }, [amountText, enabled, savedAmount]);
@@ -93,8 +94,6 @@ export function DailyGoalSettings() {
           onKeyDown={event => {
             if (event.key === 'Enter') commitAmount();
           }}
-          currency="$"
-          placeholder="0.00"
           disabled={!enabled}
           error={!!amountError}
           helperText={amountError ?? 'Saved as you type'}

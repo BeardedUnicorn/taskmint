@@ -132,7 +132,6 @@ export function UsersSection({ session }: { session: WebSession }) {
         title={`Disable ${disabling?.username ?? ''}?`}
         message="They're signed out everywhere and their tokens are revoked. You can enable the account again later."
         confirmLabel="Disable"
-        confirmColor="error"
         severity="error"
       />
       <ShownOnceDialog

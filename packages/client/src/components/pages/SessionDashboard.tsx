@@ -22,7 +22,7 @@ import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { TaskSession, TimerInstance } from '../../types/timer';
-import { EditTimeEntryData } from '../../types/form';
+import type { EditTimeEntryData, EditTimeEntryDialogProps } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatCurrency, formatTime } from '../../utils/formatters';
 import { getInstanceElapsedMs, getSessionElapsedMs, hasRunningTimer } from '../../utils/timerHelpers';
@@ -35,22 +35,20 @@ import { useTaskNotes } from '../../hooks/useTaskNotes';
 
 interface SessionDashboardProps {
   /** Opens the app's Start Work dialog (the + button, an empty list). */
-  onStartWork?: () => void;
+  onStartWork: () => void;
   /** Opens the app's Add Time dialog. */
-  onAddTime?: () => void;
+  onAddTime: () => void;
 }
 
-export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardProps = {}) {
+export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   // Whose notes are open: a session, or one of its timers
   const [notesTarget, setNotesTarget] = useState<{
     sessionId: string;
     timerInstanceId?: string;
   } | null>(null);
-  const [editingTimerData, setEditingTimerData] = useState<EditTimeEntryData | null>(null);
-  const [editingTimerInstanceId, setEditingTimerInstanceId] = useState<string | null>(null);
-  // A finished timer holds tracked time, so deleting one waits for a confirm
-
+  // The timer being edited (its id is the instance's)
+  const [editingTimerData, setEditingTimerData] = useState<EditTimeEntryDialogProps['entry'] | null>(null);
 
   // Hooks
   const {
@@ -104,7 +102,6 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   }, [activeSession, tasks, nowMs]);
 
   const handleEditTimer = useCallback((instance: TimerInstance, session: TaskSession) => {
-    setEditingTimerInstanceId(instance.id);
     setEditingTimerData({
       id: instance.id,
       taskId: session.taskId,
@@ -113,31 +110,18 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
     });
   }, []);
 
-  // New timers start idle — the user starts them explicitly. (Failures are
-  // reported by the session context.)
-  const handleAddTimer = useCallback(async () => {
-    if (!activeSession) return;
-    await createTimerInstance(activeSession.id);
-  }, [activeSession, createTimerInstance]);
-
   // Deletes straight away: a finished timer's toast offers Undo
   const handleDeleteTimer = useCallback((instanceId: string) => {
     void deleteTimerInstance(instanceId);
   }, [deleteTimerInstance]);
 
-  const handleCloseEditTimerDialog = useCallback(() => {
-    setEditingTimerData(null);
-    setEditingTimerInstanceId(null);
-  }, []);
+  const handleCloseEditTimerDialog = useCallback(() => setEditingTimerData(null), []);
 
   // Saves the duration, and moves the timer when another task was picked
   const saveTimerEdit = useTimerEntryEdit();
   const handleSaveTimerEdit = useCallback(async (data: EditTimeEntryData) => {
-    if (!editingTimerInstanceId) return;
-    if (await saveTimerEdit({ ...data, id: editingTimerInstanceId })) {
-      handleCloseEditTimerDialog();
-    }
-  }, [editingTimerInstanceId, saveTimerEdit, handleCloseEditTimerDialog]);
+    if (await saveTimerEdit(data)) handleCloseEditTimerDialog();
+  }, [saveTimerEdit, handleCloseEditTimerDialog]);
 
   // Notes handlers - memoized to prevent re-renders
   const handleOpenSessionNotes = useCallback((sessionId: string) => {
@@ -171,7 +155,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
 
   // Memoized dialog callbacks (the start and add-time dialogs are the app's)
   const handleCloseNotesDialog = useCallback(() => setNotesTarget(null), []);
-  const handleOpenStartDialog = useCallback(() => onStartWork?.(), [onStartWork]);
+  const notesSession = notesTarget && sessions.find(session => session.id === notesTarget.sessionId);
 
   // The page's shape while it first loads. Only the first load: every timer
   // action toggles isLoading briefly, and swapping the page out on each
@@ -211,7 +195,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
           startOptions={startOptions}
           onStartTask={startTask}
           onEndSession={endActiveSession}
-          onSwitchTask={handleOpenStartDialog}
+          onSwitchTask={onStartWork}
           onPauseAll={pauseAllTimersInActiveSession}
           onResumeAll={resumeAllTimersInActiveSession}
           onOpenSessionNotes={handleOpenSessionNotes}
@@ -254,8 +238,8 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
               nowMs={nowMs}
               showControls
               showNotes
-              size="large"
-              onAddTimer={handleAddTimer}
+              // New timers start idle: the user starts them (failures are the context's to report)
+              onAddTimer={() => void createTimerInstance(activeSession.id)}
               onStartTimer={startTimerInstance}
               onStopTimer={stopTimerInstance}
               onPauseTimer={pauseTimerInstance}
@@ -277,7 +261,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
               size="small"
               variant="outlined"
               startIcon={<AddTimeIcon />}
-              onClick={() => onAddTime?.()}
+              onClick={onAddTime}
             >
               Add time
             </Button>
@@ -286,11 +270,11 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
             sessions={sessions}
             nowMs={nowMs}
             onSelectSession={handleSelectSession}
-            onCreateSession={handleOpenStartDialog}
+            onCreateSession={onStartWork}
             onDeleteSession={deleteSession}
             onStartSession={handleStartSelectedSession}
             onStopSession={endActiveSession}
-            selectedSessionId={selectedSessionId || undefined}
+            selectedSessionId={selectedSessionId ?? undefined}
             // Initial load only: every timer action toggles isLoading, and an
             // unguarded pass-through blanked the whole list on each of them.
             isLoading={sessionsLoading && sessions.length === 0}
@@ -301,21 +285,24 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
         </Box>
       </Box>
 
-      <SessionNotesDialog
-        open={notesTarget !== null}
-        onClose={handleCloseNotesDialog}
-        session={sessions.find(s => s.id === notesTarget?.sessionId) ?? null}
-        timerInstanceId={notesTarget?.timerInstanceId}
-        tasks={tasks}
-      />
+      {/* (A session deleted meanwhile, on another device too, closes its notes) */}
+      {notesSession && (
+        <SessionNotesDialog
+          onClose={handleCloseNotesDialog}
+          session={notesSession}
+          timerInstanceId={notesTarget?.timerInstanceId ?? null}
+          tasks={tasks}
+        />
+      )}
 
-      <EditTimeEntryDialog
-        open={!!editingTimerData}
-        onClose={handleCloseEditTimerDialog}
-        onSave={handleSaveTimerEdit}
-        entry={editingTimerData}
-        tasks={tasks}
-      />
+      {editingTimerData && (
+        <EditTimeEntryDialog
+          onClose={handleCloseEditTimerDialog}
+          onSave={handleSaveTimerEdit}
+          entry={editingTimerData}
+          tasks={tasks}
+        />
+      )}
 
     </PageContainer>
   );

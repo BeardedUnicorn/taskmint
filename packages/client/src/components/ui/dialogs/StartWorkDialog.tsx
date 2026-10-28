@@ -24,8 +24,8 @@ import { TaskSession } from '../../../types/timer';
 import { orderTasksForStart } from '../../../utils/taskOrdering';
 import { formatCurrency } from '../../../utils/formatters';
 
+/** Rendered while open, so each opening starts with nothing picked. */
 interface StartWorkDialogProps {
-  open: boolean;
   onClose: () => void;
   tasks: Task[];
   sessions: TaskSession[];
@@ -35,7 +35,6 @@ interface StartWorkDialogProps {
 }
 
 export function StartWorkDialog({
-  open,
   onClose,
   tasks,
   sessions,
@@ -47,32 +46,33 @@ export function StartWorkDialog({
 
   const options = useMemo(() => orderTasksForStart(tasks, sessions), [tasks, sessions]);
 
-  const handleClose = () => {
-    setSelected(null);
-    onClose();
-  };
+  // Only once a task is picked (Start is disabled until then, and while it starts)
+  const start =
+    selected &&
+    (async () => {
+      setIsStarting(true);
+      try {
+        await onStart(selected.id, selected.name);
+        onClose();
+      } finally {
+        setIsStarting(false);
+      }
+    });
 
-  const handleStart = async (event?: React.FormEvent) => {
-    event?.preventDefault();
-    if (!selected || isStarting) return;
-    setIsStarting(true);
-    try {
-      await onStart(selected.id, selected.name);
-      handleClose();
-    } finally {
-      setIsStarting(false);
-    }
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void start?.();
   };
 
   const handleAddTask = () => {
-    handleClose();
+    onClose();
     onAddTask();
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Start Work</DialogTitle>
-      <form onSubmit={handleStart}>
+      <form onSubmit={handleSubmit}>
         <DialogContent>
           {options.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
@@ -117,7 +117,7 @@ export function StartWorkDialog({
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} color="secondary">
+          <Button onClick={onClose} color="secondary">
             Cancel
           </Button>
           {options.length === 0 ? (
@@ -125,7 +125,7 @@ export function StartWorkDialog({
               Go to Tasks
             </Button>
           ) : (
-            <Button type="submit" variant="contained" disabled={!selected || isStarting}>
+            <Button type="submit" variant="contained" disabled={!start || isStarting}>
               Start
             </Button>
           )}

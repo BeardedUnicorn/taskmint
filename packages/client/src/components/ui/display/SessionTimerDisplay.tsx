@@ -36,7 +36,6 @@ interface SessionTimerDisplayProps {
   nowMs: number;
   showControls?: boolean;
   showNotes?: boolean;
-  size?: 'small' | 'medium' | 'large';
   onStartTimer?: (instanceId: string) => void;
   onStopTimer?: (instanceId: string) => void;
   onPauseTimer?: (instanceId: string) => void;
@@ -56,7 +55,6 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
   nowMs,
   showControls = false,
   showNotes = false,
-  size = 'medium',
   onStartTimer,
   onStopTimer,
   onPauseTimer,
@@ -67,49 +65,16 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
   onAddTimer,
   sx,
 }: SessionTimerDisplayProps) {
-  const runningInstance = session.timerInstances?.find(i => i.state === TimerState.running);
-  const timerCount = session.timerInstances?.length || 0;
+  const runningInstance = session.timerInstances.find(i => i.state === TimerState.running);
+  const timerCount = session.timerInstances.length;
   const atTimerLimit = timerCount >= SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION;
 
-  const getDisplaySize = () => {
-    switch (size) {
-      case 'small':
-        return {
-          sessionTitle: 'body1' as const,
-          sessionTime: 'h6' as const,
-          instanceTime: 'body2' as const,
-          iconSize: 'small' as const,
-          spacing: 1,
-          padding: 1.5,
-        };
-      case 'large':
-        return {
-          sessionTitle: 'h5' as const,
-          sessionTime: 'h3' as const,
-          instanceTime: 'h6' as const,
-          iconSize: 'large' as const,
-          spacing: 2,
-          padding: 3,
-        };
-      default:
-        return {
-          sessionTitle: 'h6' as const,
-          sessionTime: 'h5' as const,
-          instanceTime: 'body1' as const,
-          iconSize: 'medium' as const,
-          spacing: 1.5,
-          padding: 2,
-        };
-    }
-  };
-
-  const displayConfig = getDisplaySize();
 
   return (
     <Paper
       elevation={2}
       sx={{
-        p: displayConfig.padding,
+        p: 3,
         borderRadius: 2,
         bgcolor: 'background.paper',
         border: '1px solid',
@@ -124,11 +89,11 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
       }}
     >
       {/* Session Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: displayConfig.spacing, mb: 2 }}>
-        <SessionIcon fontSize={displayConfig.iconSize} color="primary" />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <SessionIcon fontSize="large" color="primary" />
         <Box sx={{ flex: 1 }}>
           <Typography
-            variant={displayConfig.sessionTitle}
+            variant="h5"
             sx={{ fontWeight: 600, mb: 0.5 }}
           >
             {session.taskName}
@@ -158,7 +123,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
         </Box>
 
         <Typography
-          variant={displayConfig.sessionTime}
+          variant="h3"
           component="span"
           aria-label="Session total time"
           sx={{ fontFamily: '"Roboto Mono", monospace', fontWeight: 700 }}
@@ -215,7 +180,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
           </Box>
         ) : (
           <Stack spacing={1}>
-            {(session.timerInstances || []).map((instance, index) => (
+            {session.timerInstances.map((instance, index) => (
               <TimerRow
                 key={instance.id}
                 instance={instance}
@@ -223,7 +188,6 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
                 nowMs={nowMs}
                 showControls={showControls}
                 showNotes={showNotes}
-                size={size}
                 onStart={() => onStartTimer?.(instance.id)}
                 onStop={() => onStopTimer?.(instance.id)}
                 onPause={() => onPauseTimer?.(instance.id)}

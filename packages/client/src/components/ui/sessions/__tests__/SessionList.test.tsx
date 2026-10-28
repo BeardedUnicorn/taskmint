@@ -142,13 +142,6 @@ describe('SessionList', () => {
       fireEvent.click(screen.getByRole('button', { name: /start a session/i }));
       expect(mockProps.onCreateSession).toHaveBeenCalled();
     });
-
-    it('should omit the empty-state CTA when no create handler is provided', () => {
-      render(<SessionList {...mockProps} sessions={[]} onCreateSession={undefined} />);
-
-      expect(screen.getByText('No sessions yet')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /start a session/i })).not.toBeInTheDocument();
-    });
   });
 
   describe('Filtering', () => {
@@ -165,6 +158,17 @@ describe('SessionList', () => {
       expect(
         screen.queryByRole('heading', { name: 'Documentation' })
       ).not.toBeInTheDocument();
+    });
+
+    it('clears the task filters with their Clear chip', () => {
+      render(<SessionList {...mockProps} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Code Review' }));
+      expect(screen.queryByRole('heading', { name: 'Documentation' })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+      expect(screen.getByRole('heading', { name: 'Documentation' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
     });
 
     it('should hide archived task names from the filter chips but keep their sessions', () => {
@@ -339,6 +343,47 @@ describe('SessionList', () => {
 
       expect(mockProps.onDeleteSession).toHaveBeenCalledWith('session-1');
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Card and menu actions', () => {
+    const card = (taskName: string) =>
+      screen
+        .getAllByText(taskName)
+        .map(node => node.closest('.MuiCard-root'))
+        .find(Boolean) as HTMLElement;
+
+    it("ends the active session and activates another from their cards, without selecting them", () => {
+      render(<SessionList {...mockProps} />);
+
+      // Code Review is the active one
+      fireEvent.click(within(card('Code Review')).getByRole('button', { name: 'End session' }));
+      fireEvent.click(within(card('Development Work')).getByRole('button', { name: 'Activate session' }));
+
+      expect(mockProps.onStopSession).toHaveBeenCalledTimes(1);
+      expect(mockProps.onStartSession).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }));
+      expect(mockProps.onSelectSession).not.toHaveBeenCalled();
+    });
+
+    it("opens a session's notes from its card, and from its menu", () => {
+      render(<SessionList {...mockProps} />);
+
+      fireEvent.click(within(card('Code Review')).getByRole('button', { name: 'Open session notes' }));
+      fireEvent.click(within(card('Development Work')).getByRole('button', { name: 'More options' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Notes' }));
+
+      expect(mockProps.onOpenNotes.mock.calls).toEqual([['session-2'], ['session-1']]);
+      expect(mockProps.onSelectSession).not.toHaveBeenCalled();
+    });
+
+    it('ends the active session from its menu', () => {
+      render(<SessionList {...mockProps} />);
+
+      fireEvent.click(within(card('Code Review')).getByRole('button', { name: 'More options' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'End Session' }));
+
+      expect(mockProps.onStopSession).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
   });
 

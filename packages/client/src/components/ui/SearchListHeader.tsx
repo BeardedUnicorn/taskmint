@@ -5,34 +5,19 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
-import type { TextFieldProps } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 
 interface SearchListHeaderProps {
-  title: React.ReactNode;
-  actions?: React.ReactNode;
+  title: string;
+  actions: React.ReactNode;
   searchValue: string;
   onSearchChange: (value: string) => void;
-  searchPlaceholder?: string;
-  searchFieldProps?: TextFieldProps;
+  /** Also the field's accessible name, without its trailing "..." */
+  searchPlaceholder: string;
 }
 
-export function SearchListHeader({
-  title,
-  actions,
-  searchValue,
-  onSearchChange,
-  searchPlaceholder = 'Search...',
-  searchFieldProps,
-}: SearchListHeaderProps) {
-  const {
-    slotProps: slotPropsOverride,
-    fullWidth,
-    ...rest
-  } = searchFieldProps || {};
-  const inputOverride = (slotPropsOverride?.input ?? {}) as object;
-  const htmlInputOverride = (slotPropsOverride?.htmlInput ?? {}) as Record<string, unknown>;
-
+/** A list's title and actions above a search field. */
+export function SearchListHeader({ title, actions, searchValue, onSearchChange, searchPlaceholder }: SearchListHeaderProps) {
   return (
     <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -45,9 +30,8 @@ export function SearchListHeader({
         size="small"
         placeholder={searchPlaceholder}
         value={searchValue}
-        onChange={(e) => onSearchChange(e.target.value)}
-        fullWidth={fullWidth ?? true}
-        {...rest}
+        onChange={e => onSearchChange(e.target.value)}
+        fullWidth
         slotProps={{
           input: {
             startAdornment: (
@@ -55,17 +39,10 @@ export function SearchListHeader({
                 <SearchIcon fontSize="small" />
               </InputAdornment>
             ),
-            ...inputOverride,
           },
-
-          htmlInput: {
-            'aria-label':
-              (htmlInputOverride['aria-label'] as string | undefined) ??
-              searchPlaceholder.replace(/\.\.\.$/, ''),
-            ...htmlInputOverride,
-          }
-        }} />
+          htmlInput: { 'aria-label': searchPlaceholder.replace(/\.\.\.$/, '') },
+        }}
+      />
     </Box>
   );
 }
-

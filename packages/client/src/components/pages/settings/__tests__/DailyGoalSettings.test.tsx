@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi, type MockedFunction } from 'vitest';
-import {render, screen, waitFor} from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -142,4 +142,37 @@ describe('DailyGoalSettings', () => {
     
     consoleSpy.mockRestore();
   }, 30000);
+
+  it('turns on a goal never set, at $0 in dollars until an amount is typed', async () => {
+    setupMocks(null);
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
+
+    fireEvent.click(screen.getByRole('switch', { name: /enable daily earnings goal/i }));
+    await waitFor(() =>
+      expect(mockUpdateDailyGoal).toHaveBeenCalledWith({ targetAmount: 0, currency: 'USD', isEnabled: true })
+    );
+  });
+
+  it("saves nothing for Enter on the amount already saved, or when the field is left while off", () => {
+    setupMocks({ targetAmount: 150, currency: 'USD', isEnabled: true });
+    const { unmount } = render(<DailyGoalSettings />, { wrapper: TestWrapper });
+    fireEvent.keyDown(screen.getByLabelText(/daily target amount/i), { key: 'Enter' });
+    expect(mockUpdateDailyGoal).not.toHaveBeenCalled();
+    unmount();
+
+    setupMocks({ targetAmount: 150, currency: 'USD', isEnabled: false });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
+    fireEvent.change(screen.getByLabelText(/daily target amount/i), { target: { value: '90' } });
+    fireEvent.blur(screen.getByLabelText(/daily target amount/i));
+    expect(mockUpdateDailyGoal).not.toHaveBeenCalled();
+  });
+
+  it('saves a changed amount when the field is left', async () => {
+    setupMocks({ targetAmount: 150, currency: 'USD', isEnabled: true });
+    render(<DailyGoalSettings />, { wrapper: TestWrapper });
+
+    fireEvent.change(screen.getByLabelText(/daily target amount/i), { target: { value: '90' } });
+    fireEvent.blur(screen.getByLabelText(/daily target amount/i));
+    await waitFor(() => expect(mockUpdateDailyGoal).toHaveBeenCalledWith(expect.objectContaining({ targetAmount: 90 })));
+  });
 });

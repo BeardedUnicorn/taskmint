@@ -18,23 +18,23 @@ interface TasksPageProps {
   tasks: Task[];
   timeEntries: TimeEntry[];
   onAddTask: (taskData: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
-  onUpdateTask?: (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
-  onDeleteTask?: (taskId: string) => Promise<void>;
-  onArchiveTask?: (taskId: string) => Promise<Task | null>;
-  onUnarchiveTask?: (taskId: string) => Promise<Task | null>;
-  onToggleFavorite?: (taskId: string) => Promise<Task | null>;
-  onUpdateEntry?: (data: EditTimeEntryData) => void;
-  onDeleteEntry?: (entryId: string) => void;
+  onUpdateTask: (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onArchiveTask: (taskId: string) => Promise<Task | null>;
+  onUnarchiveTask: (taskId: string) => Promise<Task | null>;
+  onToggleFavorite: (taskId: string) => Promise<Task | null>;
+  onUpdateEntry: (data: EditTimeEntryData) => void;
+  onDeleteEntry: (entryId: string) => void;
   /** Starts (or continues) work on a task. */
-  onStartTask?: (task: Task) => void;
+  onStartTask: (task: Task) => void;
   /** The task whose timer is running, if any. */
-  runningTaskId?: string | null;
+  runningTaskId: string | null;
   /** Opens History filtered to a task. */
-  onViewHistory?: (task: Task) => void;
+  onViewHistory: (task: Task) => void;
   /** Open the new-task form (⌘N, the command palette). */
-  newTaskRequested?: boolean;
+  newTaskRequested: boolean;
   /** Called once the form has opened for that request. */
-  onNewTaskRequestHandled?: () => void;
+  onNewTaskRequestHandled: () => void;
 }
 
 export function TasksPage({
@@ -49,9 +49,9 @@ export function TasksPage({
   onUpdateEntry,
   onDeleteEntry,
   onStartTask,
-  runningTaskId = null,
+  runningTaskId,
   onViewHistory,
-  newTaskRequested = false,
+  newTaskRequested,
   onNewTaskRequestHandled,
 }: TasksPageProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(
@@ -65,7 +65,7 @@ export function TasksPage({
   useEffect(() => {
     if (!newTaskRequested) return;
     setShowNewTaskDialog(true);
-    onNewTaskRequestHandled?.();
+    onNewTaskRequestHandled();
   }, [newTaskRequested, onNewTaskRequestHandled]);
 
   // Keep the selection in sync with the task list
@@ -99,19 +99,13 @@ export function TasksPage({
 
 
 
+  // A failure goes back to the dialog, which shows a taken name at the field
   const handleSaveEdit = async (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => {
-    if (!onUpdateTask) return null;
-
-    try {
-      const updatedTask = await onUpdateTask(taskId, updates);
-      if (updatedTask && selectedTask?.id === taskId) {
-        setSelectedTask(updatedTask);
-      }
-      return updatedTask;
-    } catch (error) {
-      console.error('Failed to update task:', error);
-      return null;
+    const updatedTask = await onUpdateTask(taskId, updates);
+    if (updatedTask && selectedTask?.id === taskId) {
+      setSelectedTask(updatedTask);
     }
+    return updatedTask;
   };
 
   const deletingTask = deletingTaskId ? tasks.find(t => t.id === deletingTaskId) ?? null : null;
@@ -130,15 +124,14 @@ export function TasksPage({
   }, [deletingTask, timeEntries]);
 
   const handleConfirmDelete = async (taskId: string) => {
-    if (!onDeleteTask) return;
-
     try {
       await onDeleteTask(taskId);
-      if (selectedTask?.id === taskId) {
-        setSelectedTask(null);
-      }
-    } catch (error) {
-      console.error('Failed to delete task:', error);
+    } catch {
+      // The task hook reported it; the task stays selected
+      return;
+    }
+    if (selectedTask?.id === taskId) {
+      setSelectedTask(null);
     }
   };
 
@@ -147,8 +140,6 @@ export function TasksPage({
   };
 
   const handleSaveEntryEdit = (data: EditTimeEntryData) => {
-    if (!editingEntry || !onUpdateEntry) return;
-
     onUpdateEntry(data);
     setEditingEntry(null);
   };
@@ -188,10 +179,10 @@ export function TasksPage({
               selectedTask={selectedTask}
               onSelectTask={handleSelectTask}
               onAddClick={handleAddTaskClick}
-              onEditTask={onUpdateTask ? setEditingTask : undefined}
-              onDeleteTask={onDeleteTask ? setDeletingTaskId : undefined}
-              onArchiveTask={onArchiveTask ? (task) => { void onArchiveTask(task.id); } : undefined}
-              onUnarchiveTask={onUnarchiveTask ? (task) => { void onUnarchiveTask(task.id); } : undefined}
+              onEditTask={setEditingTask}
+              onDeleteTask={setDeletingTaskId}
+              onArchiveTask={task => void onArchiveTask(task.id)}
+              onUnarchiveTask={task => void onUnarchiveTask(task.id)}
             />
           </Box>
 
@@ -200,9 +191,9 @@ export function TasksPage({
               <TaskDetailPane
                 task={selectedTask}
                 timeEntries={timeEntries}
-                onToggleFavorite={onToggleFavorite ? (taskId) => { void onToggleFavorite(taskId); } : undefined}
-                onEditEntry={onUpdateEntry ? handleEditEntry : () => {}}
-                onDeleteEntry={onDeleteEntry ?? (() => {})}
+                onToggleFavorite={taskId => void onToggleFavorite(taskId)}
+                onEditEntry={handleEditEntry}
+                onDeleteEntry={onDeleteEntry}
                 onStart={onStartTask}
                 isRunning={runningTaskId === selectedTask.id}
                 onViewHistory={onViewHistory}
@@ -230,34 +221,33 @@ export function TasksPage({
         onSubmit={handleAddTaskDialog}
       />
 
-      <TaskFormDialog
-        open={editingTask !== null}
-        onClose={() => setEditingTask(null)}
-        mode="edit"
-        initialTask={editingTask}
-        onSubmit={(data) => (editingTask ? handleSaveEdit(editingTask.id, data) : Promise.resolve(null))}
-      />
+      {editingTask && (
+        <TaskFormDialog
+          open
+          onClose={() => setEditingTask(null)}
+          mode="edit"
+          initialTask={editingTask}
+          onSubmit={data => handleSaveEdit(editingTask.id, data)}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <DeleteTaskDialog
         task={deletingTask}
         history={deletingTaskHistory}
         onDelete={(taskId) => { void handleConfirmDelete(taskId); }}
-        onArchive={onArchiveTask ? (taskId) => { void onArchiveTask(taskId); } : undefined}
+        onArchive={taskId => void onArchiveTask(taskId)}
         onClose={() => setDeletingTaskId(null)}
       />
 
       {/* Edit Time Entry Dialog */}
       {editingEntry && (
         <EditTimeEntryDialog
-          open={true}
           entry={{
             id: editingEntry.id,
             taskId: findTaskFor(editingEntry, tasks)?.id ?? editingEntry.taskId ?? '',
             durationMs: getEntryElapsedMs(editingEntry),
-            startTime: editingEntry.startTime
-              ? new Date(editingEntry.startTime).toISOString()
-              : undefined,
+            startTime: editingEntry.startTime.toISOString(),
           }}
           onSave={handleSaveEntryEdit}
           onClose={() => setEditingEntry(null)}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Stack, TextField, Alert, Typography, Autocomplete } from '@mui/material';
 import { FormDialog } from './FormDialog';
 import { EditTimeEntryDialogProps } from '../../../types/form';
@@ -24,37 +24,25 @@ const NO_SESSIONS: never[] = [];
  * Duration is edited as hours + minutes; the entry's start time stays as
  * recorded and is shown for reference only.
  */
-export function EditTimeEntryDialog({
-  open,
-  onClose,
-  onSave,
-  entry,
-  tasks,
-}: EditTimeEntryDialogProps) {
-  const [taskId, setTaskId] = useState('');
+export function EditTimeEntryDialog({ onClose, onSave, entry, tasks }: EditTimeEntryDialogProps) {
+  // Shown while there's an entry to edit, so the form starts from it once:
+  // the page re-rendering (a new entry object each time) doesn't reset it.
+  const [initial] = useState(() => splitDuration(entry.durationMs));
+  const [taskId, setTaskId] = useState(entry.taskId);
   // Strings so the fields can be transiently empty while typing.
-  const [hours, setHours] = useState('0');
-  const [minutes, setMinutes] = useState('0');
+  const [hours, setHours] = useState(String(initial.hours));
+  const [minutes, setMinutes] = useState(String(initial.minutes));
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (entry) {
-      const { hours: h, minutes: m } = splitDuration(entry.durationMs);
-      setTaskId(entry.taskId);
-      setHours(String(h));
-      setMinutes(String(m));
-      setErrors({});
-    }
-  }, [entry]);
 
   // Active tasks, favorites first; the entry's own task stays listed even
   // when it's archived, so the picker can show where the time is now.
   const taskOptions = useMemo(() => {
     const options = orderTasksForStart(tasks, NO_SESSIONS);
-    const current = tasks.find(t => t.id === entry?.taskId);
+    const current = tasks.find(t => t.id === entry.taskId);
     return current && !options.some(t => t.id === current.id) ? [current, ...options] : options;
-  }, [tasks, entry?.taskId]);
-  const selectedTask = taskOptions.find(t => t.id === taskId) ?? null;
+  }, [tasks, entry.taskId]);
+  // None for an entry whose task is gone, or that never had one
+  const selectedTask = taskOptions.find(t => t.id === taskId);
 
   const clearError = (field: string) => {
     setErrors(prev => {
@@ -80,11 +68,10 @@ export function EditTimeEntryDialog({
   };
 
   const handleSubmit = () => {
-    if (!entry || !validateForm()) return;
+    if (!validateForm()) return;
 
     // A task-only edit keeps the original duration so the sub-minute
     // remainder isn't truncated; typed values mean exact whole minutes.
-    const initial = splitDuration(entry.durationMs);
     const unchanged = parsedHours === initial.hours && parsedMinutes === initial.minutes;
     const durationMs = unchanged
       ? entry.durationMs
@@ -97,26 +84,19 @@ export function EditTimeEntryDialog({
     });
   };
 
-  const handleClose = () => {
-    setErrors({});
-    onClose();
-  };
 
   const previewMs = durationInputToMs({ hours, minutes });
-  const moving = !!entry && taskId !== entry.taskId;
+  const moving = taskId !== entry.taskId;
 
   return (
     <FormDialog
-      open={open}
-      onClose={handleClose}
+      onClose={onClose}
       onSubmit={handleSubmit}
       title="Edit Time Entry"
-      submitLabel="Save"
-      cancelLabel="Cancel"
     >
       <Stack spacing={2}>
         <Autocomplete<Task, false, true>
-          value={selectedTask ?? undefined}
+          value={selectedTask}
           onChange={(_, task) => {
             setTaskId(task.id);
             clearError('taskId');
@@ -153,12 +133,9 @@ export function EditTimeEntryDialog({
 
         <Alert severity="info">Duration: {formatDuration(previewMs)}</Alert>
 
-        {entry?.startTime && (
-          <Typography variant="caption" color="text.secondary">
-            Started {formatDateTime(entry.startTime)} — the start
-            time stays as recorded.
-          </Typography>
-        )}
+        <Typography variant="caption" color="text.secondary">
+          Started {formatDateTime(entry.startTime)} — the start time stays as recorded.
+        </Typography>
       </Stack>
     </FormDialog>
   );

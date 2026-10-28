@@ -43,7 +43,8 @@ import { useNotification } from '../../../contexts/NotificationContext';
 /** Hours offered for the long-run reminder (0 = off). */
 export const LONG_RUN_HOUR_OPTIONS = [0, 2, 3, 4, 6, 8] as const;
 
-const formatTime = (minutes: number): string => {
+/** A threshold in words: "1 minute", "2 hours", "1h 30m". */
+export const formatThreshold = (minutes: number): string => {
   if (minutes < 60) {
     return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
   }
@@ -57,7 +58,7 @@ const formatTime = (minutes: number): string => {
 
 export function InactivitySettingsSection() {
   const { inactivitySettings, updateInactivitySettings, resetToDefaults } = useEnhancedTimerSettings();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess } = useNotification();
 
   // The slider moves freely while dragged and saves when let go
   const [threshold, setThreshold] = useState(inactivitySettings.thresholdMinutes);
@@ -79,13 +80,8 @@ export function InactivitySettingsSection() {
   }, []);
 
   const handleReset = () => {
-    try {
-      resetToDefaults();
-      showSuccess('Idle and reminder settings are back to their defaults');
-    } catch (error) {
-      console.error('Failed to reset inactivity settings:', error);
-      showError("Couldn't reset the idle settings. Please try again.");
-    }
+    resetToDefaults();
+    showSuccess('Idle and reminder settings are back to their defaults');
   };
 
   return (
@@ -129,7 +125,7 @@ export function InactivitySettingsSection() {
           <>
             <Box>
               <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
-                Pause after {formatTime(threshold)} without input
+                Pause after {formatThreshold(threshold)} without input
               </Typography>
               <Slider
                 aria-label="Inactivity threshold"
@@ -149,7 +145,7 @@ export function InactivitySettingsSection() {
                   { value: 120, label: '2h' },
                 ]}
                 valueLabelDisplay="auto"
-                valueLabelFormat={formatTime}
+                valueLabelFormat={formatThreshold}
               />
             </Box>
             <Typography variant="body2" color="text.secondary">

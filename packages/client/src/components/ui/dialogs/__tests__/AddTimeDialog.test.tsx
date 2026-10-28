@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import dayjs from 'dayjs';
@@ -8,12 +9,25 @@ import {
   defaultStartFor,
   endsNowStart,
   validateEntryTiming,
+  whenComplete,
 } from '../AddTimeDialog';
 import { Task } from '../../../../types/task';
 
 const HOUR = 3_600_000;
 // A fixed local "now": Oct 12 2026, 3:00 PM
 const NOW = new Date(2026, 9, 12, 15, 0, 0);
+
+describe('whenComplete', () => {
+  it('applies a whole date, not a cleared or half-typed one', () => {
+    const apply = vi.fn();
+    whenComplete(apply)(null);
+    whenComplete(apply)(dayjs('not a date'));
+    expect(apply).not.toHaveBeenCalled();
+
+    whenComplete(apply)(dayjs(NOW));
+    expect(apply).toHaveBeenCalledWith(dayjs(NOW));
+  });
+});
 
 describe('AddTimeDialog defaults and timing rules', () => {
   const now = dayjs(NOW);
@@ -73,7 +87,7 @@ describe('AddTimeDialog', () => {
   });
 
   const renderDialog = () =>
-    render(<AddTimeDialog open onClose={onClose} tasks={tasks} sessions={[]} onAdd={onAdd} />);
+    render(<AddTimeDialog onClose={onClose} tasks={tasks} sessions={[]} onAdd={onAdd} />);
 
   const chooseTask = (name: string) => {
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Task' }));
@@ -171,5 +185,78 @@ describe('AddTimeDialog', () => {
       await within(dialog).findByText('This overlaps time already tracked for "Review"')
     ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  describe('picking the date and start', () => {
+    const user = () => userEvent.setup();
+    const field = (label: string) => screen.getAllByRole('group').find(group => group.textContent?.includes(label))!;
+    const section = (label: string, index: number) => within(field(label)).getAllByRole('spinbutton')[index];
+    const summary = () => screen.getByText(/ on [A-Z][a-z]{2}, /).textContent;
+
+    it('keeps a start typed by hand when the duration changes', async () => {
+      const typing = user();
+      renderDialog();
+      // The default start is 2:00 PM: typing the hour keeps the PM
+      await typing.click(section('Start', 0));
+      await typing.keyboard('1');
+      expect(summary()).toMatch(/starting 1:00 PM/);
+
+      fireEvent.change(durationInput('Hours'), { target: { value: '2' } });
+      expect(summary()).toMatch(/^2h 0m .*starting 1:00 PM/);
+    });
+
+    it('starts an earlier day picked by hand at 9:00 AM', async () => {
+      const typing = user();
+      renderDialog();
+      await typing.click(section('Date', 1));
+      await typing.keyboard('1');
+
+      expect(summary()).toMatch(/on Thu, Oct 1, starting 9:00 AM/);
+    });
+
+    it('refuses an entry that would end in the future', async () => {
+      const typing = user();
+      renderDialog();
+      chooseTask('Annotation');
+      // 9:00 PM, hours from now
+      await typing.click(section('Start', 0));
+      await typing.keyboard('9');
+
+      submit();
+      expect(await screen.findByText(/would end in the future/)).toBeInTheDocument();
+      expect(onAdd).not.toHaveBeenCalled();
+    });
+  });
+
+  it("moves the entry's day back when a longer duration starts it yesterday", () => {
+    // 1:30 AM: the 1h default starts today, 2h starts yesterday
+    vi.setSystemTime(new Date(2026, 9, 12, 1, 30, 0));
+    renderDialog();
+    expect(screen.getByText(/ on [A-Z][a-z]{2}, /)).toHaveTextContent('on Mon, Oct 12, starting 12:30 AM');
+
+    fireEvent.change(durationInput('Hours'), { target: { value: '2' } });
+    expect(screen.getByText(/ on [A-Z][a-z]{2}, /)).toHaveTextContent('on Sun, Oct 11, starting 11:30 PM');
+  });
+
+  it('shows a refusal that came back as plain text', async () => {
+    onAdd.mockRejectedValue('Overlaps "Review"');
+    renderDialog();
+    chooseTask('Annotation');
+
+    submit();
+    expect(await screen.findByText('Overlaps "Review"')).toBeInTheDocument();
+  });
+
+  it('marks favorites, and says where tasks come from when there are none', () => {
+    const { unmount } = render(
+      <AddTimeDialog onClose={onClose} tasks={[{ ...tasks[0], isFavorite: true }]} sessions={[]} onAdd={onAdd} />
+    );
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Task' }));
+    expect(screen.getByRole('option', { name: '★ Annotation' })).toBeInTheDocument();
+    unmount();
+
+    render(<AddTimeDialog onClose={onClose} tasks={[tasks[1]]} sessions={[]} onAdd={onAdd} />);
+    expect(screen.getByPlaceholderText('Add a task on the Tasks page first')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Time' })).toBeDisabled();
   });
 });

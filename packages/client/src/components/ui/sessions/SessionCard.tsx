@@ -44,7 +44,7 @@ export const SessionCard = memo(function SessionCard({
   notePreview,
 }: SessionCardProps) {
 
-  const runningInstances = session.timerInstances?.filter(i => i.state === TimerState.running) || [];
+  const runningInstances = session.timerInstances.filter(i => i.state === TimerState.running);
   const totalInstances = session.timerInstances?.length || 0;
 
   return (

@@ -69,4 +69,15 @@ describe('IdleReturnDialog', () => {
 
     expect(onResolve).toHaveBeenCalledWith('stayPaused');
   });
+
+  it('ignores a click outside: the question stays until answered', () => {
+    render(<IdleReturnDialog pending={away} onResolve={onResolve} />);
+
+    const backdrop = document.querySelector('.MuiBackdrop-root')!;
+    fireEvent.mouseDown(backdrop);
+    fireEvent.click(backdrop);
+
+    expect(onResolve).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
 });

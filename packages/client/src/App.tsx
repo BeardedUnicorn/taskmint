@@ -69,27 +69,24 @@ function GlobalDialogs({
 
   return (
     <>
-      <StartWorkDialog
-        open={startOpen}
-        onClose={onCloseStart}
-        tasks={tasks}
-        sessions={sessions}
-        onStart={startTask}
-        onAddTask={() => navigate('tasks')}
-      />
+      {startOpen && (
+        <StartWorkDialog
+          onClose={onCloseStart}
+          tasks={tasks}
+          sessions={sessions}
+          onStart={startTask}
+          onAddTask={() => navigate('tasks')}
+        />
+      )}
       <IdleReturnDialog
         pending={idleReturn.pending}
         onResolve={idleReturn.resolve}
         isResolving={idleReturn.isResolving}
         error={idleReturn.error}
       />
-      <AddTimeDialog
-        open={addTimeOpen}
-        onClose={onCloseAddTime}
-        tasks={tasks}
-        sessions={sessions}
-        onAdd={addManualTime}
-      />
+      {addTimeOpen && (
+        <AddTimeDialog onClose={onCloseAddTime} tasks={tasks} sessions={sessions} onAdd={addManualTime} />
+      )}
     </>
   );
 }

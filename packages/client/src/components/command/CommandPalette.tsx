@@ -45,7 +45,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
 
   // Keep the highlighted command in view
   useEffect(() => {
-    if (active) document.getElementById(`${listId}-${active.id}`)?.scrollIntoView?.({ block: 'nearest' });
+    if (active) document.getElementById(`${listId}-${active.id}`)?.scrollIntoView({ block: 'nearest' });
   }, [active, listId]);
 
   const run = (command: Command | undefined) => {
@@ -80,8 +80,8 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
       fullWidth
       maxWidth="sm"
       {...{ [PALETTE_ATTRIBUTE]: '' }}
-      slotProps={{ paper: { sx: { position: 'fixed', top: '12vh', m: 0, maxHeight: '70vh' } } }}
-      aria-label="Command palette"
+      // (On the paper: that's the element with role="dialog")
+      slotProps={{ paper: { 'aria-label': 'Command palette', sx: { position: 'fixed', top: '12vh', m: 0, maxHeight: '70vh' } } }}
     >
       <Box sx={{ p: 2, pb: 1 }}>
         <TextField

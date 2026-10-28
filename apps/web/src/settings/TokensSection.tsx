@@ -162,7 +162,6 @@ export function TokensSection({ session }: { session: WebSession }) {
         title={`Revoke "${revoking?.name ?? ''}"?`}
         message="Whatever uses it stops working at once."
         confirmLabel="Revoke"
-        confirmColor="error"
         severity="error"
       />
     </SettingsSection>

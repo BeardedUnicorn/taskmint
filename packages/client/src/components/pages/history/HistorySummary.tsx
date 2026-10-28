@@ -5,7 +5,7 @@
 
 import { useMemo } from 'react';
 import { Box, Paper, Stack, Typography } from '@mui/material';
-import { TimeEntry } from '../../../types/timer';
+import type { FinishedTimeEntry } from '../../../utils/csvExport';
 import { Task } from '../../../types/task';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import { entryEarnings } from '../../../utils/earnings';
@@ -13,14 +13,14 @@ import { formatDuration } from '../../../utils/formatters';
 
 interface HistorySummaryProps {
   /** Finished entries only */
-  entries: TimeEntry[];
+  entries: FinishedTimeEntry[];
   tasks: Task[];
 }
 
 export function HistorySummary({ entries, tasks }: HistorySummaryProps) {
   const stats = useMemo(
     () => ({
-      totalDuration: entries.reduce((total, entry) => total + (entry.duration || 0), 0),
+      totalDuration: entries.reduce((total, entry) => total + entry.duration, 0),
       totalEarnings: entries.reduce((total, entry) => total + entryEarnings(entry, tasks), 0),
       entryCount: entries.length,
       taskCount: new Set(entries.map(entry => entry.taskName)).size,

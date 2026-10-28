@@ -44,7 +44,7 @@ interface SessionListProps {
   onStartSession: (session: TaskSession) => void;
   onStopSession: () => void;
   /** Opens the create-session flow from the list's empty state. */
-  onCreateSession?: () => void;
+  onCreateSession: () => void;
   selectedSessionId?: string;
   isLoading?: boolean;
   onOpenNotes: (sessionId: string) => void;
@@ -79,12 +79,6 @@ export const SessionList = memo(function SessionList({
     event.stopPropagation();
     setMenu({ anchor: event.currentTarget, session });
   }, []);
-  const fromMenu = (action: (session: TaskSession) => void) => () => {
-    if (menu) action(menu.session);
-    setMenu(null);
-  };
-  // Imported days are rebuilt by every import: notes only, no activate/delete
-  const menuIsImported = isImportedSession(menu?.session ?? null);
 
   if (isLoading) {
     return (
@@ -106,11 +100,9 @@ export const SessionList = memo(function SessionList({
           title="No sessions yet"
           description="Start a session to begin tracking your time."
           action={
-            onCreateSession && (
-              <Button variant="contained" startIcon={<AddIcon />} onClick={onCreateSession}>
-                Start a session
-              </Button>
-            )
+            <Button variant="contained" startIcon={<AddIcon />} onClick={onCreateSession}>
+              Start a session
+            </Button>
           }
         />
       </Box>
@@ -190,39 +182,75 @@ export const SessionList = memo(function SessionList({
         </Box>
       )}
 
-      <Menu anchorEl={menu?.anchor} open={menu !== null} onClose={() => setMenu(null)}>
-        {!menuIsImported && (
-          <MenuItem onClick={fromMenu(session => (session.isActive ? onStopSession() : onStartSession(session)))}>
-            <ListItemIcon>
-              {menu?.session.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}
-            </ListItemIcon>
-            <ListItemText>
-              {/* "Activate" is honest: it makes the session current (finalizing
-                  any timer running elsewhere) without starting a timer. */}
-              {menu?.session.isActive ? 'End Session' : 'Activate Session'}
-            </ListItemText>
-          </MenuItem>
-        )}
-
-        <MenuItem onClick={fromMenu(session => onOpenNotes(session.id))}>
-          <ListItemIcon>
-            <NotesIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Notes</ListItemText>
-        </MenuItem>
-
-        {!menuIsImported && <Divider />}
-
-        {/* Deletes straight away; the toast offers Undo */}
-        {!menuIsImported && (
-          <MenuItem onClick={fromMenu(session => onDeleteSession(session.id))} sx={{ color: 'error.main' }}>
-            <ListItemIcon>
-              <DeleteIcon color="error" fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Delete Session</ListItemText>
-          </MenuItem>
-        )}
-      </Menu>
+      {menu && (
+        <SessionMenu
+          anchor={menu.anchor}
+          session={menu.session}
+          onClose={() => setMenu(null)}
+          onStartSession={onStartSession}
+          onStopSession={onStopSession}
+          onOpenNotes={onOpenNotes}
+          onDeleteSession={onDeleteSession}
+        />
+      )}
     </Box>
   );
 });
+
+/** A session's actions; an imported day (rebuilt by every import) has notes only. */
+function SessionMenu({
+  anchor,
+  session,
+  onClose,
+  onStartSession,
+  onStopSession,
+  onOpenNotes,
+  onDeleteSession,
+}: {
+  anchor: HTMLElement;
+  session: TaskSession;
+  onClose: () => void;
+  onStartSession: (session: TaskSession) => void;
+  onStopSession: () => void;
+  onOpenNotes: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+}) {
+  const imported = isImportedSession(session);
+  const run = (action: () => void) => () => {
+    action();
+    onClose();
+  };
+  return (
+    <Menu anchorEl={anchor} open onClose={onClose}>
+      {!imported && (
+        <MenuItem onClick={run(() => (session.isActive ? onStopSession() : onStartSession(session)))}>
+          <ListItemIcon>{session.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}</ListItemIcon>
+          <ListItemText>
+            {/* "Activate" is honest: it makes the session current (finalizing
+                any timer running elsewhere) without starting a timer. */}
+            {session.isActive ? 'End Session' : 'Activate Session'}
+          </ListItemText>
+        </MenuItem>
+      )}
+
+      <MenuItem onClick={run(() => onOpenNotes(session.id))}>
+        <ListItemIcon>
+          <NotesIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Notes</ListItemText>
+      </MenuItem>
+
+      {!imported && <Divider />}
+
+      {/* Deletes straight away; the toast offers Undo */}
+      {!imported && (
+        <MenuItem onClick={run(() => onDeleteSession(session.id))} sx={{ color: 'error.main' }}>
+          <ListItemIcon>
+            <DeleteIcon color="error" fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Delete Session</ListItemText>
+        </MenuItem>
+      )}
+    </Menu>
+  );
+}

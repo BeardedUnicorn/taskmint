@@ -95,14 +95,14 @@ export function planWorkLogImport(parsed: ParsedSitePayload, context: ImportCont
 export async function applyImpliedRates(
   tasks: Task[],
   impliedRates: ImpliedTaskRate[],
-  updateTask: (taskId: string, updates: Partial<Task>) => Promise<unknown>
+  setRate: (taskId: string, hourlyRate: number) => Promise<unknown>
 ): Promise<number> {
   let changed = 0;
   for (const implied of impliedRates) {
     const task = tasks.find(t => t.id === implied.taskId);
     if (!task || task.hourlyRate === implied.impliedHourlyRate) continue;
     try {
-      await updateTask(implied.taskId, { hourlyRate: implied.impliedHourlyRate });
+      await setRate(implied.taskId, implied.impliedHourlyRate);
       changed += 1;
     } catch {
       // Reported by updateTask

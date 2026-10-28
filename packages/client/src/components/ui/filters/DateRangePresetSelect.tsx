@@ -17,21 +17,12 @@ interface DateRangePresetSelectProps {
   start: Dayjs | null;
   end: Dayjs | null;
   onChange: (range: DateRange, preset: DateRangePreset) => void;
-  /** For tests; defaults to now. */
-  today?: Dayjs;
-  fullWidth?: boolean;
 }
 
 const CUSTOM = 'custom';
 
-export function DateRangePresetSelect({
-  start,
-  end,
-  onChange,
-  today,
-  fullWidth = false,
-}: DateRangePresetSelectProps) {
-  const value = matchPreset(start, end, today) ?? CUSTOM;
+export function DateRangePresetSelect({ start, end, onChange }: DateRangePresetSelectProps) {
+  const value = matchPreset(start, end) ?? CUSTOM;
 
   return (
     <TextField
@@ -41,10 +32,9 @@ export function DateRangePresetSelect({
       value={value}
       onChange={event => {
         const preset = event.target.value as DateRangePreset;
-        onChange(presetRange(preset, today), preset);
+        onChange(presetRange(preset), preset);
       }}
-      fullWidth={fullWidth}
-      sx={fullWidth ? undefined : { minWidth: 160 }}
+      fullWidth
     >
       {DATE_RANGE_PRESETS.map(preset => (
         <MenuItem key={preset.value} value={preset.value}>

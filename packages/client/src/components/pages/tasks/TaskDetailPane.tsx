@@ -36,6 +36,7 @@ import { formatLocalTime, formatLocalDate, formatLocalDateTimeForDisplay } from 
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import { entryEarnings, entryRate } from '../../../utils/earnings';
 import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
+import { entryEnd, exportableEntries } from '../../../utils/csvExport';
 
 /** The pane lists this many of the newest entries; History has them all. */
 export const RECENT_ENTRY_COUNT = 10;
@@ -46,13 +47,13 @@ interface TaskDetailPaneProps {
   onEditEntry: (entry: TimeEntry) => void;
   onDeleteEntry: (entryId: string) => void;
   /** Stars or unstars the task; favorites lead the tray and start pickers. */
-  onToggleFavorite?: (taskId: string) => void;
+  onToggleFavorite: (taskId: string) => void;
   /** Starts (or continues) work on the task, like the tray and Sessions do. */
-  onStart?: (task: Task) => void;
+  onStart: (task: Task) => void;
   /** This task's timer is running right now. */
-  isRunning?: boolean;
+  isRunning: boolean;
   /** Opens History filtered to this task. */
-  onViewHistory?: (task: Task) => void;
+  onViewHistory: (task: Task) => void;
 }
 
 export function TaskDetailPane({
@@ -62,23 +63,24 @@ export function TaskDetailPane({
   onDeleteEntry,
   onToggleFavorite,
   onStart,
-  isRunning = false,
+  isRunning,
   onViewHistory,
 }: TaskDetailPaneProps) {
 
-  // Filter time entries for this task
-  const taskEntries = useMemo(() => {
-    return timeEntries.filter(entry =>
-      (entry.taskId === task.id || entry.taskName === task.name) &&
-      entry.duration && entry.duration > 0
-    ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-  }, [timeEntries, task.id, task.name]);
+  // This task's finished entries (by id, or by name for older ones), newest first
+  const taskEntries = useMemo(
+    () =>
+      exportableEntries(timeEntries)
+        .filter(entry => entry.taskId === task.id || entry.taskName === task.name)
+        .sort((a, b) => b.startTime.getTime() - a.startTime.getTime()),
+    [timeEntries, task.id, task.name]
+  );
 
   // Calculate task statistics. Each entry earns at its session's rate, so a
   // later change to the task's rate doesn't rewrite these.
   const allTasks = useMemo(() => [task], [task]);
   const taskStats = useMemo(() => {
-    const totalDuration = taskEntries.reduce((total, entry) => total + (entry.duration || 0), 0);
+    const totalDuration = taskEntries.reduce((total, entry) => total + entry.duration, 0);
     const totalEarnings = taskEntries.reduce((total, entry) => total + entryEarnings(entry, allTasks), 0);
 
     return {
@@ -106,7 +108,7 @@ export function TaskDetailPane({
               <Chip label="Archived" size="small" color="warning" variant="outlined" />
             )}
           </Box>
-          {onStart && !task.isArchived && (
+          {!task.isArchived && (
             <Button
               variant="contained"
               startIcon={<PlayIcon />}
@@ -116,25 +118,23 @@ export function TaskDetailPane({
               {isRunning ? 'Running' : 'Start'}
             </Button>
           )}
-          {onToggleFavorite && (
-            <Tooltip
-              title={
-                task.isFavorite
-                  ? 'Remove from favorites'
-                  : 'Add to favorites (listed first in the tray and when starting work)'
-              }
+          <Tooltip
+            title={
+              task.isFavorite
+                ? 'Remove from favorites'
+                : 'Add to favorites (listed first in the tray and when starting work)'
+            }
+          >
+            <IconButton
+              onClick={() => onToggleFavorite(task.id)}
+              color={task.isFavorite ? 'warning' : 'default'}
+              size="large"
+              aria-label={task.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              aria-pressed={!!task.isFavorite}
             >
-              <IconButton
-                onClick={() => onToggleFavorite(task.id)}
-                color={task.isFavorite ? 'warning' : 'default'}
-                size="large"
-                aria-label={task.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                aria-pressed={!!task.isFavorite}
-              >
-                {task.isFavorite ? <StarIcon /> : <StarBorderIcon />}
-              </IconButton>
-            </Tooltip>
-          )}
+              {task.isFavorite ? <StarIcon /> : <StarBorderIcon />}
+            </IconButton>
+          </Tooltip>
         </Box>
 
         {/* Task Info */}
@@ -249,12 +249,12 @@ export function TaskDetailPane({
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {entry.endTime ? formatLocalTime(entry.endTime) : 'Running'}
+                          {formatLocalTime(entryEnd(entry))}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {entry.duration && formatDuration(entry.duration)}
+                          {formatDuration(entry.duration)}
                         </Typography>
                       </TableCell>
                       {taskStats.hasRates && (
@@ -304,7 +304,7 @@ export function TaskDetailPane({
           </TableContainer>
         )}
 
-        {onViewHistory && taskEntries.length > 0 && (
+        {taskEntries.length > 0 && (
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
             {taskEntries.length > RECENT_ENTRY_COUNT && (
               <Typography variant="body2" color="text.secondary">

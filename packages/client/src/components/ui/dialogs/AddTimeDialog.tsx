@@ -63,6 +63,16 @@ export function defaultStartFor(day: Dayjs, durationMs: number, now: Dayjs = day
   return day.hour(PAST_DAY_DEFAULT_HOUR).minute(0).second(0).millisecond(0);
 }
 
+/**
+ * A picker's change, applied once it's a whole date or time: not while the
+ * field is cleared or half-typed.
+ */
+export function whenComplete(apply: (value: Dayjs) => void): (value: Dayjs | null) => void {
+  return value => {
+    if (value?.isValid()) apply(value);
+  };
+}
+
 /** The start instant: the chosen day at the chosen time of day. */
 export function combineDayAndTime(day: Dayjs, time: Dayjs): Date {
   return day.hour(time.hour()).minute(time.minute()).second(0).millisecond(0).toDate();
@@ -83,8 +93,8 @@ export function validateEntryTiming(
   return null;
 }
 
+/** Rendered while open, so each opening starts a fresh form. */
 interface AddTimeDialogProps {
-  open: boolean;
   onClose: () => void;
   tasks: Task[];
   sessions: TaskSession[];
@@ -94,7 +104,7 @@ interface AddTimeDialogProps {
 
 const DEFAULT_DURATION: DurationInput = { hours: '1', minutes: '0' };
 
-export function AddTimeDialog({ open, onClose, tasks, sessions, onAdd }: AddTimeDialogProps) {
+export function AddTimeDialog({ onClose, tasks, sessions, onAdd }: AddTimeDialogProps) {
   const [task, setTask] = useState<Task | null>(null);
   const [duration, setDuration] = useState<DurationInput>(DEFAULT_DURATION);
   const [start, setStart] = useState<Dayjs>(() => endsNowStart(durationInputToMs(DEFAULT_DURATION)));
@@ -109,20 +119,6 @@ export function AddTimeDialog({ open, onClose, tasks, sessions, onAdd }: AddTime
 
   const options = useMemo(() => orderTasksForStart(tasks, sessions), [tasks, sessions]);
   const durationMs = durationInputToMs(duration);
-
-  // Fresh form each time the dialog opens
-  useEffect(() => {
-    if (!open) return;
-    const opening = endsNowStart(durationInputToMs(DEFAULT_DURATION));
-    setTask(null);
-    setDuration(DEFAULT_DURATION);
-    setStart(opening);
-    setDay(opening.startOf('day'));
-    setDayEdited(false);
-    setStartEdited(false);
-    setDurationErrors({});
-    setFormError(null);
-  }, [open]);
 
   useEffect(() => {
     if (startEdited) return;
@@ -168,7 +164,7 @@ export function AddTimeDialog({ open, onClose, tasks, sessions, onAdd }: AddTime
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Add Time</DialogTitle>
       <LocalizationProvider dateAdapter={AdapterDayjs}>
         <form onSubmit={handleSubmit} noValidate>
@@ -196,24 +192,20 @@ export function AddTimeDialog({ open, onClose, tasks, sessions, onAdd }: AddTime
                 <DatePicker
                   label="Date"
                   value={day}
-                  onChange={(value) => {
-                    if (value && value.isValid()) {
-                      setDay(value);
-                      setDayEdited(true);
-                    }
-                  }}
+                  onChange={whenComplete(value => {
+                    setDay(value);
+                    setDayEdited(true);
+                  })}
                   disableFuture
                   slotProps={{ textField: { fullWidth: true } }}
                 />
                 <TimePicker
                   label="Start"
                   value={start}
-                  onChange={(value) => {
-                    if (value && value.isValid()) {
-                      setStart(value);
-                      setStartEdited(true);
-                    }
-                  }}
+                  onChange={whenComplete(value => {
+                    setStart(value);
+                    setStartEdited(true);
+                  })}
                   slotProps={{ textField: { fullWidth: true } }}
                 />
               </Stack>

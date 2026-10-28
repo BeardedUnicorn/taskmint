@@ -53,6 +53,9 @@ Object.defineProperty(window, 'sessionStorage', {
 });
 
 // Mock window.matchMedia
+// Browsers have it; jsdom doesn't lay anything out to scroll to
+Element.prototype.scrollIntoView = vi.fn();
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation(query => ({

@@ -160,7 +160,7 @@ describe('applyImpliedRates', () => {
     const updateTask = vi.fn(async () => null);
     expect(await applyImpliedRates(tasks, implied, updateTask)).toBe(1);
     expect(updateTask).toHaveBeenCalledTimes(1);
-    expect(updateTask).toHaveBeenCalledWith('task-code', { hourlyRate: 30 });
+    expect(updateTask).toHaveBeenCalledWith('task-code', 30);
   });
 
   it('skips a rate it could not save', async () => {

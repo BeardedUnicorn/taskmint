@@ -17,7 +17,8 @@ import { NoteTemplateBuilder } from '../features/notes/NoteTemplateBuilder';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
 
 export function NoteTemplates() {
-  const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
+  // By id, so the selection is always the template as saved now
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // The builder reports what each action did (one toast per action)
   const {
@@ -29,8 +30,9 @@ export function NoteTemplates() {
     error,
   } = useNoteTemplates();
 
+  const selectedTemplate = templates.find(template => template.id === selectedId) ?? null;
   const handleSelectTemplate = useCallback((template: NoteTemplate | null) => {
-    setSelectedTemplate(template);
+    setSelectedId(template?.id ?? null);
   }, []);
 
   if (isLoading) {

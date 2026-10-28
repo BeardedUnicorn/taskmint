@@ -63,8 +63,9 @@ export function NoteTemplateBuilder({
     onSelectTemplate(template);
     if (template) {
       setTemplateName(template.name);
-      setTemplateDescription(template.description || '');
-      setTemplateFields([...template.fields]);
+      setTemplateDescription(template.description ?? '');
+      // In their order, so moving one swaps it with what shows beside it
+      setTemplateFields([...template.fields].sort((a, b) => a.order - b.order));
       setIsEditing(false);
     } else {
       // New template
@@ -75,12 +76,8 @@ export function NoteTemplateBuilder({
     }
   }, [onSelectTemplate]);
 
+  // (Save is disabled until the template has a name)
   const handleSaveTemplate = useCallback(async () => {
-    if (!templateName.trim()) {
-      report('Template name is required', 'error');
-      return;
-    }
-
     try {
       const templateData = {
         name: templateName.trim(),
@@ -168,14 +165,11 @@ export function NoteTemplateBuilder({
     setIsEditing(true);
   }, []);
 
+  // (The first can't move up, nor the last down)
   const handleMoveField = useCallback((fieldId: string, direction: 'up' | 'down') => {
     setTemplateFields(prev => {
       const currentIndex = prev.findIndex(field => field.id === fieldId);
-      if (currentIndex === -1) return prev;
-
       const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-      if (newIndex < 0 || newIndex >= prev.length) return prev;
-
       const newFields = [...prev];
       [newFields[currentIndex], newFields[newIndex]] = [newFields[newIndex], newFields[currentIndex]];
       
@@ -314,16 +308,7 @@ export function NoteTemplateBuilder({
                     {selectedTemplate ? 'Update Template' : 'Create Template'}
                   </Button>
                   {isEditing && (
-                    <Button
-                      variant="outlined"
-                      onClick={() => {
-                        if (selectedTemplate) {
-                          handleSelectTemplate(selectedTemplate);
-                        } else {
-                          handleSelectTemplate(null);
-                        }
-                      }}
-                    >
+                    <Button variant="outlined" onClick={() => handleSelectTemplate(selectedTemplate)}>
                       Cancel
                     </Button>
                   )}
@@ -342,19 +327,17 @@ export function NoteTemplateBuilder({
                 </Alert>
               ) : (
                 <Stack spacing={2} sx={{ mb: 2 }}>
-                  {templateFields
-                    .sort((a, b) => a.order - b.order)
-                    .map((field, index) => (
-                      <FieldEditor
-                        key={field.id}
-                        field={field}
-                        onUpdateField={handleUpdateField}
-                        onDeleteField={handleDeleteField}
-                        onMoveField={handleMoveField}
-                        isFirst={index === 0}
-                        isLast={index === templateFields.length - 1}
-                      />
-                    ))}
+                  {templateFields.map((field, index) => (
+                    <FieldEditor
+                      key={field.id}
+                      field={field}
+                      onUpdateField={handleUpdateField}
+                      onDeleteField={handleDeleteField}
+                      onMoveField={handleMoveField}
+                      isFirst={index === 0}
+                      isLast={index === templateFields.length - 1}
+                    />
+                  ))}
                 </Stack>
               )}
 
@@ -389,16 +372,17 @@ export function NoteTemplateBuilder({
         )}
       </Paper>
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={!!deleteConfirm}
-        onClose={() => setDeleteConfirm(null)}
-        onConfirm={() => (deleteConfirm ? handleDeleteTemplate(deleteConfirm) : undefined)}
-        title="Delete Template"
-        message="Are you sure you want to delete this template? This action cannot be undone and will affect any existing notes using this template."
-        confirmLabel="Delete"
-        severity="error"
-      />
+      {deleteConfirm && (
+        <ConfirmDialog
+          open
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={() => handleDeleteTemplate(deleteConfirm)}
+          title="Delete Template"
+          message="Are you sure you want to delete this template? This action cannot be undone and will affect any existing notes using this template."
+          confirmLabel="Delete"
+          severity="error"
+        />
+      )}
 
     </Box>
   );

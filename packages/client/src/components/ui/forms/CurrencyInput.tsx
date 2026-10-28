@@ -2,92 +2,56 @@ import React from 'react';
 import { TextField, InputAdornment } from '@mui/material';
 import { CurrencyInputProps } from '../../../types/form';
 
+/** The largest amount the field takes. */
+export const MAX_AMOUNT = 999999;
+
 /**
- * Currency input component with proper formatting and validation
- * Handles currency symbol display and numeric validation
+ * An amount as typed, kept to what's valid: digits and one decimal point, at
+ * most two decimals, at most MAX_AMOUNT. (No minus sign, so never negative.)
  */
+export function cleanAmount(text: string): string {
+  const typed = text.replace(/[^\d.]/g, '');
+  const point = typed.indexOf('.');
+  const amount =
+    point === -1 ? typed : typed.slice(0, point + 1) + typed.slice(point + 1).replace(/\./g, '').slice(0, 2);
+  return parseFloat(amount) > MAX_AMOUNT ? String(MAX_AMOUNT) : amount;
+}
+
+/** A dollar amount field. */
 export function CurrencyInput({
   value,
   onChange,
-  label = 'Amount',
-  placeholder = '0.00',
-  currency = '$',
-  error = false,
+  label,
+  error,
   helperText,
-  disabled = false,
-  fullWidth = true,
-  min = 0,
-  max = 999999,
-  step = 0.01,
+  disabled,
   sx,
   onBlur,
   onKeyDown,
 }: CurrencyInputProps) {
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    let inputValue = event.target.value;
-    
-    // Remove currency symbol and any non-numeric characters except decimal point
-    inputValue = inputValue.replace(/[^\d.]/g, '');
-    
-    // Ensure only one decimal point
-    const decimalCount = (inputValue.match(/\./g) || []).length;
-    if (decimalCount > 1) {
-      const firstDecimalIndex = inputValue.indexOf('.');
-      inputValue = inputValue.substring(0, firstDecimalIndex + 1) + 
-                   inputValue.substring(firstDecimalIndex + 1).replace(/\./g, '');
-    }
-    
-    // Limit decimal places to 2
-    const decimalIndex = inputValue.indexOf('.');
-    if (decimalIndex !== -1 && inputValue.length > decimalIndex + 3) {
-      inputValue = inputValue.substring(0, decimalIndex + 3);
-    }
-    
-    // Validate range
-    const numValue = parseFloat(inputValue);
-    if (!isNaN(numValue)) {
-      if (numValue < min) {
-        inputValue = min.toString();
-      } else if (numValue > max) {
-        inputValue = max.toString();
-      }
-    }
-    
-    onChange(inputValue);
-  };
-
-  const displayValue = typeof value === 'number' ? value.toString() : value;
-
   return (
     <TextField
       label={label}
-      value={displayValue}
-      onChange={handleChange}
+      value={value}
+      onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange(cleanAmount(event.target.value))}
       onBlur={onBlur}
       onKeyDown={onKeyDown}
-      placeholder={placeholder}
+      placeholder="0.00"
       error={error}
       helperText={helperText}
       disabled={disabled}
-      fullWidth={fullWidth}
+      fullWidth
       type="text"
       sx={sx}
       slotProps={{
         input: {
-          startAdornment: (
-            <InputAdornment position="start">
-              {currency}
-            </InputAdornment>
-          ),
+          startAdornment: <InputAdornment position="start">$</InputAdornment>,
         },
-
         htmlInput: {
           inputMode: 'decimal',
           pattern: '[0-9]*[.]?[0-9]*',
-          min,
-          max,
-          step,
-        }
-      }} />
+        },
+      }}
+    />
   );
 }

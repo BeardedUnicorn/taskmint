@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SessionNotesDialog } from '../SessionNotesDialog';
 import { TaskNotesProvider } from '../../../../contexts/TaskNotesContext';
 import { NoteTemplatesProvider } from '../../../../contexts/NoteTemplatesContext';
@@ -66,17 +66,16 @@ function SessionRowPreview() {
   );
 }
 
-function renderDialog(timerInstanceId?: string) {
+function renderDialog(timerInstanceId: string | null = null, onClose = () => {}, dialogTasks = tasks) {
   return render(
     <NotificationProvider>
     <TaskNotesProvider>
       <NoteTemplatesProvider>
         <SessionNotesDialog
-          open
-          onClose={() => {}}
+          onClose={onClose}
           session={session}
           timerInstanceId={timerInstanceId}
-          tasks={tasks}
+          tasks={dialogTasks}
         />
         <SessionRowPreview />
       </NoteTemplatesProvider>
@@ -134,5 +133,61 @@ describe('SessionNotesDialog', () => {
       const [saved] = readAppRecord(STORAGE_KEYS.TASK_NOTES) as unknown[];
       expect(saved).toMatchObject({ sessionId: 's-1', noteLevel: 'timer', timerInstanceId: 'i-1' });
     });
+  });
+
+  it('edits a note, collapses the editor, and deletes the note from it', async () => {
+    seedAppRecords({ [STORAGE_KEYS.TASK_NOTES]: [note('n-1', 'Session note')] });
+    renderDialog();
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'More actions' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit Note' }));
+    expect(await within(dialog).findByLabelText('Note Content')).toHaveValue('Session note');
+
+    // The editor's (the list below has its own)
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Collapse notes' })[0]);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Expand notes' }));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete Note' }));
+    await waitFor(() => expect(readAppRecord(STORAGE_KEYS.TASK_NOTES)).toEqual([]));
+    expect(within(dialog).queryByLabelText('Note Content')).not.toBeInTheDocument();
+  });
+
+  it("starts a new note on the task's default template", async () => {
+    seedAppRecords({
+      [STORAGE_KEYS.NOTE_TEMPLATES]: [
+        {
+          id: 'standup',
+          name: 'Standup',
+          fields: [{ id: 'blockers', label: 'Blockers', type: 'text', required: false, order: 0 }],
+          isActive: true,
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+    });
+    renderDialog(null, () => {}, [{ ...tasks[0], defaultNoteTemplateId: 'standup' }]);
+
+    fireEvent.click(await screen.findByRole('button', { name: /add note|create first note/i }));
+    expect(await screen.findByLabelText('Blockers')).toBeInTheDocument();
+  });
+
+  it('opens a note whose template is gone as a free-form note', async () => {
+    seedAppRecords({ [STORAGE_KEYS.TASK_NOTES]: [note('n-1', 'Old note', { templateId: 'deleted-template' })] });
+    renderDialog();
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'More actions' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit Note' }));
+    expect(await within(dialog).findByLabelText('Note Content')).toBeInTheDocument();
+  });
+
+  it('closes, dropping the note being edited', async () => {
+    const onClose = vi.fn();
+    renderDialog(null, onClose);
+
+    fireEvent.click(await screen.findByRole('button', { name: /add note|create first note/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalled();
   });
 });

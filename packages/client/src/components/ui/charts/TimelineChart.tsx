@@ -1,226 +1,126 @@
-// import React from 'react'; // Commented out unused import
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
+/** Time and earnings over days, weeks or months, as lines. */
+
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useTheme } from '@mui/material/styles';
-import { Box, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import { DailyData, WeeklyData, MonthlyData, millisecondsToHours, formatTimeForChart } from '../../../utils/chartDataHelpers';
 import { formatCurrency } from '../../../utils/formatters';
 import { formatShortDate } from '../../../utils/locale';
+import {
+  CHART_HEIGHT,
+  ChartLegend,
+  ChartTitle,
+  ChartTooltipCard,
+  ChartTooltipProps,
+  hoveredPoint,
+} from './ChartParts';
 
 type TimelineData = DailyData | WeeklyData | MonthlyData;
+export type TimelineType = 'daily' | 'weekly' | 'monthly';
 
-interface TimelineChartProps {
-  data: TimelineData[];
-  dataType: 'daily' | 'weekly' | 'monthly';
-  showEarnings?: boolean;
-  height?: number;
-  title?: string;
+const TITLES: Record<TimelineType, string> = {
+  daily: 'Daily Time Tracking Trends',
+  weekly: 'Weekly Time Tracking Trends',
+  monthly: 'Monthly Time Tracking Trends',
+};
+
+/** The period a point covers: its day, week or month key. */
+function periodOf(item: TimelineData): string {
+  if ('date' in item) return item.date;
+  if ('week' in item) return item.week;
+  return item.month;
 }
 
-export function TimelineChart({
-  data,
-  dataType,
-  showEarnings = true,
-  height = 400,
-  title,
-}: TimelineChartProps) {
+interface PeriodPoint {
+  period: string;
+  timeHours: number;
+  totalTime: number;
+  earnings: number;
+  entryCount: number;
+}
+
+export function TimelineTooltip(props: ChartTooltipProps<PeriodPoint>) {
+  const point = hoveredPoint(props);
+  if (!point) return null;
+  return (
+    <ChartTooltipCard
+      title={String(props.label)}
+      lines={[
+        `Time: ${formatTimeForChart(point.totalTime)}`,
+        `Earnings: ${formatCurrency(point.earnings)}`,
+        `Entries: ${point.entryCount}`,
+      ]}
+    />
+  );
+}
+
+export function TimelineChart({ data, dataType }: { data: TimelineData[]; dataType: TimelineType }) {
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
 
-  // Prepare data for chart
-  const chartData = data.map(item => {
-    const dateKey = dataType === 'daily' ? 'date' : dataType === 'weekly' ? 'week' : 'month';
-    return {
-      period: (item as any)[dateKey],
-      timeHours: millisecondsToHours(item.totalTime),
-      earnings: item.totalEarnings,
-      entryCount: item.entryCount,
-    };
-  });
-
-  const getDefaultTitle = () => {
-    const timeType = dataType === 'daily' ? 'Daily' : dataType === 'weekly' ? 'Weekly' : 'Monthly';
-    return `${timeType} Time Tracking Trends`;
-  };
-
-  const formatPeriodLabel = (period: string) => {
-    if (dataType === 'daily') {
-      return formatShortDate(period);
-    }
-    return period;
-  };
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <Box
-          sx={{
-            backgroundColor: isDarkMode ? '#333333' : '#ffffff',
-            border: `1px solid ${isDarkMode ? '#555555' : '#cccccc'}`,
-            borderRadius: 1,
-            p: 2,
-            boxShadow: 2,
-          }}
-        >
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-            {label}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Time: {formatTimeForChart(data.timeHours * 1000 * 60 * 60)}
-          </Typography>
-          {showEarnings && (
-            <Typography variant="body2" color="text.secondary">
-              Earnings: {formatCurrency(data.earnings)}
-            </Typography>
-          )}
-          <Typography variant="body2" color="text.secondary">
-            Entries: {data.entryCount}
-          </Typography>
-        </Box>
-      );
-    }
-    return null;
-  };
-
-  const CustomLegend = ({ payload }: any) => {
-    if (!payload || payload.length === 0) return null;
-    
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Box
-            sx={{
-              width: 12,
-              height: 2,
-              backgroundColor: theme.palette.primary.main,
-              borderRadius: 0.5,
-            }}
-          />
-          <Typography variant="caption">Time (hours)</Typography>
-        </Box>
-        {showEarnings && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box
-              sx={{
-                width: 12,
-                height: 2,
-                backgroundColor: theme.palette.secondary.main,
-                borderRadius: 0.5,
-              }}
-            />
-            <Typography variant="caption">Earnings ($)</Typography>
-          </Box>
-        )}
-      </Box>
-    );
-  };
-
-  if (data.length === 0) {
-    return (
-      <Box
-        sx={{
-          height,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'text.secondary',
-        }}
-      >
-        <Typography variant="body1">No data available</Typography>
-      </Box>
-    );
-  }
+  const text = theme.palette.text.primary;
+  const time = theme.palette.primary.main;
+  const earnings = theme.palette.secondary.main;
+  const points: PeriodPoint[] = data.map(item => ({
+    period: periodOf(item),
+    timeHours: millisecondsToHours(item.totalTime),
+    totalTime: item.totalTime,
+    earnings: item.totalEarnings,
+    entryCount: item.entryCount,
+  }));
+  // Days show as dates; week and month keys show as they are
+  const formatPeriod = (period: string) => (dataType === 'daily' ? formatShortDate(period) : period);
 
   return (
     <Box>
-      <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, textAlign: 'center' }}>
-        {title || getDefaultTitle()}
-      </Typography>
-      <ResponsiveContainer width="100%" height={height}>
-        <LineChart
-          data={chartData}
-          margin={{
-            top: 20,
-            right: 30,
-            left: 20,
-            bottom: 20,
-          }}
-        >
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke={isDarkMode ? '#333333' : '#e0e0e0'}
-          />
-          <XAxis
-            dataKey="period"
-            tick={{
-              fill: isDarkMode ? '#ffffff' : '#000000',
-              fontSize: 12,
-            }}
-            tickFormatter={formatPeriodLabel}
-          />
+      <ChartTitle>{TITLES[dataType]}</ChartTitle>
+      <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+        <LineChart data={points} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+          <XAxis dataKey="period" tick={{ fill: text, fontSize: 12 }} tickFormatter={formatPeriod} />
           <YAxis
             yAxisId="time"
             orientation="left"
-            tick={{
-              fill: isDarkMode ? '#ffffff' : '#000000',
-              fontSize: 12,
-            }}
-            label={{
-              value: 'Hours',
-              angle: -90,
-              position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: isDarkMode ? '#ffffff' : '#000000' },
-            }}
+            tick={{ fill: text, fontSize: 12 }}
+            label={{ value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: text } }}
           />
-          {showEarnings && (
-            <YAxis
-              yAxisId="earnings"
-              orientation="right"
-              tick={{
-                fill: isDarkMode ? '#ffffff' : '#000000',
-                fontSize: 12,
-              }}
-              label={{
-                value: 'Earnings ($)',
-                angle: 90,
-                position: 'insideRight',
-                style: { textAnchor: 'middle', fill: isDarkMode ? '#ffffff' : '#000000' },
-              }}
-            />
-          )}
-          <Tooltip content={<CustomTooltip />} />
-          <Legend content={<CustomLegend />} />
+          <YAxis
+            yAxisId="earnings"
+            orientation="right"
+            tick={{ fill: text, fontSize: 12 }}
+            label={{ value: 'Earnings ($)', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: text } }}
+          />
+          <Tooltip content={<TimelineTooltip />} />
+          <Legend
+            content={
+              <ChartLegend
+                shape="line"
+                items={[
+                  { label: 'Time (hours)', color: time },
+                  { label: 'Earnings ($)', color: earnings },
+                ]}
+              />
+            }
+          />
           <Line
             yAxisId="time"
             type="monotone"
             dataKey="timeHours"
-            stroke={theme.palette.primary.main}
+            stroke={time}
             strokeWidth={3}
-            dot={{ fill: theme.palette.primary.main, strokeWidth: 2, r: 4 }}
-            activeDot={{ r: 6, stroke: theme.palette.primary.main, strokeWidth: 2 }}
+            dot={{ fill: time, strokeWidth: 2, r: 4 }}
+            activeDot={{ r: 6, stroke: time, strokeWidth: 2 }}
             name="Time (hours)"
           />
-          {showEarnings && (
-            <Line
-              yAxisId="earnings"
-              type="monotone"
-              dataKey="earnings"
-              stroke={theme.palette.secondary.main}
-              strokeWidth={3}
-              dot={{ fill: theme.palette.secondary.main, strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6, stroke: theme.palette.secondary.main, strokeWidth: 2 }}
-              name="Earnings ($)"
-            />
-          )}
+          <Line
+            yAxisId="earnings"
+            type="monotone"
+            dataKey="earnings"
+            stroke={earnings}
+            strokeWidth={3}
+            dot={{ fill: earnings, strokeWidth: 2, r: 4 }}
+            activeDot={{ r: 6, stroke: earnings, strokeWidth: 2 }}
+            name="Earnings ($)"
+          />
         </LineChart>
       </ResponsiveContainer>
     </Box>

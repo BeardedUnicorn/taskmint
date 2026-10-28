@@ -61,6 +61,7 @@ const mockSessionManagement = {
   resumeTimerInstance: mockResumeTimerInstance,
   deleteTimerInstance: vi.fn(),
   updateTimerInstance: vi.fn(),
+  editTimerEntry: vi.fn(),
   setActiveSession: mockSetActiveSession,
   endActiveSession: vi.fn(),
   pauseAllTimersInActiveSession: vi.fn(),
@@ -140,16 +141,21 @@ const renderDashboard = () =>
   });
 
 vi.mock('../../ui/sessions/SessionList', () => ({
-  SessionList: ({ sessions, archivedTaskNames, isLoading }: { sessions: TaskSession[]; archivedTaskNames?: string[]; isLoading?: boolean }) => (
+  SessionList: ({ sessions, archivedTaskNames, isLoading, sessionNotes, selectedSessionId, onSelectSession, onStartSession, onOpenNotes }: any) => (
     <div
       data-testid="session-list"
       data-loading={String(isLoading ?? false)}
       data-archived-task-names={(archivedTaskNames ?? []).join(',')}
+      data-selected={selectedSessionId ?? ''}
     >
-      {sessions.map((session) => (
+      {sessions.map((session: TaskSession) => (
         <div key={session.id} data-testid="session-card" className={session.isActive ? 'active' : ''}>
           <span>{session.taskName}</span>
           <span>{new Date(session.totalDuration).toISOString().substr(11, 8)}</span>
+          <span data-testid={`previews-${session.id}`}>{(sessionNotes.get(session.id) ?? []).join(' | ')}</span>
+          <button onClick={() => onSelectSession(session)}>Select {session.id}</button>
+          <button onClick={() => onStartSession(session)}>Start {session.id}</button>
+          <button onClick={() => onOpenNotes(session.id)}>Notes for {session.id}</button>
         </div>
       ))}
     </div>
@@ -157,8 +163,9 @@ vi.mock('../../ui/sessions/SessionList', () => ({
 }));
 
 vi.mock('../../ui/display/SessionTimerDisplay', () => ({
-  SessionTimerDisplay: ({ onStartTimer, onStopTimer, onPauseTimer, onResumeTimer, onDeleteTimer, onOpenNotes, onAddTimer }: any) => (
+  SessionTimerDisplay: ({ session, onStartTimer, onStopTimer, onPauseTimer, onResumeTimer, onDeleteTimer, onEditTimer, onOpenNotes, onAddTimer }: any) => (
     <div data-testid="session-timer-display">
+      <button onClick={() => onEditTimer(session.timerInstances.at(-1), session)}>Edit Timer</button>
       <button onClick={() => onAddTimer()}>Add Timer</button>
       <button onClick={() => onDeleteTimer('timer-idle')}>Delete Idle Timer</button>
       <button onClick={() => onDeleteTimer('timer-done')}>Delete Finished Timer</button>
@@ -172,14 +179,13 @@ vi.mock('../../ui/display/SessionTimerDisplay', () => ({
 }));
 
 vi.mock('../../ui/dialogs/SessionNotesDialog', () => ({
-  SessionNotesDialog: ({ open, onClose, timerInstanceId }: any) =>
-    open ? (
-      <div data-testid="notes-dialog">
-        <span>Notes Dialog</span>
-        {timerInstanceId && <span>for {timerInstanceId}</span>}
-        <button onClick={onClose}>Close</button>
-      </div>
-    ) : null,
+  SessionNotesDialog: ({ onClose, timerInstanceId }: any) => (
+    <div data-testid="notes-dialog">
+      <span>Notes Dialog</span>
+      {timerInstanceId && <span>for {timerInstanceId}</span>}
+      <button onClick={onClose}>Close</button>
+    </div>
+  ),
 }));
 
 // Stable object: a fresh one per render would re-run the dashboard's memos
@@ -893,6 +899,111 @@ describe('SessionDashboard', () => {
       expect(screen.getByText('Session Time')).toBeInTheDocument();
       expect(screen.getByText('Session Earnings')).toBeInTheDocument();
       expect(screen.queryByText('Tasks Worked On')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('the rest of the page wiring', () => {
+    const finished = {
+      id: 'timer-done',
+      sessionId: 'session-1',
+      startTime: new Date('2024-01-15T10:00:00Z').toISOString(),
+      endTime: new Date('2024-01-15T11:30:00Z').toISOString(),
+      duration: 90 * 60_000,
+      state: TimerState.stopped,
+      isRunning: false,
+      isPaused: false,
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T11:30:00Z',
+    };
+    const session: TaskSession = {
+      id: 'session-1',
+      taskId: 'task-1',
+      taskName: 'Development Work',
+      timerInstances: [finished],
+      totalDuration: 90 * 60_000,
+      isActive: true,
+      date: '2024-01-15',
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T11:30:00Z',
+    };
+    const other: TaskSession = { ...session, id: 'session-2', isActive: false, timerInstances: [] };
+    const note = (id: string, overrides: Record<string, unknown>) => ({
+      id,
+      taskId: 'task-1',
+      templateId: 'free-form',
+      templateName: 'Free-form Note',
+      fieldValues: { content: id },
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T10:00:00Z',
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      Object.assign(mockSessionManagement, { sessions: [session, other], activeSession: session });
+      mockTaskNotes.notes = [];
+    });
+
+    it("edits a timer's duration in a dialog that closes once saved", async () => {
+      vi.mocked(mockSessionManagement.editTimerEntry).mockResolvedValueOnce(null).mockResolvedValueOnce('session-1');
+      renderDashboard();
+
+      fireEvent.click(screen.getByText('Edit Timer'));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit Time Entry' });
+      expect(within(dialog).getByLabelText('Hours')).toHaveValue(1);
+      expect(within(dialog).getByLabelText('Minutes')).toHaveValue(30);
+
+      // Refused: the dialog stays for another try
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(mockSessionManagement.editTimerEntry).toHaveBeenCalledTimes(1));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(mockSessionManagement.editTimerEntry).toHaveBeenCalledWith('timer-done', expect.objectContaining({ moveTo: undefined }));
+    });
+
+    it('closes the edit dialog on Cancel', async () => {
+      renderDashboard();
+      fireEvent.click(screen.getByText('Edit Timer'));
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('selects a session, starts another, and opens its notes', async () => {
+      renderDashboard();
+
+      fireEvent.click(screen.getByText('Select session-2'));
+      expect(screen.getByTestId('session-list')).toHaveAttribute('data-selected', 'session-2');
+
+      fireEvent.click(screen.getByText('Start session-2'));
+      expect(mockSetActiveSession).toHaveBeenCalledWith(other);
+
+      fireEvent.click(screen.getByText('Notes for session-2'));
+      expect(screen.getByTestId('notes-dialog')).toBeInTheDocument();
+      expect(screen.queryByText(/^for /)).not.toBeInTheDocument();
+    });
+
+    it("closes a session's notes once the session is gone", () => {
+      const { rerender } = renderDashboard();
+      fireEvent.click(screen.getByText('Notes for session-2'));
+
+      (mockSessionManagement as any).sessions = [session];
+      rerender(<SessionDashboard onStartWork={mockOnStartWork} onAddTime={mockOnAddTime} />);
+      expect(screen.queryByTestId('notes-dialog')).not.toBeInTheDocument();
+    });
+
+    it("previews each session's notes, last edited first, leaving out archived and empty ones", () => {
+      mockTaskNotes.notes = [
+        note('older', { sessionId: 'session-1', updatedAt: '2024-01-15T09:00:00Z' }),
+        note('newer', { sessionId: 'session-1', updatedAt: '2024-01-15T12:00:00Z' }),
+        note('archived', { sessionId: 'session-1', isArchived: true }),
+        note('blank', { sessionId: 'session-1', fieldValues: { content: '   ' } }),
+        note('task-wide', {}),
+      ];
+      renderDashboard();
+
+      expect(screen.getByTestId('previews-session-1')).toHaveTextContent('newer | older');
+      expect(screen.getByTestId('previews-session-2')).toBeEmptyDOMElement();
     });
   });
 });

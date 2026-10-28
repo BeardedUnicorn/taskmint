@@ -4,7 +4,7 @@
  * collapsible card whose open state is remembered.
  */
 
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useId, useMemo, useState } from 'react';
 import {
   Box,
   CircularProgress,
@@ -19,7 +19,7 @@ import {
   Typography,
 } from '@mui/material';
 import { ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
-import { TimeEntry } from '../../../types/timer';
+import type { FinishedTimeEntry } from '../../../utils/csvExport';
 import { Task } from '../../../types/task';
 import { useLocalStorage } from '../../../hooks/useLocalStorage';
 import {
@@ -47,12 +47,13 @@ type TimelineView = 'daily' | 'weekly' | 'monthly';
 
 interface HistoryChartsProps {
   /** Finished entries only */
-  entries: TimeEntry[];
+  entries: FinishedTimeEntry[];
   tasks: Task[];
 }
 
 export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
   const [open, setOpen] = useLocalStorage<boolean>('historyChartsOpen', true);
+  const timelineLabelId = useId();
   const [timelineView, setTimelineView] = useState<TimelineView>('daily');
 
   const chartData = useMemo(() => {
@@ -86,8 +87,9 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
         </Stack>
         {open && (
           <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Timeline View</InputLabel>
+            <InputLabel id={timelineLabelId}>Timeline View</InputLabel>
             <Select
+              labelId={timelineLabelId}
               value={timelineView}
               label="Timeline View"
               onChange={event => setTimelineView(event.target.value as TimelineView)}
@@ -113,22 +115,17 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
               <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>
                 <Box sx={{ flex: { lg: 2 }, minWidth: 0 }}>
                   <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
-                    <TaskTimeBarChart data={chartData.taskTimeData} showEarnings={true} height={400} />
+                    <TaskTimeBarChart data={chartData.taskTimeData} />
                   </Paper>
                 </Box>
                 <Box sx={{ flex: { lg: 1 }, minWidth: 0 }}>
                   <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
-                    <TaskDistributionPieChart data={chartData.taskDistributionData} height={400} />
+                    <TaskDistributionPieChart data={chartData.taskDistributionData} />
                   </Paper>
                 </Box>
               </Box>
               <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
-                <TimelineChart
-                  data={chartData.timelineData}
-                  dataType={timelineView}
-                  showEarnings={true}
-                  height={400}
-                />
+                <TimelineChart data={chartData.timelineData} dataType={timelineView} />
               </Paper>
             </Stack>
           </Suspense>

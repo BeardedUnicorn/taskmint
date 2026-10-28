@@ -95,7 +95,7 @@ function HistoryRoute({ onAddTime }: PageProps) {
   const { onUpdateEntry, onDeleteEntry } = useEntryActions();
   // A task whose entries History should open on (Tasks → View all in History)
   const focusTask = useMemo(
-    () => (params.focusTaskId ? tasks.find(task => task.id === params.focusTaskId) ?? null : null),
+    () => tasks.find(task => task.id === params.focusTaskId) ?? null,
     [params.focusTaskId, tasks]
   );
 

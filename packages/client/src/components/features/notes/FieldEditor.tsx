@@ -1,11 +1,12 @@
 /**
  * Field Editor Component
- * 
- * Individual field configuration component with drag handles, field type selection,
- * validation settings, and field management actions.
+ *
+ * One template field's settings: label, type, required, placeholder, the
+ * type's validation or options, and a preview. The builder holds the field;
+ * every change goes back to it whole.
  */
 
-import { useState, useCallback } from 'react';
+import { useId, useState } from 'react';
 import {
   Paper,
   Box,
@@ -25,7 +26,6 @@ import {
   Tooltip,
 } from '@mui/material';
 import {
-  DragIndicator as DragIcon,
   ArrowUpward as UpIcon,
   ArrowDownward as DownIcon,
   Delete as DeleteIcon,
@@ -57,6 +57,11 @@ const FIELD_TYPE_LABELS = {
   select: 'Select',
 };
 
+type Validation = NonNullable<TemplateField['validation']>;
+
+/** A number field's text as a limit: none when it's empty. */
+const limit = (text: string, parse: (text: string) => number) => (text ? parse(text) : undefined);
+
 export function FieldEditor({
   field,
   onUpdateField,
@@ -66,98 +71,46 @@ export function FieldEditor({
   isLast,
 }: FieldEditorProps) {
   const [expanded, setExpanded] = useState(false);
-  const [localField, setLocalField] = useState<TemplateField>(field);
+  const typeLabelId = useId();
+  const previewLabelId = useId();
+  const update = (updates: Partial<TemplateField>) => onUpdateField({ ...field, ...updates });
 
-  const handleFieldUpdate = useCallback((updates: Partial<TemplateField>) => {
-    const updatedField = { ...localField, ...updates };
-    setLocalField(updatedField);
-    onUpdateField(updatedField);
-  }, [localField, onUpdateField]);
-
-  const handleLabelChange = useCallback((label: string) => {
-    handleFieldUpdate({ label });
-  }, [handleFieldUpdate]);
-
-  const handleTypeChange = useCallback((type: FieldType) => {
-    // Clear validation and options when type changes
-    const updates: Partial<TemplateField> = {
+  // A new type starts without the old one's validation and options
+  const changeType = (type: FieldType) =>
+    update({
       type,
       validation: undefined,
       options: type === 'select' ? [{ label: 'Option 1', value: 'option1' }] : undefined,
-    };
-    handleFieldUpdate(updates);
-  }, [handleFieldUpdate]);
-
-  const handleRequiredChange = useCallback((required: boolean) => {
-    handleFieldUpdate({ required });
-  }, [handleFieldUpdate]);
-
-  const handlePlaceholderChange = useCallback((placeholder: string) => {
-    handleFieldUpdate({ placeholder: placeholder || undefined });
-  }, [handleFieldUpdate]);
-
-  const handleValidationChange = useCallback((validationUpdates: Partial<TemplateField['validation']>) => {
-    const currentValidation = localField.validation || {};
-    const newValidation = { ...currentValidation, ...validationUpdates };
-    
-    // Remove undefined values
-    Object.keys(newValidation).forEach(key => {
-      if (newValidation[key as keyof typeof newValidation] === undefined || 
-          newValidation[key as keyof typeof newValidation] === '') {
-        delete newValidation[key as keyof typeof newValidation];
-      }
     });
 
-    handleFieldUpdate({ 
-      validation: Object.keys(newValidation).length > 0 ? newValidation : undefined 
-    });
-  }, [localField.validation, handleFieldUpdate]);
+  // Only the limits that are set; none at all is no validation
+  const changeValidation = (changes: Partial<Validation>) => {
+    const validation = Object.fromEntries(
+      Object.entries({ ...field.validation, ...changes }).filter(([, value]) => value !== undefined)
+    ) as Validation;
+    update({ validation: Object.keys(validation).length > 0 ? validation : undefined });
+  };
 
-  const handleOptionsChange = useCallback((options: SelectOption[]) => {
-    handleFieldUpdate({ options });
-  }, [handleFieldUpdate]);
+  const options = field.options ?? [];
+  const setOptions = (next: SelectOption[]) => update({ options: next });
+  const addOption = () =>
+    setOptions([...options, { label: `Option ${options.length + 1}`, value: `option${options.length + 1}` }]);
+  const updateOption = (index: number, changes: Partial<SelectOption>) =>
+    setOptions(options.map((option, i) => (i === index ? { ...option, ...changes } : option)));
 
-  const addOption = useCallback(() => {
-    const currentOptions = localField.options || [];
-    const newOption: SelectOption = {
-      label: `Option ${currentOptions.length + 1}`,
-      value: `option${currentOptions.length + 1}`,
-    };
-    handleOptionsChange([...currentOptions, newOption]);
-  }, [localField.options, handleOptionsChange]);
-
-  const removeOption = useCallback((index: number) => {
-    const currentOptions = localField.options || [];
-    const newOptions = currentOptions.filter((_, i) => i !== index);
-    handleOptionsChange(newOptions);
-  }, [localField.options, handleOptionsChange]);
-
-  const updateOption = useCallback((index: number, updates: Partial<SelectOption>) => {
-    const currentOptions = localField.options || [];
-    const newOptions = currentOptions.map((option, i) =>
-      i === index ? { ...option, ...updates } : option
-    );
-    handleOptionsChange(newOptions);
-  }, [localField.options, handleOptionsChange]);
-
-  const TypeIcon = FIELD_TYPE_ICONS[localField.type];
+  const TypeIcon = FIELD_TYPE_ICONS[field.type];
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       {/* Field Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: expanded ? 2 : 0 }}>
-        {/* Drag Handle */}
-        <IconButton size="small" sx={{ cursor: 'grab' }} aria-label="Drag to reorder field">
-          <DragIcon />
-        </IconButton>
-
         {/* Field Type Icon */}
         <TypeIcon color="primary" />
 
         {/* Field Label */}
         <TextField
-          value={localField.label}
-          onChange={(e) => handleLabelChange(e.target.value)}
+          value={field.label}
+          onChange={e => update({ label: e.target.value })}
           variant="standard"
           placeholder="Field Label"
           sx={{ flex: 1 }}
@@ -169,7 +122,7 @@ export function FieldEditor({
         />
 
         {/* Required Indicator */}
-        {localField.required && (
+        {field.required && (
           <Typography variant="caption" color="error" sx={{ fontWeight: 'bold' }}>
             *
           </Typography>
@@ -183,7 +136,7 @@ export function FieldEditor({
               <IconButton
                 size="small"
                 aria-label="Move Up"
-                onClick={() => onMoveField(localField.id, 'up')}
+                onClick={() => onMoveField(field.id, 'up')}
                 disabled={isFirst}
               >
                 <UpIcon />
@@ -195,7 +148,7 @@ export function FieldEditor({
               <IconButton
                 size="small"
                 aria-label="Move Down"
-                onClick={() => onMoveField(localField.id, 'down')}
+                onClick={() => onMoveField(field.id, 'down')}
                 disabled={isLast}
               >
                 <DownIcon />
@@ -213,7 +166,7 @@ export function FieldEditor({
             </IconButton>
           </Tooltip>
           <Tooltip title="Delete Field">
-            <IconButton size="small" aria-label="Delete Field" onClick={() => onDeleteField(localField.id)} color="error">
+            <IconButton size="small" aria-label="Delete Field" onClick={() => onDeleteField(field.id)} color="error">
               <DeleteIcon />
             </IconButton>
           </Tooltip>
@@ -230,10 +183,11 @@ export function FieldEditor({
           {/* Basic Settings */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Field Type</InputLabel>
+              <InputLabel id={typeLabelId}>Field Type</InputLabel>
               <Select
-                value={localField.type}
-                onChange={(e) => handleTypeChange(e.target.value as FieldType)}
+                labelId={typeLabelId}
+                value={field.type}
+                onChange={e => changeType(e.target.value as FieldType)}
                 label="Field Type"
               >
                 {Object.entries(FIELD_TYPE_LABELS).map(([value, label]) => {
@@ -253,8 +207,8 @@ export function FieldEditor({
             <FormControlLabel
               control={
                 <Switch
-                  checked={localField.required}
-                  onChange={(e) => handleRequiredChange(e.target.checked)}
+                  checked={field.required}
+                  onChange={e => update({ required: e.target.checked })}
                 />
               }
               label="Required"
@@ -264,15 +218,15 @@ export function FieldEditor({
           {/* Placeholder */}
           <TextField
             label="Placeholder Text"
-            value={localField.placeholder || ''}
-            onChange={(e) => handlePlaceholderChange(e.target.value)}
+            value={field.placeholder ?? ''}
+            onChange={e => update({ placeholder: e.target.value || undefined })}
             size="small"
             placeholder="Enter placeholder text..."
             helperText="Optional hint text shown in the field"
           />
 
           {/* Type-specific Validation */}
-          {localField.type === 'text' && (
+          {field.type === 'text' && (
             <Box>
               <Typography variant="subtitle2" gutterBottom>
                 Text Validation
@@ -281,10 +235,8 @@ export function FieldEditor({
                 <TextField
                   label="Min Length"
                   type="number"
-                  value={localField.validation?.min || ''}
-                  onChange={(e) => handleValidationChange({ 
-                    min: e.target.value ? parseInt(e.target.value) : undefined 
-                  })}
+                  value={field.validation?.min ?? ''}
+                  onChange={e => changeValidation({ min: limit(e.target.value, parseInt) })}
                   size="small"
                   slotProps={{
                     htmlInput: { min: 0 }
@@ -293,10 +245,8 @@ export function FieldEditor({
                 <TextField
                   label="Max Length"
                   type="number"
-                  value={localField.validation?.max || ''}
-                  onChange={(e) => handleValidationChange({ 
-                    max: e.target.value ? parseInt(e.target.value) : undefined 
-                  })}
+                  value={field.validation?.max ?? ''}
+                  onChange={e => changeValidation({ max: limit(e.target.value, parseInt) })}
                   size="small"
                   slotProps={{
                     htmlInput: { min: 0 }
@@ -305,10 +255,8 @@ export function FieldEditor({
               </Box>
               <TextField
                 label="Pattern (Regex)"
-                value={localField.validation?.pattern || ''}
-                onChange={(e) => handleValidationChange({ 
-                  pattern: e.target.value || undefined 
-                })}
+                value={field.validation?.pattern ?? ''}
+                onChange={e => changeValidation({ pattern: e.target.value || undefined })}
                 size="small"
                 fullWidth
                 sx={{ mt: 1 }}
@@ -318,7 +266,7 @@ export function FieldEditor({
             </Box>
           )}
 
-          {localField.type === 'number' && (
+          {field.type === 'number' && (
             <Box>
               <Typography variant="subtitle2" gutterBottom>
                 Number Validation
@@ -327,50 +275,46 @@ export function FieldEditor({
                 <TextField
                   label="Minimum Value"
                   type="number"
-                  value={localField.validation?.min || ''}
-                  onChange={(e) => handleValidationChange({ 
-                    min: e.target.value ? parseFloat(e.target.value) : undefined 
-                  })}
+                  value={field.validation?.min ?? ''}
+                  onChange={e => changeValidation({ min: limit(e.target.value, parseFloat) })}
                   size="small"
                 />
                 <TextField
                   label="Maximum Value"
                   type="number"
-                  value={localField.validation?.max || ''}
-                  onChange={(e) => handleValidationChange({ 
-                    max: e.target.value ? parseFloat(e.target.value) : undefined 
-                  })}
+                  value={field.validation?.max ?? ''}
+                  onChange={e => changeValidation({ max: limit(e.target.value, parseFloat) })}
                   size="small"
                 />
               </Box>
             </Box>
           )}
 
-          {localField.type === 'select' && (
+          {field.type === 'select' && (
             <Box>
               <Typography variant="subtitle2" gutterBottom>
                 Select Options
               </Typography>
               <Stack spacing={2}>
-                {(localField.options || []).map((option, index) => (
+                {options.map((option, index) => (
                   <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                     <TextField
                       label="Label"
                       value={option.label}
-                      onChange={(e) => updateOption(index, { label: e.target.value })}
+                      onChange={e => updateOption(index, { label: e.target.value })}
                       size="small"
                       sx={{ flex: 1 }}
                     />
                     <TextField
                       label="Value"
                       value={option.value}
-                      onChange={(e) => updateOption(index, { value: e.target.value })}
+                      onChange={e => updateOption(index, { value: e.target.value })}
                       size="small"
                       sx={{ flex: 1 }}
                     />
                     <IconButton
-                      onClick={() => removeOption(index)}
-                      disabled={(localField.options || []).length <= 1}
+                      onClick={() => setOptions(options.filter((_, i) => i !== index))}
+                      disabled={options.length <= 1}
                       size="small"
                       color="error"
                       aria-label="Remove option"
@@ -397,11 +341,11 @@ export function FieldEditor({
               Preview
             </Typography>
             <Paper variant="outlined" sx={{ p: 2 }}>
-              {localField.type === 'text' && (
+              {field.type === 'text' && (
                 <TextField
-                  label={localField.label}
-                  placeholder={localField.placeholder}
-                  required={localField.required}
+                  label={field.label}
+                  placeholder={field.placeholder}
+                  required={field.required}
                   multiline
                   minRows={3}
                   maxRows={6}
@@ -420,22 +364,22 @@ export function FieldEditor({
                   }}
                 />
               )}
-              {localField.type === 'number' && (
+              {field.type === 'number' && (
                 <TextField
-                  label={localField.label}
-                  placeholder={localField.placeholder}
-                  required={localField.required}
+                  label={field.label}
+                  placeholder={field.placeholder}
+                  required={field.required}
                   type="number"
                   fullWidth
                   disabled
                   size="small"
                 />
               )}
-              {localField.type === 'date' && (
+              {field.type === 'date' && (
                 <TextField
-                  label={localField.label}
-                  placeholder={localField.placeholder}
-                  required={localField.required}
+                  label={field.label}
+                  placeholder={field.placeholder}
+                  required={field.required}
                   type="date"
                   fullWidth
                   disabled
@@ -445,21 +389,22 @@ export function FieldEditor({
                   }}
                 />
               )}
-              {localField.type === 'checkbox' && (
+              {field.type === 'checkbox' && (
                 <FormControlLabel
                   control={<input type="checkbox" disabled />}
-                  label={localField.label}
-                  required={localField.required}
+                  label={field.label}
+                  required={field.required}
                 />
               )}
-              {localField.type === 'select' && (
+              {field.type === 'select' && (
                 <FormControl fullWidth size="small" disabled>
-                  <InputLabel>{localField.label}</InputLabel>
+                  <InputLabel id={previewLabelId}>{field.label}</InputLabel>
                   <Select
+                    labelId={previewLabelId}
                     value=""
-                    label={localField.label}
+                    label={field.label}
                   >
-                    {(localField.options || []).map((option, index) => (
+                    {options.map((option, index) => (
                       <MenuItem key={index} value={option.value}>
                         {option.label}
                       </MenuItem>

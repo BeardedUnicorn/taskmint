@@ -31,7 +31,7 @@ export function notesFor(session: TaskSession, sessionNotes?: Map<string, string
 /** Active, or worked on (dated, or a timer started) on or after `cutoff`. */
 function isRecent(session: TaskSession, cutoff: string): boolean {
   if (session.isActive || session.date >= cutoff) return true;
-  return (session.timerInstances ?? []).some(instance => dayjs(instance.startTime).format('YYYY-MM-DD') >= cutoff);
+  return session.timerInstances.some(instance => dayjs(instance.startTime).format('YYYY-MM-DD') >= cutoff);
 }
 
 export function useSessionFilters({

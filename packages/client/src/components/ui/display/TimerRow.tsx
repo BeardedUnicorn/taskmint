@@ -20,7 +20,6 @@ export interface TimerRowProps {
   nowMs: number;
   showControls: boolean;
   showNotes: boolean;
-  size: 'small' | 'medium' | 'large';
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
@@ -36,7 +35,6 @@ export function TimerRow({
   nowMs,
   showControls,
   showNotes,
-  size,
   onStart,
   onStop,
   onPause,
@@ -48,7 +46,6 @@ export function TimerRow({
   // getInstanceElapsedMs covers every state: running counts from nowMs,
   // paused shows its frozen elapsed, stopped its recorded duration.
   const displayTime = getInstanceElapsedMs(instance, nowMs);
-  const isSmall = size === 'small';
   const isRunning = instance.state === TimerState.running;
   const isPaused = instance.state === TimerState.paused;
   const isStopped = instance.state === TimerState.stopped;
@@ -83,14 +80,14 @@ export function TimerRow({
               }),
       })}
     >
-      <TimerIcon fontSize={isSmall ? 'small' : 'medium'} sx={{ color: 'text.secondary' }} />
+      <TimerIcon fontSize="medium" sx={{ color: 'text.secondary' }} />
 
-      <Typography variant={isSmall ? 'caption' : 'body2'} sx={{ minWidth: 60, color: 'text.secondary' }}>
+      <Typography variant="body2" sx={{ minWidth: 60, color: 'text.secondary' }}>
         Timer {index}
       </Typography>
 
       <Typography
-        variant={isSmall ? 'body2' : 'body1'}
+        variant="body1"
         sx={{
           fontFamily: '"Roboto Mono", monospace',
           fontWeight: 600,

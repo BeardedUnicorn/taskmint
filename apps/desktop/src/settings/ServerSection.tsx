@@ -208,7 +208,6 @@ function OnTheServer({ connection }: { connection: ServerConnection }) {
           "out of it."
         }
         confirmLabel="Disconnect"
-        confirmColor="error"
         severity="error"
       />
     </Stack>

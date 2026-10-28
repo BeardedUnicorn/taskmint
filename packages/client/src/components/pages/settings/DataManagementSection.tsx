@@ -66,23 +66,9 @@ export function DataManagementSection() {
     },
   });
 
-  const handleExportData = async () => {
-    try {
-      await exportData();
-    } catch (error) {
-      console.error('Export failed:', error);
-      showError('Failed to export data. Please try again.');
-    }
-  };
-
-  const handleImportData = async () => {
-    try {
-      await importData('merge'); // Default to merge mode
-    } catch (error) {
-      console.error('Import failed:', error);
-      showError('Failed to import data. Please try again.');
-    }
-  };
+  // Both report how they went through the callbacks above
+  const handleExportData = () => void exportData();
+  const handleImportData = () => void importData('merge');
 
   const closeResetDialog = () => {
     if (isResetting) return;

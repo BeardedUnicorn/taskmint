@@ -8,6 +8,7 @@ import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
+import { ComponentProps } from 'react';
 import { HistoryPage } from '../HistoryPage';
 import { Sidebar } from '../../../layout/Sidebar';
 import { TimeEntry } from '../../../../types/timer';
@@ -16,9 +17,13 @@ import { createAppTheme } from '../../../../theme';
 import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import { defaultFilters } from '../../../ui/filters/TimeEntriesFilters';
 import { fakeBackend } from '../../../../testing';
+import type { DailyGoal, DailyGoalAchievement } from '../../../../types/goal';
 
 // Stable object: a fresh one per render would re-run the page's memos
-const mockGoals = { achievements: [], currentGoal: null };
+const mockGoals: { achievements: DailyGoalAchievement[]; currentGoal: DailyGoal | null } = {
+  achievements: [],
+  currentGoal: null,
+};
 vi.mock('../../../../hooks/useDailyGoals', () => ({
   useDailyGoals: () => mockGoals,
 }));
@@ -78,19 +83,29 @@ const saveFilters = (filters: Record<string, unknown>) =>
     JSON.stringify({ version: 1, data: { ...defaultFilters, ...filters }, migratedAt: '2026-10-01T00:00:00Z' })
   );
 
-function renderPage(entries: TimeEntry[], onDeleteEntry: (id: string) => void = () => {}) {
-  return render(
+type PageProps = ComponentProps<typeof HistoryPage>;
+
+function page(entries: TimeEntry[], props: Partial<PageProps> = {}) {
+  return (
     <ThemeProvider theme={createAppTheme('light')}>
       <NotificationProvider>
         <HistoryPage
           timeEntries={entries}
           tasks={tasks}
           onUpdateEntry={() => {}}
-          onDeleteEntry={onDeleteEntry}
+          onDeleteEntry={() => {}}
+          onAddTime={() => {}}
+          focusTask={null}
+          onFocusApplied={() => {}}
+          {...props}
         />
       </NotificationProvider>
     </ThemeProvider>
   );
+}
+
+function renderPage(entries: TimeEntry[], props: Partial<PageProps> = {}) {
+  return render(page(entries, props));
 }
 
 function visibleTaskNames(): string[] {
@@ -200,7 +215,7 @@ describe('HistoryPage entries table', () => {
 
   it('deletes an entry straight away (its toast offers Undo)', () => {
     const onDeleteEntry = vi.fn();
-    renderPage(makeEntries().slice(0, 1), onDeleteEntry);
+    renderPage(makeEntries().slice(0, 1), { onDeleteEntry });
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
@@ -250,6 +265,7 @@ describe('HistoryPage opened from a task', () => {
             tasks={[...tasks, other]}
             onUpdateEntry={() => {}}
             onDeleteEntry={() => {}}
+            onAddTime={() => {}}
             focusTask={tasks[0]}
             onFocusApplied={onFocusApplied}
           />
@@ -260,6 +276,137 @@ describe('HistoryPage opened from a task', () => {
     const table = screen.getByRole('table');
     expect(within(table).getByText('Annotation')).toBeInTheDocument(); // 90 days ago: all time
     expect(within(table).queryByText('Other')).not.toBeInTheDocument();
+    expect(onFocusApplied).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('HistoryPage when there is nothing to show', () => {
+  it('says nothing was tracked yet, with no filters to clear', () => {
+    renderPage([]);
+    expect(screen.getByText('Nothing tracked yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
+  it('says no entries match, and clears the filters', () => {
+    renderPage([entryDaysAgo(40, 'Long ago')]);
+    expect(screen.getByText('No entries match')).toBeInTheDocument();
+
+    saveFilters({ datePreset: 'all' });
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByText('No entries match')).toBeInTheDocument();
+  });
+});
+
+describe('HistoryPage actions', () => {
+  beforeEach(() => {
+    saveFilters({ datePreset: 'all' });
+  });
+
+  it('opens Add time, and the advanced filters', () => {
+    const onAddTime = vi.fn();
+    renderPage(makeEntries(), { onAddTime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add time' }));
+    expect(onAddTime).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand filters' }));
+    expect(screen.getByRole('button', { name: 'Collapse filters' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('pages through the entries, and starts over on page 1 with a new page size', async () => {
+    renderPage(makeEntries());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to page 2' }));
+    expect(visibleTaskNames()).toHaveLength(5);
+    expect(screen.getByText(/Showing 26-30 of 30 entries/)).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Per page' }));
+    fireEvent.click(await screen.findByRole('option', { name: '10' }));
+    expect(visibleTaskNames()).toHaveLength(10);
+    expect(screen.getByText(/Showing 1-10 of 30 entries/)).toBeInTheDocument();
+  });
+
+  it('shows the page before when the last page empties', () => {
+    const entries = makeEntries().slice(0, 26);
+    const { rerender } = renderPage(entries);
+    fireEvent.click(screen.getByRole('button', { name: 'Go to page 2' }));
+
+    rerender(page(entries.slice(1)));
+    expect(screen.getByText(/Showing 1-25 of 25 entries/)).toBeInTheDocument();
+    expect(visibleTaskNames()).toHaveLength(25);
+  });
+
+  it('edits an entry in a dialog, and closes it without saving', async () => {
+    const onUpdateEntry = vi.fn();
+    renderPage([entryDaysAgo(1, 'Annotation')], { onUpdateEntry });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(onUpdateEntry).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Minutes'), { target: { value: '45' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(onUpdateEntry).toHaveBeenCalledWith({ id: 'entry-1-Annotation', taskId: 'task-1', durationMs: 45 * 60_000 });
+  });
+
+  it("keeps an entry's deleted task when editing it, and asks for one when it never had one", async () => {
+    const onUpdateEntry = vi.fn();
+    const orphan = { ...entryDaysAgo(1, 'Gone'), taskId: 'deleted-task' };
+    const { unmount } = renderPage([orphan], { onUpdateEntry });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Save' }));
+    expect(onUpdateEntry).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'deleted-task' }));
+    unmount();
+
+    renderPage([{ ...entryDaysAgo(1, 'Never linked'), taskId: undefined }], { onUpdateEntry });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(within(dialog).getByText('Choose a task')).toBeInTheDocument();
+    expect(onUpdateEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('switches the timeline between days, weeks and months', async () => {
+    renderPage(makeEntries());
+
+    for (const view of ['Weekly', 'Monthly', 'Daily']) {
+      fireEvent.mouseDown(await screen.findByRole('combobox', { name: 'Timeline View' }));
+      fireEvent.click(await screen.findByRole('option', { name: view }));
+      expect(screen.getByRole('combobox', { name: 'Timeline View' })).toHaveTextContent(view);
+    }
+  });
+
+  it("shows the goal's past results even with the goal off now", () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const day = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    mockGoals.achievements = [
+      {
+        id: 'a1',
+        date: day,
+        goalAmount: 100,
+        earnedAmount: 0,
+        currency: 'USD',
+        percentageAchieved: 0,
+        status: 'missed',
+        difference: -100,
+        recordedAt: '2026-01-01T00:00:00Z',
+      },
+    ];
+    try {
+      renderPage(makeEntries());
+      expect(screen.getByText('Daily goal')).toBeInTheDocument();
+    } finally {
+      mockGoals.achievements = [];
+    }
+  });
+
+  it('applies a focus request once, however often its effect runs', () => {
+    const onFocusApplied = vi.fn();
+    render(page(makeEntries(), { focusTask: tasks[0], onFocusApplied }), { reactStrictMode: true });
     expect(onFocusApplied).toHaveBeenCalledTimes(1);
   });
 });

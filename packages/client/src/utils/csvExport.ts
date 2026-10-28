@@ -39,18 +39,14 @@ export function csvCell(value: string): string {
 /** Finished entries as CSV, oldest first. Running timers are left out. */
 export function timeEntriesToCsv(entries: TimeEntry[], tasks: Task[]): string {
   const rows = exportableEntries(entries)
-    .map(entry => ({ entry, start: new Date(entry.startTime) }))
-    .sort((a, b) => a.start.getTime() - b.start.getTime())
-    .map(({ entry, start }) => {
-      // Exportable entries have one
-      const durationMs = Number(entry.duration);
-      const end = entry.endTime ? new Date(entry.endTime) : new Date(start.getTime() + durationMs);
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+    .map(entry => {
       return [
-        entry.date || formatDateString(start),
+        entry.date || formatDateString(entry.startTime),
         entry.taskName,
-        localDateTime(start),
-        localDateTime(end),
-        (durationMs / 3_600_000).toFixed(2),
+        localDateTime(entry.startTime),
+        localDateTime(entryEnd(entry)),
+        (entry.duration / 3_600_000).toFixed(2),
         entryRate(entry, tasks).toFixed(2),
         entryEarnings(entry, tasks).toFixed(2),
         sourceLabel(entry.source),
@@ -61,8 +57,16 @@ export function timeEntriesToCsv(entries: TimeEntry[], tasks: Task[]): string {
 }
 
 /** Rows a CSV export would contain (finished entries). */
-export function exportableEntries(entries: TimeEntry[]): TimeEntry[] {
-  return entries.filter(entry => !entry.isRunning && (entry.duration ?? 0) > 0);
+/** An entry with its time in: stopped, with a duration. */
+export type FinishedTimeEntry = TimeEntry & { duration: number };
+
+export function exportableEntries(entries: TimeEntry[]): FinishedTimeEntry[] {
+  return entries.filter((entry): entry is FinishedTimeEntry => !entry.isRunning && (entry.duration ?? 0) > 0);
+}
+
+/** When a finished entry ended: its end, or (older entries without one) its start plus its duration. */
+export function entryEnd(entry: FinishedTimeEntry): Date {
+  return entry.endTime ?? new Date(entry.startTime.getTime() + entry.duration);
 }
 
 /**

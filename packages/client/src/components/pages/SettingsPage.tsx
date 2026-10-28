@@ -18,7 +18,7 @@ import { InactivitySettingsSection } from './settings/InactivitySettingsSection'
 import { NotificationSettingsSection } from './settings/NotificationSettingsSection';
 import { PayoutSettingsSection } from './settings/PayoutSettingsSection';
 import { PageContainer, PageHeader } from '../layout/PageLayout';
-import { useOptionalNavigation } from '../../contexts/NavigationContext';
+import { useNavigation } from '../../contexts/NavigationContext';
 import { SETTINGS_SECTION_LABELS, SettingsSectionId, availableSettingsSections } from '../../navigation/views';
 import { useAppExtensions } from '../../app/extensions';
 import { getBackend } from '../../backend';
@@ -71,17 +71,18 @@ export function SettingsPage() {
   const goTo = useCallback((id: string) => {
     clickedAtRef.current = Date.now();
     setActive(id);
-    sectionElement(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    // (A link may name a section this platform doesn't have)
+    sectionElement(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   // Opened for a section: scroll to it
-  const navigation = useOptionalNavigation();
-  const section = navigation?.params.section;
+  const { params, clearParams } = useNavigation();
+  const section = params.section;
   useEffect(() => {
     if (!section) return;
     goTo(section);
-    navigation?.clearParams();
-  }, [section, navigation, goTo]);
+    clearParams();
+  }, [section, clearParams, goTo]);
 
   // The list follows the section you're reading (the page scrolls inside
   // the app's content area, so this listens to scrolls anywhere)
@@ -92,7 +93,8 @@ export function SettingsPage() {
       const scroller = event.target instanceof Element ? event.target : document.scrollingElement;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const tops = sections.map(({ id }) => sectionElement(id)?.getBoundingClientRect().top ?? Infinity);
+        // (Every listed section is rendered below, with its anchor)
+        const tops = sections.map(({ id }) => sectionElement(id)!.getBoundingClientRect().top);
         const atBottom = !!scroller && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
         setActive(sections[currentSection(tops, atBottom)].id);
       });
