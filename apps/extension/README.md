@@ -26,10 +26,16 @@ for review otherwise).
 
 ## Install (load unpacked)
 
-1. Open `chrome://extensions`.
-2. Enable **Developer mode** (top right).
-3. Click **Load unpacked** and select this `apps/extension/` folder.
-4. Visit the DataAnnotation payments page while logged in.
+1. Build it: `pnpm --filter @taskmint/extension build` writes `apps/extension/dist/`
+   (CI also uploads it as the `taskmint-extension` artifact).
+2. Open `chrome://extensions`.
+3. Enable **Developer mode** (top right).
+4. Click **Load unpacked** and select the `apps/extension/dist/` folder. After
+   a rebuild, click **Reload** on the extension's card.
+5. Visit the DataAnnotation payments page while logged in.
+
+An extension loaded from `apps/extension/` itself (before it was built) has
+to be removed and loaded again from `dist/`. Its ID stays the same.
 
 The first time TaskMint is closed during a capture, Chrome asks
 **"Open TaskMint?"** — check **"Always allow app.dataannotation.tech to open
@@ -62,3 +68,24 @@ taskmint links"** so future launches are silent.
 - **Edge case**: if TaskMint crashes in the instant between accepting a
   payload and importing it, that one delivery is lost — revisit the payments
   page (any change re-delivers) or paste the JSON manually in Payouts.
+
+## Development
+
+The extension is TypeScript in `src/`, bundled by esbuild (`build.mjs`) into
+one classic script per entry, under the names `manifest.json` gives them:
+
+| File | Runs in | What it does |
+|---|---|---|
+| `src/interceptor.ts` | the page's MAIN world, at document start | wraps the page's `fetch` and `XMLHttpRequest` and posts the work-log response to the window |
+| `src/content.ts` | the content script's isolated world | relays those posts to the service worker, and opens `taskmint://` links in the page |
+| `src/background.ts` | the service worker | dedupe, delivery to `127.0.0.1:43117`, the deep-link launch, the retry queue and the badge |
+
+The capture server's port, path and header, and the deep-link names, come from
+`@taskmint/contracts`, so they match the desktop app's. The build copies
+`manifest.json` unchanged: its `key` pins the extension's ID, which the
+desktop app checks, and a test derives the ID from it.
+
+```bash
+pnpm --filter @taskmint/extension build           # dist/
+pnpm --filter @taskmint/extension test:coverage   # vitest at 100%, with a typed chrome.* fake
+```

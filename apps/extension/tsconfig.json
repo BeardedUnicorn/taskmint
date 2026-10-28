@@ -1,0 +1,15 @@
+// The extension's three scripts run in Chrome (a service worker, the page's
+// world, and the content script's), bundled by build.mjs.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      "chrome",
+      "node"
+    ]
+  },
+  "include": [
+    "src",
+    "vitest.config.ts"
+  ]
+}

@@ -464,7 +464,7 @@ apps/web/                    Web app (@taskmint/web): Vite entry, sign-in pages,
   src/httpBackend.ts         The client's Backend: /api/v1/commands, and the event stream
   src/settings/              Account, API tokens, Users and Invites sections
   nginx/                     The image's nginx config
-apps/extension/              Work-log capture extension (MV3)
+apps/extension/              Work-log capture extension (MV3, TypeScript; built into dist/)
 apps/server/                 Server (taskmint-server): axum + Postgres, see "Server" above
   migrations/                SQL migrations, embedded in the binary
   .sqlx/                     Query metadata for offline builds (cargo sqlx prepare)

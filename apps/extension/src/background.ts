@@ -12,20 +12,33 @@
 // awaited inline delays are fine while a handler's promise keeps the worker
 // alive.
 
-const ENDPOINT = 'http://127.0.0.1:43117/api/work-log-payload';
-const SITE_ORIGIN = 'https://app.dataannotation.tech/';
-const RETRY_ALARM = 'taskmint-retry-delivery';
-const BADGE_CLEAR_ALARM = 'taskmint-clear-badge';
+import { CAPTURE, DEEP_LINK } from '@taskmint/contracts';
+import { ignore } from './ignore';
+import { OPEN_DEEP_LINK, WORKLOG_PAYLOAD } from './messages';
+
+const ENDPOINT = `http://127.0.0.1:${CAPTURE.SERVER_PORT}${CAPTURE.PATH}`;
+export const SITE_ORIGIN = 'https://app.dataannotation.tech/';
+export const RETRY_ALARM = 'taskmint-retry-delivery';
+export const BADGE_CLEAR_ALARM = 'taskmint-clear-badge';
 const RETRY_PERIOD_MINUTES = 1;
 // Windows caps process command lines at ~32K chars; stay comfortably under.
-const DEEP_LINK_MAX_URL = 30000;
+export const DEEP_LINK_MAX_URL = 30000;
+export const CAPTURE_PENDING_LINK = `${DEEP_LINK.SCHEME}://${DEEP_LINK.CAPTURE_PENDING}`;
 
-async function sha256Hex(text) {
+/** A payload waiting for TaskMint, kept in storage.local. */
+export interface Capture {
+  payloadText: string;
+  capturedAt: string;
+}
+
+export type BadgeState = 'ok' | 'queued' | 'idle';
+
+export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function gzipBase64Url(text) {
+export async function gzipBase64Url(text: string): Promise<string> {
   const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
   let binary = '';
@@ -36,11 +49,11 @@ async function gzipBase64Url(text) {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function setBadge(state) {
+export async function setBadge(state: BadgeState): Promise<void> {
   if (state === 'ok') {
     await chrome.action.setBadgeText({ text: '✓' });
     await chrome.action.setBadgeBackgroundColor({ color: '#2e7d32' });
@@ -59,12 +72,12 @@ async function setBadge(state) {
   }
 }
 
-async function deliver(payloadText) {
+async function deliver(payloadText: string): Promise<void> {
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-TaskMint-Capture': '1',
+      [CAPTURE.HEADER]: '1',
     },
     body: payloadText,
   });
@@ -73,7 +86,7 @@ async function deliver(payloadText) {
   }
 }
 
-async function markDelivered(payloadText) {
+async function markDelivered(payloadText: string): Promise<void> {
   await chrome.storage.session.set({ lastDeliveredHash: await sha256Hex(payloadText) });
   await chrome.storage.local.remove('pendingCapture');
   await chrome.alarms.clear(RETRY_ALARM);
@@ -86,11 +99,11 @@ async function markDelivered(payloadText) {
  * payload when it fits in a URL (otherwise a data-less capture-pending link —
  * the queued POST delivers the payload once the app is up).
  */
-async function fireDeepLink(payloadText, tabId) {
-  let url = 'taskmint://capture-pending';
+export async function fireDeepLink(payloadText: string, tabId: number | null): Promise<void> {
+  let url = CAPTURE_PENDING_LINK;
   try {
     const encoded = await gzipBase64Url(payloadText);
-    const candidate = `taskmint://import-worklogs?v=1&d=${encoded}`;
+    const candidate = `${DEEP_LINK.SCHEME}://${DEEP_LINK.IMPORT_WORKLOGS}?v=1&${DEEP_LINK.PAYLOAD_PARAM}=${encoded}`;
     if (candidate.length <= DEEP_LINK_MAX_URL) url = candidate;
   } catch {
     /* compression unavailable — fall back to the launch-only link */
@@ -100,7 +113,7 @@ async function fireDeepLink(payloadText, tabId) {
   // to the site origin (and an external scheme never unloads the page).
   if (tabId != null) {
     try {
-      await chrome.tabs.sendMessage(tabId, { type: 'open-deep-link', url });
+      await chrome.tabs.sendMessage(tabId, { type: OPEN_DEEP_LINK, url });
       return;
     } catch {
       /* tab closed or content script gone — fall through */
@@ -109,8 +122,8 @@ async function fireDeepLink(payloadText, tabId) {
   try {
     const tab = await chrome.tabs.create({ url, active: false });
     await sleep(2000);
-    if (tab && tab.id != null) {
-      await chrome.tabs.remove(tab.id).catch(() => {});
+    if (tab.id != null) {
+      await chrome.tabs.remove(tab.id).catch(ignore);
     }
   } catch {
     /* nothing else to try; the retry alarm keeps the payload queued */
@@ -122,7 +135,10 @@ async function fireDeepLink(payloadText, tabId) {
  * alarm, and (for fresh captures only) launch the app via deep link with
  * quick confirmation attempts while it cold-starts.
  */
-async function attemptDelivery(capture, { viaTabId = null, launchIfUnreachable = false } = {}) {
+export async function attemptDelivery(
+  capture: Capture,
+  { viaTabId = null, launchIfUnreachable = false }: { viaTabId?: number | null; launchIfUnreachable?: boolean } = {},
+): Promise<boolean> {
   try {
     await deliver(capture.payloadText);
     await markDelivered(capture.payloadText);
@@ -149,10 +165,10 @@ async function attemptDelivery(capture, { viaTabId = null, launchIfUnreachable =
   }
 }
 
-async function handleCapture(payloadText, tabId) {
+export async function handleCapture(payloadText: string, tabId: number | null): Promise<void> {
   const currentHash = await sha256Hex(payloadText);
   const { lastDeliveredHash } = await chrome.storage.session.get('lastDeliveredHash');
-  const isUnchanged = lastDeliveredHash && lastDeliveredHash === currentHash;
+  const isUnchanged = lastDeliveredHash === currentHash;
 
   if (isUnchanged) {
     // If the payload hasn't changed, deliver if TaskMint is running (e.g. after a data reset in the app),
@@ -168,62 +184,69 @@ async function handleCapture(payloadText, tabId) {
 
   await attemptDelivery(
     { payloadText, capturedAt: new Date().toISOString() },
-    { viaTabId: tabId, launchIfUnreachable: true }
+    { viaTabId: tabId, launchIfUnreachable: true },
   );
 }
 
-async function retryPending() {
+export async function retryPending(): Promise<void> {
   const { pendingCapture } = await chrome.storage.local.get('pendingCapture');
   if (!pendingCapture) {
     await chrome.alarms.clear(RETRY_ALARM);
     await setBadge('idle');
     return;
   }
-  await attemptDelivery(pendingCapture);
+  await attemptDelivery(pendingCapture as Capture);
 }
 
 /** Restore the queued badge after a browser restart cleared it. */
-async function syncBadgeFromQueue() {
+export async function syncBadgeFromQueue(): Promise<void> {
   const { pendingCapture } = await chrome.storage.local.get('pendingCapture');
   if (pendingCapture) {
     await setBadge('queued');
   }
 }
 
-chrome.runtime.onMessage.addListener((message, sender) => {
-  if (!message || message.type !== 'worklog-payload' || typeof message.payloadText !== 'string') {
+/** Forgets what was delivered and queued, then reloads the payments page to capture again. */
+export async function resetAndRecapture(tab: chrome.tabs.Tab): Promise<void> {
+  await chrome.storage.session.remove('lastDeliveredHash');
+  await chrome.storage.local.remove('pendingCapture');
+  await setBadge('idle');
+  if (tab.id != null && tab.url?.startsWith(SITE_ORIGIN)) {
+    await chrome.tabs.reload(tab.id);
+  }
+}
+
+/** A captured payload from the content script, on the site's pages. */
+function isCapture(message: unknown): message is { type: typeof WORKLOG_PAYLOAD; payloadText: string } {
+  const { type, payloadText } = (message ?? {}) as Record<string, unknown>;
+  return type === WORKLOG_PAYLOAD && typeof payloadText === 'string';
+}
+
+chrome.runtime.onMessage.addListener((message: unknown, sender: chrome.runtime.MessageSender) => {
+  if (!isCapture(message) || !sender.url?.startsWith(SITE_ORIGIN)) {
     return;
   }
-  if (!sender.url || !sender.url.startsWith(SITE_ORIGIN)) {
-    return;
-  }
-  handleCapture(message.payloadText, sender.tab && sender.tab.id != null ? sender.tab.id : null)
-    .catch(() => {});
+  handleCapture(message.payloadText, sender.tab?.id ?? null).catch(ignore);
 });
 
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name === RETRY_ALARM) {
-    retryPending().catch(() => {});
+    retryPending().catch(ignore);
   } else if (alarm.name === BADGE_CLEAR_ALARM) {
-    setBadge('idle').catch(() => {});
+    setBadge('idle').catch(ignore);
   }
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  retryPending().catch(() => {});
+  retryPending().catch(ignore);
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  setBadge('idle').catch(() => {});
+  setBadge('idle').catch(ignore);
 });
 
-chrome.action.onClicked.addListener(async tab => {
-  await chrome.storage.session.remove('lastDeliveredHash');
-  await chrome.storage.local.remove('pendingCapture');
-  await setBadge('idle');
-  if (tab && tab.id != null && tab.url && tab.url.startsWith(SITE_ORIGIN)) {
-    chrome.tabs.reload(tab.id);
-  }
+chrome.action.onClicked.addListener(tab => {
+  resetAndRecapture(tab).catch(ignore);
 });
 
-syncBadgeFromQueue().catch(() => {});
+syncBadgeFromQueue().catch(ignore);
