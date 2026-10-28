@@ -7,7 +7,7 @@
  * that out per day before anything is touched.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -46,12 +46,12 @@ import {
   payloadProjects,
   planWorkLogImport,
 } from '../../../utils/workLogImport';
+import type { ImpliedTaskRate } from '../../../utils/workLog/rates';
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { centsToDollars } from '../../../utils/payoutCalculator';
 import { TaskSelector } from '../../ui/forms/TaskSelector';
 
 interface ImportWorkLogsDialogProps {
-  open: boolean;
   onClose: () => void;
   /** Prefills the paste box on open (e.g. a staged browser capture). */
   initialText?: string;
@@ -76,7 +76,6 @@ function signedMinutes(deltaMinutes: number): string {
 }
 
 export function ImportWorkLogsDialog({
-  open,
   onClose,
   initialText,
   existingEntries,
@@ -87,30 +86,13 @@ export function ImportWorkLogsDialog({
   onCreateTask,
   onUpdateTaskRate,
 }: ImportWorkLogsDialogProps) {
-  const [rawText, setRawText] = useState('');
+  // Rendered while open: each opening starts fresh, seeded with any staged
+  // capture (a later change to it doesn't reset what's showing)
+  const [rawText, setRawText] = useState(initialText ?? '');
   const [taskChoices, setTaskChoices] = useState<Record<string, TaskChoice>>({});
   const [updateRates, setUpdateRates] = useState(true);
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<WorkLogImportSummary | null>(null);
-
-  // Latest initialText without re-running the open-reset: re-triggering on an
-  // initialText change would wipe the result view when a successful staged
-  // apply clears the banner while the dialog is still showing its summary.
-  const initialTextRef = useRef(initialText);
-  useEffect(() => {
-    initialTextRef.current = initialText;
-  }, [initialText]);
-
-  // Fresh dialog on every open, seeded with any staged capture.
-  useEffect(() => {
-    if (open) {
-      setRawText(initialTextRef.current ?? '');
-      setTaskChoices({});
-      setUpdateRates(true);
-      setApplying(false);
-      setResult(null);
-    }
-  }, [open]);
 
   const parsed = useMemo(() => parseWorkLogPayload(rawText), [rawText]);
   const hasRecords = parsed.timedEntries.length > 0 || parsed.workLogs.length > 0;
@@ -126,8 +108,9 @@ export function ImportWorkLogsDialog({
     });
   }, [parsed, taskChoices]);
 
-  // The pipeline browser capture uses too
-  const planImport = useCallback(
+  // The pipeline browser capture uses too. Apply sends this plan: it's built
+  // from the props the click handler sees.
+  const plan = useMemo(
     () =>
       planWorkLogImport(parsed, {
         entries: existingEntries,
@@ -139,7 +122,6 @@ export function ImportWorkLogsDialog({
       }),
     [parsed, existingEntries, existingMappings, tasks, sessions, chosenMappings]
   );
-  const plan = useMemo(() => planImport(), [planImport]);
 
   const details = plan.status === 'ready' || plan.status === 'needs-mapping' ? plan : null;
   const unmatched = details?.unmatched ?? [];
@@ -157,24 +139,14 @@ export function ImportWorkLogsDialog({
   const rewriteDayCount = preview.filter(r => r.importedMinutes > 0 && !r.blocked).length;
   const blockedDayCount = preview.filter(r => r.blocked).length;
 
-  const canApply = !applying && plan.status === 'ready';
+  const ready = plan.status === 'ready' ? plan : null;
 
-  const handleApply = async () => {
+  const handleApply = async (payload: WorkLogImportPayload, impliedRates: ImpliedTaskRate[]) => {
     setApplying(true);
     try {
-      // Planned again at click time: sessions refresh (work-logs-imported)
-      // between renders
-      const fresh = planImport();
-      if (fresh.status !== 'ready') return;
-      const summary = await onApply(fresh.payload);
+      const summary = await onApply(payload);
       if (!summary) return; // hook already toasted the error
-
-      if (updateRates) {
-        await applyImpliedRates(tasks, fresh.impliedRates, (taskId, updates) =>
-          onUpdateTaskRate(taskId, updates.hourlyRate ?? 0)
-        );
-      }
-
+      if (updateRates) await applyImpliedRates(tasks, impliedRates, onUpdateTaskRate);
       setResult(summary);
     } finally {
       setApplying(false);
@@ -182,7 +154,7 @@ export function ImportWorkLogsDialog({
   };
 
   return (
-    <Dialog open={open} onClose={applying ? undefined : onClose} maxWidth="md" fullWidth>
+    <Dialog open onClose={applying ? undefined : onClose} maxWidth="md" fullWidth>
       <DialogTitle>Import work logs</DialogTitle>
 
       {result ? (
@@ -399,9 +371,9 @@ export function ImportWorkLogsDialog({
               Cancel
             </Button>
             <Button
-              onClick={handleApply}
+              onClick={ready ? () => void handleApply(ready.payload, ready.impliedRates) : undefined}
               variant="contained"
-              disabled={!canApply}
+              disabled={applying || !ready}
               startIcon={applying ? <CircularProgress size={16} /> : undefined}
             >
               {applying ? 'Applying…' : 'Apply import'}

@@ -1,4 +1,5 @@
 // import React from 'react'; // Commented out unused import
+import { useId } from 'react';
 import {
   Box,
   Stack,
@@ -25,6 +26,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { Task } from '../../../types/task';
+import { TimeEntry } from '../../../types/timer';
 import dayjs, { Dayjs } from 'dayjs';
 import { DateRangePresetSelect } from './DateRangePresetSelect';
 import { DateRangePreset, isDateRangePreset, presetRange } from '../../../utils/dateRanges';
@@ -46,10 +48,10 @@ export interface TimeEntriesFiltersProps {
   tasks: Task[];
   onFiltersChange: (filters: TimeEntriesFiltersState) => void;
   onClearFilters: () => void;
-  isExpanded?: boolean;
-  onToggleExpanded?: () => void;
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
   /** The page's default range: choosing it doesn't count as a filter. */
-  defaultDatePreset?: DateRangePreset | null;
+  defaultDatePreset: DateRangePreset;
 }
 
 export function TimeEntriesFilters({
@@ -57,18 +59,17 @@ export function TimeEntriesFilters({
   tasks,
   onFiltersChange,
   onClearFilters,
-  isExpanded = false,
+  isExpanded,
   onToggleExpanded,
-  defaultDatePreset = null,
+  defaultDatePreset,
 }: TimeEntriesFiltersProps) {
+  const statusLabelId = useId();
   const updateFilters = (updates: Partial<TimeEntriesFiltersState>) => {
     onFiltersChange({ ...filters, ...updates });
   };
 
   // The date range counts as one filter, and not at all when it's the default
-  const rangeIsDefault = defaultDatePreset
-    ? filters.datePreset === defaultDatePreset
-    : !filters.startDate && !filters.endDate;
+  const rangeIsDefault = filters.datePreset === defaultDatePreset;
 
   const activeFiltersCount = [
     filters.searchQuery,
@@ -109,18 +110,16 @@ export function TimeEntriesFilters({
               </Tooltip>
             )}
             
-            {onToggleExpanded && (
-              <Tooltip title={isExpanded ? 'Collapse filters' : 'Expand filters'}>
-                <IconButton
-                  size="small"
-                  aria-label={isExpanded ? 'Collapse filters' : 'Expand filters'}
-                  aria-expanded={isExpanded}
-                  onClick={onToggleExpanded}
-                >
-                  {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                </IconButton>
-              </Tooltip>
-            )}
+            <Tooltip title={isExpanded ? 'Collapse filters' : 'Expand filters'}>
+              <IconButton
+                size="small"
+                aria-label={isExpanded ? 'Collapse filters' : 'Expand filters'}
+                aria-expanded={isExpanded}
+                onClick={onToggleExpanded}
+              >
+                {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            </Tooltip>
           </Stack>
         </Stack>
       </Box>
@@ -141,7 +140,6 @@ export function TimeEntriesFilters({
               onChange={(range, preset) =>
                 updateFilters({ startDate: range.start, endDate: range.end, datePreset: preset })
               }
-              fullWidth
             />
           </Box>
 
@@ -158,11 +156,12 @@ export function TimeEntriesFilters({
 
           <Box sx={{ flex: 1, minWidth: 200 }}>
             <FormControl fullWidth size="small">
-              <InputLabel>Status</InputLabel>
+              <InputLabel id={statusLabelId}>Status</InputLabel>
               <Select
+                labelId={statusLabelId}
                 value={filters.status}
                 label="Status"
-                onChange={(e) => updateFilters({ status: e.target.value as any })}
+                onChange={e => updateFilters({ status: e.target.value as TimeEntriesFiltersState['status'] })}
               >
                 <MenuItem value="all">All Entries</MenuItem>
                 <MenuItem value="completed">Completed</MenuItem>
@@ -236,7 +235,7 @@ export function TimeEntriesFilters({
                   label="End Date"
                   value={filters.endDate}
                   onChange={(date) => updateFilters({ endDate: date as Dayjs | null, datePreset: null })}
-                  minDate={filters.startDate || undefined}
+                  minDate={filters.startDate ?? undefined}
                   slotProps={{
                     textField: {
                       size: 'small',
@@ -253,7 +252,7 @@ export function TimeEntriesFilters({
                   size="small"
                   type="number"
                   label="Min Duration (minutes)"
-                  value={filters.minDuration || ''}
+                  value={filters.minDuration ?? ''}
                   onChange={(e) => {
                     const value = e.target.value ? parseInt(e.target.value) : null;
                     updateFilters({ minDuration: value });
@@ -270,13 +269,13 @@ export function TimeEntriesFilters({
                   size="small"
                   type="number"
                   label="Max Duration (minutes)"
-                  value={filters.maxDuration || ''}
+                  value={filters.maxDuration ?? ''}
                   onChange={(e) => {
                     const value = e.target.value ? parseInt(e.target.value) : null;
                     updateFilters({ maxDuration: value });
                   }}
                   slotProps={{
-                    htmlInput: { min: filters.minDuration || 0 }
+                    htmlInput: { min: filters.minDuration ?? 0 }
                   }}
                 />
               </Box>
@@ -335,10 +334,7 @@ export function hydrateTimeEntriesFilters(
 }
 
 // Helper function to apply filters to time entries
-export function applyTimeEntriesFilters(
-  entries: any[],
-  filters: TimeEntriesFiltersState
-): any[] {
+export function applyTimeEntriesFilters(entries: TimeEntry[], filters: TimeEntriesFiltersState): TimeEntry[] {
   return entries.filter(entry => {
     // Search query filter
     if (filters.searchQuery) {

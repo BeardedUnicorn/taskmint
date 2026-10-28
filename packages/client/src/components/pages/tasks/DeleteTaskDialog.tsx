@@ -20,7 +20,7 @@ interface DeleteTaskDialogProps {
   history: TaskHistory;
   onDelete: (taskId: string) => void;
   /** Offered as the main action when the task has history and isn't archived. */
-  onArchive?: (taskId: string) => void;
+  onArchive: (taskId: string) => void;
   onClose: () => void;
 }
 
@@ -34,7 +34,7 @@ export function DeleteTaskDialog({ task, history, onDelete, onArchive, onClose }
   if (!task) return null;
 
   const hasHistory = history.entryCount > 0;
-  const canArchive = hasHistory && !task.isArchived && !!onArchive;
+  const canArchive = hasHistory && !task.isArchived;
   const entries = `${history.entryCount} time entr${history.entryCount === 1 ? 'y' : 'ies'}`;
 
   const message = hasHistory
@@ -49,7 +49,7 @@ export function DeleteTaskDialog({ task, history, onDelete, onArchive, onClose }
   };
 
   const handleArchive = () => {
-    onArchive?.(task.id);
+    onArchive(task.id);
     onClose();
   };
 

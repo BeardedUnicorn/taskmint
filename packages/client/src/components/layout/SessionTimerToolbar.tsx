@@ -70,12 +70,14 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
     };
   }, [activeSession?.timerInstances]);
 
-  // Work starts from existing tasks only: the picker takes no free text.
-  const handleStart = async () => {
-    if (!selectedTask) return;
-    await onStartTask(selectedTask.id, selectedTask.name);
-    setSelectedTask(null);
-  };
+  // Work starts from existing tasks only: the picker takes no free text,
+  // and Start waits for a pick.
+  const start =
+    selectedTask &&
+    (async () => {
+      await onStartTask(selectedTask.id, selectedTask.name);
+      setSelectedTask(null);
+    });
 
   const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
     setMenuAnchor(event.currentTarget);
@@ -131,8 +133,8 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
               variant="contained"
               color="primary"
               startIcon={<PlayIcon />}
-              onClick={handleStart}
-              disabled={!selectedTask}
+              onClick={start ?? undefined}
+              disabled={!start}
               sx={{ minWidth: 120 }}
             >
               Start

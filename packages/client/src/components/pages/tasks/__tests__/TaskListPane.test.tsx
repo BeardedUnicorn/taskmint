@@ -12,19 +12,6 @@ import '@testing-library/jest-dom/vitest';
 import { TaskListPane } from '../TaskListPane';
 import { Task } from '../../../../types/task';
 
-vi.mock('../../../ui', () => ({
-  SearchListHeader: vi.fn(({ title, searchValue, onSearchChange, actions }) => (
-    <div data-testid="search-list-header">
-      <span>{title}</span>
-      <input
-        aria-label="Search tasks"
-        value={searchValue}
-        onChange={(e) => onSearchChange(e.target.value)}
-      />
-      {actions}
-    </div>
-  )),
-}));
 
 describe('TaskListPane', () => {
   const activeAlpha: Task = {
@@ -150,23 +137,6 @@ describe('TaskListPane', () => {
     expect(defaultProps.onDeleteTask).toHaveBeenCalledWith('task-beta');
 
     expect(defaultProps.onSelectTask).not.toHaveBeenCalled();
-  });
-
-  it('hides action buttons when their callbacks are not provided', () => {
-    render(
-      <TaskListPane
-        {...defaultProps}
-        onEditTask={undefined}
-        onDeleteTask={undefined}
-        onArchiveTask={undefined}
-        onUnarchiveTask={undefined}
-      />
-    );
-
-    expect(screen.queryByLabelText('Edit task')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Delete task')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Archive task')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Unarchive task')).not.toBeInTheDocument();
   });
 
   it('calls onAddClick from the header button', () => {

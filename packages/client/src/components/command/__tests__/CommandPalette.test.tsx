@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { installFakeBackendForTest } from '../../../testing';
 import '@testing-library/jest-dom/vitest';
-import { render, renderHook, screen, fireEvent } from '@testing-library/react';
+import { act, render, renderHook, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { CommandPalette } from '../CommandPalette';
+import { CommandCenter } from '../CommandCenter';
 import { Command, rankCommands, useCommands } from '../commands';
-import { NavigationProvider } from '../../../contexts/NavigationContext';
+import { NavigationProvider, useNavigation } from '../../../contexts/NavigationContext';
+import { isMacPlatform } from '../../../hooks/useKeyboardShortcuts';
 import { TaskSession, TimerState } from '../../../types/timer';
 import { createMockTask, createMockTaskSession, createMockTimerInstance } from '../../../__tests__/setup/session-test-utils';
 
@@ -67,6 +69,29 @@ describe('CommandPalette', () => {
     expect(commands[1].run).toHaveBeenCalled();
   });
 
+  it('does nothing on Enter or the arrows while nothing matches, nor on other keys', () => {
+    const onClose = vi.fn();
+    render(<CommandPalette open onClose={onClose} commands={commands} />);
+    const input = screen.getByRole('combobox', { name: 'Command' });
+
+    fireEvent.keyDown(input, { key: 'a' });
+    fireEvent.change(input, { target: { value: 'qqq' } });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Matching again starts from the top
+    fireEvent.change(input, { target: { value: 'go' } });
+    expect(screen.getByRole('option', { name: /Go to Tasks/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('highlights what the pointer is over', () => {
+    render(<CommandPalette open onClose={vi.fn()} commands={commands} />);
+    fireEvent.mouseMove(screen.getByRole('option', { name: 'Add time' }));
+    expect(screen.getByRole('option', { name: 'Add time' })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('moves the highlight with the arrow keys, wrapping around', () => {
     render(<CommandPalette open onClose={vi.fn()} commands={commands} />);
     const input = screen.getByRole('combobox', { name: 'Command' });
@@ -118,10 +143,8 @@ const taskList = vi.hoisted(() => ({ value: [] as ReturnType<typeof createMockTa
 vi.mock('../../../contexts/TaskManagementContext', () => ({
   useTaskManagementContext: () => ({ tasks: taskList.value }),
 }));
-const toggleTheme = vi.hoisted(() => vi.fn());
-vi.mock('../../../contexts/ThemeContext', () => ({
-  useTheme: () => ({ isDark: true, toggleTheme }),
-}));
+const theme = vi.hoisted(() => ({ isDark: true, toggleTheme: vi.fn() }));
+vi.mock('../../../contexts/ThemeContext', () => ({ useTheme: () => theme }));
 
 describe('useCommands', () => {
   const wrapper = ({ children }: { children: ReactNode }) => <NavigationProvider>{children}</NavigationProvider>;
@@ -136,6 +159,7 @@ describe('useCommands', () => {
     ];
     session.value.sessions = [];
     session.value.activeSession = null;
+    theme.isDark = true;
   });
 
   it('offers pages, settings sections, actions, and a start for each active task, favorites first', () => {
@@ -156,6 +180,23 @@ describe('useCommands', () => {
     expect(byId('settings-appearance')?.hint).toBeUndefined();
     expect(byId('new-task')?.hint).toBeUndefined();
     expect(byId('view-sessions')?.hint).toBeDefined();
+  });
+
+  it('opens pages, settings sections and a new task, and offers the dark theme in the light one', () => {
+    theme.isDark = false;
+    const { result } = renderHook(
+      () => ({ commands: useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), navigation: useNavigation() }),
+      { wrapper }
+    );
+    const run = (id: string) => act(() => result.current.commands.find(command => command.id === id)!.run());
+
+    expect(labels(result.current.commands)).toContain('Switch to dark theme');
+    run('view-history');
+    expect(result.current.navigation.view).toBe('history');
+    run('settings-backups');
+    expect(result.current.navigation).toMatchObject({ view: 'settings', params: { section: 'backups' } });
+    run('new-task');
+    expect(result.current.navigation).toMatchObject({ view: 'tasks', params: { intent: 'new-task' } });
   });
 
   it('starts a task the same way the start picker does', () => {
@@ -187,5 +228,27 @@ describe('useCommands', () => {
     expect(result.current[0].label).toBe('Resume "Review"');
     result.current[0].run();
     expect(session.value.resumeTimerInstance).toHaveBeenCalledWith('p');
+  });
+});
+
+describe('CommandCenter', () => {
+  const modifier = () => (isMacPlatform() ? { metaKey: true } : { ctrlKey: true });
+
+  it('opens the palette on the shortcut, and closes it on the shortcut or Escape', async () => {
+    render(
+      <NavigationProvider>
+        <CommandCenter onStartWork={vi.fn()} onAddTime={vi.fn()} />
+      </NavigationProvider>
+    );
+    const palette = () => screen.queryByRole('dialog', { name: 'Command palette' });
+
+    fireEvent.keyDown(window, { key: 'k', ...modifier() });
+    expect(palette()).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'k', ...modifier() });
+    await waitFor(() => expect(palette()).not.toBeInTheDocument());
+
+    fireEvent.keyDown(window, { key: 'k', ...modifier() });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Command' }), { key: 'Escape' });
+    await waitFor(() => expect(palette()).not.toBeInTheDocument());
   });
 });

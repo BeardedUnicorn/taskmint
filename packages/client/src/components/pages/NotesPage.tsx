@@ -10,7 +10,7 @@
  * - Note editing and deletion
  */
 
-import { useState, useMemo } from 'react';
+import { useId, useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -55,6 +55,8 @@ interface NotesPageProps {
 const NO_SESSIONS: TaskSession[] = [];
 
 export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesPageProps) {
+  const taskFilterLabelId = useId();
+  const templateFilterLabelId = useId();
   // Notes, or the templates they're written from (which used to sit at the
   // bottom of Settings)
   const [tab, setTab] = useState<'notes' | 'templates'>('notes');
@@ -179,10 +181,11 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
     setIsCreatingNewNote(false);
   };
 
-  // The task for new notes: the running timer's, else the first in the picker
+  // The task for new notes: the running timer's, else the first in the
+  // picker (Add Note waits for there to be one)
   const getDefaultTaskId = (): string => {
     if (activeTask && !activeTask.isArchived) return activeTask.id;
-    return pickerTasks[0]?.id ?? '';
+    return pickerTasks[0].id;
   };
 
   return (
@@ -254,8 +257,9 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
 
               {/* Task Filter */}
               <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Filter by Task</InputLabel>
+                <InputLabel id={taskFilterLabelId}>Filter by Task</InputLabel>
                 <Select
+                  labelId={taskFilterLabelId}
                   value={selectedTaskFilter}
                   label="Filter by Task"
                   onChange={(e) => setSelectedTaskFilter(e.target.value)}
@@ -271,8 +275,9 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
 
               {/* Template Filter */}
               <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Filter by Template</InputLabel>
+                <InputLabel id={templateFilterLabelId}>Filter by Template</InputLabel>
                 <Select
+                  labelId={templateFilterLabelId}
                   value={selectedTemplateFilter}
                   label="Filter by Template"
                   onChange={(e) => setSelectedTemplateFilter(e.target.value)}

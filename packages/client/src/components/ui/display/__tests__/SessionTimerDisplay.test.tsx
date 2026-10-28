@@ -87,6 +87,14 @@ describe('SessionTimerDisplay', () => {
       expect(screen.getAllByText('Running').length).toBeGreaterThan(0);
     });
 
+    it('shows a session that is no longer active without its Active chip', () => {
+      const ended = { ...sessionWith({ state: TimerState.stopped, duration: 60_000 }), isActive: false };
+      render(<SessionTimerDisplay {...mockProps} session={ended} />);
+
+      expect(screen.queryByText('Active')).not.toBeInTheDocument();
+      expect(screen.queryByText('Running')).not.toBeInTheDocument();
+    });
+
     it('shows the live session total derived from the shared clock', () => {
       render(<SessionTimerDisplay {...mockProps} />);
 

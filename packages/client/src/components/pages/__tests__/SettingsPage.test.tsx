@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
+import { useEffect } from 'react';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { SettingsPage, SETTINGS_SECTIONS, currentSection } from '../SettingsPage';
-import { NavigationProvider } from '../../../contexts/NavigationContext';
+import { NavigationProvider, useNavigation } from '../../../contexts/NavigationContext';
 import { AppExtensionsProvider } from '../../../app/extensions';
 import { installFakeBackendForTest } from '../../../testing';
 
@@ -87,5 +88,73 @@ describe('SettingsPage', () => {
       'Account',
     ]);
     expect(document.getElementById('settings-account')).toHaveTextContent('Account section');
+  });
+
+  it('opens at the section asked for, then forgets the request', async () => {
+    let params: unknown;
+    function OpenAtPayouts() {
+      const navigation = useNavigation();
+      params = navigation.params;
+      useEffect(() => navigation.navigate('settings', { section: 'payouts' }), []); // eslint-disable-line react-hooks/exhaustive-deps
+      return <SettingsPage />;
+    }
+    render(<OpenAtPayouts />, { wrapper: NavigationProvider });
+
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+    await waitFor(() => expect(within(nav).getByRole('button', { name: 'Payouts' })).toHaveAttribute('aria-current', 'location'));
+    expect(document.getElementById('settings-payouts')!.scrollIntoView).toHaveBeenCalled();
+    expect(params).toEqual({});
+  });
+
+  describe('following the scroll', () => {
+    const tops: Record<string, number> = { appearance: -600, payouts: 40 };
+    const place = () => {
+      for (const { id } of SETTINGS_SECTIONS) {
+        const element = document.getElementById(`settings-${id}`)!;
+        element.getBoundingClientRect = () => ({ top: tops[id] ?? 900 }) as DOMRect;
+      }
+    };
+    const current = () =>
+      within(screen.getByRole('navigation', { name: 'Settings sections' }))
+        .getAllByRole('button')
+        .find(button => button.getAttribute('aria-current') === 'location')?.textContent;
+
+    it('marks the section reached, and the last one at the bottom', async () => {
+      const { container } = render(<SettingsPage />, { wrapper: NavigationProvider });
+      place();
+      const scroller = container.parentElement!;
+      Object.defineProperties(scroller, {
+        scrollHeight: { value: 2000, configurable: true },
+        clientHeight: { value: 500, configurable: true },
+        scrollTop: { value: 0, writable: true, configurable: true },
+      });
+
+      fireEvent.scroll(scroller);
+      await waitFor(() => expect(current()).toBe('Payouts'));
+
+      scroller.scrollTop = 1500;
+      fireEvent.scroll(scroller);
+      await waitFor(() => expect(current()).toBe(SETTINGS_SECTIONS.at(-1)!.label));
+    });
+
+    it('follows a scroll of the window too', async () => {
+      render(<SettingsPage />, { wrapper: NavigationProvider });
+      place();
+
+      act(() => {
+        window.dispatchEvent(new Event('scroll'));
+      });
+      await waitFor(() => expect(current()).not.toBe('Appearance'));
+    });
+
+    it('keeps the section clicked while the page scrolls there', async () => {
+      const { container } = render(<SettingsPage />, { wrapper: NavigationProvider });
+      place();
+      fireEvent.click(screen.getByRole('button', { name: 'Backups' }));
+
+      fireEvent.scroll(container.parentElement!);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(current()).toBe('Backups');
+    });
   });
 });

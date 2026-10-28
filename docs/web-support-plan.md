@@ -1,6 +1,6 @@
 # Web support plan (approved 2026-10-25)
 
-Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target) P14a (client utils, services, types and theme at 100%), P14b (client hooks at 100%) and P14c (client contexts and notifications at 100%) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
+Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target), P14a (client utils, services, types and theme at 100%), P14b (client hooks at 100%), P14c (client contexts and notifications at 100%) and P14d (client components, pages and App at 100%: the whole client) are done; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 
 ## Context
@@ -586,6 +586,36 @@ Device settings (theme, filters, backup schedule, idle) stay in localStorage, pe
 - **Tests:**
   - The notification tests read toasts from the screen, as the user sees them.
   - New provider tests prove each shared provider hands out one instance and that its hook needs it.
+
+**As built in P14d:**
+- **Gate:** the client is at 100/100/100/100 across 1472 tests in 138 files, from 1661 uncovered items in 68 files at the start of the slice. The preset no longer takes `thresholds` or `fullyCovered`: every package gets 100, and none can pass less.
+- **Fixed on the way:**
+  - The time entries built from sessions carried their start and end as strings, though typed as `Date`s. They're converted where they're built (`sessionsToTimeEntries`), so History, the CSV export and the task pane no longer re-parse them.
+  - On History, deleting the last entry of the last page left an empty page. It now shows the page before.
+  - Editing a free-form note showed an empty editor: the note's stored template is the built-in free-form one, which has no fields. The editor now treats it as free text and shows it.
+  - New notes were offered deactivated templates. The picker now lists the active ones only.
+  - The template builder sorted its fields during render, in place, but moved them by their position in state, so a field could swap with the wrong neighbour. It sorts once when a template is selected.
+  - A template field's limit of 0 showed as empty (`|| ''`), and its drag handle did nothing; the limit shows, and the handle is gone.
+  - The "Per page", "Status", "Field Type", "Filter by Task" and "Filter by Template" selects, and the template preview's select, weren't linked to their labels, so a screen reader announced no name. Each now pairs `InputLabel` and `Select` through `useId`.
+  - The command palette's `aria-label` sat on MUI's outer wrapper, so the element with `role="dialog"` had no name. It's on the paper now.
+- **Deleted, unused:**
+  - The props no caller passes: `ErrorBoundary`'s `fallback`, `onError`, `enableAutoRecovery`, `maxRecoveryAttempts` and `recoveryDelay` (now constants); `FieldEditor`'s `onCopyFieldValue`; `TaskSelector`'s `disabled`, `error`, `helperText`, `sx` and `timeEntries` (and with it the last-used sort); `CurrencyInput`'s `currency`, `placeholder`, `fullWidth`, `min`, `max` and `step`; `SearchListHeader`'s `searchFieldProps`; the timer displays' `size`; `EarningsDisplay`'s `showCurrency`, `color` and `sx`; `DateRangePresetSelect`'s `fullWidth` and `today`; and `ButtonColor`.
+  - `ConfirmDialog`'s `confirmColor`: the colour follows `severity`.
+  - The calendar's view switching and navigation callbacks: it only ever offers the month view.
+- **Deleted, unreachable:**
+  - Optional handlers every caller passes, made required down the tree: the History, Tasks and Sessions pages' props, the task panes' handlers, `DeleteTaskDialog`'s `onArchive`, the notes' archive handlers, and `SessionList`'s `onCreateSession`.
+  - The `open` prop and reset effects of dialogs that are mounted only while open (`EditTimeEntryDialog`, `SessionNotesDialog`, `StartWorkDialog`, `AddTimeDialog`, `ImportWorkLogsDialog`, `FormDialog`, and the builder's, mappings card's and task edit's confirms).
+  - Guards behind disabled buttons (the builder's save-name check, the start dialogs' no-task check), `NoteFieldInput`'s `default` case (the schema pins the field type), the settings sections' try/catch around calls that can't throw, the bell's lookup of an action its own button holds, and `?? []`/`?.` on required fields.
+- **Simplified:**
+  - The three History charts share `ChartParts`; `TimeEntriesTable` and `GoalAchievementsTable` are driven by column and kind tables.
+  - `exportableEntries` and `entryEnd` (`FinishedTimeEntry`) serve the CSV export and the task pane alike.
+  - `CurrencyInput` keeps a typed amount valid through `cleanAmount`; `applyImpliedRates` hands its callback the rate itself.
+  - The sessions list's menu is its own `SessionMenu`, mounted while open.
+  - `ErrorBoundary` and `StartupError` reload through `reloadApp`, like the rest of the app.
+- **Tests:**
+  - `App.test.tsx` runs the real app on a fake backend: every page, starting work, adding time, editing an entry, and the archived-task hand-off.
+  - Recharts renders in jsdom with `ResponsiveContainer` mocked to a fixed size and reduced motion on, so labels draw without animating. MUI X pickers are driven through their calendar, or typed into with `userEvent`.
+  - `setupTests.ts` stubs `Element.prototype.scrollIntoView`, so components call it unguarded.
 
 ## 9. CI (`.github/workflows/ci.yml`)
 

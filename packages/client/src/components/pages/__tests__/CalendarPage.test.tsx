@@ -54,6 +54,10 @@ vi.mock('react-big-calendar', () => ({
         <div data-testid="day-prop-getter-test">
           {dayPropGetter && JSON.stringify(dayPropGetter(new Date('2024-01-01')))}
         </div>
+        {/* The shown month's first day */}
+        <div data-testid="first-day-style">
+          {JSON.stringify(dayPropGetter(new Date(date.getFullYear(), date.getMonth(), 1)))}
+        </div>
       </div>
     );
   },
@@ -616,6 +620,17 @@ describe('CalendarPage', () => {
       expect(within(worked).getByText('1h 0m')).toBeInTheDocument();
       expect(within(worked).getByText('~$50.00')).toBeInTheDocument();
       expect(within(dialog).queryByRole('table', { name: 'Released' })).not.toBeInTheDocument();
+    });
+
+    it('marks a day worked, and closes its breakdown', async () => {
+      mockSessionContext.sessions = entriesToSessions([oneHourOn('1', '01')]);
+      renderCalendarPage();
+      await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+      expect(screen.getByTestId('first-day-style').textContent).not.toContain('transparent');
+
+      fireEvent.click(screen.getByTestId(`calendar-event-${month()}-01`));
+      fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     });
 
     it('lists what a release day releases', async () => {

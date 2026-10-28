@@ -31,7 +31,6 @@ describe('StartWorkDialog', () => {
   const renderDialog = (dialogTasks: Task[] = tasks) =>
     render(
       <StartWorkDialog
-        open
         onClose={onClose}
         tasks={dialogTasks}
         sessions={[]}

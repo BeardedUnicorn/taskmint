@@ -91,8 +91,8 @@ export interface NoteItemProps {
   taskName?: string;
   onEdit: (note: TaskNote) => void;
   onDelete: (noteId: string) => void;
-  onArchive?: (noteId: string) => void;
-  onUnarchive?: (noteId: string) => void;
+  onArchive: (noteId: string) => void;
+  onUnarchive: (noteId: string) => void;
   showLevelIndicator?: boolean;
 }
 
@@ -234,19 +234,17 @@ export function NoteItem({
           <EditIcon fontSize="small" sx={{ mr: 1 }} />
           Edit Note
         </MenuItem>
-        {note.isArchived
-          ? onUnarchive && (
-              <MenuItem onClick={run(() => onUnarchive(note.id))}>
-                <UnarchiveIcon fontSize="small" sx={{ mr: 1 }} />
-                Unarchive Note
-              </MenuItem>
-            )
-          : onArchive && (
-              <MenuItem onClick={run(() => onArchive(note.id))}>
-                <ArchiveIcon fontSize="small" sx={{ mr: 1 }} />
-                Archive Note
-              </MenuItem>
-            )}
+        {note.isArchived ? (
+          <MenuItem onClick={run(() => onUnarchive(note.id))}>
+            <UnarchiveIcon fontSize="small" sx={{ mr: 1 }} />
+            Unarchive Note
+          </MenuItem>
+        ) : (
+          <MenuItem onClick={run(() => onArchive(note.id))}>
+            <ArchiveIcon fontSize="small" sx={{ mr: 1 }} />
+            Archive Note
+          </MenuItem>
+        )}
         <Divider />
         <MenuItem onClick={run(() => onDelete(note.id))} sx={{ color: 'error.main' }}>
           <DeleteIcon fontSize="small" sx={{ mr: 1 }} />

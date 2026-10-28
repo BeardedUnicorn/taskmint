@@ -7,7 +7,7 @@
  * the daily goal's results over the range.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useId, useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -61,10 +61,10 @@ interface HistoryPageProps {
   onUpdateEntry: (data: EditTimeEntryData) => void;
   onDeleteEntry: (entryId: string) => void;
   /** Opens the Add Time dialog (time logged after the fact). */
-  onAddTime?: () => void;
+  onAddTime: () => void;
   /** Open on all of this task's entries (from the Tasks page), then forget it. */
-  focusTask?: Task | null;
-  onFocusApplied?: () => void;
+  focusTask: Task | null;
+  onFocusApplied: () => void;
 }
 
 const ENTRIES_PER_PAGE_OPTIONS = [10, 25, 50, 100];
@@ -75,7 +75,7 @@ export function HistoryPage({
   onUpdateEntry,
   onDeleteEntry,
   onAddTime,
-  focusTask = null,
+  focusTask,
   onFocusApplied,
 }: HistoryPageProps) {
   // State management (the key predates History: Time Entries' saved filters carry over)
@@ -89,6 +89,7 @@ export function HistoryPage({
     [storedFilters, tasks]
   );
   const { exportCsv, isExporting } = useCsvExport();
+  const perPageLabelId = useId();
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [sortField, setSortField] = useLocalStorage<SortField>('timeEntriesSortField', 'startTime');
   const [sortDirection, setSortDirection] = useLocalStorage<SortDirection>('timeEntriesSortDirection', 'desc');
@@ -115,7 +116,7 @@ export function HistoryPage({
       startDate: null,
       endDate: null,
     });
-    onFocusApplied?.();
+    onFocusApplied();
   }, [focusTask, setFilters, onFocusApplied]);
 
   // Filter, then sort the whole list, then paginate — sorting after the
@@ -129,9 +130,11 @@ export function HistoryPage({
     [filteredEntries, tasks, sortField, sortDirection]
   );
 
-  // Pagination
+  // Pagination. Deleting the last entry of the last page leaves that page
+  // empty: show the one before it.
   const totalPages = Math.ceil(sortedEntries.length / entriesPerPage);
-  const startIndex = (currentPage - 1) * entriesPerPage;
+  const page = Math.min(currentPage, Math.max(totalPages, 1));
+  const startIndex = (page - 1) * entriesPerPage;
   const endIndex = startIndex + entriesPerPage;
   const paginatedEntries = sortedEntries.slice(startIndex, endIndex);
 
@@ -159,8 +162,6 @@ export function HistoryPage({
   };
 
   const handleSaveEdit = (data: EditTimeEntryData) => {
-    if (!editingEntry) return;
-
     // The session hook reports how the save went (success or the error)
     onUpdateEntry(data);
     setEditingEntry(null);
@@ -206,11 +207,9 @@ export function HistoryPage({
         subtitle="Everything you've tracked, added and imported, with totals and charts"
         actions={
           <>
-            {onAddTime && (
-              <Button variant="contained" startIcon={<AddTimeIcon />} onClick={onAddTime}>
-                Add time
-              </Button>
-            )}
+            <Button variant="contained" startIcon={<AddTimeIcon />} onClick={onAddTime}>
+              Add time
+            </Button>
             <Button
               variant="outlined"
               startIcon={<DownloadIcon />}
@@ -269,8 +268,9 @@ export function HistoryPage({
             </Typography>
 
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Per page</InputLabel>
+              <InputLabel id={perPageLabelId}>Per page</InputLabel>
               <Select
+                labelId={perPageLabelId}
                 value={entriesPerPage}
                 label="Per page"
                 onChange={handleEntriesPerPageChange}
@@ -293,9 +293,6 @@ export function HistoryPage({
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={handleSort}
-            showEarnings={true}
-            showNotes={false}
-            maxHeight={600}
           />
 
           {/* Pagination */}
@@ -303,7 +300,7 @@ export function HistoryPage({
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
               <Pagination
                 count={totalPages}
-                page={currentPage}
+                page={page}
                 onChange={handlePageChange}
                 color="primary"
                 showFirstButton
@@ -330,14 +327,11 @@ export function HistoryPage({
       {/* Edit Dialog */}
       {editingEntry && (
         <EditTimeEntryDialog
-          open={true}
           entry={{
             id: editingEntry.id,
             taskId: findTaskFor(editingEntry, tasks)?.id ?? editingEntry.taskId ?? '',
             durationMs: getEntryElapsedMs(editingEntry),
-            startTime: editingEntry.startTime
-              ? new Date(editingEntry.startTime).toISOString()
-              : undefined,
+            startTime: editingEntry.startTime.toISOString(),
           }}
           onSave={handleSaveEdit}
           onClose={() => setEditingEntry(null)}

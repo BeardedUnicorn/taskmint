@@ -46,4 +46,17 @@ describe('ConfirmDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).not.toBeDisabled());
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('closes right after a confirm that returns nothing, and on Cancel', () => {
+    const onConfirm = vi.fn();
+    const onClose = vi.fn();
+    render(<ConfirmDialog {...base} cancelLabel="Keep" onConfirm={onConfirm} onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(onConfirm).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
 });

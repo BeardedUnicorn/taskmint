@@ -169,8 +169,8 @@ export interface NotesListProps {
   onDeleteNote: (noteId: string) => void;
   /** An Add Note button, where the list is the place to add from. */
   onCreateNote?: () => void;
-  onArchiveNote?: (noteId: string) => void;
-  onUnarchiveNote?: (noteId: string) => void;
+  onArchiveNote: (noteId: string) => void;
+  onUnarchiveNote: (noteId: string) => void;
 }
 
 export interface FieldEditorProps {
@@ -178,7 +178,6 @@ export interface FieldEditorProps {
   onUpdateField: (field: TemplateField) => void;
   onDeleteField: (fieldId: string) => void;
   onMoveField: (fieldId: string, direction: 'up' | 'down') => void;
-  onCopyFieldValue?: (fieldId: string) => void;
   isFirst: boolean;
   isLast: boolean;
 }

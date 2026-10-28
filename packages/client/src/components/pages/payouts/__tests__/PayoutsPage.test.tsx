@@ -43,8 +43,9 @@ vi.mock('../../../../contexts/TaskManagementContext', () => ({
   useTaskManagementContext: () => mockTaskContext,
 }));
 
+const mockFundsRelease = vi.hoisted(() => ({ days: 7 }));
 vi.mock('../../../../hooks/useFundsReleaseSettings', () => ({
-  useFundsReleaseSettings: () => ({ days: 7, updateDays: vi.fn() }),
+  useFundsReleaseSettings: () => ({ days: mockFundsRelease.days, updateDays: vi.fn() }),
 }));
 
 /** Local YYYY-MM-DD for today + offset days (calendar-safe across DST). */
@@ -100,6 +101,7 @@ describe('PayoutsPage', () => {
     };
     mockSessionContext.sessions = [];
     mockTaskContext.tasks = [];
+    mockFundsRelease.days = 7;
   });
 
   it('splits imported money into available and pending by release day', () => {
@@ -432,6 +434,98 @@ describe('PayoutsPage', () => {
         })
       );
       expect(await screen.findByText('"Test Project" now goes to "Other Task".')).toBeInTheDocument();
+    });
+  });
+
+  describe('the page around the import', () => {
+    // An entry from a project no task matches yet
+    const payload = JSON.stringify({
+      timedWorkEntries: [
+        {
+          type: 'TimedWorkEntry',
+          id: 'entry-1',
+          createdAt: '2026-08-26T20:00:00.000Z',
+          timeInMinutes: 240,
+          reportedTimeInMinutes: null,
+          status: 'Pending Approval',
+          amountInCents: 30000,
+          project: { id: 'proj-1', name: 'Raccoon - SWE', hasHourlyPrice: true, isDeleted: false },
+        },
+      ],
+    });
+    const summary = { entriesAdded: 1, entriesUpdated: 0, mappingsSaved: 1, groupsApplied: [], groupsSkipped: [] };
+    const openImport = async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /import work logs/i }).at(-1)!);
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.change(within(dialog).getByLabelText(/paste the site's json payload/i), { target: { value: payload } });
+      return dialog;
+    };
+
+    it('counts a running timer toward today, second by second', () => {
+      const running = stoppedSessionOn(0, 'task-1', 1);
+      running.timerInstances[0] = { ...running.timerInstances[0], state: TimerState.running, isRunning: true, endTime: undefined, duration: undefined };
+      mockSessionContext.sessions = [running];
+      mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Task task-1', hourlyRate: 60 })];
+      render(<PayoutsPage />);
+
+      expect(screen.getByText('Daily reconciliation')).toBeInTheDocument();
+      expect(screen.getAllByText('Estimate').length).toBeGreaterThan(0);
+    });
+
+    it('says money is available a day later, for one day', () => {
+      mockFundsRelease.days = 1;
+      render(<PayoutsPage />);
+      expect(screen.getByText(/becomes available 1 day later/)).toBeInTheDocument();
+    });
+
+    it('shows progress while the first work logs load', () => {
+      mockWorkLogsReturn.isLoading = true;
+      render(<PayoutsPage />);
+      expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    });
+
+    it('closes the import without importing', async () => {
+      render(<PayoutsPage />);
+      const dialog = await openImport();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it("creates a task for a new project, and says so when it couldn't", async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockAddTask.mockResolvedValueOnce(null).mockResolvedValueOnce(createMockTask({ id: 'new', name: 'Raccoon' }));
+      render(<PayoutsPage />);
+      const dialog = await openImport();
+      const create = async () => {
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Create New Task' }));
+        fireEvent.change(within(dialog).getByLabelText('New Task Name'), { target: { value: 'Raccoon' } });
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Create Task' }));
+      };
+
+      await create();
+      await waitFor(() => expect(error).toHaveBeenCalledWith('Failed to create new task:', expect.any(Error)));
+      // The name is kept for another try
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Create Task' }));
+      await waitFor(() => expect(mockAddTask).toHaveBeenCalledTimes(2));
+      expect(within(dialog).getByRole('combobox', { name: 'Task' })).toHaveValue('Raccoon');
+      error.mockRestore();
+    });
+
+    it("retires a staged capture once it's applied, and sets the site's rate", async () => {
+      mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Raccoon - SWE' })];
+      vi.mocked(mockWorkLogsReturn.applyImport).mockResolvedValueOnce(null).mockResolvedValueOnce(summary);
+      render(<PayoutsPage />);
+      const dialog = await openImport();
+      const apply = within(dialog).getByRole('button', { name: /apply import/i });
+
+      fireEvent.click(apply);
+      await waitFor(() => expect(mockWorkLogsReturn.applyImport).toHaveBeenCalledTimes(1));
+      expect(mockWorkLogsReturn.clearStagedCapture).not.toHaveBeenCalled();
+
+      await waitFor(() => expect(apply).toBeEnabled());
+      fireEvent.click(apply);
+      await waitFor(() => expect(mockWorkLogsReturn.clearStagedCapture).toHaveBeenCalled());
+      expect(mockUpdateTask).toHaveBeenCalledWith('task-1', { hourlyRate: 75 });
     });
   });
 });

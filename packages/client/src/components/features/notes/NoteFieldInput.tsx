@@ -119,7 +119,6 @@ export const NoteFieldInput = memo(function NoteFieldInput({ field, value, error
         </FormControl>
       );
     }
-    default:
-      return null;
+    // (Saved templates are checked against these five types when they're read)
   }
 });

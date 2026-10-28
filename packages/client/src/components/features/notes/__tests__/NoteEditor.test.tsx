@@ -501,6 +501,39 @@ describe('NoteEditor', () => {
     expect(onUpdateNote).toHaveBeenCalledTimes(2);
   });
 
+  it("edits a free-form note's text when given the built-in free-form template", async () => {
+    const builtIn: NoteTemplate = {
+      id: 'free-form',
+      name: 'Free-form Note',
+      fields: [],
+      isActive: false,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+    const freeFormNote: TaskNote = {
+      ...existingTemplateNote,
+      templateId: 'free-form',
+      templateName: 'Free-form Note',
+      fieldValues: { content: 'Reviewed batch 4' },
+    };
+    render(
+      <NoteEditor
+        taskId="task1"
+        template={builtIn}
+        existingNote={freeFormNote}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={mockOnUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        autoSaveDisabled
+        noteLevel="task"
+      />
+    );
+
+    expect(screen.getByLabelText('Note Content')).toHaveValue('Reviewed batch 4');
+  });
+
   it('never saves an empty free-form note; Save just closes', async () => {
     mockOnSaveNote.mockClear();
     const onCloseEditor = vi.fn();

@@ -15,14 +15,23 @@ import { TimeEntry } from '../../../types/timer';
 
 // Mock the task detail pane
 vi.mock('../tasks/TaskDetailPane', () => ({
-  TaskDetailPane: vi.fn(({ task, onEditEntry, onDeleteEntry }) => (
-    <div data-testid="task-detail-pane">
-      <h3>{task.name} Details</h3>
-      {task.isArchived && <span data-testid="detail-archived-flag">Archived Detail</span>}
-      <button onClick={() => onEditEntry({ id: 'entry1', taskName: task.name })}>Edit Entry</button>
-      <button onClick={() => onDeleteEntry('entry1')}>Delete Entry</button>
-    </div>
-  )),
+  TaskDetailPane: vi.fn(({ task, onEditEntry, onDeleteEntry, onToggleFavorite }) => {
+    const startTime = new Date('2024-01-01T10:00:00Z');
+    return (
+      <div data-testid="task-detail-pane">
+        <h3>{task.name} Details</h3>
+        {task.isArchived && <span data-testid="detail-archived-flag">Archived Detail</span>}
+        <button onClick={() => onEditEntry({ id: 'entry1', taskName: task.name, startTime })}>Edit Entry</button>
+        {/* Entries of a deleted task, and of none */}
+        <button onClick={() => onEditEntry({ id: 'entry2', taskName: 'Gone', taskId: 'deleted-task', startTime })}>
+          Edit Orphan Entry
+        </button>
+        <button onClick={() => onEditEntry({ id: 'entry3', taskName: 'Gone', startTime })}>Edit Unlinked Entry</button>
+        <button onClick={() => onDeleteEntry('entry1')}>Delete Entry</button>
+        <button onClick={() => onToggleFavorite(task.id)}>Favorite</button>
+      </div>
+    );
+  }),
 }));
 
 // Mock the task form dialog used for both add and edit modes
@@ -48,9 +57,10 @@ vi.mock('../tasks/TaskFormDialog', () => ({
 }));
 
 vi.mock('../../ui/dialogs/EditTimeEntryDialog', () => ({
-  EditTimeEntryDialog: vi.fn(({ open, onSave, onClose }) =>
-    open ? (
+  EditTimeEntryDialog: vi.fn(({ entry, onSave, onClose }) =>
+    entry ? (
       <div data-testid="edit-time-entry-dialog">
+        <span data-testid="entry-task">{entry.taskId}</span>
         <button onClick={() => onSave({ id: 'entry1', taskName: 'Updated Task', durationMs: 3600000 })}>Save Entry</button>
         <button onClick={onClose}>Close</button>
       </div>
@@ -133,6 +143,12 @@ describe('TasksPage - Task List Layout', () => {
     onUnarchiveTask: vi.fn(),
     onUpdateEntry: vi.fn(),
     onDeleteEntry: vi.fn(),
+    onToggleFavorite: vi.fn(),
+    onStartTask: vi.fn(),
+    runningTaskId: null,
+    onViewHistory: vi.fn(),
+    newTaskRequested: false,
+    onNewTaskRequestHandled: vi.fn(),
   };
 
   beforeEach(() => {
@@ -275,6 +291,17 @@ describe('TasksPage - Task List Layout', () => {
       await waitFor(() => {
         expect(mockProps.onDeleteTask).toHaveBeenCalledWith('task2');
       });
+    });
+
+    it("doesn't suggest archiving a task that already is", async () => {
+      const oldEntry = { ...mockTimeEntries[0], id: 'old-entry', taskName: 'Old Task' };
+      render(<TasksPage {...mockProps} tasks={[...mockTasks, archivedTask]} timeEntries={[...mockTimeEntries, oldEntry]} />);
+
+      fireEvent.click(screen.getAllByLabelText('Delete task')[2]);
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText(/1 time entry/)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/Archive it instead/)).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole('button', { name: 'Archive instead' })).not.toBeInTheDocument();
     });
 
     it('does nothing when cancelled', async () => {
@@ -459,6 +486,82 @@ describe('TasksPage - Task List Layout', () => {
 
     await waitFor(() => {
       expect(screen.getByText('New Task Details')).toBeInTheDocument();
+    });
+  });
+
+  describe('the rest of what the page wires up', () => {
+    it('falls back to an archived task once no active one is left', async () => {
+      const { rerender } = render(<TasksPage {...mockProps} />);
+      rerender(<TasksPage {...mockProps} tasks={[archivedTask]} />);
+      expect(await screen.findByText('Old Task Details')).toBeInTheDocument();
+    });
+
+    it('keeps the selection when another task is edited, or a save comes back empty', async () => {
+      const onUpdateTask = vi.fn().mockResolvedValue(null);
+      render(<TasksPage {...mockProps} onUpdateTask={onUpdateTask} />);
+
+      fireEvent.click(screen.getAllByLabelText('Edit task')[1]);
+      fireEvent.click(await screen.findByText('Save Changes'));
+      await waitFor(() => expect(onUpdateTask).toHaveBeenCalledWith('task2', expect.anything()));
+      expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
+    });
+
+    it('keeps a task selected when deleting it failed', async () => {
+      const onDeleteTask = vi.fn().mockRejectedValue(new Error('locked'));
+      render(<TasksPage {...mockProps} onDeleteTask={onDeleteTask} />);
+
+      fireEvent.click(screen.getAllByLabelText('Delete task')[0]);
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete anyway' }));
+
+      await waitFor(() => expect(onDeleteTask).toHaveBeenCalledWith('task1'));
+      expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
+    });
+
+    it('drops a delete whose task went away meanwhile', async () => {
+      const { rerender } = render(<TasksPage {...mockProps} />);
+      fireEvent.click(screen.getAllByLabelText('Delete task')[1]);
+      await screen.findByRole('dialog');
+
+      rerender(<TasksPage {...mockProps} tasks={[mockTasks[0]]} />);
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('closes each dialog it opens', async () => {
+      render(<TasksPage {...mockProps} />);
+
+      fireEvent.click(screen.getByText('Add Task'));
+      fireEvent.click(within(await screen.findByTestId('add-task-dialog')).getByText('Close'));
+      fireEvent.click(screen.getAllByLabelText('Edit task')[0]);
+      fireEvent.click(within(await screen.findByTestId('edit-task-dialog')).getByText('Close'));
+      fireEvent.click(screen.getByText('Edit Entry'));
+      fireEvent.click(within(await screen.findByTestId('edit-time-entry-dialog')).getByText('Close'));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('add-task-dialog')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('edit-task-dialog')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('edit-time-entry-dialog')).not.toBeInTheDocument();
+      });
+    });
+
+    it('stars the selected task', () => {
+      render(<TasksPage {...mockProps} />);
+      fireEvent.click(screen.getByText('Favorite'));
+      expect(mockProps.onToggleFavorite).toHaveBeenCalledWith('task1');
+    });
+
+    it("edits an entry under its task, a deleted task's id, or none", async () => {
+      render(<TasksPage {...mockProps} />);
+
+      for (const [button, taskId] of [
+        ['Edit Entry', 'task1'],
+        ['Edit Orphan Entry', 'deleted-task'],
+        ['Edit Unlinked Entry', ''],
+      ]) {
+        fireEvent.click(screen.getByText(button));
+        expect(await screen.findByTestId('entry-task')).toHaveTextContent(taskId === '' ? /^$/ : taskId);
+        fireEvent.click(screen.getByText('Close'));
+        await waitFor(() => expect(screen.queryByTestId('edit-time-entry-dialog')).not.toBeInTheDocument());
+      }
     });
   });
 });

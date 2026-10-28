@@ -90,7 +90,7 @@ vi.mock('../../contexts/TaskManagementContext', () => ({
 }));
 
 const renderDashboard = () =>
-  render(<SessionDashboard />, {
+  render(<SessionDashboard onStartWork={() => {}} onAddTime={() => {}} />, {
     wrapper: ({ children }) => (
       <ActiveTimerProvider>
         <TaskNotesProvider>
@@ -416,7 +416,6 @@ describe('Session System Integration', () => {
           session={activeSession}
           nowMs={Date.now()}
           showControls
-          size="large"
           onStartTimer={vi.fn()}
           onStopTimer={onStopTimer}
           onPauseTimer={onPauseTimer}

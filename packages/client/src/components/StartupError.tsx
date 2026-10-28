@@ -6,6 +6,7 @@
 
 import type { ComponentType } from 'react';
 import { getBackend } from '../backend';
+import { reloadApp } from '../utils/appReload';
 
 interface StartupErrorProps {
   message: string;
@@ -53,7 +54,7 @@ export function StartupError({ message, Actions }: StartupErrorProps) {
       </pre>
       <button
         type="button"
-        onClick={() => window.location.reload()}
+        onClick={reloadApp}
         style={{ marginTop: 8, padding: '8px 16px', fontSize: 14, cursor: 'pointer' }}
       >
         Try again

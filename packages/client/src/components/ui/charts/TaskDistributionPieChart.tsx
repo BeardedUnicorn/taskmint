@@ -1,88 +1,63 @@
-// import React from 'react'; // Commented out unused import
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-} from 'recharts';
-import { useTheme } from '@mui/material/styles';
-import { Box, Typography } from '@mui/material';
-import { generateChartColors, formatTimeForChart } from '../../../utils/chartDataHelpers';
+/** Each task's share of the time, as a pie. */
 
-interface TaskDistributionData {
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, type PieLabelRenderProps } from 'recharts';
+import { useTheme } from '@mui/material/styles';
+import { Box } from '@mui/material';
+import { generateChartColors, formatTimeForChart } from '../../../utils/chartDataHelpers';
+import {
+  CHART_HEIGHT,
+  ChartLegend,
+  ChartTitle,
+  ChartTooltipCard,
+  ChartTooltipProps,
+  hoveredPoint,
+} from './ChartParts';
+
+interface TaskShare {
   name: string;
-  value: number; // hours
+  /** Hours */
+  value: number;
   percentage: number;
 }
 
-interface TaskDistributionPieChartProps {
-  data: TaskDistributionData[];
-  height?: number;
-  title?: string;
-  showPercentages?: boolean;
+/** Slices smaller than this carry no percentage label (it wouldn't fit). */
+const MIN_LABELED_SHARE = 0.05;
+
+export function TaskShareTooltip(props: ChartTooltipProps<TaskShare>) {
+  const share = hoveredPoint(props);
+  if (!share) return null;
+  return (
+    <ChartTooltipCard
+      title={share.name}
+      lines={[`Time: ${formatTimeForChart(share.value * 60 * 60 * 1000)}`, `Percentage: ${share.percentage.toFixed(1)}%`]}
+    />
+  );
 }
 
-export function TaskDistributionPieChart({
-  data,
-  height = 400,
-  title = 'Task Time Distribution',
-  showPercentages = true,
-}: TaskDistributionPieChartProps) {
+interface SliceLabelProps {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+}
+
+export function TaskDistributionPieChart({ data }: { data: TaskShare[] }) {
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
 
-  // Generate colors for pie slices
   const colors = generateChartColors(data.length);
-
-  // Prepare data with colors
-  const chartData = data.map((item, index) => ({
-    ...item,
-    color: colors[index],
-  }));
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <Box
-          sx={{
-            backgroundColor: isDarkMode ? '#333333' : '#ffffff',
-            border: `1px solid ${isDarkMode ? '#555555' : '#cccccc'}`,
-            borderRadius: 1,
-            p: 2,
-            boxShadow: 2,
-          }}
-        >
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-            {data.name}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Time: {formatTimeForChart(data.value * 1000 * 60 * 60)}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Percentage: {data.percentage.toFixed(1)}%
-          </Typography>
-        </Box>
-      );
-    }
-    return null;
-  };
-
-  const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
-    if (!showPercentages || percent < 0.05) return null; // Don't show labels for slices < 5%
-    
-    const RADIAN = Math.PI / 180;
+  const SliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: SliceLabelProps) => {
+    if (percent < MIN_LABELED_SHARE) return null;
+    const radians = (-midAngle * Math.PI) / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
+    const x = cx + radius * Math.cos(radians);
+    const y = cy + radius * Math.sin(radians);
     return (
       <text
         x={x}
         y={y}
-        fill={isDarkMode ? '#ffffff' : '#000000'}
+        fill={theme.palette.text.primary}
         textAnchor={x > cx ? 'start' : 'end'}
         dominantBaseline="central"
         fontSize={12}
@@ -93,99 +68,31 @@ export function TaskDistributionPieChart({
     );
   };
 
-  const CustomLegend = ({ payload }: any) => {
-    if (!payload || payload.length === 0) return null;
-    
-    return (
-      <Box sx={{ mt: 2 }}>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 1,
-            maxHeight: 120,
-            overflowY: 'auto',
-          }}
-        >
-          {payload.map((entry: any, index: number) => (
-            <Box
-              key={index}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                p: 0.5,
-              }}
-            >
-              <Box
-                sx={{
-                  width: 12,
-                  height: 12,
-                  backgroundColor: entry.color,
-                  borderRadius: '50%',
-                  flexShrink: 0,
-                }}
-              />
-              <Typography
-                variant="caption"
-                sx={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  flex: 1,
-                }}
-                title={entry.value}
-              >
-                {entry.value}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-      </Box>
-    );
-  };
-
-  if (data.length === 0) {
-    return (
-      <Box
-        sx={{
-          height,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'text.secondary',
-        }}
-      >
-        <Typography variant="body1">No data available</Typography>
-      </Box>
-    );
-  }
-
   return (
     <Box>
-      <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, textAlign: 'center' }}>
-        {title}
-      </Typography>
-      <ResponsiveContainer width="100%" height={height}>
+      <ChartTitle>Task Time Distribution</ChartTitle>
+      <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <PieChart>
           <Pie
-            data={chartData}
+            data={data}
             cx="50%"
             cy="50%"
             labelLine={false}
-            label={CustomLabel}
-            outerRadius={Math.min(height * 0.3, 120)}
-            fill="#8884d8"
+            // A rendered slice's label always gets its geometry (typed optional)
+            label={(props: PieLabelRenderProps) => SliceLabel(props as SliceLabelProps)}
+            outerRadius={120}
             dataKey="value"
-            stroke={isDarkMode ? '#333333' : '#ffffff'}
+            stroke={theme.palette.background.paper}
             strokeWidth={2}
           >
-            {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
+            {data.map((share, index) => (
+              <Cell key={share.name} fill={colors[index]} />
             ))}
           </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend content={<CustomLegend />} />
+          <Tooltip content={<TaskShareTooltip />} />
+          <Legend
+            content={<ChartLegend shape="dot" items={data.map((share, index) => ({ label: share.name, color: colors[index] }))} />}
+          />
         </PieChart>
       </ResponsiveContainer>
     </Box>

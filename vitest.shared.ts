@@ -7,23 +7,12 @@
 import { defineConfig, type ViteUserConfig } from 'vitest/config';
 import policy from './coverage-policy.json';
 
-interface Thresholds {
-  branches: number;
-  functions: number;
-  lines: number;
-  statements: number;
-}
-
 export interface TaskmintTestOptions {
   /** The package's path from the repo root, as listed in coverage-policy.json. */
   packageDir: string;
   environment: 'jsdom' | 'node';
   plugins?: ViteUserConfig['plugins'];
   setupFiles?: string[];
-  /** Floors under 100, only while a package is still ratcheting up. */
-  thresholds?: Thresholds;
-  /** While it ratchets: globs already at 100%, held there. */
-  fullyCovered?: string[];
 }
 
 const packages: Record<string, { glob: string }[]> = policy.typescript.packages;
@@ -33,8 +22,6 @@ export function defineTaskmintConfig({
   environment,
   plugins,
   setupFiles,
-  thresholds,
-  fullyCovered = [],
 }: TaskmintTestOptions) {
   const own = packages[packageDir];
   if (!own) {
@@ -55,9 +42,7 @@ export function defineTaskmintConfig({
         reporter: ['text', 'json', 'html'],
         include: ['src/**/*.{ts,tsx}'],
         exclude: [...policy.typescript.allPackages, ...own].map(entry => entry.glob),
-        thresholds: thresholds
-          ? { ...thresholds, ...Object.fromEntries(fullyCovered.map(glob => [glob, { 100: true }])) }
-          : { 100: true },
+        thresholds: { 100: true },
       },
     },
   });

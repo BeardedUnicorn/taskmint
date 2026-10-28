@@ -30,34 +30,23 @@ import { formatDate } from '../../../utils/formatters';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { formatClockTime } from '../../../utils/locale';
 
+/** Rendered while a session's notes are open. */
 interface SessionNotesDialogProps {
-  open: boolean;
   onClose: () => void;
-  session: TaskSession | null;
+  session: TaskSession;
   /** Opened from this timer: new notes are timer notes for it. */
-  timerInstanceId?: string | null;
+  timerInstanceId: string | null;
   tasks: Task[];
 }
 
-export function SessionNotesDialog({
-  open,
-  onClose,
-  session,
-  timerInstanceId = null,
-  tasks,
-}: SessionNotesDialogProps) {
+export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }: SessionNotesDialogProps) {
   const { notes, createNote, updateNote, deleteNote, archiveNote, unarchiveNote } = useTaskNotes();
   const { getTemplateById } = useNoteTemplates();
   // The note open in the editor: a new one, an existing one, or none
   const [editing, setEditing] = useState<TaskNote | 'new' | null>(null);
   const [editorCollapsed, setEditorCollapsed] = useState(false);
 
-  const sessionNotes = useMemo(
-    () => (session ? notes.filter(note => note.sessionId === session.id) : []),
-    [notes, session]
-  );
-
-  if (!session) return null;
+  const sessionNotes = useMemo(() => notes.filter(note => note.sessionId === session.id), [notes, session]);
 
   const task = tasks.find(t => t.id === session.taskId);
   const timer = timerInstanceId
@@ -87,7 +76,7 @@ export function SessionNotesDialog({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+    <Dialog open onClose={handleClose} maxWidth="md" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <NotesIcon />

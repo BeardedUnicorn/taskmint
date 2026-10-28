@@ -145,6 +145,10 @@ export function sessionsToTimeEntries(sessions: TaskSession[]): TimeEntry[] {
     .flatMap(s =>
       s.timerInstances.map(i => ({
         ...i,
+        // As TimeEntry has them: times as dates, no duration while it runs
+        startTime: new Date(i.startTime),
+        endTime: i.endTime ? new Date(i.endTime) : undefined,
+        duration: i.duration ?? undefined,
         taskName: s.taskName,
         taskId: s.taskId,
         hourlyRate: s.hourlyRate ?? null,

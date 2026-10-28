@@ -18,6 +18,7 @@ import {
   Autorenew as AutorenewIcon,
 } from '@mui/icons-material';
 import { captureException, addBreadcrumb, setContext } from '../utils/sentry';
+import { reloadApp } from '../utils/appReload';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -26,72 +27,40 @@ interface ErrorBoundaryState {
   showDetails: boolean;
   isRecovering: boolean;
   recoveryAttempts: number;
-  maxRecoveryAttempts: number;
 }
 
 interface ErrorBoundaryProps {
   children: ReactNode;
-  fallback?: ReactNode;
-  onError?: (error: Error, errorInfo: ErrorInfo) => void;
-  enableAutoRecovery?: boolean;
-  maxRecoveryAttempts?: number;
-  recoveryDelay?: number;
   /** 'page': fills its page instead of the window, so the sidebar stays usable. */
   level?: 'app' | 'page';
 }
 
-/**
- * Global Error Boundary Component
- * 
- * Catches JavaScript errors anywhere in the child component tree,
- * logs those errors, and displays a fallback UI instead of the component tree that crashed.
- */
+/** Automatic retries before the error stays up, each this long after the last. */
+export const MAX_RECOVERY_ATTEMPTS = 3;
+export const RECOVERY_DELAY_MS = 3000;
 /** How long the children must render without an error before auto-recovery starts counting afresh. */
-const STABLE_RESET_MS = 10_000;
+export const STABLE_RESET_MS = 10_000;
 
+/**
+ * Catches errors anywhere in its children, reports them, and shows what went
+ * wrong in their place, retrying a few times on its own before leaving it to
+ * Try Again or a reload.
+ */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private recoveryTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stableTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      showDetails: false,
-      isRecovering: false,
-      recoveryAttempts: 0,
-      maxRecoveryAttempts: props.maxRecoveryAttempts || 3,
-    };
-  }
+  state: ErrorBoundaryState = { hasError: false, showDetails: false, isRecovering: false, recoveryAttempts: 0 };
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
-    // Update state so the next render will show the fallback UI
-    return {
-      hasError: true,
-      error,
-    };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log error details
     console.error('Error caught by ErrorBoundary:', error);
     console.error('Error info:', errorInfo);
-
-    // Update state with error info
-    this.setState({
-      error,
-      errorInfo,
-    });
-
-    // Call custom error handler if provided
-    if (this.props.onError) {
-      this.props.onError(error, errorInfo);
-    }
-
-    // In a real app, you might want to send this to an error reporting service
+    this.setState({ error, errorInfo });
     this.logErrorToService(error, errorInfo);
-
-    // Attempt auto-recovery for certain types of errors
     this.attemptAutoRecovery();
   }
 
@@ -112,9 +81,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentWillUnmount() {
-    if (this.recoveryTimeoutId) {
-      clearTimeout(this.recoveryTimeoutId);
-    }
+    if (this.recoveryTimeoutId) clearTimeout(this.recoveryTimeoutId);
     this.clearStableTimeout();
   }
 
@@ -126,7 +93,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   private logErrorToService = (error: Error, errorInfo: ErrorInfo) => {
-    // Prepare error context for Sentry
     const errorReport = {
       message: error.message,
       stack: error.stack,
@@ -136,34 +102,22 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       url: window.location.href,
       recoveryAttempts: this.state.recoveryAttempts,
     };
-
     console.error('Error Report:', errorReport);
-
-    // Add breadcrumb for error context
-    addBreadcrumb(
-      'Error caught by ErrorBoundary',
-      'error',
-      'error',
-      {
-        errorMessage: error.message,
-        recoveryAttempts: this.state.recoveryAttempts,
-      }
-    );
-
-    // Set additional context for this error
+    addBreadcrumb('Error caught by ErrorBoundary', 'error', 'error', {
+      errorMessage: error.message,
+      recoveryAttempts: this.state.recoveryAttempts,
+    });
     setContext('errorBoundary', {
       componentStack: errorInfo.componentStack,
       recoveryAttempts: this.state.recoveryAttempts,
-      maxRecoveryAttempts: this.state.maxRecoveryAttempts,
+      maxRecoveryAttempts: MAX_RECOVERY_ATTEMPTS,
       timestamp: errorReport.timestamp,
     });
-
-    // Send error to Sentry
     captureException(error, errorReport);
   };
 
   /** Render the children again. Automatic retries keep their count, so a
-   * persistent error stops after maxRecoveryAttempts instead of looping. */
+   * persistent error stops after MAX_RECOVERY_ATTEMPTS instead of looping. */
   private resetBoundary = (resetAttempts: boolean) => {
     this.setState(prev => ({
       hasError: false,
@@ -175,52 +129,27 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }));
   };
 
-  private handleRetry = () => {
-    if (this.recoveryTimeoutId) {
-      clearTimeout(this.recoveryTimeoutId);
-      this.recoveryTimeoutId = null;
-    }
-    this.resetBoundary(true);
-  };
+  // (Try Again is disabled while an automatic retry is pending)
+  private handleRetry = () => this.resetBoundary(true);
 
   private attemptAutoRecovery = () => {
-    const { enableAutoRecovery = true, recoveryDelay = 3000 } = this.props;
-    const { recoveryAttempts, maxRecoveryAttempts } = this.state;
+    const { recoveryAttempts } = this.state;
+    if (recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) return;
 
-    if (!enableAutoRecovery || recoveryAttempts >= maxRecoveryAttempts) {
-      return;
-    }
-
-    this.setState({
-      isRecovering: true,
-      recoveryAttempts: recoveryAttempts + 1,
-    });
-
+    this.setState({ isRecovering: true, recoveryAttempts: recoveryAttempts + 1 });
     this.recoveryTimeoutId = setTimeout(() => {
       this.recoveryTimeoutId = null;
-      console.warn(`ErrorBoundary: retrying (${recoveryAttempts + 1}/${maxRecoveryAttempts})`);
+      console.warn(`ErrorBoundary: retrying (${recoveryAttempts + 1}/${MAX_RECOVERY_ATTEMPTS})`);
       this.resetBoundary(false);
-    }, recoveryDelay);
-  };
-
-  private handleReload = () => {
-    window.location.reload();
+    }, RECOVERY_DELAY_MS);
   };
 
   private toggleDetails = () => {
-    this.setState(prevState => ({
-      showDetails: !prevState.showDetails,
-    }));
+    this.setState(prevState => ({ showDetails: !prevState.showDetails }));
   };
 
   render() {
     if (this.state.hasError) {
-      // Custom fallback UI if provided
-      if (this.props.fallback) {
-        return this.props.fallback;
-      }
-
-      // Default error UI
       return (
         <Box
           sx={{
@@ -257,7 +186,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                     <Stack spacing={1}>
                       <Typography variant="body2">
                         <AutorenewIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                        Attempting automatic recovery... ({this.state.recoveryAttempts}/{this.state.maxRecoveryAttempts})
+                        Attempting automatic recovery... ({this.state.recoveryAttempts}/{MAX_RECOVERY_ATTEMPTS})
                       </Typography>
                       <LinearProgress />
                     </Stack>
@@ -265,10 +194,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 )}
 
                 {/* Recovery Exhausted */}
-                {this.state.recoveryAttempts >= this.state.maxRecoveryAttempts && !this.state.isRecovering && (
+                {this.state.recoveryAttempts >= MAX_RECOVERY_ATTEMPTS && !this.state.isRecovering && (
                   <Alert severity="warning" sx={{ width: '100%' }}>
                     <Typography variant="body2">
-                      Automatic recovery failed after {this.state.maxRecoveryAttempts} attempts.
+                      Automatic recovery failed after {MAX_RECOVERY_ATTEMPTS} attempts.
                       Please try manual recovery or reload the page.
                     </Typography>
                   </Alert>
@@ -287,7 +216,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
                   <Button
                     variant="outlined"
-                    onClick={this.handleReload}
+                    onClick={reloadApp}
                     color="secondary"
                     disabled={this.state.isRecovering}
                   >
@@ -374,4 +303,3 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 }
 
-export default ErrorBoundary;

@@ -81,9 +81,9 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
       .filter(task => !task.isArchived || task.id === mapping.taskId)
       .sort((a, b) => a.name.localeCompare(b.name));
 
+  // (The select offers listed tasks only, and reports only a change)
   const handleChange = (mapping: ProjectTaskMapping, taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task || task.id === mapping.taskId) return;
+    const task = tasks.find(t => t.id === taskId)!;
     const plan = buildRemapPlan({
       projectId: mapping.projectId,
       newTask: task,
@@ -99,16 +99,14 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
     setPending({ mapping, task, plan });
   };
 
-  const handleConfirm = async () => {
-    if (!pending) return;
+  const handleConfirm = async ({ mapping, task, plan }: PendingRemap) => {
     const summary = await onApply({
-      entries: pending.plan.entries,
-      mappings: pending.plan.mappings,
-      rewriteGroups: pending.plan.groups,
+      entries: plan.entries,
+      mappings: plan.mappings,
+      rewriteGroups: plan.groups,
       isRemap: true,
     });
     if (!summary) return; // the failure is already shown
-    const { mapping, task } = pending;
     if (summary.groupsSkipped.length > 0) {
       showWarning(
         `Some days weren't moved: ${summary.groupsSkipped.map(g => `${g.workDay} (${g.reason})`).join('; ')}`,
@@ -177,15 +175,17 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
         </Table>
       </Collapse>
 
-      <ConfirmDialog
-        open={pending !== null}
-        title={pending ? `Move "${pending.mapping.projectName}" to "${pending.task.name}"?` : ''}
-        message={pending ? remapMessage(pending) : ''}
-        confirmLabel="Move"
-        severity="warning"
-        onConfirm={() => void handleConfirm()}
-        onClose={() => setPending(null)}
-      />
+      {pending && (
+        <ConfirmDialog
+          open
+          title={`Move "${pending.mapping.projectName}" to "${pending.task.name}"?`}
+          message={remapMessage(pending)}
+          confirmLabel="Move"
+          severity="warning"
+          onConfirm={() => handleConfirm(pending)}
+          onClose={() => setPending(null)}
+        />
+      )}
     </Paper>
   );
 }

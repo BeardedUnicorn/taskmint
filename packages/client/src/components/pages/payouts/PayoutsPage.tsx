@@ -194,18 +194,19 @@ export function PayoutsPage() {
         onApply={workLogs.applyImport}
       />
 
-      <ImportWorkLogsDialog
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        initialText={workLogs.stagedCapture?.payloadText}
-        existingEntries={workLogs.entries}
-        existingMappings={workLogs.mappings}
-        sessions={sessions}
-        tasks={tasks}
-        onApply={handleApplyImport}
-        onCreateTask={handleCreateTask}
-        onUpdateTaskRate={(taskId, rate) => updateTask(taskId, { hourlyRate: rate })}
-      />
+      {importOpen && (
+        <ImportWorkLogsDialog
+          onClose={() => setImportOpen(false)}
+          initialText={workLogs.stagedCapture?.payloadText}
+          existingEntries={workLogs.entries}
+          existingMappings={workLogs.mappings}
+          sessions={sessions}
+          tasks={tasks}
+          onApply={handleApplyImport}
+          onCreateTask={handleCreateTask}
+          onUpdateTaskRate={(taskId, rate) => updateTask(taskId, { hourlyRate: rate })}
+        />
+      )}
     </PageContainer>
   );
 }

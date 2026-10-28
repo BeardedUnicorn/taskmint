@@ -7,9 +7,10 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, waitFor } from '../../../../__tests__/setup/test-helpers';
 import { ImportWorkLogsDialog } from '../ImportWorkLogsDialog';
-import { WorkLogImportPayload, WorkLogImportSummary } from '../../../../types/workLog';
+import { WORKLOG_IMPORT_SOURCE, WorkLogImportPayload, WorkLogImportSummary } from '../../../../types/workLog';
 import { deriveTimedWorkDay } from '../../../../utils/workLogImport';
-import { createMockTask } from '../../../../__tests__/setup/session-test-utils';
+import { createMockTask, createMockTaskSession, createMockTimerInstance } from '../../../../__tests__/setup/session-test-utils';
+import { TimerState } from '../../../../types/timer';
 
 const emptySummary: WorkLogImportSummary = {
   entriesAdded: 1,
@@ -39,7 +40,6 @@ const samplePayload = JSON.stringify({
 function renderDialog(overrides: Partial<Parameters<typeof ImportWorkLogsDialog>[0]> = {}) {
   const onApply = vi.fn(async (_payload: WorkLogImportPayload) => emptySummary);
   const props = {
-    open: true,
     onClose: vi.fn(),
     existingEntries: [],
     existingMappings: [],
@@ -186,13 +186,169 @@ describe('ImportWorkLogsDialog', () => {
     expect(screen.getByRole('button', { name: /apply import/i })).toBeEnabled();
   });
 
-  it('resets to an empty paste box when reopened without initialText', () => {
-    const { rerender, props } = renderDialog({ initialText: samplePayload });
+  it('opens with an empty paste box again once closed (the page mounts it while open)', () => {
+    const { unmount } = renderDialog({ initialText: samplePayload });
     expect(screen.getByLabelText(/paste the site's json payload/i)).toHaveValue(samplePayload);
 
-    rerender(<ImportWorkLogsDialog {...props} initialText={undefined} open={false} />);
-    rerender(<ImportWorkLogsDialog {...props} initialText={undefined} open={true} />);
-
+    unmount();
+    renderDialog();
     expect(screen.getByLabelText(/paste the site's json payload/i)).toHaveValue('');
+  });
+
+  it("keeps what's showing when the staged capture changes while it's open", () => {
+    const { rerender, props } = renderDialog({ initialText: samplePayload });
+    rerender(<ImportWorkLogsDialog {...props} initialText={undefined} />);
+    expect(screen.getByLabelText(/paste the site's json payload/i)).toHaveValue(samplePayload);
+  });
+
+  describe('the preview and the result', () => {
+    // The imported entry: 4h ending at CREATED_AT, on its local day
+    const end = new Date(CREATED_AT);
+    const start = new Date(end.getTime() - 240 * 60_000);
+    const tracked = (minutes: number, overrides = {}) =>
+      createMockTaskSession({
+        id: 's1',
+        taskId: 'task-1',
+        taskName: 'Raccoon - SWE',
+        timerInstances: [
+          createMockTimerInstance({
+            id: 'i1',
+            sessionId: 's1',
+            startTime: start.toISOString(),
+            endTime: new Date(start.getTime() + minutes * 60_000).toISOString(),
+            duration: minutes * 60_000,
+            ...overrides,
+          }),
+        ],
+      });
+    const row = () => screen.getByText(deriveTimedWorkDay(CREATED_AT, 240)).closest('tr')!;
+
+    it('shows no difference when the day already has the same time tracked', () => {
+      renderDialog({ sessions: [tracked(240)] });
+      pasteText(samplePayload);
+      expect(row()).toHaveTextContent('±0m');
+    });
+
+    it('shows less imported than tracked as a negative difference', () => {
+      renderDialog({ sessions: [tracked(300)] });
+      pasteText(samplePayload);
+      expect(row()).toHaveTextContent('−1h 0m');
+    });
+
+    it('warns that a day with a live timer is skipped', () => {
+      renderDialog({
+        sessions: [
+          tracked(0, {
+            state: TimerState.running,
+            isRunning: true,
+            endTime: undefined,
+            duration: undefined,
+          }),
+        ],
+      });
+      pasteText(samplePayload);
+      expect(screen.getByText(/1 day will be skipped while a timer is active/)).toBeInTheDocument();
+    });
+
+    it('marks a day imported before as overwritten', () => {
+      // Imported days are their session's date
+      const imported = { ...tracked(120), source: WORKLOG_IMPORT_SOURCE, date: deriveTimedWorkDay(CREATED_AT, 240) };
+      renderDialog({ sessions: [imported] });
+      pasteText(samplePayload);
+      expect(screen.getByText('overwrites previous import')).toBeInTheDocument();
+    });
+
+    it('counts each day a live or paused timer blocks', () => {
+      const nextDay = new Date(new Date(CREATED_AT).getTime() + 24 * 60 * 60_000).toISOString();
+      const twoDays = JSON.stringify({
+        timedWorkEntries: [
+          JSON.parse(samplePayload).timedWorkEntries[0],
+          { ...JSON.parse(samplePayload).timedWorkEntries[0], id: 'entry-2', createdAt: nextDay },
+        ],
+      });
+      const live = (id: string, at: string, state: TimerState) =>
+        createMockTaskSession({
+          id,
+          taskId: 'task-1',
+          taskName: 'Raccoon - SWE',
+          timerInstances: [
+            createMockTimerInstance({
+              id: `${id}-i`,
+              sessionId: id,
+              startTime: new Date(new Date(at).getTime() - 60 * 60_000).toISOString(),
+              state,
+              isRunning: state === TimerState.running,
+              isPaused: state === TimerState.paused,
+              endTime: undefined,
+              duration: undefined,
+            }),
+          ],
+        });
+      renderDialog({
+        sessions: [live('a', CREATED_AT, TimerState.running), live('b', nextDay, TimerState.paused)],
+      });
+      pasteText(twoDays);
+      expect(screen.getByText(/2 days will be skipped while a timer is active/)).toBeInTheDocument();
+    });
+
+    it("says how many records it couldn't read", () => {
+      renderDialog();
+      const records = (count: number) =>
+        JSON.stringify({ timedWorkEntries: Array.from({ length: count }, (_, i) => ({ type: 'TimedWorkEntry', id: `bad-${i}` })) });
+
+      pasteText(records(1));
+      expect(screen.getByText(/1 record could not be read/)).toBeInTheDocument();
+      pasteText(records(2));
+      expect(screen.getByText(/2 records could not be read/)).toBeInTheDocument();
+    });
+
+    it("shows a task's current rate beside the site's", () => {
+      renderDialog({ tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 60 })] });
+      pasteText(samplePayload);
+      expect(screen.getByText(/\$60\.00\/hr → \$75\.00\/hr/)).toBeInTheDocument();
+    });
+
+    it('leaves rates alone when asked to', async () => {
+      const { props } = renderDialog();
+      pasteText(samplePayload);
+      fireEvent.click(screen.getByRole('checkbox', { name: /use the site's rate/i }));
+      fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
+
+      await waitFor(() => expect(props.onApply).toHaveBeenCalled());
+      expect(await screen.findByText(/Imported 1 new/)).toBeInTheDocument();
+      expect(props.onUpdateTaskRate).not.toHaveBeenCalled();
+    });
+
+    it('stays on the preview when the import fails (the hook said why)', async () => {
+      const { props } = renderDialog({ onApply: vi.fn(async () => null) });
+      pasteText(samplePayload);
+      fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
+
+      await waitFor(() => expect(props.onApply).toHaveBeenCalled());
+      expect(screen.getByRole('button', { name: /apply import/i })).toBeEnabled();
+      expect(props.onUpdateTaskRate).not.toHaveBeenCalled();
+    });
+
+    it('counts several entries and one rewritten day', async () => {
+      const summary = {
+        ...emptySummary,
+        entriesAdded: 1,
+        entriesUpdated: 1,
+        groupsApplied: [{ taskId: 'task-1', workDay: '2026-08-26' }],
+      } as unknown as WorkLogImportSummary;
+      renderDialog({ onApply: vi.fn(async () => summary) });
+      pasteText(samplePayload);
+      fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
+
+      expect(await screen.findByText(/existing entries; 1 day was rewritten/)).toBeInTheDocument();
+    });
+
+    it('keeps a typed name that is no task as unresolved', () => {
+      renderDialog({ tasks: [createMockTask({ id: 'other', name: 'Unrelated Task' })] });
+      pasteText(samplePayload);
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Task' }), { target: { value: 'Not a task' } });
+      expect(screen.getByRole('button', { name: /apply import/i })).toBeDisabled();
+    });
   });
 });

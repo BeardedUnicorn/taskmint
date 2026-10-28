@@ -23,14 +23,11 @@ export function ConfirmDialog({
   open,
   onClose,
   onConfirm,
-  onCancel,
   title,
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
-  confirmColor,
   severity = 'warning',
-  sx,
 }: ConfirmDialogProps) {
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -51,39 +48,12 @@ export function ConfirmDialog({
     }
   };
 
-  const handleCancel = () => {
-    if (isConfirming) return;
-    if (onCancel) {
-      onCancel();
-    }
-    onClose();
-  };
-
-  const getConfirmButtonColor = () => {
-    // Use confirmColor prop if provided, otherwise fall back to severity-based logic
-    if (confirmColor) {
-      return confirmColor;
-    }
-
-    switch (severity) {
-      case 'error':
-        return 'error';
-      case 'warning':
-        return 'warning';
-      case 'info':
-        return 'primary';
-      default:
-        return 'primary';
-    }
-  };
-
   return (
     <Dialog
       open={open}
       onClose={isConfirming ? undefined : onClose}
       maxWidth="sm"
       fullWidth
-      sx={sx}
     >
       <DialogTitle>{title}</DialogTitle>
       
@@ -97,7 +67,7 @@ export function ConfirmDialog({
       
       <DialogActions>
         <Button
-          onClick={handleCancel}
+          onClick={onClose}
           color="secondary"
           disabled={isConfirming}
           autoFocus={severity === 'error'}
@@ -107,7 +77,7 @@ export function ConfirmDialog({
         <Button
           onClick={() => void handleConfirm()}
           variant="contained"
-          color={getConfirmButtonColor()}
+          color={severity}
           disabled={isConfirming}
           autoFocus={severity !== 'error'}
           startIcon={isConfirming ? <CircularProgress size={16} color="inherit" /> : undefined}

@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { reloadApp } from '../../utils/appReload';
 import { installFakeBackendForTest } from '../../testing';
 import { StartupError } from '../StartupError';
+
+vi.mock('../../utils/appReload', () => ({ reloadApp: vi.fn() }));
 
 describe('StartupError', () => {
   it("names where the data is kept, and offers the shell's ways out", () => {
@@ -20,5 +23,11 @@ describe('StartupError', () => {
     );
     expect(screen.getByRole('alert')).toHaveTextContent('kept on your TaskMint server');
     expect(screen.getByRole('button', { name: 'Use the data on this computer' })).toBeInTheDocument();
+  });
+
+  it('tries starting again', () => {
+    render(<StartupError message="disk unplugged" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(reloadApp).toHaveBeenCalled();
   });
 });

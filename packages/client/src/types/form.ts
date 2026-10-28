@@ -8,54 +8,37 @@
 import { ReactNode } from 'react';
 import { SxProps, Theme } from '@mui/material';
 import { Task } from './task';
-import { TimeEntry } from './timer';
 
 // Form Input Types
 export interface TaskSelectorProps {
+  /** The task name chosen or typed */
   value: string;
   onChange: (value: string, task?: Task | null) => void;
   predefinedTasks: Task[];
-  onCreateNewTask?: (taskName: string) => Promise<Task>;
-  disabled?: boolean;
-  error?: boolean;
-  helperText?: string;
-  placeholder?: string;
-  sx?: SxProps<Theme>;
-  timeEntries?: TimeEntry[];
+  onCreateNewTask: (taskName: string) => Promise<Task>;
+  placeholder: string;
 }
 
 export interface CurrencyInputProps {
-  value: string | number;
+  /** The amount as typed */
+  value: string;
   onChange: (value: string) => void;
-  label?: string;
-  placeholder?: string;
-  currency?: string;
-  error?: boolean;
+  label: string;
+  error: boolean;
   helperText?: string;
   disabled?: boolean;
-  fullWidth?: boolean;
-  min?: number;
-  max?: number;
-  step?: number;
   sx?: SxProps<Theme>;
   onBlur?: () => void;
   onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 // Dialog Types
+/** An open dialog around a form, with Cancel and Save. */
 export interface FormDialogProps {
-  open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
-  onSubmit?: () => void;
-  onCancel?: () => void;
-  submitLabel?: string;
-  cancelLabel?: string;
-  submitDisabled?: boolean;
-  maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  fullWidth?: boolean;
-  sx?: SxProps<Theme>;
+  onSubmit: () => void;
 }
 
 export interface ConfirmDialogProps {
@@ -63,21 +46,19 @@ export interface ConfirmDialogProps {
   onClose: () => void;
   /** May return a promise: the dialog waits for it, closing when it resolves and staying open if it rejects. */
   onConfirm: () => void | Promise<void>;
-  onCancel?: () => void;
   title: string;
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  confirmColor?: 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success';
-  severity?: 'warning' | 'error' | 'info';
-  sx?: SxProps<Theme>;
+  /** The alert's and the confirm button's color; an error starts on Cancel. */
+  severity?: 'warning' | 'error';
 }
 
+/** Rendered while an entry is being edited. */
 export interface EditTimeEntryDialogProps {
-  open: boolean;
   onClose: () => void;
   onSave: (data: EditTimeEntryData) => void;
-  entry: EditTimeEntryData | null;
+  entry: EditTimeEntryData & { startTime: string };
   /** Every task (the picker offers the active ones, plus the entry's own). */
   tasks: Task[];
 }

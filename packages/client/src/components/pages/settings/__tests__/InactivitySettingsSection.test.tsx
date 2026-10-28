@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { InactivitySettingsSection } from '../InactivitySettingsSection';
+import { InactivitySettingsSection, formatThreshold } from '../InactivitySettingsSection';
 import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import { STORAGE_KEYS } from '../../../../constants';
 import { fakeBackend, installFakeBackendForTest } from '../../../../testing';
@@ -100,5 +100,42 @@ describe('InactivitySettingsSection', () => {
     );
     expect(screen.queryByText(/doesn't report idle time/)).not.toBeInTheDocument();
     warn.mockRestore();
+  });
+
+  it('moves the threshold with the keys and saves where it stops', async () => {
+    storeSettings({ enabled: true, thresholdMinutes: 15, longRunHours: 4 });
+    renderSection();
+
+    const slider = screen.getByRole('slider', { name: 'Inactivity threshold' });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+
+    expect(screen.getByText('Pause after 16 minutes without input')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(idle().setSettings).toHaveBeenCalledWith(expect.objectContaining({ thresholdMinutes: 16 }))
+    );
+  });
+
+  it('goes back to the defaults', async () => {
+    storeSettings({ enabled: true, thresholdMinutes: 45, longRunHours: 8 });
+    renderSection();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to Defaults' }));
+    expect(await screen.findByText('Idle and reminder settings are back to their defaults')).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.INACTIVITY_SETTINGS)!).data).toMatchObject({
+      enabled: false,
+      thresholdMinutes: 15,
+    });
+  });
+});
+
+describe('formatThreshold', () => {
+  it.each([
+    [1, '1 minute'],
+    [45, '45 minutes'],
+    [60, '1 hour'],
+    [120, '2 hours'],
+    [90, '1h 30m'],
+  ])('says %i minutes as %s', (minutes, words) => {
+    expect(formatThreshold(minutes)).toBe(words);
   });
 });

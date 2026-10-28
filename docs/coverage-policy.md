@@ -14,12 +14,12 @@ Integration tests count toward the total, including `#[sqlx::test]` against a re
 2. **Exclusions are files, listed once.** `coverage-policy.json` is the only list. Every package's coverage config reads it, and the check fails if a config drifts from it.
 3. **An excluded file holds no logic.** It wires things together and calls tested code. Anything with a branch moves into a tested module.
 4. **Delete instead of covering the impossible.** Remove defensive `??`, `?.`, default parameters, or `process.env.NODE_ENV` forks that the types or the boundaries (zod, serde) make unreachable.
-5. **Floors only go up.** `packages/client` started at its floors (71/75/79/78) and ratchets to 100 with per-glob thresholds, slice by slice. New packages start at 100.
+5. **There are no floors.** Every package starts at 100 and stays there. `packages/client` began at floors of 71/75/79/78 and reached 100 in four slices (P14a–d); the preset no longer takes lower thresholds.
 
 ## How it's wired
 
 - **The list:** [`coverage-policy.json`](../coverage-policy.json) at the repo root.
-- **TypeScript:** each package's `vitest.config.ts` calls `defineTaskmintConfig({ packageDir, … })` from [`vitest.shared.ts`](../vitest.shared.ts). The preset reads the exclusions from the policy and defaults the thresholds to 100. A package may pass lower `thresholds` only while it ratchets up, with `fullyCovered` globs held at 100 meanwhile. Today that's `packages/client`: floors of 81/84/88/87 (branches/functions/lines/statements), and `src/utils`, `src/services`, `src/types` and `src/theme` (P14a), `src/hooks` (P14b), and `src/contexts` and `src/notifications` (P14c) at 100.
+- **TypeScript:** each package's `vitest.config.ts` calls `defineTaskmintConfig({ packageDir, … })` from [`vitest.shared.ts`](../vitest.shared.ts). The preset reads the exclusions from the policy and sets every threshold to 100; a package can't pass its own. Coverage is the whole suite's: a file counts as covered by any test that runs it.
 - **The check:** [`scripts/check-coverage-policy.mjs`](../scripts/check-coverage-policy.mjs) fails when any of these happen:
   - an inline ignore appears in `packages/`, `apps/`, or `crates/`;
   - a package's vitest config isn't registered in the policy, doesn't use the preset, or declares its own `coverage`/`exclude`;

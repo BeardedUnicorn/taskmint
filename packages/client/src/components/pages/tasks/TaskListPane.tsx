@@ -30,10 +30,10 @@ interface TaskListPaneProps {
   selectedTask: Task | null;
   onSelectTask: (task: Task) => void;
   onAddClick: () => void;
-  onEditTask?: (task: Task) => void;
-  onDeleteTask?: (taskId: string) => void;
-  onArchiveTask?: (task: Task) => void;
-  onUnarchiveTask?: (task: Task) => void;
+  onEditTask: (task: Task) => void;
+  onDeleteTask: (taskId: string) => void;
+  onArchiveTask: (task: Task) => void;
+  onUnarchiveTask: (task: Task) => void;
 }
 
 export function TaskListPane({
@@ -122,60 +122,54 @@ export function TaskListPane({
                 )}
               </Box>
               <Box sx={{ display: 'flex', gap: 0.5 }}>
-                {onEditTask && (
-                  <IconButton
-                    size="small"
-                    aria-label="Edit task"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditTask(task);
-                    }}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
+                <IconButton
+                  size="small"
+                  aria-label="Edit task"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditTask(task);
+                  }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+                {task.isArchived ? (
+                  <Tooltip title="Unarchive task">
+                    <IconButton
+                      size="small"
+                      aria-label="Unarchive task"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUnarchiveTask(task);
+                      }}
+                    >
+                      <UnarchiveIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="Archive task">
+                    <IconButton
+                      size="small"
+                      aria-label="Archive task"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onArchiveTask(task);
+                      }}
+                    >
+                      <ArchiveIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 )}
-                {task.isArchived
-                  ? onUnarchiveTask && (
-                      <Tooltip title="Unarchive task">
-                        <IconButton
-                          size="small"
-                          aria-label="Unarchive task"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onUnarchiveTask(task);
-                          }}
-                        >
-                          <UnarchiveIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )
-                  : onArchiveTask && (
-                      <Tooltip title="Archive task">
-                        <IconButton
-                          size="small"
-                          aria-label="Archive task"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onArchiveTask(task);
-                          }}
-                        >
-                          <ArchiveIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                {onDeleteTask && (
-                  <IconButton
-                    size="small"
-                    color="error"
-                    aria-label="Delete task"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteTask(task.id);
-                    }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                )}
+                <IconButton
+                  size="small"
+                  color="error"
+                  aria-label="Delete task"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteTask(task.id);
+                  }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
               </Box>
             </Box>
           }

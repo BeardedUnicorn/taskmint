@@ -31,7 +31,7 @@ import {
   WarningAmberOutlined,
 } from '@mui/icons-material';
 import { useNotificationState } from '../../contexts/NotificationContext';
-import type { HistoryEntry } from '../../notifications/history';
+import type { HistoryAction, HistoryEntry } from '../../notifications/history';
 import type { Severity } from '../../notifications/types';
 
 dayjs.extend(relativeTime);
@@ -50,7 +50,7 @@ function HistoryItem({
 }: {
   entry: HistoryEntry;
   isNew: boolean;
-  onOpenPage: (entry: HistoryEntry, index: number) => void;
+  onOpenPage: (action: HistoryAction) => void;
 }) {
   const Icon = ICONS[entry.severity];
   return (
@@ -79,11 +79,11 @@ function HistoryItem({
             {entry.count > 1 ? ` · ×${entry.count}` : ''}
             {entry.delivery === 'desktop' ? ' · sent while you were away' : ''}
           </Typography>
-          {entry.actions?.map((action, index) => (
+          {entry.actions?.map(action => (
             <Button
               key={action.label}
               size="small"
-              onClick={() => onOpenPage(entry, index)}
+              onClick={() => onOpenPage(action)}
               sx={{ minHeight: 24, py: 0, px: 0.75, fontSize: '0.75rem' }}
             >
               {action.label}
@@ -108,9 +108,7 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
   };
   const close = () => setAnchor(null);
 
-  const openPage = (entry: HistoryEntry, index: number) => {
-    const action = entry.actions?.[index];
-    if (!action) return;
+  const openPage = (action: HistoryAction) => {
     runAction(action);
     close();
   };

@@ -24,7 +24,7 @@ const old = createMockTask({ id: 'task-old', name: 'Old project', isArchived: tr
 const tasks = [deepWork, review, old];
 
 // 1h 35m 42s — the 42s remainder must survive a task-only edit.
-const entry: EditTimeEntryData = {
+const entry: EditTimeEntryData & { startTime: string } = {
   id: 'instance-1',
   taskId: 'task-deep',
   durationMs: 1 * HOUR + 35 * MINUTE + 42_000,
@@ -42,7 +42,6 @@ describe('EditTimeEntryDialog', () => {
   const renderDialog = (overrides: Partial<EditTimeEntryData> = {}) =>
     render(
       <EditTimeEntryDialog
-        open={true}
         onClose={onClose}
         onSave={onSave}
         entry={{ ...entry, ...overrides }}
@@ -137,5 +136,26 @@ describe('EditTimeEntryDialog', () => {
     renderDialog();
 
     expect(screen.getByText(/the start\s+time stays as recorded/)).toBeInTheDocument();
+  });
+
+  it('asks for a task for an entry that has none', () => {
+    renderDialog({ taskId: '' });
+    save();
+
+    expect(screen.getByText('Choose a task')).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('marks favorite tasks in the picker', async () => {
+    render(
+      <EditTimeEntryDialog
+        onClose={onClose}
+        onSave={onSave}
+        entry={entry}
+        tasks={tasks.map(task => ({ ...task, isFavorite: true }))}
+      />
+    );
+    await userEvent.click(screen.getByLabelText('Task'));
+    expect(within(screen.getByRole('listbox')).getByText('★ Deep work')).toBeInTheDocument();
   });
 });

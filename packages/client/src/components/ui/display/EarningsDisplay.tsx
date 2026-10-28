@@ -2,47 +2,20 @@ import { Typography } from '@mui/material';
 import { EarningsDisplayProps } from '../../../types/ui';
 import { formatCurrency } from '../../../utils/formatters';
 
-/**
- * Earnings display component with consistent currency formatting
- * Shows monetary amounts with proper styling and color coding
- */
-export function EarningsDisplay({
-  amount,
-  showCurrency = true,
-  variant = 'body2',
-  color,
-  sx,
-}: EarningsDisplayProps) {
-  const formatAmount = (value: number): string => {
-    if (value === 0) return '$0.00';
-    
-    if (showCurrency) {
-      return formatCurrency(value);
-    }
-    
-    return value.toFixed(2);
-  };
-
-  const getDisplayColor = (): string => {
-    if (color) return color;
-    
-    if (amount > 0) return 'success.main';
-    if (amount === 0) return 'text.secondary';
-    return 'error.main';
-  };
-
+/** An amount earned: highlighted when there is one, muted at $0.00. */
+export function EarningsDisplay({ amount, variant = 'body2' }: EarningsDisplayProps) {
+  const earned = amount > 0;
   return (
     <Typography
       variant={variant}
       component="span"
       sx={{
-        color: getDisplayColor(),
-        fontWeight: amount > 0 ? 600 : 400,
+        color: earned ? 'success.main' : 'text.secondary',
+        fontWeight: earned ? 600 : 400,
         fontFamily: '"Roboto Mono", monospace',
-        ...sx,
       }}
     >
-      {formatAmount(amount)}
+      {formatCurrency(amount)}
     </Typography>
   );
 }

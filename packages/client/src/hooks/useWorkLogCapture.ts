@@ -178,7 +178,9 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
 
       // Keep task rates aligned with real pay (the dialog's default-on
       // checkbox, fixed on for automatic imports).
-      const ratesUpdated = await applyImpliedRates(d.tasks, plan.impliedRates, d.updateTask);
+      const ratesUpdated = await applyImpliedRates(d.tasks, plan.impliedRates, (taskId, hourlyRate) =>
+        d.updateTask(taskId, { hourlyRate })
+      );
 
       const days = summary.groupsApplied.length;
       const rates =

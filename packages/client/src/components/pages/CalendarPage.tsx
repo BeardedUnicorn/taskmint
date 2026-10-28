@@ -3,7 +3,7 @@ import { Box, Typography, Paper, Skeleton, IconButton, useTheme, Button } from '
 import { PageContainer, PageHeader } from '../layout/PageLayout';
 import dayjs from 'dayjs';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
-import { Calendar, View, Views } from 'react-big-calendar';
+import { Calendar, Views } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useFundsReleaseSettings } from '../../hooks/useFundsReleaseSettings';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
@@ -76,7 +76,6 @@ const CalendarControls: React.FC<{
 
 const CalendarPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<View>(Views.MONTH);
   // The day whose breakdown is open (YYYY-MM-DD)
   const [openDay, setOpenDay] = useState<string | null>(null);
   const { days: fundsReleaseDays } = useFundsReleaseSettings();
@@ -112,9 +111,7 @@ const CalendarPage: React.FC = () => {
       const amount = centsToDollars(cell.actualCents + cell.estimatedCents);
       dailyEarned[cell.workDay] = (dailyEarned[cell.workDay] || 0) + amount;
       dailyTrackedMs[cell.workDay] = (dailyTrackedMs[cell.workDay] || 0) + cell.trackedMs;
-      if (cell.releaseDay) {
-        dailyReleased[cell.releaseDay] = (dailyReleased[cell.releaseDay] || 0) + amount;
-      }
+      dailyReleased[cell.releaseDay] = (dailyReleased[cell.releaseDay] || 0) + amount;
     }
 
     // Generate all days in the current month view
@@ -197,13 +194,6 @@ const CalendarPage: React.FC = () => {
     setCurrentDate(new Date());
   }, []);
 
-  const handleNavigate = useCallback((newDate: Date) => {
-    setCurrentDate(newDate);
-  }, []);
-
-  const handleViewChange = useCallback((newView: View) => {
-    setView(newView);
-  }, []);
 
   const EventComponent = useCallback(({ event }: { event: CalendarEvent }) => {
     return (
@@ -248,10 +238,14 @@ const CalendarPage: React.FC = () => {
     };
   }, [activeDays, theme]);
 
-  const calendarStyle = useMemo(() => ({
-    height: 600,
-    // All styling is now handled by CSS to prevent theme conflicts
-  }), []);
+  const calendarStyle = useMemo(
+    () => ({
+      height: 600,
+      // Events are the day's figures, drawn by EventComponent on the day itself
+      '& .rbc-event': { backgroundColor: 'transparent', border: 'none' },
+    }),
+    []
+  );
 
   const header = <PageHeader title="Calendar" subtitle="Tracked time and earnings, day by day" />;
 
@@ -285,11 +279,11 @@ const CalendarPage: React.FC = () => {
             events={events}
             startAccessor="start"
             endAccessor="end"
-            view={view}
-            onView={handleViewChange}
-            date={currentDate}
-            onNavigate={handleNavigate}
+            // Month view only: the controls above move between months
+            defaultView={Views.MONTH}
             views={[Views.MONTH]}
+            date={currentDate}
+            onNavigate={setCurrentDate}
             toolbar={false}
             popup={false}
             // Clicking a day (or its event) opens that day's breakdown
@@ -301,17 +295,7 @@ const CalendarPage: React.FC = () => {
               event: EventComponent,
             }}
             dayPropGetter={DayPropGetter}
-            formats={{
-              dateFormat: 'D',
-              dayFormat: (date: Date, culture?: string, localizer?: any) =>
-                localizer.format(date, 'ddd', culture),
-            }}
-            eventPropGetter={() => ({
-              style: {
-                backgroundColor: 'transparent',
-                border: 'none',
-              },
-            })}
+            formats={{ dateFormat: 'D' }}
           />
         </Box>
       </Paper>

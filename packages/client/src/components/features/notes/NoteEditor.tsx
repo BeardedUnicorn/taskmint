@@ -83,9 +83,12 @@ function SaveStatusText({ status, onRetry }: { status: SaveStatus; onRetry: () =
   );
 }
 
+/** A free-form note's text (none yet when it was a template note until now). */
+const freeFormText = (values: FieldValues) => String(values[FREE_FORM_CONTENT] ?? '');
+
 function summaryText(template: NoteTemplate | null, values: FieldValues): string {
   if (!template) {
-    const length = String(values[FREE_FORM_CONTENT] ?? '').length;
+    const length = freeFormText(values).length;
     return length > 0 ? `${length} characters` : 'Empty note';
   }
   const filled = template.fields.filter(field => isFilled(values[field.id])).length;
@@ -109,9 +112,14 @@ export function NoteEditor({
   autoSaveDisabled = false,
   tasks,
 }: NoteEditorProps) {
-  const { templates } = useNoteTemplates();
+  // New notes pick from the active templates (the built-in free-form one isn't)
+  const { getActiveTemplates } = useNoteTemplates();
+  const templates = getActiveTemplates();
   const { showSuccess, showError, showInfo } = useNotification();
-  const [template, setTemplate] = useState<NoteTemplate | null>(initialTemplate);
+  // The built-in free-form template has no fields: its notes are plain text
+  const [template, setTemplate] = useState<NoteTemplate | null>(() =>
+    initialTemplate?.id === FREE_FORM_TEMPLATE_ID ? null : initialTemplate
+  );
   // The note's task: chosen in the picker when `tasks` is given, else the prop
   const [selectedTaskId, setSelectedTaskId] = useState(existingNote?.taskId ?? taskId);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
@@ -125,7 +133,7 @@ export function NoteEditor({
         taskId: selectedTaskId,
         templateId: template ? template.id : FREE_FORM_TEMPLATE_ID,
         templateName: template ? template.name : FREE_FORM_TEMPLATE_NAME,
-        fieldValues: template ? values : { [FREE_FORM_CONTENT]: String(values[FREE_FORM_CONTENT] ?? '') },
+        fieldValues: template ? values : { [FREE_FORM_CONTENT]: freeFormText(values) },
         timeEntryId,
         sessionId,
         timerInstanceId,
@@ -157,7 +165,7 @@ export function NoteEditor({
     const next = templates.find(t => t.id === templateId) ?? null;
     setTemplate(next);
     replaceValues(
-      next ? emptyValues(next.fields) : { [FREE_FORM_CONTENT]: String(values[FREE_FORM_CONTENT] ?? '') }
+      next ? emptyValues(next.fields) : { [FREE_FORM_CONTENT]: freeFormText(values) }
     );
   };
 
@@ -320,7 +328,7 @@ export function NoteEditor({
                   minRows={4}
                   maxRows={12}
                   fullWidth
-                  value={String(values[FREE_FORM_CONTENT] ?? '')}
+                  value={freeFormText(values)}
                   onChange={event => setField(FREE_FORM_CONTENT, event.target.value)}
                   placeholder="Start typing your note here..."
                 />
