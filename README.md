@@ -122,8 +122,11 @@ there's no session replay or tracing. Turn it off in Settings → Privacy.
 
 ## Development
 
-**Prerequisites:** Node 20+ (24 recommended), pnpm (pinned via
-`packageManager`; `corepack enable` picks it up), and stable Rust.
+**Prerequisites:** Node 24 (`.node-version`), pnpm (pinned via
+`packageManager`; `corepack enable` picks it up), and rustup. The Rust version
+and its components are pinned in `rust-toolchain.toml`; `rustup toolchain
+install` in the repo installs them. `node scripts/check-toolchains.mjs` checks
+that the Dockerfiles' `rust:` and `node:` images match the pins.
 
 ```bash
 pnpm install
@@ -161,6 +164,7 @@ cargo fmt --all --check
 cargo llvm-cov -p taskmint-core --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100  # verify.sh adds the policy's ignore regex
 scripts/check-server.sh            # the server's .sqlx check and coverage; needs DATABASE_URL
 node scripts/check-coverage-policy.mjs   # see docs/coverage-policy.md
+node scripts/check-toolchains.mjs        # the Dockerfiles match the pinned toolchains
 node scripts/smoke.mjs             # the running stack, end to end
 ```
 

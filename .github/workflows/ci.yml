@@ -22,12 +22,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
       - run: node scripts/check-coverage-policy.mjs
+
+      - run: node scripts/check-toolchains.mjs
 
       # Sources and tests, every package.
       - run: pnpm typecheck
@@ -44,9 +46,9 @@ jobs:
 
       - run: pnpm test:coverage
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy, llvm-tools-preview
+      # The version and components in rust-toolchain.toml (rustup no longer
+      # installs it on first use)
+      - run: rustup toolchain install
 
       - uses: taiki-e/install-action@cargo-llvm-cov
 
@@ -92,7 +94,7 @@ jobs:
       # The smoke test is plain Node, with nothing to install
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .node-version
 
       # The defaults, with the bootstrap admin the smoke test signs in as
       - run: cp .env.example .env

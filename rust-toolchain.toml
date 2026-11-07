@@ -1,0 +1,8 @@
+# The Rust toolchain for local builds and CI, so rustfmt and clippy agree
+# everywhere. apps/server/Dockerfile's rust:X.Y image must be the same minor
+# (scripts/check-toolchains.mjs checks it); the image builds don't see this file.
+# `rustup toolchain install` in the repo installs it.
+[toolchain]
+channel = "1.93.0"
+profile = "minimal"
+components = ["rustfmt", "clippy", "llvm-tools-preview"]

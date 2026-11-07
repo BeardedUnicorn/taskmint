@@ -9,6 +9,9 @@ step() { printf '\n==> %s\n' "$*"; }
 step "Coverage policy"
 node scripts/check-coverage-policy.mjs
 
+step "Pinned toolchains agree (rust-toolchain.toml, .node-version, the Dockerfiles)"
+node scripts/check-toolchains.mjs
+
 step "Contracts match the Rust (the TypeScript checks below use them)"
 scripts/check-contracts.sh
 
