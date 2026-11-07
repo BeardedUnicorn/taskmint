@@ -36,9 +36,7 @@ export function useSessionNotesMigration({
 
   useEffect(() => {
     if (isLoading || notesLoading || runningRef.current) return;
-    const moved = sessionNotesToTaskNotes(sessions, tasks).filter(
-      note => !attemptedRef.current.has(note.id)
-    );
+    const moved = sessionNotesToTaskNotes(sessions, tasks).filter(note => !attemptedRef.current.has(note.id));
     if (moved.length === 0) return;
 
     runningRef.current = true;
@@ -47,9 +45,7 @@ export function useSessionNotesMigration({
       try {
         const added = await addNotes(moved);
         const stored = new Set([...notes, ...added].map(note => note.id));
-        const sessionIds = moved
-          .filter(note => stored.has(note.id))
-          .map(note => note.sessionId as string);
+        const sessionIds = moved.filter(note => stored.has(note.id)).map(note => note.sessionId as string);
         await clearSessionNotes(sessionIds);
       } catch (error) {
         console.error('Failed to move session notes:', error);

@@ -27,7 +27,11 @@ describe('NotesList', () => {
     render(
       <NotesList
         {...handlers}
-        notes={[note('old', '2026-10-01T00:00:00Z'), note('new', '2026-10-10T00:00:00Z'), note('mid', '2026-10-05T00:00:00Z')]}
+        notes={[
+          note('old', '2026-10-01T00:00:00Z'),
+          note('new', '2026-10-10T00:00:00Z'),
+          note('mid', '2026-10-05T00:00:00Z'),
+        ]}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: /All/ }));
@@ -132,7 +136,10 @@ describe('NoteItem', () => {
         { id: 'blockers', label: 'Blockers', type: 'text' },
       ],
     };
-    one({ templateId: 'standup', fieldValues: { done: true, skipped: false, blockers: 'None', legacy: { a: 1 }, empty: '' } });
+    one({
+      templateId: 'standup',
+      fieldValues: { done: true, skipped: false, blockers: 'None', legacy: { a: 1 }, empty: '' },
+    });
     expand();
 
     expect(screen.getByText('Done?:')).toBeInTheDocument();
@@ -146,7 +153,13 @@ describe('NoteItem', () => {
 
   it("shows the note's task, its links, and that it's archived", () => {
     one(
-      { timeEntryId: 'e1', sessionId: 's1', timerInstanceId: 't1', isArchived: true, createdAt: '2026-09-01T00:00:00Z' },
+      {
+        timeEntryId: 'e1',
+        sessionId: 's1',
+        timerInstanceId: 't1',
+        isArchived: true,
+        createdAt: '2026-09-01T00:00:00Z',
+      },
       { task1: 'Annotation' }
     );
 
@@ -169,7 +182,7 @@ describe('NoteItem', () => {
     expect(handlers.onDeleteNote).toHaveBeenCalledWith('a');
   });
 
-  it('shows each note\'s level in the flat list, and opens a note from its row', () => {
+  it("shows each note's level in the flat list, and opens a note from its row", () => {
     render(
       <NotesList
         {...handlers}

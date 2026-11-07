@@ -30,7 +30,7 @@ export function useNoteTemplatesState(): UseNoteTemplatesReturn {
   // Loading until the first load finishes ("not loaded yet" isn't "none")
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const { executeAsync } = useAsyncError();
   const templateService = NoteTemplateService.getInstance();
 
@@ -40,7 +40,7 @@ export function useNoteTemplatesState(): UseNoteTemplatesReturn {
   const loadTemplates = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const loadedTemplates = await templateService.getAllTemplates();
       setTemplates(loadedTemplates);
@@ -55,78 +55,81 @@ export function useNoteTemplatesState(): UseNoteTemplatesReturn {
   /**
    * Create a new template
    */
-  const createTemplate = useCallback(async (
-    templateData: Omit<NoteTemplate, 'id' | 'createdAt' | 'updatedAt'>
-  ): Promise<NoteTemplate> => {
-    return executeAsync(async () => {
-      setError(null);
-      
-      // Validate template name uniqueness
-      const isUnique = await templateService.isTemplateNameUnique(templateData.name);
-      if (!isUnique) {
-        throw new Error('A template with this name already exists');
-      }
+  const createTemplate = useCallback(
+    async (templateData: Omit<NoteTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<NoteTemplate> => {
+      return executeAsync(async () => {
+        setError(null);
 
-      const newTemplate = await templateService.createTemplate(templateData);
-      
-      // Update local state
-      setTemplates(prev => [...prev, newTemplate]);
-      
-      return newTemplate;
-    });
-  }, [templateService, executeAsync]);
+        // Validate template name uniqueness
+        const isUnique = await templateService.isTemplateNameUnique(templateData.name);
+        if (!isUnique) {
+          throw new Error('A template with this name already exists');
+        }
+
+        const newTemplate = await templateService.createTemplate(templateData);
+
+        // Update local state
+        setTemplates(prev => [...prev, newTemplate]);
+
+        return newTemplate;
+      });
+    },
+    [templateService, executeAsync]
+  );
 
   /**
    * Update an existing template
    */
-  const updateTemplate = useCallback(async (
-    templateId: string, 
-    updates: Partial<NoteTemplate>
-  ): Promise<NoteTemplate> => {
-    return executeAsync(async () => {
-      setError(null);
-      
-      // Validate template name uniqueness if name is being updated
-      if (updates.name) {
-        const isUnique = await templateService.isTemplateNameUnique(updates.name, templateId);
-        if (!isUnique) {
-          throw new Error('A template with this name already exists');
-        }
-      }
+  const updateTemplate = useCallback(
+    async (templateId: string, updates: Partial<NoteTemplate>): Promise<NoteTemplate> => {
+      return executeAsync(async () => {
+        setError(null);
 
-      const updatedTemplate = await templateService.updateTemplate(templateId, updates);
-      
-      // Update local state
-      setTemplates(prev => 
-        prev.map(template => 
-          template.id === templateId ? updatedTemplate : template
-        )
-      );
-      
-      return updatedTemplate;
-    });
-  }, [templateService, executeAsync]);
+        // Validate template name uniqueness if name is being updated
+        if (updates.name) {
+          const isUnique = await templateService.isTemplateNameUnique(updates.name, templateId);
+          if (!isUnique) {
+            throw new Error('A template with this name already exists');
+          }
+        }
+
+        const updatedTemplate = await templateService.updateTemplate(templateId, updates);
+
+        // Update local state
+        setTemplates(prev => prev.map(template => (template.id === templateId ? updatedTemplate : template)));
+
+        return updatedTemplate;
+      });
+    },
+    [templateService, executeAsync]
+  );
 
   /**
    * Delete a template
    */
-  const deleteTemplate = useCallback(async (templateId: string): Promise<void> => {
-    return executeAsync(async () => {
-      setError(null);
-      
-      await templateService.deleteTemplate(templateId);
-      
-      // Update local state
-      setTemplates(prev => prev.filter(template => template.id !== templateId));
-    });
-  }, [templateService, executeAsync]);
+  const deleteTemplate = useCallback(
+    async (templateId: string): Promise<void> => {
+      return executeAsync(async () => {
+        setError(null);
+
+        await templateService.deleteTemplate(templateId);
+
+        // Update local state
+        setTemplates(prev => prev.filter(template => template.id !== templateId));
+      });
+    },
+    [templateService, executeAsync]
+  );
 
   /**
    * Get template by ID
    */
-  const getTemplateById = useCallback((templateId: string): NoteTemplate | undefined => {
-    return templates.find(template => template.id === templateId);
-  }, [templates]);
+  const getTemplateById = useCallback(
+    (templateId: string): NoteTemplate | undefined => {
+      return templates.find(template => template.id === templateId);
+    },
+    [templates]
+  );
 
   /**
    * Get active templates only
@@ -142,19 +145,20 @@ export function useNoteTemplatesState(): UseNoteTemplatesReturn {
 
   // Templates saved in another tab or device
   useAppRecordsChanged([STORAGE_KEYS.NOTE_TEMPLATES], () => {
-    templateService
-      .getAllTemplates()
-      .then(setTemplates, err => console.error('Failed to reload templates:', err));
+    templateService.getAllTemplates().then(setTemplates, err => console.error('Failed to reload templates:', err));
   });
 
-  return useMemo(() => ({
-    templates,
-    createTemplate,
-    updateTemplate,
-    deleteTemplate,
-    getTemplateById,
-    getActiveTemplates,
-    isLoading,
-    error,
-  }), [templates, createTemplate, updateTemplate, deleteTemplate, getTemplateById, getActiveTemplates, isLoading, error]);
+  return useMemo(
+    () => ({
+      templates,
+      createTemplate,
+      updateTemplate,
+      deleteTemplate,
+      getTemplateById,
+      getActiveTemplates,
+      isLoading,
+      error,
+    }),
+    [templates, createTemplate, updateTemplate, deleteTemplate, getTemplateById, getActiveTemplates, isLoading, error]
+  );
 }

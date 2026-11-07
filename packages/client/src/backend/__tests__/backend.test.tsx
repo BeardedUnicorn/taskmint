@@ -23,9 +23,12 @@ describe('useBackendEvent', () => {
   it('hands each payload to the latest handler, subscribing once per event list', () => {
     const first = vi.fn();
     const second = vi.fn();
-    const { rerender } = renderHook(({ handler }) => useBackendEvent([EVENTS.IDLE_RETURNED, EVENTS.IDLE_RESOLVED], handler), {
-      initialProps: { handler: first },
-    });
+    const { rerender } = renderHook(
+      ({ handler }) => useBackendEvent([EVENTS.IDLE_RETURNED, EVENTS.IDLE_RESOLVED], handler),
+      {
+        initialProps: { handler: first },
+      }
+    );
 
     rerender({ handler: second });
     fakeBackend().emit(EVENTS.IDLE_RETURNED, 1);

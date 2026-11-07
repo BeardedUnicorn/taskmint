@@ -71,8 +71,7 @@ export function presetRange(preset: DateRangePreset, today: Dayjs = dayjs()): Da
   }
 }
 
-const sameDay = (a: Dayjs | null, b: Dayjs | null) =>
-  a === null || b === null ? a === b : a.isSame(b, 'day');
+const sameDay = (a: Dayjs | null, b: Dayjs | null) => (a === null || b === null ? a === b : a.isSame(b, 'day'));
 
 /**
  * The preset a range is exactly, or null for a custom range. Two presets can

@@ -43,7 +43,7 @@ describe('AddTimeDialog defaults and timing rules', () => {
     expect(start.format('YYYY-MM-DD HH:mm')).toBe('2026-10-12 13:30');
   });
 
-  it("keeps a long same-day entry on the chosen day", () => {
+  it('keeps a long same-day entry on the chosen day', () => {
     const start = defaultStartFor(now, 20 * HOUR, now);
     expect(start.format('YYYY-MM-DD HH:mm')).toBe('2026-10-12 00:00');
   });
@@ -70,7 +70,13 @@ describe('AddTimeDialog defaults and timing rules', () => {
 describe('AddTimeDialog', () => {
   const tasks: Task[] = [
     { id: 't1', name: 'Annotation', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
-    { id: 't2', name: 'Retired', isArchived: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    {
+      id: 't2',
+      name: 'Retired',
+      isArchived: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    },
   ];
   const onAdd = vi.fn();
   const onClose = vi.fn();
@@ -86,8 +92,7 @@ describe('AddTimeDialog', () => {
     vi.useRealTimers();
   });
 
-  const renderDialog = () =>
-    render(<AddTimeDialog onClose={onClose} tasks={tasks} sessions={[]} onAdd={onAdd} />);
+  const renderDialog = () => render(<AddTimeDialog onClose={onClose} tasks={tasks} sessions={[]} onAdd={onAdd} />);
 
   const chooseTask = (name: string) => {
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Task' }));
@@ -99,9 +104,7 @@ describe('AddTimeDialog', () => {
   // The Start time picker has Hours/Minutes sections too; the duration's
   // fields are the number inputs.
   const durationInput = (label: 'Hours' | 'Minutes') =>
-    screen
-      .getAllByLabelText(label)
-      .find(el => (el as HTMLInputElement).type === 'number') as HTMLInputElement;
+    screen.getAllByLabelText(label).find(el => (el as HTMLInputElement).type === 'number') as HTMLInputElement;
 
   it('offers active tasks only', () => {
     renderDialog();
@@ -181,9 +184,7 @@ describe('AddTimeDialog', () => {
     submit();
 
     const dialog = screen.getByRole('dialog');
-    expect(
-      await within(dialog).findByText('This overlaps time already tracked for "Review"')
-    ).toBeInTheDocument();
+    expect(await within(dialog).findByText('This overlaps time already tracked for "Review"')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 

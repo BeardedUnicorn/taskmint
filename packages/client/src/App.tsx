@@ -137,12 +137,7 @@ function AppContent() {
       <BackgroundJobs onShowStartDialog={showStartDialog} />
       <CommandCenter onStartWork={showStartDialog} onAddTime={showAddTime} />
       <Box sx={{ height: '100vh', display: 'flex' }}>
-        <Sidebar
-          activeView={activeView}
-          onViewChange={navigate}
-          footer={renderGoalFooter}
-          headerAction={renderBell}
-        />
+        <Sidebar activeView={activeView} onViewChange={navigate} footer={renderGoalFooter} headerAction={renderBell} />
         {/* minWidth 0: a wide table scrolls inside its page instead of
             stretching the content past the window */}
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>

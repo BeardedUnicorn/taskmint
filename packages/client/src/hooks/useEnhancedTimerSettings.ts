@@ -110,8 +110,7 @@ export function useEnhancedTimerSettings() {
   // and testing-mode keys, which are dropped on the next save. Memoized so
   // consumers' effects keyed on it don't re-run every render.
   const enabled = inactivitySettings?.enabled ?? DEFAULT_INACTIVITY_SETTINGS.enabled;
-  const thresholdMinutes =
-    inactivitySettings?.thresholdMinutes ?? DEFAULT_INACTIVITY_SETTINGS.thresholdMinutes;
+  const thresholdMinutes = inactivitySettings?.thresholdMinutes ?? DEFAULT_INACTIVITY_SETTINGS.thresholdMinutes;
   const longRunHours = inactivitySettings?.longRunHours ?? DEFAULT_INACTIVITY_SETTINGS.longRunHours;
   const current = useMemo<InactivitySettings>(
     () => ({ enabled, thresholdMinutes, longRunHours }),

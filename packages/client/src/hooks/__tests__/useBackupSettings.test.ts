@@ -24,8 +24,7 @@ vi.mock('../../contexts/NotificationContext', () => ({
 }));
 
 const folders = () => fakeBackend().platform.folderBackups;
-const stored = (key: string, data: unknown) =>
-  window.localStorage.setItem(key, JSON.stringify({ version: 1, data }));
+const stored = (key: string, data: unknown) => window.localStorage.setItem(key, JSON.stringify({ version: 1, data }));
 const storedConfig = (): BackupConfig => JSON.parse(window.localStorage.getItem(BACKUP_CONFIG_KEY)!).data;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -124,9 +123,7 @@ describe('useBackupSettings', () => {
       folders().defaultFolder.mockRejectedValue(new Error('no Documents'));
       mounted();
 
-      await waitFor(() =>
-        expect(error).toHaveBeenCalledWith('Failed to set up automatic backups:', expect.any(Error))
-      );
+      await waitFor(() => expect(error).toHaveBeenCalledWith('Failed to set up automatic backups:', expect.any(Error)));
       error.mockRestore();
     });
 
@@ -331,7 +328,7 @@ describe('useBackupSettings', () => {
       warn.mockRestore();
     });
 
-    it("offers a Retry, run as a manual backup", async () => {
+    it('offers a Retry, run as a manual backup', async () => {
       folders().write.mockResolvedValueOnce({ success: false, error: 'Disk full', timestamp: 'now' });
       const result = mounted(config());
       await act(async () => {
@@ -395,7 +392,11 @@ describe('useBackupSettings', () => {
         await result.current.performManualBackup();
       });
 
-      expect(result.current.status).toEqual({ isRunning: false, lastBackupSuccess: false, lastBackupError: 'Disk full' });
+      expect(result.current.status).toEqual({
+        isRunning: false,
+        lastBackupSuccess: false,
+        lastBackupError: 'Disk full',
+      });
       expect(result.current.getStatusSummary()).toBe('Last backup failed: Disk full');
     });
   });

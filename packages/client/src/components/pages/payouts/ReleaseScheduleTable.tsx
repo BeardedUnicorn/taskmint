@@ -36,14 +36,10 @@ export function ReleaseScheduleTable({ schedule }: { schedule: ReleaseScheduleRo
                 )}
               </TableCell>
               <TableCell align="right" sx={MONO}>
-                {row.actualCents > 0
-                  ? formatCurrency(centsToDollars(row.actualCents))
-                  : '—'}
+                {row.actualCents > 0 ? formatCurrency(centsToDollars(row.actualCents)) : '—'}
               </TableCell>
               <TableCell align="right" sx={{ ...MONO, color: 'text.secondary' }}>
-                {row.estimatedCents > 0
-                  ? `~${formatCurrency(centsToDollars(row.estimatedCents))}`
-                  : '—'}
+                {row.estimatedCents > 0 ? `~${formatCurrency(centsToDollars(row.estimatedCents))}` : '—'}
               </TableCell>
               <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
                 {formatCurrency(centsToDollars(row.actualCents + row.estimatedCents))}

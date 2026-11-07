@@ -7,15 +7,7 @@
  * above it only carries session-level actions.
  */
 
-import {
-  Box,
-  Typography,
-  Chip,
-  Stack,
-  Paper,
-  IconButton,
-  Button,
-} from '@mui/material';
+import { Box, Typography, Chip, Stack, Paper, IconButton, Button } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import {
   PlayArrow as PlayIcon,
@@ -80,11 +72,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
         border: '1px solid',
         borderColor: runningInstance ? 'success.main' : 'divider',
         borderLeft: '4px solid',
-        borderLeftColor: runningInstance
-          ? 'success.main'
-          : session.isActive
-            ? 'primary.main'
-            : 'divider',
+        borderLeftColor: runningInstance ? 'success.main' : session.isActive ? 'primary.main' : 'divider',
         ...sx,
       }}
     >
@@ -102,26 +90,9 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
             {title}
           </Typography>
           <Stack direction="row" spacing={1}>
-            <Chip
-              size="small"
-              label={`${timerCount} timer${timerCount !== 1 ? 's' : ''}`}
-              variant="outlined"
-            />
-            {session.isActive && (
-              <Chip
-                size="small"
-                label="Active"
-                color="success"
-              />
-            )}
-            {runningInstance && (
-              <Chip
-                size="small"
-                label="Running"
-                color="success"
-                icon={<PlayIcon />}
-              />
-            )}
+            <Chip size="small" label={`${timerCount} timer${timerCount !== 1 ? 's' : ''}`} variant="outlined" />
+            {session.isActive && <Chip size="small" label="Active" color="success" />}
+            {runningInstance && <Chip size="small" label="Running" color="success" icon={<PlayIcon />} />}
           </Stack>
         </Box>
 
@@ -135,11 +106,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
         </Typography>
 
         {showNotes && (
-          <IconButton
-            size="small"
-            onClick={() => onOpenNotes?.(session.id)}
-            aria-label="Session notes"
-          >
+          <IconButton size="small" onClick={() => onOpenNotes?.(session.id)} aria-label="Session notes">
             <NotesIcon />
           </IconButton>
         )}
@@ -148,10 +115,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
       {/* Timers */}
       <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontWeight: 600, color: 'text.secondary' }}
-          >
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
             Timers
           </Typography>
           {onAddTimer && (
@@ -204,8 +168,6 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
           </Stack>
         )}
       </Box>
-
     </Paper>
   );
-
 });

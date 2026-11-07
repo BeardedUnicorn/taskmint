@@ -58,7 +58,9 @@ export function UsersSection({ session }: { session: WebSession }) {
 
   const makeResetLink = async (user: AdminUser) => {
     try {
-      setResetLink(await server.request<NewLink & { username: string }>('POST', `/admin/users/${user.id}/password-reset`));
+      setResetLink(
+        await server.request<NewLink & { username: string }>('POST', `/admin/users/${user.id}/password-reset`)
+      );
     } catch (error) {
       showError(problem(error));
     }
@@ -97,9 +99,11 @@ export function UsersSection({ session }: { session: WebSession }) {
                 sx={{ minWidth: 110 }}
                 value={user.role}
                 onChange={event =>
-                  void change(user, { role: event.target.value as Role }, `${user.username} is now a ${event.target.value}`).catch(
-                    () => undefined
-                  )
+                  void change(
+                    user,
+                    { role: event.target.value as Role },
+                    `${user.username} is now a ${event.target.value}`
+                  ).catch(() => undefined)
                 }
               >
                 <MenuItem value="user">User</MenuItem>
@@ -111,7 +115,9 @@ export function UsersSection({ session }: { session: WebSession }) {
               {user.disabledAt ? (
                 <Button
                   size="small"
-                  onClick={() => void change(user, { disabled: false }, `Enabled ${user.username}`).catch(() => undefined)}
+                  onClick={() =>
+                    void change(user, { disabled: false }, `Enabled ${user.username}`).catch(() => undefined)
+                  }
                 >
                   Enable
                 </Button>

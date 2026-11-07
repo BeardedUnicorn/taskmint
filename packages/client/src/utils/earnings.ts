@@ -26,10 +26,7 @@ function positiveRate(rate: number | null | undefined): number {
 }
 
 /** The task a session or entry belongs to: by id, else by name (older data). */
-export function findTaskFor(
-  item: { taskId?: string; taskName: string },
-  tasks: Task[]
-): Task | undefined {
+export function findTaskFor(item: { taskId?: string; taskName: string }, tasks: Task[]): Task | undefined {
   if (item.taskId) {
     const byId = tasks.find(task => task.id === item.taskId);
     if (byId) return byId;
@@ -43,10 +40,7 @@ export function earningsForMs(ms: number, rate: number): number {
 }
 
 /** The hourly rate time on a session's own task earns at. */
-export function sessionRate(
-  session: Pick<TaskSession, 'taskId' | 'taskName' | 'hourlyRate'>,
-  tasks: Task[]
-): number {
+export function sessionRate(session: Pick<TaskSession, 'taskId' | 'taskName' | 'hourlyRate'>, tasks: Task[]): number {
   return positiveRate(session.hourlyRate) || positiveRate(findTaskFor(session, tasks)?.hourlyRate);
 }
 
@@ -99,12 +93,7 @@ export function sessionEarnings(session: TaskSession, tasks: Task[], nowMs: numb
  * Live earnings for one local day: each timer counts on the day it started,
  * matching how every page buckets time by day.
  */
-export function earningsOnDate(
-  sessions: TaskSession[],
-  tasks: Task[],
-  date: string,
-  nowMs: number
-): number {
+export function earningsOnDate(sessions: TaskSession[], tasks: Task[], date: string, nowMs: number): number {
   return sessions.reduce(
     (total, session) => total + timersEarnings(getTimersOnDate(session, date), session, tasks, nowMs),
     0

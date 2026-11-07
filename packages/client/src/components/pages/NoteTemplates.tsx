@@ -1,17 +1,12 @@
 /**
  * Note Templates Page
- * 
+ *
  * Main page component for the Note Templates feature, providing the interface
  * for managing note templates with split-pane layout and template builder.
  */
 
 import { useState, useCallback } from 'react';
-import {
-  Box,
-  Typography,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
+import { Box, Typography, Alert, CircularProgress } from '@mui/material';
 import { NoteTemplate } from '../../types/notes';
 import { NoteTemplateBuilder } from '../features/notes/NoteTemplateBuilder';
 import { useNoteTemplates } from '../../hooks/useNoteTemplates';
@@ -21,14 +16,7 @@ export function NoteTemplates() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // The builder reports what each action did (one toast per action)
-  const {
-    templates,
-    createTemplate,
-    updateTemplate,
-    deleteTemplate,
-    isLoading,
-    error,
-  } = useNoteTemplates();
+  const { templates, createTemplate, updateTemplate, deleteTemplate, isLoading, error } = useNoteTemplates();
 
   const selectedTemplate = templates.find(template => template.id === selectedId) ?? null;
   const handleSelectTemplate = useCallback((template: NoteTemplate | null) => {
@@ -37,12 +25,14 @@ export function NoteTemplates() {
 
   if (isLoading) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '400px' 
-      }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '400px',
+        }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -56,8 +46,8 @@ export function NoteTemplates() {
           Note Templates
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Create and manage templates for structured task notes. Templates define the fields
-          and validation rules for capturing consistent information across your tasks.
+          Create and manage templates for structured task notes. Templates define the fields and validation rules for
+          capturing consistent information across your tasks.
         </Typography>
       </Box>
 

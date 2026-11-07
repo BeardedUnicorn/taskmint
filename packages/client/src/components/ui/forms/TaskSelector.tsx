@@ -29,7 +29,10 @@ export function TaskSelector({ value, onChange, predefinedTasks, onCreateNewTask
     // Typing a task's exact name shows that task as selected (selectedTask
     // below), and picking its option is then a no-op for Autocomplete, so
     // report the task here too.
-    onChange(newInputValue, sortedTasks.find(task => task.name === newInputValue));
+    onChange(
+      newInputValue,
+      sortedTasks.find(task => task.name === newInputValue)
+    );
   };
 
   const handleCancelNewTask = () => {
@@ -70,7 +73,12 @@ export function TaskSelector({ value, onChange, predefinedTasks, onCreateNewTask
           }}
         />
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="contained" onClick={() => void handleCreateNewTask()} disabled={!newTaskName.trim()} size="small">
+          <Button
+            variant="contained"
+            onClick={() => void handleCreateNewTask()}
+            disabled={!newTaskName.trim()}
+            size="small"
+          >
             Create Task
           </Button>
           <Button variant="outlined" onClick={handleCancelNewTask} size="small">

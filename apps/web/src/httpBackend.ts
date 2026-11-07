@@ -90,10 +90,7 @@ function eventStream(server: Server, openStream: OpenStream) {
   };
 }
 
-export function createHttpBackend({
-  server,
-  openStream = url => new EventSource(url),
-}: HttpBackendOptions): Backend {
+export function createHttpBackend({ server, openStream = url => new EventSource(url) }: HttpBackendOptions): Backend {
   return {
     capabilities: { runtime: 'web', dataLocation: 'server' },
     async call<K extends CommandName>(name: K, ...args: CommandArgsParam<K>): Promise<CommandReply<K>> {

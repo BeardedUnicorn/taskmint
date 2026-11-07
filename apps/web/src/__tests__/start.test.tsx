@@ -85,7 +85,10 @@ describe('the web app', () => {
   });
 
   it("says when the server can't be reached, and tries again", async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new TypeError('Failed to fetch')))
+    );
     const here = page('/');
     await act(() => start(container(), here));
 

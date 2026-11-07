@@ -484,7 +484,7 @@ describe('useSessionManagement', () => {
       expect(result.current.activeSession).toBeNull();
     });
 
-    it("puts a deleted timer back in its place with Undo", async () => {
+    it('puts a deleted timer back in its place with Undo', async () => {
       const other = { ...finished, id: 'done-2', duration: 60_000 };
       const session = { ...withTime, timerInstances: [finished, other] };
       primeCommand('get_sessions', [session]);
@@ -580,7 +580,11 @@ describe('useSessionManagement', () => {
     });
 
     it('keeps its actions stable when the running timer changes', async () => {
-      const running = { ...mockSession, isActive: true, timerInstances: [{ ...mockTimerInstance, state: TimerState.running }] };
+      const running = {
+        ...mockSession,
+        isActive: true,
+        timerInstances: [{ ...mockTimerInstance, state: TimerState.running }],
+      };
       primeCommand('get_sessions', [{ ...mockSession, isActive: true, timerInstances: [mockTimerInstance] }]);
       primeCommand('start_timer_instance', running);
 
@@ -717,10 +721,16 @@ describe('useSessionManagement', () => {
       const runningInstance = { ...mockTimerInstance, id: 'instance-1', state: TimerState.running };
       const newInstance = { ...mockTimerInstance, id: 'instance-2', state: TimerState.idle };
       const initialSession = { ...mockSession, isActive: true, timerInstances: [runningInstance, newInstance] };
-      const afterStop = { ...initialSession, timerInstances: [{ ...runningInstance, state: TimerState.stopped }, newInstance] };
+      const afterStop = {
+        ...initialSession,
+        timerInstances: [{ ...runningInstance, state: TimerState.stopped }, newInstance],
+      };
       const afterStart = {
         ...initialSession,
-        timerInstances: [{ ...runningInstance, state: TimerState.stopped }, { ...newInstance, state: TimerState.running }],
+        timerInstances: [
+          { ...runningInstance, state: TimerState.stopped },
+          { ...newInstance, state: TimerState.running },
+        ],
       };
 
       primeCommand('get_sessions', [initialSession]);
@@ -741,10 +751,7 @@ describe('useSessionManagement', () => {
       const startCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'start_timer_instance');
       expect(startCalls).toHaveLength(2);
       // The hand-off is explicit: the toast names the timer that was stopped.
-      expect(mockShowInfo).toHaveBeenCalledWith(
-        'Stopped the running timer for "Test Task"',
-        expect.anything()
-      );
+      expect(mockShowInfo).toHaveBeenCalledWith('Stopped the running timer for "Test Task"', expect.anything());
     });
 
     it('recovery targets the currently running timer, not a stale closure', async () => {
@@ -765,11 +772,7 @@ describe('useSessionManagement', () => {
       };
       const afterStop2 = {
         ...initialSession,
-        timerInstances: [
-          { ...i1, state: TimerState.stopped },
-          { ...i2, state: TimerState.stopped },
-          i3,
-        ],
+        timerInstances: [{ ...i1, state: TimerState.stopped }, { ...i2, state: TimerState.stopped }, i3],
       };
       const afterStart2 = {
         ...initialSession,
@@ -805,10 +808,7 @@ describe('useSessionManagement', () => {
       });
 
       const stopCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === 'stop_timer_instance');
-      expect(stopCalls.map(([, args]) => args)).toEqual([
-        { instanceId: 'instance-1' },
-        { instanceId: 'instance-2' },
-      ]);
+      expect(stopCalls.map(([, args]) => args)).toEqual([{ instanceId: 'instance-1' }, { instanceId: 'instance-2' }]);
     });
 
     it('tolerates the other timer being already stopped during recovery', async () => {
@@ -819,7 +819,10 @@ describe('useSessionManagement', () => {
       const initialSession = { ...mockSession, isActive: true, timerInstances: [runningInstance, newInstance] };
       const afterStart = {
         ...initialSession,
-        timerInstances: [{ ...runningInstance, state: TimerState.stopped }, { ...newInstance, state: TimerState.running }],
+        timerInstances: [
+          { ...runningInstance, state: TimerState.stopped },
+          { ...newInstance, state: TimerState.running },
+        ],
       };
 
       primeCommand('get_sessions', [initialSession]);
@@ -856,10 +859,9 @@ describe('useSessionManagement', () => {
       primeCommand('get_sessions', [sessionA, sessionB]);
       primeCommand('set_active_session', afterSwitch);
 
-      const { result } = renderHook(
-        () => ({ mgmt: useSessionManagement(), timer: useActiveTimer() }),
-        { wrapper: ActiveTimerProvider }
-      );
+      const { result } = renderHook(() => ({ mgmt: useSessionManagement(), timer: useActiveTimer() }), {
+        wrapper: ActiveTimerProvider,
+      });
 
       await waitFor(() => {
         expect(result.current.timer.activeTimer?.id).toBe('instance-1');
@@ -872,10 +874,7 @@ describe('useSessionManagement', () => {
       // The backend finalized session A's runner; the shared slot must not
       // keep pointing at it until the debounced reload.
       expect(result.current.timer.activeTimer).toBeNull();
-      expect(mockShowInfo).toHaveBeenCalledWith(
-        'Stopped the running timer for "Test Task"',
-        expect.anything()
-      );
+      expect(mockShowInfo).toHaveBeenCalledWith('Stopped the running timer for "Test Task"', expect.anything());
     });
 
     it('deleteSession clears the shared active timer it contained', async () => {
@@ -884,10 +883,9 @@ describe('useSessionManagement', () => {
 
       primeCommand('get_sessions', [sessionA]);
 
-      const { result } = renderHook(
-        () => ({ mgmt: useSessionManagement(), timer: useActiveTimer() }),
-        { wrapper: ActiveTimerProvider }
-      );
+      const { result } = renderHook(() => ({ mgmt: useSessionManagement(), timer: useActiveTimer() }), {
+        wrapper: ActiveTimerProvider,
+      });
 
       await waitFor(() => {
         expect(result.current.timer.activeTimer?.id).toBe('instance-1');
@@ -931,7 +929,11 @@ describe('useSessionManagement', () => {
     });
 
     it('no longer pauses timers on in-window inactivity events (detection runs in the backend)', async () => {
-      const running = { ...mockSession, isActive: true, timerInstances: [{ ...mockTimerInstance, state: TimerState.running, isRunning: true }] };
+      const running = {
+        ...mockSession,
+        isActive: true,
+        timerInstances: [{ ...mockTimerInstance, state: TimerState.running, isRunning: true }],
+      };
       primeCommand('get_sessions', [running]);
       const { result } = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
       await waitFor(() => expect(result.current.sessions).toHaveLength(1));
@@ -990,10 +992,12 @@ describe('useSessionManagement', () => {
       it('should resume a timer instance successfully', async () => {
         const sessionWithRunningTimer = {
           ...mockSession,
-          timerInstances: [{
-            ...mockTimerInstance,
-            state: TimerState.running,
-          }],
+          timerInstances: [
+            {
+              ...mockTimerInstance,
+              state: TimerState.running,
+            },
+          ],
         };
 
         primeCommand('get_sessions', [mockSession]);
@@ -1087,10 +1091,18 @@ describe('useSessionManagement', () => {
   });
 
   describe('the rest of what it does', () => {
-    const running = (id: string, sessionId = 'session-1'): TimerInstance =>
-      ({ ...mockTimerInstance, id, sessionId, state: TimerState.running });
-    const paused = (id: string, pausedAt: string | null): TimerInstance =>
-      ({ ...mockTimerInstance, id, state: TimerState.paused, pausedAt });
+    const running = (id: string, sessionId = 'session-1'): TimerInstance => ({
+      ...mockTimerInstance,
+      id,
+      sessionId,
+      state: TimerState.running,
+    });
+    const paused = (id: string, pausedAt: string | null): TimerInstance => ({
+      ...mockTimerInstance,
+      id,
+      state: TimerState.paused,
+      pausedAt,
+    });
     const ready = async () => {
       const hook = renderHook(() => useSessionManagement(), { wrapper: ActiveTimerProvider });
       await waitFor(() => expect(hook.result.current.hasLoaded).toBe(true));
@@ -1192,13 +1204,24 @@ describe('useSessionManagement', () => {
       });
 
       it('announces the timer it stopped by activating the session', async () => {
-        const elsewhere = { ...mockSession, id: 'session-2', taskName: 'Review', isActive: true,
-          timerInstances: [running('other', 'session-2')] };
+        const elsewhere = {
+          ...mockSession,
+          id: 'session-2',
+          taskName: 'Review',
+          isActive: true,
+          timerInstances: [running('other', 'session-2')],
+        };
         const mine = { ...mockSession, timerInstances: [mockTimerInstance] };
         primeCommand('get_sessions', [elsewhere, mine]);
-        primeCommand('start_timer_instance', new Error('Cannot start timer for inactive session'),
-          { ...mine, isActive: true, timerInstances: [running('instance-1')] });
-        primeCommand('set_active_session', [{ ...elsewhere, isActive: false, timerInstances: [] }, { ...mine, isActive: true }]);
+        primeCommand('start_timer_instance', new Error('Cannot start timer for inactive session'), {
+          ...mine,
+          isActive: true,
+          timerInstances: [running('instance-1')],
+        });
+        primeCommand('set_active_session', [
+          { ...elsewhere, isActive: false, timerInstances: [] },
+          { ...mine, isActive: true },
+        ]);
         const { result } = await ready();
 
         await act(async () => {
@@ -1212,8 +1235,10 @@ describe('useSessionManagement', () => {
       it('activates without a hand-off when the running timer is in the same session', async () => {
         const mine = { ...mockSession, timerInstances: [running('other'), mockTimerInstance] };
         primeCommand('get_sessions', [mine]);
-        primeCommand('start_timer_instance', new Error('Cannot start timer for inactive session'),
-          { ...mine, isActive: true });
+        primeCommand('start_timer_instance', new Error('Cannot start timer for inactive session'), {
+          ...mine,
+          isActive: true,
+        });
         primeCommand('set_active_session', [{ ...mine, isActive: true }]);
         const { result } = await ready();
 
@@ -1266,10 +1291,9 @@ describe('useSessionManagement', () => {
           await result.current.startTask('task-1', 'Annotation');
         });
 
-        expect(mockShowInfo).toHaveBeenCalledWith(
-          'Resumed "Annotation" — stopped the running timer for "Review"',
-          { category: 'timer' }
-        );
+        expect(mockShowInfo).toHaveBeenCalledWith('Resumed "Annotation" — stopped the running timer for "Review"', {
+          category: 'timer',
+        });
       });
     });
 
@@ -1386,7 +1410,10 @@ describe('useSessionManagement', () => {
         const live = { ...running('live', 'session-2'), task: review };
         const elsewhere = { ...mockSession, id: 'session-2', isActive: true, timerInstances: [live] };
         primeCommand('get_sessions', [mockSession, elsewhere]);
-        primeCommand('set_active_session', [{ ...mockSession, isActive: true }, { ...elsewhere, isActive: false }]);
+        primeCommand('set_active_session', [
+          { ...mockSession, isActive: true },
+          { ...elsewhere, isActive: false },
+        ]);
         const { result } = await ready();
 
         await act(async () => {
@@ -1402,12 +1429,15 @@ describe('useSessionManagement', () => {
         const idle = { ...mockTimerInstance, id: 'idle' };
         const target = { ...mockSession, timerInstances: [idle] };
         primeCommand('get_sessions', [target, elsewhere]);
-        primeCommand(
-          'start_timer_instance',
-          new Error('Cannot start timer for inactive session'),
-          { ...target, isActive: true, timerInstances: [{ ...idle, state: TimerState.running }] }
-        );
-        primeCommand('set_active_session', [{ ...target, isActive: true }, { ...elsewhere, isActive: false }]);
+        primeCommand('start_timer_instance', new Error('Cannot start timer for inactive session'), {
+          ...target,
+          isActive: true,
+          timerInstances: [{ ...idle, state: TimerState.running }],
+        });
+        primeCommand('set_active_session', [
+          { ...target, isActive: true },
+          { ...elsewhere, isActive: false },
+        ]);
         const { result } = await ready();
 
         await act(async () => {
@@ -1539,7 +1569,7 @@ describe('useSessionManagement', () => {
     });
 
     describe('activating a session', () => {
-      it("announces no hand-off when nothing was running elsewhere", async () => {
+      it('announces no hand-off when nothing was running elsewhere', async () => {
         primeCommand('get_sessions', [mockSession]);
         primeCommand('set_active_session', [{ ...mockSession, isActive: true }]);
         const { result } = await ready();

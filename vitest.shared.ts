@@ -17,12 +17,7 @@ export interface TaskmintTestOptions {
 
 const packages: Record<string, { glob: string }[]> = policy.typescript.packages;
 
-export function defineTaskmintConfig({
-  packageDir,
-  environment,
-  plugins,
-  setupFiles,
-}: TaskmintTestOptions) {
+export function defineTaskmintConfig({ packageDir, environment, plugins, setupFiles }: TaskmintTestOptions) {
   const own = packages[packageDir];
   if (!own) {
     throw new Error(`${packageDir} is not listed in coverage-policy.json`);

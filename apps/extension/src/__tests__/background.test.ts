@@ -31,7 +31,9 @@ function unreachable() {
 }
 
 function refuses(status: number) {
-  fetchMock.mockImplementation(async () => Response.json({ error: 'sign in first', code: 'unauthenticated' }, { status }));
+  fetchMock.mockImplementation(async () =>
+    Response.json({ error: 'sign in first', code: 'unauthenticated' }, { status })
+  );
 }
 
 function useServer() {
@@ -118,7 +120,9 @@ describe('delivering to the app on this computer', () => {
         .mockRejectedValueOnce(new TypeError('Failed to fetch'))
         .mockResolvedValue(new Response(null, { status: 204 }));
       const capture = { payloadText: PAYLOAD, capturedAt: 'now' };
-      expect(await withTimePassing(worker.attemptDelivery(capture, { viaTabId: SITE_TAB, launchIfUnreachable: true }))).toBe(true);
+      expect(
+        await withTimePassing(worker.attemptDelivery(capture, { viaTabId: SITE_TAB, launchIfUnreachable: true }))
+      ).toBe(true);
       expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(chrome.storage.local.data.pendingCapture).toBeUndefined();
       expect(chrome.alarms.armed.has(worker.RETRY_ALARM)).toBe(false);
@@ -243,7 +247,10 @@ describe('the retry queue', () => {
 });
 
 describe('the listeners', () => {
-  const fromSite = { url: 'https://app.dataannotation.tech/workers/payments', tab: { id: SITE_TAB } } as chrome.runtime.MessageSender;
+  const fromSite = {
+    url: 'https://app.dataannotation.tech/workers/payments',
+    tab: { id: SITE_TAB },
+  } as chrome.runtime.MessageSender;
 
   it("deliver captures the site's pages send", async () => {
     chrome.runtime.onMessage.emit({ type: 'worklog-payload', payloadText: PAYLOAD }, fromSite);

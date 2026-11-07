@@ -247,7 +247,7 @@ describe('a session on several tasks', () => {
     expect(sessionTaskNames(s)).toEqual(['Deep work']);
   });
 
-  it("names a session after the tasks that ran, or its own before any has", () => {
+  it('names a session after the tasks that ran, or its own before any has', () => {
     expect(sessionTitle(session([]))).toBe('Deep work');
     expect(sessionTitle(session([instance({ state: TimerState.idle, task: other })]))).toBe('Deep work');
     expect(sessionTitle(session([stopped('a', 1, other)]))).toBe('Review');
@@ -290,7 +290,12 @@ describe('sessionsToTimeEntries', () => {
       taskName: 'Deep work',
       timerInstances: [
         instance({ id: 'a', state: TimerState.running, startTime: localNoon(2026, 8, 18).toISOString() }),
-        instance({ id: 'b', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 18).toISOString() }),
+        instance({
+          id: 'b',
+          state: TimerState.stopped,
+          duration: sec(60),
+          startTime: localNoon(2026, 8, 18).toISOString(),
+        }),
       ],
       totalDuration: sec(60),
       isActive: true,
@@ -320,7 +325,12 @@ describe('sessionsToTimeEntries', () => {
       taskId: 'task_1',
       taskName: 'Deep work',
       timerInstances: [
-        instance({ id: 'old', state: TimerState.stopped, duration: sec(60), startTime: localNoon(2026, 8, 17).toISOString() }),
+        instance({
+          id: 'old',
+          state: TimerState.stopped,
+          duration: sec(60),
+          startTime: localNoon(2026, 8, 17).toISOString(),
+        }),
         instance({ id: 'new', state: TimerState.running, startTime: localNoon(2026, 8, 18).toISOString() }),
         // Invalid startTime falls back to the session date.
         instance({ id: 'bad', state: TimerState.idle, startTime: 'garbage' }),

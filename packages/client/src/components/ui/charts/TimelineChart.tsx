@@ -3,18 +3,17 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
-import { DailyData, WeeklyData, MonthlyData, millisecondsToHours, formatTimeForChart } from '../../../utils/chartDataHelpers';
+import {
+  DailyData,
+  WeeklyData,
+  MonthlyData,
+  millisecondsToHours,
+  formatTimeForChart,
+} from '../../../utils/chartDataHelpers';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { formatCurrency } from '../../../utils/formatters';
 import { formatShortDate } from '../../../utils/locale';
-import {
-  CHART_HEIGHT,
-  ChartLegend,
-  ChartTitle,
-  ChartTooltipCard,
-  ChartTooltipProps,
-  hoveredPoint,
-} from './ChartParts';
+import { CHART_HEIGHT, ChartLegend, ChartTitle, ChartTooltipCard, ChartTooltipProps, hoveredPoint } from './ChartParts';
 
 type TimelineData = DailyData | WeeklyData | MonthlyData;
 export type TimelineType = 'daily' | 'weekly' | 'monthly';
@@ -90,7 +89,12 @@ export function TimelineChart({ data, dataType }: { data: TimelineData[]; dataTy
             yAxisId="earnings"
             orientation="right"
             tick={{ fill: text, fontSize: 12 }}
-            label={{ value: 'Earnings ($)', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: text } }}
+            label={{
+              value: 'Earnings ($)',
+              angle: 90,
+              position: 'insideRight',
+              style: { textAnchor: 'middle', fill: text },
+            }}
           />
           <Tooltip content={<TimelineTooltip />} />
           <Legend

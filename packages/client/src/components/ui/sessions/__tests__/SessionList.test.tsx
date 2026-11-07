@@ -110,11 +110,7 @@ describe('SessionList', () => {
     });
     const mixed = (overrides: Partial<TaskSession> = {}): TaskSession => ({
       ...mockSessions[0],
-      timerInstances: [
-        stopped('a', 3_600_000),
-        stopped('b', 1_800_000, review),
-        stopped('c', 1_800_000),
-      ],
+      timerInstances: [stopped('a', 3_600_000), stopped('b', 1_800_000, review), stopped('c', 1_800_000)],
       ...overrides,
     });
     const timeByTask = () =>
@@ -236,12 +232,8 @@ describe('SessionList', () => {
       fireEvent.click(chip);
 
       expect(screen.getAllByText('Code Review')[0]).toBeInTheDocument();
-      expect(
-        screen.queryByRole('heading', { name: 'Development Work' })
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole('heading', { name: 'Documentation' })
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Development Work' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Documentation' })).not.toBeInTheDocument();
     });
 
     it('clears the task filters with their Clear chip', () => {
@@ -293,12 +285,8 @@ describe('SessionList', () => {
       fireEvent.click(within(listbox).getByText('Active'));
 
       expect(screen.getAllByText('Code Review')[0]).toBeInTheDocument();
-      expect(
-        screen.queryByRole('heading', { name: 'Development Work' })
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole('heading', { name: 'Documentation' })
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Development Work' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Documentation' })).not.toBeInTheDocument();
     });
 
     it('should show a no-matches state whose Clear filters action restores the list', () => {
@@ -367,9 +355,7 @@ describe('SessionList', () => {
     it('should call onSelectSession when session is clicked', () => {
       render(<SessionList {...mockProps} />);
 
-      const sessionTitle = screen
-        .getAllByText('Development Work')
-        .find(el => el.tagName.toLowerCase() === 'h6');
+      const sessionTitle = screen.getAllByText('Development Work').find(el => el.tagName.toLowerCase() === 'h6');
       const sessionCard = sessionTitle?.closest('.MuiCard-root');
       fireEvent.click(sessionCard!);
 
@@ -380,9 +366,7 @@ describe('SessionList', () => {
       render(<SessionList {...mockProps} />);
 
       const moreButtons = screen.getAllByRole('button');
-      const moreButton = moreButtons.find(button =>
-        button.querySelector('[data-testid="MoreVertIcon"]')
-      );
+      const moreButton = moreButtons.find(button => button.querySelector('[data-testid="MoreVertIcon"]'));
 
       fireEvent.click(moreButton!);
 
@@ -398,9 +382,7 @@ describe('SessionList', () => {
 
       // Open context menu
       const moreButtons = screen.getAllByRole('button');
-      const moreButton = moreButtons.find(button =>
-        button.querySelector('[data-testid="MoreVertIcon"]')
-      );
+      const moreButton = moreButtons.find(button => button.querySelector('[data-testid="MoreVertIcon"]'));
       fireEvent.click(moreButton!);
 
       // Click activate session
@@ -437,7 +419,7 @@ describe('SessionList', () => {
         .map(node => node.closest('.MuiCard-root'))
         .find(Boolean) as HTMLElement;
 
-    it("ends the active session and activates another from their cards, without selecting them", () => {
+    it('ends the active session and activates another from their cards, without selecting them', () => {
       render(<SessionList {...mockProps} />);
 
       // Code Review is the active one
@@ -524,9 +506,7 @@ describe('SessionList', () => {
       });
 
       expect(screen.getByRole('heading', { name: mockSessions[1].taskName })).toBeInTheDocument();
-      expect(
-        screen.queryByRole('heading', { name: mockSessions[0].taskName })
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: mockSessions[0].taskName })).not.toBeInTheDocument();
     });
 
     it('still shows text a session carries itself (not yet moved)', () => {
@@ -543,7 +523,8 @@ describe('SessionList', () => {
     });
 
     it('should display long session notes with CSS truncation', () => {
-      const longNote = 'This is a very long note that should be truncated when displayed in the session list to prevent the UI from becoming cluttered and unreadable';
+      const longNote =
+        'This is a very long note that should be truncated when displayed in the session list to prevent the UI from becoming cluttered and unreadable';
       const sessionsWithLongNotes = [
         {
           ...mockSessions[0],
@@ -621,16 +602,12 @@ describe('SessionList', () => {
         updatedAt: '2024-01-15T10:15:00Z',
       };
 
-      const { rerender } = render(
-        <SessionList {...mockProps} sessions={[pausedSession]} />
-      );
+      const { rerender } = render(<SessionList {...mockProps} sessions={[pausedSession]} />);
 
       expect(screen.getByText('0h 15m')).toBeInTheDocument();
 
       // Advancing the shared clock leaves the frozen elapsed untouched
-      rerender(
-        <SessionList {...mockProps} sessions={[pausedSession]} nowMs={NOW_MS + 60_000} />
-      );
+      rerender(<SessionList {...mockProps} sessions={[pausedSession]} nowMs={NOW_MS + 60_000} />);
 
       expect(screen.getByText('0h 15m')).toBeInTheDocument();
     });
@@ -663,7 +640,12 @@ describe('SessionList', () => {
       taskName: 'Old Work',
       date: '2023-11-01',
       timerInstances: [
-        { ...mockTimerInstance, id: 'old-1', sessionId: 'session-old', startTime: new Date(2023, 10, 1, 9).toISOString() },
+        {
+          ...mockTimerInstance,
+          id: 'old-1',
+          sessionId: 'session-old',
+          startTime: new Date(2023, 10, 1, 9).toISOString(),
+        },
       ],
     };
     const imported: TaskSession = {

@@ -60,9 +60,7 @@ describe('TaskService', () => {
       expect(archived.isArchived).toBe(true);
       expect(archived.archivedAt).toEqual(expect.any(String));
       expect(new Date(archived.archivedAt as string).getTime()).not.toBeNaN();
-      expect(new Date(archived.updatedAt).getTime()).toBeGreaterThan(
-        new Date(baseTask.updatedAt).getTime()
-      );
+      expect(new Date(archived.updatedAt).getTime()).toBeGreaterThan(new Date(baseTask.updatedAt).getTime());
 
       const savedTasks = vi.mocked(mockStorageService.setTasks).mock.calls[0][0];
       expect(savedTasks).toHaveLength(1);
@@ -70,9 +68,9 @@ describe('TaskService', () => {
     });
 
     it('should unarchive a task, clearing archivedAt', async () => {
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([
-        { ...baseTask, isArchived: true, archivedAt: '2023-02-01T00:00:00.000Z' },
-      ]);
+      mockStorageService.getTasks = vi
+        .fn()
+        .mockResolvedValue([{ ...baseTask, isArchived: true, archivedAt: '2023-02-01T00:00:00.000Z' }]);
 
       const unarchived = await service.unarchiveTask('task1');
 
@@ -121,10 +119,7 @@ describe('TaskService', () => {
 
       expect(tasks.find(t => t.id === 'task2')?.isFavorite).toBe(true);
       expect(tasks.find(t => t.id === 'task1')?.isFavorite).toBeFalsy();
-      expect(mockStorageService.setTasks).toHaveBeenCalledWith([
-        { ...baseTask },
-        { ...otherTask, isFavorite: true },
-      ]);
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([{ ...baseTask }, { ...otherTask, isFavorite: true }]);
       expect(window.localStorage.getItem('favoriteTasks')).toBeNull();
     });
 
@@ -210,7 +205,10 @@ describe('TaskService', () => {
     it("says so when the tasks can't be read", async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
       mockStorageService.getTasks = vi.fn().mockRejectedValue(new Error('failure'));
-      await expect(service.getAllTasks()).rejects.toMatchObject({ code: 'TASK_NOT_FOUND', message: 'Failed to retrieve tasks' });
+      await expect(service.getAllTasks()).rejects.toMatchObject({
+        code: 'TASK_NOT_FOUND',
+        message: 'Failed to retrieve tasks',
+      });
     });
 
     it('reports a save that failed as such', async () => {
@@ -218,7 +216,9 @@ describe('TaskService', () => {
       mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }]);
       mockStorageService.setTasks = vi.fn().mockRejectedValue(new Error('disk full'));
       await expect(service.createTask({ name: 'New' })).rejects.toMatchObject({ code: 'TASK_CREATE_FAILED' });
-      await expect(service.updateTask('task1', { hourlyRate: 5 })).rejects.toMatchObject({ code: 'TASK_UPDATE_FAILED' });
+      await expect(service.updateTask('task1', { hourlyRate: 5 })).rejects.toMatchObject({
+        code: 'TASK_UPDATE_FAILED',
+      });
       await expect(service.deleteTask('task1')).rejects.toMatchObject({ code: 'TASK_DELETE_FAILED' });
     });
   });
@@ -226,7 +226,10 @@ describe('TaskService', () => {
   describe('creating and changing tasks', () => {
     beforeEach(() => {
       // As stored: a fresh copy on each read
-      mockStorageService.getTasks = vi.fn(async () => [{ ...baseTask }, { ...baseTask, id: 'task2', name: 'Other Task' }]);
+      mockStorageService.getTasks = vi.fn(async () => [
+        { ...baseTask },
+        { ...baseTask, id: 'task2', name: 'Other Task' },
+      ]);
     });
 
     it('creates a task with a trimmed name and an id of its own', async () => {
@@ -239,15 +242,21 @@ describe('TaskService', () => {
       expect((await service.updateTask('task1', { name: ' Renamed ' })).name).toBe('Renamed');
       expect((await service.updateTask('task1', { hourlyRate: 60 })).name).toBe('Existing Task');
       expect((await service.updateTask('task1', { name: 'Existing Task' })).name).toBe('Existing Task');
-      await expect(service.updateTask('task1', { name: 'other task' })).rejects.toMatchObject({ code: 'TASK_DUPLICATE_NAME' });
-      await expect(service.updateTask('task1', { hourlyRate: -1 })).rejects.toMatchObject({ code: 'TASK_VALIDATION_FAILED' });
+      await expect(service.updateTask('task1', { name: 'other task' })).rejects.toMatchObject({
+        code: 'TASK_DUPLICATE_NAME',
+      });
+      await expect(service.updateTask('task1', { hourlyRate: -1 })).rejects.toMatchObject({
+        code: 'TASK_VALIDATION_FAILED',
+      });
     });
 
     it('checks the rate and the default note template', async () => {
       const errors = async (task: Partial<Task>) => (await service.validateTask({ name: 'Ok', ...task })).errors;
       expect(await errors({ hourlyRate: 1001 })).toEqual(['Hourly rate cannot exceed $1000']);
       expect(await errors({ hourlyRate: '12' as never })).toEqual(['Hourly rate must be a positive number']);
-      expect(await errors({ defaultNoteTemplateId: '  ' })).toEqual(['Default note template ID must be a valid string']);
+      expect(await errors({ defaultNoteTemplateId: '  ' })).toEqual([
+        'Default note template ID must be a valid string',
+      ]);
       expect(await errors({ defaultNoteTemplateId: 'tmpl', hourlyRate: 20 })).toEqual([]);
       expect(await errors({ name: 'x'.repeat(101) })).toEqual(['Task name cannot exceed 100 characters']);
     });
@@ -286,4 +295,3 @@ describe('TaskService', () => {
     });
   });
 });
-

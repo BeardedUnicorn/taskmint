@@ -33,12 +33,7 @@ describe('EmptyState', () => {
   it('renders a working action slot', () => {
     const onClick = vi.fn();
 
-    render(
-      <EmptyState
-        title="No sessions yet"
-        action={<Button onClick={onClick}>Start a session</Button>}
-      />
-    );
+    render(<EmptyState title="No sessions yet" action={<Button onClick={onClick}>Start a session</Button>} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Start a session' }));
 

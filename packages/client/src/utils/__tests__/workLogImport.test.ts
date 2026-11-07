@@ -33,13 +33,7 @@ function loaded(session: ReturnType<typeof buildSynthesizedSession>): TaskSessio
 }
 
 /** ISO instant for a LOCAL wall time. */
-function localIso(
-  year: number,
-  month: number,
-  day: number,
-  hour = 12,
-  minute = 0
-): string {
+function localIso(year: number, month: number, day: number, hour = 12, minute = 0): string {
   return new Date(year, month - 1, day, hour, minute, 0, 0).toISOString();
 }
 
@@ -216,10 +210,7 @@ describe('parseWorkLogPayload', () => {
 
   it('skips corrupt records without failing the paste', () => {
     const payload = {
-      timedWorkEntries: [
-        SAMPLE_PAYLOAD.timedWorkEntries[0],
-        { id: 'broken', createdAt: 'not-a-date' },
-      ],
+      timedWorkEntries: [SAMPLE_PAYLOAD.timedWorkEntries[0], { id: 'broken', createdAt: 'not-a-date' }],
     };
     const result = parseWorkLogPayload(JSON.stringify(payload));
     expect(result.error).toBeNull();
@@ -243,9 +234,7 @@ describe('parseWorkLogPayload', () => {
   });
 
   it('names an unfamiliar project-less work-log type after the type itself', () => {
-    const result = parseWorkLogPayload(
-      JSON.stringify({ workLogs: [{ ...REFERRAL_WORKLOG, type: 'BonusWorkLog' }] })
-    );
+    const result = parseWorkLogPayload(JSON.stringify({ workLogs: [{ ...REFERRAL_WORKLOG, type: 'BonusWorkLog' }] }));
     expect(result.workLogs[0].project).toEqual({ id: 'site-type:BonusWorkLog', name: 'BonusWorkLog' });
   });
 
@@ -577,9 +566,7 @@ describe('buildRewriteGroups', () => {
     const sessions = [makeSession({ timerInstances: [running], isActive: true })];
 
     const result = buildRewriteGroups([pasteEntry], [pasteEntry], sessions, { nowIso: NOW_ISO });
-    expect(result.blockedDays).toEqual([
-      { taskId: 'task-1', taskName: 'Raccoon - SWE', workDay },
-    ]);
+    expect(result.blockedDays).toEqual([{ taskId: 'task-1', taskName: 'Raccoon - SWE', workDay }]);
     expect(result.groups[0].blockingInstanceIds).toEqual(['running-1']);
     expect(result.groups[0].deleteInstanceIds).toEqual([]);
   });
@@ -614,9 +601,7 @@ describe('buildRewriteGroups', () => {
     expect(result.noopDays).toBe(0);
     expect(result.groups).toHaveLength(1);
     // The prior synthesized instances land in the delete set.
-    expect(result.groups[0].deleteInstanceIds).toEqual(
-      synthesized.timerInstances.map(i => i.id)
-    );
+    expect(result.groups[0].deleteInstanceIds).toEqual(synthesized.timerInstances.map(i => i.id));
   });
 
   it('rewrites instances started after midnight within an overnight session created on workDay', () => {
@@ -644,10 +629,15 @@ describe('buildRewriteGroups', () => {
 
   it("leaves an overnight session's next-afternoon timer on its own day", () => {
     const afternoon = makeInstance({ id: 'next-afternoon', startTime: new Date(2026, 7, 27, 15, 0).toISOString() });
-    const result = buildRewriteGroups([pasteEntry], [pasteEntry], [makeSession({ date: '2026-08-26', timerInstances: [afternoon] })], {
-      nowIso: NOW_ISO,
-      idFactory: () => 'fixed',
-    });
+    const result = buildRewriteGroups(
+      [pasteEntry],
+      [pasteEntry],
+      [makeSession({ date: '2026-08-26', timerInstances: [afternoon] })],
+      {
+        nowIso: NOW_ISO,
+        idFactory: () => 'fixed',
+      }
+    );
     expect(result.groups[0].deleteInstanceIds).toEqual([]);
   });
 
@@ -656,7 +646,9 @@ describe('buildRewriteGroups', () => {
   });
 
   it("rebuilds an imported day that doesn't match its ledger one-for-one", () => {
-    const synthesized = loaded(buildSynthesizedSession('task-1', 'Raccoon - SWE', workDay, [pasteEntry], NOW_ISO, () => 'prior'));
+    const synthesized = loaded(
+      buildSynthesizedSession('task-1', 'Raccoon - SWE', workDay, [pasteEntry], NOW_ISO, () => 'prior')
+    );
     const second = makeTimedEntry({ id: 'paste-2', createdAt: localIso(2026, 8, 26, 18, 0), timeInMinutes: 30 });
     const rebuilt = (sessions: TaskSession[], ledger = [pasteEntry]) =>
       buildRewriteGroups([pasteEntry], ledger, sessions, { nowIso: NOW_ISO }).groups.length;
@@ -665,7 +657,9 @@ describe('buildRewriteGroups', () => {
     expect(rebuilt([synthesized], [pasteEntry, second])).toBe(1);
     // Its timer lost what tied it to the entry
     const [instance] = synthesized.timerInstances;
-    expect(rebuilt([{ ...synthesized, timerInstances: [{ ...instance, externalId: undefined, duration: undefined }] }])).toBe(1);
+    expect(
+      rebuilt([{ ...synthesized, timerInstances: [{ ...instance, externalId: undefined, duration: undefined }] }])
+    ).toBe(1);
   });
 });
 
@@ -732,7 +726,13 @@ describe('buildImportPreview', () => {
   it('blocks a day with a running timer, and counts only that task and day', () => {
     const createdAt = localIso(2026, 8, 26, 14, 0);
     const entry = makeTimedEntry({ id: 'p1', createdAt, timeInMinutes: 60 });
-    const running = makeInstance({ id: 'live', startTime: new Date(2026, 7, 26, 9, 0).toISOString(), state: TimerState.running, isRunning: true, duration: undefined });
+    const running = makeInstance({
+      id: 'live',
+      startTime: new Date(2026, 7, 26, 9, 0).toISOString(),
+      state: TimerState.running,
+      isRunning: true,
+      duration: undefined,
+    });
     const otherDay = makeInstance({ id: 'before', startTime: new Date(2026, 7, 20, 9, 0).toISOString() });
     const sessions = [
       makeSession({ timerInstances: [running, otherDay] }),
@@ -839,7 +839,9 @@ describe('buildRemapPlan', () => {
     const newTracked = makeSession({
       id: 'new-tracked',
       taskId: 'task-2',
-      timerInstances: [makeInstance({ id: 'theirs', startTime: new Date(2026, 7, 26, 16, 0).toISOString(), duration: 1_800_000 })],
+      timerInstances: [
+        makeInstance({ id: 'theirs', startTime: new Date(2026, 7, 26, 16, 0).toISOString(), duration: 1_800_000 }),
+      ],
     });
     const result = plan({
       ledger: [moving],
@@ -885,7 +887,16 @@ describe('buildRemapPlan', () => {
   });
 
   it('refuses a project that has no mapping yet', () => {
-    expect(buildRemapPlan({ projectId: 'proj-9', newTask: other, ledger: [], sessions: [], mappings: [makeMapping()], nowIso: NOW_ISO })).toEqual({
+    expect(
+      buildRemapPlan({
+        projectId: 'proj-9',
+        newTask: other,
+        ledger: [],
+        sessions: [],
+        mappings: [makeMapping()],
+        nowIso: NOW_ISO,
+      })
+    ).toEqual({
       error: 'That project has no mapping yet',
     });
   });
@@ -896,10 +907,12 @@ describe('buildRemapPlan', () => {
       ...loaded(synthesized),
       timerInstances: [{ ...loaded(synthesized).timerInstances[0], state: TimerState.running, isRunning: true }],
     };
-    expect(plan({ ledger: [moving], sessions: [running] })).toEqual({ error: `Stop the running timer first (${workDay})` });
+    expect(plan({ ledger: [moving], sessions: [running] })).toEqual({
+      error: `Stop the running timer first (${workDay})`,
+    });
   });
 
-  it("leaves the old task alone on a day it had nothing imported for", () => {
+  it('leaves the old task alone on a day it had nothing imported for', () => {
     const result = plan({ ledger: [moving], sessions: [] });
     if ('error' in result) throw new Error(result.error);
     expect(result.groups.map(group => group.taskId)).toEqual(['task-2']);

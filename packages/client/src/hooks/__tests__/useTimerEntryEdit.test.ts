@@ -7,11 +7,7 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useTimerEntryEdit } from '../useTimerEntryEdit';
 import { TimerState } from '../../types/timer';
-import {
-  createMockTask,
-  createMockTaskNote,
-  createMockTaskSession,
-} from '../../__tests__/setup/session-test-utils';
+import { createMockTask, createMockTaskNote, createMockTaskSession } from '../../__tests__/setup/session-test-utils';
 
 const editTimerEntry = vi.fn();
 const updateNote = vi.fn();
@@ -112,9 +108,12 @@ describe('useTimerEntryEdit', () => {
       await result.current({ id: 'instance-1', taskId: 'task-b', durationMs: 3_600_000 });
     });
 
-    expect(editTimerEntry).toHaveBeenCalledWith('instance-1', expect.objectContaining({
-      moveTo: { taskId: 'task-b', taskName: 'B' },
-    }));
+    expect(editTimerEntry).toHaveBeenCalledWith(
+      'instance-1',
+      expect.objectContaining({
+        moveTo: { taskId: 'task-b', taskName: 'B' },
+      })
+    );
     expect(updateNote).toHaveBeenCalledTimes(1);
     expect(updateNote).toHaveBeenCalledWith('timer-note', { sessionId: 'session-new', taskId: 'task-b' });
   });

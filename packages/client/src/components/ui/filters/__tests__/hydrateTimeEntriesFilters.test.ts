@@ -3,9 +3,7 @@ import dayjs from 'dayjs';
 import { defaultFilters, hydrateTimeEntriesFilters } from '../TimeEntriesFilters';
 import { Task } from '../../../../types/task';
 
-const tasks: Task[] = [
-  { id: 'task-1', name: 'Annotation (renamed)', createdAt: '', updatedAt: '' },
-];
+const tasks: Task[] = [{ id: 'task-1', name: 'Annotation (renamed)', createdAt: '', updatedAt: '' }];
 const today = dayjs(new Date(2026, 9, 15, 12));
 
 describe('hydrateTimeEntriesFilters', () => {

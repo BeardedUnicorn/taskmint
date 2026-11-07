@@ -39,9 +39,11 @@ describe('SettingsPage', () => {
   it('lists every section, and each has its anchor', () => {
     render(<SettingsPage />, { wrapper: NavigationProvider });
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
-    expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(
-      SETTINGS_SECTIONS.map(section => section.label)
-    );
+    expect(
+      within(nav)
+        .getAllByRole('button')
+        .map(button => button.textContent)
+    ).toEqual(SETTINGS_SECTIONS.map(section => section.label));
     for (const { id } of SETTINGS_SECTIONS) {
       expect(document.getElementById(`settings-${id}`)).toBeInTheDocument();
     }
@@ -62,7 +64,9 @@ describe('SettingsPage', () => {
     installFakeBackendForTest({ capabilities: { runtime: 'web' }, without: ['idle', 'folderBackups'] });
     render(<SettingsPage />, { wrapper: NavigationProvider });
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
-    const labels = within(nav).getAllByRole('button').map(button => button.textContent);
+    const labels = within(nav)
+      .getAllByRole('button')
+      .map(button => button.textContent);
 
     expect(labels).not.toContain('Backups');
     expect(labels).not.toContain(SETTINGS_SECTIONS.find(({ id }) => id === 'idle')!.label);
@@ -83,10 +87,11 @@ describe('SettingsPage', () => {
     );
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
 
-    expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual([
-      ...SETTINGS_SECTIONS.map(section => section.label),
-      'Account',
-    ]);
+    expect(
+      within(nav)
+        .getAllByRole('button')
+        .map(button => button.textContent)
+    ).toEqual([...SETTINGS_SECTIONS.map(section => section.label), 'Account']);
     expect(document.getElementById('settings-account')).toHaveTextContent('Account section');
   });
 
@@ -101,7 +106,9 @@ describe('SettingsPage', () => {
     render(<OpenAtPayouts />, { wrapper: NavigationProvider });
 
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
-    await waitFor(() => expect(within(nav).getByRole('button', { name: 'Payouts' })).toHaveAttribute('aria-current', 'location'));
+    await waitFor(() =>
+      expect(within(nav).getByRole('button', { name: 'Payouts' })).toHaveAttribute('aria-current', 'location')
+    );
     expect(document.getElementById('settings-payouts')!.scrollIntoView).toHaveBeenCalled();
     expect(params).toEqual({});
   });

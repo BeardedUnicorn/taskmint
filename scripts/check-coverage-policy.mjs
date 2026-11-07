@@ -45,10 +45,7 @@ const problems = [];
 const SOURCE_DIRS = ['packages', 'apps', 'crates'];
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'target', 'gen', 'coverage', '.sqlx']);
 const SOURCE_FILE = /\.(rs|ts|tsx|js|mjs|cjs|jsx)$/;
-const BANNED = [
-  /\b(?:v8|istanbul|c8)\s+ignore\b/,
-  /#!?\[\s*(?:cfg_attr\s*\([^)]*,\s*)?coverage\s*\(\s*off\s*\)/,
-];
+const BANNED = [/\b(?:v8|istanbul|c8)\s+ignore\b/, /#!?\[\s*(?:cfg_attr\s*\([^)]*,\s*)?coverage\s*\(\s*off\s*\)/];
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {

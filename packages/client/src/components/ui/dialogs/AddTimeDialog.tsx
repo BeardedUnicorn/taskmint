@@ -79,11 +79,7 @@ export function combineDayAndTime(day: Dayjs, time: Dayjs): Date {
 }
 
 /** Problems with the entry's timing, or null when it can be submitted. */
-export function validateEntryTiming(
-  start: Date,
-  durationMs: number,
-  nowMs: number = Date.now()
-): string | null {
+export function validateEntryTiming(start: Date, durationMs: number, nowMs: number = Date.now()): string | null {
   if (durationMs > MAX_DURATION_MS) {
     return 'A time entry can be at most 24 hours';
   }
@@ -177,9 +173,9 @@ export function AddTimeDialog({ onClose, tasks, sessions, onAdd }: AddTimeDialog
                   setTask(value);
                   setFormError(null);
                 }}
-                getOptionLabel={(option) => (option.isFavorite ? `★ ${option.name}` : option.name)}
+                getOptionLabel={option => (option.isFavorite ? `★ ${option.name}` : option.name)}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderInput={(params) => (
+                renderInput={params => (
                   <TextField
                     {...params}
                     label="Task"
@@ -212,7 +208,7 @@ export function AddTimeDialog({ onClose, tasks, sessions, onAdd }: AddTimeDialog
 
               <DurationFields
                 value={duration}
-                onChange={(next) => {
+                onChange={next => {
                   setDuration(next);
                   setDurationErrors({});
                 }}

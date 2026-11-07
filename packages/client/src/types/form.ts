@@ -1,6 +1,6 @@
 /**
  * Form Component Types
- * 
+ *
  * This file contains type definitions for form-related components
  * including inputs, selectors, and dialog forms.
  */
@@ -65,8 +65,8 @@ export interface EditTimeEntryDialogProps {
 
 // Form Data Types
 export interface EditTimeEntryData {
-  id: string;          // timer-instance id (may carry "session_" prefix)
-  taskId: string;      // the entry's task; a different one on save moves it
-  durationMs: number;  // net tracked duration: prefill in, edited value out
-  startTime?: string;  // ISO, display-only caption; never written back
+  id: string; // timer-instance id (may carry "session_" prefix)
+  taskId: string; // the entry's task; a different one on save moves it
+  durationMs: number; // net tracked duration: prefill in, edited value out
+  startTime?: string; // ISO, display-only caption; never written back
 }

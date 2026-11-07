@@ -106,9 +106,7 @@ export function buildPayoutCells(
   for (const { taskId, workDay, ledgerTaskName } of keys.values()) {
     const forKey = entries.filter(e => e.taskId === taskId && e.workDay === workDay);
     const timed = forKey.filter(e => e.kind === 'timed');
-    const workLogCents = forKey
-      .filter(e => e.kind === 'workLog')
-      .reduce((sum, e) => sum + e.amountCents, 0);
+    const workLogCents = forKey.filter(e => e.kind === 'workLog').reduce((sum, e) => sum + e.amountCents, 0);
     const timedCents = timed.reduce((sum, e) => sum + e.amountCents, 0);
     const importedMinutes = timed.reduce((sum, e) => sum + effectiveMinutes(e), 0);
 
@@ -142,9 +140,7 @@ export function buildPayoutCells(
       .reduce((sum, e) => sum + e.amountCents, 0);
     const untransferredCents = (hasTimedImport ? untransferredTimedCents : 0) + untransferredWorkLogCents;
 
-    const paidTimedCents = timed
-      .filter(e => isPaid(e.status))
-      .reduce((sum, e) => sum + e.amountCents, 0);
+    const paidTimedCents = timed.filter(e => isPaid(e.status)).reduce((sum, e) => sum + e.amountCents, 0);
     const paidWorkLogCents = forKey
       .filter(e => e.kind === 'workLog' && isPaid(e.status))
       .reduce((sum, e) => sum + e.amountCents, 0);
@@ -198,9 +194,7 @@ export function buildPayoutCells(
     });
   }
 
-  return cells.sort(
-    (a, b) => b.workDay.localeCompare(a.workDay) || a.taskName.localeCompare(b.taskName)
-  );
+  return cells.sort((a, b) => b.workDay.localeCompare(a.workDay) || a.taskName.localeCompare(b.taskName));
 }
 
 /** "$1,234.00 + ~$80.00": imported amounts, then estimates; "—" for none. */
@@ -362,8 +356,14 @@ export function buildReleaseSchedule(
   for (const cell of cells) {
     if (!cell.isEstimate || !isFutureRelease(cell, todayStr, nowMs)) continue;
     const { releaseDay, releaseTime, releaseIso } = cell;
-    rowFor({ releaseDay, releaseTime, releaseIso, releaseMs: Date.parse(String(releaseIso)), actualCents: 0, estimatedCents: 0 })
-      .estimatedCents += cell.estimatedCents;
+    rowFor({
+      releaseDay,
+      releaseTime,
+      releaseIso,
+      releaseMs: Date.parse(String(releaseIso)),
+      actualCents: 0,
+      estimatedCents: 0,
+    }).estimatedCents += cell.estimatedCents;
   }
 
   return [...byKey.values()].sort((a, b) => a.releaseMs - b.releaseMs);

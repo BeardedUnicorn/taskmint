@@ -21,7 +21,7 @@ const cell = (workDay: string, overrides: Partial<PayoutDayCell>): PayoutDayCell
 });
 
 describe('ReconciliationTable', () => {
-  it("shows a day reported as tracked as no difference, and tracked time with no money as tracked only", () => {
+  it('shows a day reported as tracked as no difference, and tracked time with no money as tracked only', () => {
     const groups = groupCellsByMonth([
       cell('2026-10-01', { trackedMs: HOUR, importedMinutes: 60, actualCents: 4000 }),
       cell('2026-10-02', { trackedMs: 2 * HOUR }),

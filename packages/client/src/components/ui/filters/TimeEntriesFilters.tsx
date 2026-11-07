@@ -88,16 +88,9 @@ export function TimeEntriesFilters({
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <FilterIcon color="action" />
-            <Typography variant="h6">
-              Filters
-            </Typography>
+            <Typography variant="h6">Filters</Typography>
             {activeFiltersCount > 0 && (
-              <Chip
-                label={`${activeFiltersCount} active`}
-                size="small"
-                color="primary"
-                variant="outlined"
-              />
+              <Chip label={`${activeFiltersCount} active`} size="small" color="primary" variant="outlined" />
             )}
           </Stack>
 
@@ -109,7 +102,7 @@ export function TimeEntriesFilters({
                 </IconButton>
               </Tooltip>
             )}
-            
+
             <Tooltip title={isExpanded ? 'Collapse filters' : 'Expand filters'}>
               <IconButton
                 size="small"
@@ -126,13 +119,15 @@ export function TimeEntriesFilters({
 
       {/* Quick Filters (Always Visible) */}
       <Box sx={{ p: 2 }}>
-        <Box sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
-          flexWrap: 'wrap',
-          gap: 2,
-          alignItems: { md: 'center' }
-        }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            flexWrap: 'wrap',
+            gap: 2,
+            alignItems: { md: 'center' },
+          }}
+        >
           <Box sx={{ flex: 1, minWidth: 160 }}>
             <DateRangePresetSelect
               start={filters.startDate}
@@ -150,7 +145,7 @@ export function TimeEntriesFilters({
               size="small"
               label="Search tasks"
               value={filters.searchQuery}
-              onChange={(e) => updateFilters({ searchQuery: e.target.value })}
+              onChange={e => updateFilters({ searchQuery: e.target.value })}
               placeholder="Type to search..."
             />
           </Box>
@@ -176,7 +171,7 @@ export function TimeEntriesFilters({
               multiple
               size="small"
               options={tasks}
-              getOptionLabel={(task) => task.name}
+              getOptionLabel={task => task.name}
               value={filters.selectedTasks}
               onChange={(_, newValue) => updateFilters({ selectedTasks: newValue })}
               renderValue={(value, getItemProps) =>
@@ -190,13 +185,7 @@ export function TimeEntriesFilters({
                   />
                 ))
               }
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Filter by tasks"
-                  placeholder="Select tasks..."
-                />
-              )}
+              renderInput={params => <TextField {...params} label="Filter by tasks" placeholder="Select tasks..." />}
             />
           </Box>
         </Box>
@@ -210,18 +199,20 @@ export function TimeEntriesFilters({
           </Typography>
 
           <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <Box sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
-              gap: 2,
-              flexWrap: 'wrap'
-            }}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                gap: 2,
+                flexWrap: 'wrap',
+              }}
+            >
               {/* Custom dates (the Range picker above sets them too) */}
               <Box sx={{ flex: 1, minWidth: 200 }}>
                 <DatePicker
                   label="Start Date"
                   value={filters.startDate}
-                  onChange={(date) => updateFilters({ startDate: date as Dayjs | null, datePreset: null })}
+                  onChange={date => updateFilters({ startDate: date as Dayjs | null, datePreset: null })}
                   slotProps={{
                     textField: {
                       size: 'small',
@@ -235,7 +226,7 @@ export function TimeEntriesFilters({
                 <DatePicker
                   label="End Date"
                   value={filters.endDate}
-                  onChange={(date) => updateFilters({ endDate: date as Dayjs | null, datePreset: null })}
+                  onChange={date => updateFilters({ endDate: date as Dayjs | null, datePreset: null })}
                   minDate={filters.startDate ?? undefined}
                   slotProps={{
                     textField: {
@@ -254,12 +245,12 @@ export function TimeEntriesFilters({
                   type="number"
                   label="Min Duration (minutes)"
                   value={filters.minDuration ?? ''}
-                  onChange={(e) => {
+                  onChange={e => {
                     const value = e.target.value ? parseInt(e.target.value, 10) : null;
                     updateFilters({ minDuration: value });
                   }}
                   slotProps={{
-                    htmlInput: { min: 0 }
+                    htmlInput: { min: 0 },
                   }}
                 />
               </Box>
@@ -271,12 +262,12 @@ export function TimeEntriesFilters({
                   type="number"
                   label="Max Duration (minutes)"
                   value={filters.maxDuration ?? ''}
-                  onChange={(e) => {
+                  onChange={e => {
                     const value = e.target.value ? parseInt(e.target.value, 10) : null;
                     updateFilters({ maxDuration: value });
                   }}
                   slotProps={{
-                    htmlInput: { min: filters.minDuration ?? 0 }
+                    htmlInput: { min: filters.minDuration ?? 0 },
                   }}
                 />
               </Box>
@@ -347,9 +338,7 @@ export function applyTimeEntriesFilters(entries: TimeEntry[], filters: TimeEntri
 
     // Task filter
     if (filters.selectedTasks.length > 0) {
-      const taskMatch = filters.selectedTasks.some(task =>
-        task.id === entry.taskId || task.name === entry.taskName
-      );
+      const taskMatch = filters.selectedTasks.some(task => task.id === entry.taskId || task.name === entry.taskName);
       if (!taskMatch) {
         return false;
       }

@@ -88,9 +88,7 @@ export const createMockWorkLogEntry = (overrides: Partial<WorkLogEntry> = {}): W
   ...overrides,
 });
 
-export const createMockProjectTaskMapping = (
-  overrides: Partial<ProjectTaskMapping> = {}
-): ProjectTaskMapping => ({
+export const createMockProjectTaskMapping = (overrides: Partial<ProjectTaskMapping> = {}): ProjectTaskMapping => ({
   projectId: 'project-1',
   projectName: 'Test Project',
   taskId: 'task-1',
@@ -142,7 +140,7 @@ export const createActiveSessionScenario = () => {
     endTime: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
     duration: 3600000, // 1 hour
   });
-  
+
   const session = createMockTaskSession({
     isActive: true,
     timerInstances: [runningInstance, completedInstance],
@@ -268,7 +266,7 @@ export const mockDateNow = (timestamp: number) => {
 
 export const createMockLocalStorage = () => {
   const storage: Record<string, string> = {};
-  
+
   return {
     getItem: vi.fn((key: string) => storage[key] || null),
     setItem: vi.fn((key: string, value: string) => {
@@ -335,4 +333,3 @@ export const measureRenderTime = async (renderFn: () => void) => {
 export const expectRenderTimeToBeReasonable = (renderTime: number, maxMs = 100) => {
   expect(renderTime).toBeLessThan(maxMs);
 };
-

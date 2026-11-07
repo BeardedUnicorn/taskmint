@@ -49,7 +49,9 @@ interface PageHeaderProps {
 export function PageHeader({ title, titleAdornment, subtitle, actions, children }: PageHeaderProps) {
   return (
     <Box component="header" sx={{ mb: 3, flexShrink: 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+      <Box
+        sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}
+      >
         <Box sx={{ minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>

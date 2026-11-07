@@ -50,7 +50,11 @@ describe('BackupSettingsProvider scheduling', () => {
     storeConfig({ enabled: true, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
     mockBackend({ success: true });
 
-    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+    render(
+      <BackupSettingsProvider>
+        <div />
+      </BackupSettingsProvider>
+    );
 
     await waitFor(() => expect(backupCalls()).toHaveLength(1));
     expect(backupCalls()[0][0]).toMatchObject({ folder: '/backups', maxBackups: 5 });
@@ -61,7 +65,11 @@ describe('BackupSettingsProvider scheduling', () => {
     storeConfig({ enabled: false, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
     mockBackend({ success: true });
 
-    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+    render(
+      <BackupSettingsProvider>
+        <div />
+      </BackupSettingsProvider>
+    );
 
     await act(async () => {});
     expect(fakeBackend().call).not.toHaveBeenCalled();
@@ -77,7 +85,11 @@ describe('BackupSettingsProvider scheduling', () => {
     });
     mockBackend({ success: true });
 
-    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+    render(
+      <BackupSettingsProvider>
+        <div />
+      </BackupSettingsProvider>
+    );
 
     await act(async () => {});
     expect(fakeBackend().call).not.toHaveBeenCalled();
@@ -88,7 +100,11 @@ describe('BackupSettingsProvider scheduling', () => {
     const desktop = fakeBackend();
     installFakeBackendForTest({ without: ['folderBackups'] });
 
-    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+    render(
+      <BackupSettingsProvider>
+        <div />
+      </BackupSettingsProvider>
+    );
 
     await act(async () => {});
     expect(fakeBackend().call).not.toHaveBeenCalled();
@@ -100,7 +116,11 @@ describe('BackupSettingsProvider scheduling', () => {
     storeConfig({ enabled: true, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
     mockBackend({ success: false, error: 'disk full' });
 
-    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+    render(
+      <BackupSettingsProvider>
+        <div />
+      </BackupSettingsProvider>
+    );
 
     await waitFor(() => expect(backupCalls()).toHaveLength(1));
     expect(storedConfig().lastBackupTime).toBeUndefined();
@@ -116,7 +136,11 @@ describe('BackupSettingsProvider scheduling', () => {
     storeConfig({ enabled: true, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
     mockBackend({ success: false, error: 'disk full' });
 
-    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+    render(
+      <BackupSettingsProvider>
+        <div />
+      </BackupSettingsProvider>
+    );
 
     await waitFor(() => expect(mockNotify).toHaveBeenCalledTimes(1));
     expect(mockNotify).toHaveBeenCalledWith(
@@ -142,7 +166,11 @@ describe('BackupSettingsProvider scheduling', () => {
     storeConfig({ enabled: true, frequency: 'daily', backupPath: '/backups', maxBackups: 5 });
     mockBackend({ success: true });
 
-    render(<BackupSettingsProvider><div /></BackupSettingsProvider>);
+    render(
+      <BackupSettingsProvider>
+        <div />
+      </BackupSettingsProvider>
+    );
 
     await waitFor(() => expect(storedConfig().lastBackupTime).toBeDefined());
     expect(mockNotify).not.toHaveBeenCalled();

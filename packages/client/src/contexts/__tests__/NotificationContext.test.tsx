@@ -136,7 +136,12 @@ describe('NotificationProvider', () => {
     mockDeliver.mockResolvedValue(false);
     const { result } = renderHook(useBoth, { wrapper });
     act(() => {
-      result.current.api.notify({ category: 'goal', severity: 'success', title: 'Goal Achieved!', message: 'Well done' });
+      result.current.api.notify({
+        category: 'goal',
+        severity: 'success',
+        title: 'Goal Achieved!',
+        message: 'Well done',
+      });
     });
     expect(toasts()).toHaveLength(0);
     await waitFor(() => expect(toasts()).toEqual(['Goal Achieved!Well done']));
@@ -165,9 +170,7 @@ describe('NotificationProvider', () => {
 
     renderHook(useBoth, { wrapper });
 
-    await waitFor(() =>
-      expect(error).toHaveBeenCalledWith('Failed to send notification preferences:', 'store locked')
-    );
+    await waitFor(() => expect(error).toHaveBeenCalledWith('Failed to send notification preferences:', 'store locked'));
     error.mockRestore();
   });
 
@@ -311,7 +314,7 @@ describe('NotificationProvider', () => {
     expect(mockDeliver).not.toHaveBeenCalled();
   });
 
-  it("keeps what the backend showed while you were away, as a warning for an idle pause", () => {
+  it('keeps what the backend showed while you were away, as a warning for an idle pause', () => {
     attended = false;
     const { result } = renderHook(useBoth, { wrapper });
     act(() => {

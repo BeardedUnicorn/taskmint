@@ -32,13 +32,7 @@ interface TaskFormDialogProps {
   }) => Promise<Task | null>;
 }
 
-export function TaskFormDialog({
-  open,
-  onClose,
-  initialTask = null,
-  mode,
-  onSubmit,
-}: TaskFormDialogProps) {
+export function TaskFormDialog({ open, onClose, initialTask = null, mode, onSubmit }: TaskFormDialogProps) {
   const [taskName, setTaskName] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
   const [defaultNoteTemplateId, setDefaultNoteTemplateId] = useState<string>('');
@@ -150,7 +144,7 @@ export function TaskFormDialog({
               fullWidth
               label="Task Name"
               value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
+              onChange={e => setTaskName(e.target.value)}
               error={!!errors.taskName}
               helperText={errors.taskName}
               placeholder="Enter task name..."
@@ -172,20 +166,23 @@ export function TaskFormDialog({
                 labelId="default-note-template-label"
                 value={defaultNoteTemplateId}
                 label="Default Note Template"
-                onChange={(e) => setDefaultNoteTemplateId(e.target.value)}
+                onChange={e => setDefaultNoteTemplateId(e.target.value)}
                 disabled={templatesLoading}
               >
                 <MenuItem value="">
                   <em>None</em>
                 </MenuItem>
-                {activeTemplates.map((template) => (
+                {activeTemplates.map(template => (
                   <MenuItem key={template.id} value={template.id}>
                     {template.name}
                   </MenuItem>
                 ))}
               </Select>
               {templatesLoading && (
-                <CircularProgress size={20} sx={{ position: 'absolute', right: 40, top: '50%', transform: 'translateY(-50%)' }} />
+                <CircularProgress
+                  size={20}
+                  sx={{ position: 'absolute', right: 40, top: '50%', transform: 'translateY(-50%)' }}
+                />
               )}
             </FormControl>
           </Stack>
@@ -194,12 +191,7 @@ export function TaskFormDialog({
           <Button onClick={handleClose} color="secondary">
             Cancel
           </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            disabled={!taskName.trim() || submitting}
-          >
+          <Button type="submit" variant="contained" color="primary" disabled={!taskName.trim() || submitting}>
             {submitLabel}
           </Button>
         </DialogActions>
@@ -207,4 +199,3 @@ export function TaskFormDialog({
     </Dialog>
   );
 }
-

@@ -15,12 +15,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { getBackend, useBackendEvent } from '../backend';
 import { BACKEND_EVENTS } from '../constants/events';
-import {
-  ProjectTaskMapping,
-  WorkLogEntry,
-  WorkLogImportPayload,
-  WorkLogImportSummary,
-} from '../types/workLog';
+import { ProjectTaskMapping, WorkLogEntry, WorkLogImportPayload, WorkLogImportSummary } from '../types/workLog';
 import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
 

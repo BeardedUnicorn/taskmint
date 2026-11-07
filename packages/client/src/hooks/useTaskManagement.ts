@@ -43,136 +43,165 @@ export function useTaskManagement(): UseTaskManagementReturn {
     taskService.getAllTasks().then(setTasks, error => console.error('Failed to reload tasks:', error));
   });
 
-  const addTask = useCallback(async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
-    return executeAsync(
-      async () => {
-        const newTask = await taskService.createTask(taskData);
-        setTasks(prev => [...prev, newTask]);
-        return newTask;
-      },
-      {
-        operation: 'addTask',
-        errorHandler: error => showError(error.message)
-      }
-    );
-  }, [taskService, executeAsync, showSuccess, showError]);
+  const addTask = useCallback(
+    async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+      return executeAsync(
+        async () => {
+          const newTask = await taskService.createTask(taskData);
+          setTasks(prev => [...prev, newTask]);
+          return newTask;
+        },
+        {
+          operation: 'addTask',
+          errorHandler: error => showError(error.message),
+        }
+      );
+    },
+    [taskService, executeAsync, showSuccess, showError]
+  );
 
   // Archived tasks stay in `tasks` (history/rate lookups need them);
   // start-new-work surfaces consume `activeTasks` instead
   const activeTasks = useMemo(() => tasks.filter(task => !task.isArchived), [tasks]);
   const archivedTasks = useMemo(() => tasks.filter(task => task.isArchived === true), [tasks]);
 
-  const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
-    return executeAsync(
-      async () => {
-        const updatedTask = await taskService.updateTask(taskId, updates);
-        setTasks(prev => prev.map(task =>
-          task.id === taskId ? updatedTask : task
-        ));
-        return updatedTask;
-      },
-      {
-        operation: 'updateTask',
-        errorHandler: error => showError(error.message)
-      }
-    );
-  }, [taskService, executeAsync, showError]);
+  const updateTask = useCallback(
+    async (taskId: string, updates: Partial<Task>) => {
+      return executeAsync(
+        async () => {
+          const updatedTask = await taskService.updateTask(taskId, updates);
+          setTasks(prev => prev.map(task => (task.id === taskId ? updatedTask : task)));
+          return updatedTask;
+        },
+        {
+          operation: 'updateTask',
+          errorHandler: error => showError(error.message),
+        }
+      );
+    },
+    [taskService, executeAsync, showError]
+  );
 
-  const unarchiveTask = useCallback(async (taskId: string) => {
-    return executeAsync(
-      async () => {
-        const unarchivedTask = await taskService.unarchiveTask(taskId);
-        setTasks(prev => prev.map(task =>
-          task.id === taskId ? unarchivedTask : task
-        ));
-        return unarchivedTask;
-      },
-      {
-        operation: 'unarchiveTask',
-        errorHandler: error => showError(error.message)
-      }
-    );
-  }, [taskService, executeAsync, showError]);
+  const unarchiveTask = useCallback(
+    async (taskId: string) => {
+      return executeAsync(
+        async () => {
+          const unarchivedTask = await taskService.unarchiveTask(taskId);
+          setTasks(prev => prev.map(task => (task.id === taskId ? unarchivedTask : task)));
+          return unarchivedTask;
+        },
+        {
+          operation: 'unarchiveTask',
+          errorHandler: error => showError(error.message),
+        }
+      );
+    },
+    [taskService, executeAsync, showError]
+  );
 
-  const archiveTask = useCallback(async (taskId: string) => {
-    return executeAsync(
-      async () => {
-        const archivedTask = await taskService.archiveTask(taskId);
-        setTasks(prev => prev.map(task =>
-          task.id === taskId ? archivedTask : task
-        ));
-        showSuccess(`Archived "${archivedTask.name}"`, {
-          category: 'task',
-          actions: [{ label: 'Undo', onClick: () => void unarchiveTask(taskId) }],
-        });
-        return archivedTask;
-      },
-      {
-        operation: 'archiveTask',
-        errorHandler: error => showError(error.message)
-      }
-    );
-  }, [taskService, executeAsync, showSuccess, showError, unarchiveTask]);
+  const archiveTask = useCallback(
+    async (taskId: string) => {
+      return executeAsync(
+        async () => {
+          const archivedTask = await taskService.archiveTask(taskId);
+          setTasks(prev => prev.map(task => (task.id === taskId ? archivedTask : task)));
+          showSuccess(`Archived "${archivedTask.name}"`, {
+            category: 'task',
+            actions: [{ label: 'Undo', onClick: () => void unarchiveTask(taskId) }],
+          });
+          return archivedTask;
+        },
+        {
+          operation: 'archiveTask',
+          errorHandler: error => showError(error.message),
+        }
+      );
+    },
+    [taskService, executeAsync, showSuccess, showError, unarchiveTask]
+  );
 
   // The star is its own feedback, so unlike updateTask this doesn't toast.
-  const toggleFavorite = useCallback(async (taskId: string) => {
-    const task = tasksRef.current.find(t => t.id === taskId);
-    if (!task) return null;
-    return executeAsync(
-      async () => {
-        const updatedTask = await taskService.updateTask(taskId, { isFavorite: !task.isFavorite });
-        setTasks(prev => prev.map(t => (t.id === taskId ? updatedTask : t)));
-        return updatedTask;
-      },
-      {
-        operation: 'toggleFavorite',
-        errorHandler: error => showError(error.message)
-      }
-    );
-  }, [taskService, executeAsync, showError]);
+  const toggleFavorite = useCallback(
+    async (taskId: string) => {
+      const task = tasksRef.current.find(t => t.id === taskId);
+      if (!task) return null;
+      return executeAsync(
+        async () => {
+          const updatedTask = await taskService.updateTask(taskId, { isFavorite: !task.isFavorite });
+          setTasks(prev => prev.map(t => (t.id === taskId ? updatedTask : t)));
+          return updatedTask;
+        },
+        {
+          operation: 'toggleFavorite',
+          errorHandler: error => showError(error.message),
+        }
+      );
+    },
+    [taskService, executeAsync, showError]
+  );
 
   // Undo of a delete: the task goes back where it was in the list
-  const restoreTask = useCallback(async (task: Task, index: number) => {
-    try {
-      await taskService.restoreTask(task, index);
-      setTasks(await taskService.getAllTasks());
-    } catch (error) {
-      showError(errorMessage(error, `Couldn't restore "${task.name}"`), { category: 'task' });
-    }
-  }, [taskService, showError]);
-
-  const deleteTask = useCallback(async (taskId: string): Promise<void> => {
-    const index = tasksRef.current.findIndex(task => task.id === taskId);
-    const taskToDelete = index >= 0 ? tasksRef.current[index] : undefined;
-    await executeAsync(
-      async () => {
-        await taskService.deleteTask(taskId);
-        const updatedTasks = await taskService.getAllTasks();
-        setTasks(updatedTasks);
-        showSuccess(`Deleted "${taskToDelete?.name || 'the task'}"`, {
-          category: 'task',
-          actions: taskToDelete
-            ? [{ label: 'Undo', onClick: () => void restoreTask(taskToDelete, index) }]
-            : undefined,
-        });
-      },
-      {
-        operation: 'deleteTask',
-        errorHandler: error => showError(error.message)
+  const restoreTask = useCallback(
+    async (task: Task, index: number) => {
+      try {
+        await taskService.restoreTask(task, index);
+        setTasks(await taskService.getAllTasks());
+      } catch (error) {
+        showError(errorMessage(error, `Couldn't restore "${task.name}"`), { category: 'task' });
       }
-    );
-  }, [taskService, executeAsync, showSuccess, showError, restoreTask]);
+    },
+    [taskService, showError]
+  );
 
-  return useMemo(() => ({
-    tasks,
-    activeTasks,
-    archivedTasks,
-    addTask,
-    updateTask,
-    deleteTask,
-    archiveTask,
-    unarchiveTask,
-    toggleFavorite,
-    isLoading,
-  }), [tasks, activeTasks, archivedTasks, addTask, updateTask, deleteTask, archiveTask, unarchiveTask, toggleFavorite, isLoading]);
+  const deleteTask = useCallback(
+    async (taskId: string): Promise<void> => {
+      const index = tasksRef.current.findIndex(task => task.id === taskId);
+      const taskToDelete = index >= 0 ? tasksRef.current[index] : undefined;
+      await executeAsync(
+        async () => {
+          await taskService.deleteTask(taskId);
+          const updatedTasks = await taskService.getAllTasks();
+          setTasks(updatedTasks);
+          showSuccess(`Deleted "${taskToDelete?.name || 'the task'}"`, {
+            category: 'task',
+            actions: taskToDelete
+              ? [{ label: 'Undo', onClick: () => void restoreTask(taskToDelete, index) }]
+              : undefined,
+          });
+        },
+        {
+          operation: 'deleteTask',
+          errorHandler: error => showError(error.message),
+        }
+      );
+    },
+    [taskService, executeAsync, showSuccess, showError, restoreTask]
+  );
+
+  return useMemo(
+    () => ({
+      tasks,
+      activeTasks,
+      archivedTasks,
+      addTask,
+      updateTask,
+      deleteTask,
+      archiveTask,
+      unarchiveTask,
+      toggleFavorite,
+      isLoading,
+    }),
+    [
+      tasks,
+      activeTasks,
+      archivedTasks,
+      addTask,
+      updateTask,
+      deleteTask,
+      archiveTask,
+      unarchiveTask,
+      toggleFavorite,
+      isLoading,
+    ]
+  );
 }

@@ -14,11 +14,7 @@ import {
   Chip,
   Stack,
 } from '@mui/material';
-import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Lock as LockIcon,
-} from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, Lock as LockIcon } from '@mui/icons-material';
 import { TimeEntry } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { EarningsDisplay } from '../display/EarningsDisplay';
@@ -126,7 +122,7 @@ export function TimeEntriesTable({
           </TableHead>
 
           <TableBody>
-            {entries.map((entry) => {
+            {entries.map(entry => {
               // Imported days are rebuilt by every import, so they're read-only
               const isImported = entry.source === WORKLOG_IMPORT_SOURCE;
 
@@ -155,9 +151,7 @@ export function TimeEntriesTable({
                   </TableCell>
 
                   <TableCell>
-                    <Typography variant="body2">
-                      {entry.duration ? formatDuration(entry.duration) : '-'}
-                    </Typography>
+                    <Typography variant="body2">{entry.duration ? formatDuration(entry.duration) : '-'}</Typography>
                   </TableCell>
 
                   <TableCell>

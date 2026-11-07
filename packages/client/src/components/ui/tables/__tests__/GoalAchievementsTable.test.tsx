@@ -30,7 +30,11 @@ describe('GoalAchievementsTable', () => {
   it("shows each day's result, newest first", () => {
     render(
       <GoalAchievementsTable
-        achievements={[day('2026-01-01', 'missed', -40), day('2026-01-03', 'exceeded', 25), day('2026-01-02', 'hit', 0)]}
+        achievements={[
+          day('2026-01-01', 'missed', -40),
+          day('2026-01-03', 'exceeded', 25),
+          day('2026-01-02', 'hit', 0),
+        ]}
       />
     );
 

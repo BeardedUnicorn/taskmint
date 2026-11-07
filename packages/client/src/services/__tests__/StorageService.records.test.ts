@@ -67,7 +67,10 @@ describe('StorageService with app records', () => {
     resetAppRecordsForTests();
     mockInvoke.mockImplementation(async (command: string) =>
       command === 'get_app_records'
-        ? { records: { predefinedTasks: { version: 1, data: [task] }, taskNotes: { version: 1, notes: [] } }, revisions: {} }
+        ? {
+            records: { predefinedTasks: { version: 1, data: [task] }, taskNotes: { version: 1, notes: [] } },
+            revisions: {},
+          }
         : null
     );
     await loadAppRecords({ importLegacy: false });

@@ -37,13 +37,7 @@ import { useNotification } from '../../../contexts/NotificationContext';
 import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 import { NoteDraft, SaveStatus, useNoteDraft } from '../../../hooks/useNoteDraft';
 import { FREE_FORM_TEMPLATE_ID, FREE_FORM_TEMPLATE_NAME } from '../../../utils/notes';
-import {
-  FREE_FORM_CONTENT,
-  FieldValues,
-  emptyValues,
-  isEmptyDraft,
-  orderedFields,
-} from '../../../utils/noteFields';
+import { FREE_FORM_CONTENT, FieldValues, emptyValues, isEmptyDraft, orderedFields } from '../../../utils/noteFields';
 import { ConfirmDialog } from '../../ui';
 import { NoteFieldInput } from './NoteFieldInput';
 import { formatClockTime } from '../../../utils/locale';
@@ -164,9 +158,7 @@ export function NoteEditor({
   const handleTemplateChange = (templateId: string) => {
     const next = templates.find(t => t.id === templateId) ?? null;
     setTemplate(next);
-    replaceValues(
-      next ? emptyValues(next.fields) : { [FREE_FORM_CONTENT]: freeFormText(values) }
-    );
+    replaceValues(next ? emptyValues(next.fields) : { [FREE_FORM_CONTENT]: freeFormText(values) });
   };
 
   const handleSave = async () => {
@@ -221,7 +213,12 @@ export function NoteEditor({
 
   const copyButton = (fieldId: string, label: string) => (
     <Tooltip title={`Copy ${label}`}>
-      <IconButton size="small" aria-label={`Copy ${label}`} onClick={() => void handleCopy(fieldId, label)} sx={{ mt: 1 }}>
+      <IconButton
+        size="small"
+        aria-label={`Copy ${label}`}
+        onClick={() => void handleCopy(fieldId, label)}
+        sx={{ mt: 1 }}
+      >
         <CopyIcon fontSize="small" />
       </IconButton>
     </Tooltip>
@@ -245,7 +242,7 @@ export function NoteEditor({
           <NotesIcon sx={{ mr: 1, color: 'primary.main' }} />
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-              {note ? template?.name ?? 'Free-form note' : 'New note'}
+              {note ? (template?.name ?? 'Free-form note') : 'New note'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {summaryText(template, values)}
@@ -315,7 +312,12 @@ export function NoteEditor({
               fields.map(field => (
                 <Box key={field.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <NoteFieldInput field={field} value={values[field.id]} error={errors[field.id]} onChange={setField} />
+                    <NoteFieldInput
+                      field={field}
+                      value={values[field.id]}
+                      error={errors[field.id]}
+                      onChange={setField}
+                    />
                   </Box>
                   {copyButton(field.id, field.label)}
                 </Box>

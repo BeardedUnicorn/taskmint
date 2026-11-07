@@ -81,8 +81,10 @@ describe('Account', () => {
     expect(session.navigate).toHaveBeenCalledWith('/login');
   });
 
-  it("stays when signing out fails", async () => {
-    const server = fakeServer({ 'POST /auth/logout': () => failure(0, 'unreachable', "Can't reach the TaskMint server.") });
+  it('stays when signing out fails', async () => {
+    const server = fakeServer({
+      'POST /auth/logout': () => failure(0, 'unreachable', "Can't reach the TaskMint server."),
+    });
     const session = sessionOf(alice, server);
     render(<AccountSection session={session} />);
     expect(screen.getByText(/Signed in as/)).toHaveTextContent('Signed in as alice');
@@ -95,7 +97,8 @@ describe('Account', () => {
   it('changes the password', async () => {
     let refuse = true;
     const server = fakeServer({
-      'POST /auth/password': () => (refuse ? failure(403, 'wrong_password', 'the current password is wrong') : undefined),
+      'POST /auth/password': () =>
+        refuse ? failure(403, 'wrong_password', 'the current password is wrong') : undefined,
     });
     render(<AccountSection session={sessionOf(alice, server)} />);
     const change = screen.getByRole('button', { name: 'Change password' });

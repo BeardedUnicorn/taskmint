@@ -44,9 +44,7 @@ function categoryRoute(category: NotificationCategory, severity: Severity): Cate
     case 'idle':
       return { route: 'always', kind: 'idlePause', preference: 'idlePause' };
     default:
-      return severity === 'error'
-        ? { route: 'auto', kind: 'error', preference: 'errorsWhileAway' }
-        : null;
+      return severity === 'error' ? { route: 'auto', kind: 'error', preference: 'errorsWhileAway' } : null;
   }
 }
 

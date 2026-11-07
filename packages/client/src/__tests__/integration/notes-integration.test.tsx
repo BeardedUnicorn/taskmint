@@ -1,6 +1,6 @@
 /**
  * Notes Integration Tests
- * 
+ *
  * Integration tests for the templated notes feature including
  * template management, note creation, and task integration.
  */
@@ -253,25 +253,27 @@ describe('Notes Integration', () => {
   describe('Field Types Support', () => {
     it('loads templates saved with legacy command fields as text fields', async () => {
       // A template stored before command fields were removed.
-      seedAppRecords({ noteTemplates: [
-        {
-          id: 'legacy-template',
-          name: 'Command Template',
-          fields: [
-            {
-              id: 'command-field',
-              label: 'Command Output',
-              type: 'command',
-              required: false,
-              order: 0,
-              command: 'echo "Hello World"',
-            },
-          ],
-          isActive: true,
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-01T00:00:00.000Z',
-        },
-      ] });
+      seedAppRecords({
+        noteTemplates: [
+          {
+            id: 'legacy-template',
+            name: 'Command Template',
+            fields: [
+              {
+                id: 'command-field',
+                label: 'Command Output',
+                type: 'command',
+                required: false,
+                order: 0,
+                command: 'echo "Hello World"',
+              },
+            ],
+            isActive: true,
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      });
 
       const [template] = await templateService.getAllTemplates();
       expect(template.fields[0].type).toBe('text');

@@ -7,10 +7,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useWorkLogs } from '../useWorkLogs';
 import { WorkLogImportPayload, WorkLogImportSummary } from '../../types/workLog';
-import {
-  createMockProjectTaskMapping,
-  createMockWorkLogEntry,
-} from '../../__tests__/setup/session-test-utils';
+import { createMockProjectTaskMapping, createMockWorkLogEntry } from '../../__tests__/setup/session-test-utils';
 import { fakeBackend } from '../../testing';
 import { BACKEND_EVENTS } from '../../constants/events';
 
@@ -103,9 +100,7 @@ describe('useWorkLogs', () => {
 
     const { result } = renderHook(() => useWorkLogs());
 
-    await waitFor(() =>
-      expect(result.current.error).toBe('Failed to lock work logs: poisoned')
-    );
+    await waitFor(() => expect(result.current.error).toBe('Failed to lock work logs: poisoned'));
     expect(mockShowError).toHaveBeenCalledWith('Failed to lock work logs: poisoned');
   });
 

@@ -24,8 +24,18 @@ const review = createMockTask({ id: 'task-2', name: 'Review' });
 const retired = createMockTask({ id: 'task-3', name: 'Retired', isArchived: true });
 
 const writing = createMockProjectTaskMapping({ projectId: 'p-writing', projectName: 'Writing', taskId: 'task-1' });
-const legacy = createMockProjectTaskMapping({ projectId: 'p-legacy', projectName: 'Legacy', taskId: 'task-3', taskName: 'Retired' });
-const orphan = createMockProjectTaskMapping({ projectId: 'p-orphan', projectName: 'Orphan', taskId: 'gone', taskName: 'Gone' });
+const legacy = createMockProjectTaskMapping({
+  projectId: 'p-legacy',
+  projectName: 'Legacy',
+  taskId: 'task-3',
+  taskName: 'Retired',
+});
+const orphan = createMockProjectTaskMapping({
+  projectId: 'p-orphan',
+  projectName: 'Orphan',
+  taskId: 'gone',
+  taskName: 'Gone',
+});
 
 const plan = (entries: number, days: string[], replacedTrackedMs = 0) => ({
   entries: Array.from({ length: entries }, (_, i) => createMockWorkLogEntry({ id: `e${i}` })),
@@ -47,7 +57,10 @@ const card = (onApply: Apply = vi.fn(async () => summary())) => {
   render(
     <ProjectMappingsCard
       mappings={[writing, legacy, orphan]}
-      entries={[createMockWorkLogEntry({ projectId: 'p-writing' }), createMockWorkLogEntry({ id: 'e2', projectId: 'p-writing' })]}
+      entries={[
+        createMockWorkLogEntry({ projectId: 'p-writing' }),
+        createMockWorkLogEntry({ id: 'e2', projectId: 'p-writing' }),
+      ]}
       sessions={[]}
       tasks={[annotation, review, retired]}
       onApply={onApply}
@@ -68,11 +81,13 @@ beforeEach(() => {
 
 describe('ProjectMappingsCard', () => {
   it('shows nothing without mappings', () => {
-    const { container } = render(<ProjectMappingsCard mappings={[]} entries={[]} sessions={[]} tasks={[]} onApply={vi.fn()} />);
+    const { container } = render(
+      <ProjectMappingsCard mappings={[]} entries={[]} sessions={[]} tasks={[]} onApply={vi.fn()} />
+    );
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("lists each project by name with its entries, and folds away", async () => {
+  it('lists each project by name with its entries, and folds away', async () => {
     card();
     const [legacyRow, orphanRow, writingRow] = screen.getAllByRole('row').slice(1);
     expect(within(writingRow).getByText('2')).toBeInTheDocument();
@@ -82,7 +97,9 @@ describe('ProjectMappingsCard', () => {
 
     // Archived tasks aren't offered, except where they're already mapped
     fireEvent.mouseDown(within(writingRow).getByRole('combobox'));
-    expect(within(await screen.findByRole('listbox')).queryByRole('option', { name: 'Retired' })).not.toBeInTheDocument();
+    expect(
+      within(await screen.findByRole('listbox')).queryByRole('option', { name: 'Retired' })
+    ).not.toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide project mappings' }));
@@ -106,7 +123,11 @@ describe('ProjectMappingsCard', () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Move' }));
 
-    await waitFor(() => expect(notifications.current.showSuccess).toHaveBeenCalledWith('"Writing" now goes to "Review".', { category: 'workLog' }));
+    await waitFor(() =>
+      expect(notifications.current.showSuccess).toHaveBeenCalledWith('"Writing" now goes to "Review".', {
+        category: 'workLog',
+      })
+    );
     expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ isRemap: true }));
   });
 
@@ -115,7 +136,9 @@ describe('ProjectMappingsCard', () => {
     card(vi.fn(async () => summary([{ workDay: '2026-10-02', reason: 'a timer is running' }])));
     await moveWriting('Review');
 
-    expect(screen.getByText(/2 imported entries from "Writing" move to "Review", and 2 days are rebuilt/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/2 imported entries from "Writing" move to "Review", and 2 days are rebuilt/)
+    ).toBeInTheDocument();
     expect(screen.getByText(/The \S+( \S+)? you tracked on "Review" those days is replaced/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Move' }));
 
@@ -132,7 +155,9 @@ describe('ProjectMappingsCard', () => {
     const onApply = card(vi.fn(async () => null));
     await moveWriting('Review');
 
-    expect(screen.getByText('0 imported entries from "Writing" move to "Review", and 0 days are rebuilt.')).toBeInTheDocument();
+    expect(
+      screen.getByText('0 imported entries from "Writing" move to "Review", and 0 days are rebuilt.')
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Move' }));
     await waitFor(() => expect(onApply).toHaveBeenCalled());
     expect(notifications.current.showSuccess).not.toHaveBeenCalled();

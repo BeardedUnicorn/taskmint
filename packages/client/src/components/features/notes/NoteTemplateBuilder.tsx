@@ -1,6 +1,6 @@
 /**
  * Note Template Builder Component
- * 
+ *
  * Split-pane interface for managing note templates with template list on the left
  * and template builder/editor on the right.
  */
@@ -24,9 +24,7 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-
   Delete as DeleteIcon,
-
   Visibility as ActiveIcon,
   VisibilityOff as InactiveIcon,
 } from '@mui/icons-material';
@@ -59,22 +57,25 @@ export function NoteTemplateBuilder({
     [showSuccess, showError]
   );
 
-  const handleSelectTemplate = useCallback((template: NoteTemplate | null) => {
-    onSelectTemplate(template);
-    if (template) {
-      setTemplateName(template.name);
-      setTemplateDescription(template.description ?? '');
-      // In their order, so moving one swaps it with what shows beside it
-      setTemplateFields([...template.fields].sort((a, b) => a.order - b.order));
-      setIsEditing(false);
-    } else {
-      // New template
-      setTemplateName('');
-      setTemplateDescription('');
-      setTemplateFields([]);
-      setIsEditing(true);
-    }
-  }, [onSelectTemplate]);
+  const handleSelectTemplate = useCallback(
+    (template: NoteTemplate | null) => {
+      onSelectTemplate(template);
+      if (template) {
+        setTemplateName(template.name);
+        setTemplateDescription(template.description ?? '');
+        // In their order, so moving one swaps it with what shows beside it
+        setTemplateFields([...template.fields].sort((a, b) => a.order - b.order));
+        setIsEditing(false);
+      } else {
+        // New template
+        setTemplateName('');
+        setTemplateDescription('');
+        setTemplateFields([]);
+        setIsEditing(true);
+      }
+    },
+    [onSelectTemplate]
+  );
 
   // (Save is disabled until the template has a name)
   const handleSaveTemplate = useCallback(async () => {
@@ -96,7 +97,7 @@ export function NoteTemplateBuilder({
         handleSelectTemplate(newTemplate);
         report('Template created');
       }
-      
+
       setIsEditing(false);
     } catch (error) {
       const message = errorMessage(error, 'Failed to save template');
@@ -113,29 +114,35 @@ export function NoteTemplateBuilder({
     report,
   ]);
 
-  const handleDeleteTemplate = useCallback(async (templateId: string) => {
-    try {
-      await onDeleteTemplate(templateId);
-      if (selectedTemplate?.id === templateId) {
-        handleSelectTemplate(null);
+  const handleDeleteTemplate = useCallback(
+    async (templateId: string) => {
+      try {
+        await onDeleteTemplate(templateId);
+        if (selectedTemplate?.id === templateId) {
+          handleSelectTemplate(null);
+        }
+        report('Template deleted');
+      } catch (error) {
+        const message = errorMessage(error, 'Failed to delete template');
+        report(message, 'error');
       }
-      report('Template deleted');
-    } catch (error) {
-      const message = errorMessage(error, 'Failed to delete template');
-      report(message, 'error');
-    }
-    setDeleteConfirm(null);
-  }, [onDeleteTemplate, selectedTemplate, handleSelectTemplate, report]);
+      setDeleteConfirm(null);
+    },
+    [onDeleteTemplate, selectedTemplate, handleSelectTemplate, report]
+  );
 
-  const handleToggleActive = useCallback(async (template: NoteTemplate) => {
-    try {
-      await onUpdateTemplate(template.id, { isActive: !template.isActive });
-      report(`Template ${template.isActive ? 'deactivated' : 'activated'}`);
-    } catch (error) {
-      const message = errorMessage(error, 'Failed to update template');
-      report(message, 'error');
-    }
-  }, [onUpdateTemplate, report]);
+  const handleToggleActive = useCallback(
+    async (template: NoteTemplate) => {
+      try {
+        await onUpdateTemplate(template.id, { isActive: !template.isActive });
+        report(`Template ${template.isActive ? 'deactivated' : 'activated'}`);
+      } catch (error) {
+        const message = errorMessage(error, 'Failed to update template');
+        report(message, 'error');
+      }
+    },
+    [onUpdateTemplate, report]
+  );
 
   const handleAddField = useCallback(() => {
     const newField: TemplateField = {
@@ -150,9 +157,7 @@ export function NoteTemplateBuilder({
   }, [templateFields.length]);
 
   const handleUpdateField = useCallback((updatedField: TemplateField) => {
-    setTemplateFields(prev => 
-      prev.map(field => field.id === updatedField.id ? updatedField : field)
-    );
+    setTemplateFields(prev => prev.map(field => (field.id === updatedField.id ? updatedField : field)));
     setIsEditing(true);
   }, []);
 
@@ -172,7 +177,7 @@ export function NoteTemplateBuilder({
       const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
       const newFields = [...prev];
       [newFields[currentIndex], newFields[newIndex]] = [newFields[newIndex], newFields[currentIndex]];
-      
+
       // Update order values
       return newFields.map((field, index) => ({ ...field, order: index }));
     });
@@ -187,26 +192,18 @@ export function NoteTemplateBuilder({
           <Typography variant="h6" gutterBottom>
             Note Templates
           </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            fullWidth
-            onClick={() => handleSelectTemplate(null)}
-          >
+          <Button variant="contained" startIcon={<AddIcon />} fullWidth onClick={() => handleSelectTemplate(null)}>
             New Template
           </Button>
         </Box>
-        
+
         <List sx={{ flex: 1, overflow: 'auto' }}>
           {templates.length === 0 ? (
             <ListItem>
-              <ListItemText
-                primary="No templates yet"
-                secondary="Create your first template to get started"
-              />
+              <ListItemText primary="No templates yet" secondary="Create your first template to get started" />
             </ListItem>
           ) : (
-            templates.map((template) => (
+            templates.map(template => (
               <ListItem
                 key={template.id}
                 disablePadding
@@ -243,22 +240,10 @@ export function NoteTemplateBuilder({
                   <ListItemText
                     primary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle2">
-                          {template.name}
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={template.fields.length}
-                          color="primary"
-                          variant="outlined"
-                        />
+                        <Typography variant="subtitle2">{template.name}</Typography>
+                        <Chip size="small" label={template.fields.length} color="primary" variant="outlined" />
                         {!template.isActive && (
-                          <Chip
-                            size="small"
-                            label="Inactive"
-                            color="default"
-                            variant="outlined"
-                          />
+                          <Chip size="small" label="Inactive" color="default" variant="outlined" />
                         )}
                       </Box>
                     }
@@ -280,7 +265,7 @@ export function NoteTemplateBuilder({
                 <TextField
                   label="Template Name"
                   value={templateName}
-                  onChange={(e) => {
+                  onChange={e => {
                     setTemplateName(e.target.value);
                     setIsEditing(true);
                   }}
@@ -290,7 +275,7 @@ export function NoteTemplateBuilder({
                 <TextField
                   label="Description"
                   value={templateDescription}
-                  onChange={(e) => {
+                  onChange={e => {
                     setTemplateDescription(e.target.value);
                     setIsEditing(true);
                   }}
@@ -300,11 +285,7 @@ export function NoteTemplateBuilder({
                   placeholder="Optional description for this template"
                 />
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    onClick={handleSaveTemplate}
-                    disabled={!templateName.trim()}
-                  >
+                  <Button variant="contained" onClick={handleSaveTemplate} disabled={!templateName.trim()}>
                     {selectedTemplate ? 'Update Template' : 'Create Template'}
                   </Button>
                   {isEditing && (
@@ -320,7 +301,7 @@ export function NoteTemplateBuilder({
               <Typography variant="h6" gutterBottom>
                 Template Fields
               </Typography>
-              
+
               {templateFields.length === 0 ? (
                 <Alert severity="info" sx={{ mb: 2 }}>
                   No fields added yet. Click "Add Field" to create your first field.
@@ -341,25 +322,22 @@ export function NoteTemplateBuilder({
                 </Stack>
               )}
 
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={handleAddField}
-                fullWidth
-              >
+              <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddField} fullWidth>
                 Add Field
               </Button>
             </Box>
           </>
         ) : (
-          <Box sx={{ 
-            flex: 1, 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            p: 4,
-            textAlign: 'center',
-          }}>
+          <Box
+            sx={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 4,
+              textAlign: 'center',
+            }}
+          >
             <Stack spacing={2}>
               <Typography variant="h5" color="text.secondary">
                 Select a Template
@@ -383,7 +361,6 @@ export function NoteTemplateBuilder({
           severity="error"
         />
       )}
-
     </Box>
   );
 }

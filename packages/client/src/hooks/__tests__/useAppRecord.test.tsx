@@ -77,10 +77,7 @@ describe('useAppRecord', () => {
     });
 
     expect(readAppRecord('dailyGoal')).toMatchObject({ targetAmount: 150, isEnabled: true });
-    expect(mockInvoke).toHaveBeenCalledWith(
-      'set_app_record',
-      expect.objectContaining({ key: 'dailyGoal' })
-    );
+    expect(mockInvoke).toHaveBeenCalledWith('set_app_record', expect.objectContaining({ key: 'dailyGoal' }));
     expect(window.localStorage.getItem('dailyGoal')).toBeNull();
   });
 });

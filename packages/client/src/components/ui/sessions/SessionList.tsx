@@ -224,7 +224,9 @@ function SessionMenu({
     <Menu anchorEl={anchor} open onClose={onClose}>
       {!imported && (
         <MenuItem onClick={run(() => (session.isActive ? onStopSession() : onStartSession(session)))}>
-          <ListItemIcon>{session.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}</ListItemIcon>
+          <ListItemIcon>
+            {session.isActive ? <StopIcon fontSize="small" /> : <PlayIcon fontSize="small" />}
+          </ListItemIcon>
           <ListItemText>
             {/* "Activate" is honest: it makes the session current (finalizing
                 any timer running elsewhere) without starting a timer. */}

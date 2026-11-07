@@ -1,6 +1,6 @@
 /**
  * Theme Context Provider
- * 
+ *
  * This context provides theme switching functionality between light and dark modes
  * with persistence and system preference detection.
  */
@@ -81,9 +81,7 @@ export function ThemeProvider({ children, defaultMode = 'dark' }: ThemeProviderP
 
   return (
     <ThemeContext.Provider value={contextValue}>
-      <MuiThemeProvider theme={isDark ? THEMES.dark : THEMES.light}>
-        {children}
-      </MuiThemeProvider>
+      <MuiThemeProvider theme={isDark ? THEMES.dark : THEMES.light}>{children}</MuiThemeProvider>
     </ThemeContext.Provider>
   );
 }

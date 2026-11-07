@@ -11,13 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NoteTemplate, TaskNote } from '../types/notes';
-import {
-  FieldValues,
-  coerceNumbers,
-  emptyValues,
-  isEmptyDraft,
-  validateFieldValues,
-} from '../utils/noteFields';
+import { FieldValues, coerceNumbers, emptyValues, isEmptyDraft, validateFieldValues } from '../utils/noteFields';
 import { errorMessage } from '../utils/errors';
 
 export const AUTOSAVE_DELAY_MS = 1000;

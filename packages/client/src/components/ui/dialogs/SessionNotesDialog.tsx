@@ -7,15 +7,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Typography,
-} from '@mui/material';
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
 import { Notes as NotesIcon } from '@mui/icons-material';
 // Imported directly (not via ../../ui or features/notes/index): those
 // barrels lead back here.
@@ -49,9 +41,7 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
 
   const sessionNotes = useMemo(() => notes.filter(note => note.sessionId === session.id), [notes, session]);
 
-  const timer = timerInstanceId
-    ? session.timerInstances.find(instance => instance.id === timerInstanceId)
-    : undefined;
+  const timer = timerInstanceId ? session.timerInstances.find(instance => instance.id === timerInstanceId) : undefined;
   // A timer's note goes on the timer's task; a session note on the session's
   const noteTaskId = timer ? instanceTaskId(timer, session) : session.taskId;
   const task = tasks.find(t => t.id === noteTaskId);
@@ -60,7 +50,7 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
     editing === 'new'
       ? (task?.defaultNoteTemplateId && getTemplateById(task.defaultNoteTemplateId)) || null
       : editing
-        ? getTemplateById(editing.templateId) ?? null
+        ? (getTemplateById(editing.templateId) ?? null)
         : null;
 
   const openEditor = (note: TaskNote | 'new') => {
@@ -97,9 +87,7 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
       <DialogContent>
         {timer && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            New notes are for the timer started at{' '}
-            {formatClockTime(timer.startTime)}
-            .
+            New notes are for the timer started at {formatClockTime(timer.startTime)}.
           </Typography>
         )}
 

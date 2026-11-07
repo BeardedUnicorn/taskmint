@@ -74,9 +74,7 @@ export function buildRemapPlan({
     if (instances.some(isRunningOrPaused)) {
       return { error: `Stop the running timer first (${workDay})` };
     }
-    const remaining = merged.filter(
-      e => e.kind === 'timed' && e.taskId === oldTaskId && e.workDay === workDay
-    );
+    const remaining = merged.filter(e => e.kind === 'timed' && e.taskId === oldTaskId && e.workDay === workDay);
     if (instances.length === 0 && remaining.length === 0) continue;
     forOldTask.push({
       taskId: oldTaskId,

@@ -1,6 +1,6 @@
 /**
  * Tests for chartDataHelpers utility functions
- * 
+ *
  * Comprehensive test suite covering all aggregation functions and data preparation
  */
 
@@ -153,7 +153,7 @@ describe('chartDataHelpers', () => {
 
     it('should sort tasks by total time descending', () => {
       const result = aggregateByTask(mockTimeEntries, mockTasks);
-      
+
       // Development should be first (4 hours), then others
       expect(result[0].taskName).toBe('Development');
       expect(result[0].totalTime).toBe(4 * 60 * 60 * 1000);
@@ -167,9 +167,9 @@ describe('chartDataHelpers', () => {
         },
         mockTimeEntries[1], // Has duration
       ];
-      
+
       const result = aggregateByTask(entriesWithoutDuration, mockTasks);
-      
+
       // Should only include the entry with duration
       expect(result).toHaveLength(1);
       expect(result[0].taskName).toBe('Design');
@@ -177,11 +177,11 @@ describe('chartDataHelpers', () => {
 
     it('should handle tasks without hourly rates', () => {
       const result = aggregateByTask(mockTimeEntries, mockTasks);
-      
+
       const meetingTask = result.find(task => task.taskName === 'Meeting');
       expect(meetingTask).toBeDefined();
       expect(meetingTask!.totalEarnings).toBe(0); // No hourly rate
-      
+
       const researchTask = result.find(task => task.taskName === 'Research');
       expect(researchTask).toBeDefined();
       expect(researchTask!.totalEarnings).toBe(0); // No hourlyRate property
@@ -189,7 +189,7 @@ describe('chartDataHelpers', () => {
 
     it('should handle unknown tasks', () => {
       const result = aggregateByTask(mockTimeEntries, mockTasks);
-      
+
       const unknownTask = result.find(task => task.taskName === 'Unknown Task');
       expect(unknownTask).toBeDefined();
       expect(unknownTask!.totalEarnings).toBe(0); // Task not found in tasks array
@@ -204,9 +204,9 @@ describe('chartDataHelpers', () => {
   describe('aggregateByDay', () => {
     it('should aggregate time entries by day', () => {
       const result = aggregateByDay(mockTimeEntries, mockTasks);
-      
+
       expect(result).toHaveLength(3); // 3 different dates
-      
+
       // Check 2024-01-01 (should have most entries)
       const jan01 = result.find(day => day.date === '2024-01-01');
       expect(jan01).toBeDefined();
@@ -217,7 +217,7 @@ describe('chartDataHelpers', () => {
 
     it('should sort days by date ascending', () => {
       const result = aggregateByDay(mockTimeEntries, mockTasks);
-      
+
       expect(result[0].date).toBe('2024-01-01');
       expect(result[1].date).toBe('2024-01-02');
       expect(result[2].date).toBe('2024-01-03');
@@ -236,9 +236,9 @@ describe('chartDataHelpers', () => {
           date: '2024-01-02',
         },
       ];
-      
+
       const result = aggregateByDay(entriesWithDifferentDates, mockTasks);
-      
+
       expect(result).toHaveLength(2);
       expect(result[0].date).toBe('2024-01-01');
       expect(result[1].date).toBe('2024-01-02');
@@ -261,7 +261,7 @@ describe('chartDataHelpers', () => {
 
     it('should sort weeks chronologically', () => {
       const result = aggregateByWeek(mockTimeEntries, mockTasks);
-      
+
       if (result.length > 1) {
         // Verify sorting by checking that dates are in order
         for (let i = 1; i < result.length; i++) {
@@ -368,7 +368,7 @@ describe('chartDataHelpers', () => {
     it('should cycle through colors when count exceeds available colors', () => {
       const colors = generateChartColors(20); // More than the 15 predefined colors
       expect(colors).toHaveLength(20);
-      
+
       // First color should repeat at position 15
       expect(colors[0]).toBe(colors[15]);
     });
@@ -393,7 +393,11 @@ describe('chartDataHelpers', () => {
 
     it('lists weeks and months oldest first, across a new year and whatever order the entries came in', () => {
       const entries = [at('b', '2024-01-03T10:00:00'), at('a', '2023-12-20T10:00:00'), at('c', '2023-11-14T10:00:00')];
-      expect(aggregateByMonth(entries, mockTasks).map(month => month.month)).toEqual(['Nov 2023', 'Dec 2023', 'Jan 2024']);
+      expect(aggregateByMonth(entries, mockTasks).map(month => month.month)).toEqual([
+        'Nov 2023',
+        'Dec 2023',
+        'Jan 2024',
+      ]);
       expect(aggregateByWeek(entries, mockTasks).map(week => week.week)).toEqual([
         'Nov 12 - Nov 18',
         'Dec 17 - Dec 23',
@@ -414,13 +418,13 @@ describe('chartDataHelpers', () => {
   describe('prepareTaskDistributionData', () => {
     it('should prepare data for pie chart with percentages', () => {
       const result = prepareTaskDistributionData(mockTimeEntries);
-      
+
       expect(result.length).toBeGreaterThan(0);
-      
+
       // Check that percentages add up to 100 (approximately)
       const totalPercentage = result.reduce((sum, item) => sum + item.percentage, 0);
       expect(totalPercentage).toBeCloseTo(100, 1);
-      
+
       // Check data structure
       result.forEach(item => {
         expect(item).toHaveProperty('name');
@@ -439,7 +443,7 @@ describe('chartDataHelpers', () => {
 
     it('should convert time values to hours', () => {
       const result = prepareTaskDistributionData(mockTimeEntries);
-      
+
       result.forEach(item => {
         expect(item.value).toBeGreaterThanOrEqual(0);
         // Value should be in hours (much smaller than milliseconds)

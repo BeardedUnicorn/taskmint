@@ -16,12 +16,15 @@ describe('light palette contrast', () => {
     }
   });
 
-  it.each(['error', 'warning', 'info', 'success'] as const)('%s reads as text, and its contrast text reads on it', key => {
-    for (const surface of surfaces) {
-      expect(getContrastRatio(palette[key].main, surface)).toBeGreaterThanOrEqual(AA);
+  it.each(['error', 'warning', 'info', 'success'] as const)(
+    '%s reads as text, and its contrast text reads on it',
+    key => {
+      for (const surface of surfaces) {
+        expect(getContrastRatio(palette[key].main, surface)).toBeGreaterThanOrEqual(AA);
+      }
+      expect(getContrastRatio(palette[key].contrastText, palette[key].main)).toBeGreaterThanOrEqual(AA);
     }
-    expect(getContrastRatio(palette[key].contrastText, palette[key].main)).toBeGreaterThanOrEqual(AA);
-  });
+  );
 
   it('uses a readable green for brand-colored text', () => {
     expect(getContrastRatio(BRAND_TEXT_LIGHT, palette.background.paper)).toBeGreaterThanOrEqual(AA);

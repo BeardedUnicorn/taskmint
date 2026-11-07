@@ -76,9 +76,9 @@ describe('useNoteTemplatesState', () => {
     const result = await loaded([template('1', 'Standup')]);
     mockTemplateService.isTemplateNameUnique.mockResolvedValue(false);
 
-    await expect(
-      result.current.createTemplate({ name: 'Standup', fields: [], isActive: true })
-    ).rejects.toThrow('A template with this name already exists');
+    await expect(result.current.createTemplate({ name: 'Standup', fields: [], isActive: true })).rejects.toThrow(
+      'A template with this name already exists'
+    );
     expect(mockTemplateService.createTemplate).not.toHaveBeenCalled();
     expect(result.current.templates).toHaveLength(1);
   });

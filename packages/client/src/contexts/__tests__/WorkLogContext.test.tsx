@@ -45,7 +45,9 @@ function Probe() {
       <span data-testid="entry-count">{context.entries.length}</span>
       <span data-testid="staged">{context.stagedCapture?.payloadText ?? 'none'}</span>
       <button
-        onClick={() => context.stageCapture({ payloadText: '{"workLogs":[]}', receivedAt: 'T1', reason: 'unmapped-project' })}
+        onClick={() =>
+          context.stageCapture({ payloadText: '{"workLogs":[]}', receivedAt: 'T1', reason: 'unmapped-project' })
+        }
       >
         stage
       </button>
@@ -97,9 +99,7 @@ describe('WorkLogContext', () => {
 
   it('throws when used outside the provider', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => render(<Probe />)).toThrow(
-      'useWorkLogContext must be used within WorkLogProvider'
-    );
+    expect(() => render(<Probe />)).toThrow('useWorkLogContext must be used within WorkLogProvider');
     consoleError.mockRestore();
   });
 });

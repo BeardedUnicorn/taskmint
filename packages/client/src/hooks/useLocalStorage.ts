@@ -15,10 +15,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
   const getSnapshot = useCallback(() => readLocal(key, initialRef.current), [key]);
   const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  const setValue = useCallback(
-    (next: T | ((previous: T) => T)) => writeLocal(key, next, initialRef.current),
-    [key]
-  );
+  const setValue = useCallback((next: T | ((previous: T) => T)) => writeLocal(key, next, initialRef.current), [key]);
 
   return [value, setValue] as const;
 }

@@ -1,6 +1,6 @@
 /**
  * Backup Configuration Types
- * 
+ *
  * Types for automatic periodic backup functionality including
  * configuration settings and backup management.
  */
@@ -76,7 +76,7 @@ export function isBackupDue(config: BackupConfig): boolean {
   if (!config.enabled || !config.lastBackupTime) {
     return config.enabled; // If enabled but no last backup, it's due
   }
-  
+
   const nextBackupTime = getNextBackupTime(config.frequency, config.lastBackupTime);
   return new Date() >= nextBackupTime;
 }

@@ -18,7 +18,13 @@ describe('where captures go', () => {
   });
 
   it("falls back to the desktop app when what's saved isn't a target", async () => {
-    for (const saved of [null, 'server', { kind: 'server', url: 'https://t.example.com' }, { kind: 'server', url: 1, token: 'x' }, { kind: 'cloud' }]) {
+    for (const saved of [
+      null,
+      'server',
+      { kind: 'server', url: 'https://t.example.com' },
+      { kind: 'server', url: 1, token: 'x' },
+      { kind: 'cloud' },
+    ]) {
       chrome.storage.local.data.target = saved;
       expect(await loadTarget()).toEqual(DESKTOP);
     }
@@ -33,10 +39,21 @@ describe('where captures go', () => {
   });
 
   it('allows plain http only to this computer', () => {
-    for (const local of ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://127.1', 'http://[::1]:8080', 'https://time.example.com']) {
+    for (const local of [
+      'http://localhost:8080',
+      'http://127.0.0.1:8080',
+      'http://127.1',
+      'http://[::1]:8080',
+      'https://time.example.com',
+    ]) {
       expect(sendsInTheClear(local)).toBe(false);
     }
-    for (const remote of ['http://time.example.com', 'http://192.168.1.5:8080', 'http://127.0.0.1.example.com', 'http://[2001:db8::1]']) {
+    for (const remote of [
+      'http://time.example.com',
+      'http://192.168.1.5:8080',
+      'http://127.0.0.1.example.com',
+      'http://[2001:db8::1]',
+    ]) {
       expect(sendsInTheClear(remote)).toBe(true);
     }
   });

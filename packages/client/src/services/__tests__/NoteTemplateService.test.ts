@@ -56,10 +56,7 @@ describe('NoteTemplateService', () => {
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
       });
-      expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith([
-        freeFormTemplate,
-        created,
-      ]);
+      expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith([freeFormTemplate, created]);
 
       const fetched = await service.getTemplateById(created.id);
       expect(fetched).toEqual(created);
@@ -81,10 +78,7 @@ describe('NoteTemplateService', () => {
       const updated = await service.updateTemplate('template1', { isActive: true });
 
       expect(updated.isActive).toBe(true);
-      expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith([
-        updated,
-        freeFormTemplate,
-      ]);
+      expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith([updated, freeFormTemplate]);
     });
 
     it('should delete template and update storage', async () => {
@@ -161,7 +155,10 @@ describe('NoteTemplateService', () => {
     it('numbers fields in their order', async () => {
       mockStorageService.getNoteTemplates.mockResolvedValue([existing, freeFormTemplate]);
       const updated = await service.updateTemplate('template1', { fields: [field('b', 5), field('a', 2)] });
-      expect(updated.fields.map(f => [f.id, f.order])).toEqual([['a', 0], ['b', 1]]);
+      expect(updated.fields.map(f => [f.id, f.order])).toEqual([
+        ['a', 0],
+        ['b', 1],
+      ]);
     });
 
     it('knows whether a name is taken, ignoring case and the template being renamed', async () => {
@@ -172,4 +169,3 @@ describe('NoteTemplateService', () => {
     });
   });
 });
-

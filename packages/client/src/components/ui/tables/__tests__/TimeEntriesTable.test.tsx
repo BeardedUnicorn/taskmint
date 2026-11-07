@@ -134,13 +134,14 @@ describe('sortTimeEntries', () => {
     ['source', ['early', 'late']],
   ])('sorts by %s, either way', (field, ascending) => {
     expect(sortTimeEntries([late, early], tasks, field, 'asc').map(entry => entry.id)).toEqual(ascending);
-    expect(sortTimeEntries([early, late], tasks, field, 'desc').map(entry => entry.id)).toEqual([...ascending].reverse());
+    expect(sortTimeEntries([early, late], tasks, field, 'desc').map(entry => entry.id)).toEqual(
+      [...ascending].reverse()
+    );
   });
 
   it('keeps ties in their order', () => {
-    expect(sortTimeEntries([early, { ...early, id: 'twin' }], tasks, 'taskName', 'asc').map(entry => entry.id)).toEqual([
-      'early',
-      'twin',
-    ]);
+    expect(sortTimeEntries([early, { ...early, id: 'twin' }], tasks, 'taskName', 'asc').map(entry => entry.id)).toEqual(
+      ['early', 'twin']
+    );
   });
 });

@@ -30,7 +30,9 @@ const viewport = (toasts: Toast[]) => {
 describe('ToastViewport', () => {
   it('runs its buttons, and dismisses on Escape only', () => {
     const undo = { label: 'Undo', onClick: vi.fn() };
-    const { onAction, onDismiss } = viewport([toast({ severity: 'error', title: 'Not saved', actions: [undo], count: 2 })]);
+    const { onAction, onDismiss } = viewport([
+      toast({ severity: 'error', title: 'Not saved', actions: [undo], count: 2 }),
+    ]);
     const card = screen.getByRole('alert');
     expect(card).toHaveTextContent('Not saved');
     expect(card).toHaveTextContent('×2');

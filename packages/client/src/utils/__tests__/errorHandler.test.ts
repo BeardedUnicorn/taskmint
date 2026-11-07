@@ -27,9 +27,20 @@ describe('ServiceErrorHandler', () => {
     const error = handler.handleError(new Error('boom'), 'getAll', { taskId: 't1' });
     expect(error).toBeInstanceOf(AppError);
     expect(error.context).toEqual({ service: 'TaskService', method: 'getAll', taskId: 't1' });
-    expect(addBreadcrumb).toHaveBeenCalledWith('Service error in TaskService.getAll', 'error', 'error', expect.objectContaining({ originalError: 'boom', taskId: 't1' }));
-    expect(setContext).toHaveBeenCalledWith('serviceError', expect.objectContaining({ service: 'TaskService', severity: 'medium' }));
-    expect(captureException).toHaveBeenCalledWith(error, expect.objectContaining({ method: 'getAll', originalError: 'boom' }));
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      'Service error in TaskService.getAll',
+      'error',
+      'error',
+      expect.objectContaining({ originalError: 'boom', taskId: 't1' })
+    );
+    expect(setContext).toHaveBeenCalledWith(
+      'serviceError',
+      expect.objectContaining({ service: 'TaskService', severity: 'medium' })
+    );
+    expect(captureException).toHaveBeenCalledWith(
+      error,
+      expect.objectContaining({ method: 'getAll', originalError: 'boom' })
+    );
   });
 
   it('rates changes high, storage and network trouble medium, and bad input low', () => {
@@ -49,12 +60,19 @@ describe('ServiceErrorHandler', () => {
 
   it('passes results through, and turns failures into AppErrors', async () => {
     await expect(handler.handleAsync(async () => 'ok', 'getAll')).resolves.toBe('ok');
-    await expect(handler.handleAsync(async () => Promise.reject('nope'), 'getAll')).rejects.toMatchObject({ message: 'nope', name: 'AppError' });
+    await expect(handler.handleAsync(async () => Promise.reject('nope'), 'getAll')).rejects.toMatchObject({
+      message: 'nope',
+      name: 'AppError',
+    });
   });
 
   it('leaves info breadcrumbs', () => {
     handler.logInfo('Loaded 3 tasks', 'getAll', { count: 3 });
-    expect(addBreadcrumb).toHaveBeenCalledWith('TaskService.getAll: Loaded 3 tasks', 'info', 'info', { service: 'TaskService', method: 'getAll', count: 3 });
+    expect(addBreadcrumb).toHaveBeenCalledWith('TaskService.getAll: Loaded 3 tasks', 'info', 'info', {
+      service: 'TaskService',
+      method: 'getAll',
+      count: 3,
+    });
   });
 });
 

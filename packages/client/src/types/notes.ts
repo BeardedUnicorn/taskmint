@@ -84,20 +84,25 @@ function migrateLegacyCommandField(field: unknown): unknown {
   return migrated;
 }
 
-export const TemplateFieldSchema = z.preprocess(migrateLegacyCommandField, z.object({
-  id: z.string().min(1),
-  label: z.string().min(1).max(100),
-  type: z.enum(['text', 'number', 'date', 'checkbox', 'select']),
-  required: z.boolean(),
-  placeholder: z.string().optional(),
-  order: z.number().min(0),
-  validation: z.object({
-    min: z.number().optional(),
-    max: z.number().optional(),
-    pattern: z.string().optional(),
-  }).optional(),
-  options: z.array(SelectOptionSchema).optional(),
-}));
+export const TemplateFieldSchema = z.preprocess(
+  migrateLegacyCommandField,
+  z.object({
+    id: z.string().min(1),
+    label: z.string().min(1).max(100),
+    type: z.enum(['text', 'number', 'date', 'checkbox', 'select']),
+    required: z.boolean(),
+    placeholder: z.string().optional(),
+    order: z.number().min(0),
+    validation: z
+      .object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+        pattern: z.string().optional(),
+      })
+      .optional(),
+    options: z.array(SelectOptionSchema).optional(),
+  })
+);
 
 export const NoteTemplateSchema = z.object({
   id: z.string().min(1),

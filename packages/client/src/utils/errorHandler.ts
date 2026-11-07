@@ -1,6 +1,6 @@
 /**
  * Enhanced Error Handler Utility
- * 
+ *
  * Provides centralized error handling with Sentry integration
  * for services and other parts of the application.
  */
@@ -73,24 +73,15 @@ export class ServiceErrorHandler {
 
     // The message stays the original one (it may be shown to the user); the
     // service and method travel in the context.
-    const appError = new AppError(
-      errorObj.message,
-      fullContext,
-      this.determineSeverity(errorObj, method)
-    );
+    const appError = new AppError(errorObj.message, fullContext, this.determineSeverity(errorObj, method));
 
     // Add breadcrumb
-    addBreadcrumb(
-      `Service error in ${this.serviceName}.${method}`,
-      'error',
-      'error',
-      {
-        service: this.serviceName,
-        method,
-        originalError: errorObj.message,
-        ...context,
-      }
-    );
+    addBreadcrumb(`Service error in ${this.serviceName}.${method}`, 'error', 'error', {
+      service: this.serviceName,
+      method,
+      originalError: errorObj.message,
+      ...context,
+    });
 
     // Set context for Sentry
     setContext('serviceError', {
@@ -134,30 +125,21 @@ export class ServiceErrorHandler {
     }
   }
 
-
   /**
    * Log info message with breadcrumb
    */
   logInfo(message: string, method: string, data?: Record<string, any>) {
-    addBreadcrumb(
-      `${this.serviceName}.${method}: ${message}`,
-      'info',
-      'info',
-      {
-        service: this.serviceName,
-        method,
-        ...data,
-      }
-    );
+    addBreadcrumb(`${this.serviceName}.${method}: ${message}`, 'info', 'info', {
+      service: this.serviceName,
+      method,
+      ...data,
+    });
   }
 
   /**
    * Determine error severity based on error type and method
    */
-  private determineSeverity(
-    error: Error,
-    method: string
-  ): 'low' | 'medium' | 'high' | 'critical' {
+  private determineSeverity(error: Error, method: string): 'low' | 'medium' | 'high' | 'critical' {
     // Critical operations that affect data integrity
     if (method.includes('delete') || method.includes('update') || method.includes('create')) {
       return 'high';

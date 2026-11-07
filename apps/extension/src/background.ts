@@ -93,7 +93,7 @@ async function deliverAndMark(target: Target, payloadText: string): Promise<void
  */
 export async function attemptDelivery(
   capture: Capture,
-  { viaTabId = null, launchIfUnreachable = false }: { viaTabId?: number | null; launchIfUnreachable?: boolean } = {},
+  { viaTabId = null, launchIfUnreachable = false }: { viaTabId?: number | null; launchIfUnreachable?: boolean } = {}
 ): Promise<boolean> {
   const target = await loadTarget();
   try {
@@ -143,7 +143,7 @@ export async function handleCapture(payloadText: string, tabId: number | null): 
 
   await attemptDelivery(
     { payloadText, capturedAt: new Date().toISOString() },
-    { viaTabId: tabId, launchIfUnreachable: true },
+    { viaTabId: tabId, launchIfUnreachable: true }
   );
 }
 

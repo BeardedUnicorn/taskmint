@@ -21,7 +21,7 @@ vi.mock('../../utils/dataMigration', () => ({
     };
   }),
   createBackup: vi.fn(),
-  needsMigration: vi.fn((data) => {
+  needsMigration: vi.fn(data => {
     // Check if data needs migration (doesn't have version property)
     return typeof data !== 'object' || data === null || !('version' in data);
   }),
@@ -38,7 +38,7 @@ describe('useLocalStorage', () => {
 
   it('should return initial value when localStorage is empty', () => {
     const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
-    
+
     expect(result.current[0]).toBe(INITIAL_VALUE);
   });
 

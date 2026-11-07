@@ -47,7 +47,7 @@ describe('createBackup', () => {
     expect(localStorage.getItem('other_backup_1')).toBe('kept');
   });
 
-  it('says so when it can\'t', () => {
+  it("says so when it can't", () => {
     vi.mocked(localStorage.setItem).mockImplementationOnce(() => {
       throw new Error('QuotaExceededError');
     });

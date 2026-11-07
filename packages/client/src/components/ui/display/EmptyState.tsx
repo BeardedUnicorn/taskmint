@@ -24,11 +24,7 @@ export function EmptyState({ icon, title, description, action, plain = false }: 
       elevation={plain ? 0 : 1}
       sx={{ p: plain ? 4 : 6, textAlign: 'center', ...(plain && { bgcolor: 'transparent' }) }}
     >
-      {icon && (
-        <Box sx={{ color: 'text.secondary', mb: 1, '& svg': { fontSize: 48 } }}>
-          {icon}
-        </Box>
-      )}
+      {icon && <Box sx={{ color: 'text.secondary', mb: 1, '& svg': { fontSize: 48 } }}>{icon}</Box>}
       <Typography variant="h6" sx={{ fontWeight: 600 }}>
         {title}
       </Typography>

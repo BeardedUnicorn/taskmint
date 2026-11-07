@@ -30,10 +30,7 @@ import {
   Select,
   MenuItem,
 } from '@mui/material';
-import {
-  Timer as TimerIcon,
-  RestartAlt as ResetIcon,
-} from '@mui/icons-material';
+import { Timer as TimerIcon, RestartAlt as ResetIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { useEnhancedTimerSettings } from '../../../hooks/useEnhancedTimerSettings';
 import { INACTIVITY_CONSTANTS } from '../../../constants';
@@ -71,12 +68,14 @@ export function InactivitySettingsSection() {
   }, [inactivitySettings.thresholdMinutes]);
 
   useEffect(() => {
-    getBackend().platform.idle?.isSupported().then(
-      result => {
-        if (!result) setSupported(false);
-      },
-      error => console.warn('Failed to ask whether idle time is available:', error)
-    );
+    getBackend()
+      .platform.idle?.isSupported()
+      .then(
+        result => {
+          if (!result) setSupported(false);
+        },
+        error => console.warn('Failed to ask whether idle time is available:', error)
+      );
   }, []);
 
   const handleReset = () => {
@@ -88,15 +87,12 @@ export function InactivitySettingsSection() {
     <SettingsSection
       title="Idle & Reminders"
       icon={<TimerIcon color="primary" />}
-      headerChildren={
-        inactivitySettings.enabled && <Chip label="Idle detection on" color="success" size="small" />
-      }
+      headerChildren={inactivitySettings.enabled && <Chip label="Idle detection on" color="success" size="small" />}
       paperProps={{ sx: { mb: 0 } }}
     >
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Pauses the running timer when your computer has had no keyboard or mouse input for
-        this long, in any app. The away time isn't counted unless you choose to keep it when
-        you're back.
+        Pauses the running timer when your computer has had no keyboard or mouse input for this long, in any app. The
+        away time isn't counted unless you choose to keep it when you're back.
       </Typography>
 
       {!supported && (
@@ -110,7 +106,7 @@ export function InactivitySettingsSection() {
           control={
             <Switch
               checked={inactivitySettings.enabled}
-              onChange={(e) => updateInactivitySettings({ enabled: e.target.checked })}
+              onChange={e => updateInactivitySettings({ enabled: e.target.checked })}
               disabled={!supported}
             />
           }
@@ -131,9 +127,7 @@ export function InactivitySettingsSection() {
                 aria-label="Inactivity threshold"
                 value={threshold}
                 onChange={(_, value) => setThreshold(value as number)}
-                onChangeCommitted={(_, value) =>
-                  updateInactivitySettings({ thresholdMinutes: value as number })
-                }
+                onChangeCommitted={(_, value) => updateInactivitySettings({ thresholdMinutes: value as number })}
                 min={INACTIVITY_CONSTANTS.MIN_THRESHOLD_MINUTES}
                 max={INACTIVITY_CONSTANTS.MAX_THRESHOLD_MINUTES}
                 step={1}
@@ -149,9 +143,8 @@ export function InactivitySettingsSection() {
               />
             </Box>
             <Typography variant="body2" color="text.secondary">
-              When you're back, TaskMint comes to the front and asks whether to discard the
-              away time and resume, keep it and resume, or stay paused. The tray offers the
-              same choices.
+              When you're back, TaskMint comes to the front and asks whether to discard the away time and resume, keep
+              it and resume, or stay paused. The tray offers the same choices.
             </Typography>
           </>
         )}
@@ -165,7 +158,7 @@ export function InactivitySettingsSection() {
               labelId="long-run-label"
               label="Remind me after a timer runs"
               value={inactivitySettings.longRunHours}
-              onChange={(e) => updateInactivitySettings({ longRunHours: Number(e.target.value) })}
+              onChange={e => updateInactivitySettings({ longRunHours: Number(e.target.value) })}
             >
               {LONG_RUN_HOUR_OPTIONS.map(hours => (
                 <MenuItem key={hours} value={hours}>

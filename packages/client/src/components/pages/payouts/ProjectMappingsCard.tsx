@@ -77,9 +77,7 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
   if (mappings.length === 0) return null;
 
   const optionsFor = (mapping: ProjectTaskMapping) =>
-    tasks
-      .filter(task => !task.isArchived || task.id === mapping.taskId)
-      .sort((a, b) => a.name.localeCompare(b.name));
+    tasks.filter(task => !task.isArchived || task.id === mapping.taskId).sort((a, b) => a.name.localeCompare(b.name));
 
   // (The select offers listed tasks only, and reports only a change)
   const handleChange = (mapping: ProjectTaskMapping, taskId: string) => {

@@ -40,11 +40,7 @@ describe('IdleReturnDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Keep 25 min and resume' }));
     fireEvent.click(screen.getByRole('button', { name: 'Stay paused' }));
 
-    expect(onResolve.mock.calls.map(([choice]) => choice)).toEqual([
-      'discardResume',
-      'keepResume',
-      'stayPaused',
-    ]);
+    expect(onResolve.mock.calls.map(([choice]) => choice)).toEqual(['discardResume', 'keepResume', 'stayPaused']);
   });
 
   it('labels long absences in hours and minutes', () => {

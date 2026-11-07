@@ -11,7 +11,10 @@ describe('routeNotification', () => {
   });
 
   it('sends captures, backup failures and errors to the OS only while you are away', () => {
-    expect(routeNotification({ category: 'workLog', severity: 'success' }, here)).toEqual({ toast: true, desktop: null });
+    expect(routeNotification({ category: 'workLog', severity: 'success' }, here)).toEqual({
+      toast: true,
+      desktop: null,
+    });
     expect(routeNotification({ category: 'workLog', severity: 'success' }, away)).toEqual({
       toast: true,
       desktop: 'workLogCapture',
@@ -64,7 +67,9 @@ describe('routeNotification', () => {
 
   it('lets a caller force or forbid the OS', () => {
     expect(routeNotification({ category: 'workLog', severity: 'info', desktop: 'never' }, away).desktop).toBeNull();
-    expect(routeNotification({ category: 'general', severity: 'info', desktop: 'always' }, here).desktop).toBe('general');
+    expect(routeNotification({ category: 'general', severity: 'info', desktop: 'always' }, here).desktop).toBe(
+      'general'
+    );
   });
 });
 

@@ -1,6 +1,6 @@
 /**
  * Formatting Utilities
- * 
+ *
  * This file contains utility functions for formatting various data types
  * including time, currency, and other display formats.
  */
@@ -52,7 +52,7 @@ export function formatDate(date: Date): string {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
   });
 }
 
@@ -60,9 +60,7 @@ export function formatDate(date: Date): string {
  * Format currency amount with proper symbol and formatting
  */
 export function formatCurrency(amount: string | number, currency = 'USD'): string {
-  const numericAmount = typeof amount === 'string'
-    ? parseFloat(amount.replace(/[$,]/g, ''))
-    : amount;
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount.replace(/[$,]/g, '')) : amount;
 
   const format = (value: number, code: string) =>
     new Intl.NumberFormat(formattingLocale(), { style: 'currency', currency: code }).format(value);
@@ -102,10 +100,7 @@ export function createTextPreview(text: string, maxLength: number = 100): string
   }
 
   // Replace line breaks with bullet points for preview
-  const singleLinePreview = text
-    .replace(/\n+/g, ' • ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const singleLinePreview = text.replace(/\n+/g, ' • ').replace(/\s+/g, ' ').trim();
 
   if (singleLinePreview.length > maxLength) {
     return `${singleLinePreview.substring(0, maxLength)}...`;

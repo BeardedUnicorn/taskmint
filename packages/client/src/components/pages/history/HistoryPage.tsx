@@ -20,11 +20,7 @@ import {
   MenuItem,
   Paper,
 } from '@mui/material';
-import {
-  Download as DownloadIcon,
-  MoreTime as AddTimeIcon,
-  History as HistoryIcon,
-} from '@mui/icons-material';
+import { Download as DownloadIcon, MoreTime as AddTimeIcon, History as HistoryIcon } from '@mui/icons-material';
 import { TimeEntry } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { EditTimeEntryData } from '../../../types/form';
@@ -79,15 +75,9 @@ export function HistoryPage({
   onFocusApplied,
 }: HistoryPageProps) {
   // State management (the key predates History: Time Entries' saved filters carry over)
-  const [storedFilters, setFilters] = useLocalStorage<TimeEntriesFiltersState>(
-    'timeEntriesFilters',
-    DEFAULT_FILTERS
-  );
+  const [storedFilters, setFilters] = useLocalStorage<TimeEntriesFiltersState>('timeEntriesFilters', DEFAULT_FILTERS);
   // Saved dates come back as text and saved tasks as stale copies
-  const filters = useMemo(
-    () => hydrateTimeEntriesFilters(storedFilters, tasks),
-    [storedFilters, tasks]
-  );
+  const filters = useMemo(() => hydrateTimeEntriesFilters(storedFilters, tasks), [storedFilters, tasks]);
   const { exportCsv, isExporting } = useCsvExport();
   const perPageLabelId = useId();
   const [filtersExpanded, setFiltersExpanded] = useState(false);
@@ -95,10 +85,10 @@ export function HistoryPage({
   const [sortDirection, setSortDirection] = useLocalStorage<SortDirection>('timeEntriesSortDirection', 'desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useLocalStorage('timeEntriesPerPage', 25);
-  
+
   // Dialog states
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
-  
+
   // Arriving from a task's "View all in History": that task, all time (once
   // per request, however often the page re-renders before it's cleared)
   const appliedFocusRef = React.useRef<Task | null>(null);
@@ -256,15 +246,10 @@ export function HistoryPage({
       ) : (
         <>
           {/* Results Summary */}
-          <Stack
-            direction="row"
-            sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}
-          >
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="body2" color="text.secondary">
               {`Showing ${startIndex + 1}-${Math.min(endIndex, filteredEntries.length)} of ${filteredEntries.length} ${filteredEntries.length === 1 ? 'entry' : 'entries'}`}
-              {filteredEntries.length !== timeEntries.length && (
-                <> (filtered from {timeEntries.length} total)</>
-              )}
+              {filteredEntries.length !== timeEntries.length && <> (filtered from {timeEntries.length} total)</>}
             </Typography>
 
             <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -338,9 +323,6 @@ export function HistoryPage({
           tasks={tasks}
         />
       )}
-
-
-
     </PageContainer>
   );
 }

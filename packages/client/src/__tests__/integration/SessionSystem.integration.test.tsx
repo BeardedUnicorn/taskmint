@@ -1,6 +1,6 @@
 /**
  * Integration Tests for Session-Based System
- * 
+ *
  * Tests the complete session-based timer system including UI components,
  * hooks, services, and backend integration.
  */
@@ -141,7 +141,7 @@ describe('Session System Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Reset mock state
     Object.assign(mockSessionManagement, {
       sessions: [],
@@ -149,14 +149,14 @@ describe('Session System Integration', () => {
       isLoading: false,
       error: null,
     });
-    
+
     Object.assign(mockTaskManagement, {
       tasks: mockTasks,
       activeTasks: mockTasks,
       archivedTasks: [],
       isLoading: false,
     });
-    
+
     // Default mock responses
     mockInvoke.mockImplementation((command: string) => {
       switch (command) {
@@ -303,9 +303,7 @@ describe('Session System Integration', () => {
           id: 'session-2',
           taskName: 'Code Review',
           totalDuration: 7200000, // 2 hours
-          timerInstances: [
-            { ...mockTimerInstance, id: 'instance-2', duration: 7200000, state: TimerState.stopped },
-          ],
+          timerInstances: [{ ...mockTimerInstance, id: 'instance-2', duration: 7200000, state: TimerState.stopped }],
         },
       ];
 
@@ -327,7 +325,7 @@ describe('Session System Integration', () => {
 
     it('should activate and deactivate sessions', async () => {
       const inactiveSession = { ...mockSession, isActive: false };
-      
+
       // Set up the mock to return the inactive session
       Object.assign(mockSessionManagement, {
         sessions: [inactiveSession],

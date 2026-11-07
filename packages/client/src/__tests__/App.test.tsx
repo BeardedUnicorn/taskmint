@@ -40,10 +40,8 @@ beforeEach(() => {
 });
 
 const calls = (command: string) => fakeBackend().call.mock.calls.filter(([name]) => name === command);
-const heading = (view: (typeof VIEWS)[number]) =>
-  screen.findByRole('heading', { name: VIEW_LABELS[view], level: 1 });
-const nav = (view: (typeof VIEWS)[number]) =>
-  fireEvent.click(screen.getByRole('button', { name: VIEW_LABELS[view] }));
+const heading = (view: (typeof VIEWS)[number]) => screen.findByRole('heading', { name: VIEW_LABELS[view], level: 1 });
+const nav = (view: (typeof VIEWS)[number]) => fireEvent.click(screen.getByRole('button', { name: VIEW_LABELS[view] }));
 
 describe('App', () => {
   it('opens every page from the sidebar', async () => {
@@ -62,7 +60,9 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Annotation/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Start' }));
 
-    await waitFor(() => expect(calls('start_task')).toEqual([['start_task', { taskId: 'task-1', taskName: 'Annotation' }]]));
+    await waitFor(() =>
+      expect(calls('start_task')).toEqual([['start_task', { taskId: 'task-1', taskName: 'Annotation' }]])
+    );
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 

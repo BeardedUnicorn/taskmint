@@ -17,7 +17,7 @@ const field = (overrides: Partial<TemplateField> & Pick<TemplateField, 'id' | 't
 });
 
 describe('emptyValues', () => {
-  it("gives each field a blank of its kind", () => {
+  it('gives each field a blank of its kind', () => {
     expect(
       emptyValues([
         field({ id: 'text', type: 'text' }),
@@ -36,7 +36,11 @@ describe('emptyValues', () => {
 
 describe('coerceNumbers', () => {
   it('turns number inputs into numbers and blanks into null', () => {
-    const fields = [field({ id: 'a', type: 'number' }), field({ id: 'b', type: 'number' }), field({ id: 'c', type: 'text' })];
+    const fields = [
+      field({ id: 'a', type: 'number' }),
+      field({ id: 'b', type: 'number' }),
+      field({ id: 'c', type: 'text' }),
+    ];
     expect(coerceNumbers(fields, { a: '42', b: '', c: '7' })).toEqual({ a: 42, b: null, c: '7' });
   });
 

@@ -6,7 +6,13 @@ import { TimeEntry } from '../../types/timer';
 
 const HOUR = 3_600_000;
 const tasks: Task[] = [
-  { id: 'task-1', name: 'Annotation', hourlyRate: 50, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+  {
+    id: 'task-1',
+    name: 'Annotation',
+    hourlyRate: 50,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
 ];
 
 const entry = (date: string, hours: number, overrides: Partial<TimeEntry> = {}): TimeEntry => ({
@@ -93,8 +99,11 @@ describe('buildGoalHistory', () => {
     expect(rows).toEqual([]);
   });
 
-  it("shows dollars when neither the day nor the goal says which currency", () => {
-    const rows = build({ currentGoal: { ...goal(100), currency: undefined as unknown as string }, timeEntries: [entry('2026-10-05', 1)] });
+  it('shows dollars when neither the day nor the goal says which currency', () => {
+    const rows = build({
+      currentGoal: { ...goal(100), currency: undefined as unknown as string },
+      timeEntries: [entry('2026-10-05', 1)],
+    });
     expect(rows[0].currency).toBe('USD');
   });
 

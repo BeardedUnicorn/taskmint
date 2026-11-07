@@ -19,8 +19,8 @@ export function PrivacySettingsSection() {
         label="Send error reports"
       />
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-        When something breaks, TaskMint sends the error and where it happened in the app.
-        Task names, notes, earnings and work logs are never included.
+        When something breaks, TaskMint sends the error and where it happened in the app. Task names, notes, earnings
+        and work logs are never included.
       </Typography>
     </SettingsSection>
   );

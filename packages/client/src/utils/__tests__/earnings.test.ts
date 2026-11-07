@@ -121,7 +121,7 @@ describe('earnings', () => {
     expect(sessionEarnings(running, [task()], nowMs)).toBeCloseTo(90, 10);
   });
 
-  it('buckets by the day each timer started, at each session\'s rate', () => {
+  it("buckets by the day each timer started, at each session's rate", () => {
     const yesterday = session({
       id: 's-a',
       hourlyRate: 40,
@@ -181,7 +181,9 @@ describe('a session on several tasks', () => {
 
   it('lists the distinct rates of the timers that ran', () => {
     expect(sessionRates(mixed, tasks)).toEqual([60, 30]);
-    expect(sessionRates(session({ hourlyRate: 60, timerInstances: [instance(), instance({ id: 'b' })] }), tasks)).toEqual([60]);
+    expect(
+      sessionRates(session({ hourlyRate: 60, timerInstances: [instance(), instance({ id: 'b' })] }), tasks)
+    ).toEqual([60]);
     // A timer that hasn't started earns nothing yet
     const waiting = instance({ id: 'idle', state: TimerState.idle, task: review });
     expect(sessionRates(session({ hourlyRate: 60, timerInstances: [instance(), waiting] }), tasks)).toEqual([60]);

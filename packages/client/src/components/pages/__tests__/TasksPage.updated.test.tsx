@@ -41,11 +41,7 @@ vi.mock('../tasks/TaskFormDialog', () => ({
       <div data-testid={mode === 'add' ? 'add-task-dialog' : 'edit-task-dialog'}>
         <button
           onClick={() =>
-            onSubmit(
-              mode === 'add'
-                ? { name: 'New Task', hourlyRate: 50 }
-                : { name: 'Updated Task', hourlyRate: 60 }
-            )
+            onSubmit(mode === 'add' ? { name: 'New Task', hourlyRate: 50 } : { name: 'Updated Task', hourlyRate: 60 })
           }
         >
           {mode === 'add' ? 'Save Task' : 'Save Changes'}
@@ -61,7 +57,9 @@ vi.mock('../../ui/dialogs/EditTimeEntryDialog', () => ({
     entry ? (
       <div data-testid="edit-time-entry-dialog">
         <span data-testid="entry-task">{entry.taskId}</span>
-        <button onClick={() => onSave({ id: 'entry1', taskName: 'Updated Task', durationMs: 3600000 })}>Save Entry</button>
+        <button onClick={() => onSave({ id: 'entry1', taskName: 'Updated Task', durationMs: 3600000 })}>
+          Save Entry
+        </button>
         <button onClick={onClose}>Close</button>
       </div>
     ) : null
@@ -81,11 +79,7 @@ vi.mock('../../ui', () => ({
   SearchListHeader: vi.fn(({ title, searchValue, onSearchChange, actions }) => (
     <div data-testid="search-list-header">
       <span>{title}</span>
-      <input
-        aria-label="Search tasks"
-        value={searchValue}
-        onChange={(e) => onSearchChange(e.target.value)}
-      />
+      <input aria-label="Search tasks" value={searchValue} onChange={e => onSearchChange(e.target.value)} />
       {actions}
     </div>
   )),
@@ -237,10 +231,7 @@ describe('TasksPage - Task List Layout', () => {
     expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
 
     // Parent state updates after onArchiveTask resolves
-    const updatedTasks = [
-      { ...mockTasks[0], isArchived: true, archivedAt: '2024-02-01T00:00:00Z' },
-      mockTasks[1],
-    ];
+    const updatedTasks = [{ ...mockTasks[0], isArchived: true, archivedAt: '2024-02-01T00:00:00Z' }, mockTasks[1]];
     rerender(<TasksPage {...mockProps} tasks={updatedTasks} />);
 
     await waitFor(() => {
@@ -295,7 +286,9 @@ describe('TasksPage - Task List Layout', () => {
 
     it("doesn't suggest archiving a task that already is", async () => {
       const oldEntry = { ...mockTimeEntries[0], id: 'old-entry', taskName: 'Old Task' };
-      render(<TasksPage {...mockProps} tasks={[...mockTasks, archivedTask]} timeEntries={[...mockTimeEntries, oldEntry]} />);
+      render(
+        <TasksPage {...mockProps} tasks={[...mockTasks, archivedTask]} timeEntries={[...mockTimeEntries, oldEntry]} />
+      );
 
       fireEvent.click(screen.getAllByLabelText('Delete task')[2]);
       const dialog = await screen.findByRole('dialog');
@@ -463,7 +456,7 @@ describe('TasksPage - Task List Layout', () => {
       hourlyRate: 50,
       defaultNoteTemplateId: null,
       createdAt: '2024-01-01T12:00:00Z',
-      updatedAt: '2024-01-01T12:00:00Z'
+      updatedAt: '2024-01-01T12:00:00Z',
     };
     const mockOnAddTask = vi.fn().mockResolvedValue(newTask);
 

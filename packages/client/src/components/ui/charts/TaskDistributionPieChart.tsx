@@ -4,14 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, type PieLabe
 import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 import { generateChartColors, formatTimeForChart } from '../../../utils/chartDataHelpers';
-import {
-  CHART_HEIGHT,
-  ChartLegend,
-  ChartTitle,
-  ChartTooltipCard,
-  ChartTooltipProps,
-  hoveredPoint,
-} from './ChartParts';
+import { CHART_HEIGHT, ChartLegend, ChartTitle, ChartTooltipCard, ChartTooltipProps, hoveredPoint } from './ChartParts';
 
 interface TaskShare {
   name: string;
@@ -29,7 +22,10 @@ export function TaskShareTooltip(props: ChartTooltipProps<TaskShare>) {
   return (
     <ChartTooltipCard
       title={share.name}
-      lines={[`Time: ${formatTimeForChart(share.value * 60 * 60 * 1000)}`, `Percentage: ${share.percentage.toFixed(1)}%`]}
+      lines={[
+        `Time: ${formatTimeForChart(share.value * 60 * 60 * 1000)}`,
+        `Percentage: ${share.percentage.toFixed(1)}%`,
+      ]}
     />
   );
 }
@@ -91,7 +87,12 @@ export function TaskDistributionPieChart({ data }: { data: TaskShare[] }) {
           </Pie>
           <Tooltip content={<TaskShareTooltip />} />
           <Legend
-            content={<ChartLegend shape="dot" items={data.map((share, index) => ({ label: share.name, color: colors[index] }))} />}
+            content={
+              <ChartLegend
+                shape="dot"
+                items={data.map((share, index) => ({ label: share.name, color: colors[index] }))}
+              />
+            }
           />
         </PieChart>
       </ResponsiveContainer>

@@ -73,9 +73,7 @@ export function EditTimeEntryDialog({ onClose, onSave, entry, tasks }: EditTimeE
     // A task-only edit keeps the original duration so the sub-minute
     // remainder isn't truncated; typed values mean exact whole minutes.
     const unchanged = parsedHours === initial.hours && parsedMinutes === initial.minutes;
-    const durationMs = unchanged
-      ? entry.durationMs
-      : parsedHours * MS_PER_HOUR + parsedMinutes * MS_PER_MINUTE;
+    const durationMs = unchanged ? entry.durationMs : parsedHours * MS_PER_HOUR + parsedMinutes * MS_PER_MINUTE;
 
     onSave({
       id: entry.id,
@@ -84,16 +82,11 @@ export function EditTimeEntryDialog({ onClose, onSave, entry, tasks }: EditTimeE
     });
   };
 
-
   const previewMs = durationInputToMs({ hours, minutes });
   const moving = taskId !== entry.taskId;
 
   return (
-    <FormDialog
-      onClose={onClose}
-      onSubmit={handleSubmit}
-      title="Edit Time Entry"
-    >
+    <FormDialog onClose={onClose} onSubmit={handleSubmit} title="Edit Time Entry">
       <Stack spacing={2}>
         <Autocomplete<Task, false, true>
           value={selectedTask}
@@ -102,10 +95,10 @@ export function EditTimeEntryDialog({ onClose, onSave, entry, tasks }: EditTimeE
             clearError('taskId');
           }}
           options={taskOptions}
-          getOptionLabel={(task) => (task.isFavorite ? `★ ${task.name}` : task.name)}
+          getOptionLabel={task => (task.isFavorite ? `★ ${task.name}` : task.name)}
           isOptionEqualToValue={(option, value) => option.id === value.id}
           disableClearable
-          renderInput={(params) => (
+          renderInput={params => (
             <TextField
               {...params}
               label="Task"
@@ -120,7 +113,7 @@ export function EditTimeEntryDialog({ onClose, onSave, entry, tasks }: EditTimeE
 
         <DurationFields
           value={{ hours, minutes }}
-          onChange={(next) => {
+          onChange={next => {
             if (next.hours !== hours) clearError('hours');
             if (next.minutes !== minutes) clearError('minutes');
             setHours(next.hours);

@@ -71,14 +71,18 @@ export function DailyGoalSettings() {
   return (
     <SettingsSection title="Daily Earnings Goal" icon={<GoalIcon color="primary" />}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        A daily earnings target, with notifications at 50%, 75%, when you reach it, and when you're
-        well past it (choose which reach your desktop under Notifications). It starts over each day.
+        A daily earnings target, with notifications at 50%, 75%, when you reach it, and when you're well past it (choose
+        which reach your desktop under Notifications). It starts over each day.
       </Typography>
 
       <Stack spacing={3}>
         <FormControlLabel
           control={
-            <Switch checked={enabled} onChange={event => void save({ isEnabled: event.target.checked })} color="primary" />
+            <Switch
+              checked={enabled}
+              onChange={event => void save({ isEnabled: event.target.checked })}
+              color="primary"
+            />
           }
           label="Enable daily earnings goal"
         />

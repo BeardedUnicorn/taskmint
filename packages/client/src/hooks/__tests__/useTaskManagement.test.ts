@@ -93,7 +93,7 @@ describe('useTaskManagement', () => {
 
       expect(result.current.tasks).toEqual([]);
       expect(result.current.isLoading).toBe(true);
-      
+
       // Wait for the hook to finish loading
       await waitFor(() => expect(result.current.isLoading).toBe(false));
     });
@@ -117,7 +117,7 @@ describe('useTaskManagement', () => {
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       expect(mockShowError).toHaveBeenCalledWith('Failed to load tasks. Please refresh the page and try again.');
-      
+
       consoleSpy.mockRestore();
     });
   });
@@ -144,7 +144,7 @@ describe('useTaskManagement', () => {
 
       let returnedTask: Task | null = null;
       await act(async () => {
-        returnedTask = await result.current.addTask(newTaskData)
+        returnedTask = await result.current.addTask(newTaskData);
       });
 
       expect(mockTaskService.createTask).toHaveBeenCalledWith(newTaskData);
@@ -161,17 +161,15 @@ describe('useTaskManagement', () => {
       const { result } = renderHook(() => useTaskManagement());
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-      await expect(
-        result.current.addTask({ name: 'Test Task', hourlyRate: 50 })
-      ).rejects.toThrow('Failed to create task');
+      await expect(result.current.addTask({ name: 'Test Task', hourlyRate: 50 })).rejects.toThrow(
+        'Failed to create task'
+      );
 
       expect(mockShowError).toHaveBeenCalledWith('Failed to create task');
     });
 
     it('shows why a create failed (e.g. a duplicate name)', async () => {
-      mockTaskService.createTask.mockRejectedValue(
-        new Error('A task with the name "Development" already exists')
-      );
+      mockTaskService.createTask.mockRejectedValue(new Error('A task with the name "Development" already exists'));
 
       const { result } = renderHook(() => useTaskManagement());
       await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -456,7 +454,6 @@ describe('useTaskManagement', () => {
       expect(result.current).toHaveProperty('unarchiveTask');
       expect(typeof result.current.archiveTask).toBe('function');
       expect(typeof result.current.unarchiveTask).toBe('function');
-
 
       // Verify all methods are functions
       expect(typeof result.current.addTask).toBe('function');

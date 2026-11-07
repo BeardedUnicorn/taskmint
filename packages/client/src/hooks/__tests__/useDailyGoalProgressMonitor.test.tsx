@@ -18,7 +18,13 @@ vi.mock('../../contexts/NotificationContext', () => ({
 
 const HOUR = 3_600_000;
 const tasks: Task[] = [
-  { id: 'task-1', name: 'Annotation', hourlyRate: 60, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+  {
+    id: 'task-1',
+    name: 'Annotation',
+    hourlyRate: 60,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
 ];
 
 /** A session whose timer has been running for `hours` at $60/hr. */
@@ -117,15 +123,11 @@ describe('useDailyGoalProgressMonitor', () => {
       { wrapper }
     );
 
-    await waitFor(() =>
-      expect(result.current.goals.achievements.find(r => r.date === today)?.goalAmount).toBe(100)
-    );
+    await waitFor(() => expect(result.current.goals.achievements.find(r => r.date === today)?.goalAmount).toBe(100));
     await act(async () => {
       await result.current.goals.updateDailyGoal({ targetAmount: 120 });
     });
-    await waitFor(() =>
-      expect(result.current.goals.achievements.find(r => r.date === today)?.goalAmount).toBe(120)
-    );
+    await waitFor(() => expect(result.current.goals.achievements.find(r => r.date === today)?.goalAmount).toBe(120));
     expect(result.current.goals.achievements.filter(r => r.date === today)).toHaveLength(1);
   });
 
@@ -220,19 +222,29 @@ describe('goal notifications', () => {
       () => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(1), tasks }), goals: useDailyGoals() }),
       { wrapper }
     );
-    await waitFor(() => expect(result.current.goals.currentGoal?.lastNotificationDate).toBe(formatDateString(new Date())));
+    await waitFor(() =>
+      expect(result.current.goals.currentGoal?.lastNotificationDate).toBe(formatDateString(new Date()))
+    );
   });
 
   it('saves a day as hit at its target, and exceeded past it', async () => {
     storeGoal(60);
     const today = formatDateString(new Date());
-    const hit = renderHook(() => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(1), tasks }), goals: useDailyGoals() }), { wrapper });
+    const hit = renderHook(
+      () => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(1), tasks }), goals: useDailyGoals() }),
+      { wrapper }
+    );
     await waitFor(() => expect(hit.result.current.goals.achievements.find(r => r.date === today)?.status).toBe('hit'));
     hit.unmount();
 
     storeGoal(60);
-    const exceeded = renderHook(() => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(2), tasks }), goals: useDailyGoals() }), { wrapper });
-    await waitFor(() => expect(exceeded.result.current.goals.achievements.find(r => r.date === today)?.status).toBe('exceeded'));
+    const exceeded = renderHook(
+      () => ({ progress: useDailyGoalProgressMonitor({ sessions: runningFor(2), tasks }), goals: useDailyGoals() }),
+      { wrapper }
+    );
+    await waitFor(() =>
+      expect(exceeded.result.current.goals.achievements.find(r => r.date === today)?.status).toBe('exceeded')
+    );
   });
 
   it("doesn't send a milestone again when its save fails and the goal goes back", async () => {

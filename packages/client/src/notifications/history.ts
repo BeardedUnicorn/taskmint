@@ -87,9 +87,7 @@ export function bumpHistoryEntry(
   changes: Pick<HistoryEntry, 'at' | 'message' | 'title' | 'read'>
 ): HistoryEntry[] {
   return history.map(entry =>
-    entry.id === id
-      ? { ...entry, ...changes, read: entry.read && changes.read, count: entry.count + 1 }
-      : entry
+    entry.id === id ? { ...entry, ...changes, read: entry.read && changes.read, count: entry.count + 1 } : entry
   );
 }
 

@@ -198,9 +198,7 @@ describe('NoteEditor', () => {
     fireEvent.click(screen.getByText('Save Note'));
 
     await waitFor(() => {
-      expect(mockOnSaveNote).toHaveBeenCalledWith(
-        expect.objectContaining({ fieldValues: { num: 123 } })
-      );
+      expect(mockOnSaveNote).toHaveBeenCalledWith(expect.objectContaining({ fieldValues: { num: 123 } }));
     });
   });
 
@@ -442,7 +440,7 @@ describe('NoteEditor', () => {
     expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
   });
 
-  it("keeps typing that happens while a save is in flight", async () => {
+  it('keeps typing that happens while a save is in flight', async () => {
     let finish!: (note: TaskNote) => void;
     const onUpdateNote = vi.fn(() => new Promise<TaskNote>(resolve => (finish = resolve)));
     render(
@@ -474,10 +472,7 @@ describe('NoteEditor', () => {
   });
 
   it('offers Retry after a failed save', async () => {
-    const onUpdateNote = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('disk full'))
-      .mockResolvedValue(existingTemplateNote);
+    const onUpdateNote = vi.fn().mockRejectedValueOnce(new Error('disk full')).mockResolvedValue(existingTemplateNote);
     render(
       <NoteEditor
         taskId="task1"

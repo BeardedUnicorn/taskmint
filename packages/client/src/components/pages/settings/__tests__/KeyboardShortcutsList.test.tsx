@@ -11,7 +11,7 @@ describe('KeyboardShortcutsList', () => {
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
-  it("leaves out the ones a browser keeps for itself", () => {
+  it('leaves out the ones a browser keeps for itself', () => {
     installFakeBackendForTest({ capabilities: { runtime: 'web' } });
     render(<KeyboardShortcutsList />);
     expect(screen.queryByText('New task')).not.toBeInTheDocument();

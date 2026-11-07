@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { CAPTURE } from '@taskmint/contracts';
 import manifest from '../../manifest.json';
 
-it("keeps the ID the desktop app accepts captures from", () => {
+it('keeps the ID the desktop app accepts captures from', () => {
   // Chrome's ID: the key's SHA-256, its first 32 hex digits spelled a–p
   const digest = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex');
   const id = [...digest.slice(0, 32)].map(digit => String.fromCharCode(97 + parseInt(digit, 16))).join('');

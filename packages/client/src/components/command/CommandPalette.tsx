@@ -81,7 +81,9 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
       maxWidth="sm"
       {...{ [PALETTE_ATTRIBUTE]: '' }}
       // (On the paper: that's the element with role="dialog")
-      slotProps={{ paper: { 'aria-label': 'Command palette', sx: { position: 'fixed', top: '12vh', m: 0, maxHeight: '70vh' } } }}
+      slotProps={{
+        paper: { 'aria-label': 'Command palette', sx: { position: 'fixed', top: '12vh', m: 0, maxHeight: '70vh' } },
+      }}
     >
       <Box sx={{ p: 2, pb: 1 }}>
         <TextField
@@ -123,7 +125,11 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
         {matches.map((command, index) => (
           <Box component="li" key={command.id} role="presentation" sx={{ listStyle: 'none' }}>
             {showGroups && (index === 0 || matches[index - 1].group !== command.group) && (
-              <ListSubheader component="div" role="presentation" sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
+              <ListSubheader
+                component="div"
+                role="presentation"
+                sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}
+              >
                 {command.group}
               </ListSubheader>
             )}

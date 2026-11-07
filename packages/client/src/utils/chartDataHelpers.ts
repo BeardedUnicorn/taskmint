@@ -1,6 +1,6 @@
 /**
  * Chart Data Helpers
- * 
+ *
  * Utility functions for processing time entries data into formats suitable for charts
  */
 
@@ -50,15 +50,15 @@ const calculateEarnings = entryEarnings;
  */
 export function aggregateByTask(entries: TimeEntry[], tasks: Task[]): TaskTimeData[] {
   const taskMap = new Map<string, TaskTimeData>();
-  
+
   entries.forEach(entry => {
     if (!entry.duration) return;
-    
+
     const task = findTaskFor(entry, tasks);
     const key = task?.id ?? entry.taskId ?? `name:${entry.taskName}`;
     const taskName = task?.name ?? entry.taskName;
     const earnings = calculateEarnings(entry, tasks);
-    
+
     if (taskMap.has(key)) {
       const existing = taskMap.get(key)!;
       existing.totalTime += entry.duration;
@@ -73,7 +73,7 @@ export function aggregateByTask(entries: TimeEntry[], tasks: Task[]): TaskTimeDa
       });
     }
   });
-  
+
   return Array.from(taskMap.values()).sort((a, b) => b.totalTime - a.totalTime);
 }
 
@@ -82,13 +82,13 @@ export function aggregateByTask(entries: TimeEntry[], tasks: Task[]): TaskTimeDa
  */
 export function aggregateByDay(entries: TimeEntry[], tasks: Task[]): DailyData[] {
   const dayMap = new Map<string, DailyData>();
-  
+
   entries.forEach(entry => {
     if (!entry.duration) return;
-    
+
     const date = entry.date || dayjs(entry.startTime).format('YYYY-MM-DD');
     const earnings = calculateEarnings(entry, tasks);
-    
+
     if (dayMap.has(date)) {
       const existing = dayMap.get(date)!;
       existing.totalTime += entry.duration;
@@ -103,7 +103,7 @@ export function aggregateByDay(entries: TimeEntry[], tasks: Task[]): DailyData[]
       });
     }
   });
-  
+
   return Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
@@ -121,15 +121,15 @@ function byKey<T>(map: Map<string, T>): T[] {
  */
 export function aggregateByWeek(entries: TimeEntry[], tasks: Task[]): WeeklyData[] {
   const weekMap = new Map<string, WeeklyData>();
-  
+
   entries.forEach(entry => {
     if (!entry.duration) return;
-    
+
     const weekStart = dayjs(entry.startTime).startOf('week');
     const weekKey = weekStart.format('YYYY-MM-DD');
     const weekLabel = `${weekStart.format('MMM DD')} - ${weekStart.add(6, 'day').format('MMM DD')}`;
     const earnings = calculateEarnings(entry, tasks);
-    
+
     if (weekMap.has(weekKey)) {
       const existing = weekMap.get(weekKey)!;
       existing.totalTime += entry.duration;
@@ -144,7 +144,7 @@ export function aggregateByWeek(entries: TimeEntry[], tasks: Task[]): WeeklyData
       });
     }
   });
-  
+
   return byKey(weekMap);
 }
 
@@ -153,14 +153,14 @@ export function aggregateByWeek(entries: TimeEntry[], tasks: Task[]): WeeklyData
  */
 export function aggregateByMonth(entries: TimeEntry[], tasks: Task[]): MonthlyData[] {
   const monthMap = new Map<string, MonthlyData>();
-  
+
   entries.forEach(entry => {
     if (!entry.duration) return;
-    
+
     const month = dayjs(entry.startTime).format('YYYY-MM');
     const monthLabel = dayjs(entry.startTime).format('MMM YYYY');
     const earnings = calculateEarnings(entry, tasks);
-    
+
     if (monthMap.has(month)) {
       const existing = monthMap.get(month)!;
       existing.totalTime += entry.duration;
@@ -175,7 +175,7 @@ export function aggregateByMonth(entries: TimeEntry[], tasks: Task[]): MonthlyDa
       });
     }
   });
-  
+
   return byKey(monthMap);
 }
 
@@ -200,30 +200,45 @@ export function formatTimeForChart(ms: number): string {
  */
 export function generateChartColors(count: number): string[] {
   const colors = [
-    '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1',
-    '#d084d0', '#ffb347', '#87ceeb', '#dda0dd', '#98fb98',
-    '#f0e68c', '#ff6347', '#40e0d0', '#ee82ee', '#90ee90'
+    '#8884d8',
+    '#82ca9d',
+    '#ffc658',
+    '#ff7c7c',
+    '#8dd1e1',
+    '#d084d0',
+    '#ffb347',
+    '#87ceeb',
+    '#dda0dd',
+    '#98fb98',
+    '#f0e68c',
+    '#ff6347',
+    '#40e0d0',
+    '#ee82ee',
+    '#90ee90',
   ];
-  
+
   const result: string[] = [];
   for (let i = 0; i < count; i++) {
     result.push(colors[i % colors.length]);
   }
-  
+
   return result;
 }
 
 /**
  * Prepare data for pie chart showing task distribution
  */
-export function prepareTaskDistributionData(entries: TimeEntry[], tasks: Task[] = []): Array<{
+export function prepareTaskDistributionData(
+  entries: TimeEntry[],
+  tasks: Task[] = []
+): Array<{
   name: string;
   value: number;
   percentage: number;
 }> {
   const taskData = aggregateByTask(entries, tasks);
   const totalTime = taskData.reduce((sum, task) => sum + task.totalTime, 0);
-  
+
   // Every task listed has time (aggregateByTask skips untimed entries), so the total isn't 0
   return taskData.map(task => ({
     name: task.taskName,

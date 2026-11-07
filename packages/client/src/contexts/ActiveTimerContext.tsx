@@ -11,11 +11,7 @@ const ActiveTimerContext = createContext<ActiveTimerContextType | undefined>(und
 export function ActiveTimerProvider({ children }: { children: ReactNode }) {
   const [activeTimer, setActiveTimer] = useState<TimerInstance | null>(null);
   const value = useMemo(() => ({ activeTimer, setActiveTimer }), [activeTimer]);
-  return (
-    <ActiveTimerContext.Provider value={value}>
-      {children}
-    </ActiveTimerContext.Provider>
-  );
+  return <ActiveTimerContext.Provider value={value}>{children}</ActiveTimerContext.Provider>;
 }
 
 export function useActiveTimer(): ActiveTimerContextType {

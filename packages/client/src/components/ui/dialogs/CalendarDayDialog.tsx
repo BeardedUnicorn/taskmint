@@ -41,12 +41,9 @@ export function CalendarDayDialog({ date, cells, onClose }: CalendarDayDialogPro
   if (!date) return null;
 
   const worked = cells.filter(
-    cell =>
-      cell.workDay === date && (cellTimeMs(cell) > 0 || cell.actualCents + cell.estimatedCents > 0)
+    cell => cell.workDay === date && (cellTimeMs(cell) > 0 || cell.actualCents + cell.estimatedCents > 0)
   );
-  const released = cells.filter(
-    cell => cell.releaseDay === date && cell.actualCents + cell.estimatedCents > 0
-  );
+  const released = cells.filter(cell => cell.releaseDay === date && cell.actualCents + cell.estimatedCents > 0);
   const sum = (list: PayoutDayCell[], pick: (cell: PayoutDayCell) => number) =>
     list.reduce((total, cell) => total + pick(cell), 0);
 

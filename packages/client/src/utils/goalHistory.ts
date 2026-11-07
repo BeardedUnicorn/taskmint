@@ -42,8 +42,7 @@ export function buildGoalHistory({
   }
 
   const recordByDay = new Map(records.filter(r => inRange(r.date)).map(r => [r.date, r]));
-  const currentTarget =
-    currentGoal?.isEnabled && currentGoal.targetAmount > 0 ? currentGoal.targetAmount : 0;
+  const currentTarget = currentGoal?.isEnabled && currentGoal.targetAmount > 0 ? currentGoal.targetAmount : 0;
 
   const days = new Set([...earnedByDay.keys(), ...recordByDay.keys()]);
   const rows: DailyGoalAchievement[] = [];

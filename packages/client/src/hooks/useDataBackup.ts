@@ -35,11 +35,11 @@ interface UseDataBackupProps {
   onImportError?: (error: string) => void;
 }
 
-export const useDataBackup = ({ 
-  onExportSuccess, 
+export const useDataBackup = ({
+  onExportSuccess,
   onExportError,
-  onImportSuccess, 
-  onImportError 
+  onImportSuccess,
+  onImportError,
 }: UseDataBackupProps) => {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -47,17 +47,9 @@ export const useDataBackup = ({
   // Reads everything fresh each call; stable so schedules can depend on it
   const createBackupData = useCallback(async () => {
     const storageService = StorageService.getInstance();
-    
+
     try {
-      const [
-        tasks,
-        noteTemplates,
-        taskNotes,
-        dailyGoal,
-        goalAchievements,
-        sessions,
-        workLogs
-      ] = await Promise.all([
+      const [tasks, noteTemplates, taskNotes, dailyGoal, goalAchievements, sessions, workLogs] = await Promise.all([
         storageService.getTasks(),
         storageService.getNoteTemplates(),
         storageService.getTaskNotes(),
@@ -84,7 +76,7 @@ export const useDataBackup = ({
             entries: workLogs.entries,
             mappings: workLogs.mappings,
           },
-        }
+        },
       };
     } catch (error) {
       console.error('Failed to create backup data:', error);
@@ -116,7 +108,6 @@ export const useDataBackup = ({
       if (!saved) return;
 
       onExportSuccess?.(saved.kind === 'path' ? saved.path : undefined);
-
     } catch (error) {
       console.error('Export failed:', error);
       onExportError?.(errorMessage(error, 'Failed to export data'));
@@ -161,7 +152,13 @@ export const useDataBackup = ({
       // in localStorage) is ignored: tracked time is the sessions above.
 
       const byId = <T extends { id: string }>(item: T) => item.id;
-      await importList(mode, data.tasks, () => storageService.getTasks(), items => storageService.setTasks(items), byId);
+      await importList(
+        mode,
+        data.tasks,
+        () => storageService.getTasks(),
+        items => storageService.setTasks(items),
+        byId
+      );
       await importList(
         mode,
         data.noteTemplates,
@@ -188,7 +185,7 @@ export const useDataBackup = ({
         achievement => achievement.date
       );
 
-      onImportSuccess?.({ 
+      onImportSuccess?.({
         mode,
         importedCounts: {
           tasks: data.tasks?.length ?? 0,
@@ -200,7 +197,6 @@ export const useDataBackup = ({
         },
         recordsSkipped: restored.recordsSkipped,
       });
-      
     } catch (error) {
       console.error('Import failed:', error);
       // The backend rejects with plain strings, so read the reason either way

@@ -6,7 +6,6 @@
 
 import { ReactNode } from 'react';
 
-
 export interface EarningsDisplayProps {
   /** Dollars earned (never negative) */
   amount: number;

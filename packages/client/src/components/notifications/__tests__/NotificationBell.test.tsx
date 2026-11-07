@@ -71,7 +71,16 @@ describe('NotificationBell', () => {
     localStorage.setItem(
       NOTIFICATION_HISTORY_KEY,
       JSON.stringify([
-        { ...entry, id: 'a', severity: 'warning', title: 'Backup', message: 'Backup failed', count: 3, delivery: 'desktop', read: false },
+        {
+          ...entry,
+          id: 'a',
+          severity: 'warning',
+          title: 'Backup',
+          message: 'Backup failed',
+          count: 3,
+          delivery: 'desktop',
+          read: false,
+        },
         { ...entry, id: 'b', severity: 'success', message: 'Saved' },
       ])
     );

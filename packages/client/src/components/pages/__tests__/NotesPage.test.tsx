@@ -55,7 +55,13 @@ vi.mock('../../features/notes', () => ({
   )),
   NoteEditor: vi.fn(({ onSaveNote, onUpdateNote, onDeleteNote, onCloseEditor }) => (
     <div data-testid="note-editor">
-      <button onClick={() => onSaveNote({ taskId: 'task1', templateId: 'template1', templateName: 'Test Template', fieldValues: {} })}>Save Note</button>
+      <button
+        onClick={() =>
+          onSaveNote({ taskId: 'task1', templateId: 'template1', templateName: 'Test Template', fieldValues: {} })
+        }
+      >
+        Save Note
+      </button>
       <button onClick={() => onUpdateNote('1', { fieldValues: { field1: 'updated' } })}>Update Note</button>
       <button onClick={() => onDeleteNote('1')}>Delete Note</button>
       <button onClick={onCloseEditor}>Close Editor</button>
@@ -132,11 +138,11 @@ describe('NotesPage', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    
+
     // Import the mocked functions
     const taskNotesModule = await import('../../../hooks/useTaskNotes');
     const noteTemplatesModule = await import('../../../hooks/useNoteTemplates');
-    
+
     mockUseTaskNotes = vi.mocked(taskNotesModule.useTaskNotes);
     mockUseNoteTemplates = vi.mocked(noteTemplatesModule.useNoteTemplates);
   });
@@ -230,13 +236,11 @@ describe('NotesPage', () => {
 
     // Find the task filter by looking for the combobox with "All Tasks" text
     const taskFilterElements = screen.getAllByRole('combobox');
-    const taskFilter = taskFilterElements.find(element => 
-      element.textContent === 'All Tasks'
-    );
-    
+    const taskFilter = taskFilterElements.find(element => element.textContent === 'All Tasks');
+
     if (taskFilter) {
       fireEvent.mouseDown(taskFilter);
-      
+
       await waitFor(() => {
         expect(screen.getByText('Task 1')).toBeInTheDocument();
       });

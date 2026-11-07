@@ -87,7 +87,7 @@ export function installChromeFake(): ChromeFake {
 
 /** The badge as the user sees it: the last text, color and title set. */
 export function badge(fake: ChromeFake) {
-  const last = <T,>(mock: { mock: { calls: T[][] } }) => mock.mock.calls.at(-1)?.[0];
+  const last = <T>(mock: { mock: { calls: T[][] } }) => mock.mock.calls.at(-1)?.[0];
   return {
     text: last(fake.action.setBadgeText)?.text,
     color: last(fake.action.setBadgeBackgroundColor)?.color,

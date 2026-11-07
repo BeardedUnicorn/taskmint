@@ -61,7 +61,10 @@ describe('lastUsedByTask', () => {
   it('skips sessions without timers and starts that are not dates', () => {
     const lastUsed = lastUsedByTask([
       { ...session('s1', 'a', []), timerInstances: undefined } as unknown as TaskSession,
-      { ...session('s2', 'b', []), timerInstances: [{ ...instance('i', '2026-10-01T09:00:00Z'), startTime: 'not a date' }] },
+      {
+        ...session('s2', 'b', []),
+        timerInstances: [{ ...instance('i', '2026-10-01T09:00:00Z'), startTime: 'not a date' }],
+      },
     ]);
     expect(lastUsed.size).toBe(0);
   });
@@ -80,21 +83,13 @@ describe('orderTasksForStart', () => {
       task('x', { name: 'Old' }),
       task('w', { name: 'New' }),
     ];
-    const sessions = [
-      session('s1', 'x', ['2026-10-01T09:00:00Z']),
-      session('s2', 'w', ['2026-10-05T09:00:00Z']),
-    ];
+    const sessions = [session('s1', 'x', ['2026-10-01T09:00:00Z']), session('s2', 'w', ['2026-10-05T09:00:00Z'])];
 
     expect(names(orderTasksForStart(tasks, sessions))).toEqual(['w', 'x', 'y', 'z']);
   });
 
   it('pins favorites ahead of everything else, each group by recency', () => {
-    const tasks = [
-      task('a'),
-      task('b', { isFavorite: true }),
-      task('c'),
-      task('d', { isFavorite: true }),
-    ];
+    const tasks = [task('a'), task('b', { isFavorite: true }), task('c'), task('d', { isFavorite: true })];
     const sessions = [
       session('s1', 'a', ['2026-10-09T09:00:00Z']), // most recent overall
       session('s2', 'd', ['2026-10-05T09:00:00Z']),

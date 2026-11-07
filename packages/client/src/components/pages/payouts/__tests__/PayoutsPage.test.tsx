@@ -122,7 +122,12 @@ describe('PayoutsPage', () => {
 
   it('only includes Untransferred in Available now, excluding Paid and Pending Approval', () => {
     mockWorkLogsReturn.entries = [
-      createMockWorkLogEntry({ id: 'untransferred', status: 'Untransferred', workDay: dayOffset(-10), amountCents: 25000 }),
+      createMockWorkLogEntry({
+        id: 'untransferred',
+        status: 'Untransferred',
+        workDay: dayOffset(-10),
+        amountCents: 25000,
+      }),
       createMockWorkLogEntry({ id: 'paid', status: 'Paid', workDay: dayOffset(-15), amountCents: 60000 }),
       createMockWorkLogEntry({ id: 'pending', status: 'Pending Approval', workDay: dayOffset(-8), amountCents: 10000 }),
     ];
@@ -237,8 +242,18 @@ describe('PayoutsPage', () => {
     beforeEach(() => {
       mockWorkLogsReturn.entries = [
         createMockWorkLogEntry({ id: 'this-month', workDay: dayInMonth(0, 1), amountCents: 7500, timeInMinutes: 60 }),
-        createMockWorkLogEntry({ id: 'last-month-a', workDay: dayInMonth(-1, 10), amountCents: 4000, timeInMinutes: 30 }),
-        createMockWorkLogEntry({ id: 'last-month-b', workDay: dayInMonth(-1, 20), amountCents: 6000, timeInMinutes: 90 }),
+        createMockWorkLogEntry({
+          id: 'last-month-a',
+          workDay: dayInMonth(-1, 10),
+          amountCents: 4000,
+          timeInMinutes: 30,
+        }),
+        createMockWorkLogEntry({
+          id: 'last-month-b',
+          workDay: dayInMonth(-1, 20),
+          amountCents: 6000,
+          timeInMinutes: 90,
+        }),
       ];
     });
 
@@ -342,9 +357,7 @@ describe('PayoutsPage', () => {
 
     render(<PayoutsPage />);
 
-    expect(
-      await screen.findByText(/Browser capture server could not start/)
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Browser capture server could not start/)).toBeInTheDocument();
   });
 
   it('logs a capture-server status it could not read', async () => {
@@ -353,9 +366,7 @@ describe('PayoutsPage', () => {
 
     render(<PayoutsPage />);
 
-    await waitFor(() =>
-      expect(warn).toHaveBeenCalledWith('Failed to read the capture server status:', 'no server')
-    );
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('Failed to read the capture server status:', 'no server'));
     warn.mockRestore();
   });
 
@@ -373,7 +384,11 @@ describe('PayoutsPage', () => {
     it('says when the work logs were last imported', () => {
       const recent = new Date(Date.now() - 60 * 60 * 1000);
       mockWorkLogsReturn.entries = [
-        createMockWorkLogEntry({ id: 'a', workDay: dayOffset(-1), updatedAt: new Date(Date.now() - 5 * 86_400_000).toISOString() }),
+        createMockWorkLogEntry({
+          id: 'a',
+          workDay: dayOffset(-1),
+          updatedAt: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+        }),
         createMockWorkLogEntry({ id: 'b', workDay: dayOffset(-1), updatedAt: recent.toISOString() }),
       ];
 
@@ -386,7 +401,10 @@ describe('PayoutsPage', () => {
 
     it('asks for a refresh once the last import is over 3 days old', () => {
       mockWorkLogsReturn.entries = [
-        createMockWorkLogEntry({ workDay: dayOffset(-6), updatedAt: new Date(Date.now() - 4 * 86_400_000).toISOString() }),
+        createMockWorkLogEntry({
+          workDay: dayOffset(-6),
+          updatedAt: new Date(Date.now() - 4 * 86_400_000).toISOString(),
+        }),
       ];
 
       render(<PayoutsPage />);
@@ -401,7 +419,7 @@ describe('PayoutsPage', () => {
   });
 
   describe('Project mappings', () => {
-    it("moves a project to another task, past imported days included", async () => {
+    it('moves a project to another task, past imported days included', async () => {
       mockTaskContext.tasks = [
         createMockTask({ id: 'task-1', name: 'Test Task' }),
         createMockTask({ id: 'task-2', name: 'Other Task' }),
@@ -463,7 +481,13 @@ describe('PayoutsPage', () => {
 
     it('counts a running timer toward today, second by second', () => {
       const running = stoppedSessionOn(0, 'task-1', 1);
-      running.timerInstances[0] = { ...running.timerInstances[0], state: TimerState.running, isRunning: true, endTime: undefined, duration: undefined };
+      running.timerInstances[0] = {
+        ...running.timerInstances[0],
+        state: TimerState.running,
+        isRunning: true,
+        endTime: undefined,
+        duration: undefined,
+      };
       mockSessionContext.sessions = [running];
       mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Task task-1', hourlyRate: 60 })];
       render(<PayoutsPage />);

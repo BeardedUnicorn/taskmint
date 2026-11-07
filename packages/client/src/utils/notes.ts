@@ -21,8 +21,7 @@ export function noteText(note: TaskNote): string {
   return Object.values(note.fieldValues ?? {})
     .filter(
       value =>
-        (typeof value === 'string' && value.trim() !== '') ||
-        (typeof value === 'number' && Number.isFinite(value))
+        (typeof value === 'string' && value.trim() !== '') || (typeof value === 'number' && Number.isFinite(value))
     )
     .map(value => String(value).trim())
     .join(' · ');

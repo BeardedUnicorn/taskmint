@@ -25,7 +25,9 @@ const CAPTURE_HEADER = 'X-TaskMint-Capture';
 const TIME_ZONE_HEADER = 'X-TaskMint-TZ';
 
 const settings = readSettings();
-const base = new URL(settings.TASKMINT_URL ?? settings.PUBLIC_ORIGIN ?? `http://localhost:${settings.WEB_PORT ?? '8080'}`);
+const base = new URL(
+  settings.TASKMINT_URL ?? settings.PUBLIC_ORIGIN ?? `http://localhost:${settings.WEB_PORT ?? '8080'}`
+);
 const origin = base.origin;
 
 function readSettings() {
