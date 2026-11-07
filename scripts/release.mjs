@@ -79,7 +79,7 @@ function run(command, args, { cwd = root } = {}) {
   console.log(`\n$ ${[command, ...args].join(' ')}`);
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
   if (result.error) stop(`${command}: ${result.error.message}`);
-  if (result.status !== 0) stop(`${command} ${args[0]} failed (exit ${result.status})`);
+  if (result.status !== 0) stop(`${[command, ...args].join(' ')} failed (exit ${result.status})`);
 }
 
 /** A command's output; stops if it fails. */
