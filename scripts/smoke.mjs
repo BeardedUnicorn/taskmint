@@ -148,8 +148,7 @@ class EventStream {
     let data = [];
     for await (const chunk of body.pipeThrough(new TextDecoderStream())) {
       buffer += chunk;
-      let end;
-      while ((end = buffer.indexOf('\n')) >= 0) {
+      for (let end = buffer.indexOf('\n'); end >= 0; end = buffer.indexOf('\n')) {
         const line = buffer.slice(0, end).replace(/\r$/, '');
         buffer = buffer.slice(end + 1);
         if (line === '') {

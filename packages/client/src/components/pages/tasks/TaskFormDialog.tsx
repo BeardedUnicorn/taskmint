@@ -76,7 +76,7 @@ export function TaskFormDialog({
     if (hourlyRate.trim()) {
       const rate = parseFloat(hourlyRate);
       // (The field takes no minus sign, so only a lone "." isn't a number)
-      if (isNaN(rate)) {
+      if (Number.isNaN(rate)) {
         newErrors.hourlyRate = 'Hourly rate must be a positive number';
       } else if (rate > 1000) {
         newErrors.hourlyRate = 'Hourly rate seems too high (max $1000/hour)';

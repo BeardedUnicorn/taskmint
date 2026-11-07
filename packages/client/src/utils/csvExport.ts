@@ -53,7 +53,7 @@ export function timeEntriesToCsv(entries: TimeEntry[], tasks: Task[]): string {
       ];
     });
 
-  return BOM + [HEADER, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  return `${BOM}${[HEADER, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')}\r\n`;
 }
 
 /** Rows a CSV export would contain (finished entries). */

@@ -111,9 +111,13 @@ function startExtension(target) {
   const alarms = new Set();
   const chrome = {
     action: {
-      setBadgeText: async ({ text }) => void (badge.text = text),
+      setBadgeText: async ({ text }) => {
+        badge.text = text;
+      },
       setBadgeBackgroundColor: async () => {},
-      setTitle: async ({ title }) => void (badge.title = title),
+      setTitle: async ({ title }) => {
+        badge.title = title;
+      },
       onClicked: event('clicked'),
     },
     alarms: {

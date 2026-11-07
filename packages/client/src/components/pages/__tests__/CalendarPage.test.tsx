@@ -40,7 +40,7 @@ vi.mock('react-big-calendar', () => ({
             data-testid={`calendar-event-${event.id}`}
             onClick={() => onSelectEvent?.(event)}
           >
-            {components.event && components.event({ event })}
+            {components.event?.({ event })}
           </div>
         ))}
         {/* An empty day cell of the shown month (the 20th) */}

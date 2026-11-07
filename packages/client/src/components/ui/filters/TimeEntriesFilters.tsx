@@ -255,7 +255,7 @@ export function TimeEntriesFilters({
                   label="Min Duration (minutes)"
                   value={filters.minDuration ?? ''}
                   onChange={(e) => {
-                    const value = e.target.value ? parseInt(e.target.value) : null;
+                    const value = e.target.value ? parseInt(e.target.value, 10) : null;
                     updateFilters({ minDuration: value });
                   }}
                   slotProps={{
@@ -272,7 +272,7 @@ export function TimeEntriesFilters({
                   label="Max Duration (minutes)"
                   value={filters.maxDuration ?? ''}
                   onChange={(e) => {
-                    const value = e.target.value ? parseInt(e.target.value) : null;
+                    const value = e.target.value ? parseInt(e.target.value, 10) : null;
                     updateFilters({ maxDuration: value });
                   }}
                   slotProps={{

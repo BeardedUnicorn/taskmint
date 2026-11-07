@@ -57,7 +57,7 @@ function addDays(dateStr: string, days: number): string {
 
 function isValidCreatedAtForWorkDay(createdAtIso: string, workDay: string): boolean {
   const createdMs = Date.parse(createdAtIso);
-  if (isNaN(createdMs)) return false;
+  if (Number.isNaN(createdMs)) return false;
   const workDayMs = parseDateStringLocal(workDay).getTime();
   const diffMs = createdMs - workDayMs;
   return diffMs >= -86_400_000 && diffMs <= 3 * 86_400_000;

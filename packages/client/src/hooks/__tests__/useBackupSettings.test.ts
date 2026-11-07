@@ -156,7 +156,7 @@ describe('useBackupSettings', () => {
       stored(BACKUP_FAILURE_NOTICE_KEY, { message: 'disk full', at: Date.now() });
       const result = mounted(config({ backupPath: '  /backups  ' }));
 
-      let outcome;
+      let outcome: unknown;
       await act(async () => {
         outcome = await result.current.performManualBackup();
       });
@@ -234,7 +234,7 @@ describe('useBackupSettings', () => {
     ])('reports a failure when %s', async (_, setUp, reason) => {
       const result = setUp();
 
-      let outcome;
+      let outcome: unknown;
       await act(async () => {
         outcome = await result.current.performManualBackup();
       });
