@@ -34,6 +34,9 @@ jobs:
       # Formatting and lint for the TypeScript and JavaScript (biome.jsonc)
       - run: pnpm exec biome ci
 
+      # The release script's logic (scripts/release/lib.test.mjs)
+      - run: pnpm test:scripts
+
       # Sources and tests, every package.
       - run: pnpm typecheck
 

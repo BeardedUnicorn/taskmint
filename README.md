@@ -146,7 +146,7 @@ off.
 
 ### Checks
 
-`scripts/verify.sh` runs every gate below in order; run it before merging.
+`pnpm verify` (`scripts/verify.sh`) runs every gate below in order; run it before merging.
 It needs Docker: it ends with the server's gates in the compose `test`
 profile, and the images built and smoke-tested as a stack of their own
 ([Run the stack](#run-the-stack)), with the desktop's server mode run against
@@ -166,6 +166,7 @@ cargo llvm-cov -p taskmint-core --fail-under-lines 100 --fail-under-functions 10
 scripts/check-server.sh            # the server's .sqlx check and coverage; needs DATABASE_URL
 node scripts/check-coverage-policy.mjs   # see docs/coverage-policy.md
 node scripts/check-toolchains.mjs        # the Dockerfiles match the pinned toolchains
+pnpm test:scripts                  # the release script's logic (node --test)
 node scripts/smoke.mjs             # the running stack, end to end
 ```
 
@@ -180,12 +181,40 @@ CI (`.github/workflows/ci.yml`) runs them on pushes to `main` and on pull
 requests: everything but the server on macOS, and the server's gates and the
 smoke-tested stack in a Linux docker job.
 
-### Building
+### Releasing
+
+Each branch with a change users would notice adds a note in `changes/`
+([changes/README.md](changes/README.md)). The notes say how big the change
+is and what [CHANGELOG.md](CHANGELOG.md) says about it. In the main checkout,
+on `main`:
 
 ```bash
-pnpm tauri build    # .dmg on macOS, NSIS installer on Windows
-pnpm build:win      # cross-compile the Windows installer from macOS (needs cargo-xwin)
+pnpm release --dry-run    # the next version and its CHANGELOG section; changes nothing
+pnpm release              # bump, CHANGELOG, build the DMG, commit "Release X.Y.Z", tag vX.Y.Z
 ```
+
+`pnpm release` takes the highest `bump` among the notes. It writes that
+version into every manifest (the desktop, web, client and contracts
+`package.json`s, the three crates and `Cargo.lock`; the extension keeps its
+own), adds the CHANGELOG section, and deletes the notes. It then builds and
+copies the installer to `releases/TaskMint-X.Y.Z-macos-arm64.dmg`. Only after
+the build succeeds does it commit and tag. If the build fails, the version
+files, CHANGELOG and notes are put back. Nothing is pushed.
+
+| Option | |
+|---|---|
+| `--patch`, `--minor`, `--major` | bump this level instead (needed when there are no notes) |
+| `--windows` | also cross-compile `releases/TaskMint-X.Y.Z-windows-x64-setup.exe` (needs cargo-xwin) |
+| `--no-build` | version, CHANGELOG, commit and tag only |
+| `--rebuild` | build the current version's installers again, with no bump or commit |
+| `--publish` | then push `main` and the tag, and create the GitHub release with the notes and installers |
+
+`pnpm release publish` publishes the current version on its own; if the
+GitHub release already exists, it adds the installers to it. The repository
+is public, so a published release's installers are public too.
+
+A plain `pnpm tauri build` still works for a build that isn't a release; its
+installer stays in `target/release/bundle/`.
 
 ### Logs
 

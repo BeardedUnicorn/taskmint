@@ -18,6 +18,9 @@ scripts/check-contracts.sh
 step "Formatting and lint for the TypeScript and JavaScript (biome.jsonc)"
 pnpm exec biome ci
 
+step "The release script's logic (node --test)"
+pnpm test:scripts
+
 step "TypeScript (sources and tests)"
 pnpm typecheck
 
