@@ -6,7 +6,7 @@ use crate::contract::{
     ERR_ANOTHER_TIMER_RUNNING, ERR_PAUSE_NOT_RUNNING, ERR_RESUME_INACTIVE_SESSION,
     MAX_TIMER_INSTANCES_PER_SESSION,
 };
-use crate::model::{TaskSession, TimerInstance};
+use crate::model::{TaskSession, TimerInstance, TimerTask};
 use crate::timer::{
     begin_instance, ensure_not_imported, ensure_stoppable, finalize_instance, instance_not_found,
     max_timers_reached, new_timer_instance, pause_instance, recalculate_total_duration,
@@ -48,13 +48,15 @@ pub fn mutate_instance<R>(
     Ok((session.clone(), result))
 }
 
-/// A new idle timer in a session (create_timer_instance).
+/// A new idle timer in a session (create_timer_instance), for `task` when
+/// given, else for the session's own task.
 pub fn create(
     sessions: &mut [TaskSession],
     session_id: &str,
+    task: Option<TimerTask>,
     now: DateTime<Utc>,
 ) -> Result<TimerInstance, String> {
-    let new_instance = new_timer_instance(session_id, now);
+    let mut new_instance = new_timer_instance(session_id, now);
     let session = sessions
         .iter_mut()
         .find(|s| s.id == session_id)
@@ -65,6 +67,7 @@ pub fn create(
         return Err(max_timers_reached());
     }
 
+    new_instance.task = task.filter(|task| task.task_id != session.task_id);
     session.timer_instances.push(new_instance.clone());
     session.updated_at = now.to_rfc3339();
     Ok(new_instance)

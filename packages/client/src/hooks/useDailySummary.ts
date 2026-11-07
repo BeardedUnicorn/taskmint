@@ -13,7 +13,7 @@ import { useEffect, useRef } from 'react';
 import { TaskSession } from '../types/timer';
 import { Task } from '../types/task';
 import { DailyGoal } from '../types/goal';
-import { getSessionElapsedMsOnDate, hasRunningTimer } from '../utils/timerHelpers';
+import { getInstanceElapsedMs, getTimersOnDate, hasRunningTimer, instanceTaskId } from '../utils/timerHelpers';
 import { earningsOnDate } from '../utils/earnings';
 import { formatDateString } from '../utils/dateHelpers';
 import { formatCurrency, formatDurationCompact } from '../utils/formatters';
@@ -61,10 +61,12 @@ export function buildDailySummary({
   let trackedMs = 0;
   const taskIds = new Set<string>();
   for (const session of sessions) {
-    const ms = getSessionElapsedMsOnDate(session, date, nowMs);
-    if (ms > 0) {
-      trackedMs += ms;
-      taskIds.add(session.taskId);
+    for (const instance of getTimersOnDate(session, date)) {
+      const ms = getInstanceElapsedMs(instance, nowMs);
+      if (ms > 0) {
+        trackedMs += ms;
+        taskIds.add(instanceTaskId(instance, session));
+      }
     }
   }
   if (trackedMs === 0) return null;

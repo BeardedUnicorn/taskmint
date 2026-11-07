@@ -1,6 +1,7 @@
 /**
- * One session in the list: its task, time (ticking while it's live), timers,
- * source and newest note, with Activate/End, Notes and a menu.
+ * One session in the list: its tasks, time (ticking while it's live), each
+ * task's time when it ran several, timers, source and newest note, with
+ * Activate/End, Notes and a menu.
  */
 
 import { memo, MouseEvent } from 'react';
@@ -14,7 +15,7 @@ import {
 } from '@mui/icons-material';
 import { MANUAL_SOURCE, TaskSession, TimerState } from '../../../types/timer';
 import { formatDuration, formatTime } from '../../../utils/formatters';
-import { getSessionElapsedMs } from '../../../utils/timerHelpers';
+import { getSessionElapsedMs, sessionTaskTotals, sessionTitle } from '../../../utils/timerHelpers';
 import { isImportedSession } from './useSessionFilters';
 
 interface SessionCardProps {
@@ -46,6 +47,11 @@ export const SessionCard = memo(function SessionCard({
 
   const runningInstances = session.timerInstances.filter(i => i.state === TimerState.running);
   const totalInstances = session.timerInstances?.length || 0;
+  const title = sessionTitle(session);
+  const taskTotals = sessionTaskTotals(session, nowMs);
+  // Live sessions tick in HH:MM:SS; finished ones read as a plain duration:
+  // one glance separates now from history.
+  const formatElapsed = session.isActive ? formatTime : formatDuration;
 
   return (
     <Card
@@ -62,21 +68,17 @@ export const SessionCard = memo(function SessionCard({
     >
       <CardContent sx={{ pb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-              {session.taskName}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            {/* width 0 + minWidth 100%: fills the card, and a long name truncates
+                instead of widening the page's column */}
+            <Typography variant="h6" noWrap title={title} sx={{ fontWeight: 600, mb: 1, width: 0, minWidth: '100%' }}>
+              {title}
             </Typography>
             
             <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
               <Chip
                 icon={<TimerIcon />}
-                // Live sessions tick in HH:MM:SS; finished ones read as a
-                // plain duration — one glance separates now from history.
-                label={
-                  session.isActive
-                    ? formatTime(getSessionElapsedMs(session, nowMs))
-                    : formatDuration(getSessionElapsedMs(session, nowMs))
-                }
+                label={formatElapsed(getSessionElapsedMs(session, nowMs))}
                 size="small"
                 color={session.isActive ? 'primary' : 'default'}
                 variant={session.isActive ? 'filled' : 'outlined'}
@@ -122,6 +124,43 @@ export const SessionCard = memo(function SessionCard({
               )}
             </Stack>
             
+            {/* With one task, the title and the time above already say this */}
+            {taskTotals.length > 1 && (
+              <Box
+                component="ul"
+                aria-label="Time by task"
+                sx={{ listStyle: 'none', m: 0, p: 0, mb: notePreview ? 1 : 0 }}
+              >
+                {taskTotals.map(total => (
+                  <Box
+                    component="li"
+                    key={total.taskId}
+                    sx={{ display: 'flex', gap: 2 }}
+                  >
+                    <Typography
+                      variant="body2"
+                      noWrap
+                      title={total.taskName}
+                      color="text.secondary"
+                      sx={{ flexGrow: 1, width: 0 }}
+                    >
+                      {total.taskName}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        flexShrink: 0,
+                        fontWeight: 600,
+                        fontFamily: session.isActive ? '"Roboto Mono", monospace' : undefined,
+                      }}
+                    >
+                      {formatElapsed(total.elapsedMs)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
+
             {notePreview && (
               <Typography
                 variant="body2"

@@ -8,7 +8,7 @@ import type * as Wire from '@taskmint/contracts';
 import { TaskSession, TimerInstance } from '../../types/timer';
 import { RewriteGroup, WORKLOG_IMPORT_SOURCE, WorkLogEntry } from '../../types/workLog';
 import { formatDateString } from '../dateHelpers';
-import { getInstanceDateString } from '../timerHelpers';
+import { getInstanceDateString, instanceTaskId } from '../timerHelpers';
 import { effectiveMinutes } from './days';
 import { MS_PER_MINUTE, defaultIdFactory, groupKey, isRunningOrPaused } from './shared';
 
@@ -55,6 +55,7 @@ export function buildSynthesizedSession(
         pausedDuration: null,
         resumedAt: null,
         externalId: entry.id,
+        task: null,
         notes: null,
         createdAt: nowIso,
         updatedAt: nowIso,
@@ -166,8 +167,9 @@ export function buildRewriteGroups(
     const blockingInstanceIds: string[] = [];
     const bucketSessions = new Set<TaskSession>();
     for (const session of sessions) {
-      if (session.taskId !== taskId) continue;
       for (const instance of session.timerInstances) {
+        // A session can hold other tasks' timers: those stay
+        if (instanceTaskId(instance, session) !== taskId) continue;
         if (!instanceBelongsToWorkDay(instance, session, workDay)) continue;
         bucketSessions.add(session);
         if (isRunningOrPaused(instance)) blockingInstanceIds.push(instance.id);

@@ -94,7 +94,7 @@ export function buildRemapPlan({
   const deleted = new Set(forNewTask.groups.flatMap(g => g.deleteInstanceIds));
   let replacedTrackedMs = 0;
   for (const session of sessions) {
-    if (session.taskId !== newTask.id || session.source === WORKLOG_IMPORT_SOURCE) continue;
+    if (session.source === WORKLOG_IMPORT_SOURCE) continue;
     for (const instance of session.timerInstances) {
       if (deleted.has(instance.id)) replacedTrackedMs += getInstanceElapsedMs(instance);
     }

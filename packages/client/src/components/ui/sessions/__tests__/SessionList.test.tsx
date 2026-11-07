@@ -100,6 +100,90 @@ describe('SessionList', () => {
     vi.useRealTimers();
   });
 
+  describe('a session on several tasks', () => {
+    const review = { taskId: 'task-9', taskName: 'Reviews', hourlyRate: null };
+    const stopped = (id: string, durationMs: number, task: TimerInstance['task'] = null): TimerInstance => ({
+      ...mockTimerInstance,
+      id,
+      duration: durationMs,
+      task,
+    });
+    const mixed = (overrides: Partial<TaskSession> = {}): TaskSession => ({
+      ...mockSessions[0],
+      timerInstances: [
+        stopped('a', 3_600_000),
+        stopped('b', 1_800_000, review),
+        stopped('c', 1_800_000),
+      ],
+      ...overrides,
+    });
+    const timeByTask = () =>
+      within(screen.getByRole('list', { name: 'Time by task' }))
+        .getAllByRole('listitem')
+        .map(item => item.textContent);
+
+    it('lists each task with its total under the title, and adds up its timers', () => {
+      render(<SessionList {...mockProps} sessions={[mixed()]} />);
+
+      expect(screen.getByRole('heading', { name: 'Development Work, Reviews' })).toBeInTheDocument();
+      expect(timeByTask()).toEqual(['Development Work1h 30m', 'Reviews0h 30m']);
+    });
+
+    it('ticks the totals while the session is active', () => {
+      const live: TimerInstance = {
+        ...mockTimerInstance,
+        id: 'live',
+        state: TimerState.running,
+        duration: null,
+        endTime: null,
+        task: review,
+      };
+      const active = mixed({ isActive: true, timerInstances: [stopped('a', 3_600_000), live] });
+
+      const { rerender } = render(<SessionList {...mockProps} sessions={[active]} />);
+      expect(timeByTask()).toEqual(['Development Work01:00:00', 'Reviews01:00:00']);
+
+      rerender(<SessionList {...mockProps} sessions={[active]} nowMs={NOW_MS + 5_000} />);
+      expect(timeByTask()).toEqual(['Development Work01:00:00', 'Reviews01:00:05']);
+    });
+
+    it("leaves out a task whose timer hasn't started, and shows no list for one task", () => {
+      const waiting: TimerInstance = {
+        ...mockTimerInstance,
+        id: 'idle',
+        state: TimerState.idle,
+        duration: null,
+        endTime: null,
+        task: review,
+      };
+      render(<SessionList {...mockProps} sessions={[mixed({ timerInstances: [stopped('a', 3_600_000), waiting] })]} />);
+
+      expect(screen.getByRole('heading', { name: 'Development Work' })).toBeInTheDocument();
+      expect(screen.queryByRole('list', { name: 'Time by task' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the list and the note preview apart', () => {
+      const note = new Map([[mixed().id, ['Finished the batch']]]);
+      render(<SessionList {...mockProps} sessions={[mixed()]} sessionNotes={note} />);
+
+      expect(screen.getByRole('list', { name: 'Time by task' })).toBeInTheDocument();
+      expect(screen.getByText('Finished the batch')).toBeInTheDocument();
+    });
+
+    it('finds it by any of its tasks, in search and in the filter chips', () => {
+      render(<SessionList {...mockProps} sessions={[mixed(), mockSessions[1]]} />);
+
+      fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'reviews' } });
+      expect(screen.getByRole('heading', { name: 'Development Work, Reviews' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Code Review' })).not.toBeInTheDocument();
+
+      fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Reviews' }));
+      expect(screen.getByRole('heading', { name: 'Development Work, Reviews' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Code Review' })).not.toBeInTheDocument();
+    });
+  });
+
   describe('Rendering', () => {
     it('should render list of sessions', () => {
       render(<SessionList {...mockProps} />);

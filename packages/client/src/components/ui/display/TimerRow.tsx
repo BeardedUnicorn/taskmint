@@ -15,6 +15,8 @@ import { getInstanceElapsedMs } from '../../../utils/timerHelpers';
 
 export interface TimerRowProps {
   instance: TimerInstance;
+  /** The task the timer is on. */
+  taskName: string;
   index: number;
   /** Shared page clock — running rows derive their live elapsed from it. */
   nowMs: number;
@@ -31,6 +33,7 @@ export interface TimerRowProps {
 
 export function TimerRow({
   instance,
+  taskName,
   index,
   nowMs,
   showControls,
@@ -82,9 +85,15 @@ export function TimerRow({
     >
       <TimerIcon fontSize="medium" sx={{ color: 'text.secondary' }} />
 
-      <Typography variant="body2" sx={{ minWidth: 60, color: 'text.secondary' }}>
-        Timer {index}
-      </Typography>
+      {/* A set width, so the rows' times line up whatever their tasks are called */}
+      <Box sx={{ width: 160, minWidth: 0 }}>
+        <Typography variant="body2" noWrap title={taskName} sx={{ fontWeight: 600 }}>
+          {taskName}
+        </Typography>
+        <Typography variant="caption" component="div" sx={{ color: 'text.secondary' }}>
+          Timer {index}
+        </Typography>
+      </Box>
 
       <Typography
         variant="body1"

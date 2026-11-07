@@ -6,11 +6,10 @@
 
 import { cloneElement, ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskTimeBarChart, TaskTimeTooltip } from '../TaskTimeBarChart';
 import { TimelineChart, TimelineTooltip } from '../TimelineChart';
 import { TaskDistributionPieChart, TaskShareTooltip } from '../TaskDistributionPieChart';
-import { formatShortDate } from '../../../../utils/locale';
 
 vi.mock('recharts', async importOriginal => ({
   ...(await importOriginal<typeof import('recharts')>()),
@@ -71,7 +70,24 @@ describe('TimelineChart', () => {
     render(<TimelineChart dataType="daily" data={[{ date: '2026-03-02', ...totals }]} />);
 
     expect(screen.getByText('Daily Time Tracking Trends')).toBeInTheDocument();
-    expect(await screen.findByText(formatShortDate('2026-03-02'))).toBeInTheDocument();
+    expect((await screen.findAllByText('Mar 2')).length).toBeGreaterThan(0);
+  });
+
+  describe('west of UTC', () => {
+    // A bare YYYY-MM-DD read as a Date is UTC midnight: the evening before here
+    beforeEach(() => {
+      vi.stubEnv('TZ', 'America/Denver');
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('labels a day as that day, not the one before', async () => {
+      render(<TimelineChart dataType="daily" data={[{ date: '2026-11-06', ...totals }]} />);
+
+      expect((await screen.findAllByText('Nov 6')).length).toBeGreaterThan(0);
+      expect(screen.queryByText('Nov 5')).not.toBeInTheDocument();
+    });
   });
 
   it('draws weeks and months by their keys', async () => {

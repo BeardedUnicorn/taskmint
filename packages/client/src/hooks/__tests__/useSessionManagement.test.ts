@@ -1273,6 +1273,151 @@ describe('useSessionManagement', () => {
       });
     });
 
+    describe('a session on several tasks', () => {
+      const review = { taskId: 'task-2', taskName: 'Review', hourlyRate: 30 };
+
+      it('creates a timer for the task it was given', async () => {
+        const created = { ...mockTimerInstance, id: 'new', task: review };
+        primeCommand('create_timer_instance', created);
+        const { result } = await ready();
+
+        let timer: TimerInstance | null = null;
+        await act(async () => {
+          timer = await result.current.createTimerInstance('session-1', { taskId: 'task-2', taskName: 'Review' });
+        });
+
+        expect(calls('create_timer_instance')[0][1]).toEqual({
+          sessionId: 'session-1',
+          task: { taskId: 'task-2', taskName: 'Review' },
+        });
+        expect(timer).toMatchObject({ id: 'new', task: review });
+      });
+
+      it('resuming a timer stops the one running, and names its task', async () => {
+        const live = { ...running('live'), task: review };
+        const waiting = paused('waiting', '2024-01-15T10:30:00Z');
+        const active = { ...mockSession, isActive: true, timerInstances: [waiting, live] };
+        const stopped = {
+          ...active,
+          timerInstances: [waiting, { ...live, state: TimerState.stopped, duration: 60_000 }],
+        };
+        const resumed = {
+          ...active,
+          timerInstances: [{ ...waiting, state: TimerState.running }, stopped.timerInstances[1]],
+        };
+        primeCommand('get_sessions', [active]);
+        primeCommand('resume_timer_instance', new Error('Another timer instance is already running'), resumed);
+        primeCommand('stop_timer_instance', stopped);
+        const { result } = await ready();
+
+        let session: TaskSession | null = null;
+        await act(async () => {
+          session = await result.current.resumeTimerInstance('waiting');
+        });
+
+        expect(calls('stop_timer_instance')[0][1]).toEqual({ instanceId: 'live' });
+        expect(session!.timerInstances[0].state).toBe(TimerState.running);
+        expect(mockShowInfo).toHaveBeenCalledWith('Stopped the running timer for "Review"', { category: 'timer' });
+      });
+
+      it('a failed resume resolves to no session', async () => {
+        primeCommand('resume_timer_instance', new Error('disk full'));
+        const { result } = await ready();
+
+        let session: TaskSession | null = { ...mockSession };
+        await act(async () => {
+          session = await result.current.resumeTimerInstance('waiting');
+        });
+
+        expect(session).toBeNull();
+        expect(mockShowInfo).not.toHaveBeenCalled();
+      });
+
+      it("names a deleted timer's own task", async () => {
+        const stopped = { ...mockTimerInstance, state: TimerState.stopped, duration: 60_000, task: review };
+        primeCommand('get_sessions', [{ ...mockSession, timerInstances: [stopped] }]);
+        primeCommand('delete_timer_instance', mockSession);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.deleteTimerInstance('instance-1');
+        });
+
+        expect(mockShowInfo).toHaveBeenCalledWith('Deleted 1m from "Review"', expect.anything());
+      });
+
+      it('puts a deleted timer back with its own task', async () => {
+        const stopped = { ...mockTimerInstance, state: TimerState.stopped, duration: 60_000, task: review };
+        primeCommand('get_sessions', [{ ...mockSession, timerInstances: [stopped] }]);
+        primeCommand('delete_timer_instance', mockSession);
+        primeCommand('restore_timer_instance', mockSession);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.deleteTimerInstance('instance-1');
+        });
+        const [, { actions }] = mockShowInfo.mock.calls[0];
+        await act(async () => {
+          await actions[0].onClick();
+        });
+
+        expect(calls('restore_timer_instance')[0][1]).toMatchObject({ instance: { task: review } });
+      });
+
+      it('names every task of a deleted session', async () => {
+        const own = { ...mockTimerInstance, id: 'own', state: TimerState.stopped, duration: 60_000 };
+        const other = { ...own, id: 'other', task: review };
+        const mixed = { ...mockSession, timerInstances: [own, other], totalDuration: 120_000 };
+        primeCommand('get_sessions', [mixed]);
+        primeCommand('delete_session', mixed);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.deleteSession('session-1');
+        });
+
+        expect(mockShowInfo).toHaveBeenCalledWith(
+          'Deleted the "Test Task, Review" session (2 timers, 2m)',
+          expect.anything()
+        );
+      });
+
+      it("names the running timer's own task when activating another session stops it", async () => {
+        const live = { ...running('live', 'session-2'), task: review };
+        const elsewhere = { ...mockSession, id: 'session-2', isActive: true, timerInstances: [live] };
+        primeCommand('get_sessions', [mockSession, elsewhere]);
+        primeCommand('set_active_session', [{ ...mockSession, isActive: true }, { ...elsewhere, isActive: false }]);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.setActiveSession(mockSession);
+        });
+
+        expect(mockShowInfo).toHaveBeenCalledWith('Stopped the running timer for "Review"', { category: 'session' });
+      });
+
+      it("names the running timer's own task when starting in an inactive session stops it", async () => {
+        const live = { ...running('live', 'session-2'), task: review };
+        const elsewhere = { ...mockSession, id: 'session-2', isActive: true, timerInstances: [live] };
+        const idle = { ...mockTimerInstance, id: 'idle' };
+        const target = { ...mockSession, timerInstances: [idle] };
+        primeCommand('get_sessions', [target, elsewhere]);
+        primeCommand(
+          'start_timer_instance',
+          new Error('Cannot start timer for inactive session'),
+          { ...target, isActive: true, timerInstances: [{ ...idle, state: TimerState.running }] }
+        );
+        primeCommand('set_active_session', [{ ...target, isActive: true }, { ...elsewhere, isActive: false }]);
+        const { result } = await ready();
+
+        await act(async () => {
+          await result.current.startTimerInstance('idle');
+        });
+
+        expect(mockShowInfo).toHaveBeenCalledWith('Stopped the running timer for "Review"', { category: 'timer' });
+      });
+    });
+
     describe('deleting a timer', () => {
       it('reports a failed delete without an Undo', async () => {
         const stopped = { ...mockTimerInstance, state: TimerState.stopped, duration: 60_000 };

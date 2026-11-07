@@ -20,8 +20,10 @@ import {
   TimerState,
   StartTaskResult,
   AddManualTimeInput,
+  TaskChoice,
 } from '../types/timer';
 import { formatDurationCompact } from '../utils/formatters';
+import { instanceTaskName, mostRecentlyPaused, sessionTitle } from '../utils/timerHelpers';
 import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
 import { useActiveTimer } from '../contexts/ActiveTimerContext';
@@ -70,6 +72,7 @@ function backendInstance({ state, ...instance }: TimerInstance): Wire.TimerInsta
     pausedDuration: null,
     resumedAt: null,
     externalId: null,
+    task: null,
     notes: null,
     ...instance,
     isRunning: state === TimerState.running,
@@ -198,29 +201,33 @@ export function useSessionManagement(): UseSessionManagementReturn {
     }
   }, [setActiveTimer]);
 
-  const createTimerInstance = useCallback((sessionId: string): Promise<TimerInstance | null> =>
+  const createTimerInstance = useCallback((sessionId: string, task?: TaskChoice): Promise<TimerInstance | null> =>
     runCommand('Failed to create timer instance', async () => {
-      const newInstance = await getBackend().call('create_timer_instance', { sessionId });
+      const newInstance = await getBackend().call('create_timer_instance', { sessionId, task });
       await loadSessions({ silent: true }); // the session with its new instance
       return normalizeTimerInstance(newInstance);
     }),
   [runCommand, loadSessions]);
 
-  const startTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
-    // The backend refuses to start a timer in an inactive session or while
+  const setTimerRunning = useCallback(async (
+    command: 'start_timer_instance' | 'resume_timer_instance',
+    fallback: string,
+    instanceId: string
+  ): Promise<TaskSession | null> => {
+    // The backend refuses to run a timer in an inactive session or while
     // another timer runs. Recover automatically from each case (activate the
     // session / stop the other timer) and retry, at most once per recovery
     // type. Read sessions through the ref: under rapid successive starts a
     // closure over `sessions` holds a stale list and would stop the wrong
-    // timer. Resolves to the task whose timer was stopped, if any.
-    const handoff = await runCommand('Failed to start timer', async (): Promise<string | null> => {
+    // timer. Resolves to the session and the task whose timer was stopped, if any.
+    const result = await runCommand(fallback, async () => {
       const maxAttempts = 3;
       let handoffTaskName: string | null = null;
       for (let attempt = 1; ; attempt++) {
         try {
-          const updatedSession = await getBackend().call('start_timer_instance', { instanceId });
+          const updatedSession = await getBackend().call(command, { instanceId });
           updateLocalSession(updatedSession);
-          return handoffTaskName;
+          return { session: normalizeSession(updatedSession), handoffTaskName };
         } catch (err) {
           const failure = errorMessage(err, '');
 
@@ -233,7 +240,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
               // other sessions backend-side; note it for the toast.
               const other = findRunningInstance(sessionsRef.current, instanceId);
               if (other && other.session.id !== parentSession.id) {
-                handoffTaskName = other.session.taskName;
+                handoffTaskName = instanceTaskName(other.instance, other.session);
               }
               applySessions(await getBackend().call('set_active_session', { sessionId: parentSession.id }));
               continue;
@@ -243,7 +250,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
           if (attempt < maxAttempts && failure.includes(CORE_ERROR_PARTS.ANOTHER_TIMER_RUNNING)) {
             const running = findRunningInstance(sessionsRef.current, instanceId);
             if (running) {
-              handoffTaskName = running.session.taskName;
+              handoffTaskName = instanceTaskName(running.instance, running.session);
               try {
                 const stoppedSession = await getBackend().call('stop_timer_instance', {
                   instanceId: running.instance.id,
@@ -262,19 +269,30 @@ export function useSessionManagement(): UseSessionManagementReturn {
         }
       }
     });
-    // The hand-off must be explicit: the user asked to start this timer, not
+    // The hand-off must be explicit: the user asked to run this timer, not
     // to stop the other one. (A plain start shows on screen; no toast.)
-    if (handoff) {
-      showInfo(`Stopped the running timer for "${handoff}"`, { category: 'timer' });
+    if (result?.handoffTaskName) {
+      showInfo(`Stopped the running timer for "${result.handoffTaskName}"`, { category: 'timer' });
     }
+    return result?.session ?? null;
   }, [runCommand, updateLocalSession, applySessions, showInfo]);
 
-  // stop/pause/resume return the updated session (or null on failure) so
+  const startTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
+    await setTimerRunning('start_timer_instance', 'Failed to start timer', instanceId);
+  }, [setTimerRunning]);
+
+  const resumeTimerInstance = useCallback(
+    (instanceId: string): Promise<TaskSession | null> =>
+      setTimerRunning('resume_timer_instance', 'Failed to resume timer', instanceId),
+    [setTimerRunning]
+  );
+
+  // stop/pause return the updated session (or null on failure) so
   // orchestrating callers like endActiveSession can tell whether the command
   // actually succeeded.
   // (No success toasts: the timer's state on screen says it.)
   const timerCommand = useCallback(
-    (command: 'stop_timer_instance' | 'pause_timer_instance' | 'resume_timer_instance', fallback: string) =>
+    (command: 'stop_timer_instance' | 'pause_timer_instance', fallback: string) =>
       (instanceId: string): Promise<TaskSession | null> =>
         runCommand(fallback, async () => {
           const updatedSession = await getBackend().call(command, { instanceId });
@@ -289,10 +307,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
   );
   const pauseTimerInstance = useMemo(
     () => timerCommand('pause_timer_instance', 'Failed to pause timer'),
-    [timerCommand]
-  );
-  const resumeTimerInstance = useMemo(
-    () => timerCommand('resume_timer_instance', 'Failed to resume timer'),
     [timerCommand]
   );
 
@@ -325,7 +339,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
     // A timer that never ran held no time: nothing to undo
     if (owner && snapshot?.state === TimerState.stopped) {
-      showInfo(`Deleted ${formatDurationCompact(snapshot.duration ?? 0)} from "${owner.taskName}"`, {
+      showInfo(`Deleted ${formatDurationCompact(snapshot.duration ?? 0)} from "${instanceTaskName(snapshot, owner)}"`, {
         category: 'timer',
         actions: [{ label: 'Undo', onClick: () => void restoreTimerInstance(owner.id, snapshot, index) }],
       });
@@ -398,8 +412,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
     if (reloadTimeoutRef.current) clearTimeout(reloadTimeoutRef.current);
   }, []);
 
-  // The app's single start path (also the tray's): continue the task's active
-  // session, or open a new one with a running timer. The backend announces
+  // The app's single start path (also the tray's): work joins the active
+  // session, or a new one opens with a running timer. The backend announces
   // any timer it finalized for another task, so the hand-off isn't silent.
   const startTask = useCallback(async (taskId: string, taskName: string): Promise<StartTaskResult | null> => {
     const result = await runCommand('Failed to start the task', async () => {
@@ -479,7 +493,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
       timers > 0
         ? ` (${timers} timer${timers === 1 ? '' : 's'}, ${formatDurationCompact(removed.totalDuration)})`
         : '';
-    showInfo(`Deleted the "${removed.taskName}" session${detail}`, {
+    showInfo(`Deleted the "${sessionTitle(normalizeSession(removed))}" session${detail}`, {
       category: 'session',
       actions: [{ label: 'Undo', onClick: () => void restoreSession(removed) }],
     });
@@ -501,7 +515,9 @@ export function useSessionManagement(): UseSessionManagementReturn {
     });
     // Announce only a hand-off (activating finalized another task's timer)
     if (done && session && previousRunner && previousRunner.session.id !== session.id) {
-      showInfo(`Stopped the running timer for "${previousRunner.session.taskName}"`, { category: 'session' });
+      showInfo(`Stopped the running timer for "${instanceTaskName(previousRunner.instance, previousRunner.session)}"`, {
+        category: 'session',
+      });
     }
     return done === true;
   }, [runCommand, applySessions, showInfo]);
@@ -555,10 +571,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     // Only one timer may run at a time (the backend enforces the same
     // invariant on resume as on start), so resume the most recently paused
     // timer rather than looping over all of them.
-    const pausedAtMs = (t: TimerInstance) => (t.pausedAt ? new Date(t.pausedAt).getTime() : 0);
-    const mostRecent = session.timerInstances
-      .filter(t => t.state === TimerState.paused)
-      .sort((a, b) => pausedAtMs(b) - pausedAtMs(a))[0];
+    const mostRecent = mostRecentlyPaused(session);
     if (mostRecent) await resumeTimerInstance(mostRecent.id);
   }, [resumeTimerInstance]);
 

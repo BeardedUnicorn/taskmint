@@ -14,6 +14,7 @@ import { useActiveTimer } from '../contexts/ActiveTimerContext';
 import { useTimeEntries } from '../hooks/useTimeEntries';
 import { useTimerEntryEdit } from '../hooks/useTimerEntryEdit';
 import { EditTimeEntryData } from '../types/form';
+import { instanceTaskId, instanceTaskName } from '../utils/timerHelpers';
 
 const TasksPage = lazy(() => import('../components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
 const NotesPage = lazy(() => import('../components/pages/NotesPage').then(module => ({ default: module.NotesPage })));
@@ -66,7 +67,7 @@ function TasksRoute() {
       onStartTask={task => {
         void startTask(task.id, task.name);
       }}
-      runningTaskId={activeTimer && activeSession ? activeSession.taskId : null}
+      runningTaskId={activeTimer && activeSession ? instanceTaskId(activeTimer, activeSession) : null}
       onViewHistory={task => navigate('history', { focusTaskId: task.id })}
       newTaskRequested={params.intent === 'new-task'}
       onNewTaskRequestHandled={clearParams}
@@ -81,7 +82,7 @@ function NotesRoute() {
   const runningTask = useMemo(
     () =>
       activeTimer && activeSession
-        ? { taskId: activeSession.taskId, taskName: activeSession.taskName }
+        ? { taskId: instanceTaskId(activeTimer, activeSession), taskName: instanceTaskName(activeTimer, activeSession) }
         : null,
     [activeTimer, activeSession]
   );

@@ -124,6 +124,38 @@ describe('SessionNotesDialog', () => {
     expect(saved).toMatchObject({ sessionId: 's-1', noteLevel: 'session', timerInstanceId: null });
   });
 
+  it("puts a timer's note on the timer's own task, and titles the dialog after every task", async () => {
+    const review: Task = { id: 'task-2', name: 'Review', createdAt: '', updatedAt: '' };
+    const mixed: TaskSession = {
+      ...session,
+      timerInstances: [
+        session.timerInstances[0],
+        {
+          ...session.timerInstances[0],
+          id: 'i-2',
+          task: { taskId: 'task-2', taskName: 'Review', hourlyRate: null },
+        },
+      ],
+    };
+    render(
+      <NotificationProvider>
+        <TaskNotesProvider>
+          <NoteTemplatesProvider>
+            <SessionNotesDialog onClose={() => {}} session={mixed} timerInstanceId="i-2" tasks={[...tasks, review]} />
+          </NoteTemplatesProvider>
+        </TaskNotesProvider>
+      </NotificationProvider>
+    );
+
+    expect(await screen.findByText(/^Annotation, Review ·/)).toBeInTheDocument();
+    await addNote('On the review');
+
+    await waitFor(() => {
+      const [saved] = readAppRecord(STORAGE_KEYS.TASK_NOTES) as unknown[];
+      expect(saved).toMatchObject({ taskId: 'task-2', timerInstanceId: 'i-2', noteLevel: 'timer' });
+    });
+  });
+
   it('opened from a timer, adds a note for that timer', async () => {
     renderDialog('i-1');
     expect(await screen.findByText(/New notes are for the timer started at 9:15 AM/)).toBeInTheDocument();

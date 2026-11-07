@@ -6,7 +6,7 @@ use crate::contract::{
     ERR_ANOTHER_TIMER_RUNNING, ERR_START_INACTIVE_SESSION, ERR_STOP_NOT_RUNNING,
     MAX_TIMER_INSTANCES_PER_SESSION, WORKLOG_IMPORT_SOURCE,
 };
-use crate::model::{TaskSession, TimerInstance};
+use crate::model::{TaskSession, TimerInstance, TimerTask};
 use crate::zone::DayZone;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -154,10 +154,26 @@ pub fn new_timer_instance(session_id: &str, now: DateTime<Utc>) -> TimerInstance
         paused_duration: None,
         resumed_at: None,
         external_id: None,
+        task: None,
         notes: None,
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
     }
+}
+
+/// What a timer for this task records in `session`: nothing for the session's
+/// own task (it earns at the session's rate), otherwise the task itself.
+pub fn timer_task_in(
+    session: &TaskSession,
+    task_id: &str,
+    task_name: &str,
+    hourly_rate: Option<f64>,
+) -> Option<TimerTask> {
+    (session.task_id != task_id).then(|| TimerTask {
+        task_id: task_id.to_string(),
+        task_name: task_name.to_string(),
+        hourly_rate,
+    })
 }
 
 /// Put a validated, never-run instance into the running state.

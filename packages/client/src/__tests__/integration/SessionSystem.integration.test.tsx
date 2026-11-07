@@ -7,7 +7,7 @@
 
 import '../../setupTests';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionDashboard } from '../../components/pages/SessionDashboard';
 import { SessionTimerToolbar } from '../../components/layout/SessionTimerToolbar';
@@ -250,8 +250,15 @@ describe('Session System Integration', () => {
       const addTimerButton = screen.getByText('Add Timer');
       fireEvent.click(addTimerButton);
 
+      // It asks which task, starting from the session's own
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add Timer' }));
+
       await waitFor(() => {
-        expect(mockSessionManagement.createTimerInstance).toHaveBeenCalledWith('session-1');
+        expect(mockSessionManagement.createTimerInstance).toHaveBeenCalledWith('session-1', {
+          taskId: 'task-1',
+          taskName: 'Development Work',
+        });
       });
     });
 

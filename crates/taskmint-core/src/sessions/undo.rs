@@ -138,6 +138,7 @@ mod tests {
             paused_duration: None,
             resumed_at: None,
             external_id: None,
+            task: None,
             notes: None,
             created_at: ts(0).to_rfc3339(),
             updated_at: ts(0).to_rfc3339(),

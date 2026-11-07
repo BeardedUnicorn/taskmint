@@ -35,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import { TaskSession, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
+import { sessionTitle } from '../../utils/timerHelpers';
 
 interface SessionTimerToolbarProps {
   activeSession: TaskSession | null;
@@ -45,7 +46,7 @@ interface SessionTimerToolbarProps {
   onPauseAll: () => Promise<void>;
   onResumeAll: () => Promise<void>;
   onOpenSessionNotes?: (sessionId: string) => void;
-  /** Start work on another task (opens the start dialog). */
+  /** Move on to another task in this session (opens the start dialog). */
   onSwitchTask?: () => void;
 }
 
@@ -158,8 +159,13 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <SessionIcon color="primary" />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          {activeSession.taskName}
+        <Typography
+          variant="h6"
+          noWrap
+          title={sessionTitle(activeSession)}
+          sx={{ fontWeight: 600, minWidth: 0, maxWidth: '40%' }}
+        >
+          {sessionTitle(activeSession)}
         </Typography>
 
         <Chip
@@ -170,7 +176,8 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
 
         <Box sx={{ flex: 1, display: 'flex', gap: 1, alignItems: 'center' }}>
             {sessionStatus.running > 0 && <Button variant="outlined" color="warning" size="small" onClick={onPauseAll} startIcon={<PauseIcon />}>Pause All</Button>}
-            {sessionStatus.paused > 0 && <Button variant="outlined" color="success" size="small" onClick={onResumeAll} startIcon={<ResumeIcon />}>Resume All</Button>}
+            {/* One timer runs at a time: resuming while one runs would stop it */}
+            {sessionStatus.paused > 0 && sessionStatus.running === 0 && <Button variant="outlined" color="success" size="small" onClick={onResumeAll} startIcon={<ResumeIcon />}>Resume All</Button>}
         </Box>
 
         {onSwitchTask && (

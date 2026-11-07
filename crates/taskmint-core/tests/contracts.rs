@@ -63,6 +63,7 @@ fn export_types(cfg: &Config) {
         SetActiveSessionArgs,
         ClearSessionNotesArgs,
         SessionArgs,
+        CreateTimerInstanceArgs,
         RestoreSessionArgs,
         RestoreTimerInstanceArgs,
         UpdateTimerInstanceArgs,

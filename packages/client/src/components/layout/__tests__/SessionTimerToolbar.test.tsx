@@ -181,6 +181,37 @@ describe('SessionTimerToolbar', () => {
       expect(mockProps.onResumeAll).toHaveBeenCalled();
     });
 
+    it("hides Resume All while a timer runs, so it can't stop that timer", () => {
+      const session: TaskSession = {
+        ...mockActiveSession,
+        timerInstances: [
+          { ...mockTimerInstance, id: 'paused', state: TimerState.paused, isRunning: false, isPaused: true },
+          mockTimerInstance,
+        ],
+      };
+      render(<SessionTimerToolbar {...mockProps} activeSession={session} />);
+
+      expect(screen.getByRole('button', { name: /pause all/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /resume all/i })).not.toBeInTheDocument();
+    });
+
+    it('titles the session after every task that has run', () => {
+      const session: TaskSession = {
+        ...mockActiveSession,
+        timerInstances: [
+          mockTimerInstance,
+          {
+            ...mockTimerInstance,
+            id: 'other',
+            task: { taskId: 'task-2', taskName: 'Code Review', hourlyRate: null },
+          },
+        ],
+      };
+      render(<SessionTimerToolbar {...mockProps} activeSession={session} />);
+
+      expect(screen.getByRole('heading', { name: 'Development Work, Code Review' })).toBeInTheDocument();
+    });
+
     it('should open the options menu and fire onOpenSessionNotes', () => {
       render(<SessionTimerToolbar {...propsWithActiveSession} />);
 

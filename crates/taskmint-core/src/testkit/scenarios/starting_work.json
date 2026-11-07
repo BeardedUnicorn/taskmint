@@ -48,15 +48,16 @@
       "reply": [
         {
           "taskId": "t1",
-          "isActive": false,
-          "hourlyRate": null,
-          "timerInstances": [{ "id": "$first", "duration": 60000 }]
-        },
-        {
-          "taskId": "t2",
           "isActive": true,
-          "hourlyRate": 40,
-          "timerInstances": [{ "id": "$second", "isRunning": true }]
+          "hourlyRate": null,
+          "timerInstances": [
+            { "id": "$first", "duration": 60000, "task": null },
+            {
+              "id": "$second",
+              "isRunning": true,
+              "task": { "taskId": "t2", "taskName": "Reviews", "hourlyRate": 40 }
+            }
+          ]
         }
       ]
     },

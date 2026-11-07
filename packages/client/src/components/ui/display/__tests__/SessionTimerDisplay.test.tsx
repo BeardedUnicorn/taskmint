@@ -76,11 +76,41 @@ describe('SessionTimerDisplay', () => {
     vi.clearAllMocks();
   });
 
+  describe('a session on several tasks', () => {
+    const mixed: TaskSession = {
+      ...mockSession,
+      timerInstances: [
+        stoppedInstance,
+        {
+          ...baseInstance,
+          id: 'instance-3',
+          task: { taskId: 'task-2', taskName: 'Code Review', hourlyRate: null },
+        },
+      ],
+    };
+
+    it("shows each timer's task on its row", () => {
+      render(<SessionTimerDisplay {...mockProps} session={mixed} />);
+
+      const rows = screen.getAllByTestId('timer-instance');
+      expect(rows[0]).toHaveTextContent('Development Work');
+      expect(rows[0]).toHaveTextContent('Timer 1');
+      expect(rows[1]).toHaveTextContent('Code Review');
+      expect(rows[1]).toHaveTextContent('Timer 2');
+    });
+
+    it('titles the panel after every task', () => {
+      render(<SessionTimerDisplay {...mockProps} session={mixed} />);
+
+      expect(screen.getByRole('heading', { name: 'Development Work, Code Review' })).toBeInTheDocument();
+    });
+  });
+
   describe('Header', () => {
     it('renders the task name, timer count, and status chips', () => {
       render(<SessionTimerDisplay {...mockProps} />);
 
-      expect(screen.getByText('Development Work')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Development Work' })).toBeInTheDocument();
       expect(screen.getByText('2 timers')).toBeInTheDocument();
       expect(screen.getByText('Active')).toBeInTheDocument();
       // Header chip plus the running row's chip

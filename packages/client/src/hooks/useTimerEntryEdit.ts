@@ -1,7 +1,7 @@
 /**
  * Saving an Edit Time Entry dialog, shared by History, Tasks and the Sessions
  * panel: the new duration, and a move to another task when one was picked.
- * A moved timer's own notes follow it to its new session and task.
+ * A moved timer's own notes follow it to its new task.
  */
 
 import { useCallback } from 'react';
@@ -9,7 +9,7 @@ import { useSessionManagementContext } from '../contexts/SessionManagementContex
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { useTaskNotes } from './useTaskNotes';
 import { EditTimeEntryData } from '../types/form';
-import { buildTimerEditUpdates } from '../utils/timerHelpers';
+import { buildTimerEditUpdates, instanceTaskId } from '../utils/timerHelpers';
 
 /** Resolves to whether the edit was saved (failures are already shown). */
 export function useTimerEntryEdit(): (data: EditTimeEntryData) => Promise<boolean> {
@@ -26,7 +26,7 @@ export function useTimerEntryEdit(): (data: EditTimeEntryData) => Promise<boolea
     if (!session || !instance) return false;
 
     const target =
-      data.taskId !== session.taskId ? tasks.find(task => task.id === data.taskId) : undefined;
+      data.taskId !== instanceTaskId(instance, session) ? tasks.find(task => task.id === data.taskId) : undefined;
     const sessionId = await editTimerEntry(instanceId, {
       updates: buildTimerEditUpdates(instance, data.durationMs),
       moveTo: target ? { taskId: target.id, taskName: target.name } : undefined,

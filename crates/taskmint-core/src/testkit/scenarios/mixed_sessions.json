@@ -1,0 +1,409 @@
+{
+  "name": "a session holds timers on several tasks",
+  "steps": [
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "hourlyRate": 20,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          },
+          {
+            "id": "t2",
+            "name": "Reviews",
+            "hourlyRate": 40,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      },
+      "events": [
+        "app-records-changed"
+      ]
+    },
+    {
+      "call": "start_task",
+      "args": {
+        "taskId": "t1",
+        "taskName": "Writing"
+      },
+      "reply": {
+        "outcome": "started"
+      },
+      "save": {
+        "a": "/instanceId"
+      },
+      "events": [
+        "timer-instance-started"
+      ]
+    },
+    {
+      "call": "get_sessions",
+      "save": {
+        "session": "/0/id"
+      }
+    },
+    {
+      "advanceMs": 60000,
+      "call": "pause_timer_instance",
+      "args": {
+        "instanceId": "$a"
+      },
+      "events": [
+        "timer-instance-paused"
+      ]
+    },
+    {
+      "call": "create_timer_instance",
+      "args": {
+        "sessionId": "$session",
+        "task": {
+          "taskId": " ",
+          "taskName": "Reviews"
+        }
+      },
+      "error": "Choose a task for this timer"
+    },
+    {
+      "call": "create_timer_instance",
+      "args": {
+        "sessionId": "$session",
+        "task": {
+          "taskId": "gone",
+          "taskName": "Gone"
+        }
+      },
+      "error": "That task no longer exists"
+    },
+    {
+      "call": "create_timer_instance",
+      "args": {
+        "sessionId": "$session",
+        "task": {
+          "taskId": "t1",
+          "taskName": "Writing"
+        }
+      },
+      "reply": {
+        "task": null,
+        "isRunning": false
+      },
+      "save": {
+        "own": "/id"
+      }
+    },
+    {
+      "call": "delete_timer_instance",
+      "args": {
+        "instanceId": "$own"
+      },
+      "events": [
+        "timer-instance-deleted"
+      ]
+    },
+    {
+      "call": "create_timer_instance",
+      "args": {
+        "sessionId": "$session"
+      },
+      "reply": {
+        "task": null
+      },
+      "save": {
+        "plain": "/id"
+      }
+    },
+    {
+      "call": "delete_timer_instance",
+      "args": {
+        "instanceId": "$plain"
+      },
+      "events": [
+        "timer-instance-deleted"
+      ]
+    },
+    {
+      "call": "create_timer_instance",
+      "args": {
+        "sessionId": "$session",
+        "task": {
+          "taskId": "t2",
+          "taskName": "Reviews"
+        }
+      },
+      "reply": {
+        "sessionId": "$session",
+        "isRunning": false,
+        "duration": null,
+        "task": {
+          "taskId": "t2",
+          "taskName": "Reviews",
+          "hourlyRate": 40
+        }
+      },
+      "save": {
+        "b": "/id"
+      }
+    },
+    {
+      "call": "start_timer_instance",
+      "args": {
+        "instanceId": "$b"
+      },
+      "events": [
+        "timer-instance-started"
+      ]
+    },
+    {
+      "advanceMs": 120000,
+      "call": "start_task",
+      "args": {
+        "taskId": "t2",
+        "taskName": "Reviews"
+      },
+      "reply": {
+        "outcome": "alreadyRunning"
+      }
+    },
+    {
+      "call": "start_task",
+      "args": {
+        "taskId": "t1",
+        "taskName": "Writing"
+      },
+      "reply": {
+        "outcome": "resumed",
+        "instanceId": "$a",
+        "stoppedTaskName": "Reviews"
+      },
+      "events": [
+        "timer-instance-stopped",
+        "timer-instance-resumed"
+      ]
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [
+        {
+          "id": "$session",
+          "taskId": "t1",
+          "isActive": true,
+          "hourlyRate": 20,
+          "totalDuration": 120000,
+          "timerInstances": [
+            {
+              "id": "$a",
+              "isRunning": true,
+              "task": null
+            },
+            {
+              "id": "$b",
+              "duration": 120000,
+              "task": {
+                "taskId": "t2",
+                "taskName": "Reviews",
+                "hourlyRate": 40
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "hourlyRate": 20,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          },
+          {
+            "id": "t2",
+            "name": "Code review",
+            "hourlyRate": 99,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      },
+      "events": [
+        "app-records-changed",
+        "sessions-changed"
+      ]
+    },
+    {
+      "call": "get_sessions",
+      "reply": [
+        {
+          "timerInstances": [
+            {
+              "id": "$a"
+            },
+            {
+              "id": "$b",
+              "task": {
+                "taskId": "t2",
+                "taskName": "Code review",
+                "hourlyRate": 40
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "call": "move_timer_instance",
+      "args": {
+        "instanceId": "$b",
+        "taskId": "t1",
+        "taskName": "Writing"
+      },
+      "reply": "$session",
+      "events": [
+        "sessions-changed"
+      ]
+    },
+    {
+      "call": "get_sessions",
+      "reply": [
+        {
+          "taskId": "t1",
+          "timerInstances": [
+            {
+              "id": "$a"
+            },
+            {
+              "id": "$b",
+              "task": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "call": "move_timer_instance",
+      "args": {
+        "instanceId": "$b",
+        "taskId": "t2",
+        "taskName": "Code review"
+      },
+      "reply": "$session",
+      "events": [
+        "sessions-changed"
+      ]
+    },
+    {
+      "call": "get_sessions",
+      "reply": [
+        {
+          "timerInstances": [
+            {
+              "id": "$a"
+            },
+            {
+              "id": "$b",
+              "task": {
+                "taskId": "t2",
+                "taskName": "Code review",
+                "hourlyRate": 99
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "call": "apply_work_log_import",
+      "args": {
+        "payload": {
+          "rewriteGroups": [
+            {
+              "taskId": "t1",
+              "workDay": "2026-03-02",
+              "deleteInstanceIds": [
+                "$b"
+              ]
+            },
+            {
+              "taskId": "t2",
+              "workDay": "2026-03-02",
+              "deleteInstanceIds": [
+                "$b"
+              ],
+              "replacementSession": {
+                "id": "session_import_1",
+                "taskId": "t2",
+                "taskName": "Code review",
+                "timerInstances": [
+                  {
+                    "id": "instance_import_1",
+                    "sessionId": "session_import_1",
+                    "startTime": "2026-03-02T10:00:00Z",
+                    "endTime": "2026-03-02T10:30:00Z",
+                    "duration": 1800000,
+                    "pausedAt": null,
+                    "pausedDuration": 0,
+                    "resumedAt": null,
+                    "externalId": "e1",
+                    "notes": null
+                  }
+                ],
+                "notes": null,
+                "date": "2026-03-02"
+              }
+            }
+          ]
+        }
+      },
+      "reply": {
+        "groupsApplied": [
+          {
+            "taskId": "t2",
+            "deletedInstances": 1,
+            "sessionId": "session_import_1"
+          }
+        ],
+        "groupsSkipped": [
+          {
+            "taskId": "t1",
+            "workDay": "2026-03-02",
+            "reason": "$any"
+          }
+        ]
+      },
+      "events": [
+        "work-logs-imported"
+      ]
+    },
+    {
+      "call": "get_sessions",
+      "reply": [
+        {
+          "id": "$session",
+          "isActive": true,
+          "totalDuration": 0,
+          "timerInstances": [
+            {
+              "id": "$a",
+              "isRunning": true
+            }
+          ]
+        },
+        {
+          "id": "session_import_1",
+          "taskId": "t2"
+        }
+      ]
+    }
+  ]
+}

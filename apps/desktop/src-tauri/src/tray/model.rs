@@ -245,7 +245,7 @@ pub(crate) fn last_used_by_task(sessions: &[TaskSession]) -> HashMap<String, Dat
     for session in sessions {
         for instance in &session.timer_instances {
             let latest = last_used
-                .entry(session.task_id.clone())
+                .entry(session.task_id_of(instance).to_string())
                 .or_insert(instance.start_time);
             *latest = (*latest).max(instance.start_time);
         }
@@ -621,5 +621,46 @@ mod tests {
         assert_eq!(last_used.get("a"), Some(&at(50)));
         assert_eq!(last_used.get("b"), Some(&at(20)));
         assert_eq!(last_used.get("c"), None);
+    }
+
+    #[test]
+    fn last_used_by_task_goes_by_each_timers_own_task() {
+        let session: TaskSession = serde_json::from_value(json!({
+            "id": "s",
+            "taskId": "a",
+            "taskName": "a",
+            "timerInstances": [
+                {
+                    "id": "own",
+                    "sessionId": "s",
+                    "startTime": at(10).to_rfc3339(),
+                    "endTime": null,
+                    "duration": null,
+                    "pausedAt": null,
+                    "pausedDuration": null,
+                    "resumedAt": null,
+                    "notes": null
+                },
+                {
+                    "id": "other",
+                    "sessionId": "s",
+                    "startTime": at(40).to_rfc3339(),
+                    "endTime": null,
+                    "duration": null,
+                    "pausedAt": null,
+                    "pausedDuration": null,
+                    "resumedAt": null,
+                    "notes": null,
+                    "task": { "taskId": "b", "taskName": "b" }
+                }
+            ],
+            "notes": null
+        }))
+        .unwrap();
+
+        let last_used = last_used_by_task(&[session]);
+
+        assert_eq!(last_used.get("a"), Some(&at(10)));
+        assert_eq!(last_used.get("b"), Some(&at(40)));
     }
 }

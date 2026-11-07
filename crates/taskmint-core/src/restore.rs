@@ -209,6 +209,7 @@ mod tests {
             paused_duration: None,
             resumed_at: None,
             external_id: None,
+            task: None,
             notes: None,
             created_at: String::new(),
             updated_at: String::new(),

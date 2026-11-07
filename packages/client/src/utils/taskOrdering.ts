@@ -7,6 +7,7 @@
 
 import { Task } from '../types/task';
 import { TaskSession } from '../types/timer';
+import { instanceTaskId } from './timerHelpers';
 
 /** When each task last had a timer start, keyed by task id. */
 export function lastUsedByTask(sessions: TaskSession[]): Map<string, number> {
@@ -15,9 +16,10 @@ export function lastUsedByTask(sessions: TaskSession[]): Map<string, number> {
     for (const instance of session.timerInstances ?? []) {
       const startMs = new Date(instance.startTime).getTime();
       if (Number.isNaN(startMs)) continue;
-      const latest = lastUsed.get(session.taskId);
+      const taskId = instanceTaskId(instance, session);
+      const latest = lastUsed.get(taskId);
       if (latest === undefined || startMs > latest) {
-        lastUsed.set(session.taskId, startMs);
+        lastUsed.set(taskId, startMs);
       }
     }
   }

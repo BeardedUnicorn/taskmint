@@ -90,6 +90,17 @@
       "args": { "taskId": "t2", "taskName": "Reviews" },
       "events": ["timer-instance-started"]
     },
-    { "call": "get_sessions", "reply": [{ "taskId": "t1" }, { "taskId": "t2", "hourlyRate": 30 }] }
+    {
+      "call": "get_sessions",
+      "reply": [
+        {
+          "taskId": "t1",
+          "timerInstances": [
+            { "task": null },
+            { "task": { "taskId": "t2", "taskName": "Reviews", "hourlyRate": 30 } }
+          ]
+        }
+      ]
+    }
   ]
 }

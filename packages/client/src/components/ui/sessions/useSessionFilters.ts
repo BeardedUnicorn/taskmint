@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { TaskSession } from '../../../types/timer';
+import { sessionTaskNames } from '../../../utils/timerHelpers';
 import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 
 export const RECENT_SESSION_DAYS = 30;
@@ -54,23 +55,25 @@ export function useSessionFilters({
   // but a chip stays while it's selected so the filter can be cleared.
   const taskNames = useMemo(() => {
     const archived = new Set(archivedTaskNames);
-    return Array.from(new Set(sessions.map(s => s.taskName)))
+    return Array.from(new Set(sessions.flatMap(sessionTaskNames)))
       .filter(name => !archived.has(name) || taskFilters.includes(name))
       .sort();
   }, [sessions, archivedTaskNames, taskFilters]);
 
   const filtered = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return sessions.filter(
-      session =>
+    return sessions.filter(session => {
+      const names = sessionTaskNames(session);
+      return (
         (!query ||
-          session.taskName.toLowerCase().includes(query) ||
+          names.some(name => name.toLowerCase().includes(query)) ||
           notesFor(session, sessionNotes).some(text => text.toLowerCase().includes(query)) ||
           session.date.includes(query)) &&
         (statusFilter === 'all' || (statusFilter === 'active') === session.isActive) &&
-        (taskFilters.length === 0 || taskFilters.includes(session.taskName)) &&
+        (taskFilters.length === 0 || names.some(name => taskFilters.includes(name))) &&
         (sourceFilter === 'all' || (sourceFilter === 'imported') === isImportedSession(session))
-    );
+      );
+    });
   }, [sessions, searchQuery, statusFilter, taskFilters, sourceFilter, sessionNotes]);
 
   const { visible, olderCount } = useMemo(() => {

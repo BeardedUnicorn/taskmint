@@ -98,6 +98,29 @@ describe('buildDailySummary', () => {
     );
   });
 
+  it('counts the tasks of a session on several, each at its own rate', () => {
+    const mixed = finished('s-1', 'task-1', at(9), 2);
+    mixed.timerInstances.push(
+      createMockTimerInstance({
+        id: 'other',
+        startTime: at(12).toISOString(),
+        duration: HOUR,
+        state: TimerState.stopped,
+        task: { taskId: 'task-2', taskName: 'Review', hourlyRate: 30 },
+      }),
+      createMockTimerInstance({
+        id: 'waiting',
+        startTime: at(13).toISOString(),
+        state: TimerState.idle,
+        task: { taskId: 'task-3', taskName: 'Not started', hourlyRate: null },
+      })
+    );
+    expect(buildDailySummary({ sessions: [mixed], tasks, goal: null, date: '2026-10-14', nowMs })).toEqual({
+      title: 'Today: 3h 0m tracked',
+      message: '$150.00 earned across 2 tasks',
+    });
+  });
+
   it("totals today's time and earnings across tasks", () => {
     const sessions = [
       finished('s-1', 'task-1', at(9), 2),

@@ -219,6 +219,17 @@ describe('SessionDashboard', () => {
   });
 
   describe('Initial Rendering', () => {
+    it('keeps its screen-reader heading out of the page layout', () => {
+      renderDashboard();
+
+      // 1px, not MUI's width: 1, which means 100% and scrolled the page sideways
+      expect(screen.getByRole('heading', { name: 'Sessions', level: 1 })).toHaveStyle({
+        position: 'absolute',
+        width: '1px',
+        height: '1px',
+      });
+    });
+
     it('should render the dashboard with no sessions', () => {
       renderDashboard();
       
@@ -397,45 +408,55 @@ describe('SessionDashboard', () => {
       mockSessionManagement.error = null;
     });
 
-    it('should create an idle timer when the panel Add Timer button is clicked', async () => {
-      const newTimerInstance: TimerInstance = {
-        id: 'timer-2',
-        sessionId: 'session-1',
-        startTime: new Date().toISOString(),
-        endTime: undefined,
-        duration: 0,
-        isRunning: false,
-        isPaused: false,
-        state: TimerState.stopped,
-        createdAt: '2024-01-15T10:00:00Z',
-        updatedAt: '2024-01-15T10:00:00Z',
-      };
+    const addTimerFor = async (taskName?: string) => {
+      fireEvent.click(screen.getByText('Add Timer'));
+      const dialog = await screen.findByRole('dialog');
+      if (taskName) {
+        fireEvent.mouseDown(within(dialog).getByLabelText('Task'));
+        fireEvent.click(await screen.findByRole('option', { name: taskName }));
+      }
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add Timer' }));
+    };
 
-      mockCreateTimerInstance.mockResolvedValue(newTimerInstance);
-
-      renderDashboard();
-
-      // The Add Timer affordance lives in the Active Session panel
-      const addTimerButton = screen.getByText('Add Timer');
-      fireEvent.click(addTimerButton);
-
-      await waitFor(() => {
-        expect(mockCreateTimerInstance).toHaveBeenCalledWith('session-1');
-      });
-      // New timers start idle — the user starts them explicitly
-      expect(mockStartTimer).not.toHaveBeenCalled();
-    });
-
-    it('asks the session context to add a timer (which reports any failure)', async () => {
+    it("adds an idle timer for the session's task by default", async () => {
       mockCreateTimerInstance.mockResolvedValue(null);
 
       renderDashboard();
-
-      fireEvent.click(screen.getByText('Add Timer'));
+      await addTimerFor();
 
       await waitFor(() => {
-        expect(mockCreateTimerInstance).toHaveBeenCalledWith('session-1');
+        expect(mockCreateTimerInstance).toHaveBeenCalledWith('session-1', {
+          taskId: 'task-1',
+          taskName: 'Development Work',
+        });
       });
+      // New timers start idle: the user starts them explicitly
+      expect(mockStartTimer).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('adds a timer for another task picked in the dialog', async () => {
+      mockCreateTimerInstance.mockResolvedValue(null);
+
+      renderDashboard();
+      await addTimerFor('Code Review');
+
+      await waitFor(() => {
+        expect(mockCreateTimerInstance).toHaveBeenCalledWith('session-1', {
+          taskId: 'task-2',
+          taskName: 'Code Review',
+        });
+      });
+    });
+
+    it('adds nothing when the dialog is cancelled', async () => {
+      renderDashboard();
+
+      fireEvent.click(screen.getByText('Add Timer'));
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(mockCreateTimerInstance).not.toHaveBeenCalled();
     });
 
     it('should handle timer start operation', async () => {
@@ -801,6 +822,22 @@ describe('SessionDashboard', () => {
       // 10 min at $60/h, rendered as currency, with the rate as subtitle
       expect(screen.getByText('$10.00')).toBeInTheDocument();
       expect(screen.getByText('At $60.00/hr')).toBeInTheDocument();
+    });
+
+    it('says when the session earns at more than one rate', () => {
+      const active = mockSessionManagement.activeSession as unknown as TaskSession;
+      const review = { taskId: 'task-2', taskName: 'Code Review', hourlyRate: 90 };
+      const reviewing = { ...active.timerInstances[0], id: 'other', task: review };
+      Object.assign(mockSessionManagement, {
+        activeSession: { ...active, timerInstances: [...active.timerInstances, reviewing] },
+      });
+
+      renderDashboard();
+
+      expect(screen.getByText('Mixed rates')).toBeInTheDocument();
+      // 10 min at $60/h plus 10 min at $90/h, and both tasks named
+      expect(screen.getByText('$25.00')).toBeInTheDocument();
+      expect(screen.getByText('Development Work, Code Review')).toBeInTheDocument();
     });
 
     it('ticks the totals forward while a timer is running', () => {

@@ -534,6 +534,25 @@ describe('buildRewriteGroups', () => {
     expect(result.noopDays).toBe(0);
   });
 
+  it("takes only the task's own timers out of a session on several tasks", () => {
+    const mine = makeInstance({
+      id: 'mine',
+      task: { taskId: 'task-1', taskName: 'Raccoon - SWE', hourlyRate: 75 },
+    });
+    const live = makeInstance({ id: 'live', state: TimerState.running });
+    const sessions = [makeSession({ taskId: 'task-other', taskName: 'Other', timerInstances: [mine, live] })];
+
+    const { groups, blockedDays } = buildRewriteGroups([pasteEntry], [pasteEntry], sessions, {
+      nowIso: NOW_ISO,
+      idFactory: () => 'fixed',
+    });
+
+    expect(groups[0].deleteInstanceIds).toEqual(['mine']);
+    // The other task's running timer doesn't hold this task's day back
+    expect(groups[0].blockingInstanceIds).toEqual([]);
+    expect(blockedDays).toEqual([]);
+  });
+
   it('only rewrites days present in the paste', () => {
     const otherDayLedger = makeTimedEntry({
       id: 'old-day',
@@ -676,6 +695,26 @@ describe('buildImportPreview', () => {
     });
   });
 
+  it("counts only the task's own timers in a session on several tasks", () => {
+    const entry = makeTimedEntry({ id: 'p1', createdAt: localIso(2026, 8, 26, 14, 0), timeInMinutes: 240 });
+    const sessions = [
+      makeSession({
+        timerInstances: [
+          makeInstance({ id: 'own', duration: 3_600_000 }),
+          makeInstance({
+            id: 'other',
+            duration: 7_200_000,
+            state: TimerState.paused,
+            task: { taskId: 'task-2', taskName: 'Other', hourlyRate: null },
+          }),
+        ],
+      }),
+    ];
+
+    const [row] = buildImportPreview([entry], [entry], sessions, Date.now());
+    expect(row).toMatchObject({ trackedMs: 3_600_000, blocked: false });
+  });
+
   it('marks previously imported days as overwrites', () => {
     const createdAt = localIso(2026, 8, 26, 14, 0);
     const entry = makeTimedEntry({ id: 'p1', createdAt, timeInMinutes: 60 });
@@ -783,6 +822,22 @@ describe('buildRemapPlan', () => {
     expect(rebuilt.taskId).toBe('task-2');
     expect(rebuilt.replacementSession!.timerInstances).toHaveLength(1);
     expect(result.replacedTrackedMs).toBe(0);
+  });
+
+  it("counts the new task's timers it replaces, inside a session on several tasks", () => {
+    const tracked = makeInstance({
+      id: 'tracked',
+      duration: 1_800_000,
+      startTime: localIso(2026, 8, 26, 9, 0),
+      task: { taskId: 'task-2', taskName: 'Other task', hourlyRate: null },
+    });
+    const result = plan({
+      ledger: [moving],
+      sessions: [imported('task-1', [moving], 'old'), makeSession({ timerInstances: [tracked] })],
+    });
+    if ('error' in result) throw new Error(result.error);
+
+    expect(result.replacedTrackedMs).toBe(1_800_000);
   });
 
   it("keeps another project's entries on the old task for a shared day", () => {
