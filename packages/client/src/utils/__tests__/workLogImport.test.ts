@@ -16,7 +16,6 @@ import {
   buildRemapPlan,
   buildRewriteGroups,
   buildSynthesizedSession,
-  computeImpliedRates,
   deriveTimedWorkDay,
   deriveWorkLogWorkDay,
   effectiveMinutes,
@@ -761,32 +760,6 @@ describe('buildImportPreview', () => {
     ]);
     // A paste whose entries the ledger doesn't hold (yet) has no task name to show
     expect(buildImportPreview([entries[0]], [], [], Date.now())[0].taskName).toBe('');
-  });
-});
-
-describe('computeImpliedRates', () => {
-  it('derives the hourly rate from cents and minutes', () => {
-    const entries = [
-      makeTimedEntry({ id: 'a', createdAt: localIso(2026, 8, 26, 14), timeInMinutes: 270, amountCents: 33750 }),
-      makeTimedEntry({ id: 'b', createdAt: localIso(2026, 8, 26, 20), timeInMinutes: 30, amountCents: 3750 }),
-    ];
-    const rates = computeImpliedRates(entries);
-    expect(rates).toEqual([
-      { taskId: 'task-1', taskName: 'Raccoon - SWE', impliedHourlyRate: 75, entryCount: 2 },
-    ]);
-  });
-
-  it('skips zero-minute tasks and clamps to the schema cap', () => {
-    const zero = makeTimedEntry({ id: 'z', createdAt: localIso(2026, 8, 26, 14), timeInMinutes: 0 });
-    expect(computeImpliedRates([zero])).toHaveLength(0);
-
-    const absurd = makeTimedEntry({
-      id: 'x',
-      createdAt: localIso(2026, 8, 26, 14),
-      timeInMinutes: 1,
-      amountCents: 1_000_000,
-    });
-    expect(computeImpliedRates([absurd])[0].impliedHourlyRate).toBe(1000);
   });
 });
 

@@ -1,0 +1,95 @@
+{
+  "name": "a rate change reaches new timers in an open session, not earlier ones",
+  "steps": [
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "hourlyRate": 40,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "save": { "first": "/instanceId" },
+      "events": ["timer-instance-started"]
+    },
+    { "call": "get_sessions", "save": { "session": "/0/id" } },
+    {
+      "advanceMs": 60000,
+      "call": "stop_live_timer",
+      "reply": "$first",
+      "events": ["timer-instance-stopped"]
+    },
+    {
+      "call": "set_app_record",
+      "args": {
+        "key": "predefinedTasks",
+        "value": [
+          {
+            "id": "t1",
+            "name": "Writing",
+            "hourlyRate": 55,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-02T00:00:00Z"
+          }
+        ]
+      },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "reply": { "outcome": "started" },
+      "save": { "second": "/instanceId" },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "advanceMs": 60000,
+      "call": "stop_live_timer",
+      "reply": "$second",
+      "events": ["timer-instance-stopped"]
+    },
+    {
+      "call": "create_timer_instance",
+      "args": { "sessionId": "$session" },
+      "reply": {
+        "sessionId": "$session",
+        "task": { "taskId": "t1", "taskName": "Writing", "hourlyRate": 55 }
+      },
+      "save": { "third": "/id" }
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [
+        {
+          "id": "$session",
+          "taskId": "t1",
+          "hourlyRate": 40,
+          "timerInstances": [
+            { "id": "$first", "duration": 60000, "task": null },
+            {
+              "id": "$second",
+              "duration": 60000,
+              "task": { "taskId": "t1", "taskName": "Writing", "hourlyRate": 55 }
+            },
+            {
+              "id": "$third",
+              "task": { "taskId": "t1", "taskName": "Writing", "hourlyRate": 55 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -165,6 +165,20 @@ describe('a session on several tasks', () => {
     expect(earningsOnDate([mixed], tasks, '2026-10-11', 0)).toBe(0);
   });
 
+  it("earns a newer rate on the session's own task where the timer carries one", () => {
+    // Opened at 60; the task went to 75 before the second timer started
+    const raised = { taskId: 'task-1', taskName: 'Annotation', hourlyRate: 75 };
+    const changed = session({
+      hourlyRate: 60,
+      timerInstances: [instance({ id: 'before' }), instance({ id: 'after', task: raised })],
+    });
+    const now = [task({ hourlyRate: 75 })];
+    expect(sessionEarnings(changed, now, 0)).toBe(135);
+    expect(sessionRates(changed, now)).toEqual([60, 75]);
+    // Still one task: earlier time keeps 60 if the rate moves again
+    expect(sessionEarnings(changed, [task({ hourlyRate: 90 })], 0)).toBe(135);
+  });
+
   it('lists the distinct rates of the timers that ran', () => {
     expect(sessionRates(mixed, tasks)).toEqual([60, 30]);
     expect(sessionRates(session({ hourlyRate: 60, timerInstances: [instance(), instance({ id: 'b' })] }), tasks)).toEqual([60]);

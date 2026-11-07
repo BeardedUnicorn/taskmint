@@ -161,15 +161,23 @@ pub fn new_timer_instance(session_id: &str, now: DateTime<Utc>) -> TimerInstance
     }
 }
 
-/// What a timer for this task records in `session`: nothing for the session's
-/// own task (it earns at the session's rate), otherwise the task itself.
+/// What a new timer for this task records in `session`, given the task's
+/// current rate: the task itself, so it earns that rate, unless it's the
+/// session's own task at the session's rate (then nothing; it earns the
+/// session's). A rate change while a session stays open reaches its new
+/// timers this way, and the earlier ones keep theirs. Only two known rates
+/// count as a change: a session without one gets the task's when it has one
+/// (fill_missing_session_rates), and a task without one (unrated or deleted)
+/// leaves the session's.
 pub fn timer_task_in(
     session: &TaskSession,
     task_id: &str,
     task_name: &str,
     hourly_rate: Option<f64>,
 ) -> Option<TimerTask> {
-    (session.task_id != task_id).then(|| TimerTask {
+    let rate_changed =
+        matches!((session.hourly_rate, hourly_rate), (Some(opened), Some(now)) if opened != now);
+    (session.task_id != task_id || rate_changed).then(|| TimerTask {
         task_id: task_id.to_string(),
         task_name: task_name.to_string(),
         hourly_rate,

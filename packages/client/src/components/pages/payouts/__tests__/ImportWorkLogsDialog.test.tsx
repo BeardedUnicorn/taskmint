@@ -47,7 +47,6 @@ function renderDialog(overrides: Partial<Parameters<typeof ImportWorkLogsDialog>
     tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE' })],
     onApply,
     onCreateTask: vi.fn(async (name: string) => createMockTask({ id: 'new-task', name })),
-    onUpdateTaskRate: vi.fn(async () => null),
     ...overrides,
   };
   const utils = render(<ImportWorkLogsDialog {...props} />);
@@ -170,12 +169,13 @@ describe('ImportWorkLogsDialog', () => {
     expect(await screen.findByText(/stop it first, then re-import/)).toBeInTheDocument();
   });
 
-  it('offers the implied-rate update with the computed rate', () => {
-    renderDialog();
+  it("offers no task-rate change, whatever the site's pay implies", () => {
+    // 30000 cents over 240 minutes is $75/hr; the task is set to $60
+    renderDialog({ tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 60 })] });
     pasteText(samplePayload);
-    // 30000 cents over 240 minutes → $75/hr.
-    expect(screen.getByText(/use the site's rate for new time/i)).toBeInTheDocument();
-    expect(screen.getByText(/\$75\.00\/hr/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /apply import/i })).toBeEnabled();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/hr/)).not.toBeInTheDocument();
   });
 
   it('prefills from initialText and previews without any typing', () => {
@@ -302,22 +302,6 @@ describe('ImportWorkLogsDialog', () => {
       expect(screen.getByText(/2 records could not be read/)).toBeInTheDocument();
     });
 
-    it("shows a task's current rate beside the site's", () => {
-      renderDialog({ tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 60 })] });
-      pasteText(samplePayload);
-      expect(screen.getByText(/\$60\.00\/hr → \$75\.00\/hr/)).toBeInTheDocument();
-    });
-
-    it('leaves rates alone when asked to', async () => {
-      const { props } = renderDialog();
-      pasteText(samplePayload);
-      fireEvent.click(screen.getByRole('checkbox', { name: /use the site's rate/i }));
-      fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
-
-      await waitFor(() => expect(props.onApply).toHaveBeenCalled());
-      expect(await screen.findByText(/Imported 1 new/)).toBeInTheDocument();
-      expect(props.onUpdateTaskRate).not.toHaveBeenCalled();
-    });
 
     it('stays on the preview when the import fails (the hook said why)', async () => {
       const { props } = renderDialog({ onApply: vi.fn(async () => null) });
@@ -326,7 +310,6 @@ describe('ImportWorkLogsDialog', () => {
 
       await waitFor(() => expect(props.onApply).toHaveBeenCalled());
       expect(screen.getByRole('button', { name: /apply import/i })).toBeEnabled();
-      expect(props.onUpdateTaskRate).not.toHaveBeenCalled();
     });
 
     it('counts several entries and one rewritten day', async () => {

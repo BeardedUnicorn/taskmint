@@ -36,7 +36,7 @@ import { formatShortDateTime } from '../../../utils/locale';
 
 export function PayoutsPage() {
   const { sessions } = useSessionManagementContext();
-  const { tasks, addTask, updateTask } = useTaskManagementContext();
+  const { tasks, addTask } = useTaskManagementContext();
   const workLogs = useWorkLogContext();
   const { fundsReleaseDays, today, schedule, summary, monthGroups, lastImport, importIsStale, isEmpty } =
     usePayoutData();
@@ -204,7 +204,6 @@ export function PayoutsPage() {
           tasks={tasks}
           onApply={handleApplyImport}
           onCreateTask={handleCreateTask}
-          onUpdateTaskRate={(taskId, rate) => updateTask(taskId, { hourlyRate: rate })}
         />
       )}
     </PageContainer>

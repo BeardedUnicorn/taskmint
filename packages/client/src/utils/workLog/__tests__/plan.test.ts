@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { applyImpliedRates, payloadProjects, planWorkLogImport } from '../plan';
+import { describe, it, expect } from 'vitest';
+import { payloadProjects, planWorkLogImport } from '../plan';
 import { parseWorkLogPayload } from '../parse';
 import { Task } from '../../../types/task';
 import { ProjectTaskMapping } from '../../../types/workLog';
@@ -74,7 +74,6 @@ describe('planWorkLogImport', () => {
       expect.objectContaining({ projectId: 'site-type:ReferralWorkLog', taskId: 'task-ref' }),
     ]);
     expect(plan.payload.rewriteGroups).toEqual([]);
-    expect(plan.impliedRates).toEqual([]);
   });
 
   it('matches projects to same-named tasks and is ready to apply', () => {
@@ -85,7 +84,6 @@ describe('planWorkLogImport', () => {
     expect(plan.payload.entries.map(e => [e.id, e.taskId])).toEqual([['e1', 'task-code']]);
     expect(plan.payload.mappings).toEqual([expect.objectContaining({ projectId: 'p-code', taskId: 'task-code' })]);
     expect(plan.payload.rewriteGroups).toHaveLength(1);
-    expect(plan.impliedRates).toEqual([expect.objectContaining({ taskId: 'task-code', impliedHourlyRate: 30 })]);
     expect(plan.unmatched).toEqual([]);
   });
 
@@ -146,25 +144,5 @@ describe('payloadProjects', () => {
       expect.objectContaining({ id: 'p-code' }),
       { id: 'site-type:ReferralWorkLog', name: 'Referral bonus' },
     ]);
-  });
-});
-
-describe('applyImpliedRates', () => {
-  const implied = [
-    { taskId: 'task-code', taskName: 'Code Review', impliedHourlyRate: 30, entryCount: 1 },
-    { taskId: 'task-other', taskName: 'Other', impliedHourlyRate: 40, entryCount: 1 },
-    { taskId: 'gone', taskName: 'Gone', impliedHourlyRate: 10, entryCount: 1 },
-  ];
-
-  it('changes only the rates that differ, for tasks that exist', async () => {
-    const updateTask = vi.fn(async () => null);
-    expect(await applyImpliedRates(tasks, implied, updateTask)).toBe(1);
-    expect(updateTask).toHaveBeenCalledTimes(1);
-    expect(updateTask).toHaveBeenCalledWith('task-code', 30);
-  });
-
-  it('skips a rate it could not save', async () => {
-    const updateTask = vi.fn(async () => Promise.reject(new Error('disk full')));
-    expect(await applyImpliedRates(tasks, implied, updateTask)).toBe(0);
   });
 });

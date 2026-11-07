@@ -20,7 +20,5 @@ export { buildRemapPlan } from './workLog/remap';
 export type { RemapPlan } from './workLog/remap';
 export { buildImportPreview } from './workLog/preview';
 export type { ImportPreviewRow } from './workLog/preview';
-export { computeImpliedRates } from './workLog/rates';
-export type { ImpliedTaskRate } from './workLog/rates';
-export { planWorkLogImport, applyImpliedRates, payloadProjects } from './workLog/plan';
+export { planWorkLogImport, payloadProjects } from './workLog/plan';
 export type { ImportContext, WorkLogImportPlan } from './workLog/plan';

@@ -6,7 +6,7 @@
 
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { ComponentProps } from 'react';
 import { HistoryPage } from '../HistoryPage';
@@ -129,6 +129,38 @@ describe('HistoryPage date range', () => {
     expect(screen.queryByText('Seven days ago')).not.toBeInTheDocument();
     // The default range isn't counted as a filter
     expect(screen.queryByText(/active$/)).not.toBeInTheDocument();
+  });
+
+  describe('on a set day', () => {
+    // Only Date is faked: MUI's timers and findBy* keep running
+    const at = (now: Date) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(now);
+    };
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each([
+      ['a Saturday, when this week is the same days', new Date(2026, 10, 7, 15)],
+      ['a Wednesday', new Date(2026, 10, 4, 15)],
+    ])('calls the default range Last 7 days on %s', (_, now) => {
+      at(now);
+      renderPage([entryDaysAgo(6, 'Six days ago')]);
+      expect(screen.getByRole('combobox', { name: 'Range' })).toHaveTextContent('Last 7 days');
+      expect(screen.getByText('Six days ago')).toBeInTheDocument();
+      expect(screen.queryByText(/active$/)).not.toBeInTheDocument();
+    });
+
+    it('calls This week by its name on a Saturday, and counts it as a filter', async () => {
+      at(new Date(2026, 10, 7, 15));
+      renderPage([entryDaysAgo(6, 'Six days ago')]);
+
+      fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Range' }));
+      fireEvent.click(await screen.findByRole('option', { name: 'This week' }));
+      expect(screen.getByRole('combobox', { name: 'Range' })).toHaveTextContent('This week');
+      expect(screen.getByText('1 active')).toBeInTheDocument();
+    });
   });
 
   it('remembers the range chosen, and Clear goes back to the last 7 days', async () => {

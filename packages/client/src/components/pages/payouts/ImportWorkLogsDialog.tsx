@@ -12,14 +12,12 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
   Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   Stack,
   Table,
   TableBody,
@@ -40,13 +38,11 @@ import {
   WorkLogImportSummary,
 } from '../../../types/workLog';
 import {
-  applyImpliedRates,
   buildImportPreview,
   parseWorkLogPayload,
   payloadProjects,
   planWorkLogImport,
 } from '../../../utils/workLogImport';
-import type { ImpliedTaskRate } from '../../../utils/workLog/rates';
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { centsToDollars } from '../../../utils/payoutCalculator';
 import { TaskSelector } from '../../ui/forms/TaskSelector';
@@ -61,7 +57,6 @@ interface ImportWorkLogsDialogProps {
   tasks: Task[];
   onApply: (payload: WorkLogImportPayload) => Promise<WorkLogImportSummary | null>;
   onCreateTask: (name: string) => Promise<Task>;
-  onUpdateTaskRate: (taskId: string, rate: number) => Promise<unknown>;
 }
 
 interface TaskChoice {
@@ -84,13 +79,11 @@ export function ImportWorkLogsDialog({
   tasks,
   onApply,
   onCreateTask,
-  onUpdateTaskRate,
 }: ImportWorkLogsDialogProps) {
   // Rendered while open: each opening starts fresh, seeded with any staged
   // capture (a later change to it doesn't reset what's showing)
   const [rawText, setRawText] = useState(initialText ?? '');
   const [taskChoices, setTaskChoices] = useState<Record<string, TaskChoice>>({});
-  const [updateRates, setUpdateRates] = useState(true);
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<WorkLogImportSummary | null>(null);
 
@@ -126,7 +119,6 @@ export function ImportWorkLogsDialog({
   const details = plan.status === 'ready' || plan.status === 'needs-mapping' ? plan : null;
   const unmatched = details?.unmatched ?? [];
   const unresolvedRemaining = plan.status === 'needs-mapping' ? plan.unresolved : [];
-  const impliedRates = plan.status === 'ready' ? plan.impliedRates : [];
 
   const preview = useMemo(
     () =>
@@ -141,12 +133,12 @@ export function ImportWorkLogsDialog({
 
   const ready = plan.status === 'ready' ? plan : null;
 
-  const handleApply = async (payload: WorkLogImportPayload, impliedRates: ImpliedTaskRate[]) => {
+  // Imported days carry the site's own pay; task rates stay as you set them
+  const handleApply = async (payload: WorkLogImportPayload) => {
     setApplying(true);
     try {
       const summary = await onApply(payload);
       if (!summary) return; // hook already toasted the error
-      if (updateRates) await applyImpliedRates(tasks, impliedRates, onUpdateTaskRate);
       setResult(summary);
     } finally {
       setApplying(false);
@@ -337,33 +329,6 @@ export function ImportWorkLogsDialog({
                 </Box>
               )}
 
-              {impliedRates.length > 0 && (
-                <Box>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={updateRates}
-                        onChange={e => setUpdateRates(e.target.checked)}
-                      />
-                    }
-                    label="Use the site's rate for new time (time already tracked keeps its rate)"
-                  />
-                  <Stack spacing={0.5} sx={{ pl: 4 }}>
-                    {impliedRates.map(rate => {
-                      const task = tasks.find(t => t.id === rate.taskId);
-                      return (
-                        <Typography key={rate.taskId} variant="caption" color="text.secondary">
-                          {rate.taskName}:{' '}
-                          {task?.hourlyRate != null
-                            ? `${formatCurrency(task.hourlyRate)}/hr`
-                            : 'no rate'}{' '}
-                          → {formatCurrency(rate.impliedHourlyRate)}/hr
-                        </Typography>
-                      );
-                    })}
-                  </Stack>
-                </Box>
-              )}
             </Stack>
           </DialogContent>
           <DialogActions>
@@ -371,7 +336,7 @@ export function ImportWorkLogsDialog({
               Cancel
             </Button>
             <Button
-              onClick={ready ? () => void handleApply(ready.payload, ready.impliedRates) : undefined}
+              onClick={ready ? () => void handleApply(ready.payload) : undefined}
               variant="contained"
               disabled={applying || !ready}
               startIcon={applying ? <CircularProgress size={16} /> : undefined}

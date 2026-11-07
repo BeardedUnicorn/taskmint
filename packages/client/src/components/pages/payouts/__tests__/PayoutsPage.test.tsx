@@ -511,8 +511,8 @@ describe('PayoutsPage', () => {
       error.mockRestore();
     });
 
-    it("retires a staged capture once it's applied, and sets the site's rate", async () => {
-      mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Raccoon - SWE' })];
+    it("retires a staged capture once it's applied, and leaves the task's rate alone", async () => {
+      mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 125 })];
       vi.mocked(mockWorkLogsReturn.applyImport).mockResolvedValueOnce(null).mockResolvedValueOnce(summary);
       render(<PayoutsPage />);
       const dialog = await openImport();
@@ -525,7 +525,8 @@ describe('PayoutsPage', () => {
       await waitFor(() => expect(apply).toBeEnabled());
       fireEvent.click(apply);
       await waitFor(() => expect(mockWorkLogsReturn.clearStagedCapture).toHaveBeenCalled());
-      expect(mockUpdateTask).toHaveBeenCalledWith('task-1', { hourlyRate: 75 });
+      // The site paid $75/hr for this day; the task keeps the $125 you set
+      expect(mockUpdateTask).not.toHaveBeenCalled();
     });
   });
 });

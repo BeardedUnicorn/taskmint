@@ -74,15 +74,22 @@ export function presetRange(preset: DateRangePreset, today: Dayjs = dayjs()): Da
 const sameDay = (a: Dayjs | null, b: Dayjs | null) =>
   a === null || b === null ? a === b : a.isSame(b, 'day');
 
-/** The preset a range is exactly, or null for a custom range. */
+/**
+ * The preset a range is exactly, or null for a custom range. Two presets can
+ * cover the same days: on a Saturday "This week" is the last 7 days, and on
+ * the 30th of a 30-day month "This month" is the last 30. Then `preferred`
+ * (the one chosen) wins, else the first in DATE_RANGE_PRESETS.
+ */
 export function matchPreset(
   start: Dayjs | null,
   end: Dayjs | null,
+  preferred: DateRangePreset | null = null,
   today: Dayjs = dayjs()
 ): DateRangePreset | null {
-  for (const { value } of DATE_RANGE_PRESETS) {
-    const range = presetRange(value, today);
-    if (sameDay(range.start, start) && sameDay(range.end, end)) return value;
-  }
-  return null;
+  const covers = (preset: DateRangePreset) => {
+    const range = presetRange(preset, today);
+    return sameDay(range.start, start) && sameDay(range.end, end);
+  };
+  if (preferred && covers(preferred)) return preferred;
+  return DATE_RANGE_PRESETS.find(({ value }) => covers(value))?.value ?? null;
 }

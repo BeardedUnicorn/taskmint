@@ -72,7 +72,6 @@ function makeDeps(overrides: Partial<UseWorkLogCaptureDeps> = {}): UseWorkLogCap
     applyImport: vi.fn(async () => appliedSummary),
     sessions: [],
     tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 50 })],
-    updateTask: vi.fn(async () => null),
     stagedCapture: null,
     stageCapture: vi.fn(),
     clearStagedCapture: vi.fn(),
@@ -100,7 +99,7 @@ describe('useWorkLogCapture', () => {
     });
   });
 
-  it('auto-applies a fully mapped payload on mount and syncs the task rate', async () => {
+  it('auto-applies a fully mapped payload on mount', async () => {
     takeQueue.push(capture(samplePayloadText));
     const deps = makeDeps();
 
@@ -121,16 +120,12 @@ describe('useWorkLogCapture', () => {
     expect(payload.rewriteGroups).toHaveLength(1);
     expect(payload.rewriteGroups[0]).toMatchObject({ taskId: 'task-1', workDay: WORK_DAY });
 
-    // 30000¢ over 240min ⇒ $75/hr, task currently $50.
-    await waitFor(() =>
-      expect(deps.updateTask).toHaveBeenCalledWith('task-1', { hourlyRate: 75 })
-    );
     await waitFor(() =>
       expect(mockNotify).toHaveBeenCalledWith({
         category: 'workLog',
         severity: 'success',
         title: 'Work logs imported',
-        message: '1 new, 0 updated, 1 day rewritten · rates updated for 1 task.',
+        message: '1 new, 0 updated, 1 day rewritten.',
         actions: [{ label: 'View in Payouts', view: 'payouts' }],
       })
     );
@@ -138,28 +133,18 @@ describe('useWorkLogCapture', () => {
     expect(notified('error')).toHaveLength(0);
   });
 
-  it('leaves the rate alone when it already matches', async () => {
+  it("never changes a task's rate, even when the site's pay implies another", async () => {
+    // 30000¢ over 240min is $75/hr; the task is set to $50 and stays there
     takeQueue.push(capture(samplePayloadText));
-    const deps = makeDeps({
-      tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 75 })],
-    });
+    const deps = makeDeps();
 
     renderHook(() => useWorkLogCapture(deps));
 
     await waitFor(() => expect(notified('success')).toHaveLength(1));
-    expect(deps.updateTask).not.toHaveBeenCalled();
-    expect(notified('success')[0].message).toBe('1 new, 0 updated, 1 day rewritten.');
-  });
-
-  it('still reports the import when a rate update fails', async () => {
-    takeQueue.push(capture(samplePayloadText));
-    const deps = makeDeps({ updateTask: vi.fn(async () => Promise.reject(new Error('disk full'))) });
-
-    renderHook(() => useWorkLogCapture(deps));
-
-    await waitFor(() => expect(notified('success')).toHaveLength(1));
-    expect(notified('success')[0].message).toBe('1 new, 0 updated, 1 day rewritten.');
-    expect(notified('error')).toHaveLength(0);
+    expect(deps.applyImport).toHaveBeenCalledTimes(1);
+    // The only backend call is taking the capture: no tasks record write
+    expect(mockInvoke.mock.calls.map(([command]) => command)).toEqual(['take_pending_work_log_capture']);
+    expect(notified('success')[0].message).not.toContain('rate');
   });
 
   it('stages the capture when a project has no task match', async () => {
@@ -389,7 +374,7 @@ describe('useWorkLogCapture', () => {
     renderHook(() => useWorkLogCapture(deps));
 
     await waitFor(() => expect(notified('success')).toHaveLength(1));
-    expect(notified('success')[0].message).toBe('2 new, 0 updated, 2 days rewritten · rates updated for 2 tasks.');
+    expect(notified('success')[0].message).toBe('2 new, 0 updated, 2 days rewritten.');
     expect(mockShowWarning).toHaveBeenCalledWith('2 captured records could not be read and will be skipped.', {
       category: 'workLog',
       desktop: 'never',

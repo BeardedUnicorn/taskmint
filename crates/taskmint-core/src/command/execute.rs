@@ -292,19 +292,21 @@ pub fn execute(
         }
 
         Command::CreateTimerInstance(args) => {
+            let tasks = workspace.tasks();
             let task = args
                 .task
                 .as_ref()
                 .map(|task| {
                     known_timer_task(
-                        &workspace.tasks(),
+                        &tasks,
                         &task.task_id,
                         &task.task_name,
                         "Choose a task for this timer",
                     )
                 })
                 .transpose()?;
-            let created = instances::create(&mut workspace.sessions, &args.session_id, task, now)?;
+            let created =
+                instances::create(&mut workspace.sessions, &args.session_id, task, &tasks, now)?;
             sessions_if(created, true)
         }
         Command::UpdateTimerInstance(args) => sessions_if(

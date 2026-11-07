@@ -52,7 +52,11 @@ export interface TimerInstance {
   pausedDuration?: number | null; // Total time paused in milliseconds
   resumedAt?: string | null; // Last time the timer was resumed
   externalId?: string | null; // Site work-entry id for import-synthesized instances
-  /** Its own task, when that isn't its session's (read through instanceTaskId / instanceTaskName). */
+  /**
+   * Its own task and rate: another task's, or its session's own at a rate set
+   * after the session opened. Absent: the session's task at the session's
+   * rate. Read through instanceTaskId / instanceTaskName.
+   */
   task?: TimerTask | null;
   notes?: string | null; // Timer-level notes
   createdAt: string;
