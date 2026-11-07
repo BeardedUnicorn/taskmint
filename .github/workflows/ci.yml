@@ -31,6 +31,9 @@ jobs:
 
       - run: node scripts/check-toolchains.mjs
 
+      # Formatting and lint for the TypeScript and JavaScript (biome.jsonc)
+      - run: pnpm exec biome ci
+
       # Sources and tests, every package.
       - run: pnpm typecheck
 

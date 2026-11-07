@@ -15,6 +15,9 @@ node scripts/check-toolchains.mjs
 step "Contracts match the Rust (the TypeScript checks below use them)"
 scripts/check-contracts.sh
 
+step "Formatting and lint for the TypeScript and JavaScript (biome.jsonc)"
+pnpm exec biome ci
+
 step "TypeScript (sources and tests)"
 pnpm typecheck
 

@@ -153,6 +153,7 @@ profile, and the images built and smoke-tested as a stack of their own
 it (`apps/desktop/src-tauri/tests/server_mode.rs`).
 
 ```bash
+pnpm lint                         # Biome: formatting and lint for the TypeScript and JavaScript
 pnpm typecheck                    # tsc for sources and tests, every package
 pnpm build                        # tsc for every package + desktop vite build
 pnpm test                         # vitest in every package
@@ -167,6 +168,13 @@ node scripts/check-coverage-policy.mjs   # see docs/coverage-policy.md
 node scripts/check-toolchains.mjs        # the Dockerfiles match the pinned toolchains
 node scripts/smoke.mjs             # the running stack, end to end
 ```
+
+`pnpm lint:fix` applies Biome's formatting and safe fixes (`biome.jsonc` says
+which rules are off and why). `pnpm install` points git at `.githooks/`,
+whose pre-commit hook checks the staged TypeScript with Biome and the Rust
+with `cargo fmt --check`. It only checks; `git commit --no-verify` skips it.
+`.git-blame-ignore-revs` lists the formatting-only commits: GitHub skips
+them, and `git blame --ignore-revs-file .git-blame-ignore-revs` does locally.
 
 CI (`.github/workflows/ci.yml`) runs them on pushes to `main` and on pull
 requests: everything but the server on macOS, and the server's gates and the
