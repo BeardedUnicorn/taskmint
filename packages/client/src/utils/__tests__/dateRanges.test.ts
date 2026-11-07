@@ -43,12 +43,31 @@ describe('matchPreset', () => {
   it('finds the preset a range is, ignoring the time of day', () => {
     for (const { value } of DATE_RANGE_PRESETS) {
       const { start, end } = presetRange(value, today);
-      expect(matchPreset(start?.add(5, 'hour') ?? null, end, today)).toBe(value);
+      expect(matchPreset(start?.add(5, 'hour') ?? null, end, null, today)).toBe(value);
     }
   });
 
   it('is null for a custom range', () => {
-    expect(matchPreset(today.subtract(3, 'day'), today, today)).toBeNull();
-    expect(matchPreset(today, null, today)).toBeNull();
+    expect(matchPreset(today.subtract(3, 'day'), today, null, today)).toBeNull();
+    expect(matchPreset(today, null, 'last7', today)).toBeNull();
+  });
+
+  it('names the preset chosen when another covers the same days', () => {
+    // Saturday 7 Nov 2026: this week (Sun 1 – Sat 7) is the last 7 days
+    const saturday = dayjs(new Date(2026, 10, 7, 15));
+    const week = presetRange('last7', saturday);
+    expect(presetRange('thisWeek', saturday)).toEqual(week);
+    expect(matchPreset(week.start, week.end, 'last7', saturday)).toBe('last7');
+    expect(matchPreset(week.start, week.end, 'thisWeek', saturday)).toBe('thisWeek');
+    // Nothing chosen, or a choice the dates no longer fit: the first listed
+    expect(matchPreset(week.start, week.end, null, saturday)).toBe('thisWeek');
+    expect(matchPreset(week.start, week.end, 'today', saturday)).toBe('thisWeek');
+
+    // 30 Sept 2026: this month is the last 30 days
+    const monthEnd = dayjs(new Date(2026, 8, 30, 9));
+    const month = presetRange('last30', monthEnd);
+    expect(presetRange('thisMonth', monthEnd)).toEqual(month);
+    expect(matchPreset(month.start, month.end, 'last30', monthEnd)).toBe('last30');
+    expect(matchPreset(month.start, month.end, null, monthEnd)).toBe('thisMonth');
   });
 });

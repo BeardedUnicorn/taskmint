@@ -27,7 +27,7 @@ import {
   WorkLogImportPayload,
   WorkLogImportSummary,
 } from '../types/workLog';
-import { applyImpliedRates, parseWorkLogPayload, planWorkLogImport } from '../utils/workLogImport';
+import { parseWorkLogPayload, planWorkLogImport } from '../utils/workLogImport';
 import { useNotification, NotificationAction } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
 
@@ -56,7 +56,6 @@ export interface UseWorkLogCaptureDeps {
   applyImport: (payload: WorkLogImportPayload) => Promise<WorkLogImportSummary | null>;
   sessions: TaskSession[];
   tasks: Task[];
-  updateTask: (taskId: string, updates: Partial<Task>) => Promise<unknown>;
   stagedCapture: StagedCapture | null;
   stageCapture: (capture: StagedCapture) => void;
   clearStagedCapture: () => void;
@@ -176,22 +175,16 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
         d.clearStagedCapture();
       }
 
-      // Keep task rates aligned with real pay (the dialog's default-on
-      // checkbox, fixed on for automatic imports).
-      const ratesUpdated = await applyImpliedRates(d.tasks, plan.impliedRates, (taskId, hourlyRate) =>
-        d.updateTask(taskId, { hourlyRate })
-      );
-
+      // Task rates stay as you set them: an import's days carry the site's
+      // own pay, and a capture spans days paid at different rates.
       const days = summary.groupsApplied.length;
-      const rates =
-        ratesUpdated > 0 ? ` · rates updated for ${ratesUpdated} task${ratesUpdated === 1 ? '' : 's'}` : '';
       notify({
         category: 'workLog',
         severity: 'success',
         title: 'Work logs imported',
         message:
           `${summary.entriesAdded} new, ${summary.entriesUpdated} updated, ` +
-          `${days} day${days === 1 ? '' : 's'} rewritten${rates}.`,
+          `${days} day${days === 1 ? '' : 's'} rewritten.`,
         actions: VIEW_IN_PAYOUTS,
       });
       for (const skipped of summary.groupsSkipped) {

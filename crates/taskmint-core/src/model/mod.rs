@@ -52,10 +52,11 @@ pub struct PathValidationResult {
 // SESSION-BASED TIMER SYSTEM TYPES
 // ============================================================================
 
-// The task a timer's time belongs to when it isn't its session's. A copy, like
-// the session's own: the name follows renames, and the rate is the one the
-// task had when the timer was created, so later rate changes don't rewrite
-// what it earned.
+// A timer's own task and rate: another task than its session's, or its
+// session's own at a rate set after the session opened (see timer_task_in). A
+// copy, like the session's own: the name follows renames, and the rate is the
+// one the task had when the timer was created, so later rate changes don't
+// rewrite what it earned.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
@@ -96,8 +97,8 @@ pub struct TimerInstance {
     // Site work-entry id for instances synthesized by a work-log import.
     #[serde(rename = "externalId", default)]
     pub external_id: Option<String>,
-    // None: the timer belongs to its session's task (and earns its rate).
-    // Read through TaskSession::task_id_of / task_name_of.
+    // None: the timer belongs to its session's task and earns the session's
+    // rate. Read through TaskSession::task_id_of / task_name_of.
     #[serde(default)]
     pub task: Option<TimerTask>,
     pub notes: Option<String>,

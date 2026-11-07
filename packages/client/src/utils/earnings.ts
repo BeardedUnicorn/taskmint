@@ -8,10 +8,11 @@
  *
  * Each timer earns at the rate captured for it: its session's, from the task
  * when the session started (imported days carry the rate the site's pay
- * implies), or its own when it's on another task than its session. So changing
- * a task's rate later never rewrites past earnings. Only time without a
- * captured rate (from older builds, until the backend fills it in) falls back
- * to the task's current rate.
+ * implies), or its own when it's on another task than its session or started
+ * after its task's rate changed. So changing a task's rate reaches new timers
+ * only and never rewrites past earnings. Only time without a captured rate
+ * (from older builds, until the backend fills it in) falls back to the task's
+ * current rate.
  */
 
 import { Task } from '../types/task';

@@ -7,7 +7,8 @@
  * task match. Also mounts the capture handler itself.
  *
  * Must sit inside SessionManagementProvider and TaskManagementProvider — the
- * capture handler builds rewrite groups from sessions and syncs task rates.
+ * capture handler builds rewrite groups from sessions and maps projects to
+ * tasks. It never changes a task's rate.
  */
 
 import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
@@ -27,7 +28,7 @@ const WorkLogContext = createContext<WorkLogContextValue | null>(null);
 export function WorkLogProvider({ children }: { children: ReactNode }) {
   const workLogs = useWorkLogs();
   const { sessions } = useSessionManagementContext();
-  const { tasks, updateTask } = useTaskManagementContext();
+  const { tasks } = useTaskManagementContext();
 
   const [stagedCapture, setStagedCapture] = useState<StagedCapture | null>(null);
   const stageCapture = useCallback((capture: StagedCapture) => {
@@ -43,7 +44,6 @@ export function WorkLogProvider({ children }: { children: ReactNode }) {
     applyImport: workLogs.applyImport,
     sessions,
     tasks,
-    updateTask,
     stagedCapture,
     stageCapture,
     clearStagedCapture,

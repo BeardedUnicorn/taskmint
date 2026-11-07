@@ -1429,7 +1429,7 @@ fn create_adds_an_idle_timer_to_the_session() {
         session_with("b", true, vec![]),
     ];
 
-    let created = instances::create(&mut sessions, "b", None, ts(5)).unwrap();
+    let created = instances::create(&mut sessions, "b", None, &[], ts(5)).unwrap();
 
     assert_eq!(created.session_id, "b");
     assert!(!created.is_running && !created.is_paused && created.duration.is_none());
@@ -1452,14 +1452,14 @@ fn create_refuses_unknown_imported_and_full_sessions() {
     ];
 
     assert_eq!(
-        instances::create(&mut sessions, "gone", None, ts(0)).unwrap_err(),
+        instances::create(&mut sessions, "gone", None, &[], ts(0)).unwrap_err(),
         "Session with ID gone not found"
     );
-    assert!(instances::create(&mut sessions, "imp", None, ts(0))
+    assert!(instances::create(&mut sessions, "imp", None, &[], ts(0))
         .unwrap_err()
         .contains("work-log import"));
     assert_eq!(
-        instances::create(&mut sessions, "full", None, ts(0)).unwrap_err(),
+        instances::create(&mut sessions, "full", None, &[], ts(0)).unwrap_err(),
         "Maximum number of timers (50) reached for this session"
     );
     assert_eq!(
@@ -1807,16 +1807,106 @@ fn moving_the_active_sessions_only_timer_keeps_the_active_session() {
 
 #[test]
 fn a_new_timer_can_be_for_another_task() {
-    let mut sessions = vec![tray_session("s", "a", true)];
+    let mut cur = tray_session("s", "a", true);
+    cur.hourly_rate = Some(50.0);
+    let mut sessions = vec![cur];
 
-    let own =
-        instances::create(&mut sessions, "s", Some(timer_task("a", Some(50.0))), ts(5)).unwrap();
+    let own = instances::create(
+        &mut sessions,
+        "s",
+        Some(timer_task("a", Some(50.0))),
+        &[],
+        ts(5),
+    )
+    .unwrap();
     assert_eq!(own.task, None);
 
-    let other =
-        instances::create(&mut sessions, "s", Some(timer_task("b", Some(50.0))), ts(5)).unwrap();
+    let other = instances::create(
+        &mut sessions,
+        "s",
+        Some(timer_task("b", Some(50.0))),
+        &[],
+        ts(5),
+    )
+    .unwrap();
     assert_eq!(other.task, Some(timer_task("b", Some(50.0))));
     assert_eq!(sessions[0].timer_instances[1], other);
+}
+
+#[test]
+fn a_new_timer_earns_its_tasks_rate_after_a_change() {
+    let mut cur = tray_session("s", "a", true);
+    cur.hourly_rate = Some(40.0);
+    let mut sessions = vec![cur];
+
+    // The session's own task, at the rate it opened with: nothing recorded
+    let tasks = [rated_task("a", Some(40.0))];
+    let same = instances::create(&mut sessions, "s", None, &tasks, ts(5)).unwrap();
+    assert_eq!(same.task, None);
+
+    // Its rate changed since: the new timer carries the new one
+    let tasks = [rated_task("a", Some(55.0))];
+    let raised = instances::create(&mut sessions, "s", None, &tasks, ts(6)).unwrap();
+    assert_eq!(raised.task, Some(timer_task("a", Some(55.0))));
+    let chosen = instances::create(
+        &mut sessions,
+        "s",
+        Some(timer_task("a", Some(60.0))),
+        &tasks,
+        ts(7),
+    )
+    .unwrap();
+    assert_eq!(chosen.task, Some(timer_task("a", Some(60.0))));
+
+    // A rate that isn't known (deleted or unrated task) keeps the session's
+    let unknown = instances::create(&mut sessions, "s", None, &[], ts(8)).unwrap();
+    assert_eq!(unknown.task, None);
+    assert_eq!(sessions[0].hourly_rate, Some(40.0));
+}
+
+#[test]
+fn starting_the_open_sessions_task_after_a_rate_change_uses_the_new_rate() {
+    let mut sessions = Vec::new();
+    start_task_timer(&mut sessions, "a", "Task a", Some(40.0), ts(0), LOCAL).unwrap();
+    stop_live_timer(&mut sessions, ts(60));
+
+    // Same session, new timer, new rate; the first timer keeps 40
+    start_task_timer(&mut sessions, "a", "Task a", Some(55.0), ts(120), LOCAL).unwrap();
+    assert_eq!(sessions.len(), 1);
+    let timers = &sessions[0].timer_instances;
+    assert_eq!(sessions[0].hourly_rate, Some(40.0));
+    assert_eq!(timers[0].task, None);
+    assert_eq!(timers[1].task, Some(timer_task("a", Some(55.0))));
+    // It still counts as the session's own task
+    assert_eq!(sessions[0].task_id_of(&timers[1]), "a");
+
+    // A task with no rate now leaves the new timer on the session's rate
+    stop_live_timer(&mut sessions, ts(180));
+    start_task_timer(&mut sessions, "a", "Task a", None, ts(240), LOCAL).unwrap();
+    assert_eq!(sessions[0].timer_instances[2].task, None);
+}
+
+#[test]
+fn moving_a_timer_to_the_sessions_task_takes_its_current_rate() {
+    let mut cur = tray_session("s", "a", false);
+    cur.hourly_rate = Some(40.0);
+    cur.timer_instances = vec![
+        finished("own", "s", 0, 60),
+        TimerInstance {
+            task: Some(timer_task("b", Some(25.0))),
+            ..finished("other", "s", 100, 160)
+        },
+    ];
+    let mut sessions = vec![cur];
+
+    let (_, changed) =
+        move_instance_to_task(&mut sessions, "other", "a", "Task a", Some(55.0), ts(200)).unwrap();
+    assert!(changed);
+    assert_eq!(
+        sessions[0].timer_instances[1].task,
+        Some(timer_task("a", Some(55.0)))
+    );
+    assert_eq!(sessions[0].timer_instances[0].task, None);
 }
 
 #[test]

@@ -74,12 +74,13 @@ fn present<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Value>, 
     Value::deserialize(deserializer).map(Some)
 }
 
-const SCENARIOS: [&str; 10] = [
+const SCENARIOS: [&str; 11] = [
     include_str!("scenarios/records.json"),
     include_str!("scenarios/timer.json"),
     include_str!("scenarios/starting_work.json"),
     include_str!("scenarios/mixed_sessions.json"),
     include_str!("scenarios/task_links.json"),
+    include_str!("scenarios/rate_changes.json"),
     include_str!("scenarios/manual_time_and_undo.json"),
     include_str!("scenarios/timer_instances.json"),
     include_str!("scenarios/tray_and_idle.json"),

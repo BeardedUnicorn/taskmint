@@ -1,7 +1,8 @@
 /**
  * The import pipeline the paste dialog and browser capture share: from a
- * parsed payload to what the backend applies (apply_work_log_import), and the
- * task-rate update that follows.
+ * parsed payload to what the backend applies (apply_work_log_import). It never
+ * changes a task's rate: imported days carry the site's own pay, and a paste
+ * spans days paid at different rates, so no one rate fits the task.
  */
 
 import { Task } from '../../types/task';
@@ -11,7 +12,6 @@ import type { ParsedSitePayload } from './parse';
 import { resolveProjectMappings } from './mappings';
 import { buildLedgerEntries, mergeLedger } from './ledger';
 import { buildRewriteGroups } from './rewrite';
-import { ImpliedTaskRate, computeImpliedRates } from './rates';
 
 export interface ImportContext {
   /** The ledger as stored. */
@@ -42,7 +42,7 @@ export type WorkLogImportPlan =
   | { status: 'error'; error: string }
   | { status: 'empty' }
   | ({ status: 'needs-mapping'; /** Still without a task. */ unresolved: Project[] } & PlanDetails)
-  | ({ status: 'ready'; payload: WorkLogImportPayload; impliedRates: ImpliedTaskRate[] } & PlanDetails);
+  | ({ status: 'ready'; payload: WorkLogImportPayload } & PlanDetails);
 
 /** The distinct projects a payload mentions. */
 export function payloadProjects(parsed: Pick<ParsedSitePayload, 'timedEntries' | 'workLogs'>) {
@@ -55,8 +55,7 @@ export function payloadProjects(parsed: Pick<ParsedSitePayload, 'timedEntries' |
 
 /**
  * What importing `parsed` takes: nothing (`error`, `empty`), a task for each
- * project not matched yet (`needs-mapping`), or the backend payload and the
- * rates the pay implies (`ready`).
+ * project not matched yet (`needs-mapping`), or the backend payload (`ready`).
  */
 export function planWorkLogImport(parsed: ParsedSitePayload, context: ImportContext): WorkLogImportPlan {
   if (parsed.error) return { status: 'error', error: parsed.error };
@@ -82,31 +81,6 @@ export function planWorkLogImport(parsed: ParsedSitePayload, context: ImportCont
   return {
     status: 'ready',
     payload: { entries, mappings, rewriteGroups: groups },
-    impliedRates: computeImpliedRates(entries),
     ...details,
   };
-}
-
-/**
- * Sets each task's hourly rate to what the site's pay implies, where it
- * differs. A failed update is skipped (updateTask reports it): the import
- * itself already went through. Resolves to how many rates changed.
- */
-export async function applyImpliedRates(
-  tasks: Task[],
-  impliedRates: ImpliedTaskRate[],
-  setRate: (taskId: string, hourlyRate: number) => Promise<unknown>
-): Promise<number> {
-  let changed = 0;
-  for (const implied of impliedRates) {
-    const task = tasks.find(t => t.id === implied.taskId);
-    if (!task || task.hourlyRate === implied.impliedHourlyRate) continue;
-    try {
-      await setRate(implied.taskId, implied.impliedHourlyRate);
-      changed += 1;
-    } catch {
-      // Reported by updateTask
-    }
-  }
-  return changed;
 }

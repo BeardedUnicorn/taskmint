@@ -33,10 +33,9 @@ vi.mock('../SessionManagementContext', () => ({
   useSessionManagementContext: () => ({ sessions: mockSessions }),
 }));
 
-const mockUpdateTask = vi.fn();
 const mockTasks = [createMockTask()];
 vi.mock('../TaskManagementContext', () => ({
-  useTaskManagementContext: () => ({ tasks: mockTasks, updateTask: mockUpdateTask }),
+  useTaskManagementContext: () => ({ tasks: mockTasks }),
 }));
 
 function Probe() {
@@ -91,7 +90,6 @@ describe('WorkLogContext', () => {
         applyImport: mockWorkLogs.applyImport,
         sessions: mockSessions,
         tasks: mockTasks,
-        updateTask: mockUpdateTask,
         stageCapture: expect.any(Function),
       })
     );

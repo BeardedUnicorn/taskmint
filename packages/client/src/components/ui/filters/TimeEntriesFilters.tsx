@@ -137,6 +137,7 @@ export function TimeEntriesFilters({
             <DateRangePresetSelect
               start={filters.startDate}
               end={filters.endDate}
+              preset={filters.datePreset}
               onChange={(range, preset) =>
                 updateFilters({ startDate: range.start, endDate: range.end, datePreset: preset })
               }

@@ -6,11 +6,12 @@ use crate::contract::{
     ERR_ANOTHER_TIMER_RUNNING, ERR_PAUSE_NOT_RUNNING, ERR_RESUME_INACTIVE_SESSION,
     MAX_TIMER_INSTANCES_PER_SESSION,
 };
-use crate::model::{TaskSession, TimerInstance, TimerTask};
+use crate::model::{Task, TaskSession, TimerInstance, TimerTask};
+use crate::sessions::task_links::task_rate;
 use crate::timer::{
     begin_instance, ensure_not_imported, ensure_stoppable, finalize_instance, instance_not_found,
     max_timers_reached, new_timer_instance, pause_instance, recalculate_total_duration,
-    resume_instance, session_not_found, validate_start,
+    resume_instance, session_not_found, timer_task_in, validate_start,
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -49,11 +50,13 @@ pub fn mutate_instance<R>(
 }
 
 /// A new idle timer in a session (create_timer_instance), for `task` when
-/// given, else for the session's own task.
+/// given, else for the session's own task. It earns its task's rate now (from
+/// `tasks` for the session's own), as start_task's new timers do.
 pub fn create(
     sessions: &mut [TaskSession],
     session_id: &str,
     task: Option<TimerTask>,
+    tasks: &[Task],
     now: DateTime<Utc>,
 ) -> Result<TimerInstance, String> {
     let mut new_instance = new_timer_instance(session_id, now);
@@ -67,7 +70,12 @@ pub fn create(
         return Err(max_timers_reached());
     }
 
-    new_instance.task = task.filter(|task| task.task_id != session.task_id);
+    let task = task.unwrap_or_else(|| TimerTask {
+        task_id: session.task_id.clone(),
+        task_name: session.task_name.clone(),
+        hourly_rate: task_rate(tasks, &session.task_id),
+    });
+    new_instance.task = timer_task_in(session, &task.task_id, &task.task_name, task.hourly_rate);
     session.timer_instances.push(new_instance.clone());
     session.updated_at = now.to_rfc3339();
     Ok(new_instance)
