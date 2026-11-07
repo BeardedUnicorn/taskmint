@@ -6,6 +6,7 @@ import type { AppRecords } from "./AppRecords";
 import type { ApplyIdleChoiceArgs } from "./ApplyIdleChoiceArgs";
 import type { ApplyWorkLogImportArgs } from "./ApplyWorkLogImportArgs";
 import type { ClearSessionNotesArgs } from "./ClearSessionNotesArgs";
+import type { CreateTimerInstanceArgs } from "./CreateTimerInstanceArgs";
 import type { ImportAppRecordsArgs } from "./ImportAppRecordsArgs";
 import type { InstanceArgs } from "./InstanceArgs";
 import type { MoveTimerInstanceArgs } from "./MoveTimerInstanceArgs";
@@ -42,7 +43,7 @@ export interface CommandMap {
   delete_session: { args: SessionArgs; reply: TaskSession };
   restore_session: { args: RestoreSessionArgs; reply: TaskSession };
   restore_timer_instance: { args: RestoreTimerInstanceArgs; reply: TaskSession };
-  create_timer_instance: { args: SessionArgs; reply: TimerInstance };
+  create_timer_instance: { args: CreateTimerInstanceArgs; reply: TimerInstance };
   update_timer_instance: { args: UpdateTimerInstanceArgs; reply: TimerInstance };
   start_timer_instance: { args: InstanceArgs; reply: TaskSession };
   stop_timer_instance: { args: InstanceArgs; reply: TaskSession };

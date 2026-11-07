@@ -12,6 +12,7 @@ import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
 import { SETTINGS_SECTION_LABELS, VIEWS, VIEW_LABELS, availableSettingsSections } from '../../navigation/views';
 import { TimerState } from '../../types/timer';
 import { orderTasksForStart } from '../../utils/taskOrdering';
+import { instanceTaskId, instanceTaskName, mostRecentlyPaused } from '../../utils/timerHelpers';
 import { browserTakesShortcuts, modifierLabel, viewShortcut } from '../../hooks/useKeyboardShortcuts';
 import { getBackend } from '../../backend';
 
@@ -68,11 +69,14 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
   return useMemo(() => {
     const mod = modifierLabel();
     const inBrowser = browserTakesShortcuts();
-    const live = activeSession?.timerInstances.find(
-      instance => instance.state === TimerState.running || instance.state === TimerState.paused
-    );
-    const liveTask = live && activeSession ? activeSession.taskName : null;
-    const runningTaskId = live?.state === TimerState.running ? activeSession?.taskId : undefined;
+    // The running timer, else the one paused last (a session can hold several)
+    const live =
+      activeSession &&
+      (activeSession.timerInstances.find(instance => instance.state === TimerState.running) ??
+        mostRecentlyPaused(activeSession));
+    const liveTask = live && activeSession ? instanceTaskName(live, activeSession) : null;
+    const runningTaskId =
+      live && activeSession && live.state === TimerState.running ? instanceTaskId(live, activeSession) : undefined;
 
     const timer: Command[] =
       live && liveTask

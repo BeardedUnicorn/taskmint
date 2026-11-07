@@ -35,6 +35,16 @@ const session = (id: string, taskId: string, starts: string[]): TaskSession => (
 const names = (tasks: Task[]) => tasks.map(t => t.id);
 
 describe('lastUsedByTask', () => {
+  it("goes by each timer's own task", () => {
+    const mixed = session('s1', 'a', ['2026-10-01T09:00:00Z', '2026-10-02T09:00:00Z']);
+    mixed.timerInstances[1].task = { taskId: 'b', taskName: 'Task b', hourlyRate: null };
+
+    const lastUsed = lastUsedByTask([mixed]);
+
+    expect(lastUsed.get('a')).toBe(new Date('2026-10-01T09:00:00Z').getTime());
+    expect(lastUsed.get('b')).toBe(new Date('2026-10-02T09:00:00Z').getTime());
+  });
+
   it("takes each task's latest timer start across its sessions", () => {
     const lastUsed = lastUsedByTask([
       session('s1', 'a', ['2026-10-01T09:00:00Z', '2026-10-03T09:00:00Z']),

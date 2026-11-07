@@ -71,7 +71,7 @@ pub fn build_manual_session(
                 if start < other_end && other_start < end {
                     return Err(format!(
                         "This overlaps time already tracked for \"{}\" ({}–{} on {}). Adjust the start time or duration.",
-                        session.task_name,
+                        session.task_name_of(instance),
                         zone.time_label(other_start),
                         zone.time_label(other_end),
                         zone.date_label(other_start),

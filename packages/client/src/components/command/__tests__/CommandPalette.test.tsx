@@ -220,6 +220,40 @@ describe('useCommands', () => {
     expect(session.value.stopTimerInstance).toHaveBeenCalledWith('run');
   });
 
+  it("acts on the running timer of a session on several tasks, and names its own task", () => {
+    const review = { taskId: 'b', taskName: 'Writing', hourlyRate: null };
+    const paused = createMockTimerInstance({ id: 'p', state: TimerState.paused, pausedAt: '2024-01-15T10:30:00Z' });
+    const running = createMockTimerInstance({ id: 'run', state: TimerState.running, task: review });
+    session.value.activeSession = createMockTaskSession({
+      taskId: 'r',
+      taskName: 'Review',
+      isActive: true,
+      timerInstances: [paused, running],
+    });
+
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const all = labels(result.current);
+
+    expect(all.slice(0, 2)).toEqual(['Pause "Writing"', 'Stop "Writing"']);
+    // The paused timer's task can be started (it resumes); the running one's can't
+    expect(all).toContain('Start "Review"');
+  });
+
+  it('offers to resume the timer paused last', () => {
+    const paused = (id: string, pausedAt: string) => createMockTimerInstance({ id, state: TimerState.paused, pausedAt });
+    session.value.activeSession = createMockTaskSession({
+      taskId: 'r',
+      taskName: 'Review',
+      isActive: true,
+      timerInstances: [paused('earlier', '2024-01-15T10:00:00Z'), paused('latest', '2024-01-15T10:30:00Z')],
+    });
+
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    result.current[0].run();
+
+    expect(session.value.resumeTimerInstance).toHaveBeenCalledWith('latest');
+  });
+
   it('resumes a paused timer', () => {
     const paused = createMockTimerInstance({ id: 'p', state: TimerState.paused });
     session.value.activeSession = createMockTaskSession({ taskId: 'r', taskName: 'Review', isActive: true, timerInstances: [paused] });

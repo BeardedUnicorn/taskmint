@@ -19,17 +19,24 @@ import { SessionList } from '../ui/sessions/SessionList';
 import { SessionTimerDisplay } from '../ui/display/SessionTimerDisplay';
 import { SessionNotesDialog } from '../ui/dialogs/SessionNotesDialog';
 import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
+import { AddTimerDialog } from '../ui/dialogs/AddTimerDialog';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { TaskSession, TimerInstance } from '../../types/timer';
 import type { EditTimeEntryData, EditTimeEntryDialogProps } from '../../types/form';
 import { StatsCard } from '../ui/display/StatsCard';
 import { formatCurrency, formatTime } from '../../utils/formatters';
-import { getInstanceElapsedMs, getSessionElapsedMs, hasRunningTimer } from '../../utils/timerHelpers';
+import {
+  getInstanceElapsedMs,
+  getSessionElapsedMs,
+  hasRunningTimer,
+  instanceTaskId,
+  sessionTitle,
+} from '../../utils/timerHelpers';
 import { useNowMs } from '../../hooks/useNowMs';
 import { useTimerEntryEdit } from '../../hooks/useTimerEntryEdit';
 import { orderTasksForStart } from '../../utils/taskOrdering';
-import { sessionEarnings, sessionRate } from '../../utils/earnings';
+import { sessionEarnings, sessionRates } from '../../utils/earnings';
 import { newestFirst, noteText } from '../../utils/notes';
 import { useTaskNotes } from '../../hooks/useTaskNotes';
 
@@ -49,6 +56,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   } | null>(null);
   // The timer being edited (its id is the instance's)
   const [editingTimerData, setEditingTimerData] = useState<EditTimeEntryDialogProps['entry'] | null>(null);
+  const [isAddingTimer, setIsAddingTimer] = useState(false);
 
   // Hooks
   const {
@@ -92,19 +100,19 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   const stats = useMemo(() => {
     // Totals cover every timer in the active session, regardless of the day
     // it ran; with no active session both cards read zero.
-    // The session's own rate (captured when it started), so a rate change
+    // Each timer earns at the rate captured for it, so a rate change
     // mid-session doesn't rewrite what it has earned.
     const totalTime = activeSession ? getSessionElapsedMs(activeSession, nowMs) : 0;
-    const hourlyRate = activeSession ? sessionRate(activeSession, tasks) : 0;
+    const hourlyRates = activeSession ? sessionRates(activeSession, tasks) : [];
     const totalEarnings = activeSession ? sessionEarnings(activeSession, tasks, nowMs) : 0;
 
-    return { totalTime, totalEarnings, hourlyRate };
+    return { totalTime, totalEarnings, hourlyRates };
   }, [activeSession, tasks, nowMs]);
 
   const handleEditTimer = useCallback((instance: TimerInstance, session: TaskSession) => {
     setEditingTimerData({
       id: instance.id,
-      taskId: session.taskId,
+      taskId: instanceTaskId(instance, session),
       durationMs: getInstanceElapsedMs(instance),
       startTime: new Date(instance.startTime).toISOString(),
     });
@@ -184,7 +192,8 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
       {/* The toolbar is the page's visible header; the title is for screen readers */}
       <Typography
         component="h1"
-        sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}
+        // '1px', not 1: to MUI's sx, a width of 1 means 100%
+        sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}
       >
         Sessions
       </Typography>
@@ -207,7 +216,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
         <StatsCard
           title="Session Time"
           value={activeSession ? formatTime(stats.totalTime) : '—'}
-          subtitle={activeSession ? activeSession.taskName : 'No active session'}
+          subtitle={activeSession ? sessionTitle(activeSession) : 'No active session'}
           icon={<TimerIcon sx={{ fontSize: 40 }} />}
           color="primary"
         />
@@ -216,9 +225,11 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
           value={activeSession ? formatCurrency(stats.totalEarnings) : '—'}
           subtitle={
             activeSession
-              ? stats.hourlyRate > 0
-                ? `At ${formatCurrency(stats.hourlyRate)}/hr`
-                : 'Set an hourly rate on this task'
+              ? stats.hourlyRates.length > 1
+                ? 'Mixed rates'
+                : stats.hourlyRates[0] > 0
+                  ? `At ${formatCurrency(stats.hourlyRates[0])}/hr`
+                  : 'Set an hourly rate on this task'
               : 'Start a session to track earnings'
           }
           icon={<MoneyIcon sx={{ fontSize: 40 }} />}
@@ -238,8 +249,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
               nowMs={nowMs}
               showControls
               showNotes
-              // New timers start idle: the user starts them (failures are the context's to report)
-              onAddTimer={() => void createTimerInstance(activeSession.id)}
+              onAddTimer={() => setIsAddingTimer(true)}
               onStartTimer={startTimerInstance}
               onStopTimer={stopTimerInstance}
               onPauseTimer={pauseTimerInstance}
@@ -292,6 +302,17 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
           session={notesSession}
           timerInstanceId={notesTarget?.timerInstanceId ?? null}
           tasks={tasks}
+        />
+      )}
+
+      {isAddingTimer && activeSession && (
+        <AddTimerDialog
+          session={activeSession}
+          tasks={tasks}
+          sessions={sessions}
+          onClose={() => setIsAddingTimer(false)}
+          // New timers start idle: the user starts them (failures are the context's to report)
+          onAdd={task => createTimerInstance(activeSession.id, { taskId: task.id, taskName: task.name })}
         />
       )}
 

@@ -14,8 +14,8 @@ import { TaskSession } from '../types/timer';
 import { WorkLogEntry } from '../types/workLog';
 import { formatDateString, parseDateStringLocal } from './dateHelpers';
 import { effectiveMinutes } from './workLogImport';
-import { getInstanceDateString, getSessionElapsedMsOnDate } from './timerHelpers';
-import { earningsForMs, sessionRate } from './earnings';
+import { getInstanceDateString, getInstanceElapsedMs, getTimersOnDate, instanceTaskId } from './timerHelpers';
+import { earningsForMs, instanceRate } from './earnings';
 import { formatCurrency } from './formatters';
 
 export interface PayoutDayCell {
@@ -70,7 +70,7 @@ function cellKey(taskId: string, workDay: string): string {
 /**
  * Build one cell per (task, local day) across the ledger and the tracked
  * sessions. Rule per cell: any timed import makes the day actual (its cents
- * replace the estimate); otherwise tracked time × each session's rate (see
+ * replace the estimate); otherwise tracked time × each timer's rate (see
  * utils/earnings) is shown as an estimate. workLog (no-time) cents always count as actuals on
  * their day. Cells with no money and no tracked time are dropped.
  */
@@ -94,9 +94,10 @@ export function buildPayoutCells(
     for (const instance of session.timerInstances) {
       const workDay = getInstanceDateString(instance, session.date);
       if (!workDay) continue;
-      const key = cellKey(session.taskId, workDay);
+      const taskId = instanceTaskId(instance, session);
+      const key = cellKey(taskId, workDay);
       if (!keys.has(key)) {
-        keys.set(key, { taskId: session.taskId, workDay });
+        keys.set(key, { taskId, workDay });
       }
     }
   }
@@ -111,15 +112,17 @@ export function buildPayoutCells(
     const timedCents = timed.reduce((sum, e) => sum + e.amountCents, 0);
     const importedMinutes = timed.reduce((sum, e) => sum + effectiveMinutes(e), 0);
 
-    // Each session's time earns at its own rate, so a task rate changed
-    // later doesn't move an earlier day's estimate.
+    // Each timer earns at its own rate, so a task rate changed later doesn't
+    // move an earlier day's estimate.
     let trackedMs = 0;
     let estimatedDollars = 0;
     for (const session of sessions) {
-      if (session.taskId !== taskId) continue;
-      const ms = getSessionElapsedMsOnDate(session, workDay, nowMs);
-      trackedMs += ms;
-      estimatedDollars += earningsForMs(ms, sessionRate(session, tasks));
+      for (const instance of getTimersOnDate(session, workDay)) {
+        if (instanceTaskId(instance, session) !== taskId) continue;
+        const ms = getInstanceElapsedMs(instance, nowMs);
+        trackedMs += ms;
+        estimatedDollars += earningsForMs(ms, instanceRate(instance, session, tasks));
+      }
     }
 
     const task = taskById.get(taskId);
@@ -161,10 +164,8 @@ export function buildPayoutCells(
     } else {
       let latestInstanceTimeMs: number | null = null;
       for (const session of sessions) {
-        if (session.taskId !== taskId) continue;
-        for (const instance of session.timerInstances) {
-          const instWorkDay = getInstanceDateString(instance, session.date);
-          if (instWorkDay !== workDay) continue;
+        for (const instance of getTimersOnDate(session, workDay)) {
+          if (instanceTaskId(instance, session) !== taskId) continue;
           const endMs = instance.endTime ? new Date(instance.endTime).getTime() : nowMs;
           if (latestInstanceTimeMs === null || endMs > latestInstanceTimeMs) {
             latestInstanceTimeMs = endMs;

@@ -26,7 +26,7 @@ import {
 import { memo } from 'react';
 import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
-import { getSessionElapsedMs } from '../../../utils/timerHelpers';
+import { getSessionElapsedMs, instanceTaskName, sessionTitle } from '../../../utils/timerHelpers';
 import { SESSION_CONSTANTS } from '../../../constants';
 import { TimerRow } from './TimerRow';
 
@@ -68,7 +68,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
   const runningInstance = session.timerInstances.find(i => i.state === TimerState.running);
   const timerCount = session.timerInstances.length;
   const atTimerLimit = timerCount >= SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION;
-
+  const title = sessionTitle(session);
 
   return (
     <Paper
@@ -91,12 +91,15 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
       {/* Session Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         <SessionIcon fontSize="large" color="primary" />
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography
             variant="h5"
-            sx={{ fontWeight: 600, mb: 0.5 }}
+            noWrap
+            title={title}
+            // Fills the header, and a long name truncates instead of widening the page's column
+            sx={{ fontWeight: 600, mb: 0.5, width: 0, minWidth: '100%' }}
           >
-            {session.taskName}
+            {title}
           </Typography>
           <Stack direction="row" spacing={1}>
             <Chip
@@ -184,6 +187,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
               <TimerRow
                 key={instance.id}
                 instance={instance}
+                taskName={instanceTaskName(instance, session)}
                 index={index + 1}
                 nowMs={nowMs}
                 showControls={showControls}

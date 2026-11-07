@@ -29,6 +29,7 @@ import { TaskNote } from '../../../types/notes';
 import { formatDate } from '../../../utils/formatters';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { formatClockTime } from '../../../utils/locale';
+import { instanceTaskId, sessionTitle } from '../../../utils/timerHelpers';
 
 /** Rendered while a session's notes are open. */
 interface SessionNotesDialogProps {
@@ -48,10 +49,12 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
 
   const sessionNotes = useMemo(() => notes.filter(note => note.sessionId === session.id), [notes, session]);
 
-  const task = tasks.find(t => t.id === session.taskId);
   const timer = timerInstanceId
     ? session.timerInstances.find(instance => instance.id === timerInstanceId)
     : undefined;
+  // A timer's note goes on the timer's task; a session note on the session's
+  const noteTaskId = timer ? instanceTaskId(timer, session) : session.taskId;
+  const task = tasks.find(t => t.id === noteTaskId);
 
   const editorTemplate =
     editing === 'new'
@@ -85,7 +88,7 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
               Notes
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {session.taskName} · {formatDate(parseDateStringLocal(session.date))}
+              {sessionTitle(session)} · {formatDate(parseDateStringLocal(session.date))}
             </Typography>
           </Box>
         </Box>
@@ -104,7 +107,7 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
           <Box sx={{ mb: 3 }}>
             <NoteEditor
               key={editing === 'new' ? 'new' : editing.id}
-              taskId={session.taskId}
+              taskId={noteTaskId}
               template={editorTemplate}
               existingNote={editing === 'new' ? null : editing}
               sessionId={session.id}

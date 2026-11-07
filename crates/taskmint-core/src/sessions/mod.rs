@@ -6,7 +6,7 @@
 //! - `undo`: deleting a session, and putting a deleted session or timer back.
 //! - `start`: starting work (app and tray) and the tray's timer actions.
 //! - `manual`: "Add time".
-//! - `task_links`: the task name and rate sessions copy.
+//! - `task_links`: the task name and rate sessions and timers copy.
 
 pub mod instances;
 pub mod lifecycle;

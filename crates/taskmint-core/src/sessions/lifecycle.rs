@@ -3,10 +3,9 @@
 
 use crate::model::TaskSession;
 use crate::timer::{
-    ensure_not_imported, instance_not_found, new_task_session, recalculate_total_duration,
-    session_not_found, stop_active_instances,
+    ensure_not_imported, instance_not_found, session_not_found, stop_active_instances,
+    timer_task_in,
 };
-use crate::zone::DayZone;
 use chrono::{DateTime, Utc};
 
 /// Clears the plain-text notes of the given sessions; returns how many had
@@ -27,32 +26,27 @@ pub fn clear_notes(sessions: &mut [TaskSession], session_ids: &[String]) -> usiz
 }
 
 /// Move one finished timer to another task: the time keeps its start and
-/// duration, and earns at the new task's rate. A timer that is its session's
-/// only one (in an inactive session) re-points the session; otherwise it
-/// moves into a new inactive session for the task, dated by the day (in
-/// `zone`) the timer started. Returns the session the timer ends up in, and
-/// whether anything changed.
+/// duration, stays in its session, and earns at the new task's rate. A
+/// session's only timer takes the session with it, so a single-task session
+/// stays one. Returns the timer's session, and whether anything changed.
 pub fn move_instance_to_task(
-    sessions: &mut Vec<TaskSession>,
+    sessions: &mut [TaskSession],
     instance_id: &str,
     task_id: &str,
     task_name: &str,
     hourly_rate: Option<f64>,
     now: DateTime<Utc>,
-    zone: DayZone,
 ) -> Result<(String, bool), String> {
-    let (index, position) = sessions
-        .iter()
-        .enumerate()
-        .find_map(|(index, session)| {
+    let (session, position) = sessions
+        .iter_mut()
+        .find_map(|session| {
             let position = session
                 .timer_instances
                 .iter()
                 .position(|i| i.id == instance_id);
-            position.map(|position| (index, position))
+            position.map(|position| (session, position))
         })
         .ok_or_else(|| instance_not_found(instance_id))?;
-    let session = &mut sessions[index];
     ensure_not_imported(session)?;
     let instance = &session.timer_instances[position];
     if instance.is_running || instance.is_paused {
@@ -61,42 +55,21 @@ pub fn move_instance_to_task(
     if instance.duration.is_none() {
         return Err("This timer hasn't tracked any time yet".to_string());
     }
-    if session.task_id == task_id {
+    if session.task_id_of(instance) == task_id {
         return Ok((session.id.clone(), false));
     }
 
-    if session.timer_instances.len() == 1 && !session.is_active {
+    if session.timer_instances.len() == 1 {
         session.task_id = task_id.to_string();
         session.task_name = task_name.to_string();
         session.hourly_rate = hourly_rate;
-        session.updated_at = now.to_rfc3339();
-        return Ok((session.id.clone(), true));
     }
-
-    // The session keeps at least one timer here unless it is the active one
-    // (an inactive session's only timer re-points it, above), so it stays.
-    let mut instance = session.timer_instances.remove(position);
-    recalculate_total_duration(session);
-    session.updated_at = now.to_rfc3339();
-    let source = session.source.clone();
-
-    let mut moved = new_task_session(
-        task_id.to_string(),
-        task_name.to_string(),
-        hourly_rate,
-        now,
-        zone,
-    );
-    moved.is_active = false;
-    moved.source = source;
-    moved.date = zone.day(instance.start_time);
-    instance.session_id = moved.id.clone();
+    let task = timer_task_in(session, task_id, task_name, hourly_rate);
+    let instance = &mut session.timer_instances[position];
+    instance.task = task;
     instance.updated_at = now.to_rfc3339();
-    moved.timer_instances.push(instance);
-    recalculate_total_duration(&mut moved);
-    let moved_id = moved.id.clone();
-    sessions.push(moved);
-    Ok((moved_id, true))
+    session.updated_at = now.to_rfc3339();
+    Ok((session.id.clone(), true))
 }
 
 /// set_active_session: make one session (or none) the active one. Sessions

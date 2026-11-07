@@ -122,7 +122,7 @@ pub fn long_run_tick(
     }
     Some(LongRun {
         key,
-        task_name: session.task_name.clone(),
+        task_name: session.task_name_of(instance).to_string(),
         run_ms: run_ms as u64,
     })
 }
@@ -187,7 +187,7 @@ pub fn idle_tick(
     let run_began = instance.resumed_at.unwrap_or(instance.start_time);
     IdleAction::Pause {
         instance_id: instance.id.clone(),
-        task_name: session.task_name.clone(),
+        task_name: session.task_name_of(instance).to_string(),
         idle_since: went_idle.max(run_began),
     }
 }
@@ -291,7 +291,7 @@ pub fn pause_for_idle(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::TimerInstance;
+    use crate::model::{TimerInstance, TimerTask};
     use chrono::TimeZone;
 
     fn ts(secs: i64) -> DateTime<Utc> {
@@ -313,6 +313,7 @@ mod tests {
             paused_duration: Some(0),
             resumed_at: None,
             external_id: None,
+            task: None,
             notes: None,
             created_at: ts(start).to_rfc3339(),
             updated_at: ts(start).to_rfc3339(),
@@ -378,6 +379,29 @@ mod tests {
                 task_name: "Annotation".to_string(),
                 idle_since: ts(3_600 - 20 * 60),
             }
+        );
+    }
+
+    #[test]
+    fn idle_and_long_run_name_the_timers_own_task() {
+        let reviews = TimerInstance {
+            task: Some(TimerTask {
+                task_id: "b".to_string(),
+                task_name: "Reviews".to_string(),
+                hourly_rate: None,
+            }),
+            ..running("r", 0)
+        };
+        let sessions = vec![session(true, vec![reviews])];
+        assert!(matches!(
+            idle_tick(&sessions, &enabled(1), 30 * MIN_MS, ts(3_600)),
+            IdleAction::Pause { task_name, .. } if task_name == "Reviews"
+        ));
+        assert_eq!(
+            long_run_tick(&sessions, None, 1, ts(3_600))
+                .unwrap()
+                .task_name,
+            "Reviews"
         );
     }
 

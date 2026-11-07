@@ -77,24 +77,62 @@ export function getInstanceDateString(instance: TimerInstance, fallbackDate?: st
   return formatDateString(new Date(startMs));
 }
 
+/** A session's timers that belong to one local calendar date. */
+export function getTimersOnDate(session: TaskSession, dateStr: string): TimerInstance[] {
+  return session.timerInstances.filter(instance => getInstanceDateString(instance, session.date) === dateStr);
+}
+
+/** The task a session's timer belongs to: its own, else the session's. */
+export function instanceTaskId(instance: TimerInstance, session: Pick<TaskSession, 'taskId'>): string {
+  return instance.task?.taskId ?? session.taskId;
+}
+
+/** The name of the task a session's timer belongs to. */
+export function instanceTaskName(instance: TimerInstance, session: Pick<TaskSession, 'taskName'>): string {
+  return instance.task?.taskName ?? session.taskName;
+}
+
+/** One task's time in a session. */
+export interface SessionTaskTotal {
+  taskId: string;
+  taskName: string;
+  elapsedMs: number;
+}
+
 /**
- * Net tracked milliseconds a session contributes to one local calendar date:
- * the sum of getInstanceElapsedMs over the instances that started on that
- * date (idle instances contribute 0 regardless of their bucket).
+ * What a session's time went to: one total per task that has run, in the order
+ * they first appear. A timer that never started hasn't run, so its task isn't
+ * listed until it does.
  */
-export function getSessionElapsedMsOnDate(
-  session: TaskSession,
-  dateStr: string,
-  nowMs: number = Date.now()
-): number {
-  if (!session || !Array.isArray(session.timerInstances)) return 0;
-  return session.timerInstances.reduce(
-    (total, instance) =>
-      getInstanceDateString(instance, session.date) === dateStr
-        ? total + getInstanceElapsedMs(instance, nowMs)
-        : total,
-    0
-  );
+export function sessionTaskTotals(session: TaskSession, nowMs: number = Date.now()): SessionTaskTotal[] {
+  const totals = new Map<string, SessionTaskTotal>();
+  for (const instance of session.timerInstances) {
+    if (instance.state === TimerState.idle) continue;
+    const taskId = instanceTaskId(instance, session);
+    const total = totals.get(taskId) ?? { taskId, taskName: instanceTaskName(instance, session), elapsedMs: 0 };
+    total.elapsedMs += getInstanceElapsedMs(instance, nowMs);
+    totals.set(taskId, total);
+  }
+  return [...totals.values()];
+}
+
+/** The tasks a session has run, or the one it was opened for before anything has. */
+export function sessionTaskNames(session: TaskSession): string[] {
+  const names = sessionTaskTotals(session).map(total => total.taskName);
+  return names.length > 0 ? names : [session.taskName];
+}
+
+/** A session's name wherever it's shown: "A" or "A, B". */
+export function sessionTitle(session: TaskSession): string {
+  return sessionTaskNames(session).join(', ');
+}
+
+/** The paused timer paused last (a session can hold several). */
+export function mostRecentlyPaused(session: TaskSession): TimerInstance | undefined {
+  const pausedAtMs = (timer: TimerInstance) => toMs(timer.pausedAt) ?? 0;
+  return session.timerInstances
+    .filter(timer => timer.state === TimerState.paused)
+    .sort((a, b) => pausedAtMs(b) - pausedAtMs(a))[0];
 }
 
 /**
@@ -132,8 +170,8 @@ export function buildTimerEditUpdates(instance: TimerInstance, durationMs: numbe
 
 /**
  * Flatten backend sessions into the TimeEntry shape the Tasks, History and
- * Calendar pages consume. Keeps the raw instance fields and
- * overlays the session-level ones. Each entry's `date` is the instance's own
+ * Calendar pages consume. Keeps the raw instance fields and overlays its task,
+ * its rate and the session's source. Each entry's `date` is the instance's own
  * local start date (not session.date, which is frozen at session creation
  * while sessions get reactivated across days) — the same per-instance
  * bucketing the Sessions-page scorecards use, and the same day the pages
@@ -149,9 +187,9 @@ export function sessionsToTimeEntries(sessions: TaskSession[]): TimeEntry[] {
         startTime: new Date(i.startTime),
         endTime: i.endTime ? new Date(i.endTime) : undefined,
         duration: i.duration ?? undefined,
-        taskName: s.taskName,
-        taskId: s.taskId,
-        hourlyRate: s.hourlyRate ?? null,
+        taskName: instanceTaskName(i, s),
+        taskId: instanceTaskId(i, s),
+        hourlyRate: (i.task ? i.task.hourlyRate : s.hourlyRate) ?? null,
         source: s.source,
         isRunning: i.state === TimerState.running,
         date: getInstanceDateString(i, s.date),

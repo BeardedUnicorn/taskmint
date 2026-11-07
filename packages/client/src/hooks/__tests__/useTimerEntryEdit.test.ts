@@ -27,11 +27,16 @@ const instance = {
   createdAt: '2026-10-01T10:00:00Z',
   updatedAt: '2026-10-01T11:00:00Z',
 };
+const onTaskB = {
+  ...instance,
+  id: 'instance-b',
+  task: { taskId: 'task-b', taskName: 'B', hourlyRate: null },
+};
 const session = createMockTaskSession({
   id: 'session-1',
   taskId: 'task-a',
   taskName: 'A',
-  timerInstances: [instance],
+  timerInstances: [instance, onTaskB],
 });
 const tasks = [createMockTask({ id: 'task-a', name: 'A' }), createMockTask({ id: 'task-b', name: 'B' })];
 const notes = [
@@ -69,6 +74,24 @@ describe('useTimerEntryEdit', () => {
       moveTo: undefined,
     });
     expect(updateNote).not.toHaveBeenCalled();
+  });
+
+  it("compares a timer on another task against that task, not the session's", async () => {
+    editTimerEntry.mockResolvedValue('session-1');
+    const { result } = renderHook(() => useTimerEntryEdit());
+
+    await act(async () => {
+      await result.current({ id: 'instance-b', taskId: 'task-b', durationMs: 1_000 });
+    });
+    expect(editTimerEntry).toHaveBeenLastCalledWith('instance-b', expect.objectContaining({ moveTo: undefined }));
+
+    await act(async () => {
+      await result.current({ id: 'instance-b', taskId: 'task-a', durationMs: 1_000 });
+    });
+    expect(editTimerEntry).toHaveBeenLastCalledWith(
+      'instance-b',
+      expect.objectContaining({ moveTo: { taskId: 'task-a', taskName: 'A' } })
+    );
   });
 
   it("does nothing for a timer that isn't there any more", async () => {

@@ -52,6 +52,20 @@ pub struct PathValidationResult {
 // SESSION-BASED TIMER SYSTEM TYPES
 // ============================================================================
 
+// The task a timer's time belongs to when it isn't its session's. A copy, like
+// the session's own: the name follows renames, and the rate is the one the
+// task had when the timer was created, so later rate changes don't rewrite
+// what it earned.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct TimerTask {
+    pub task_id: String,
+    pub task_name: String,
+    #[serde(default)]
+    pub hourly_rate: Option<f64>,
+}
+
 // Timer Instance - Individual timer within a session
 //
 // `#[serde(default)]` on the bool/string fields keeps older sessions.json
@@ -82,6 +96,10 @@ pub struct TimerInstance {
     // Site work-entry id for instances synthesized by a work-log import.
     #[serde(rename = "externalId", default)]
     pub external_id: Option<String>,
+    // None: the timer belongs to its session's task (and earns its rate).
+    // Read through TaskSession::task_id_of / task_name_of.
+    #[serde(default)]
+    pub task: Option<TimerTask>,
     pub notes: Option<String>,
     #[serde(rename = "createdAt", default)]
     pub created_at: String,
@@ -89,7 +107,8 @@ pub struct TimerInstance {
     pub updated_at: String,
 }
 
-// Task Session - Groups multiple timer instances for a task
+// Task Session - A stretch of work: its timers, each on a task. `task_id` is
+// the task the session was opened for; a timer on another task says so itself.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct TaskSession {
@@ -120,6 +139,21 @@ pub struct TaskSession {
     pub created_at: String,
     #[serde(rename = "updatedAt", default)]
     pub updated_at: String,
+}
+
+impl TaskSession {
+    /// The task one of this session's timers belongs to.
+    pub fn task_id_of<'a>(&'a self, instance: &'a TimerInstance) -> &'a str {
+        instance.task.as_ref().map_or(&self.task_id, |t| &t.task_id)
+    }
+
+    /// The name of the task one of this session's timers belongs to.
+    pub fn task_name_of<'a>(&'a self, instance: &'a TimerInstance) -> &'a str {
+        instance
+            .task
+            .as_ref()
+            .map_or(&self.task_name, |t| &t.task_name)
+    }
 }
 
 // ============================================================================

@@ -11,7 +11,13 @@ import {
   getInstanceElapsedMs,
   getInstanceDateString,
   getSessionElapsedMs,
-  getSessionElapsedMsOnDate,
+  getTimersOnDate,
+  instanceTaskId,
+  instanceTaskName,
+  mostRecentlyPaused,
+  sessionTaskNames,
+  sessionTaskTotals,
+  sessionTitle,
   getEntryElapsedMs,
   buildTimerEditUpdates,
   sessionsToTimeEntries,
@@ -169,43 +175,106 @@ describe('getInstanceDateString', () => {
   });
 });
 
-describe('getSessionElapsedMsOnDate', () => {
+describe('getTimersOnDate', () => {
   const localNoon = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0);
 
-  function session(timerInstances: TimerInstance[]): TaskSession {
-    return {
+  it('buckets each timer by its own start date, not session.date', () => {
+    const s: TaskSession = {
       id: 'session_1',
       taskId: 'task_1',
       taskName: 'Deep work',
-      timerInstances,
+      timerInstances: [
+        instance({ id: 'a', state: TimerState.stopped, startTime: localNoon(2026, 8, 17).toISOString() }),
+        instance({ id: 'b', state: TimerState.running, startTime: localNoon(2026, 8, 18).toISOString() }),
+      ],
       totalDuration: 0,
       isActive: true,
-      // Frozen at session creation — deliberately NOT the date the timers ran.
+      // Frozen at session creation: deliberately NOT the date the timers ran.
       date: '2026-08-17',
       createdAt: new Date(T0).toISOString(),
       updatedAt: new Date(T0).toISOString(),
     };
-  }
 
-  it('buckets each instance by its own start date, not session.date', () => {
-    const yesterdayStart = localNoon(2026, 8, 17);
-    const todayStart = localNoon(2026, 8, 18);
-    const nowMs = todayStart.getTime() + sec(600); // 10 min into today's run
+    expect(getTimersOnDate(s, '2026-08-18').map(t => t.id)).toEqual(['b']);
+    expect(getTimersOnDate(s, '2026-08-17').map(t => t.id)).toEqual(['a']);
+    expect(getTimersOnDate(s, '2026-08-16')).toEqual([]);
+  });
+});
 
-    const s = session([
-      instance({ id: 'a', state: TimerState.stopped, startTime: yesterdayStart.toISOString(), duration: sec(1800) }),
-      instance({ id: 'b', state: TimerState.running, startTime: todayStart.toISOString() }),
-    ]);
+describe('a session on several tasks', () => {
+  const other = { taskId: 'task_2', taskName: 'Review', hourlyRate: 30 };
+  const session = (timerInstances: TimerInstance[]): TaskSession => ({
+    id: 'session_1',
+    taskId: 'task_1',
+    taskName: 'Deep work',
+    timerInstances,
+    totalDuration: 0,
+    isActive: true,
+    hourlyRate: 60,
+    date: '2026-08-18',
+    createdAt: new Date(T0).toISOString(),
+    updatedAt: new Date(T0).toISOString(),
+  });
+  const stopped = (id: string, seconds: number, task: TimerInstance['task'] = null) =>
+    instance({ id, state: TimerState.stopped, duration: sec(seconds), task });
 
-    // The user's live repro: a session dated yesterday whose timer runs today
-    // must contribute today's elapsed to today's bucket.
-    expect(getSessionElapsedMsOnDate(s, '2026-08-18', nowMs)).toBe(sec(600));
-    expect(getSessionElapsedMsOnDate(s, '2026-08-17', nowMs)).toBe(sec(1800));
-    expect(getSessionElapsedMsOnDate(s, '2026-08-16', nowMs)).toBe(0);
+  it("reads a timer's task from itself, else its session", () => {
+    const s = session([]);
+    expect(instanceTaskId(stopped('a', 1), s)).toBe('task_1');
+    expect(instanceTaskName(stopped('a', 1), s)).toBe('Deep work');
+    expect(instanceTaskId(stopped('b', 1, other), s)).toBe('task_2');
+    expect(instanceTaskName(stopped('b', 1, other), s)).toBe('Review');
   });
 
-  it('returns 0 for malformed sessions without a timerInstances array', () => {
-    expect(getSessionElapsedMsOnDate({ id: 'x' } as unknown as TaskSession, '2026-08-18')).toBe(0);
+  it('totals each task that ran, in the order they first appear', () => {
+    const s = session([
+      stopped('a', 60, other),
+      stopped('b', 30),
+      stopped('c', 15, other),
+      instance({ id: 'live', state: TimerState.running, startTime: new Date(T0).toISOString() }),
+    ]);
+
+    expect(sessionTaskTotals(s, T0 + sec(5))).toEqual([
+      { taskId: 'task_2', taskName: 'Review', elapsedMs: sec(75) },
+      { taskId: 'task_1', taskName: 'Deep work', elapsedMs: sec(35) },
+    ]);
+  });
+
+  it("leaves out a task whose only timer hasn't started", () => {
+    const s = session([stopped('a', 60), instance({ id: 'idle', state: TimerState.idle, task: other })]);
+
+    expect(sessionTaskTotals(s).map(total => total.taskName)).toEqual(['Deep work']);
+    expect(sessionTaskNames(s)).toEqual(['Deep work']);
+  });
+
+  it("names a session after the tasks that ran, or its own before any has", () => {
+    expect(sessionTitle(session([]))).toBe('Deep work');
+    expect(sessionTitle(session([instance({ state: TimerState.idle, task: other })]))).toBe('Deep work');
+    expect(sessionTitle(session([stopped('a', 1, other)]))).toBe('Review');
+    expect(sessionTitle(session([stopped('a', 1), stopped('b', 1, other)]))).toBe('Deep work, Review');
+  });
+
+  it('finds the timer paused last', () => {
+    const paused = (id: string, pausedAt: string | null) => instance({ id, state: TimerState.paused, pausedAt });
+    const s = session([
+      stopped('done', 1),
+      paused('unstamped', null),
+      paused('latest', '2026-08-18T10:30:00.000Z'),
+      paused('earlier', '2026-08-18T10:10:00.000Z'),
+    ]);
+
+    expect(mostRecentlyPaused(s)?.id).toBe('latest');
+    expect(mostRecentlyPaused(session([stopped('done', 1)]))).toBeUndefined();
+  });
+
+  it("gives each time entry its timer's task and rate", () => {
+    const entries = sessionsToTimeEntries([session([stopped('a', 1), stopped('b', 1, other)])]);
+
+    expect(entries[0]).toMatchObject({ taskId: 'task_1', taskName: 'Deep work', hourlyRate: 60 });
+    expect(entries[1]).toMatchObject({ taskId: 'task_2', taskName: 'Review', hourlyRate: 30 });
+    // Another task's timer without a rate doesn't take the session's
+    const unrated = sessionsToTimeEntries([session([stopped('a', 1, { ...other, hourlyRate: null })])]);
+    expect(unrated[0].hourlyRate).toBeNull();
   });
 });
 

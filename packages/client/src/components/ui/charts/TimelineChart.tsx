@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 import { DailyData, WeeklyData, MonthlyData, millisecondsToHours, formatTimeForChart } from '../../../utils/chartDataHelpers';
+import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { formatCurrency } from '../../../utils/formatters';
 import { formatShortDate } from '../../../utils/locale';
 import {
@@ -67,8 +68,10 @@ export function TimelineChart({ data, dataType }: { data: TimelineData[]; dataTy
     earnings: item.totalEarnings,
     entryCount: item.entryCount,
   }));
-  // Days show as dates; week and month keys show as they are
-  const formatPeriod = (period: string) => (dataType === 'daily' ? formatShortDate(period) : period);
+  // Days show as dates (local ones: read directly, a YYYY-MM-DD is UTC midnight,
+  // the day before west of UTC); week and month keys show as they are
+  const formatPeriod = (period: string) =>
+    dataType === 'daily' ? formatShortDate(parseDateStringLocal(period)) : period;
 
   return (
     <Box>

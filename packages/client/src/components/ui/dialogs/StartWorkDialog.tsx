@@ -2,9 +2,10 @@
  * Start Work Dialog
  *
  * Pick an existing task and its timer starts, the same as the tray's Start
- * submenu: the task's active session continues, otherwise a new session opens
- * with a running timer. Used by the Sessions page's + button and the tray's
- * "Choose Task…". Tasks are listed favorites first, then most recently used.
+ * submenu: it joins the active session (stopping whatever is running),
+ * otherwise a new session opens with a running timer. Used by the Sessions
+ * page's + button and the tray's "Choose Task…". Tasks are listed favorites
+ * first, then most recently used.
  */
 
 import { useMemo, useState } from 'react';

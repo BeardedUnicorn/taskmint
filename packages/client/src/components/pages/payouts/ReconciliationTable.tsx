@@ -166,7 +166,7 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
         Statuses are shown as the site reported them; all imported amounts count toward
-        availability by work day. Estimates use the rate each session was tracked at, the
+        availability by work day. Estimates use the rate each timer was tracked at, the
         same amounts History and the Calendar show.
       </Typography>
     </Paper>

@@ -32,7 +32,7 @@ pub enum Command {
     RestoreSession(RestoreSessionArgs),
     RestoreTimerInstance(RestoreTimerInstanceArgs),
     // Timer instances
-    CreateTimerInstance(SessionArgs),
+    CreateTimerInstance(CreateTimerInstanceArgs),
     UpdateTimerInstance(UpdateTimerInstanceArgs),
     StartTimerInstance(InstanceArgs),
     StopTimerInstance(InstanceArgs),
@@ -106,7 +106,7 @@ command_types! {
     "delete_session": SessionArgs => TaskSession,
     "restore_session": RestoreSessionArgs => TaskSession,
     "restore_timer_instance": RestoreTimerInstanceArgs => TaskSession,
-    "create_timer_instance": SessionArgs => TimerInstance,
+    "create_timer_instance": CreateTimerInstanceArgs => TimerInstance,
     "update_timer_instance": UpdateTimerInstanceArgs => TimerInstance,
     "start_timer_instance": InstanceArgs => TaskSession,
     "stop_timer_instance": InstanceArgs => TaskSession,
@@ -237,6 +237,25 @@ pub struct ClearSessionNotesArgs {
 #[serde(rename_all = "camelCase")]
 pub struct SessionArgs {
     pub session_id: String,
+}
+
+/// A task picked for a new timer.
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct TaskChoice {
+    pub task_id: String,
+    pub task_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTimerInstanceArgs {
+    pub session_id: String,
+    /// The task it's for. None is the session's own, as older clients send.
+    #[serde(default)]
+    pub task: Option<TaskChoice>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -375,15 +394,15 @@ impl Command {
                 Access::write(records_and_links)
             }
             Command::GetSessions(_) | Command::GetSessionLoadWarning(_) => Access::read(SESSIONS),
-            Command::StartTask(_) | Command::AddManualTime(_) | Command::MoveTimerInstance(_) => {
-                Access::write(sessions_and_tasks)
-            }
+            Command::StartTask(_)
+            | Command::AddManualTime(_)
+            | Command::CreateTimerInstance(_)
+            | Command::MoveTimerInstance(_) => Access::write(sessions_and_tasks),
             Command::SetActiveSession(_)
             | Command::ClearSessionNotes(_)
             | Command::DeleteSession(_)
             | Command::RestoreSession(_)
             | Command::RestoreTimerInstance(_)
-            | Command::CreateTimerInstance(_)
             | Command::UpdateTimerInstance(_)
             | Command::StartTimerInstance(_)
             | Command::StopTimerInstance(_)

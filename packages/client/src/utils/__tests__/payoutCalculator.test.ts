@@ -239,6 +239,32 @@ describe('buildPayoutCells', () => {
     expect(cells.find(cell => cell.taskId === 'task-2')!.estimatedCents).toBe(15000);
   });
 
+  it("gives each task its own timers' time and rate within one session", () => {
+    const tasks = [makeTask(), makeTask({ id: 'task-2', name: 'Review', hourlyRate: 40 })];
+    const session = makeSession({
+      hourlyRate: 75,
+      timerInstances: [
+        makeInstance({ id: 'own', duration: 3_600_000 }),
+        makeInstance({
+          id: 'other',
+          duration: 2 * 3_600_000,
+          endTime: new Date(2026, 7, 26, 15, 0).toISOString(),
+          task: { taskId: 'task-2', taskName: 'Review', hourlyRate: 50 },
+        }),
+      ],
+    });
+
+    const cells = buildPayoutCells([], [session], tasks, 7, NOW_MS);
+
+    expect(cells.map(cell => [cell.taskId, cell.trackedMs, cell.estimatedCents])).toEqual([
+      ['task-1', 3_600_000, 7500],
+      ['task-2', 2 * 3_600_000, 10000],
+    ]);
+    // Each task's release follows its own timers
+    expect(cells[0].releaseTime).toBe('12:00 PM');
+    expect(cells[1].releaseTime).toBe('3:00 PM');
+  });
+
   it("leaves a tracked day's name blank when its task is gone", () => {
     const [cell] = buildPayoutCells([], [makeSession({ taskId: 'deleted', timerInstances: [makeInstance()] })], [], 7, NOW_MS);
     expect(cell.taskName).toBe('');

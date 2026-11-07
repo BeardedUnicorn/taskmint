@@ -5,8 +5,10 @@ import {
   entryEarnings,
   entryRate,
   findTaskFor,
+  instanceRate,
   sessionEarnings,
   sessionRate,
+  sessionRates,
 } from '../earnings';
 import { Task } from '../../types/task';
 import { TaskSession, TimeEntry, TimerInstance, TimerState } from '../../types/timer';
@@ -135,5 +137,41 @@ describe('earnings', () => {
 
     expect(earningsOnDate([yesterday, today], [task()], '2026-10-10', nowMs)).toBe(50);
     expect(earningsOnDate([yesterday, today], [task()], '2026-10-09', nowMs)).toBe(40);
+  });
+});
+
+describe('a session on several tasks', () => {
+  const review = { taskId: 'task-2', taskName: 'Review', hourlyRate: 30 };
+  const tasks = [task(), task({ id: 'task-2', name: 'Review', hourlyRate: 45 })];
+  const mixed = session({
+    hourlyRate: 60,
+    timerInstances: [instance({ id: 'own' }), instance({ id: 'other', task: review })],
+  });
+
+  it("earns at a timer's own rate, else its session's", () => {
+    expect(instanceRate(instance(), mixed, tasks)).toBe(60);
+    expect(instanceRate(instance({ task: review }), mixed, tasks)).toBe(30);
+  });
+
+  it("falls back to the timer's task's current rate, not the session's", () => {
+    const unrated = instance({ task: { ...review, hourlyRate: null } });
+    expect(instanceRate(unrated, mixed, tasks)).toBe(45);
+    expect(instanceRate(unrated, mixed, [task()])).toBe(0);
+  });
+
+  it('adds up what each timer earned at its own rate', () => {
+    expect(sessionEarnings(mixed, tasks, 0)).toBe(90);
+    expect(earningsOnDate([mixed], tasks, '2026-10-10', 0)).toBe(90);
+    expect(earningsOnDate([mixed], tasks, '2026-10-11', 0)).toBe(0);
+  });
+
+  it('lists the distinct rates of the timers that ran', () => {
+    expect(sessionRates(mixed, tasks)).toEqual([60, 30]);
+    expect(sessionRates(session({ hourlyRate: 60, timerInstances: [instance(), instance({ id: 'b' })] }), tasks)).toEqual([60]);
+    // A timer that hasn't started earns nothing yet
+    const waiting = instance({ id: 'idle', state: TimerState.idle, task: review });
+    expect(sessionRates(session({ hourlyRate: 60, timerInstances: [instance(), waiting] }), tasks)).toEqual([60]);
+    // Nothing has run: the session's own rate
+    expect(sessionRates(session({ hourlyRate: 60, timerInstances: [] }), tasks)).toEqual([60]);
   });
 });

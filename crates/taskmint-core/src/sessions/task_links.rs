@@ -1,19 +1,33 @@
-//! What sessions copy from their task: its name and its hourly rate.
+//! What sessions and their timers copy from their tasks: the name and the
+//! hourly rate.
 
 use crate::contract::WORKLOG_IMPORT_SOURCE;
 use crate::model::{Task, TaskSession, WorkLogEntry};
 use std::collections::HashMap;
 
-/// Sessions keep a copy of their task's name; bring every copy up to date
-/// after a task is renamed. Returns whether any session changed.
+/// Brings one copy of a task's name up to date; returns whether it changed.
+fn sync_name(tasks: &[Task], task_id: &str, name: &mut String) -> bool {
+    match tasks.iter().find(|t| t.id == task_id) {
+        Some(task) if *name != task.name => {
+            name.clone_from(&task.name);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Sessions and timers keep a copy of their task's name; bring every copy up
+/// to date after a task is renamed. Returns whether any session changed.
 pub fn sync_session_task_names(sessions: &mut [TaskSession], tasks: &[Task]) -> bool {
     let mut changed = false;
     for session in sessions.iter_mut() {
-        if let Some(task) = tasks.iter().find(|t| t.id == session.task_id) {
-            if session.task_name != task.name {
-                session.task_name = task.name.clone();
-                changed = true;
-            }
+        changed |= sync_name(tasks, &session.task_id, &mut session.task_name);
+        for task in session
+            .timer_instances
+            .iter_mut()
+            .filter_map(|i| i.task.as_mut())
+        {
+            changed |= sync_name(tasks, &task.task_id, &mut task.task_name);
         }
     }
     changed
@@ -29,17 +43,29 @@ pub fn task_rate(tasks: &[Task], task_id: &str) -> Option<f64> {
         .filter(|rate| *rate > 0.0)
 }
 
-/// Give sessions without a rate their task's current rate (when it has one).
-/// Sessions keep the rate they were given, so this only reaches sessions from
-/// older builds and time tracked before the task had a rate. Returns whether
-/// anything changed.
+/// Fills one missing rate from its task; returns whether it changed.
+fn fill_rate(tasks: &[Task], task_id: &str, rate: &mut Option<f64>) -> bool {
+    if rate.is_some() {
+        return false;
+    }
+    *rate = task_rate(tasks, task_id);
+    rate.is_some()
+}
+
+/// Give sessions and timers without a rate their task's current rate (when it
+/// has one). They keep the rate they were given, so this only reaches sessions
+/// from older builds and time tracked before the task had a rate. Returns
+/// whether anything changed.
 pub fn fill_missing_session_rates(sessions: &mut [TaskSession], tasks: &[Task]) -> bool {
     let mut changed = false;
-    for session in sessions.iter_mut().filter(|s| s.hourly_rate.is_none()) {
-        let rate = task_rate(tasks, &session.task_id);
-        if rate.is_some() {
-            session.hourly_rate = rate;
-            changed = true;
+    for session in sessions.iter_mut() {
+        changed |= fill_rate(tasks, &session.task_id, &mut session.hourly_rate);
+        for task in session
+            .timer_instances
+            .iter_mut()
+            .filter_map(|i| i.task.as_mut())
+        {
+            changed |= fill_rate(tasks, &task.task_id, &mut task.hourly_rate);
         }
     }
     changed

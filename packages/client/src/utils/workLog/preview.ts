@@ -4,7 +4,7 @@
 
 import { TaskSession } from '../../types/timer';
 import { WORKLOG_IMPORT_SOURCE, WorkLogEntry } from '../../types/workLog';
-import { getInstanceElapsedMs } from '../timerHelpers';
+import { getInstanceElapsedMs, instanceTaskId } from '../timerHelpers';
 import { effectiveMinutes } from './days';
 import { instanceBelongsToWorkDay } from './rewrite';
 import { MS_PER_MINUTE, groupKey, isRunningOrPaused } from './shared';
@@ -59,8 +59,8 @@ export function buildImportPreview(
     let blocked = false;
     let isRemap = false;
     for (const session of sessions) {
-      if (session.taskId !== taskId) continue;
       for (const instance of session.timerInstances) {
+        if (instanceTaskId(instance, session) !== taskId) continue;
         if (!instanceBelongsToWorkDay(instance, session, workDay)) continue;
         trackedMs += getInstanceElapsedMs(instance, nowMs);
         if (timed.length > 0 && isRunningOrPaused(instance)) blocked = true;

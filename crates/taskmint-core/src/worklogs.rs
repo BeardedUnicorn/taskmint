@@ -224,7 +224,7 @@ pub fn validate_rewrite_group(
             if instance.is_running || instance.is_paused {
                 return Err(timer_active_msg);
             }
-            if session.task_id != group.task_id {
+            if session.task_id_of(instance) != group.task_id {
                 return Err(format!(
                     "instance {} belongs to another task and cannot be replaced by this import",
                     id
@@ -291,9 +291,10 @@ pub fn validate_rewrite_group(
     Ok(())
 }
 
-/// Apply a validated rewrite group: remove the bucket's instances, drop
-/// sessions this emptied (unless they carry user notes or are active — those
-/// stay as shells), and insert the synthesized replacement.
+/// Apply a validated rewrite group: remove the bucket's instances (validation
+/// checked they're all this task's, so another task's timers in the same
+/// session stay), drop sessions this emptied (unless they carry user notes or
+/// are active — those stay as shells), and insert the synthesized replacement.
 pub fn apply_rewrite_group(
     sessions: &mut Vec<TaskSession>,
     group: RewriteGroup,
@@ -308,9 +309,6 @@ pub fn apply_rewrite_group(
     let mut deleted = 0;
     let mut emptied_session_ids: Vec<String> = Vec::new();
     for session in sessions.iter_mut() {
-        if session.task_id != group.task_id {
-            continue;
-        }
         let before = session.timer_instances.len();
         session
             .timer_instances
@@ -378,7 +376,7 @@ pub fn apply_rewrite_groups(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::WorkLogKind;
+    use crate::model::{TimerTask, WorkLogKind};
     use chrono::TimeZone;
 
     fn ts(secs: i64) -> DateTime<Utc> {
@@ -428,6 +426,7 @@ mod tests {
             paused_duration: None,
             resumed_at: None,
             external_id: None,
+            task: None,
             notes: None,
             created_at: ts(start_secs).to_rfc3339(),
             updated_at: ts(start_secs).to_rfc3339(),
@@ -567,6 +566,55 @@ mod tests {
         );
         let err = validate_rewrite_group(&sessions, &g).unwrap_err();
         assert!(err.contains("another task"));
+    }
+
+    fn on_task(instance: TimerInstance, task_id: &str) -> TimerInstance {
+        TimerInstance {
+            task: Some(TimerTask {
+                task_id: task_id.to_string(),
+                task_name: "Other".to_string(),
+                hourly_rate: None,
+            }),
+            ..instance
+        }
+    }
+
+    #[test]
+    fn validate_and_apply_go_by_each_timers_own_task() {
+        let mut sessions = vec![session_with(
+            "mixed",
+            "task-1",
+            vec![
+                finalized_instance("mine", "mixed", 0, 60_000),
+                on_task(
+                    finalized_instance("theirs", "mixed", 60_000, 60_000),
+                    "task-2",
+                ),
+            ],
+        )];
+
+        // A timer on another task in a session opened for this one
+        let g = group(
+            "task-1",
+            vec!["theirs"],
+            replacement("task-1", "2026-08-25", vec![]),
+        );
+        let err = validate_rewrite_group(&sessions, &g).unwrap_err();
+        assert!(err.contains("another task"));
+
+        // A task's import takes only its own timers out of the session
+        let g = group(
+            "task-2",
+            vec!["theirs"],
+            replacement("task-2", "2026-08-25", vec![]),
+        );
+        validate_rewrite_group(&sessions, &g).unwrap();
+        let applied = apply_rewrite_group(&mut sessions, g, ts(0));
+        assert_eq!(applied.deleted_instances, 1);
+        let mixed = sessions.iter().find(|s| s.id == "mixed").unwrap();
+        assert_eq!(mixed.timer_instances.len(), 1);
+        assert_eq!(mixed.timer_instances[0].id, "mine");
+        assert_eq!(mixed.total_duration, 60_000);
     }
 
     #[test]

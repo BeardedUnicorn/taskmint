@@ -9,7 +9,7 @@ you've earned and when it pays out.
 
 | Page | What it's for |
 |---|---|
-| **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside its session (each day's work gets its own session). Live totals for the active session. The list shows the last 30 days (older ones a click away) and filters by source. **Add time** logs a finished timer after the fact (a "Manual" session). |
+| **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside the session, and add timers for other tasks to it (each day's work gets its own session). Each timer's row shows its task, and live totals cover the active session. The list shows which tasks each session ran and their totals; it covers the last 30 days (older ones a click away) and filters by source. **Add time** logs a finished timer after the fact (a "Manual" session). |
 | **Tasks** | Tasks with hourly rates and default note templates; start one, star favorites, archive tasks you're done with. Each task lists its newest entries and opens History for the rest. Time keeps the rate it was tracked at, so changing a rate only affects new time. |
 | **Notes** | Free-form or template-based notes on a task (pick it on the Notes page), a session or a timer. A session's notes open from its row, which previews the newest one. Note templates have their own tab. |
 | **History** | Every tracked, added and imported entry: quick ranges (remembered), search and task filters, totals and charts, the sortable entries table (edit, move an entry to another task, delete, CSV export; imported days are read-only, since each import rebuilds them), and the daily goal's results over the range. |
@@ -22,15 +22,17 @@ timer and can pause, resume or stop it, start a task's timer, or open the app.
 Its Start menu lists starred tasks first, then the ones you used most
 recently; **Choose Task…** opens the app's start dialog for any other task.
 Starting work behaves the same everywhere (tray, Sessions toolbar, the +
-button): starting the task that's already active continues its session
-(resuming a paused timer); any other task gets a new session with a running
-timer. Work starts from existing tasks; create new ones on the Tasks page.
+button): with a session active, the task joins it, resuming its paused timer
+or starting a new one, and stopping whatever is running (a toast says so). Only
+End Session ends a session; a session left active from an earlier day gives way
+to a new one. Work starts from existing tasks; create new ones on the Tasks page.
 Closing the window hides TaskMint to the tray, where timers keep running; quit
 from the tray menu. On macOS, clicking the Dock icon brings the window back.
 
-**Earnings** are rate × time everywhere, at each session's rate (captured when
-it started; imported days carry the rate the site's pay implies, so they match
-Payouts). With a **daily goal** set, the sidebar shows today's progress live,
+**Earnings** are rate × time everywhere, at the rate captured for each timer:
+its session's when it's on the task the session opened for, otherwise its own
+task's when the timer was created (imported days carry the rate the site's pay
+implies, so they match Payouts). With a **daily goal** set, the sidebar shows today's progress live,
 and notifications fire at 50%, 75% and 100% as you cross them.
 
 **Inactivity detection** (off by default; Settings → Idle & Reminders)

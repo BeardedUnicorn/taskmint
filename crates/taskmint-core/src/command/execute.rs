@@ -15,7 +15,7 @@ use crate::contract::events::{
 use crate::contract::{ERR_RECORD_CONFLICT, ERR_UNEXPECTED_PAYLOAD_SHAPE, TASKS_RECORD_KEY};
 use crate::idle::{apply_idle_choice, pause_for_idle, IdleChoice};
 use crate::load::{parse_project_mappings, parse_work_log_entries};
-use crate::model::PendingCapture;
+use crate::model::{PendingCapture, Task, TimerTask};
 use crate::records::{is_app_record_key, merge_imported_records, RecordMap};
 use crate::restore::{
     finalize_time, parse_section, parse_sessions_section, restore_project_mappings,
@@ -123,6 +123,25 @@ fn chosen_task<'a>(
         return Err(CoreError::Rejected(blank.to_string()));
     }
     Ok((task_id, task_name))
+}
+
+/// A task picked for a timer, checked against the task list, with the rate
+/// the timer earns at.
+fn known_timer_task(
+    tasks: &[Task],
+    task_id: &str,
+    task_name: &str,
+    blank: &str,
+) -> Result<TimerTask, CoreError> {
+    let (task_id, task_name) = chosen_task(task_id, task_name, blank)?;
+    if !tasks.iter().any(|t| t.id == task_id) {
+        return Err("That task no longer exists".to_string().into());
+    }
+    Ok(TimerTask {
+        task_id: task_id.to_string(),
+        task_name: task_name.to_string(),
+        hourly_rate: task_rate(tasks, task_id),
+    })
 }
 
 pub fn execute(
@@ -273,7 +292,20 @@ pub fn execute(
         }
 
         Command::CreateTimerInstance(args) => {
-            sessions_if(instances::create(sessions, &args.session_id, now)?, true)
+            let task = args
+                .task
+                .as_ref()
+                .map(|task| {
+                    known_timer_task(
+                        &workspace.tasks(),
+                        &task.task_id,
+                        &task.task_name,
+                        "Choose a task for this timer",
+                    )
+                })
+                .transpose()?;
+            let created = instances::create(&mut workspace.sessions, &args.session_id, task, now)?;
+            sessions_if(created, true)
         }
         Command::UpdateTimerInstance(args) => sessions_if(
             instances::update(sessions, &args.instance_id, &args.updates, now)?,
@@ -305,23 +337,19 @@ pub fn execute(
             )
         }
         Command::MoveTimerInstance(args) => {
-            let (task_id, task_name) = chosen_task(
+            let task = known_timer_task(
+                &workspace.tasks(),
                 &args.task_id,
                 &args.task_name,
                 "Choose a task to move this time to",
             )?;
-            let tasks = workspace.tasks();
-            if !tasks.iter().any(|t| t.id == task_id) {
-                return Err("That task no longer exists".to_string().into());
-            }
             let (session_id, changed) = move_instance_to_task(
                 &mut workspace.sessions,
                 &args.instance_id,
-                task_id,
-                task_name,
-                task_rate(&tasks, task_id),
+                &task.task_id,
+                &task.task_name,
+                task.hourly_rate,
                 now,
-                zone,
             )?;
             let done = sessions_if(session_id, changed);
             if changed {
