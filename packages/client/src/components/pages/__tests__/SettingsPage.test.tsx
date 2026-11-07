@@ -20,6 +20,7 @@ vi.mock('../settings/NotificationSettingsSection', () => ({
   NotificationSettingsSection: () => <div>Notifications section</div>,
 }));
 vi.mock('../settings/PayoutSettingsSection', () => ({ PayoutSettingsSection: () => <div>Payouts section</div> }));
+vi.mock('../settings/AboutSettingsSection', () => ({ AboutSettingsSection: () => <div>About section</div> }));
 
 describe('currentSection', () => {
   it('is the last section whose top has reached the top of the window', () => {
@@ -72,10 +73,12 @@ describe('SettingsPage', () => {
     expect(labels).not.toContain(SETTINGS_SECTIONS.find(({ id }) => id === 'idle')!.label);
     expect(labels).toHaveLength(SETTINGS_SECTIONS.length - 2);
     expect(screen.queryByText('Idle section')).not.toBeInTheDocument();
-    expect(screen.getByText('Appearance, payouts, your daily goal, notifications and data')).toBeInTheDocument();
+    expect(
+      screen.getByText("Appearance, payouts, your daily goal, notifications, data and what's new")
+    ).toBeInTheDocument();
   });
 
-  it("adds the shell's own sections after the built-in ones", () => {
+  it("adds the shell's own sections after the built-in ones, with About last", () => {
     const extensions = {
       settingsSections: [{ id: 'account', label: 'Account', Section: () => <div>Account section</div> }],
     };
@@ -91,7 +94,11 @@ describe('SettingsPage', () => {
       within(nav)
         .getAllByRole('button')
         .map(button => button.textContent)
-    ).toEqual([...SETTINGS_SECTIONS.map(section => section.label), 'Account']);
+    ).toEqual([
+      ...SETTINGS_SECTIONS.filter(({ id }) => id !== 'about').map(section => section.label),
+      'Account',
+      'About',
+    ]);
     expect(document.getElementById('settings-account')).toHaveTextContent('Account section');
   });
 

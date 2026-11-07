@@ -2,7 +2,7 @@
  * Settings: one scrolling page of sections, with a list of them alongside
  * that jumps to each and follows where you are. Opening Settings for a
  * section (a toast's "Backup settings") scrolls to it. The shell's own
- * sections (AppExtensions) follow the built-in ones.
+ * sections (AppExtensions) follow the built-in ones, and About comes last.
  */
 
 import { ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -14,6 +14,7 @@ import {
   DataManagementSection,
   PrivacySettingsSection,
 } from './settings';
+import { AboutSettingsSection } from './settings/AboutSettingsSection';
 import { InactivitySettingsSection } from './settings/InactivitySettingsSection';
 import { NotificationSettingsSection } from './settings/NotificationSettingsSection';
 import { PayoutSettingsSection } from './settings/PayoutSettingsSection';
@@ -32,6 +33,7 @@ const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
   backups: BackupSettingsSection,
   data: DataManagementSection,
   privacy: PrivacySettingsSection,
+  about: AboutSettingsSection,
 };
 
 export const SETTINGS_SECTIONS = (Object.keys(SETTINGS_SECTION_LABELS) as SettingsSectionId[]).map(id => ({
@@ -63,7 +65,12 @@ export function SettingsPage() {
   const { settingsSections = NO_EXTENSION_SECTIONS } = useAppExtensions();
   const sections = useMemo(() => {
     const available = availableSettingsSections(getBackend().platform);
-    return [...SETTINGS_SECTIONS.filter(({ id }) => available.includes(id)), ...settingsSections];
+    const builtIn = SETTINGS_SECTIONS.filter(({ id }) => available.includes(id));
+    return [
+      ...builtIn.filter(({ id }) => id !== 'about'),
+      ...settingsSections,
+      ...builtIn.filter(({ id }) => id === 'about'),
+    ];
   }, [settingsSections]);
   const [active, setActive] = useState<string>('appearance');
   const clickedAtRef = useRef(0);
@@ -112,8 +119,8 @@ export function SettingsPage() {
         title="Settings"
         subtitle={
           sections.some(({ id }) => id === 'idle')
-            ? 'Appearance, payouts, idle detection, your daily goal, notifications, backups and data'
-            : 'Appearance, payouts, your daily goal, notifications and data'
+            ? "Appearance, payouts, idle detection, your daily goal, notifications, backups, data and what's new"
+            : "Appearance, payouts, your daily goal, notifications, data and what's new"
         }
       />
       <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>

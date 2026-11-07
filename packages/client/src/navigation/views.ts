@@ -24,7 +24,8 @@ export type SettingsSectionId =
   | 'notifications'
   | 'backups'
   | 'data'
-  | 'privacy';
+  | 'privacy'
+  | 'about';
 
 /** Settings' sections, in page order, as its section list names them. */
 export const SETTINGS_SECTION_LABELS: Record<SettingsSectionId, string> = {
@@ -36,6 +37,7 @@ export const SETTINGS_SECTION_LABELS: Record<SettingsSectionId, string> = {
   backups: 'Backups',
   data: 'Data',
   privacy: 'Privacy',
+  about: 'About',
 };
 
 /** Extra context for the page being opened (cleared once the page has used it). */

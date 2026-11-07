@@ -20,6 +20,7 @@ import { useSessionNotesMigration } from './hooks/useSessionNotesMigration';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { useRecordConflictNotice } from './hooks/useRecordConflictNotice';
+import { useUpdatedNotice } from './hooks/useUpdatedNotice';
 import { useDailySummary } from './hooks/useDailySummary';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
 import { WorkLogProvider } from './contexts/WorkLogContext';
@@ -29,8 +30,9 @@ import { PAGES } from './app/routes';
 
 /**
  * Work that runs whatever page is open: the tray's "Choose Task…", moving
- * sessions' old plain-text notes into the notes store, and saying when a
- * save lost to a change made on another device.
+ * sessions' old plain-text notes into the notes store, saying when a save
+ * lost to a change made on another device, and pointing to what's new after
+ * an update.
  */
 function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }) {
   const { sessions, isLoading: sessionsLoading, hasLoaded, clearSessionNotes } = useSessionManagementContext();
@@ -44,6 +46,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
   });
   useEnhancedSystemTray({ onShowStartDialog });
   useRecordConflictNotice();
+  useUpdatedNotice();
   useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });
   return null;
 }

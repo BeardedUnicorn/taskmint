@@ -9,6 +9,8 @@
 # The build type-checks the tests' config too, which reads these
 !vitest.shared.ts
 !coverage-policy.json
+# Settings → About shows it (packages/client/src/utils/changelog.ts)
+!CHANGELOG.md
 !apps/web/
 !packages/client/
 !packages/contracts/
