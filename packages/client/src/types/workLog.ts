@@ -75,39 +75,11 @@ export type SiteWorkLog = z.infer<typeof SiteWorkLogSchema>;
 // PERSISTED LEDGER (the backend's WorkLogEntry / ProjectTaskMapping)
 // ============================================================================
 
-export type { WorkLogKind, WorkLogEntry, ProjectTaskMapping } from '@taskmint/contracts';
-
-export const WorkLogEntrySchema = z.object({
-  id: z.string().min(1),
-  kind: z.enum(['timed', 'workLog']),
-  createdAt: z.string(),
-  workDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'workDay must be YYYY-MM-DD'),
-  projectId: z.string(),
-  projectName: z.string(),
-  taskId: z.string(),
-  taskName: z.string(),
-  timeInMinutes: z.number().min(0).nullable().optional(),
-  reportedTimeInMinutes: z.number().min(0).nullable().optional(),
-  amountCents: z.number().int(),
-  status: z.string(),
-  importedAt: z.string(),
-  updatedAt: z.string(),
-});
-
-export const ProjectTaskMappingSchema = z.object({
-  projectId: z.string().min(1),
-  projectName: z.string(),
-  taskId: z.string(),
-  taskName: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
+export type { WorkLogEntry, ProjectTaskMapping } from '@taskmint/contracts';
 
 // ============================================================================
 // COMMAND WIRE SHAPES
 // ============================================================================
-
-export type { WorkLogs as WorkLogsResponse } from '@taskmint/contracts';
 
 /**
  * One (task, workDay) rewrite the frontend asks the backend to apply: delete
@@ -132,17 +104,12 @@ export interface WorkLogImportPayload {
   isRemap?: boolean;
 }
 
-export type { AppliedGroup, SkippedGroup, WorkLogImportSummary } from '@taskmint/contracts';
+export type { WorkLogImportSummary } from '@taskmint/contracts';
 
 /**
  * How a capture reached the app. 'extension': localhost POST from the pinned
  * TaskMint extension — trusted. 'link': a taskmint:// link, which any web
  * page can open — review first. A pending capture is
- * take_pending_work_log_capture's reply; the server status is
- * get_capture_server_status'.
+ * take_pending_work_log_capture's reply.
  */
-export type {
-  CaptureSource,
-  PendingCapture as PendingWorkLogCapture,
-  CaptureServerStatus,
-} from '@taskmint/contracts';
+export type { CaptureSource, PendingCapture as PendingWorkLogCapture } from '@taskmint/contracts';

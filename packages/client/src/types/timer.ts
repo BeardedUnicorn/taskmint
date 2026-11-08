@@ -129,9 +129,6 @@ export const DEFAULT_INACTIVITY_SETTINGS: InactivitySettings = {
 /** Provenance marker on sessions created by "Add time". */
 export { MANUAL_SOURCE } from '@taskmint/contracts';
 
-/** What start_task did: began a new timer, resumed a paused one, or nothing. */
-export type StartTaskOutcome = StartTaskResult['outcome'];
-
 export interface AddManualTimeInput {
   taskId: string;
   taskName: string;

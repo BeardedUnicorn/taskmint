@@ -58,8 +58,3 @@ export function formatMonthYear(value: Date | string | number): string {
 export function formatDateTime(value: Date | string | number): string {
   return asDate(value).toLocaleString(pinned);
 }
-
-/** A number with grouping ("12,345"). */
-export function formatNumber(value: number): string {
-  return value.toLocaleString(pinned);
-}
