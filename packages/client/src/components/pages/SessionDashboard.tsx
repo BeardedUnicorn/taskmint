@@ -259,8 +259,6 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
             <SessionTimerDisplay
               session={activeSession}
               nowMs={nowMs}
-              showControls
-              showNotes
               onAddTimer={() => setIsAddingTimer(true)}
               onStartTimer={startTimerInstance}
               onStopTimer={stopTimerInstance}

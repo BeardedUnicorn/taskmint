@@ -8,7 +8,6 @@
  */
 
 import { Box, Typography, Chip, Stack, Paper, IconButton, Button } from '@mui/material';
-import type { SxProps, Theme } from '@mui/material/styles';
 import {
   PlayArrow as PlayIcon,
   FolderOpen as SessionIcon,
@@ -26,17 +25,14 @@ interface SessionTimerDisplayProps {
   session: TaskSession;
   /** Shared page clock — the total and running rows tick off this value. */
   nowMs: number;
-  showControls?: boolean;
-  showNotes?: boolean;
-  onStartTimer?: (instanceId: string) => void;
-  onStopTimer?: (instanceId: string) => void;
-  onPauseTimer?: (instanceId: string) => void;
-  onResumeTimer?: (instanceId: string) => void;
-  onDeleteTimer?: (instanceId: string) => void;
-  onEditTimer?: (instance: TimerInstance, session: TaskSession) => void;
-  onOpenNotes?: (sessionId: string, instanceId?: string) => void;
-  onAddTimer?: () => void;
-  sx?: SxProps<Theme>;
+  onStartTimer: (instanceId: string) => void;
+  onStopTimer: (instanceId: string) => void;
+  onPauseTimer: (instanceId: string) => void;
+  onResumeTimer: (instanceId: string) => void;
+  onDeleteTimer: (instanceId: string) => void;
+  onEditTimer: (instance: TimerInstance, session: TaskSession) => void;
+  onOpenNotes: (sessionId: string, instanceId?: string) => void;
+  onAddTimer: () => void;
 }
 
 // Memoized so dashboard state changes (dialogs, selection) don't re-render
@@ -45,8 +41,6 @@ interface SessionTimerDisplayProps {
 export const SessionTimerDisplay = memo(function SessionTimerDisplay({
   session,
   nowMs,
-  showControls = false,
-  showNotes = false,
   onStartTimer,
   onStopTimer,
   onPauseTimer,
@@ -55,7 +49,6 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
   onEditTimer,
   onOpenNotes,
   onAddTimer,
-  sx,
 }: SessionTimerDisplayProps) {
   const runningInstance = session.timerInstances.find(i => i.state === TimerState.running);
   const timerCount = session.timerInstances.length;
@@ -73,7 +66,6 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
         borderColor: runningInstance ? 'success.main' : 'divider',
         borderLeft: '4px solid',
         borderLeftColor: runningInstance ? 'success.main' : session.isActive ? 'primary.main' : 'divider',
-        ...sx,
       }}
     >
       {/* Session Header */}
@@ -105,11 +97,9 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
           {formatTime(getSessionElapsedMs(session, nowMs))}
         </Typography>
 
-        {showNotes && (
-          <IconButton size="small" onClick={() => onOpenNotes?.(session.id)} aria-label="Session notes">
-            <NotesIcon />
-          </IconButton>
-        )}
+        <IconButton size="small" onClick={() => onOpenNotes(session.id)} aria-label="Session notes">
+          <NotesIcon />
+        </IconButton>
       </Box>
 
       {/* Timers */}
@@ -118,17 +108,9 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
           <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
             Timers
           </Typography>
-          {onAddTimer && (
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={onAddTimer}
-              disabled={atTimerLimit}
-            >
-              Add Timer
-            </Button>
-          )}
+          <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={onAddTimer} disabled={atTimerLimit}>
+            Add Timer
+          </Button>
         </Box>
 
         {timerCount === 0 ? (
@@ -154,15 +136,13 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
                 taskName={instanceTaskName(instance, session)}
                 index={index + 1}
                 nowMs={nowMs}
-                showControls={showControls}
-                showNotes={showNotes}
-                onStart={() => onStartTimer?.(instance.id)}
-                onStop={() => onStopTimer?.(instance.id)}
-                onPause={() => onPauseTimer?.(instance.id)}
-                onResume={() => onResumeTimer?.(instance.id)}
-                onDelete={() => onDeleteTimer?.(instance.id)}
-                onEdit={() => onEditTimer?.(instance, session)}
-                onOpenNotes={() => onOpenNotes?.(session.id, instance.id)}
+                onStart={() => onStartTimer(instance.id)}
+                onStop={() => onStopTimer(instance.id)}
+                onPause={() => onPauseTimer(instance.id)}
+                onResume={() => onResumeTimer(instance.id)}
+                onDelete={() => onDeleteTimer(instance.id)}
+                onEdit={() => onEditTimer(instance, session)}
+                onOpenNotes={() => onOpenNotes(session.id, instance.id)}
               />
             ))}
           </Stack>
