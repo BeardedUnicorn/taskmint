@@ -11,6 +11,8 @@
 !coverage-policy.json
 # Settings → About shows it (packages/client/src/utils/changelog.ts)
 !CHANGELOG.md
+# The root package's prepare runs it on install; without .git it does nothing
+!scripts/install-hooks.mjs
 !apps/web/
 !packages/client/
 !packages/contracts/
