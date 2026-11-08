@@ -9,7 +9,6 @@ export type { ApplyWorkLogImportArgs } from "./ApplyWorkLogImportArgs";
 export type { BackupResult } from "./BackupResult";
 export type { CaptureServerStatus } from "./CaptureServerStatus";
 export type { CaptureSource } from "./CaptureSource";
-export type { ClearSessionNotesArgs } from "./ClearSessionNotesArgs";
 export type { CreateTimerInstanceArgs } from "./CreateTimerInstanceArgs";
 export type { IdlePausePayload } from "./IdlePausePayload";
 export type { IdleSettings } from "./IdleSettings";

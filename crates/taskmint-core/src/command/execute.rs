@@ -22,7 +22,7 @@ use crate::restore::{
     restore_sessions, restore_work_log_entries, RestoreSummary,
 };
 use crate::sessions::instances;
-use crate::sessions::lifecycle::{clear_notes, move_instance_to_task, set_active_session};
+use crate::sessions::lifecycle::{move_instance_to_task, set_active_session};
 use crate::sessions::manual::{build_manual_session, ManualEntry};
 use crate::sessions::start::{
     pause_live_timer, start_task_with_handoff, stop_live_timer, StartTaskResult, TrayStart,
@@ -270,10 +270,6 @@ pub fn execute(
         Command::SetActiveSession(args) => {
             let stopped = set_active_session(sessions, args.session_id.as_deref(), now)?;
             sessions_if(&*sessions, true).stopped(&stopped, now)
-        }
-        Command::ClearSessionNotes(args) => {
-            let cleared = clear_notes(sessions, &args.session_ids);
-            sessions_if(cleared, cleared > 0)
         }
         Command::DeleteSession(args) => {
             let (removed, stopped) = remove_session(sessions, &args.session_id, now)?;

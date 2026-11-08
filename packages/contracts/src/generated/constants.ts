@@ -54,7 +54,6 @@ export const COMMAND_NAMES = [
   "start_task",
   "add_manual_time",
   "set_active_session",
-  "clear_session_notes",
   "delete_session",
   "restore_session",
   "restore_timer_instance",

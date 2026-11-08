@@ -61,7 +61,6 @@ fn export_types(cfg: &Config) {
         StartTaskArgs,
         AddManualTimeArgs,
         SetActiveSessionArgs,
-        ClearSessionNotesArgs,
         SessionArgs,
         CreateTimerInstanceArgs,
         RestoreSessionArgs,
