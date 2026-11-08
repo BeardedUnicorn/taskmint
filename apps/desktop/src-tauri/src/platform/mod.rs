@@ -5,6 +5,7 @@
 //! `fake::FakePlatform` and `fake::MemorySecrets`.
 
 use crate::tray::model::{TrayMenu, TrayStatus};
+use serde::Serialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -21,6 +22,28 @@ pub struct SaveDialog {
     pub filter_name: &'static str,
     pub extension: &'static str,
     pub file_name: String,
+}
+
+/// A newer release the update feed announced (GitHub's latest release).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvailableUpdate {
+    pub version: String,
+    /// The version running now.
+    pub current_version: String,
+    /// The release's notes: its CHANGELOG section, as Markdown.
+    pub notes: Option<String>,
+    /// When it was published (RFC 3339).
+    pub date: Option<String>,
+}
+
+/// How an update's download is going (Platform::install_update).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DownloadEvent {
+    /// `bytes` more arrived, of `total` (when the server says).
+    Chunk { bytes: u64, total: Option<u64> },
+    /// The download is complete and verified; installing comes next.
+    Downloaded,
 }
 
 pub trait Platform: Send + Sync {
@@ -53,6 +76,17 @@ pub trait Platform: Send + Sync {
     /// Starts the app again: switching between local data and a server
     /// takes effect at launch, since the webview starts with one backend.
     fn restart(&self);
+    /// Asks the update feed whether there's a newer version, and keeps what
+    /// it found for install_update. None: this is the newest.
+    fn check_update(&self) -> Result<Option<AvailableUpdate>, String>;
+    /// Downloads the update check_update found, verifies its signature and
+    /// installs it, telling `progress` how the download goes. The new version
+    /// runs once the app restarts; on Windows the installer quits the app
+    /// and starts it again itself, so this doesn't return.
+    fn install_update(
+        &self,
+        progress: &mut (dyn FnMut(DownloadEvent) + Send),
+    ) -> Result<(), String>;
 }
 
 /// Secrets kept out of the data folder and the webview (the server token),

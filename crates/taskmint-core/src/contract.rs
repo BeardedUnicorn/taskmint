@@ -159,6 +159,9 @@ pub mod events {
     /// The desktop app's link to its TaskMint server came up, dropped, or
     /// was signed out (server mode only): `{ status, detail }`.
     pub const SERVER_CONNECTION_CHANGED: &str = "server-connection-changed";
+    /// The desktop app's update download moved on, or finished and is being
+    /// installed: `{ downloaded, total, installing }`.
+    pub const UPDATE_PROGRESS: &str = "update-progress";
 }
 
 #[cfg(test)]

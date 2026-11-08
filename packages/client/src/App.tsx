@@ -27,6 +27,7 @@ import { WorkLogProvider } from './contexts/WorkLogContext';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
 import { PAGES } from './app/routes';
+import { useAppExtensions } from './app/extensions';
 
 /**
  * Work that runs whatever page is open: the tray's "Choose Task…", moving
@@ -51,7 +52,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
   return null;
 }
 
-/** The dialogs any page (or the tray) can open. */
+/** The dialogs any page (or the tray) can open, and the shell's own background work. */
 function GlobalDialogs({
   startOpen,
   onCloseStart,
@@ -66,6 +67,7 @@ function GlobalDialogs({
   const { navigate } = useNavigation();
   const { sessions, startTask, addManualTime } = useSessionManagementContext();
   const { tasks } = useTaskManagementContext();
+  const { Background } = useAppExtensions();
   // Idle detection runs in the backend; this sends it the saved settings and
   // holds its "you were away" question.
   const idleReturn = useIdleReturn();
@@ -90,6 +92,7 @@ function GlobalDialogs({
       {addTimeOpen && (
         <AddTimeDialog onClose={onCloseAddTime} tasks={tasks} sessions={sessions} onAdd={addManualTime} />
       )}
+      {Background && <Background />}
     </>
   );
 }

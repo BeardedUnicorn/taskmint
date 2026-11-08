@@ -1,7 +1,7 @@
 //! The webview's one IPC command. `dispatch(command, args)` runs the shell's
 //! own commands here (dialogs, files, OS notifications, idle detection,
-//! backups, the server connection) and passes every other one to the data
-//! backend by name.
+//! backups, the server connection, updates) and passes every other one to
+//! the data backend by name.
 //!
 //! It's async because Tauri runs synchronous commands on the main thread,
 //! where a blocking dialog or a slow save would freeze the window.
@@ -10,6 +10,7 @@ use crate::files;
 use crate::notifications::{self, Origin};
 use crate::server;
 use crate::state::AppState;
+use crate::updates;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use taskmint_core::idle::IdleSettings;
@@ -88,9 +89,15 @@ enum Shell {
     /// Adds the data on this computer to the server's (server mode).
     UploadLocalData {},
     RestartApp {},
+    /// Asks GitHub's latest release whether there's a newer version: what
+    /// it is, or null.
+    CheckForUpdate {},
+    /// Installs what the last check found and restarts into it, sending
+    /// update-progress events as it downloads.
+    InstallUpdate {},
 }
 
-const SHELL_COMMANDS: [&str; 21] = [
+const SHELL_COMMANDS: [&str; 23] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -112,6 +119,8 @@ const SHELL_COMMANDS: [&str; 21] = [
     "disconnect_server",
     "upload_local_data",
     "restart_app",
+    "check_for_update",
+    "install_update",
 ];
 
 /// The shell command `name` with `args`; None when it's a data command.
@@ -195,6 +204,11 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         Shell::UploadLocalData {} => reply(server::upload_local_data(state)?),
         Shell::RestartApp {} => {
             state.platform.restart();
+            Value::Null
+        }
+        Shell::CheckForUpdate {} => reply(state.platform.check_update()?),
+        Shell::InstallUpdate {} => {
+            updates::install(state)?;
             Value::Null
         }
     })
@@ -489,6 +503,35 @@ mod tests {
             run(&f, "upload_local_data", json!({})).unwrap()["records"],
             0
         );
+    }
+
+    #[test]
+    fn updates_are_checked_for_and_installed_through_the_shell() {
+        let f = fixture();
+        assert_eq!(run(&f, "check_for_update", json!({})), Ok(Value::Null));
+        f.platform.announce(Some(crate::platform::AvailableUpdate {
+            version: "1.3.0".to_string(),
+            current_version: "1.2.3".to_string(),
+            notes: Some("### Added\n\n- Updates".to_string()),
+            date: None,
+        }));
+        assert_eq!(
+            run(&f, "check_for_update", json!({})),
+            Ok(json!({
+                "version": "1.3.0",
+                "currentVersion": "1.2.3",
+                "notes": "### Added\n\n- Updates",
+                "date": null
+            }))
+        );
+        assert_eq!(run(&f, "install_update", json!({})), Ok(Value::Null));
+        assert_eq!(f.platform.recorded().restarts, 1);
+
+        f.platform.fail("check_update");
+        f.platform.fail("install_update");
+        assert!(run(&f, "check_for_update", json!({})).is_err());
+        assert!(run(&f, "install_update", json!({})).is_err());
+        assert_eq!(f.platform.recorded().restarts, 1);
     }
 
     /// The webview's view: an app on the mock runtime, managing `state`.

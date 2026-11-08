@@ -1,55 +1,10 @@
-import { Fragment } from 'react';
 import { Accordion, AccordionDetails, AccordionSummary, Box, Typography } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon, Info as InfoIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { APP_VERSION, compareVersions } from '../../../utils/appVersion';
-import { RELEASES, ReleaseNotes as Release } from '../../../utils/changelog';
+import { RELEASES, type ReleaseNotes as Release } from '../../../utils/changelog';
+import { ReleaseNotes } from '../../ui/display/ReleaseNotes';
 import { formatLocalDate } from '../../../utils/dateHelpers';
-
-/** A bullet's text, with `code` spans set in monospace. */
-function NoteText({ text }: { text: string }) {
-  return (
-    <>
-      {text.split('`').map((part, index) =>
-        index % 2 === 1 ? (
-          <Box key={index} component="code" sx={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
-            {part}
-          </Box>
-        ) : (
-          <Fragment key={index}>{part}</Fragment>
-        )
-      )}
-    </>
-  );
-}
-
-function ReleaseNotes({ release }: { release: Release }) {
-  return (
-    <Box>
-      {release.intro.map(paragraph => (
-        <Typography key={paragraph} variant="body2" sx={{ mb: 1 }}>
-          <NoteText text={paragraph} />
-        </Typography>
-      ))}
-      {release.groups.map(({ type, items }, index) => (
-        <Box key={`${type}-${index}`} sx={{ mb: 1.5 }}>
-          {type && (
-            <Typography variant="subtitle2" component="h4" sx={{ fontWeight: 600 }}>
-              {type}
-            </Typography>
-          )}
-          <Box component="ul" sx={{ m: 0, pl: 3 }}>
-            {items.map(item => (
-              <Typography key={item} component="li" variant="body2" sx={{ mb: 0.5 }}>
-                <NoteText text={item} />
-              </Typography>
-            ))}
-          </Box>
-        </Box>
-      ))}
-    </Box>
-  );
-}
 
 const releasedOn = (release: Release) => (release.date ? `Released ${formatLocalDate(release.date)}` : null);
 

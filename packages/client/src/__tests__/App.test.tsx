@@ -7,6 +7,8 @@
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import App from '../App';
+import { AppExtensionsProvider } from '../app/extensions';
+import { useNotification } from '../contexts/NotificationContext';
 import { announceAppRecordsChange, fakeBackend, seedAppRecords } from '../testing';
 import { VIEW_LABELS, VIEWS } from '../navigation/views';
 import { createMockTask, createMockTaskSession, createMockTimerInstance } from './setup/session-test-utils';
@@ -44,6 +46,24 @@ const heading = (view: (typeof VIEWS)[number]) => screen.findByRole('heading', {
 const nav = (view: (typeof VIEWS)[number]) => fireEvent.click(screen.getByRole('button', { name: VIEW_LABELS[view] }));
 
 describe('App', () => {
+  it("runs the shell's background work inside the app's providers", async () => {
+    function Background() {
+      const { showInfo } = useNotification();
+      return (
+        <button type="button" onClick={() => showInfo('From the shell')}>
+          Shell work
+        </button>
+      );
+    }
+    render(
+      <AppExtensionsProvider value={{ Background }}>
+        <App />
+      </AppExtensionsProvider>
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Shell work' }));
+    expect(await screen.findByText('From the shell')).toBeInTheDocument();
+  });
+
   it('opens every page from the sidebar', async () => {
     render(<App />);
     for (const view of VIEWS) {

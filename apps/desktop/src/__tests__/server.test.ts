@@ -4,6 +4,8 @@ import { sentence, serverMode } from '../server';
 import { desktopExtensions } from '../extensions';
 import { UseLocalData } from '../settings/UseLocalData';
 import { ServerSection } from '../settings/ServerSection';
+import { UpdatesSection } from '../settings/UpdatesSection';
+import { UpdatePrompt } from '../UpdatePrompt';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
@@ -43,11 +45,16 @@ describe("server mode's shell commands", () => {
 });
 
 describe("the desktop's extensions", () => {
-  it('add the Server section, and in server mode a way back to local data', () => {
+  it('add the Server and Updates sections and the update check, and in server mode a way back to local data', () => {
     const local = desktopExtensions({ runtime: 'desktop', dataLocation: 'local' });
-    expect(local.settingsSections).toEqual([{ id: 'server', label: 'Server', Section: ServerSection }]);
+    expect(local.settingsSections).toEqual([
+      { id: 'server', label: 'Server', Section: ServerSection },
+      { id: 'updates', label: 'Updates', Section: UpdatesSection },
+    ]);
+    expect(local.Background).toBe(UpdatePrompt);
     expect(local.StartupErrorActions).toBeUndefined();
     const server = desktopExtensions({ runtime: 'desktop', dataLocation: 'server' });
+    expect(server.Background).toBe(UpdatePrompt);
     expect(server.StartupErrorActions).toBe(UseLocalData);
   });
 });

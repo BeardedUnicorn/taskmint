@@ -252,6 +252,10 @@ CHANGELOG section (`gh run list --workflow release.yml` follows it):
 | `TaskMint-X.Y.Z-windows-x64-setup.exe` | Windows |
 | `TaskMint-X.Y.Z-chrome-extension.zip` | Linux ([apps/extension/README.md](apps/extension/README.md) says how to install it) |
 
+Next to them are the desktop updates (see [Desktop updates](#desktop-updates)):
+`TaskMint-X.Y.Z-macos-{arm64,x64}.app.tar.gz` and their `.sig` files,
+`TaskMint-X.Y.Z-windows-x64-setup.exe.sig`, and `latest.json`.
+
 The release is created only once all four are built, and a re-run replaces
 the files of a release that already exists. The repository is public, so a
 published release's files are public too. Running the workflow by hand
@@ -269,6 +273,57 @@ anyway**.
 
 A plain `pnpm tauri build` still works for a build that isn't a release; its
 installer stays in `target/release/bundle/`.
+
+#### Desktop updates
+
+The installed app updates itself from the latest GitHub release. A few
+seconds after launch, and then once a day, it reads
+`https://github.com/BeardedUnicorn/taskmint/releases/latest/download/latest.json`
+(Settings → Updates checks now, or turns the automatic check off). When that
+names a newer version, the app asks. On yes it downloads the update, checks
+its signature, installs it and restarts. On macOS the update replaces the app
+where it is. On Windows the installer runs in passive mode (a progress window
+and no questions), then starts TaskMint again. The Rust side does all this
+with `tauri-plugin-updater` (`src/platform/os.rs`, `src/updates.rs`), so the
+webview needs no extra permission. A development build checks but won't
+install.
+
+Updates are signed with a minisign key:
+
+- The public key is `plugins.updater.pubkey` in
+  `apps/desktop/src-tauri/tauri.conf.json`. The private key and its password
+  are the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Only the Release workflow's build
+  step sees them, and a tag's build stops at once if the key isn't set.
+- With the key in the environment, a build also makes the updates
+  (`src-tauri/tauri.updater.conf.json` turns on `createUpdaterArtifacts`).
+  The macOS update is made from the `app` bundle target, so `bundle.targets`
+  must keep `app` next to `dmg`. The Tauri CLI refuses to sign with a public
+  key it can't read, such as a placeholder.
+  `pnpm release` checks each signature against the public key before the
+  update goes into `releases/`, so a mismatched key can't ship.
+  Without the key, as in a local `pnpm release`, it builds the installer
+  only.
+- The workflow's last step writes `latest.json` from the signatures and the
+  CHANGELOG section.
+- `requireSignedVersion` is on. The bundler records the version in each
+  signature, and the app installs an update only when that matches the
+  version `latest.json` announces. So an older signed build can't be passed
+  off as a newer one.
+- **Keep a copy of the private key and its password** away from this
+  computer (in a password manager, say). Without them, no later release can
+  update the installed apps.
+- **A new key** (lost or leaked): run
+  `pnpm --filter @taskmint/desktop tauri signer generate -w ~/.tauri/taskmint-updater.key`,
+  replace both secrets and `plugins.updater.pubkey`, and release. Installed
+  apps can't verify an update signed with the new key, so that one release
+  has to be downloaded and installed by hand. Updates work again after that.
+- Releases before 2.3.0 have no updater, so 2.3.0 is installed by hand once.
+
+Settings → Updates and its dialog come from `apps/desktop/src/updates.ts`,
+`UpdatePrompt.tsx` and `settings/UpdatesSection.tsx`.
+[docs/qa/excluded-code-checklist.md](docs/qa/excluded-code-checklist.md#updates-platformosrs)
+says how to try an update against a local feed.
 
 ### Logs
 

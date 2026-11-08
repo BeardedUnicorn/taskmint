@@ -1,6 +1,7 @@
 /**
  * CHANGELOG.md (at the repository root, bundled as text) as release notes
- * for Settings → About. `pnpm release` writes it: a `## X.Y.Z – date`
+ * for Settings → About, and one release's section (a desktop update's
+ * notes) the same way. `pnpm release` writes it: a `## X.Y.Z – date`
  * section per release, newest first, with `### Added`-style headings over
  * `- ` bullets. A paragraph before the first heading is the release's intro.
  */
@@ -64,6 +65,13 @@ export function parseChangelog(text: string): ReleaseNotes[] {
     }
   }
   return releases;
+}
+
+/** One release's notes from its section's text (without the `## X.Y.Z` heading). */
+export function parseReleaseSection(version: string, text: string): ReleaseNotes {
+  // (A placeholder heading: the version need not look like X.Y.Z)
+  const [release] = parseChangelog(`## 0.0.0\n${text}`);
+  return { ...release, version };
 }
 
 /** The app's release notes, newest first. */

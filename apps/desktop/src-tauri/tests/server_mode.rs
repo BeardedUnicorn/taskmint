@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use taskmint_lib::backend::remote::Link;
 use taskmint_lib::backend::server_api::{ApiError, EventStream, ServerApi, Timeouts};
-use taskmint_lib::platform::{Platform, SaveDialog, SecretStore};
+use taskmint_lib::platform::{AvailableUpdate, DownloadEvent, Platform, SaveDialog, SecretStore};
 use taskmint_lib::server::{self, TOKEN_SECRET};
 use taskmint_lib::store::JsonFileStore;
 use taskmint_lib::tray::model::{TrayMenu, TrayStatus};
@@ -70,6 +70,12 @@ impl Platform for Webview {
         env!("CARGO_PKG_VERSION").to_string()
     }
     fn restart(&self) {}
+    fn check_update(&self) -> Result<Option<AvailableUpdate>, String> {
+        Ok(None)
+    }
+    fn install_update(&self, _: &mut (dyn FnMut(DownloadEvent) + Send)) -> Result<(), String> {
+        Err("no updates here".to_string())
+    }
 }
 
 #[derive(Default)]

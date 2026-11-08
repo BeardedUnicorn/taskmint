@@ -1,9 +1,12 @@
 /**
  * The release's pure parts (scripts/release.mjs does the files, git and
  * builds): reading change notes, the next version, the CHANGELOG section,
- * the version in each manifest, and what a release ships and how each host
- * builds it. Tested by lib.test.mjs (`node --test`).
+ * the version in each manifest, what a release ships and how each host
+ * builds it, and the desktop app's updates (their files, their signatures
+ * and latest.json). Tested by lib.test.mjs (`node --test`).
  */
+
+import { createHash, createPublicKey, verify } from 'node:crypto';
 
 /** Bump levels, lowest first. */
 export const BUMPS = ['patch', 'minor', 'major'];
@@ -234,9 +237,19 @@ export function assetName(product, version, target) {
   return `${product}-${version}-${SUFFIXES[target]}`;
 }
 
+/** Every file a release ships: each target's, then the desktop updates' (latest.json aside, which is made from them). */
+export function releaseAssets(product, version) {
+  const updates = DESKTOP_TARGETS.flatMap(target => {
+    const { file, signature } = updateAssetNames(product, version, target);
+    // (Windows' update is its installer)
+    return file === assetName(product, version, target) ? [signature] : [file, signature];
+  });
+  return [...TARGETS.map(target => assetName(product, version, target)), ...updates];
+}
+
 /** Every file a release ships for the version that isn't among `files` (file names). */
 export function missingAssets(product, version, files) {
-  return TARGETS.map(target => assetName(product, version, target)).filter(name => !files.includes(name));
+  return releaseAssets(product, version).filter(name => !files.includes(name));
 }
 
 /**
@@ -283,4 +296,112 @@ export function buildTargets({ targets = [], windows = false, platform, arch }) 
   }
   if (windows && !chosen.includes('windows-x64')) chosen.push('windows-x64');
   return chosen;
+}
+
+// The desktop app's updates. With the signing key in TAURI_SIGNING_PRIVATE_KEY,
+// a build also makes each desktop target's update (createUpdaterArtifacts):
+// on macOS the app as a .app.tar.gz, on Windows the installer itself, each
+// with a .sig. The release adds latest.json, which the app reads from the
+// latest release (plugins.updater in tauri.conf.json).
+
+/** The file the app's updater reads, in the latest GitHub release. */
+export const UPDATE_MANIFEST = 'latest.json';
+
+/** The desktop targets, in the order the release lists them. */
+export const DESKTOP_TARGETS = TARGETS.filter(target => target in DESKTOP);
+
+/** Each desktop target's name in latest.json, and its update's file suffix (null: the installer). */
+const UPDATES = {
+  'macos-arm64': { platform: 'darwin-aarch64', suffix: 'macos-arm64.app.tar.gz' },
+  'macos-x64': { platform: 'darwin-x86_64', suffix: 'macos-x64.app.tar.gz' },
+  'windows-x64': { platform: 'windows-x86_64', suffix: null },
+};
+
+function requireDesktop(target) {
+  requireTarget(target);
+  if (!DESKTOP[target]) throw new Error(`${target} has no updates`);
+}
+
+/** The files a desktop target's update ships as: `{ file, signature }`. */
+export function updateAssetNames(product, version, target) {
+  requireDesktop(target);
+  const { suffix } = UPDATES[target];
+  const file = suffix ? `${product}-${version}-${suffix}` : assetName(product, version, target);
+  return { file, signature: `${file}.sig` };
+}
+
+/** Where Tauri leaves a desktop target's update and its signature, relative to the repository root. */
+export function updateBundlePaths(product, version, target, plan) {
+  requireDesktop(target);
+  const installer = bundlePath(product, version, target, plan);
+  if (!UPDATES[target].suffix) return { file: installer, signature: `${installer}.sig` };
+  const file = installer.replace(/\/bundle\/[^/]+\/[^/]+$/, `/bundle/macos/${product}.app.tar.gz`);
+  return { file, signature: `${file}.sig` };
+}
+
+/** Where a release's files download from. */
+export function releaseDownloadUrl(repository, version) {
+  return `https://github.com/${repository}/releases/download/v${version}`;
+}
+
+/**
+ * latest.json: the version, its notes and date, and for each desktop target
+ * its update's address and signature (`signatures`: the .sig files' text,
+ * by target).
+ */
+export function updateManifest({ product, version, notes, pubDate, downloadUrl, signatures }) {
+  const platforms = {};
+  for (const target of DESKTOP_TARGETS) {
+    const signature = signatures[target]?.trim();
+    if (!signature) throw new Error(`There's no update signature for ${target}`);
+    const { file } = updateAssetNames(product, version, target);
+    platforms[UPDATES[target].platform] = { signature, url: `${downloadUrl}/${file}` };
+  }
+  return { version, notes, pub_date: pubDate, platforms };
+}
+
+// Minisign, as the updater checks it: a public key is "Ed", its 8-byte key
+// id and the Ed25519 key; a signature is its algorithm ("ED": of the file's
+// BLAKE2b-512, "Ed": of the file), the key id and the signature, then a
+// trusted comment and a signature over both. Tauri base64-encodes each file.
+
+/** A base64-encoded minisign file's lines. */
+const minisignLines = text => Buffer.from(text.trim(), 'base64').toString('utf8').trimEnd().split('\n');
+
+/** How minisign shows a key id. */
+const keyId = bytes => Buffer.from(bytes).reverse().toString('hex').toUpperCase();
+
+/**
+ * Checks that `signature` (a .sig file's text) signs `data` with
+ * `publicKey` (plugins.updater.pubkey), as the app does before it installs
+ * an update. Throws saying what's wrong.
+ */
+export function verifyUpdateSignature({ publicKey, signature, data }) {
+  const key = Buffer.from(minisignLines(publicKey)[1] ?? '', 'base64');
+  if (key.length !== 42 || key.toString('latin1', 0, 2) !== 'Ed') {
+    throw new Error("The app's updater public key (plugins.updater.pubkey) isn't a minisign public key");
+  }
+  const [, signed = '', trusted = '', global = ''] = minisignLines(signature);
+  const signatureBytes = Buffer.from(signed, 'base64');
+  const algorithm = signatureBytes.toString('latin1', 0, 2);
+  if (signatureBytes.length !== 74 || (algorithm !== 'ED' && algorithm !== 'Ed')) {
+    throw new Error("The update's signature isn't a minisign signature");
+  }
+  const signedBy = keyId(signatureBytes.subarray(2, 10));
+  const trustedKey = keyId(key.subarray(2, 10));
+  if (signedBy !== trustedKey) {
+    throw new Error(`The update is signed with key ${signedBy}, but the app trusts key ${trustedKey}`);
+  }
+  const ed25519 = createPublicKey({
+    key: { kty: 'OKP', crv: 'Ed25519', x: key.subarray(10).toString('base64url') },
+    format: 'jwk',
+  });
+  const message = algorithm === 'ED' ? createHash('blake2b512').update(data).digest() : data;
+  if (!verify(null, message, ed25519, signatureBytes.subarray(10))) {
+    throw new Error("The update's signature doesn't match the file");
+  }
+  const comment = Buffer.from(trusted.replace(/^trusted comment: /, ''));
+  if (!verify(null, Buffer.concat([signatureBytes.subarray(10), comment]), ed25519, Buffer.from(global, 'base64'))) {
+    throw new Error("The update signature's trusted comment doesn't match it");
+  }
 }
