@@ -105,7 +105,6 @@ describe('TaskFormDialog', () => {
       name: 'Existing Task',
       hourlyRate: 10,
       defaultNoteTemplateId: null,
-      parentId: null,
       createdAt: '',
       updatedAt: '',
     };

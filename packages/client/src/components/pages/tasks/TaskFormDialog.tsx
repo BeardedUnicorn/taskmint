@@ -23,8 +23,6 @@ interface TaskFormDialogProps {
   onClose: () => void;
   initialTask?: Task | null;
   mode: 'add' | 'edit';
-  // No parent-task field: the task list is flat and nothing rolls up, so a
-  // parent had no visible effect. Existing parentId values are left as-is.
   onSubmit: (data: {
     name: string;
     hourlyRate?: number;

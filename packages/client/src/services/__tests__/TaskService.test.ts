@@ -120,13 +120,13 @@ describe('TaskService', () => {
       });
     });
 
-    it('deletes just that task, keeping the others (and any parentId they carry)', async () => {
-      const child: Task = { ...baseTask, id: 'task2', name: 'Child', parentId: 'task1' };
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask, child]);
+    it('deletes just that task, keeping the others', async () => {
+      const other: Task = { ...baseTask, id: 'task2', name: 'Other' };
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask, other]);
 
       await service.deleteTask('task1');
 
-      expect(mockStorageService.setTasks).toHaveBeenCalledWith([child]);
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([other]);
     });
 
     it('should reject deleting a task that does not exist', async () => {
