@@ -13,7 +13,7 @@ async function loadWith(records: Record<string, unknown>) {
   mockInvoke.mockImplementation(async (command: string) =>
     command === 'get_app_records' ? { records, revisions: {} } : null
   );
-  await loadAppRecords({ importLegacy: false });
+  await loadAppRecords();
 }
 
 describe('useAppRecord', () => {

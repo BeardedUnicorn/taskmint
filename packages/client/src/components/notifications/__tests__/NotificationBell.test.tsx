@@ -70,19 +70,22 @@ describe('NotificationBell', () => {
     const entry = { at, category: 'general', origin: 'app', read: true, count: 1, delivery: 'toast' };
     localStorage.setItem(
       NOTIFICATION_HISTORY_KEY,
-      JSON.stringify([
-        {
-          ...entry,
-          id: 'a',
-          severity: 'warning',
-          title: 'Backup',
-          message: 'Backup failed',
-          count: 3,
-          delivery: 'desktop',
-          read: false,
-        },
-        { ...entry, id: 'b', severity: 'success', message: 'Saved' },
-      ])
+      JSON.stringify({
+        version: 1,
+        data: [
+          {
+            ...entry,
+            id: 'a',
+            severity: 'warning',
+            title: 'Backup',
+            message: 'Backup failed',
+            count: 3,
+            delivery: 'desktop',
+            read: false,
+          },
+          { ...entry, id: 'b', severity: 'success', message: 'Saved' },
+        ],
+      })
     );
     render(
       <NavigationProvider>

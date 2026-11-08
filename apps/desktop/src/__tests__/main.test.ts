@@ -32,7 +32,6 @@ describe('the desktop entry', () => {
 
   afterEach(() => {
     root.remove();
-    vi.unstubAllEnvs();
   });
 
   it('starts the client in #root on what the Rust side reports', async () => {
@@ -43,18 +42,6 @@ describe('the desktop entry', () => {
     expect(startClient).toHaveBeenCalledWith(root, {
       backend: { name: 'tauri' },
       extensions: { name: 'desktop' },
-      // Tests run as a development build
-      importLegacyRecords: false,
     });
-  });
-
-  it("moves in an older version's records only in the installed app, on its own files", async () => {
-    vi.stubEnv('DEV', false);
-    await launch({ runtime: 'desktop', dataLocation: 'local' });
-    expect(vi.mocked(startClient).mock.calls[0][1].importLegacyRecords).toBe(true);
-
-    vi.clearAllMocks();
-    await launch({ runtime: 'desktop', dataLocation: 'server' });
-    expect(vi.mocked(startClient).mock.calls[0][1].importLegacyRecords).toBe(false);
   });
 });

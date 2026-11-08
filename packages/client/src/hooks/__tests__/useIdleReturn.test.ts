@@ -18,7 +18,6 @@ const away: IdlePause = {
 describe('useIdleReturn', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_DEFAULT_OFF_APPLIED, 'true');
     vi.clearAllMocks();
     idle().getPending.mockResolvedValue(null);
     idle().resolve.mockResolvedValue(undefined);

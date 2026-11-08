@@ -2,14 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { readLocal, subscribeLocal, writeLocal } from '../localStore';
 
 describe('localStore', () => {
-  it('reads a stored null as null, and wraps a value saved before versioning', () => {
+  it('reads a stored null as null, and anything not in the envelope as missing', () => {
     localStorage.setItem('goal', 'null');
     expect(readLocal('goal', 5)).toBeNull();
 
-    localStorage.setItem('filters', JSON.stringify({ show: 'all' }));
+    localStorage.setItem('filters', JSON.stringify({ version: 1, data: { show: 'all' } }));
     expect(readLocal('filters', {})).toEqual({ show: 'all' });
-    expect(JSON.parse(localStorage.getItem('filters')!)).toMatchObject({ version: 1, data: { show: 'all' } });
     expect(readLocal('filters', {})).toEqual({ show: 'all' });
+
+    for (const raw of [JSON.stringify({ show: 'all' }), JSON.stringify('all'), JSON.stringify({ version: 1 })]) {
+      localStorage.setItem('filters', raw);
+      expect(readLocal('filters', { show: 'none' })).toEqual({ show: 'none' });
+    }
   });
 
   it("tells a key's listeners about other windows' writes, and everyone about a clear", () => {

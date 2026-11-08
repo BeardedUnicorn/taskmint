@@ -53,7 +53,6 @@ describe('the web app', () => {
     expect(fetch).toHaveBeenCalledWith('/api/v1/auth/me', expect.objectContaining({ method: 'GET' }));
     const [, options] = vi.mocked(startClient).mock.calls[0];
     expect(options.backend.capabilities).toEqual({ runtime: 'web', dataLocation: 'server' });
-    expect(options.importLegacyRecords).toBe(false);
     expect(options.extensions.settingsSections!.map(section => section.id)).toEqual(['account', 'tokens']);
 
     // The session's requests carry its CSRF token, and one refused sends the page to sign in

@@ -48,12 +48,15 @@ describe('useTaskNotes', () => {
     expect(result.current.notes.map(n => n.id)).toEqual(['1', '2']);
   });
 
-  it('keeps the load error as a message', async () => {
+  it('logs a failed load and stops loading, with no notes', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockNotesService.getAllNotes.mockRejectedValue('disk unreadable');
     const { result } = renderHook(() => useTaskNotes());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.error).toBe('disk unreadable');
+    expect(result.current.notes).toEqual([]);
+    expect(error).toHaveBeenCalledWith('Failed to load notes:', 'disk unreadable');
+    error.mockRestore();
   });
 
   it('searches the template name and text or number fields', async () => {

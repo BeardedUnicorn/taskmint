@@ -151,8 +151,6 @@ export interface UseSessionManagementReturn {
   startTask: (taskId: string, taskName: string) => Promise<StartTaskResult | null>;
   /** Log a finished timer after the fact ("Add time"). Rejects with the reason. */
   addManualTime: (input: AddManualTimeInput) => Promise<TaskSession>;
-  /** Clears sessions' old plain-text notes once they've moved to the notes store; returns how many had text. */
-  clearSessionNotes: (sessionIds: string[]) => Promise<number>;
   /** Resolves to whether it was deleted (an Undo toast follows). */
   deleteSession: (sessionId: string) => Promise<boolean>;
   setActiveSession: (session: TaskSession | null) => Promise<boolean>;

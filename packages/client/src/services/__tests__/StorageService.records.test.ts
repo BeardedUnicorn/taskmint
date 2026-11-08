@@ -40,7 +40,7 @@ describe('StorageService with app records', () => {
       }
       return null;
     });
-    await loadAppRecords({ importLegacy: false });
+    await loadAppRecords();
   });
 
   it('reads tasks and notes from the app records, with schema defaults applied', async () => {
@@ -63,20 +63,16 @@ describe('StorageService with app records', () => {
     expect(window.localStorage.getItem('predefinedTasks')).toBeNull();
   });
 
-  it('reads a record restored inside an old version wrapper, and nothing else as one', async () => {
+  it("refuses a stored record that doesn't fit its schema", async () => {
     resetAppRecordsForTests();
     mockInvoke.mockImplementation(async (command: string) =>
       command === 'get_app_records'
-        ? {
-            records: { predefinedTasks: { version: 1, data: [task] }, taskNotes: { version: 1, notes: [] } },
-            revisions: {},
-          }
+        ? { records: { predefinedTasks: { version: 1, data: [task] } }, revisions: {} }
         : null
     );
-    await loadAppRecords({ importLegacy: false });
-    expect(await storage.getTasks()).toEqual([expect.objectContaining({ id: 't1' })]);
+    await loadAppRecords();
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(storage.getTaskNotes()).rejects.toMatchObject({ code: 'STORAGE_VALIDATION_FAILED' });
+    await expect(storage.getTasks()).rejects.toMatchObject({ code: 'STORAGE_VALIDATION_FAILED' });
   });
 
   it('rejects invalid data without saving it', async () => {

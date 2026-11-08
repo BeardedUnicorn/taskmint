@@ -31,33 +31,18 @@ describe('startClient', () => {
   it("makes the shell's backend the page's, loads the records, then renders the app with its extensions", async () => {
     const backend = createFakeBackend();
     backend.call.mockResolvedValue({ records: { dailyGoal: { targetAmount: 50 } }, revisions: {} });
-    localStorage.setItem('userSubscription', 'pro');
 
     await act(() =>
       startClient(container(), {
         backend: asBackend(backend),
         extensions: { settingsSections: [{ id: 'account', label: 'Account', Section: Account }] },
-        importLegacyRecords: false,
       })
     );
 
     expect(getBackend()).toBe(backend);
     expect(backend.call).toHaveBeenCalledWith('get_app_records');
     expect(readAppRecord('dailyGoal')).toEqual({ targetAmount: 50 });
-    expect(localStorage.getItem('userSubscription')).toBeNull();
     expect(screen.getByText('app with Account')).toBeInTheDocument();
-  });
-
-  it("moves an older version's records in when the shell asks", async () => {
-    const backend = createFakeBackend();
-    backend.call.mockResolvedValue({ records: {}, revisions: {} });
-    localStorage.setItem('predefinedTasks', JSON.stringify([{ id: 't1' }]));
-
-    await act(() =>
-      startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: true })
-    );
-
-    expect(backend.call).toHaveBeenCalledWith('import_app_records', { records: { predefinedTasks: [{ id: 't1' }] } });
   });
 
   it("shows why it couldn't start when the records can't be read", async () => {
@@ -65,9 +50,7 @@ describe('startClient', () => {
     backend.call.mockRejectedValue('appdata.json is corrupt');
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await act(() =>
-      startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: false })
-    );
+    await act(() => startClient(container(), { backend: asBackend(backend), extensions: {} }));
 
     expect(screen.getByRole('alert')).toHaveTextContent('appdata.json is corrupt');
     expect(screen.queryByText(/app with/)).not.toBeInTheDocument();
@@ -79,26 +62,10 @@ describe('startClient', () => {
     backend.call.mockRejectedValue("Can't reach the TaskMint server");
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await act(() =>
-      startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: false })
-    );
+    await act(() => startClient(container(), { backend: asBackend(backend), extensions: {} }));
 
     expect(screen.getByRole('alert')).toHaveTextContent('kept on your TaskMint server');
     expect(screen.getByRole('alert')).not.toHaveTextContent('appdata.json');
     error.mockRestore();
-  });
-
-  it('starts even when storage refuses the cleanup', async () => {
-    const backend = createFakeBackend();
-    backend.call.mockResolvedValue({ records: {}, revisions: {} });
-    vi.mocked(localStorage.removeItem).mockImplementationOnce(() => {
-      throw new Error('storage disabled');
-    });
-
-    await act(() =>
-      startClient(container(), { backend: asBackend(backend), extensions: {}, importLegacyRecords: false })
-    );
-
-    expect(screen.getByText('app with')).toBeInTheDocument();
   });
 });

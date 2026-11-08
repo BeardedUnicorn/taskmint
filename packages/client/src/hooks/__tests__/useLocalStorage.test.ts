@@ -6,27 +6,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useLocalStorage } from '../useLocalStorage';
 
-// Mock the migration utilities
-vi.mock('../../utils/dataMigration', () => ({
-  migrateData: vi.fn((_key, data) => {
-    // Return data in the expected format for migration
-    if (typeof data === 'object' && data !== null && 'version' in data) {
-      return data; // Already migrated
-    }
-    return {
-      version: 1,
-      data: data,
-      migratedAt: new Date().toISOString(),
-      originalVersion: 0,
-    };
-  }),
-  createBackup: vi.fn(),
-  needsMigration: vi.fn(data => {
-    // Check if data needs migration (doesn't have version property)
-    return typeof data !== 'object' || data === null || !('version' in data);
-  }),
-}));
-
 describe('useLocalStorage', () => {
   const TEST_KEY = 'test-key';
   const INITIAL_VALUE = 'initial-value';
@@ -235,32 +214,12 @@ describe('useLocalStorage', () => {
     expect(result.current[0]).toBe('updated-value');
   });
 
-  it('should handle migration when needed', async () => {
-    const { needsMigration, migrateData, createBackup } = await import('../../utils/dataMigration');
-
-    // Reset mocks to ensure clean state
-    (needsMigration as any).mockClear();
-    (migrateData as any).mockClear();
-    (createBackup as any).mockClear();
-
-    // Mock migration needed for old data format
-    (needsMigration as any).mockReturnValue(true);
-    (migrateData as any).mockReturnValue({
-      version: 1,
-      data: 'migrated-value',
-      migratedAt: new Date().toISOString(),
-      originalVersion: 0,
-    });
-
-    // Store old format data (without version)
+  it('reads a value stored in any other shape as missing', () => {
     localStorage.setItem(TEST_KEY, JSON.stringify('old-value'));
 
     const { result } = renderHook(() => useLocalStorage(TEST_KEY, INITIAL_VALUE));
 
-    expect(needsMigration).toHaveBeenCalledWith('old-value');
-    expect(createBackup).toHaveBeenCalledWith(TEST_KEY, 'old-value');
-    expect(migrateData).toHaveBeenCalledWith(TEST_KEY, 'old-value');
-    expect(result.current[0]).toBe('migrated-value');
+    expect(result.current[0]).toBe(INITIAL_VALUE);
   });
 });
 
