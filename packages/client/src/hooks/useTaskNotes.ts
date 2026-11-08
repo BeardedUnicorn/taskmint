@@ -31,9 +31,6 @@ export function useTaskNotes(): UseTaskNotesReturn {
 /** The notes state itself. Use once, in TaskNotesProvider. */
 export function useTaskNotesState(): UseTaskNotesReturn {
   const [notes, setNotes] = useState<TaskNote[]>([]);
-  // Loading until the first load finishes, so nothing mistakes "not loaded
-  // yet" for "no notes".
-  const [isLoading, setIsLoading] = useState(true);
 
   const { executeAsync } = useAsyncError();
   const { showInfo, showError } = useNotification();
@@ -45,13 +42,10 @@ export function useTaskNotesState(): UseTaskNotesReturn {
   }, [notes]);
 
   const loadNotes = useCallback(async () => {
-    setIsLoading(true);
     try {
       setNotes(await notesService.getAllNotes());
     } catch (err) {
       console.error('Failed to load notes:', err);
-    } finally {
-      setIsLoading(false);
     }
   }, [notesService]);
 
@@ -175,8 +169,7 @@ export function useTaskNotesState(): UseTaskNotesReturn {
       archiveNote,
       unarchiveNote,
       searchNotes,
-      isLoading,
     }),
-    [notes, createNote, updateNote, deleteNote, archiveNote, unarchiveNote, searchNotes, isLoading]
+    [notes, createNote, updateNote, deleteNote, archiveNote, unarchiveNote, searchNotes]
   );
 }

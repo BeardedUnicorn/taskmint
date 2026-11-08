@@ -185,5 +185,4 @@ export interface UseTaskNotesReturn {
   archiveNote: (noteId: string) => Promise<TaskNote>;
   unarchiveNote: (noteId: string) => Promise<TaskNote>;
   searchNotes: (query: string) => TaskNote[];
-  isLoading: boolean;
 }
