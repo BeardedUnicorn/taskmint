@@ -186,10 +186,9 @@ impl Platform for TauriPlatform {
             return Err("there's no tray icon".to_string());
         };
         tray.set_tooltip(Some(&status.tooltip)).map_err(text)?;
-        // macOS shows a title beside the icon. tray-icon's set_title(None)
-        // is a no-op there, so an empty title is what clears it.
+        // macOS shows a title beside the icon
         if cfg!(target_os = "macos") {
-            tray.set_title(Some(&status.title)).map_err(text)?;
+            tray.set_title(status.title.as_deref()).map_err(text)?;
         }
         Ok(())
     }

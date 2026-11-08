@@ -44,11 +44,12 @@ pub enum TrayItem {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrayMenu(pub Vec<TrayItem>);
 
-/// The tray icon's tooltip, and the title beside it (macOS only).
+/// The tray icon's tooltip, and the title beside it (macOS only; none
+/// clears it).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrayStatus {
     pub tooltip: String,
-    pub title: String,
+    pub title: Option<String>,
 }
 
 /// What a menu item asks for.
@@ -211,12 +212,12 @@ impl TraySnapshot {
                             "⏸️ {} - {} paused (Click for menu)",
                             live.task_name, elapsed
                         ),
-                        title: format!("⏸ {}", elapsed),
+                        title: Some(format!("⏸ {}", elapsed)),
                     }
                 } else {
                     TrayStatus {
                         tooltip: format!("⏱️ {} - {} (Click for menu)", live.task_name, elapsed),
-                        title: elapsed,
+                        title: Some(elapsed),
                     }
                 }
             }
@@ -225,8 +226,7 @@ impl TraySnapshot {
                     "{} - No active timer (Click for menu)",
                     TRAY_TOOLTIP_APP_NAME
                 ),
-                // An empty title clears it (see platform/os.rs)
-                title: String::new(),
+                title: None,
             },
         }
     }
@@ -409,21 +409,21 @@ mod tests {
             snapshot(Some(live(false)), false, vec![]).status(),
             TrayStatus {
                 tooltip: "⏱️ Writing - 01:30 (Click for menu)".to_string(),
-                title: "01:30".to_string()
+                title: Some("01:30".to_string())
             }
         );
         assert_eq!(
             snapshot(Some(live(true)), false, vec![]).status(),
             TrayStatus {
                 tooltip: "⏸️ Writing - 01:30 paused (Click for menu)".to_string(),
-                title: "⏸ 01:30".to_string()
+                title: Some("⏸ 01:30".to_string())
             }
         );
         assert_eq!(
             snapshot(None, false, vec![]).status(),
             TrayStatus {
                 tooltip: "TaskMint - No active timer (Click for menu)".to_string(),
-                title: String::new()
+                title: None
             }
         );
     }
@@ -445,7 +445,7 @@ mod tests {
             TrayStatus {
                 tooltip: "⚠️ Can't reach the TaskMint server - ⏱️ Writing - 01:30 (Click for menu)"
                     .to_string(),
-                title: "01:30".to_string()
+                title: Some("01:30".to_string())
             }
         );
     }
