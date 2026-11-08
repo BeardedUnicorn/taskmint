@@ -2,7 +2,7 @@
 //! dialogs with what the test queued. MemorySecrets stands in for the
 //! keychain.
 
-use super::{Platform, SaveDialog, SecretStore};
+use super::{AvailableUpdate, DownloadEvent, Platform, SaveDialog, SecretStore};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
@@ -22,6 +22,8 @@ pub struct Recorded {
     pub menus: Vec<TrayMenu>,
     pub statuses: Vec<TrayStatus>,
     pub restarts: usize,
+    pub update_checks: usize,
+    pub updates_installed: usize,
 }
 
 #[derive(Default)]
@@ -30,8 +32,13 @@ pub struct FakePlatform {
     /// Answers for the next dialogs, in order (None: dismissed).
     pub dialog_answers: Mutex<VecDeque<Option<PathBuf>>>,
     documents: Mutex<Option<PathBuf>>,
+    /// What the update feed announces.
+    update: Mutex<Option<AvailableUpdate>>,
+    /// How an update's download goes, in order.
+    download: Mutex<Vec<DownloadEvent>>,
     /// Calls that fail from now on: "emit", "notify", "reveal", "open_dir",
-    /// "tray", "status".
+    /// "tray", "status", "check_update", "install_update" (after its
+    /// download).
     failing: Mutex<Vec<&'static str>>,
 }
 
@@ -46,6 +53,16 @@ impl FakePlatform {
 
     pub fn answer(&self, answer: Option<PathBuf>) {
         self.dialog_answers.lock().unwrap().push_back(answer);
+    }
+
+    /// The update feed announces `update` from now on.
+    pub fn announce(&self, update: Option<AvailableUpdate>) {
+        *self.update.lock().unwrap() = update;
+    }
+
+    /// An update's download goes like `events`.
+    pub fn download_goes(&self, events: Vec<DownloadEvent>) {
+        *self.download.lock().unwrap() = events;
     }
 
     pub fn recorded(&self) -> std::sync::MutexGuard<'_, Recorded> {
@@ -150,6 +167,23 @@ impl Platform for FakePlatform {
 
     fn restart(&self) {
         self.recorded().restarts += 1;
+    }
+
+    fn check_update(&self) -> Result<Option<AvailableUpdate>, String> {
+        self.check("check_update")?;
+        self.recorded().update_checks += 1;
+        Ok(self.update.lock().unwrap().clone())
+    }
+
+    fn install_update(
+        &self,
+        progress: &mut (dyn FnMut(DownloadEvent) + Send),
+    ) -> Result<(), String> {
+        let events = self.download.lock().unwrap().clone();
+        events.into_iter().for_each(&mut *progress);
+        self.check("install_update")?;
+        self.recorded().updates_installed += 1;
+        Ok(())
     }
 }
 

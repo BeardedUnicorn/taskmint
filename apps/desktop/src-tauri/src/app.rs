@@ -77,6 +77,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        // Updates from GitHub's latest release (plugins.updater in
+        // tauri.conf.json); the webview asks before installing one
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             let handle = app.handle().clone();
             let identifier = app.config().identifier.clone();

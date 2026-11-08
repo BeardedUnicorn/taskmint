@@ -1,14 +1,15 @@
 //! The Platform the app runs on: Tauri's window, dialogs, opener,
-//! notifications and tray. It needs a real UI session, so the coverage
+//! notifications, tray and updater. It needs a real UI session, so the coverage
 //! policy leaves it to the manual QA checklist: keep it to calls, with any
 //! decision made in the code that uses it.
 
-use super::{Platform, SaveDialog};
+use super::{AvailableUpdate, DownloadEvent, Platform, SaveDialog};
 use crate::config::{
     ICON_TRAY_FALLBACK, ICON_TRAY_PRIMARY, ICON_TRAY_TEMPLATE, TRAY_TOOLTIP_APP_NAME,
 };
 use crate::tray::model::{TrayItem, TrayMenu, TrayStatus};
 use serde_json::Value;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::image::Image;
@@ -18,6 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 /// The system sound a notification plays when sound is on.
 const SOUND: &str = if cfg!(target_os = "macos") {
@@ -31,6 +33,8 @@ const SOUND: &str = if cfg!(target_os = "macos") {
 pub struct TauriPlatform {
     app: AppHandle,
     tray: Mutex<Option<TrayIcon>>,
+    /// The update the last check found, for install_update.
+    update: Mutex<Option<Update>>,
 }
 
 impl TauriPlatform {
@@ -38,6 +42,7 @@ impl TauriPlatform {
         Self {
             app,
             tray: Mutex::new(None),
+            update: Mutex::new(None),
         }
     }
 
@@ -51,6 +56,17 @@ impl TauriPlatform {
 
 fn text(error: impl std::fmt::Display) -> String {
     error.to_string()
+}
+
+/// Runs one of the updater's futures to its end. dispatch already runs on
+/// the async runtime, where block_on panics, so it gets a thread of its own.
+fn finish<T: Send>(future: impl Future<Output = T> + Send) -> T {
+    std::thread::scope(|scope| {
+        scope
+            .spawn(|| tauri::async_runtime::block_on(future))
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    })
 }
 
 fn menu_item(app: &AppHandle, item: &TrayItem) -> tauri::Result<Box<dyn IsMenuItem<Wry>>> {
@@ -218,5 +234,50 @@ impl Platform for TauriPlatform {
 
     fn restart(&self) {
         self.app.restart()
+    }
+
+    fn check_update(&self) -> Result<Option<AvailableUpdate>, String> {
+        let updater = self.app.updater().map_err(text)?;
+        let found = finish(updater.check()).map_err(text)?;
+        let available = found.as_ref().map(|update| AvailableUpdate {
+            version: update.version.clone(),
+            current_version: update.current_version.clone(),
+            notes: update.body.clone(),
+            date: update.raw_json["pub_date"].as_str().map(str::to_string),
+        });
+        *self.update.lock().unwrap_or_else(|e| e.into_inner()) = found;
+        Ok(available)
+    }
+
+    fn install_update(
+        &self,
+        progress: &mut (dyn FnMut(DownloadEvent) + Send),
+    ) -> Result<(), String> {
+        // A development build's executable isn't an installed app, so the
+        // updater would replace the wrong thing
+        if cfg!(debug_assertions) {
+            return Err(
+                "A development build can't install updates. Build the app to try one.".to_string(),
+            );
+        }
+        let update = self
+            .update
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        let update = update.ok_or("Check for updates first.")?;
+        // Both callbacks report to `progress`, one at a time
+        let progress = Mutex::new(progress);
+        let report = |event| (progress.lock().unwrap_or_else(|e| e.into_inner()))(event);
+        finish(update.download_and_install(
+            |bytes, total| {
+                report(DownloadEvent::Chunk {
+                    bytes: bytes as u64,
+                    total,
+                })
+            },
+            || report(DownloadEvent::Downloaded),
+        ))
+        .map_err(text)
     }
 }

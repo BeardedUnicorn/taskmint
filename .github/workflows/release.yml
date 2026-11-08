@@ -4,6 +4,10 @@ name: Release
 # ships and creates the GitHub release with the version's CHANGELOG section.
 # Manual runs, and pull requests that change how releases are built, build the
 # same files as workflow artifacts and publish nothing.
+#
+# The desktop builds also make the app's signed updates, with the key in the
+# TAURI_SIGNING_PRIVATE_KEY secret, and the release gets the latest.json that
+# installed apps check for updates (the README's "Desktop updates").
 on:
   push:
     tags: ['v*']
@@ -13,6 +17,7 @@ on:
       - scripts/release.mjs
       - scripts/release/**
       - apps/desktop/src-tauri/tauri.conf.json
+      - apps/desktop/src-tauri/tauri.updater.conf.json
       - apps/extension/build.mjs
   workflow_dispatch:
 
@@ -42,6 +47,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
+      # A release without updates would leave installed apps where they are
+      - name: The updates can be signed
+        if: github.ref_type == 'tag' && matrix.target != 'chrome-extension'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret isn't set, so the updates can't be signed (the README's \"Desktop updates\")"
+            exit 1
+          fi
+
       # CHANGELOG.md is bundled into the About page as text, so Windows keeps
       # its LF line ends too.
       - run: git config --global core.autocrlf false
@@ -79,6 +96,10 @@ jobs:
         env:
           # Error reporting in the desktop builds; with no secret they report nothing
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          # Signs the desktop builds' updates (only this step sees the key; the
+          # extension has no updates)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ matrix.target != 'chrome-extension' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ matrix.target != 'chrome-extension' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
 
       - uses: actions/upload-artifact@v7
         with:

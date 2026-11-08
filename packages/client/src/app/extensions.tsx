@@ -1,7 +1,9 @@
 /**
  * What a shell adds to the client: Settings sections of its own (the web
- * app's account and admin sections, the desktop's server connection). The
- * shell passes only the ones its platform supports.
+ * app's account and admin sections, the desktop's server connection and
+ * updates), and work of its own that runs whatever page is open (the
+ * desktop's update check). The shell passes only the ones its platform
+ * supports.
  */
 
 import { ComponentType, createContext, useContext } from 'react';
@@ -22,6 +24,11 @@ export interface AppExtensions {
    * used). It renders outside the app's theme and notifications.
    */
   StartupErrorActions?: ComponentType;
+  /**
+   * Rendered once inside the app's theme and notifications, whatever page is
+   * open: the desktop's update check and the dialog it opens.
+   */
+  Background?: ComponentType;
 }
 
 const AppExtensionsContext = createContext<AppExtensions>({});

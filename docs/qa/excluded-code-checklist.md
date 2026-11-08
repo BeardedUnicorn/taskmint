@@ -14,7 +14,7 @@ implement.
 | File | What it does | Section |
 |---|---|---|
 | `apps/desktop/src-tauri/src/app.rs` | the Tauri builder: plugins, setup, window events, the run loop | [Startup and wiring](#startup-and-wiring-apprs) |
-| `apps/desktop/src-tauri/src/platform/os.rs` | `TauriPlatform`: events, notifications, dialogs, reveal and open, the window, the tray | [The platform](#the-platform-platformosrs) |
+| `apps/desktop/src-tauri/src/platform/os.rs` | `TauriPlatform`: events, notifications, dialogs, reveal and open, the window, the tray, the updater | [The platform](#the-platform-platformosrs), [Updates](#updates-platformosrs) |
 | `apps/desktop/src-tauri/src/platform/keychain.rs` | `Keychain`: the device token in the OS keychain | [The keychain](#the-keychain-platformkeychainrs) |
 | `apps/desktop/src-tauri/src/main.rs` | calls `taskmint_lib::run`; no console window on Windows | [Windows and Linux](#windows-and-linux) |
 | `apps/server/src/main.rs` | arguments, environment and signals into the tested `cli::run` | [The server process](#the-server-process-mainrs) |
@@ -128,6 +128,71 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Restart.** Connecting to or disconnecting from a server restarts the
       app on the other data.
 
+## Updates (platform/os.rs)
+
+An update needs a release build and a feed newer than it. Try it on a build
+with its own identifier, so the installed app, its data and its keychain item
+are left alone, and against a local feed signed with a throwaway key (the
+real key never leaves CI). Every file goes in one scratch folder, `$S`:
+
+1. **A key:** `pnpm --filter @taskmint/desktop exec tauri signer generate --ci -p "" -w $S/test.key`.
+2. **Two configs**, `$S/config-old.json` and `$S/config-new.json`, alike but
+   for `version` (`2.2.0` and `2.2.99`, say):
+
+   ```json
+   {
+     "productName": "TaskMint Update Test",
+     "version": "2.2.0",
+     "identifier": "com.taskmint.updatetest",
+     "plugins": {
+       "deep-link": { "desktop": { "schemes": ["taskmint-updatetest"] } },
+       "updater": {
+         "pubkey": "<the contents of $S/test.key.pub>",
+         "endpoints": ["http://127.0.0.1:8765/latest.json"],
+         "dangerousInsecureTransportProtocol": true
+       }
+     },
+     "bundle": { "createUpdaterArtifacts": true, "targets": ["app"] }
+   }
+   ```
+
+3. **Both builds**, from `apps/desktop` with
+   `TAURI_SIGNING_PRIVATE_KEY=$S/test.key TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""`.
+   Run `pnpm tauri build --config $S/config-old.json`, and copy
+   `target/release/bundle/macos/TaskMint Update Test.app` to `$S/install/`.
+   Then run `pnpm tauri build --config $S/config-new.json`, and copy its
+   `TaskMint Update Test.app.tar.gz` and `.sig` to `$S/feed/`.
+4. **The feed:** in `$S/feed/latest.json`, put `"version": "2.2.99"`, some
+   `"notes"`, and
+   `"platforms": { "darwin-aarch64": { "url": "http://127.0.0.1:8765/TaskMint%20Update%20Test.app.tar.gz", "signature": "<the .sig's contents>" } }`.
+   Serve it with `python3 -m http.server 8765 --bind 127.0.0.1 -d $S/feed`.
+5. **Open** `$S/install/TaskMint Update Test.app`. Afterwards, delete `$S`,
+   `~/Library/Application Support/com.taskmint.updatetest`,
+   `~/Library/Logs/com.taskmint.updatetest` and
+   `~/Library/WebKit/com.taskmint.updatetest`.
+
+- [ ] **Automatic check.** About 10 seconds after launch, the dialog says
+      TaskMint 2.2.99 is available and that you have 2.2.0, with the notes.
+      Later closes it.
+- [ ] **Check now.** Settings → Updates → Check for updates opens the dialog
+      again. Stop the feed and check again: the section says why it couldn't
+      check. Turning off "Check for updates automatically" survives a
+      relaunch.
+- [ ] **Install.** Start a timer, then click Download and install. The
+      progress shows MB downloaded, then "Installing…". The app restarts as
+      2.2.99: Check for updates now says it's up to date, and the timer is
+      still running. The bundle's `Contents/Info.plist` says 2.2.99.
+- [ ] **Bad signature.** Change a character in the feed's `signature` and try
+      again from the old build. The dialog says the update couldn't be
+      installed, and the app stays as it was.
+- [ ] **In the tray.** With the window closed to the tray when the launch
+      check finds the update, an OS notification says it's available.
+      Clicking it opens the window on the dialog.
+- [ ] **Development build.** In `pnpm tauri dev`, Download and install says a
+      development build can't install updates.
+- [ ] **A real release.** After a release, an install of the version before
+      it finds and installs it from GitHub.
+
 ## The keychain (platform/keychain.rs)
 
 With the stack running and a dev build on its own data folder:
@@ -171,3 +236,7 @@ those systems before releasing there.
 - [ ] **Linux deep links:** `register_all` registers the scheme at startup.
 - [ ] **Linux idle detection:** the platform has none, so the idle settings
       say idle time isn't available here.
+- [ ] **Windows update:** an install of the version before a release finds
+      it. Download and install runs the installer in passive mode (a progress
+      window and no questions), and TaskMint starts again on the new version
+      with its data.

@@ -18,6 +18,7 @@ pub mod state;
 pub mod store;
 pub mod ticker;
 pub mod tray;
+pub mod updates;
 pub mod utils;
 
 #[cfg(test)]

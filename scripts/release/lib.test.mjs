@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import {
   assetName,
   buildPlan,
@@ -9,6 +10,7 @@ import {
   cargoTomlName,
   cargoTomlVersion,
   changelogVersions,
+  DESKTOP_TARGETS,
   extractSection,
   highestBump,
   insertSection,
@@ -18,11 +20,18 @@ import {
   missingAssets,
   packageJsonVersion,
   parseNote,
+  releaseAssets,
+  releaseDownloadUrl,
   renderSection,
   setCargoLockVersions,
   setCargoTomlVersion,
   setPackageJsonVersion,
   TARGETS,
+  UPDATE_MANIFEST,
+  updateAssetNames,
+  updateBundlePaths,
+  updateManifest,
+  verifyUpdateSignature,
 } from './lib.mjs';
 
 const note = (front, body = 'A change.') => `---\n${front}\n---\n${body}\n`;
@@ -247,12 +256,18 @@ describe('targets', () => {
   });
 
   it("lists the release's files that aren't there", () => {
-    const all = TARGETS.map(target => assetName('TaskMint', '2.2.0', target));
+    const all = releaseAssets('TaskMint', '2.2.0');
     assert.deepEqual(missingAssets('TaskMint', '2.2.0', all), []);
+    const updates = all.slice(TARGETS.length);
     assert.deepEqual(
-      missingAssets('TaskMint', '2.2.0', ['TaskMint-2.2.0-macos-arm64.dmg', 'TaskMint-2.1.0-macos-x64.dmg']),
+      missingAssets('TaskMint', '2.2.0', [
+        'TaskMint-2.2.0-macos-arm64.dmg',
+        'TaskMint-2.1.0-macos-x64.dmg',
+        ...updates,
+      ]),
       ['TaskMint-2.2.0-macos-x64.dmg', 'TaskMint-2.2.0-windows-x64-setup.exe', 'TaskMint-2.2.0-chrome-extension.zip']
     );
+    assert.deepEqual(missingAssets('TaskMint', '2.2.0', all.slice(0, TARGETS.length)), updates);
   });
 
   it('builds a Mac installer natively, or cross-compiled for the other CPU', () => {
@@ -307,5 +322,162 @@ describe('targets', () => {
     assert.deepEqual(buildTargets({ ...mac, windows: true }), ['macos-arm64', 'windows-x64']);
     assert.deepEqual(buildTargets({ ...mac, windows: true, targets: ['windows-x64'] }), ['windows-x64']);
     assert.throws(() => buildTargets({ ...mac, targets: ['ios'] }), /Unknown target "ios"/);
+  });
+});
+
+describe('desktop updates', () => {
+  const mac = { kind: 'tauri', triple: null };
+  const intel = { kind: 'tauri', triple: 'x86_64-apple-darwin' };
+  const xwin = { kind: 'xwin', triple: 'x86_64-pc-windows-msvc' };
+
+  it('ships each desktop target an update and its signature; Windows updates with its installer', () => {
+    assert.deepEqual(DESKTOP_TARGETS, ['macos-arm64', 'macos-x64', 'windows-x64']);
+    assert.deepEqual(
+      DESKTOP_TARGETS.map(target => updateAssetNames('TaskMint', '2.3.0', target)),
+      [
+        { file: 'TaskMint-2.3.0-macos-arm64.app.tar.gz', signature: 'TaskMint-2.3.0-macos-arm64.app.tar.gz.sig' },
+        { file: 'TaskMint-2.3.0-macos-x64.app.tar.gz', signature: 'TaskMint-2.3.0-macos-x64.app.tar.gz.sig' },
+        {
+          file: 'TaskMint-2.3.0-windows-x64-setup.exe',
+          signature: 'TaskMint-2.3.0-windows-x64-setup.exe.sig',
+        },
+      ]
+    );
+    assert.deepEqual(releaseAssets('TaskMint', '2.3.0').slice(TARGETS.length), [
+      'TaskMint-2.3.0-macos-arm64.app.tar.gz',
+      'TaskMint-2.3.0-macos-arm64.app.tar.gz.sig',
+      'TaskMint-2.3.0-macos-x64.app.tar.gz',
+      'TaskMint-2.3.0-macos-x64.app.tar.gz.sig',
+      'TaskMint-2.3.0-windows-x64-setup.exe.sig',
+    ]);
+    assert.throws(() => updateAssetNames('TaskMint', '2.3.0', 'chrome-extension'), /chrome-extension has no updates/);
+    assert.throws(() => updateAssetNames('TaskMint', '2.3.0', 'ios'), /Unknown target "ios"/);
+  });
+
+  it("finds Tauri's updates beside its installers", () => {
+    assert.deepEqual(updateBundlePaths('TaskMint', '2.3.0', 'macos-arm64', mac), {
+      file: 'target/release/bundle/macos/TaskMint.app.tar.gz',
+      signature: 'target/release/bundle/macos/TaskMint.app.tar.gz.sig',
+    });
+    assert.deepEqual(updateBundlePaths('TaskMint', '2.3.0', 'macos-x64', intel), {
+      file: 'target/x86_64-apple-darwin/release/bundle/macos/TaskMint.app.tar.gz',
+      signature: 'target/x86_64-apple-darwin/release/bundle/macos/TaskMint.app.tar.gz.sig',
+    });
+    assert.deepEqual(updateBundlePaths('TaskMint', '2.3.0', 'windows-x64', xwin), {
+      file: 'target/x86_64-pc-windows-msvc/release/bundle/nsis/TaskMint_2.3.0_x64-setup.exe',
+      signature: 'target/x86_64-pc-windows-msvc/release/bundle/nsis/TaskMint_2.3.0_x64-setup.exe.sig',
+    });
+    assert.throws(() => updateBundlePaths('TaskMint', '2.3.0', 'chrome-extension', { kind: 'zip' }), /no updates/);
+  });
+
+  it('writes latest.json, which points each platform at its update', () => {
+    const downloadUrl = releaseDownloadUrl('BeardedUnicorn/taskmint', '2.3.0');
+    assert.equal(downloadUrl, 'https://github.com/BeardedUnicorn/taskmint/releases/download/v2.3.0');
+    assert.equal(UPDATE_MANIFEST, 'latest.json');
+    const manifest = updateManifest({
+      product: 'TaskMint',
+      version: '2.3.0',
+      notes: '### Added\n\n- Updates.',
+      pubDate: '2026-11-20T10:00:00Z',
+      downloadUrl,
+      signatures: { 'macos-arm64': 'c2lnLWFybQ==\n', 'macos-x64': 'c2lnLXg2NA==', 'windows-x64': 'c2lnLXdpbg==' },
+    });
+    assert.deepEqual(manifest, {
+      version: '2.3.0',
+      notes: '### Added\n\n- Updates.',
+      pub_date: '2026-11-20T10:00:00Z',
+      platforms: {
+        'darwin-aarch64': { signature: 'c2lnLWFybQ==', url: `${downloadUrl}/TaskMint-2.3.0-macos-arm64.app.tar.gz` },
+        'darwin-x86_64': { signature: 'c2lnLXg2NA==', url: `${downloadUrl}/TaskMint-2.3.0-macos-x64.app.tar.gz` },
+        'windows-x86_64': { signature: 'c2lnLXdpbg==', url: `${downloadUrl}/TaskMint-2.3.0-windows-x64-setup.exe` },
+      },
+    });
+    assert.throws(
+      () =>
+        updateManifest({
+          product: 'TaskMint',
+          version: '2.3.0',
+          notes: '',
+          pubDate: '',
+          downloadUrl,
+          signatures: { 'macos-arm64': 'x', 'macos-x64': ' ' },
+        }),
+      /There's no update signature for macos-x64/
+    );
+  });
+});
+
+describe('update signatures', () => {
+  // `tauri signer generate`'s public key, and `tauri signer sign` of "hello"
+  // (a throwaway key, made for this test)
+  const tauriKey =
+    'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk1QjVGMDdCMzk5NzcxNjgKUldSb2NaYzVlL0MxbFdZV1dGK01PVFhlMDhtVm55dDlRTUtjVDh0NzltMjZ3ZDdZY25DNHVIZ3gK';
+  const tauriSignature =
+    'dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSb2NaYzVlL0MxbFZYckVSTldqZ2FrbkFGbmxKTTBpWmxaeFdKU21oZEU0UjR1Sm9jTGxQWkI4a0ZyYnNjUHhEc3h1ZXY5WDFrRmI4blByM1RFMUpZYmZCMHBRWnd2Q3djPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTA4ODQ2CWZpbGU6aGVsbG8udHh0Ci9PTGprVUh6ejZBOU1NU0c3TDFaMGVvL2VQYmRDc21VTDlEaGZlaXMwMDhWSVQxWTRRcTVSeUdwNFFXK0FpMmtKTU5CRVNhNXFGdUJOUzZvQ3laWUNnPT0K';
+
+  /** A minisign key of our own, so the test can make any signature. */
+  function keyPair(id = Buffer.from('0123456789abcdef', 'hex')) {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const raw = Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url');
+    const file = `untrusted comment: minisign public key\n${Buffer.concat([Buffer.from('Ed'), id, raw]).toString('base64')}\n`;
+    const signFile = (data, { algorithm = 'ED', comment = 'timestamp:1\tfile:x', tamper = false } = {}) => {
+      const message = algorithm === 'ED' ? createHash('blake2b512').update(data).digest() : data;
+      const signature = sign(null, message, privateKey);
+      const global = sign(null, Buffer.concat([signature, Buffer.from(comment)]), privateKey);
+      const trusted = tamper ? `${comment}x` : comment;
+      const lines = [
+        'untrusted comment: signature',
+        Buffer.concat([Buffer.from(algorithm), id, signature]).toString('base64'),
+        `trusted comment: ${trusted}`,
+        global.toString('base64'),
+      ];
+      return Buffer.from(`${lines.join('\n')}\n`).toString('base64');
+    };
+    return { publicKey: Buffer.from(file).toString('base64'), signFile };
+  }
+
+  const data = Buffer.from('the update');
+
+  it("accepts Tauri's own signature", () => {
+    verifyUpdateSignature({ publicKey: tauriKey, signature: tauriSignature, data: Buffer.from('hello') });
+    assert.throws(
+      () => verifyUpdateSignature({ publicKey: tauriKey, signature: tauriSignature, data: Buffer.from('hellO') }),
+      /The update's signature doesn't match the file/
+    );
+  });
+
+  it('accepts a signature of the file or of its hash, by the trusted key', () => {
+    const { publicKey, signFile } = keyPair();
+    verifyUpdateSignature({ publicKey, signature: signFile(data), data });
+    verifyUpdateSignature({ publicKey, signature: signFile(data, { algorithm: 'Ed' }), data });
+  });
+
+  it('names the key an update was signed with when the app trusts another', () => {
+    const { signFile } = keyPair(Buffer.from('1111111111111111', 'hex'));
+    assert.throws(
+      () => verifyUpdateSignature({ publicKey: tauriKey, signature: signFile(data), data }),
+      /The update is signed with key 1111111111111111, but the app trusts key 95B5F07B39977168/
+    );
+  });
+
+  it('refuses a changed trusted comment', () => {
+    const { publicKey, signFile } = keyPair();
+    assert.throws(
+      () => verifyUpdateSignature({ publicKey, signature: signFile(data, { tamper: true }), data }),
+      /trusted comment doesn't match/
+    );
+  });
+
+  it("refuses a key or signature that isn't minisign's", () => {
+    const { publicKey, signFile } = keyPair();
+    for (const key of ['REPLACE_WITH_THE_UPDATER_PUBLIC_KEY', '', Buffer.from('a\nb').toString('base64')]) {
+      assert.throws(
+        () => verifyUpdateSignature({ publicKey: key, signature: signFile(data), data }),
+        /isn't a minisign public key/
+      );
+    }
+    for (const signature of ['', Buffer.from('a\nRVg=\n').toString('base64'), signFile(data, { algorithm: 'XX' })]) {
+      assert.throws(() => verifyUpdateSignature({ publicKey, signature, data }), /isn't a minisign signature/);
+    }
   });
 });

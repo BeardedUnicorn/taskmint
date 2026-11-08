@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RELEASES, parseChangelog } from '../changelog';
+import { RELEASES, parseChangelog, parseReleaseSection } from '../changelog';
 import { APP_VERSION } from '../appVersion';
 
 describe('parseChangelog', () => {
@@ -57,6 +57,17 @@ describe('parseChangelog', () => {
 
   it('is empty without any release', () => {
     expect(parseChangelog('# Changelog\n\nNothing yet.\n')).toEqual([]);
+  });
+});
+
+describe('parseReleaseSection', () => {
+  it("reads one release's section, whatever its version looks like", () => {
+    expect(parseReleaseSection('2.3.0-beta.1', 'Intro.\n\n### Added\n\n- Updates.\n')).toEqual({
+      version: '2.3.0-beta.1',
+      date: null,
+      intro: ['Intro.'],
+      groups: [{ type: 'Added', items: ['Updates.'] }],
+    });
   });
 });
 

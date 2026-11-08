@@ -8,6 +8,11 @@
  * which builds every installer with --rebuild and creates the GitHub release
  * with github-release.
  *
+ * With the updater's signing key in TAURI_SIGNING_PRIVATE_KEY (the Release
+ * workflow has it), each desktop build also makes the app's signed update,
+ * and github-release adds latest.json, which installed apps read to update
+ * themselves (the README's "Desktop updates").
+ *
  * Run it in the main checkout, on main: `pnpm release --help`.
  */
 
@@ -25,6 +30,7 @@ import {
   bundlePath,
   cargoTomlName,
   cargoTomlVersion,
+  DESKTOP_TARGETS,
   extractSection,
   highestBump,
   insertSection,
@@ -33,11 +39,18 @@ import {
   missingAssets,
   packageJsonVersion,
   parseNote,
+  releaseAssets,
+  releaseDownloadUrl,
   renderSection,
   setCargoLockVersions,
   setCargoTomlVersion,
   setPackageJsonVersion,
   TARGETS,
+  UPDATE_MANIFEST,
+  updateAssetNames,
+  updateBundlePaths,
+  updateManifest,
+  verifyUpdateSignature,
 } from './release/lib.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -55,6 +68,9 @@ const CHANGELOG = 'CHANGELOG.md';
 const CHANGES = 'changes';
 const RELEASES = 'releases';
 const EXTENSION_DIST = 'apps/extension/dist';
+const TAURI_CONF = 'apps/desktop/src-tauri/tauri.conf.json';
+/** Merged into tauri.conf.json for a build that makes updates (relative to apps/desktop, where Tauri runs). */
+const UPDATER_CONFIG = 'src-tauri/tauri.updater.conf.json';
 const RELEASE_WORKFLOW = 'release.yml';
 
 const USAGE = `Usage: pnpm release [options]
@@ -64,6 +80,9 @@ const USAGE = `Usage: pnpm release [options]
 Bumps the version by the highest change note in changes/, writes the
 CHANGELOG section, builds this computer's installer into releases/, then
 commits "Release X.Y.Z" and tags vX.Y.Z. Run it in the main checkout, on main.
+
+With the updater's signing key in TAURI_SIGNING_PRIVATE_KEY, each desktop
+build also makes the app's signed update (the README's "Desktop updates").
 
 Options:
   --dry-run              Print the next version and its section; change nothing
@@ -82,8 +101,9 @@ publish                  Push main and the current version's tag. The tag starts
                          the Release workflow, which builds every installer and
                          creates the GitHub release.
 github-release           (The Release workflow's last step) Create the current
-                         version's GitHub release with its CHANGELOG section and
-                         every installer in releases/, or replace its installers`;
+                         version's GitHub release with its CHANGELOG section,
+                         every installer and update in releases/ and the
+                         latest.json made from them, or replace its files`;
 
 class Stop extends Error {}
 const stop = message => {
@@ -160,7 +180,11 @@ function changeNotes() {
 
 const tagOf = version => `v${version}`;
 const tagExists = tag => succeeds('git', ['rev-parse', '--quiet', '--verify', `refs/tags/${tag}`]);
-const productName = () => JSON.parse(read('apps/desktop/src-tauri/tauri.conf.json')).productName;
+const productName = () => JSON.parse(read(TAURI_CONF)).productName;
+/** The key installed apps check an update's signature with. */
+const updaterPublicKey = () => JSON.parse(read(TAURI_CONF)).plugins.updater.pubkey;
+/** Tauri signs updates with this key, so a build can make them. */
+const signsUpdates = () => Boolean(process.env.TAURI_SIGNING_PRIVATE_KEY);
 
 function requireMainAndClean() {
   const branch = git('branch', '--show-current');
@@ -211,32 +235,72 @@ function planBuilds({ targets, windows }) {
   );
 }
 
-/** Builds each planned target and puts its file in releases/; returns their paths. */
+/**
+ * Builds each planned target and puts its files in releases/ (a desktop
+ * target's update too, when the key is there to sign it); returns their
+ * paths.
+ */
 function build(version, plans) {
   if (plans.length === 0) return [];
   mkdirSync(join(root, RELEASES), { recursive: true });
-  return plans.map(plan => {
+  const updates = signsUpdates();
+  if (!updates && plans.some(plan => plan.kind !== 'zip')) {
+    console.log("\nTAURI_SIGNING_PRIVATE_KEY isn't set, so the desktop builds make no updates.");
+  }
+  return plans.flatMap(plan => {
     const destination = join(root, RELEASES, assetName(productName(), version, plan.target));
-    if (plan.kind === 'zip') zipExtension(destination);
-    else copyInstaller(buildInstaller(version, plan), destination);
-    return destination;
+    if (plan.kind === 'zip') {
+      zipExtension(destination);
+      return [destination];
+    }
+    copyBuilt(buildInstaller(version, plan, updates), destination);
+    return updates ? [destination, ...copyUpdate(version, plan)] : [destination];
   });
 }
 
-/** Builds a desktop installer with Tauri; returns where Tauri left it. */
-function buildInstaller(version, plan) {
+/** Builds a desktop installer with Tauri (and its update, with `updates`); returns where Tauri left it. */
+function buildInstaller(version, plan, updates) {
   if (plan.triple) run('rustup', ['target', 'add', plan.triple]);
-  if (plan.kind === 'xwin') run('pnpm', ['--filter', '@taskmint/desktop', 'build:win']);
+  const config = updates ? ['--config', UPDATER_CONFIG] : [];
+  if (plan.kind === 'xwin') run('pnpm', ['--filter', '@taskmint/desktop', 'build:win', ...config]);
   else {
     const cross = plan.triple ? ['--target', plan.triple] : [];
-    run('pnpm', ['--filter', '@taskmint/desktop', 'tauri', 'build', ...cross]);
+    run('pnpm', ['--filter', '@taskmint/desktop', 'tauri', 'build', ...cross, ...config]);
   }
   return bundlePath(productName(), version, plan.target, plan);
 }
 
-function copyInstaller(from, destination) {
+function copyBuilt(from, destination) {
   if (!existsSync(join(root, from))) stop(`The build finished, but ${from} isn't there.`);
   copyFileSync(join(root, from), destination);
+}
+
+/**
+ * Puts a desktop target's update and its signature in releases/, once the
+ * signature checks out against the key installed apps trust; returns their
+ * paths. (Windows' update is its installer, already there.)
+ */
+function copyUpdate(version, plan) {
+  const name = productName();
+  const from = updateBundlePaths(name, version, plan.target, plan);
+  const to = updateAssetNames(name, version, plan.target);
+  for (const file of [from.file, from.signature]) {
+    if (!existsSync(join(root, file))) stop(`The build finished, but ${file} isn't there.`);
+  }
+  checked(() =>
+    verifyUpdateSignature({
+      publicKey: updaterPublicKey(),
+      signature: read(from.signature),
+      data: readFileSync(join(root, from.file)),
+    })
+  );
+  const copies = [[from.signature, to.signature]];
+  if (to.file !== assetName(name, version, plan.target)) copies.unshift([from.file, to.file]);
+  return copies.map(([source, file]) => {
+    const destination = join(root, RELEASES, file);
+    copyBuilt(source, destination);
+    return destination;
+  });
 }
 
 /** Builds the extension and zips dist/'s contents, manifest.json at the top, for Load unpacked. */
@@ -332,10 +396,40 @@ creates the GitHub release; follow it with:
 }
 
 /**
+ * latest.json for the release: where each desktop update downloads from, its
+ * signature (from releases/), and the version's notes.
+ */
+function writeUpdateManifest(version, notes, dir) {
+  const repository = process.env.GH_REPO;
+  if (!repository) stop('GH_REPO (owner/name) says where the release is; the Release workflow sets it.');
+  const name = productName();
+  const signatures = Object.fromEntries(
+    DESKTOP_TARGETS.map(target => [
+      target,
+      readFileSync(join(dir, updateAssetNames(name, version, target).signature), 'utf8'),
+    ])
+  );
+  const manifest = checked(() =>
+    updateManifest({
+      product: name,
+      version,
+      notes,
+      pubDate: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      downloadUrl: releaseDownloadUrl(repository, version),
+      signatures,
+    })
+  );
+  const file = join(dir, UPDATE_MANIFEST);
+  writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+  return file;
+}
+
+/**
  * The Release workflow's last step: creates the GitHub release for the
- * checked-out tag with its CHANGELOG section and every target's file from
- * releases/ (the build jobs' artifacts), or replaces the files of a release
- * that already exists. A release is never made with a file missing.
+ * checked-out tag with its CHANGELOG section, every target's file and
+ * update from releases/ (the build jobs' artifacts) and latest.json, or
+ * replaces the files of a release that already exists. A release is never
+ * made with a file missing.
  */
 function githubRelease(version = currentVersion()) {
   const tag = tagOf(version);
@@ -349,7 +443,10 @@ function githubRelease(version = currentVersion()) {
   const dir = join(root, RELEASES);
   const missing = missingAssets(name, version, existsSync(dir) ? readdirSync(dir) : []);
   if (missing.length > 0) stop(`${RELEASES}/ is missing ${missing.join(', ')}.`);
-  const files = TARGETS.map(target => join(dir, assetName(name, version, target)));
+  const files = [
+    ...releaseAssets(name, version).map(file => join(dir, file)),
+    writeUpdateManifest(version, notes, dir),
+  ];
 
   if (succeeds('gh', ['release', 'view', tag])) {
     run('gh', ['release', 'upload', tag, '--clobber', ...files]);
