@@ -1,16 +1,16 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Alert, Box, Button, Chip, Stack, TextField, Typography, type ChipProps } from "@mui/material";
-import CloudIcon from "@mui/icons-material/Cloud";
-import { EVENTS } from "@taskmint/contracts";
-import { getBackend } from "@taskmint/client/backend";
-import { ConfirmDialog, SettingsSection, useNotification } from "@taskmint/client/ui";
-import { sentence, serverMode, type Connection, type Link, type LinkStatus, type ServerConnection } from "../server";
+import { useEffect, useState, type FormEvent } from 'react';
+import { Alert, Box, Button, Chip, Stack, TextField, Typography, type ChipProps } from '@mui/material';
+import CloudIcon from '@mui/icons-material/Cloud';
+import { EVENTS } from '@taskmint/contracts';
+import { getBackend } from '@taskmint/client/backend';
+import { ConfirmDialog, SettingsSection, useNotification } from '@taskmint/client/ui';
+import { sentence, serverMode, type Connection, type Link, type LinkStatus, type ServerConnection } from '../server';
 
-const LINKS: Record<LinkStatus, { label: string; color: ChipProps["color"] }> = {
-  connecting: { label: "Connecting…", color: "default" },
-  connected: { label: "Connected", color: "success" },
-  unreachable: { label: "Can't reach the server", color: "warning" },
-  signedOut: { label: "Signed out", color: "error" },
+const LINKS: Record<LinkStatus, { label: string; color: ChipProps['color'] }> = {
+  connecting: { label: 'Connecting…', color: 'default' },
+  connected: { label: 'Connected', color: 'success' },
+  unreachable: { label: "Can't reach the server", color: 'warning' },
+  signedOut: { label: 'Signed out', color: 'error' },
 };
 
 /**
@@ -25,7 +25,7 @@ export function ServerSection() {
   useEffect(() => {
     serverMode.connection().then(setConnection, failure => setError(sentence(failure)));
     return getBackend().subscribe<Link>(EVENTS.SERVER_CONNECTION_CHANGED, link =>
-      setConnection(current => (current ? { ...current, ...link } : current)),
+      setConnection(current => (current ? { ...current, ...link } : current))
     );
   }, []);
 
@@ -63,9 +63,9 @@ function OnThisComputer() {
 
 /** Signs this computer in (to a new server, or again to its own), then restarts. */
 function SignInForm({ connection, submitLabel }: { connection?: Connection; submitLabel: string }) {
-  const [url, setUrl] = useState(connection?.url ?? "http://localhost:8080");
-  const [username, setUsername] = useState(connection?.username ?? "");
-  const [password, setPassword] = useState("");
+  const [url, setUrl] = useState(connection?.url ?? 'http://localhost:8080');
+  const [username, setUsername] = useState(connection?.username ?? '');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
@@ -128,14 +128,14 @@ function SignInForm({ connection, submitLabel }: { connection?: Connection; subm
 
 function OnTheServer({ connection }: { connection: ServerConnection }) {
   const { showSuccess, showWarning, showError } = useNotification();
-  const [confirming, setConfirming] = useState<"upload" | "disconnect" | null>(null);
+  const [confirming, setConfirming] = useState<'upload' | 'disconnect' | null>(null);
 
   const upload = async () => {
     try {
       const { records, restored, warnings } = await serverMode.upload();
       showSuccess(
         `Copied ${restored.sessionsRestored} session(s) and ${records} kind(s) of records to the server ` +
-          `(${restored.sessionsAlreadyPresent} session(s) were there already).`,
+          `(${restored.sessionsAlreadyPresent} session(s) were there already).`
       );
       warnings.forEach(warning => showWarning(warning));
     } catch (failure) {
@@ -149,7 +149,7 @@ function OnTheServer({ connection }: { connection: ServerConnection }) {
       const { signedOut } = await serverMode.disconnect();
       if (!signedOut) {
         showWarning(
-          "The server couldn't be told, so it lists this computer's token under API tokens until you revoke it there.",
+          "The server couldn't be told, so it lists this computer's token under API tokens until you revoke it there."
         );
       }
       await serverMode.restart();
@@ -165,12 +165,12 @@ function OnTheServer({ connection }: { connection: ServerConnection }) {
         Your data is on <strong>{connection.url}</strong>, signed in as <strong>{connection.username}</strong> from “
         {connection.deviceName}”.
       </Typography>
-      {connection.status === "unreachable" && (
+      {connection.status === 'unreachable' && (
         <Alert severity="warning">
           TaskMint can't reach the server, so changes fail until it's back. It keeps trying. {connection.detail}
         </Alert>
       )}
-      {connection.status === "signedOut" && (
+      {connection.status === 'signedOut' && (
         <>
           <Alert severity="error">
             This computer was signed out of the server. Sign in again to use it, or disconnect to use the data on this
@@ -180,15 +180,15 @@ function OnTheServer({ connection }: { connection: ServerConnection }) {
         </>
       )}
       <Stack direction="row" spacing={2}>
-        <Button variant="outlined" onClick={() => setConfirming("upload")}>
+        <Button variant="outlined" onClick={() => setConfirming('upload')}>
           Copy this computer's data here
         </Button>
-        <Button variant="outlined" color="error" onClick={() => setConfirming("disconnect")}>
+        <Button variant="outlined" color="error" onClick={() => setConfirming('disconnect')}>
           Disconnect
         </Button>
       </Stack>
       <ConfirmDialog
-        open={confirming === "upload"}
+        open={confirming === 'upload'}
         onClose={() => setConfirming(null)}
         onConfirm={upload}
         title="Copy this computer's data to the server?"
@@ -199,13 +199,13 @@ function OnTheServer({ connection }: { connection: ServerConnection }) {
         confirmLabel="Copy"
       />
       <ConfirmDialog
-        open={confirming === "disconnect"}
+        open={confirming === 'disconnect'}
         onClose={() => setConfirming(null)}
         onConfirm={disconnect}
         title="Disconnect from the server?"
         message={
-          "TaskMint restarts with the data on this computer. The server keeps its data, and this computer is signed " +
-          "out of it."
+          'TaskMint restarts with the data on this computer. The server keeps its data, and this computer is signed ' +
+          'out of it.'
         }
         confirmLabel="Disconnect"
         severity="error"

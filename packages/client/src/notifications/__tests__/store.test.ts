@@ -21,7 +21,11 @@ describe('ToastStore', () => {
     vi.useRealTimers();
   });
 
-  const visibleMessages = () => store.getSnapshot().visible.filter(t => !t.exiting).map(t => t.message);
+  const visibleMessages = () =>
+    store
+      .getSnapshot()
+      .visible.filter(t => !t.exiting)
+      .map(t => t.message);
   const settle = () => vi.advanceTimersByTime(EXIT_MS);
 
   it('gives each severity its own time, and toasts with buttons at least 8s', () => {

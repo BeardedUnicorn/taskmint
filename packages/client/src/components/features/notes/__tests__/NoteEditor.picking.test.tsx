@@ -65,7 +65,9 @@ describe('NoteEditor template picker', () => {
     editor();
     fireEvent.mouseDown(await screen.findByRole('combobox', { name: 'Select Template' }));
 
-    const options = within(screen.getByRole('listbox')).getAllByRole('option').map(option => option.textContent);
+    const options = within(screen.getByRole('listbox'))
+      .getAllByRole('option')
+      .map(option => option.textContent);
     expect(options).toEqual(['Free-form Note', 'Template standup']);
   });
 

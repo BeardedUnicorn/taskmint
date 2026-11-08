@@ -82,7 +82,5 @@ export function buildImportPreview(
     });
   }
 
-  return rows.sort(
-    (a, b) => b.workDay.localeCompare(a.workDay) || a.taskName.localeCompare(b.taskName)
-  );
+  return rows.sort((a, b) => b.workDay.localeCompare(a.workDay) || a.taskName.localeCompare(b.taskName));
 }

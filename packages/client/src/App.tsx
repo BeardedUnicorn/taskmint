@@ -20,6 +20,7 @@ import { useSessionNotesMigration } from './hooks/useSessionNotesMigration';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { useRecordConflictNotice } from './hooks/useRecordConflictNotice';
+import { useUpdatedNotice } from './hooks/useUpdatedNotice';
 import { useDailySummary } from './hooks/useDailySummary';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
 import { WorkLogProvider } from './contexts/WorkLogContext';
@@ -29,8 +30,9 @@ import { PAGES } from './app/routes';
 
 /**
  * Work that runs whatever page is open: the tray's "Choose Task…", moving
- * sessions' old plain-text notes into the notes store, and saying when a
- * save lost to a change made on another device.
+ * sessions' old plain-text notes into the notes store, saying when a save
+ * lost to a change made on another device, and pointing to what's new after
+ * an update.
  */
 function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }) {
   const { sessions, isLoading: sessionsLoading, hasLoaded, clearSessionNotes } = useSessionManagementContext();
@@ -44,6 +46,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
   });
   useEnhancedSystemTray({ onShowStartDialog });
   useRecordConflictNotice();
+  useUpdatedNotice();
   useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });
   return null;
 }
@@ -137,12 +140,7 @@ function AppContent() {
       <BackgroundJobs onShowStartDialog={showStartDialog} />
       <CommandCenter onStartWork={showStartDialog} onAddTime={showAddTime} />
       <Box sx={{ height: '100vh', display: 'flex' }}>
-        <Sidebar
-          activeView={activeView}
-          onViewChange={navigate}
-          footer={renderGoalFooter}
-          headerAction={renderBell}
-        />
+        <Sidebar activeView={activeView} onViewChange={navigate} footer={renderGoalFooter} headerAction={renderBell} />
         {/* minWidth 0: a wide table scrolls inside its page instead of
             stretching the content past the window */}
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>

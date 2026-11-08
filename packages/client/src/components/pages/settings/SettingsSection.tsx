@@ -9,13 +9,7 @@ interface SettingsSectionProps {
   paperProps?: PaperProps;
 }
 
-export function SettingsSection({
-  title,
-  icon,
-  children,
-  headerChildren,
-  paperProps,
-}: SettingsSectionProps) {
+export function SettingsSection({ title, icon, children, headerChildren, paperProps }: SettingsSectionProps) {
   return (
     <Paper {...paperProps} sx={{ p: 3, mb: 4, ...(paperProps?.sx || {}) }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>

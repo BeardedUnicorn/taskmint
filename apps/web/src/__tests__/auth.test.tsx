@@ -26,7 +26,9 @@ describe('signing in', () => {
   });
 
   it('says why it was refused, and lets the user try again', async () => {
-    const server = fakeServer({ 'POST /auth/login': () => failure(401, 'bad_credentials', 'wrong username or password') });
+    const server = fakeServer({
+      'POST /auth/login': () => failure(401, 'bad_credentials', 'wrong username or password'),
+    });
     const onSignedIn = vi.fn();
     render(<LoginPage server={server} onSignedIn={onSignedIn} />);
     await userEvent.type(screen.getByLabelText(/Username/), 'alice');
@@ -132,13 +134,16 @@ describe('a password-reset link', () => {
   it('says why it was refused', async () => {
     const server = fakeServer({
       'GET /password-resets/r': () => ({ username: 'alice', expiresAt: '2026-11-01T12:00:00Z' }),
-      'POST /password-resets/r/accept': () => failure(404, 'not_found', 'this password-reset link is invalid, used, or expired'),
+      'POST /password-resets/r/accept': () =>
+        failure(404, 'not_found', 'this password-reset link is invalid, used, or expired'),
     });
     render(<ResetPage server={server} token="r" onSignedIn={vi.fn()} />);
     await screen.findByText('alice');
     await fillPasswords(GOOD);
     await userEvent.click(screen.getByRole('button', { name: 'Set password' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('This password-reset link is invalid, used, or expired.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This password-reset link is invalid, used, or expired.'
+    );
     expect(screen.getByRole('button', { name: 'Set password' })).toBeEnabled();
   });
 });

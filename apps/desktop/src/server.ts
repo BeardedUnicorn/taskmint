@@ -5,12 +5,12 @@
  * app restarts. The token stays in the OS keychain, out of the webview.
  */
 
-import type { RestoreSummary } from "@taskmint/contracts";
-import type { Capabilities } from "@taskmint/client/backend";
-import { command } from "./tauriBackend";
+import type { RestoreSummary } from '@taskmint/contracts';
+import type { Capabilities } from '@taskmint/client/backend';
+import { command } from './tauriBackend';
 
 /** The link to the server, as the Rust side's event stream finds it. */
-export type LinkStatus = "connecting" | "connected" | "unreachable" | "signedOut";
+export type LinkStatus = 'connecting' | 'connected' | 'unreachable' | 'signedOut';
 
 /** `server-connection-changed`'s payload. */
 export interface Link {
@@ -37,14 +37,14 @@ export interface Uploaded {
 }
 
 export const serverMode = {
-  capabilities: () => command<Capabilities>("get_capabilities"),
+  capabilities: () => command<Capabilities>('get_capabilities'),
   /** null: this computer's data is on this computer. */
-  connection: () => command<ServerConnection | null>("get_server_connection"),
+  connection: () => command<ServerConnection | null>('get_server_connection'),
   connect: (url: string, username: string, password: string) =>
-    command<Connection>("connect_server", { url, username, password }),
-  disconnect: () => command<{ signedOut: boolean }>("disconnect_server"),
-  upload: () => command<Uploaded>("upload_local_data"),
-  restart: () => command<void>("restart_app"),
+    command<Connection>('connect_server', { url, username, password }),
+  disconnect: () => command<{ signedOut: boolean }>('disconnect_server'),
+  upload: () => command<Uploaded>('upload_local_data'),
+  restart: () => command<void>('restart_app'),
 };
 
 /** A refusal as a sentence: the server's own words start in lower case. */

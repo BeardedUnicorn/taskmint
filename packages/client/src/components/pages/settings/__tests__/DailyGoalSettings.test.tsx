@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { NotificationProvider } from '../../../../contexts/NotificationContext'
+import { NotificationProvider } from '../../../../contexts/NotificationContext';
 
 import { DailyGoalSettings } from '../DailyGoalSettings';
 import { useDailyGoals } from '../../../../hooks/useDailyGoals';
@@ -24,9 +24,7 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <ThemeProvider theme={theme}>
       <NotificationProvider>
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          {children}
-        </LocalizationProvider>
+        <LocalizationProvider dateAdapter={AdapterDayjs}>{children}</LocalizationProvider>
       </NotificationProvider>
     </ThemeProvider>
   );
@@ -130,16 +128,16 @@ describe('DailyGoalSettings', () => {
   it('should handle updateDailyGoal errors', async () => {
     const user = userEvent.setup();
     mockUpdateDailyGoal.mockRejectedValue(new Error('Save failed'));
-    
+
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
+
     render(<DailyGoalSettings />, { wrapper: TestWrapper });
 
     await user.click(await screen.findByRole('switch', { name: /enable daily earnings goal/i }));
 
     // The reason, as an error toast
     expect(await screen.findByText('Save failed')).toBeInTheDocument();
-    
+
     consoleSpy.mockRestore();
   }, 30000);
 
@@ -153,7 +151,7 @@ describe('DailyGoalSettings', () => {
     );
   });
 
-  it("saves nothing for Enter on the amount already saved, or when the field is left while off", () => {
+  it('saves nothing for Enter on the amount already saved, or when the field is left while off', () => {
     setupMocks({ targetAmount: 150, currency: 'USD', isEnabled: true });
     const { unmount } = render(<DailyGoalSettings />, { wrapper: TestWrapper });
     fireEvent.keyDown(screen.getByLabelText(/daily target amount/i), { key: 'Enter' });
@@ -173,6 +171,8 @@ describe('DailyGoalSettings', () => {
 
     fireEvent.change(screen.getByLabelText(/daily target amount/i), { target: { value: '90' } });
     fireEvent.blur(screen.getByLabelText(/daily target amount/i));
-    await waitFor(() => expect(mockUpdateDailyGoal).toHaveBeenCalledWith(expect.objectContaining({ targetAmount: 90 })));
+    await waitFor(() =>
+      expect(mockUpdateDailyGoal).toHaveBeenCalledWith(expect.objectContaining({ targetAmount: 90 }))
+    );
   });
 });

@@ -44,7 +44,6 @@ export const SessionCard = memo(function SessionCard({
   onOpenNotes,
   notePreview,
 }: SessionCardProps) {
-
   const runningInstances = session.timerInstances.filter(i => i.state === TimerState.running);
   const totalInstances = session.timerInstances?.length || 0;
   const title = sessionTitle(session);
@@ -74,7 +73,7 @@ export const SessionCard = memo(function SessionCard({
             <Typography variant="h6" noWrap title={title} sx={{ fontWeight: 600, mb: 1, width: 0, minWidth: '100%' }}>
               {title}
             </Typography>
-            
+
             <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
               <Chip
                 icon={<TimerIcon />}
@@ -83,47 +82,26 @@ export const SessionCard = memo(function SessionCard({
                 color={session.isActive ? 'primary' : 'default'}
                 variant={session.isActive ? 'filled' : 'outlined'}
               />
-              
+
               <Chip
                 label={`${totalInstances} timer${totalInstances !== 1 ? 's' : ''}`}
                 size="small"
                 variant="outlined"
               />
-              
+
               {runningInstances.length > 0 && (
-                <Chip
-                  label={`${runningInstances.length} running`}
-                  size="small"
-                  color="success"
-                />
+                <Chip label={`${runningInstances.length} running`} size="small" color="success" />
               )}
-              
-              {session.isActive && (
-                <Chip
-                  label="Active"
-                  size="small"
-                  color="primary"
-                />
-              )}
+
+              {session.isActive && <Chip label="Active" size="small" color="primary" />}
 
               {isImportedSession(session) && (
-                <Chip
-                  label="Imported"
-                  size="small"
-                  color="secondary"
-                  variant="outlined"
-                />
+                <Chip label="Imported" size="small" color="secondary" variant="outlined" />
               )}
 
-              {session.source === MANUAL_SOURCE && (
-                <Chip
-                  label="Manual"
-                  size="small"
-                  variant="outlined"
-                />
-              )}
+              {session.source === MANUAL_SOURCE && <Chip label="Manual" size="small" variant="outlined" />}
             </Stack>
-            
+
             {/* With one task, the title and the time above already say this */}
             {taskTotals.length > 1 && (
               <Box
@@ -132,11 +110,7 @@ export const SessionCard = memo(function SessionCard({
                 sx={{ listStyle: 'none', m: 0, p: 0, mb: notePreview ? 1 : 0 }}
               >
                 {taskTotals.map(total => (
-                  <Box
-                    component="li"
-                    key={total.taskId}
-                    sx={{ display: 'flex', gap: 2 }}
-                  >
+                  <Box component="li" key={total.taskId} sx={{ display: 'flex', gap: 2 }}>
                     <Typography
                       variant="body2"
                       noWrap
@@ -177,12 +151,12 @@ export const SessionCard = memo(function SessionCard({
               </Typography>
             )}
           </Box>
-          
+
           <Stack direction="row" spacing={1} sx={{ mt: -1, mr: -1 }}>
             {/* Imported days change only by importing again */}
             {!isImportedSession(session) && (
               <Button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   session.isActive ? onStop() : onStart(session);
                 }}
@@ -194,7 +168,7 @@ export const SessionCard = memo(function SessionCard({
               </Button>
             )}
             <Button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onOpenNotes(session.id);
               }}
@@ -204,11 +178,7 @@ export const SessionCard = memo(function SessionCard({
             >
               Notes
             </Button>
-            <IconButton
-              onClick={(event) => onMenuOpen(event, session)}
-              size="small"
-              aria-label="More options"
-            >
+            <IconButton onClick={event => onMenuOpen(event, session)} size="small" aria-label="More options">
               <MoreIcon />
             </IconButton>
           </Stack>

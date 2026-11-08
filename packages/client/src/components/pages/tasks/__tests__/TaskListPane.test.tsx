@@ -12,7 +12,6 @@ import '@testing-library/jest-dom/vitest';
 import { TaskListPane } from '../TaskListPane';
 import { Task } from '../../../../types/task';
 
-
 describe('TaskListPane', () => {
   const activeAlpha: Task = {
     id: 'task-alpha',

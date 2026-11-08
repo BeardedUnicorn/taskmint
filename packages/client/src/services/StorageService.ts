@@ -1,6 +1,6 @@
 /**
  * Storage Service
- * 
+ *
  * Centralized storage management with validation, migration, and error handling
  * Provides a unified interface for all data persistence operations
  *
@@ -54,7 +54,8 @@ export class StorageService implements IStorageService {
     const validationResult = validateWithSchema(schema, data);
     if (!validationResult.success) {
       console.error(`Validation failed for key "${key}":`, validationResult.error);
-      throw createStorageError('STORAGE_VALIDATION_FAILED',
+      throw createStorageError(
+        'STORAGE_VALIDATION_FAILED',
         `Data validation failed for key "${key}": ${validationResult.error}`,
         { key, validationError: validationResult.error }
       );
@@ -67,7 +68,12 @@ export class StorageService implements IStorageService {
     let data = readAppRecord(key);
     if (data === undefined) return defaultValue;
     // Plain data is stored; tolerate a version wrapper restored from old data
-    if (data && typeof data === 'object' && typeof (data as { version?: unknown }).version === 'number' && 'data' in data) {
+    if (
+      data &&
+      typeof data === 'object' &&
+      typeof (data as { version?: unknown }).version === 'number' &&
+      'data' in data
+    ) {
       data = (data as { data: unknown }).data;
     }
     return this.validated(key, data, schema);
@@ -96,45 +102,29 @@ export class StorageService implements IStorageService {
       await writeAppRecord(key, value);
     } catch (error) {
       console.error(`Failed to save data for key "${key}":`, error);
-      throw createStorageError('STORAGE_WRITE_FAILED',
-        `Failed to write data for key "${key}"`,
-        { key, originalError: error }
-      );
+      throw createStorageError('STORAGE_WRITE_FAILED', `Failed to write data for key "${key}"`, {
+        key,
+        originalError: error,
+      });
     }
   }
 
   // Typed storage operations
 
   async getTasks(): Promise<Task[]> {
-    return await this.getItem(
-      STORAGE_KEYS.PREDEFINED_TASKS,
-      [],
-      z.array(TaskSchema)
-    );
+    return await this.getItem(STORAGE_KEYS.PREDEFINED_TASKS, [], z.array(TaskSchema));
   }
 
   async setTasks(tasks: Task[]): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.PREDEFINED_TASKS,
-      tasks,
-      z.array(TaskSchema)
-    );
+    await this.setItem(STORAGE_KEYS.PREDEFINED_TASKS, tasks, z.array(TaskSchema));
   }
 
   async getNoteTemplates(): Promise<NoteTemplate[]> {
-    return await this.getItem(
-      STORAGE_KEYS.NOTE_TEMPLATES,
-      [],
-      z.array(NoteTemplateSchema)
-    );
+    return await this.getItem(STORAGE_KEYS.NOTE_TEMPLATES, [], z.array(NoteTemplateSchema));
   }
 
   async setNoteTemplates(templates: NoteTemplate[]): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.NOTE_TEMPLATES,
-      templates,
-      z.array(NoteTemplateSchema)
-    );
+    await this.setItem(STORAGE_KEYS.NOTE_TEMPLATES, templates, z.array(NoteTemplateSchema));
   }
 
   async getTaskNotes(): Promise<TaskNote[]> {
@@ -142,42 +132,22 @@ export class StorageService implements IStorageService {
   }
 
   async setTaskNotes(notes: TaskNote[]): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.TASK_NOTES,
-      notes,
-      z.array(TaskNoteSchema)
-    );
+    await this.setItem(STORAGE_KEYS.TASK_NOTES, notes, z.array(TaskNoteSchema));
   }
 
   async getDailyGoal(): Promise<DailyGoal | null> {
-    return await this.getItem(
-      STORAGE_KEYS.DAILY_GOAL,
-      null,
-      DailyGoalSchema.nullable()
-    );
+    return await this.getItem(STORAGE_KEYS.DAILY_GOAL, null, DailyGoalSchema.nullable());
   }
 
   async setDailyGoal(goal: DailyGoal): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.DAILY_GOAL,
-      goal,
-      DailyGoalSchema
-    );
+    await this.setItem(STORAGE_KEYS.DAILY_GOAL, goal, DailyGoalSchema);
   }
 
   async getGoalAchievements(): Promise<DailyGoalAchievement[]> {
-    return await this.getItem(
-      STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
-      [],
-      z.array(DailyGoalAchievementSchema)
-    );
+    return await this.getItem(STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS, [], z.array(DailyGoalAchievementSchema));
   }
 
   async setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void> {
-    await this.setItem(
-      STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
-      achievements,
-      z.array(DailyGoalAchievementSchema)
-    );
+    await this.setItem(STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS, achievements, z.array(DailyGoalAchievementSchema));
   }
 }

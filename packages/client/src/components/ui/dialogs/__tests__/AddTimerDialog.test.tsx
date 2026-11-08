@@ -4,7 +4,11 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { AddTimerDialog } from '../AddTimerDialog';
 import { Task } from '../../../../types/task';
 import { TaskSession, TimerState } from '../../../../types/timer';
-import { createMockTask, createMockTaskSession, createMockTimerInstance } from '../../../../__tests__/setup/session-test-utils';
+import {
+  createMockTask,
+  createMockTaskSession,
+  createMockTimerInstance,
+} from '../../../../__tests__/setup/session-test-utils';
 
 const tasks: Task[] = [
   createMockTask({ id: 't1', name: 'Annotation' }),
@@ -26,7 +30,13 @@ describe('AddTimerDialog', () => {
 
   const renderDialog = (dialogSession = session()) =>
     render(
-      <AddTimerDialog session={dialogSession} tasks={tasks} sessions={[dialogSession]} onClose={onClose} onAdd={onAdd} />
+      <AddTimerDialog
+        session={dialogSession}
+        tasks={tasks}
+        sessions={[dialogSession]}
+        onClose={onClose}
+        onAdd={onAdd}
+      />
     );
   const taskField = () => screen.getByLabelText('Task');
   const addButton = () => screen.getByRole('button', { name: 'Add Timer' });

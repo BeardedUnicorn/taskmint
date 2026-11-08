@@ -31,7 +31,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("launching the desktop app", () => {
+describe('launching the desktop app', () => {
   beforeEach(fakeWaits);
 
   it('navigates the page to a link carrying the payload', async () => {
@@ -48,7 +48,10 @@ describe("launching the desktop app", () => {
   it('opens the link in a background tab when the page is gone, then closes it', async () => {
     chrome.tabs.sendMessage.mockRejectedValue(new Error('Could not establish connection'));
     await withTimePassing(launchDesktop(PAYLOAD, SITE_TAB));
-    expect(chrome.tabs.create).toHaveBeenCalledWith({ url: expect.stringMatching(/^taskmint:\/\/import-worklogs/), active: false });
+    expect(chrome.tabs.create).toHaveBeenCalledWith({
+      url: expect.stringMatching(/^taskmint:\/\/import-worklogs/),
+      active: false,
+    });
     expect(chrome.tabs.remove).toHaveBeenCalledWith(70);
 
     // Without a tab to ask, straight to one; a tab that's already gone is fine
@@ -70,11 +73,17 @@ describe("launching the desktop app", () => {
     const random = crypto.getRandomValues(new Uint8Array(40_000));
     const big = JSON.stringify([...random].map(n => n.toString(36)));
     await withTimePassing(launchDesktop(big, SITE_TAB));
-    expect(chrome.tabs.sendMessage).toHaveBeenLastCalledWith(SITE_TAB, { type: 'open-deep-link', url: CAPTURE_PENDING_LINK });
+    expect(chrome.tabs.sendMessage).toHaveBeenLastCalledWith(SITE_TAB, {
+      type: 'open-deep-link',
+      url: CAPTURE_PENDING_LINK,
+    });
 
     vi.stubGlobal('CompressionStream', undefined);
     await withTimePassing(launchDesktop(PAYLOAD, SITE_TAB));
-    expect(chrome.tabs.sendMessage).toHaveBeenLastCalledWith(SITE_TAB, { type: 'open-deep-link', url: CAPTURE_PENDING_LINK });
+    expect(chrome.tabs.sendMessage).toHaveBeenLastCalledWith(SITE_TAB, {
+      type: 'open-deep-link',
+      url: CAPTURE_PENDING_LINK,
+    });
   });
 
   it('compresses as the desktop app reads it, past one chunk of the conversion', async () => {

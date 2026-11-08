@@ -81,8 +81,7 @@ export function PayoutsPage() {
       >
         {lastImport !== null && (
           <Typography variant="body2" sx={{ mt: 0.5, color: importIsStale ? 'warning.main' : 'text.secondary' }}>
-            Last import:{' '}
-            {formatShortDateTime(lastImport)}
+            Last import: {formatShortDateTime(lastImport)}
             {importIsStale && ' — visit the payments page to refresh'}
           </Typography>
         )}
@@ -123,7 +122,8 @@ export function PayoutsPage() {
 
       {summary.overduePendingCents > 0 && (
         <Alert severity="info" sx={{ mb: 3 }}>
-          {formatCurrency(centsToDollars(summary.overduePendingCents))} in reported work is awaiting site approval past its estimated release date. Re-importing work logs will update these once approved by the site.
+          {formatCurrency(centsToDollars(summary.overduePendingCents))} in reported work is awaiting site approval past
+          its estimated release date. Re-importing work logs will update these once approved by the site.
         </Alert>
       )}
 
@@ -164,9 +164,7 @@ export function PayoutsPage() {
               value={formatCurrency(centsToDollars(summary.pendingCents))}
               subtitle={
                 summary.nextReleaseDay
-                  ? `next: ${summary.nextReleaseDay} · ${formatCurrency(
-                      centsToDollars(summary.nextReleaseCents)
-                    )}`
+                  ? `next: ${summary.nextReleaseDay} · ${formatCurrency(centsToDollars(summary.nextReleaseCents))}`
                   : 'nothing scheduled'
               }
               icon={<ScheduleIcon fontSize="large" />}

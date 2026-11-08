@@ -40,7 +40,7 @@ export async function deliverToServer(server: Server, payloadText: string): Prom
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: payloadText,
-    }),
+    })
   );
 }
 

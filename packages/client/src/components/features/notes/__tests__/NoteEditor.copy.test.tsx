@@ -83,13 +83,13 @@ describe('NoteEditor Copy Functionality', () => {
           existingNote={mockExistingNote}
           onSaveNote={mockOnSaveNote}
           onUpdateNote={mockOnUpdateNote}
-        onDeleteNote={mockOnDeleteNote}
-        isCollapsed={false}
-        onToggleCollapse={() => {}}
-        autoSaveDisabled
-        noteLevel="task"
-      />
-    );
+          onDeleteNote={mockOnDeleteNote}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+          autoSaveDisabled
+          noteLevel="task"
+        />
+      );
     });
 
     // Check for copy buttons

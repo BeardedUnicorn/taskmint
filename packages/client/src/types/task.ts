@@ -35,7 +35,7 @@ export const TaskSchema = z.object({
   archivedAt: z.iso.datetime().nullable().optional(),
   isFavorite: z.boolean().default(false),
   createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
+  updatedAt: z.iso.datetime(),
 });
 
 // Task management hook return type

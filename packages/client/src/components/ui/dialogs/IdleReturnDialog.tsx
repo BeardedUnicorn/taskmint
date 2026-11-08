@@ -7,15 +7,7 @@
  * touching the mouse) and resume, or stay paused.
  */
 
-import {
-  Alert,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-} from '@mui/material';
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import { IdleChoice, IdlePause } from '../../../types/timer';
 import { formatDuration } from '../../../utils/formatters';
 import { formatClockTime } from '../../../utils/locale';
@@ -53,8 +45,8 @@ export function IdleReturnDialog({ pending, onResolve, isResolving = false, erro
       <DialogTitle>Welcome back</DialogTitle>
       <DialogContent>
         <DialogContentText>
-          <strong>{pending.taskName}</strong> paused at {pausedAt}, when your computer stopped
-          getting input. You were away for {away}, which isn't counted unless you keep it.
+          <strong>{pending.taskName}</strong> paused at {pausedAt}, when your computer stopped getting input. You were
+          away for {away}, which isn't counted unless you keep it.
         </DialogContentText>
         {error && (
           <Alert severity="error" sx={{ mt: 2 }}>
@@ -69,12 +61,7 @@ export function IdleReturnDialog({ pending, onResolve, isResolving = false, erro
         <Button onClick={() => onResolve('keepResume')} disabled={isResolving}>
           Keep {away} and resume
         </Button>
-        <Button
-          onClick={() => onResolve('discardResume')}
-          variant="contained"
-          autoFocus
-          disabled={isResolving}
-        >
+        <Button onClick={() => onResolve('discardResume')} variant="contained" autoFocus disabled={isResolving}>
           Discard and resume
         </Button>
       </DialogActions>

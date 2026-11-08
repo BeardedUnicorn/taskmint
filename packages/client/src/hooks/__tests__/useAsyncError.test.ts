@@ -8,7 +8,10 @@ describe('useAsyncError', () => {
     const { result } = renderHook(() => useAsyncError());
     const errorHandler = vi.fn();
     const failure = await result.current
-      .executeAsync(() => Promise.reject({ message: 'quota exceeded', code: 'QUOTA' }), { operation: 'save', errorHandler })
+      .executeAsync(() => Promise.reject({ message: 'quota exceeded', code: 'QUOTA' }), {
+        operation: 'save',
+        errorHandler,
+      })
       .catch(error => error);
     expect(failure).toBeInstanceOf(AsyncError);
     expect([failure.message, failure.code, failure.operation]).toEqual(['quota exceeded', 'QUOTA', 'save']);

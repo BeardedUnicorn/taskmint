@@ -92,9 +92,7 @@ const CalendarPage: React.FC = () => {
   const completedSessions = useMemo(() => {
     return sessions.map(s => ({
       ...s,
-      timerInstances: s.timerInstances.filter(
-        i => i.state !== TimerState.running && !i.isRunning
-      ),
+      timerInstances: s.timerInstances.filter(i => i.state !== TimerState.running && !i.isRunning),
     }));
   }, [sessions]);
 
@@ -194,49 +192,48 @@ const CalendarPage: React.FC = () => {
     setCurrentDate(new Date());
   }, []);
 
+  const EventComponent = useCallback(
+    ({ event }: { event: CalendarEvent }) => {
+      return (
+        <Box
+          sx={{
+            fontSize: '11px',
+            lineHeight: 1.2,
+            padding: '2px',
+            backgroundColor: theme.palette.primary.main,
+            color: theme.palette.primary.contrastText,
+            borderRadius: '3px',
+            overflow: 'hidden',
+          }}
+        >
+          {event.resource.earned > 0 && (
+            <Box sx={{ fontWeight: 'bold', mb: 0.25 }}>{formatCurrency(event.resource.earned)}</Box>
+          )}
+          {event.resource.trackedMs > 0 && (
+            <Box sx={{ fontSize: '9px', opacity: 0.9 }}>{formatDuration(event.resource.trackedMs)}</Box>
+          )}
+          {event.resource.released > 0 && (
+            <Box sx={{ fontSize: '9px', opacity: 0.9 }}>Released: {formatCurrency(event.resource.released)}</Box>
+          )}
+        </Box>
+      );
+    },
+    [theme]
+  );
 
-  const EventComponent = useCallback(({ event }: { event: CalendarEvent }) => {
-    return (
-      <Box
-        sx={{
-          fontSize: '11px',
-          lineHeight: 1.2,
-          padding: '2px',
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          borderRadius: '3px',
-          overflow: 'hidden',
-        }}
-      >
-        {event.resource.earned > 0 && (
-          <Box sx={{ fontWeight: 'bold', mb: 0.25 }}>
-            {formatCurrency(event.resource.earned)}
-          </Box>
-        )}
-        {event.resource.trackedMs > 0 && (
-          <Box sx={{ fontSize: '9px', opacity: 0.9 }}>
-            {formatDuration(event.resource.trackedMs)}
-          </Box>
-        )}
-        {event.resource.released > 0 && (
-          <Box sx={{ fontSize: '9px', opacity: 0.9 }}>
-            Released: {formatCurrency(event.resource.released)}
-          </Box>
-        )}
-      </Box>
-    );
-  }, [theme]);
+  const DayPropGetter = useCallback(
+    (date: Date) => {
+      const dateStr = formatDateString(date);
+      const isActive = activeDays.some(d => d.date === dateStr);
 
-  const DayPropGetter = useCallback((date: Date) => {
-    const dateStr = formatDateString(date);
-    const isActive = activeDays.some(d => d.date === dateStr);
-
-    return {
-      style: {
-        backgroundColor: isActive ? theme.palette.action.hover : 'transparent',
-      },
-    };
-  }, [activeDays, theme]);
+      return {
+        style: {
+          backgroundColor: isActive ? theme.palette.action.hover : 'transparent',
+        },
+      };
+    },
+    [activeDays, theme]
+  );
 
   const calendarStyle = useMemo(
     () => ({
@@ -269,7 +266,7 @@ const CalendarPage: React.FC = () => {
           onNext={handleNextMonth}
           onToday={handleToday}
         />
-        <Box 
+        <Box
           sx={{
             ...calendarStyle,
           }}

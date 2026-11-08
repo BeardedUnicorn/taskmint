@@ -1,6 +1,6 @@
 /**
  * Tests for useDataBackup hook
- * 
+ *
  * This test suite covers the data backup and export functionality,
  * ensuring that the export process works correctly and opens the
  * appropriate dialogs and folders.
@@ -66,10 +66,10 @@ describe('useDataBackup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
+
     // Mock StorageService.getInstance to return our mock
     vi.mocked(StorageService.getInstance).mockReturnValue(mockStorageService);
-    
+
     // Set up default mock data
     mockStorageService.getTasks.mockResolvedValue([
       {
@@ -80,7 +80,7 @@ describe('useDataBackup', () => {
         updatedAt: '2023-01-01T00:00:00Z',
       },
     ]);
-    
+
     mockStorageService.getNoteTemplates.mockResolvedValue([
       {
         id: 'template-1',
@@ -91,7 +91,7 @@ describe('useDataBackup', () => {
         updatedAt: '2023-01-01T00:00:00Z',
       },
     ]);
-    
+
     mockStorageService.getTaskNotes.mockResolvedValue([
       {
         id: 'note-1',
@@ -103,7 +103,7 @@ describe('useDataBackup', () => {
         updatedAt: '2023-01-01T00:00:00Z',
       },
     ]);
-    
+
     mockStorageService.getDailyGoal.mockResolvedValue({
       targetAmount: 100,
       currency: 'USD',
@@ -113,7 +113,7 @@ describe('useDataBackup', () => {
       createdAt: '2023-01-01T00:00:00Z',
       updatedAt: '2023-01-01T00:00:00Z',
     });
-    
+
     mockStorageService.getGoalAchievements.mockResolvedValue([
       {
         id: 'achievement-1',
@@ -211,7 +211,7 @@ describe('useDataBackup', () => {
 
     it('should handle storage service errors', async () => {
       mockStorageService.getTasks.mockRejectedValue(new Error('Storage error'));
-      
+
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
       await expect(result.current.createBackupData()).rejects.toThrow('Failed to gather data for export');
@@ -250,7 +250,7 @@ describe('useDataBackup', () => {
 
     it('should set isExporting to true during export', async () => {
       let resolveExport: (value: string) => void;
-      const exportPromise = new Promise<string | null>((resolve) => {
+      const exportPromise = new Promise<string | null>(resolve => {
         resolveExport = resolve;
       });
       exportImpl = () => exportPromise;
@@ -310,7 +310,7 @@ describe('useDataBackup', () => {
 
     it('should not start export if already exporting', async () => {
       let resolveExport: (value: string) => void;
-      const exportPromise = new Promise<string | null>((resolve) => {
+      const exportPromise = new Promise<string | null>(resolve => {
         resolveExport = resolve;
       });
       exportImpl = () => exportPromise;
@@ -398,10 +398,10 @@ describe('useDataBackup', () => {
           noteTemplates: [],
           taskNotes: [],
           dailyGoal: null,
-          goalAchievements: []
-        }
+          goalAchievements: [],
+        },
       });
-      
+
       files().openJson.mockResolvedValue(validJsonData);
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
@@ -429,7 +429,9 @@ describe('useDataBackup', () => {
         version: '2',
         exportDate: '2023-01-02T00:00:00.000Z',
         data: {
-          tasks: [{ id: 'task-2', name: 'Imported', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' }],
+          tasks: [
+            { id: 'task-2', name: 'Imported', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
+          ],
           sessions: [mockSession],
           workLogs: { entries: [mockWorkLogEntry], mappings: [mockMapping] },
         },
@@ -491,11 +493,13 @@ describe('useDataBackup', () => {
     });
 
     it('leaves work logs untouched when importing a v1 export without them', async () => {
-      files().openJson.mockResolvedValue(JSON.stringify({
-        version: '1.0',
-        exportDate: '2023-01-02T00:00:00.000Z',
-        data: { sessions: [mockSession] },
-      }));
+      files().openJson.mockResolvedValue(
+        JSON.stringify({
+          version: '1.0',
+          exportDate: '2023-01-02T00:00:00.000Z',
+          data: { sessions: [mockSession] },
+        })
+      );
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
       await act(async () => {
@@ -520,9 +524,7 @@ describe('useDataBackup', () => {
       });
 
       expect(fakeBackend().call).not.toHaveBeenCalledWith('restore_backup_data', expect.anything());
-      expect(mockCallbacks.onImportError).toHaveBeenCalledWith(
-        expect.stringContaining('not a TaskMint export')
-      );
+      expect(mockCallbacks.onImportError).toHaveBeenCalledWith(expect.stringContaining('not a TaskMint export'));
     });
 
     it('should handle invalid JSON data', async () => {
@@ -632,10 +634,12 @@ describe('useDataBackup', () => {
     });
 
     it('should handle partial callbacks', async () => {
-      const { result } = renderHook(() => useDataBackup({
-        onExportSuccess: mockCallbacks.onExportSuccess,
-        // onExportError not provided
-      }));
+      const { result } = renderHook(() =>
+        useDataBackup({
+          onExportSuccess: mockCallbacks.onExportSuccess,
+          // onExportError not provided
+        })
+      );
 
       await act(async () => {
         await result.current.exportData();
@@ -662,10 +666,16 @@ describe('useDataBackup', () => {
 
       await importFile('merge', {
         data: {
-          tasks: [{ ...task, name: 'Renamed in the file' }, { ...task, id: 'task-2' }],
+          tasks: [
+            { ...task, name: 'Renamed in the file' },
+            { ...task, id: 'task-2' },
+          ],
           noteTemplates: [template, { ...template, id: 'template-2' }],
           taskNotes: [note, { ...note, id: 'note-2' }],
-          goalAchievements: [{ ...achievement, id: 'other-id' }, { ...achievement, date: '2023-01-02' }],
+          goalAchievements: [
+            { ...achievement, id: 'other-id' },
+            { ...achievement, date: '2023-01-02' },
+          ],
         },
       });
 

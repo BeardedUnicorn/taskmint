@@ -1,11 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  useDailySummary,
-  buildDailySummary,
-  isDailySummaryDue,
-  DAILY_SUMMARY_LAST_SENT_KEY,
-} from '../useDailySummary';
+import { useDailySummary, buildDailySummary, isDailySummaryDue, DAILY_SUMMARY_LAST_SENT_KEY } from '../useDailySummary';
 import { NOTIFICATION_PREFERENCES_KEY } from '../../notifications/preferences';
 import { readLocal, writeLocal } from '../../utils/localStore';
 import { DailyGoal } from '../../types/goal';

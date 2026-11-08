@@ -18,10 +18,16 @@ import { instanceTaskId, instanceTaskName } from '../utils/timerHelpers';
 
 const TasksPage = lazy(() => import('../components/pages/TasksPage').then(module => ({ default: module.TasksPage })));
 const NotesPage = lazy(() => import('../components/pages/NotesPage').then(module => ({ default: module.NotesPage })));
-const HistoryPage = lazy(() => import('../components/pages/history/HistoryPage').then(module => ({ default: module.HistoryPage })));
+const HistoryPage = lazy(() =>
+  import('../components/pages/history/HistoryPage').then(module => ({ default: module.HistoryPage }))
+);
 const CalendarPage = lazy(() => import('../components/pages/CalendarPage'));
-const PayoutsPage = lazy(() => import('../components/pages/payouts/PayoutsPage').then(module => ({ default: module.PayoutsPage })));
-const SettingsPage = lazy(() => import('../components/pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
+const PayoutsPage = lazy(() =>
+  import('../components/pages/payouts/PayoutsPage').then(module => ({ default: module.PayoutsPage }))
+);
+const SettingsPage = lazy(() =>
+  import('../components/pages/SettingsPage').then(module => ({ default: module.SettingsPage }))
+);
 
 /** App-level actions a page can trigger (the dialogs live in the app shell). */
 export interface PageProps {
@@ -33,9 +39,12 @@ export interface PageProps {
 function useEntryActions() {
   const { deleteTimerInstance } = useSessionManagementContext();
   const saveTimerEdit = useTimerEntryEdit();
-  const onUpdateEntry = useCallback(async (data: EditTimeEntryData) => {
-    await saveTimerEdit(data);
-  }, [saveTimerEdit]);
+  const onUpdateEntry = useCallback(
+    async (data: EditTimeEntryData) => {
+      await saveTimerEdit(data);
+    },
+    [saveTimerEdit]
+  );
   return { onUpdateEntry, onDeleteEntry: deleteTimerInstance };
 }
 

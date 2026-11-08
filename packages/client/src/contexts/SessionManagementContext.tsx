@@ -15,11 +15,7 @@ const SessionManagementContext = createContext<UseSessionManagementReturn | null
 
 export function SessionManagementProvider({ children }: { children: ReactNode }) {
   const value = useSessionManagement();
-  return (
-    <SessionManagementContext.Provider value={value}>
-      {children}
-    </SessionManagementContext.Provider>
-  );
+  return <SessionManagementContext.Provider value={value}>{children}</SessionManagementContext.Provider>;
 }
 
 export function useSessionManagementContext(): UseSessionManagementReturn {

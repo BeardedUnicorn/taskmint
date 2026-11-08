@@ -62,16 +62,12 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
   if (event.contexts) {
     const contexts: NonNullable<ErrorEvent['contexts']> = {};
     for (const [name, context] of Object.entries(event.contexts)) {
-      contexts[name] = SDK_CONTEXTS.has(name)
-        ? context
-        : pickAllowed(context as Record<string, unknown> | undefined);
+      contexts[name] = SDK_CONTEXTS.has(name) ? context : pickAllowed(context as Record<string, unknown> | undefined);
     }
     scrubbed.contexts = contexts;
   }
   if (event.breadcrumbs) {
-    scrubbed.breadcrumbs = event.breadcrumbs
-      .map(scrubBreadcrumb)
-      .filter((b): b is Breadcrumb => b !== null);
+    scrubbed.breadcrumbs = event.breadcrumbs.map(scrubBreadcrumb).filter((b): b is Breadcrumb => b !== null);
   }
   return scrubbed;
 }
@@ -164,7 +160,7 @@ export function initSentry() {
  */
 function setupGlobalErrorHandlers() {
   // Handle unhandled promise rejections
-  window.addEventListener('unhandledrejection', (event) => {
+  window.addEventListener('unhandledrejection', event => {
     console.error('Unhandled promise rejection:', event.reason);
 
     // Backend commands reject with strings, and some code with { message }
@@ -172,15 +168,10 @@ function setupGlobalErrorHandlers() {
       event.reason instanceof Error ? event.reason : new Error(errorMessage(event.reason, String(event.reason)));
     const reasonString = error.message;
 
-    addBreadcrumb(
-      'Unhandled promise rejection',
-      'error',
-      'error',
-      {
-        reason: reasonString,
-        promise: event.promise?.toString(),
-      }
-    );
+    addBreadcrumb('Unhandled promise rejection', 'error', 'error', {
+      reason: reasonString,
+      promise: event.promise?.toString(),
+    });
 
     captureException(error, {
       type: 'unhandledrejection',
@@ -189,22 +180,17 @@ function setupGlobalErrorHandlers() {
   });
 
   // Handle uncaught errors
-  window.addEventListener('error', (event) => {
+  window.addEventListener('error', event => {
     console.error('Uncaught error:', event.error);
-    
+
     const error = event.error instanceof Error ? event.error : new Error(event.message);
-    
-    addBreadcrumb(
-      'Uncaught error',
-      'error',
-      'error',
-      {
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno,
-        message: event.message,
-      }
-    );
+
+    addBreadcrumb('Uncaught error', 'error', 'error', {
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+      message: event.message,
+    });
 
     captureException(error, {
       type: 'uncaught',
@@ -227,7 +213,12 @@ export function captureException(error: Error, context?: Record<string, any>) {
 /**
  * Add breadcrumb for debugging
  */
-export function addBreadcrumb(message: string, category: string, level: Sentry.SeverityLevel = 'info', data?: Record<string, any>) {
+export function addBreadcrumb(
+  message: string,
+  category: string,
+  level: Sentry.SeverityLevel = 'info',
+  data?: Record<string, any>
+) {
   Sentry.addBreadcrumb({
     message,
     category,

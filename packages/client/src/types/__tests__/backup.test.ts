@@ -7,7 +7,11 @@ afterEach(() => {
 
 describe('backup frequencies', () => {
   it('have labels', () => {
-    expect((['daily', 'weekly', 'monthly'] as const).map(getBackupFrequencyLabel)).toEqual(['Daily', 'Weekly', 'Monthly']);
+    expect((['daily', 'weekly', 'monthly'] as const).map(getBackupFrequencyLabel)).toEqual([
+      'Daily',
+      'Weekly',
+      'Monthly',
+    ]);
   });
 
   it('put the next backup a day, a week or a month after the last', () => {

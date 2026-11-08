@@ -35,9 +35,7 @@ vi.mock('../../../ui/charts/TaskDistributionPieChart', () => ({ TaskDistribution
 
 const ENTRY_COUNT = 30;
 const HOUR = 3_600_000;
-const tasks: Task[] = [
-  { id: 'task-1', name: 'Annotation', hourlyRate: 60, createdAt: '', updatedAt: '' },
-];
+const tasks: Task[] = [{ id: 'task-1', name: 'Annotation', hourlyRate: 60, createdAt: '', updatedAt: '' }];
 
 // Entries arrive the way sessionsToTimeEntries produces them: oldest first.
 // Durations are a permutation of 1..30 minutes unrelated to that order, so a
@@ -239,9 +237,7 @@ describe('HistoryPage entries table', () => {
     // First click on a new column sorts ascending
     fireEvent.click(screen.getByText('Duration'));
 
-    const shortestFirst = [...entries]
-      .sort((a, b) => (a.duration ?? 0) - (b.duration ?? 0))
-      .map(e => e.taskName);
+    const shortestFirst = [...entries].sort((a, b) => (a.duration ?? 0) - (b.duration ?? 0)).map(e => e.taskName);
     expect(visibleTaskNames()).toEqual(shortestFirst.slice(0, 25));
   });
 

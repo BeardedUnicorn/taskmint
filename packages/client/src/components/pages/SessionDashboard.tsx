@@ -1,6 +1,6 @@
 /**
  * Session Dashboard Component
- * 
+ *
  * Main dashboard that integrates all session-based functionality including
  * session management, timer instances, and notes. (Idle detection runs in
  * the backend; its "you were away" question is an app-level dialog.)
@@ -8,11 +8,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { Box, Typography, Button, Skeleton, Stack } from '@mui/material';
-import {
-  Timer as TimerIcon,
-  AttachMoney as MoneyIcon,
-  MoreTime as AddTimeIcon,
-} from '@mui/icons-material';
+import { Timer as TimerIcon, AttachMoney as MoneyIcon, MoreTime as AddTimeIcon } from '@mui/icons-material';
 import { SessionTimerToolbar } from '../layout/SessionTimerToolbar';
 import { PageContainer } from '../layout/PageLayout';
 import { SessionList } from '../ui/sessions/SessionList';
@@ -119,17 +115,23 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   }, []);
 
   // Deletes straight away: a finished timer's toast offers Undo
-  const handleDeleteTimer = useCallback((instanceId: string) => {
-    void deleteTimerInstance(instanceId);
-  }, [deleteTimerInstance]);
+  const handleDeleteTimer = useCallback(
+    (instanceId: string) => {
+      void deleteTimerInstance(instanceId);
+    },
+    [deleteTimerInstance]
+  );
 
   const handleCloseEditTimerDialog = useCallback(() => setEditingTimerData(null), []);
 
   // Saves the duration, and moves the timer when another task was picked
   const saveTimerEdit = useTimerEntryEdit();
-  const handleSaveTimerEdit = useCallback(async (data: EditTimeEntryData) => {
-    if (await saveTimerEdit(data)) handleCloseEditTimerDialog();
-  }, [saveTimerEdit, handleCloseEditTimerDialog]);
+  const handleSaveTimerEdit = useCallback(
+    async (data: EditTimeEntryData) => {
+      if (await saveTimerEdit(data)) handleCloseEditTimerDialog();
+    },
+    [saveTimerEdit, handleCloseEditTimerDialog]
+  );
 
   // Notes handlers - memoized to prevent re-renders
   const handleOpenSessionNotes = useCallback((sessionId: string) => {
@@ -157,9 +159,12 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
     setSelectedSessionId(session.id);
   }, []);
 
-  const handleStartSelectedSession = useCallback(async (session: TaskSession) => {
-    await setActiveSession(session);
-  }, [setActiveSession]);
+  const handleStartSelectedSession = useCallback(
+    async (session: TaskSession) => {
+      await setActiveSession(session);
+    },
+    [setActiveSession]
+  );
 
   // Memoized dialog callbacks (the start and add-time dialogs are the app's)
   const handleCloseNotesDialog = useCallback(() => setNotesTarget(null), []);
@@ -193,7 +198,14 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
       <Typography
         component="h1"
         // '1px', not 1: to MUI's sx, a width of 1 means 100%
-        sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}
+        sx={{
+          position: 'absolute',
+          width: '1px',
+          height: '1px',
+          overflow: 'hidden',
+          clip: 'rect(0 0 0 0)',
+          whiteSpace: 'nowrap',
+        }}
       >
         Sessions
       </Typography>
@@ -267,12 +279,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               All Sessions
             </Typography>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<AddTimeIcon />}
-              onClick={onAddTime}
-            >
+            <Button size="small" variant="outlined" startIcon={<AddTimeIcon />} onClick={onAddTime}>
               Add time
             </Button>
           </Box>
@@ -324,7 +331,6 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
           tasks={tasks}
         />
       )}
-
     </PageContainer>
   );
 }

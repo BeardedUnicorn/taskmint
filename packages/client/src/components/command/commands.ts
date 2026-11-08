@@ -82,9 +82,24 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
       live && liveTask
         ? [
             live.state === TimerState.running
-              ? { id: 'timer-pause', label: `Pause "${liveTask}"`, group: 'Timer', run: () => void pauseTimerInstance(live.id) }
-              : { id: 'timer-resume', label: `Resume "${liveTask}"`, group: 'Timer', run: () => void resumeTimerInstance(live.id) },
-            { id: 'timer-stop', label: `Stop "${liveTask}"`, group: 'Timer', run: () => void stopTimerInstance(live.id) },
+              ? {
+                  id: 'timer-pause',
+                  label: `Pause "${liveTask}"`,
+                  group: 'Timer',
+                  run: () => void pauseTimerInstance(live.id),
+                }
+              : {
+                  id: 'timer-resume',
+                  label: `Resume "${liveTask}"`,
+                  group: 'Timer',
+                  run: () => void resumeTimerInstance(live.id),
+                },
+            {
+              id: 'timer-stop',
+              label: `Stop "${liveTask}"`,
+              group: 'Timer',
+              run: () => void stopTimerInstance(live.id),
+            },
           ]
         : [];
 

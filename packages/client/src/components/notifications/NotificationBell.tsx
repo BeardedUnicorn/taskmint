@@ -70,7 +70,11 @@ function HistoryItem({
             {entry.title}
           </Typography>
         )}
-        <Typography variant="body2" color={entry.title ? 'text.secondary' : 'text.primary'} sx={{ overflowWrap: 'anywhere' }}>
+        <Typography
+          variant="body2"
+          color={entry.title ? 'text.secondary' : 'text.primary'}
+          sx={{ overflowWrap: 'anywhere' }}
+        >
           {entry.message}
         </Typography>
         <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>

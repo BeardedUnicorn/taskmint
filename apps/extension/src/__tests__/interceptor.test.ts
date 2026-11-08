@@ -164,7 +164,7 @@ describe("the page's XMLHttpRequest", () => {
         get() {
           throw new Error('odd request');
         },
-      }),
+      })
     );
     await settle();
     expect(posted).toEqual([]);

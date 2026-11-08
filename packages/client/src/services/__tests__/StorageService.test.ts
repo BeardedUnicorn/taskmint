@@ -114,7 +114,9 @@ describe('StorageService', () => {
     it("refuses a setting the schema doesn't accept, stored or saved", async () => {
       const error = vi.spyOn(console, 'error').mockImplementation(() => {});
       localStorage.setItem(KEY, JSON.stringify({ version: 1, data: { name: 'saved' } }));
-      await expect(service.getItem(KEY, { name: 'x', count: 0 }, RecordSchema)).rejects.toBeInstanceOf(StorageErrorClass);
+      await expect(service.getItem(KEY, { name: 'x', count: 0 }, RecordSchema)).rejects.toBeInstanceOf(
+        StorageErrorClass
+      );
       await expect(service.setItem(KEY, { name: 'x' } as never, RecordSchema)).rejects.toMatchObject({
         code: 'STORAGE_VALIDATION_FAILED',
       });
@@ -153,4 +155,3 @@ describe('StorageService', () => {
     });
   });
 });
-

@@ -92,9 +92,7 @@ function findRunningInstance(
   excludeId?: string
 ): { instance: TimerInstance; session: TaskSession } | null {
   for (const session of sessions) {
-    const instance = session.timerInstances.find(
-      i => i.state === TimerState.running && i.id !== excludeId
-    );
+    const instance = session.timerInstances.find(i => i.state === TimerState.running && i.id !== excludeId);
     if (instance) return { instance, session };
   }
   return null;
@@ -139,147 +137,165 @@ export function useSessionManagement(): UseSessionManagementReturn {
    * backend's reason (or `fallback`) as an error toast. Resolves to the
    * command's result, or null when it failed.
    */
-  const runCommand = useCallback(async <T,>(
-    fallback: string,
-    command: () => Promise<T>,
-    success?: string | ((result: T) => string | null)
-  ): Promise<T | null> => {
-    beginBusy();
-    try {
-      const result = await command();
-      const message = typeof success === 'function' ? success(result) : success;
-      if (message) showSuccess(message, { category: 'timer' });
-      return result;
-    } catch (err) {
-      showError(errorMessage(err, fallback), { category: 'timer' });
-      return null;
-    } finally {
-      endBusy();
-    }
-  }, [beginBusy, endBusy, showError, showSuccess]);
+  const runCommand = useCallback(
+    async <T>(
+      fallback: string,
+      command: () => Promise<T>,
+      success?: string | ((result: T) => string | null)
+    ): Promise<T | null> => {
+      beginBusy();
+      try {
+        const result = await command();
+        const message = typeof success === 'function' ? success(result) : success;
+        if (message) showSuccess(message, { category: 'timer' });
+        return result;
+      } catch (err) {
+        showError(errorMessage(err, fallback), { category: 'timer' });
+        return null;
+      } finally {
+        endBusy();
+      }
+    },
+    [beginBusy, endBusy, showError, showSuccess]
+  );
 
   // A whole session list from the backend, and the running timer it holds
-  const applySessions = useCallback((wire: Wire.TaskSession[]) => {
-    const normalized = wire.map(normalizeSession);
-    setSessions(normalized);
-    setActiveTimer(findRunningInstance(normalized)?.instance ?? null);
-  }, [setActiveTimer]);
+  const applySessions = useCallback(
+    (wire: Wire.TaskSession[]) => {
+      const normalized = wire.map(normalizeSession);
+      setSessions(normalized);
+      setActiveTimer(findRunningInstance(normalized)?.instance ?? null);
+    },
+    [setActiveTimer]
+  );
 
   // Load sessions from backend. `silent` skips the loading flag so
   // event-driven refreshes don't flash loading UI.
-  const loadSessions = useCallback(async (options?: { silent?: boolean }) => {
-    const silent = options?.silent === true;
-    if (!silent) beginBusy();
+  const loadSessions = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent === true;
+      if (!silent) beginBusy();
 
-    try {
-      applySessions(await getBackend().call('get_sessions'));
-      setHasLoaded(true);
-    } catch (err) {
-      // Keep the last-known-good sessions/activeSession/activeTimer: blanking
-      // the list while the toolbar still shows an active session leaves the
-      // UI inconsistent. Background refreshes also should not toast out of
-      // nowhere. A failed load stays up until dismissed.
-      if (!silent) {
-        showError(errorMessage(err, 'Failed to load sessions'), { category: 'session', duration: null });
-      }
-    } finally {
-      if (!silent) endBusy();
-    }
-  }, [beginBusy, endBusy, showError, applySessions]);
-
-  const updateLocalSession = useCallback((session: Wire.TaskSession) => {
-    const normalized = normalizeSession(session);
-
-    setSessions(prev => prev.map(s => (s.id === normalized.id ? normalized : s)));
-
-    const runningInstance = normalized.timerInstances.find(t => t.state === TimerState.running) || null;
-    const current = activeTimerRef.current;
-    if (runningInstance) {
-      setActiveTimer(runningInstance);
-    } else if (current && normalized.timerInstances.some(t => t.id === current.id)) {
-      setActiveTimer(null);
-    }
-  }, [setActiveTimer]);
-
-  const createTimerInstance = useCallback((sessionId: string, task?: TaskChoice): Promise<TimerInstance | null> =>
-    runCommand('Failed to create timer instance', async () => {
-      const newInstance = await getBackend().call('create_timer_instance', { sessionId, task });
-      await loadSessions({ silent: true }); // the session with its new instance
-      return normalizeTimerInstance(newInstance);
-    }),
-  [runCommand, loadSessions]);
-
-  const setTimerRunning = useCallback(async (
-    command: 'start_timer_instance' | 'resume_timer_instance',
-    fallback: string,
-    instanceId: string
-  ): Promise<TaskSession | null> => {
-    // The backend refuses to run a timer in an inactive session or while
-    // another timer runs. Recover automatically from each case (activate the
-    // session / stop the other timer) and retry, at most once per recovery
-    // type. Read sessions through the ref: under rapid successive starts a
-    // closure over `sessions` holds a stale list and would stop the wrong
-    // timer. Resolves to the session and the task whose timer was stopped, if any.
-    const result = await runCommand(fallback, async () => {
-      const maxAttempts = 3;
-      let handoffTaskName: string | null = null;
-      for (let attempt = 1; ; attempt++) {
-        try {
-          const updatedSession = await getBackend().call(command, { instanceId });
-          updateLocalSession(updatedSession);
-          return { session: normalizeSession(updatedSession), handoffTaskName };
-        } catch (err) {
-          const failure = errorMessage(err, '');
-
-          if (attempt < maxAttempts && failure.includes(CORE_ERROR_PARTS.INACTIVE_SESSION)) {
-            const parentSession = sessionsRef.current.find(s =>
-              s.timerInstances.some(t => t.id === instanceId)
-            );
-            if (parentSession) {
-              // Activating this session finalizes timers running in the
-              // other sessions backend-side; note it for the toast.
-              const other = findRunningInstance(sessionsRef.current, instanceId);
-              if (other && other.session.id !== parentSession.id) {
-                handoffTaskName = instanceTaskName(other.instance, other.session);
-              }
-              applySessions(await getBackend().call('set_active_session', { sessionId: parentSession.id }));
-              continue;
-            }
-          }
-
-          if (attempt < maxAttempts && failure.includes(CORE_ERROR_PARTS.ANOTHER_TIMER_RUNNING)) {
-            const running = findRunningInstance(sessionsRef.current, instanceId);
-            if (running) {
-              handoffTaskName = instanceTaskName(running.instance, running.session);
-              try {
-                const stoppedSession = await getBackend().call('stop_timer_instance', {
-                  instanceId: running.instance.id,
-                });
-                updateLocalSession(stoppedSession);
-              } catch (stopErr) {
-                // Already stopped between our read and the call (e.g. a
-                // same-tick double start): the obstacle is gone, retry.
-                if (!errorMessage(stopErr, '').includes(CORE_ERROR_PARTS.NOT_RUNNING)) throw stopErr;
-              }
-              continue;
-            }
-          }
-
-          throw err;
+      try {
+        applySessions(await getBackend().call('get_sessions'));
+        setHasLoaded(true);
+      } catch (err) {
+        // Keep the last-known-good sessions/activeSession/activeTimer: blanking
+        // the list while the toolbar still shows an active session leaves the
+        // UI inconsistent. Background refreshes also should not toast out of
+        // nowhere. A failed load stays up until dismissed.
+        if (!silent) {
+          showError(errorMessage(err, 'Failed to load sessions'), { category: 'session', duration: null });
         }
+      } finally {
+        if (!silent) endBusy();
       }
-    });
-    // The hand-off must be explicit: the user asked to run this timer, not
-    // to stop the other one. (A plain start shows on screen; no toast.)
-    if (result?.handoffTaskName) {
-      showInfo(`Stopped the running timer for "${result.handoffTaskName}"`, { category: 'timer' });
-    }
-    return result?.session ?? null;
-  }, [runCommand, updateLocalSession, applySessions, showInfo]);
+    },
+    [beginBusy, endBusy, showError, applySessions]
+  );
 
-  const startTimerInstance = useCallback(async (instanceId: string): Promise<void> => {
-    await setTimerRunning('start_timer_instance', 'Failed to start timer', instanceId);
-  }, [setTimerRunning]);
+  const updateLocalSession = useCallback(
+    (session: Wire.TaskSession) => {
+      const normalized = normalizeSession(session);
+
+      setSessions(prev => prev.map(s => (s.id === normalized.id ? normalized : s)));
+
+      const runningInstance = normalized.timerInstances.find(t => t.state === TimerState.running) || null;
+      const current = activeTimerRef.current;
+      if (runningInstance) {
+        setActiveTimer(runningInstance);
+      } else if (current && normalized.timerInstances.some(t => t.id === current.id)) {
+        setActiveTimer(null);
+      }
+    },
+    [setActiveTimer]
+  );
+
+  const createTimerInstance = useCallback(
+    (sessionId: string, task?: TaskChoice): Promise<TimerInstance | null> =>
+      runCommand('Failed to create timer instance', async () => {
+        const newInstance = await getBackend().call('create_timer_instance', { sessionId, task });
+        await loadSessions({ silent: true }); // the session with its new instance
+        return normalizeTimerInstance(newInstance);
+      }),
+    [runCommand, loadSessions]
+  );
+
+  const setTimerRunning = useCallback(
+    async (
+      command: 'start_timer_instance' | 'resume_timer_instance',
+      fallback: string,
+      instanceId: string
+    ): Promise<TaskSession | null> => {
+      // The backend refuses to run a timer in an inactive session or while
+      // another timer runs. Recover automatically from each case (activate the
+      // session / stop the other timer) and retry, at most once per recovery
+      // type. Read sessions through the ref: under rapid successive starts a
+      // closure over `sessions` holds a stale list and would stop the wrong
+      // timer. Resolves to the session and the task whose timer was stopped, if any.
+      const result = await runCommand(fallback, async () => {
+        const maxAttempts = 3;
+        let handoffTaskName: string | null = null;
+        for (let attempt = 1; ; attempt++) {
+          try {
+            const updatedSession = await getBackend().call(command, { instanceId });
+            updateLocalSession(updatedSession);
+            return { session: normalizeSession(updatedSession), handoffTaskName };
+          } catch (err) {
+            const failure = errorMessage(err, '');
+
+            if (attempt < maxAttempts && failure.includes(CORE_ERROR_PARTS.INACTIVE_SESSION)) {
+              const parentSession = sessionsRef.current.find(s => s.timerInstances.some(t => t.id === instanceId));
+              if (parentSession) {
+                // Activating this session finalizes timers running in the
+                // other sessions backend-side; note it for the toast.
+                const other = findRunningInstance(sessionsRef.current, instanceId);
+                if (other && other.session.id !== parentSession.id) {
+                  handoffTaskName = instanceTaskName(other.instance, other.session);
+                }
+                applySessions(await getBackend().call('set_active_session', { sessionId: parentSession.id }));
+                continue;
+              }
+            }
+
+            if (attempt < maxAttempts && failure.includes(CORE_ERROR_PARTS.ANOTHER_TIMER_RUNNING)) {
+              const running = findRunningInstance(sessionsRef.current, instanceId);
+              if (running) {
+                handoffTaskName = instanceTaskName(running.instance, running.session);
+                try {
+                  const stoppedSession = await getBackend().call('stop_timer_instance', {
+                    instanceId: running.instance.id,
+                  });
+                  updateLocalSession(stoppedSession);
+                } catch (stopErr) {
+                  // Already stopped between our read and the call (e.g. a
+                  // same-tick double start): the obstacle is gone, retry.
+                  if (!errorMessage(stopErr, '').includes(CORE_ERROR_PARTS.NOT_RUNNING)) throw stopErr;
+                }
+                continue;
+              }
+            }
+
+            throw err;
+          }
+        }
+      });
+      // The hand-off must be explicit: the user asked to run this timer, not
+      // to stop the other one. (A plain start shows on screen; no toast.)
+      if (result?.handoffTaskName) {
+        showInfo(`Stopped the running timer for "${result.handoffTaskName}"`, { category: 'timer' });
+      }
+      return result?.session ?? null;
+    },
+    [runCommand, updateLocalSession, applySessions, showInfo]
+  );
+
+  const startTimerInstance = useCallback(
+    async (instanceId: string): Promise<void> => {
+      await setTimerRunning('start_timer_instance', 'Failed to start timer', instanceId);
+    },
+    [setTimerRunning]
+  );
 
   const resumeTimerInstance = useCallback(
     (instanceId: string): Promise<TaskSession | null> =>
@@ -301,10 +317,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
         }),
     [runCommand, updateLocalSession]
   );
-  const stopTimerInstance = useMemo(
-    () => timerCommand('stop_timer_instance', 'Failed to stop timer'),
-    [timerCommand]
-  );
+  const stopTimerInstance = useMemo(() => timerCommand('stop_timer_instance', 'Failed to stop timer'), [timerCommand]);
   const pauseTimerInstance = useMemo(
     () => timerCommand('pause_timer_instance', 'Failed to pause timer'),
     [timerCommand]
@@ -325,57 +338,68 @@ export function useSessionManagement(): UseSessionManagementReturn {
     [runCommand, updateLocalSession]
   );
 
-  const deleteTimerInstance = useCallback(async (instanceId: string): Promise<boolean> => {
-    const owner = sessionsRef.current.find(s => s.timerInstances.some(i => i.id === instanceId));
-    const index = owner ? owner.timerInstances.findIndex(i => i.id === instanceId) : -1;
-    const snapshot = owner?.timerInstances[index];
+  const deleteTimerInstance = useCallback(
+    async (instanceId: string): Promise<boolean> => {
+      const owner = sessionsRef.current.find(s => s.timerInstances.some(i => i.id === instanceId));
+      const index = owner ? owner.timerInstances.findIndex(i => i.id === instanceId) : -1;
+      const snapshot = owner?.timerInstances[index];
 
-    const done = await runCommand('Failed to delete timer', async () => {
-      const updatedSession = await getBackend().call('delete_timer_instance', { instanceId });
-      updateLocalSession(updatedSession);
-      return true;
-    });
-    if (!done) return false;
-
-    // A timer that never ran held no time: nothing to undo
-    if (owner && snapshot?.state === TimerState.stopped) {
-      showInfo(`Deleted ${formatDurationCompact(snapshot.duration ?? 0)} from "${instanceTaskName(snapshot, owner)}"`, {
-        category: 'timer',
-        actions: [{ label: 'Undo', onClick: () => void restoreTimerInstance(owner.id, snapshot, index) }],
+      const done = await runCommand('Failed to delete timer', async () => {
+        const updatedSession = await getBackend().call('delete_timer_instance', { instanceId });
+        updateLocalSession(updatedSession);
+        return true;
       });
-    }
-    return true;
-  }, [runCommand, updateLocalSession, restoreTimerInstance, showInfo]);
+      if (!done) return false;
+
+      // A timer that never ran held no time: nothing to undo
+      if (owner && snapshot?.state === TimerState.stopped) {
+        showInfo(
+          `Deleted ${formatDurationCompact(snapshot.duration ?? 0)} from "${instanceTaskName(snapshot, owner)}"`,
+          {
+            category: 'timer',
+            actions: [{ label: 'Undo', onClick: () => void restoreTimerInstance(owner.id, snapshot, index) }],
+          }
+        );
+      }
+      return true;
+    },
+    [runCommand, updateLocalSession, restoreTimerInstance, showInfo]
+  );
 
   // Save an edit of a finished timer: its duration, and/or the task it
   // belongs to (moved with its time; it earns at that task's rate). Returns
   // the session the timer ends up in, or null when the save failed (the error
   // is shown).
-  const editTimerEntry = useCallback((
-    instanceId: string,
-    edit: { updates?: Record<string, any>; moveTo?: { taskId: string; taskName: string } }
-  ): Promise<string | null> =>
-    runCommand('Failed to update timer', async () => {
-      try {
-        if (edit.updates) {
-          await getBackend().call('update_timer_instance', { instanceId, updates: edit.updates });
-        }
-        let sessionId =
-          sessionsRef.current.find(s => s.timerInstances.some(i => i.id === instanceId))?.id ?? null;
-        if (edit.moveTo) {
-          sessionId = await getBackend().call('move_timer_instance', {
-            instanceId,
-            taskId: edit.moveTo.taskId,
-            taskName: edit.moveTo.taskName,
-          });
-        }
-        return sessionId;
-      } finally {
-        // A failed move after a saved duration still changed something
-        await loadSessions({ silent: true });
-      }
-    }, () => (edit.moveTo ? `Moved to "${edit.moveTo.taskName}"` : null)),
-  [runCommand, loadSessions]);
+  const editTimerEntry = useCallback(
+    (
+      instanceId: string,
+      edit: { updates?: Record<string, any>; moveTo?: { taskId: string; taskName: string } }
+    ): Promise<string | null> =>
+      runCommand(
+        'Failed to update timer',
+        async () => {
+          try {
+            if (edit.updates) {
+              await getBackend().call('update_timer_instance', { instanceId, updates: edit.updates });
+            }
+            let sessionId = sessionsRef.current.find(s => s.timerInstances.some(i => i.id === instanceId))?.id ?? null;
+            if (edit.moveTo) {
+              sessionId = await getBackend().call('move_timer_instance', {
+                instanceId,
+                taskId: edit.moveTo.taskId,
+                taskName: edit.moveTo.taskName,
+              });
+            }
+            return sessionId;
+          } finally {
+            // A failed move after a saved duration still changed something
+            await loadSessions({ silent: true });
+          }
+        },
+        () => (edit.moveTo ? `Moved to "${edit.moveTo.taskName}"` : null)
+      ),
+    [runCommand, loadSessions]
+  );
 
   // Initialize sessions on mount, and surface any startup load problems the
   // backend recorded (skipped/unreadable records in sessions.json).
@@ -385,10 +409,12 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
     if (!loadWarningShownRef.current) {
       loadWarningShownRef.current = true;
-      getBackend().call('get_session_load_warning')
+      getBackend()
+        .call('get_session_load_warning')
         .then(warning => {
           // Records were lost or skipped: stays up until dismissed
-          if (warning) showWarning(warning, { category: 'session', duration: null, title: 'Some saved time could not be read' });
+          if (warning)
+            showWarning(warning, { category: 'session', duration: null, title: 'Some saved time could not be read' });
         })
         .catch(() => {
           // Nothing to surface: a backend that can't answer fails the load too
@@ -408,58 +434,70 @@ export function useSessionManagement(): UseSessionManagementReturn {
       void loadSessions({ silent: true });
     }, 300);
   });
-  useEffect(() => () => {
-    if (reloadTimeoutRef.current) clearTimeout(reloadTimeoutRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (reloadTimeoutRef.current) clearTimeout(reloadTimeoutRef.current);
+    },
+    []
+  );
 
   // The app's single start path (also the tray's): work joins the active
   // session, or a new one opens with a running timer. The backend announces
   // any timer it finalized for another task, so the hand-off isn't silent.
-  const startTask = useCallback(async (taskId: string, taskName: string): Promise<StartTaskResult | null> => {
-    const result = await runCommand('Failed to start the task', async () => {
-      const started = await getBackend().call('start_task', { taskId, taskName });
-      await loadSessions({ silent: true });
-      return started;
-    });
-    // The timer shows on screen; say only what it doesn't: nothing changed,
-    // or another task's timer was stopped for this one.
-    if (result?.outcome === 'alreadyRunning') {
-      showInfo(`"${taskName}" is already running`, { category: 'timer' });
-    } else if (result?.stoppedTaskName) {
-      const verb = result.outcome === 'resumed' ? 'Resumed' : 'Started';
-      showInfo(`${verb} "${taskName}" — stopped the running timer for "${result.stoppedTaskName}"`, {
-        category: 'timer',
+  const startTask = useCallback(
+    async (taskId: string, taskName: string): Promise<StartTaskResult | null> => {
+      const result = await runCommand('Failed to start the task', async () => {
+        const started = await getBackend().call('start_task', { taskId, taskName });
+        await loadSessions({ silent: true });
+        return started;
       });
-    }
-    return result;
-  }, [runCommand, loadSessions, showInfo]);
+      // The timer shows on screen; say only what it doesn't: nothing changed,
+      // or another task's timer was stopped for this one.
+      if (result?.outcome === 'alreadyRunning') {
+        showInfo(`"${taskName}" is already running`, { category: 'timer' });
+      } else if (result?.stoppedTaskName) {
+        const verb = result.outcome === 'resumed' ? 'Resumed' : 'Started';
+        showInfo(`${verb} "${taskName}" — stopped the running timer for "${result.stoppedTaskName}"`, {
+          category: 'timer',
+        });
+      }
+      return result;
+    },
+    [runCommand, loadSessions, showInfo]
+  );
 
   // "Add time": a finished timer logged after the fact. Rejects with the
   // backend's reason (e.g. an overlap) so the dialog can show it in place.
-  const addManualTime = useCallback(async (input: AddManualTimeInput): Promise<TaskSession> => {
-    try {
-      const session = await getBackend().call('add_manual_time', {
-        taskId: input.taskId,
-        taskName: input.taskName,
-        startTime: input.startTime.toISOString(),
-        durationMs: input.durationMs,
-      });
-      await loadSessions({ silent: true });
-      const day = formatShortDate(input.startTime);
-      showSuccess(`Added ${formatDurationCompact(input.durationMs)} to "${input.taskName}" on ${day}`);
-      return normalizeSession(session);
-    } catch (err) {
-      throw new Error(errorMessage(err, 'Failed to add the time entry'));
-    }
-  }, [loadSessions, showSuccess]);
+  const addManualTime = useCallback(
+    async (input: AddManualTimeInput): Promise<TaskSession> => {
+      try {
+        const session = await getBackend().call('add_manual_time', {
+          taskId: input.taskId,
+          taskName: input.taskName,
+          startTime: input.startTime.toISOString(),
+          durationMs: input.durationMs,
+        });
+        await loadSessions({ silent: true });
+        const day = formatShortDate(input.startTime);
+        showSuccess(`Added ${formatDurationCompact(input.durationMs)} to "${input.taskName}" on ${day}`);
+        return normalizeSession(session);
+      } catch (err) {
+        throw new Error(errorMessage(err, 'Failed to add the time entry'));
+      }
+    },
+    [loadSessions, showSuccess]
+  );
 
   // Throws on failure: the caller (the session-notes move) retries next launch.
-  const clearSessionNotes = useCallback(async (sessionIds: string[]): Promise<number> => {
-    if (sessionIds.length === 0) return 0;
-    const cleared = await getBackend().call('clear_session_notes', { sessionIds });
-    if (cleared > 0) await loadSessions({ silent: true });
-    return cleared;
-  }, [loadSessions]);
+  const clearSessionNotes = useCallback(
+    async (sessionIds: string[]): Promise<number> => {
+      if (sessionIds.length === 0) return 0;
+      const cleared = await getBackend().call('clear_session_notes', { sessionIds });
+      if (cleared > 0) await loadSessions({ silent: true });
+      return cleared;
+    },
+    [loadSessions]
+  );
 
   // Undo brings a deleted session back as history: inactive, any timer that
   // was running when it was deleted stopped at that moment.
@@ -472,55 +510,64 @@ export function useSessionManagement(): UseSessionManagementReturn {
     [runCommand]
   );
 
-  const deleteSession = useCallback(async (sessionId: string): Promise<boolean> => {
-    const removed = await runCommand('Failed to delete session', async () => {
-      const removedSession = sessionsRef.current.find(s => s.id === sessionId);
-      // What was deleted, live timers stopped: what Undo puts back
-      const snapshot = await getBackend().call('delete_session', { sessionId });
+  const deleteSession = useCallback(
+    async (sessionId: string): Promise<boolean> => {
+      const removed = await runCommand('Failed to delete session', async () => {
+        const removedSession = sessionsRef.current.find(s => s.id === sessionId);
+        // What was deleted, live timers stopped: what Undo puts back
+        const snapshot = await getBackend().call('delete_session', { sessionId });
 
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-      // The shared active-timer slot must not outlive its session.
-      const current = activeTimerRef.current;
-      if (current && removedSession?.timerInstances.some(i => i.id === current.id)) {
-        setActiveTimer(null);
-      }
-      return snapshot;
-    });
-    if (!removed) return false;
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        // The shared active-timer slot must not outlive its session.
+        const current = activeTimerRef.current;
+        if (current && removedSession?.timerInstances.some(i => i.id === current.id)) {
+          setActiveTimer(null);
+        }
+        return snapshot;
+      });
+      if (!removed) return false;
 
-    const timers = removed.timerInstances.length;
-    const detail =
-      timers > 0
-        ? ` (${timers} timer${timers === 1 ? '' : 's'}, ${formatDurationCompact(removed.totalDuration)})`
-        : '';
-    showInfo(`Deleted the "${sessionTitle(normalizeSession(removed))}" session${detail}`, {
-      category: 'session',
-      actions: [{ label: 'Undo', onClick: () => void restoreSession(removed) }],
-    });
-    return true;
-  }, [runCommand, setActiveTimer, restoreSession, showInfo]);
+      const timers = removed.timerInstances.length;
+      const detail =
+        timers > 0
+          ? ` (${timers} timer${timers === 1 ? '' : 's'}, ${formatDurationCompact(removed.totalDuration)})`
+          : '';
+      showInfo(`Deleted the "${sessionTitle(normalizeSession(removed))}" session${detail}`, {
+        category: 'session',
+        actions: [{ label: 'Undo', onClick: () => void restoreSession(removed) }],
+      });
+      return true;
+    },
+    [runCommand, setActiveTimer, restoreSession, showInfo]
+  );
 
   // Returns whether the backend accepted the change, so callers like
   // endActiveSession don't report success after a failed deactivation.
-  const setActiveSession = useCallback(async (session: TaskSession | null): Promise<boolean> => {
-    // Deactivation finalizes the other sessions' running/paused timers
-    // backend-side — capture what was running so the hand-off is announced,
-    // not silent.
-    const previousRunner = findRunningInstance(sessionsRef.current);
-    const done = await runCommand('Failed to set active session', async () => {
-      // The shared active-timer slot too, instead of waiting for the
-      // debounced event reload (active-entry displays key off it)
-      applySessions(await getBackend().call('set_active_session', { sessionId: session?.id }));
-      return true;
-    });
-    // Announce only a hand-off (activating finalized another task's timer)
-    if (done && session && previousRunner && previousRunner.session.id !== session.id) {
-      showInfo(`Stopped the running timer for "${instanceTaskName(previousRunner.instance, previousRunner.session)}"`, {
-        category: 'session',
+  const setActiveSession = useCallback(
+    async (session: TaskSession | null): Promise<boolean> => {
+      // Deactivation finalizes the other sessions' running/paused timers
+      // backend-side — capture what was running so the hand-off is announced,
+      // not silent.
+      const previousRunner = findRunningInstance(sessionsRef.current);
+      const done = await runCommand('Failed to set active session', async () => {
+        // The shared active-timer slot too, instead of waiting for the
+        // debounced event reload (active-entry displays key off it)
+        applySessions(await getBackend().call('set_active_session', { sessionId: session?.id }));
+        return true;
       });
-    }
-    return done === true;
-  }, [runCommand, applySessions, showInfo]);
+      // Announce only a hand-off (activating finalized another task's timer)
+      if (done && session && previousRunner && previousRunner.session.id !== session.id) {
+        showInfo(
+          `Stopped the running timer for "${instanceTaskName(previousRunner.instance, previousRunner.session)}"`,
+          {
+            category: 'session',
+          }
+        );
+      }
+      return done === true;
+    },
+    [runCommand, applySessions, showInfo]
+  );
 
   const endActiveSession = useCallback(async (): Promise<void> => {
     // Read through the ref so a stale closure can't miss a timer that
@@ -575,30 +622,48 @@ export function useSessionManagement(): UseSessionManagementReturn {
     if (mostRecent) await resumeTimerInstance(mostRecent.id);
   }, [resumeTimerInstance]);
 
-  return useMemo(() => ({
-    sessions,
-    activeSession,
-    startTask,
-    addManualTime,
-    clearSessionNotes,
-    deleteSession,
-    setActiveSession,
-    endActiveSession,
-    pauseAllTimersInActiveSession,
-    resumeAllTimersInActiveSession,
-    createTimerInstance,
-    startTimerInstance,
-    stopTimerInstance,
-    pauseTimerInstance,
-    resumeTimerInstance,
-    deleteTimerInstance,
-    editTimerEntry,
-    isLoading,
-    hasLoaded,
-  }), [
-    sessions, activeSession, startTask, addManualTime, clearSessionNotes, deleteSession,
-    setActiveSession, endActiveSession, pauseAllTimersInActiveSession, resumeAllTimersInActiveSession,
-    createTimerInstance, startTimerInstance, stopTimerInstance, pauseTimerInstance, resumeTimerInstance,
-    deleteTimerInstance, editTimerEntry, isLoading, hasLoaded,
-  ]);
+  return useMemo(
+    () => ({
+      sessions,
+      activeSession,
+      startTask,
+      addManualTime,
+      clearSessionNotes,
+      deleteSession,
+      setActiveSession,
+      endActiveSession,
+      pauseAllTimersInActiveSession,
+      resumeAllTimersInActiveSession,
+      createTimerInstance,
+      startTimerInstance,
+      stopTimerInstance,
+      pauseTimerInstance,
+      resumeTimerInstance,
+      deleteTimerInstance,
+      editTimerEntry,
+      isLoading,
+      hasLoaded,
+    }),
+    [
+      sessions,
+      activeSession,
+      startTask,
+      addManualTime,
+      clearSessionNotes,
+      deleteSession,
+      setActiveSession,
+      endActiveSession,
+      pauseAllTimersInActiveSession,
+      resumeAllTimersInActiveSession,
+      createTimerInstance,
+      startTimerInstance,
+      stopTimerInstance,
+      pauseTimerInstance,
+      resumeTimerInstance,
+      deleteTimerInstance,
+      editTimerEntry,
+      isLoading,
+      hasLoaded,
+    ]
+  );
 }

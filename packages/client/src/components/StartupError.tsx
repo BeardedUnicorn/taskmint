@@ -26,16 +26,14 @@ export function StartupError({ message, Actions }: StartupErrorProps) {
         lineHeight: 1.5,
       }}
     >
-      <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>
-        TaskMint couldn't open your data
-      </h1>
+      <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>TaskMint couldn't open your data</h1>
       <p style={{ marginTop: 0 }}>
         {getBackend().capabilities.dataLocation === 'server' ? (
           <>Your tasks, notes and goal are kept on your TaskMint server, and they couldn't be read.</>
         ) : (
           <>
-            Your tasks, notes and goal are kept in <code>appdata.json</code> in the app's data
-            folder, and it couldn't be read.
+            Your tasks, notes and goal are kept in <code>appdata.json</code> in the app's data folder, and it couldn't
+            be read.
           </>
         )}{' '}
         Nothing has been changed.

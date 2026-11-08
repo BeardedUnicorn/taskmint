@@ -54,7 +54,9 @@ describe('ErrorBoundary', () => {
     // The automatic retries (React may render twice per attempt), then it stops
     expect(retries).toBeGreaterThan(0);
     expect(retries).toBeLessThanOrEqual(2 * MAX_RECOVERY_ATTEMPTS);
-    expect(screen.getByText(`Automatic recovery failed after ${MAX_RECOVERY_ATTEMPTS} attempts.`, { exact: false })).toBeInTheDocument();
+    expect(
+      screen.getByText(`Automatic recovery failed after ${MAX_RECOVERY_ATTEMPTS} attempts.`, { exact: false })
+    ).toBeInTheDocument();
   });
 
   it('recovers when the cause goes away, and Try Again starts over', () => {

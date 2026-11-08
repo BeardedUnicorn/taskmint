@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import {
   Dialog,
@@ -49,29 +48,17 @@ export function ConfirmDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={isConfirming ? undefined : onClose}
-      maxWidth="sm"
-      fullWidth
-    >
+    <Dialog open={open} onClose={isConfirming ? undefined : onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{title}</DialogTitle>
-      
+
       <DialogContent>
         <Alert severity={severity} sx={{ mb: 2 }}>
-          <DialogContentText component="div">
-            {message}
-          </DialogContentText>
+          <DialogContentText component="div">{message}</DialogContentText>
         </Alert>
       </DialogContent>
-      
+
       <DialogActions>
-        <Button
-          onClick={onClose}
-          color="secondary"
-          disabled={isConfirming}
-          autoFocus={severity === 'error'}
-        >
+        <Button onClick={onClose} color="secondary" disabled={isConfirming} autoFocus={severity === 'error'}>
           {cancelLabel}
         </Button>
         <Button

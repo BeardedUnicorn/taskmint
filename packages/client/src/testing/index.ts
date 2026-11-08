@@ -6,11 +6,7 @@
 import { onTestFinished } from 'vitest';
 import { setBackend } from '../backend/registry';
 import type { Backend } from '../backend/types';
-import {
-  announceAppRecordsChangeForTests,
-  resetAppRecordsForTests,
-  type RecordsChange,
-} from '../services/appRecords';
+import { announceAppRecordsChangeForTests, resetAppRecordsForTests, type RecordsChange } from '../services/appRecords';
 import { createFakeBackend, type FakeBackend, type FakeBackendOptions } from './fakeBackend';
 
 export { createFakeBackend };

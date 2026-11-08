@@ -19,7 +19,7 @@ describe('StartupError', () => {
       <StartupError
         message="Can't reach the TaskMint server"
         Actions={() => <button type="button">Use the data on this computer</button>}
-      />,
+      />
     );
     expect(screen.getByRole('alert')).toHaveTextContent('kept on your TaskMint server');
     expect(screen.getByRole('button', { name: 'Use the data on this computer' })).toBeInTheDocument();

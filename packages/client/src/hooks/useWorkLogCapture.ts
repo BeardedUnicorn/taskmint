@@ -21,12 +21,7 @@ import { getBackend, useBackendEvent } from '../backend';
 import { BACKEND_EVENTS } from '../constants/events';
 import { Task } from '../types/task';
 import { TaskSession } from '../types/timer';
-import {
-  ProjectTaskMapping,
-  WorkLogEntry,
-  WorkLogImportPayload,
-  WorkLogImportSummary,
-} from '../types/workLog';
+import { ProjectTaskMapping, WorkLogEntry, WorkLogImportPayload, WorkLogImportSummary } from '../types/workLog';
 import { parseWorkLogPayload, planWorkLogImport } from '../utils/workLogImport';
 import { useNotification, NotificationAction } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
@@ -92,11 +87,7 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
       // trusted POST may confirm a payload a taskmint:// link only staged.
       const trusted = capture.source !== 'link';
       const last = lastProcessedRef.current;
-      if (
-        last &&
-        last.payload === capture.payload &&
-        !(last.outcome === 'staged-link' && trusted)
-      ) {
+      if (last && last.payload === capture.payload && !(last.outcome === 'staged-link' && trusted)) {
         return;
       }
 

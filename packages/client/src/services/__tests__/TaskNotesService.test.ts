@@ -1,6 +1,6 @@
 /**
  * TaskNotesService Tests
- * 
+ *
  * Tests for the TaskNotesService including archive functionality
  */
 
@@ -293,8 +293,12 @@ describe('TaskNotesService', () => {
 
     it("refuses a template that's gone, values the template rejects, and a note the schema rejects", async () => {
       mockTemplateService.getTemplateById.mockResolvedValueOnce(null);
-      await expect(service.updateNote('note1', { fieldValues: { field1: 'x' } })).rejects.toThrow('Template with ID template1 not found');
-      await expect(service.updateNote('note1', { fieldValues: { field1: '' } })).rejects.toThrow('Note validation failed: Test Field is required');
+      await expect(service.updateNote('note1', { fieldValues: { field1: 'x' } })).rejects.toThrow(
+        'Template with ID template1 not found'
+      );
+      await expect(service.updateNote('note1', { fieldValues: { field1: '' } })).rejects.toThrow(
+        'Note validation failed: Test Field is required'
+      );
       await expect(service.updateNote('note1', { taskId: '' })).rejects.toThrow(/^Note schema validation failed/);
       expect(mockStorageService.setTaskNotes).not.toHaveBeenCalled();
     });

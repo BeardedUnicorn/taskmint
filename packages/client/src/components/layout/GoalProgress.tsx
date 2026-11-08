@@ -29,11 +29,7 @@ export function GoalProgress({ progress, collapsed = false }: GoalProgressProps)
   if (collapsed) {
     return (
       <Tooltip title={label} placement="right">
-        <Box
-          role="img"
-          aria-label={label}
-          sx={{ position: 'relative', display: 'inline-flex', mx: 'auto' }}
-        >
+        <Box role="img" aria-label={label} sx={{ position: 'relative', display: 'inline-flex', mx: 'auto' }}>
           <CircularProgress
             variant="determinate"
             value={100}
@@ -73,12 +69,7 @@ export function GoalProgress({ progress, collapsed = false }: GoalProgressProps)
       <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>
         {summary}
       </Typography>
-      <LinearProgress
-        variant="determinate"
-        value={barValue}
-        color={color}
-        sx={{ height: 6, borderRadius: 3 }}
-      />
+      <LinearProgress variant="determinate" value={barValue} color={color} sx={{ height: 6, borderRadius: 3 }} />
     </Box>
   );
 }

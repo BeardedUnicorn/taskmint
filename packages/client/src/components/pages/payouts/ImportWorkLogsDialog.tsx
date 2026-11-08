@@ -31,12 +31,7 @@ import {
 import { WarningAmber as WarningIcon } from '@mui/icons-material';
 import { Task } from '../../../types/task';
 import { TaskSession } from '../../../types/timer';
-import {
-  ProjectTaskMapping,
-  WorkLogEntry,
-  WorkLogImportPayload,
-  WorkLogImportSummary,
-} from '../../../types/workLog';
+import { ProjectTaskMapping, WorkLogEntry, WorkLogImportPayload, WorkLogImportSummary } from '../../../types/workLog';
 import {
   buildImportPreview,
   parseWorkLogPayload,
@@ -96,7 +91,16 @@ export function ImportWorkLogsDialog({
     return payloadProjects(parsed).flatMap(project => {
       const task = taskChoices[project.id]?.task;
       return task
-        ? [{ projectId: project.id, projectName: project.name, taskId: task.id, taskName: task.name, createdAt: nowIso, updatedAt: nowIso }]
+        ? [
+            {
+              projectId: project.id,
+              projectName: project.name,
+              taskId: task.id,
+              taskName: task.name,
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            },
+          ]
         : [];
     });
   }, [parsed, taskChoices]);
@@ -154,11 +158,9 @@ export function ImportWorkLogsDialog({
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
               <Alert severity="success">
-                Imported {result.entriesAdded} new and updated {result.entriesUpdated}{' '}
-                existing entr{result.entriesAdded + result.entriesUpdated === 1 ? 'y' : 'ies'};{' '}
-                {result.groupsApplied.length} day
-                {result.groupsApplied.length === 1 ? ' was' : 's were'} rewritten from the
-                imported data.
+                Imported {result.entriesAdded} new and updated {result.entriesUpdated} existing entr
+                {result.entriesAdded + result.entriesUpdated === 1 ? 'y' : 'ies'}; {result.groupsApplied.length} day
+                {result.groupsApplied.length === 1 ? ' was' : 's were'} rewritten from the imported data.
               </Alert>
               {result.groupsSkipped.map(skipped => (
                 <Alert key={`${skipped.taskId}-${skipped.workDay}`} severity="warning">
@@ -192,14 +194,11 @@ export function ImportWorkLogsDialog({
                 }}
               />
 
-              {rawText.trim() !== '' && parsed.error && (
-                <Alert severity="error">{parsed.error}</Alert>
-              )}
+              {rawText.trim() !== '' && parsed.error && <Alert severity="error">{parsed.error}</Alert>}
               {parsed.skippedRecords > 0 && (
                 <Alert severity="warning">
                   {parsed.skippedRecords} record
-                  {parsed.skippedRecords === 1 ? '' : 's'} could not be read and will be
-                  skipped.
+                  {parsed.skippedRecords === 1 ? '' : 's'} could not be read and will be skipped.
                 </Alert>
               )}
               {rawText.trim() !== '' && !parsed.error && !hasRecords && (
@@ -213,16 +212,8 @@ export function ImportWorkLogsDialog({
                   </Typography>
                   <Stack spacing={1.5}>
                     {unmatched.map(project => (
-                      <Box
-                        key={project.projectId}
-                        sx={{ display: 'flex', alignItems: 'center', gap: 2 }}
-                      >
-                        <Typography
-                          variant="body2"
-                          sx={{ flex: 1, minWidth: 0 }}
-                          noWrap
-                          title={project.projectName}
-                        >
+                      <Box key={project.projectId} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap title={project.projectName}>
                           {project.projectName}
                         </Typography>
                         <Box sx={{ flex: 1 }}>
@@ -279,9 +270,7 @@ export function ImportWorkLogsDialog({
                             {formatDuration(row.trackedMs)}
                           </TableCell>
                           <TableCell align="right" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
-                            {row.importedMinutes > 0
-                              ? formatDuration(row.importedMinutes * 60_000)
-                              : '—'}
+                            {row.importedMinutes > 0 ? formatDuration(row.importedMinutes * 60_000) : '—'}
                           </TableCell>
                           <TableCell
                             align="right"
@@ -328,7 +317,6 @@ export function ImportWorkLogsDialog({
                   </Typography>
                 </Box>
               )}
-
             </Stack>
           </DialogContent>
           <DialogActions>

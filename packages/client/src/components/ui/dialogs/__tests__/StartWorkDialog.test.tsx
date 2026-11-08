@@ -30,13 +30,7 @@ describe('StartWorkDialog', () => {
 
   const renderDialog = (dialogTasks: Task[] = tasks) =>
     render(
-      <StartWorkDialog
-        onClose={onClose}
-        tasks={dialogTasks}
-        sessions={[]}
-        onStart={onStart}
-        onAddTask={onAddTask}
-      />
+      <StartWorkDialog onClose={onClose} tasks={dialogTasks} sessions={[]} onStart={onStart} onAddTask={onAddTask} />
     );
 
   // The picker is focused on open and lists its tasks straight away

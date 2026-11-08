@@ -1,0 +1,8 @@
+# Formatting-only commits, which git blame skips: GitHub reads this file
+# itself; locally, `git blame --ignore-revs-file .git-blame-ignore-revs`.
+
+# Format the TypeScript with Biome
+b6ec8cc9657e4b928e8b77452dd7aa7867db354d
+
+# cargo fmt
+0524134597ab041d77666e000621a1c94459ebeb

@@ -40,14 +40,7 @@ describe('EditTimeEntryDialog', () => {
   });
 
   const renderDialog = (overrides: Partial<EditTimeEntryData> = {}) =>
-    render(
-      <EditTimeEntryDialog
-        onClose={onClose}
-        onSave={onSave}
-        entry={{ ...entry, ...overrides }}
-        tasks={tasks}
-      />
-    );
+    render(<EditTimeEntryDialog onClose={onClose} onSave={onSave} entry={{ ...entry, ...overrides }} tasks={tasks} />);
 
   const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -83,7 +76,9 @@ describe('EditTimeEntryDialog', () => {
 
     expect(screen.getByLabelText('Task')).toHaveValue('Old project');
     await userEvent.click(screen.getByLabelText('Task'));
-    const options = within(screen.getByRole('listbox')).getAllByRole('option').map(o => o.textContent);
+    const options = within(screen.getByRole('listbox'))
+      .getAllByRole('option')
+      .map(o => o.textContent);
     expect(options).toEqual(['Old project', 'Deep work', 'Review']);
   });
 
@@ -107,17 +102,13 @@ describe('EditTimeEntryDialog', () => {
     fireEvent.change(screen.getByLabelText('Minutes'), { target: { value: '60' } });
     save();
 
-    expect(
-      screen.getByText('Minutes must be a whole number between 0 and 59')
-    ).toBeInTheDocument();
+    expect(screen.getByText('Minutes must be a whole number between 0 and 59')).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
 
     // Fixing the field clears the error, and Save still works — the old
     // dialog disabled Save permanently after one failed submit.
     fireEvent.change(screen.getByLabelText('Minutes'), { target: { value: '30' } });
-    expect(
-      screen.queryByText('Minutes must be a whole number between 0 and 59')
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Minutes must be a whole number between 0 and 59')).not.toBeInTheDocument();
 
     save();
     expect(onSave).toHaveBeenCalledTimes(1);

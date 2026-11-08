@@ -24,8 +24,8 @@ export function PayoutSettingsSection() {
           ))}
         </Select>
         <FormHelperText id="funds-release-help">
-          How many days after a work day its earnings can be transferred. Payouts uses it for
-          what's available now and what's pending.
+          How many days after a work day its earnings can be transferred. Payouts uses it for what's available now and
+          what's pending.
         </FormHelperText>
       </FormControl>
     </SettingsSection>

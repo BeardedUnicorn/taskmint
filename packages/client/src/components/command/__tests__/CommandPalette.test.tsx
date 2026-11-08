@@ -9,7 +9,11 @@ import { Command, rankCommands, useCommands } from '../commands';
 import { NavigationProvider, useNavigation } from '../../../contexts/NavigationContext';
 import { isMacPlatform } from '../../../hooks/useKeyboardShortcuts';
 import { TaskSession, TimerState } from '../../../types/timer';
-import { createMockTask, createMockTaskSession, createMockTimerInstance } from '../../../__tests__/setup/session-test-utils';
+import {
+  createMockTask,
+  createMockTaskSession,
+  createMockTimerInstance,
+} from '../../../__tests__/setup/session-test-utils';
 
 const command = (label: string, overrides: Partial<Command> = {}): Command => ({
   id: label,
@@ -54,7 +58,11 @@ describe('rankCommands', () => {
 });
 
 describe('CommandPalette', () => {
-  const commands = [command('Go to Tasks', { group: 'Pages', hint: '⌘2' }), command('Go to History', { group: 'Pages' }), command('Add time')];
+  const commands = [
+    command('Go to Tasks', { group: 'Pages', hint: '⌘2' }),
+    command('Go to History', { group: 'Pages' }),
+    command('Add time'),
+  ];
 
   it('filters as you type and runs the highlighted command on Enter, closing first', () => {
     const onClose = vi.fn();
@@ -95,7 +103,8 @@ describe('CommandPalette', () => {
   it('moves the highlight with the arrow keys, wrapping around', () => {
     render(<CommandPalette open onClose={vi.fn()} commands={commands} />);
     const input = screen.getByRole('combobox', { name: 'Command' });
-    const selected = () => screen.getAllByRole('option').find(option => option.getAttribute('aria-selected') === 'true');
+    const selected = () =>
+      screen.getAllByRole('option').find(option => option.getAttribute('aria-selected') === 'true');
 
     expect(selected()).toHaveTextContent('Go to Tasks');
     expect(input).toHaveAttribute('aria-activedescendant', selected()!.id);
@@ -166,7 +175,16 @@ describe('useCommands', () => {
     const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
     const all = labels(result.current);
 
-    expect(all).toEqual(expect.arrayContaining(['Go to Sessions', 'Go to Settings', 'Settings: Notifications', 'New task', 'Add time', 'Switch to light theme']));
+    expect(all).toEqual(
+      expect.arrayContaining([
+        'Go to Sessions',
+        'Go to Settings',
+        'Settings: Notifications',
+        'New task',
+        'Add time',
+        'Switch to light theme',
+      ])
+    );
     expect(all.filter(label => label.startsWith('Start "'))).toEqual(['Start "Review"', 'Start "Annotation"']);
   });
 
@@ -207,7 +225,12 @@ describe('useCommands', () => {
 
   it('pauses or stops the running timer, and leaves its task out of the starts', () => {
     const running = createMockTimerInstance({ id: 'run', state: TimerState.running });
-    session.value.activeSession = createMockTaskSession({ taskId: 'r', taskName: 'Review', isActive: true, timerInstances: [running] });
+    session.value.activeSession = createMockTaskSession({
+      taskId: 'r',
+      taskName: 'Review',
+      isActive: true,
+      timerInstances: [running],
+    });
 
     const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
     const all = labels(result.current);
@@ -220,7 +243,7 @@ describe('useCommands', () => {
     expect(session.value.stopTimerInstance).toHaveBeenCalledWith('run');
   });
 
-  it("acts on the running timer of a session on several tasks, and names its own task", () => {
+  it('acts on the running timer of a session on several tasks, and names its own task', () => {
     const review = { taskId: 'b', taskName: 'Writing', hourlyRate: null };
     const paused = createMockTimerInstance({ id: 'p', state: TimerState.paused, pausedAt: '2024-01-15T10:30:00Z' });
     const running = createMockTimerInstance({ id: 'run', state: TimerState.running, task: review });
@@ -240,7 +263,8 @@ describe('useCommands', () => {
   });
 
   it('offers to resume the timer paused last', () => {
-    const paused = (id: string, pausedAt: string) => createMockTimerInstance({ id, state: TimerState.paused, pausedAt });
+    const paused = (id: string, pausedAt: string) =>
+      createMockTimerInstance({ id, state: TimerState.paused, pausedAt });
     session.value.activeSession = createMockTaskSession({
       taskId: 'r',
       taskName: 'Review',
@@ -256,7 +280,12 @@ describe('useCommands', () => {
 
   it('resumes a paused timer', () => {
     const paused = createMockTimerInstance({ id: 'p', state: TimerState.paused });
-    session.value.activeSession = createMockTaskSession({ taskId: 'r', taskName: 'Review', isActive: true, timerInstances: [paused] });
+    session.value.activeSession = createMockTaskSession({
+      taskId: 'r',
+      taskName: 'Review',
+      isActive: true,
+      timerInstances: [paused],
+    });
 
     const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
     expect(result.current[0].label).toBe('Resume "Review"');

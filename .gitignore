@@ -46,3 +46,6 @@ coverage/
 
 # Local Claude Code launch config
 .claude/
+
+# Installers that `pnpm release` collects (scripts/release.mjs)
+/releases/

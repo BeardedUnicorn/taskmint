@@ -78,20 +78,12 @@ export class TaskService {
   /**
    * Update an existing task
    */
-  async updateTask(
-    taskId: string, 
-    updates: Partial<Omit<Task, 'id' | 'createdAt'>>
-  ): Promise<Task> {
+  async updateTask(taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task> {
     try {
       const tasks = await this.getAllTasks();
       const taskIndex = tasks.findIndex(t => t.id === taskId);
       if (taskIndex === -1) {
-        throw createTaskError(
-          'TASK_NOT_FOUND',
-          `Task with ID ${taskId} not found`,
-          { taskId },
-          'updateTask'
-        );
+        throw createTaskError('TASK_NOT_FOUND', `Task with ID ${taskId} not found`, { taskId }, 'updateTask');
       }
       const existingTask = tasks[taskIndex];
 
@@ -199,7 +191,12 @@ export class TaskService {
   async restoreTask(task: Task, index: number): Promise<Task> {
     const tasks = await this.getAllTasks();
     if (tasks.some(t => t.id === task.id)) {
-      throw createTaskError('TASK_VALIDATION_FAILED', `"${task.name}" is already back`, { taskId: task.id }, 'restoreTask');
+      throw createTaskError(
+        'TASK_VALIDATION_FAILED',
+        `"${task.name}" is already back`,
+        { taskId: task.id },
+        'restoreTask'
+      );
     }
     if (!(await this.isTaskNameUnique(task.name))) {
       throw createTaskError(
@@ -222,12 +219,7 @@ export class TaskService {
       return await this.migrateLegacyFavorites(await this.storageService.getTasks());
     } catch (error) {
       console.error('Failed to get all tasks:', error);
-      throw createTaskError(
-        'TASK_NOT_FOUND',
-        'Failed to retrieve tasks',
-        { originalError: error },
-        'getAllTasks'
-      );
+      throw createTaskError('TASK_NOT_FOUND', 'Failed to retrieve tasks', { originalError: error }, 'getAllTasks');
     }
   }
 
@@ -318,11 +310,8 @@ export class TaskService {
     try {
       const tasks = await this.getAllTasks();
       const trimmedName = name.trim().toLowerCase();
-      
-      return !tasks.some(task => 
-        task.id !== excludeId && 
-        task.name.toLowerCase() === trimmedName
-      );
+
+      return !tasks.some(task => task.id !== excludeId && task.name.toLowerCase() === trimmedName);
     } catch (error) {
       console.error('Failed to check task name uniqueness:', error);
       return false;

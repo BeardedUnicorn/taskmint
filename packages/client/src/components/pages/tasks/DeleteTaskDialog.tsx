@@ -1,12 +1,4 @@
-import {
-  Alert,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-} from '@mui/material';
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import { Task } from '../../../types/task';
 import { formatDuration } from '../../../utils/formatters';
 
@@ -65,11 +57,7 @@ export function DeleteTaskDialog({ task, history, onDelete, onArchive, onClose }
         <Button onClick={onClose} color="secondary">
           Cancel
         </Button>
-        <Button
-          onClick={handleDelete}
-          color="error"
-          variant={canArchive ? 'outlined' : 'contained'}
-        >
+        <Button onClick={handleDelete} color="error" variant={canArchive ? 'outlined' : 'contained'}>
           {canArchive ? 'Delete anyway' : 'Delete'}
         </Button>
         {canArchive && (

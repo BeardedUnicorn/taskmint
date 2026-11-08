@@ -53,7 +53,7 @@ export function timeEntriesToCsv(entries: TimeEntry[], tasks: Task[]): string {
       ];
     });
 
-  return BOM + [HEADER, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  return `${BOM}${[HEADER, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')}\r\n`;
 }
 
 /** Rows a CSV export would contain (finished entries). */
@@ -73,16 +73,10 @@ export function entryEnd(entry: FinishedTimeEntry): Date {
  * "taskmint-time-entries-2026-10-01-to-2026-10-31.csv": the filter's range,
  * or the entries' own first and last days when the range is open.
  */
-export function csvFileName(
-  entries: TimeEntry[],
-  start: Dayjs | null = null,
-  end: Dayjs | null = null
-): string {
+export function csvFileName(entries: TimeEntry[], start: Dayjs | null = null, end: Dayjs | null = null): string {
   const days = entries.map(entry => entry.date || formatDateString(entry.startTime)).sort();
   const from = start ? start.format('YYYY-MM-DD') : days[0];
   const to = end ? end.format('YYYY-MM-DD') : days[days.length - 1];
   if (!from || !to) return 'taskmint-time-entries.csv';
-  return from === to
-    ? `taskmint-time-entries-${from}.csv`
-    : `taskmint-time-entries-${from}-to-${to}.csv`;
+  return from === to ? `taskmint-time-entries-${from}.csv` : `taskmint-time-entries-${from}-to-${to}.csv`;
 }

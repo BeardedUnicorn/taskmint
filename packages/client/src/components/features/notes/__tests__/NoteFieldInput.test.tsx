@@ -68,7 +68,13 @@ describe('NoteFieldInput', () => {
     expect(onChange).toHaveBeenCalledWith('f', 'done');
     unmount();
 
-    render(<NoteFieldInput field={field('select', { required: true, placeholder: 'Pick one' })} value="" onChange={onChange} />);
+    render(
+      <NoteFieldInput
+        field={field('select', { required: true, placeholder: 'Pick one' })}
+        value=""
+        onChange={onChange}
+      />
+    );
     expect(screen.getByText('Pick one')).toBeInTheDocument();
     fireEvent.mouseDown(screen.getByRole('combobox', { name: /Field/ }));
     expect(screen.queryByRole('option', { name: 'None' })).not.toBeInTheDocument();

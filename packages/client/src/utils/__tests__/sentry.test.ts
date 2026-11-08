@@ -13,12 +13,7 @@ vi.mock('@sentry/react', () => ({
 }));
 
 import * as Sentry from '@sentry/react';
-import {
-  scrubEvent,
-  scrubBreadcrumb,
-  isErrorReportingEnabled,
-  setErrorReportingEnabled,
-} from '../sentry';
+import { scrubEvent, scrubBreadcrumb, isErrorReportingEnabled, setErrorReportingEnabled } from '../sentry';
 
 describe('scrubEvent', () => {
   it('keeps diagnostic fields and drops user data from extra and custom contexts', () => {
@@ -147,13 +142,20 @@ describe('initSentry', () => {
     rejected(new Error('disk full'), pending);
     rejected('Session not found');
     rejected({ message: 'quota exceeded' });
-    window.dispatchEvent(new ErrorEvent('error', { error: new TypeError('x is undefined'), message: 'x is undefined', filename: 'a.js', lineno: 1, colno: 2 }));
+    window.dispatchEvent(
+      new ErrorEvent('error', {
+        error: new TypeError('x is undefined'),
+        message: 'x is undefined',
+        filename: 'a.js',
+        lineno: 1,
+        colno: 2,
+      })
+    );
     window.dispatchEvent(new ErrorEvent('error', { message: 'Script error.' }));
 
-    const reported = vi.mocked(Sentry.captureException).mock.calls.map(([error, hint]) => [
-      (error as Error).message,
-      (hint as { extra: { type: string } }).extra.type,
-    ]);
+    const reported = vi
+      .mocked(Sentry.captureException)
+      .mock.calls.map(([error, hint]) => [(error as Error).message, (hint as { extra: { type: string } }).extra.type]);
     expect(reported).toEqual([
       ['disk full', 'unhandledrejection'],
       ['Session not found', 'unhandledrejection'],
@@ -162,7 +164,10 @@ describe('initSentry', () => {
       ['Script error.', 'uncaught'],
     ]);
     expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Unhandled promise rejection', data: { reason: 'disk full', promise: '[object Promise]' } })
+      expect.objectContaining({
+        message: 'Unhandled promise rejection',
+        data: { reason: 'disk full', promise: '[object Promise]' },
+      })
     );
   });
 

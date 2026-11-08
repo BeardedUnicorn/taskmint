@@ -1,6 +1,6 @@
 /**
  * Test Setup Configuration
- * 
+ *
  * This file is run before each test file and sets up the testing environment
  * with necessary polyfills, mocks, and global configurations.
  */

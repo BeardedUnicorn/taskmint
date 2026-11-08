@@ -6,11 +6,7 @@ const TaskManagementContext = createContext<UseTaskManagementReturn | undefined>
 
 export function TaskManagementProvider({ children }: { children: ReactNode }) {
   const taskManagement = useTaskManagement();
-  return (
-    <TaskManagementContext.Provider value={taskManagement}>
-      {children}
-    </TaskManagementContext.Provider>
-  );
+  return <TaskManagementContext.Provider value={taskManagement}>{children}</TaskManagementContext.Provider>;
 }
 
 export function useTaskManagementContext(): UseTaskManagementReturn {

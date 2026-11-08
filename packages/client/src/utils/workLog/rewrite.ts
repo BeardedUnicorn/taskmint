@@ -68,8 +68,7 @@ export function buildSynthesizedSession(
   // Each instance's duration was set just above
   const totalDuration = instances.reduce((sum, i) => sum + Number(i.duration), 0);
   const totalCents = timedEntries.reduce((sum, entry) => sum + entry.amountCents, 0);
-  const hourlyRate =
-    totalDuration > 0 && totalCents > 0 ? totalCents / 100 / (totalDuration / 3_600_000) : null;
+  const hourlyRate = totalDuration > 0 && totalCents > 0 ? totalCents / 100 / (totalDuration / 3_600_000) : null;
 
   return {
     id: sessionId,
@@ -96,11 +95,7 @@ export function buildSynthesizedSession(
  *      next calendar day (workDay + 1) before noon, e.g. overnight work shift into early morning.
  *   3. Spanning: instance startTime to endTime spans across workDay.
  */
-export function instanceBelongsToWorkDay(
-  instance: TimerInstance,
-  session: TaskSession,
-  workDay: string
-): boolean {
+export function instanceBelongsToWorkDay(instance: TimerInstance, session: TaskSession, workDay: string): boolean {
   if (session.source === WORKLOG_IMPORT_SOURCE) {
     return session.date === workDay;
   }
@@ -158,9 +153,7 @@ export function buildRewriteGroups(
   }
 
   for (const { taskId, workDay } of keys.values()) {
-    const ledgerForKey = mergedLedger.filter(
-      e => e.kind === 'timed' && e.taskId === taskId && e.workDay === workDay
-    );
+    const ledgerForKey = mergedLedger.filter(e => e.kind === 'timed' && e.taskId === taskId && e.workDay === workDay);
     if (ledgerForKey.length === 0) continue;
 
     const deleteInstanceIds: string[] = [];
@@ -190,14 +183,7 @@ export function buildRewriteGroups(
       workDay,
       deleteInstanceIds,
       blockingInstanceIds,
-      replacementSession: buildSynthesizedSession(
-        taskId,
-        taskName,
-        workDay,
-        ledgerForKey,
-        opts.nowIso,
-        idFactory
-      ),
+      replacementSession: buildSynthesizedSession(taskId, taskName, workDay, ledgerForKey, opts.nowIso, idFactory),
     });
   }
 
@@ -209,11 +195,7 @@ export function buildRewriteGroups(
  * instances match the ledger entries one-for-one — re-pasting unchanged data
  * must not churn the stored sessions.
  */
-function isAlreadyConverged(
-  ledgerForKey: WorkLogEntry[],
-  bucketSessions: Set<TaskSession>,
-  workDay: string
-): boolean {
+function isAlreadyConverged(ledgerForKey: WorkLogEntry[], bucketSessions: Set<TaskSession>, workDay: string): boolean {
   if (bucketSessions.size !== 1) return false;
   const [session] = bucketSessions;
   // An imported session's timers all belong to its day, so they're the bucket
@@ -228,11 +210,7 @@ function isAlreadyConverged(
     .sort();
   const fromSessions = session.timerInstances
     .map(instance =>
-      instanceSignature(
-        instance.externalId ?? '',
-        new Date(instance.startTime).getTime(),
-        instance.duration ?? 0
-      )
+      instanceSignature(instance.externalId ?? '', new Date(instance.startTime).getTime(), instance.duration ?? 0)
     )
     .sort();
   return fromLedger.every((signature, index) => signature === fromSessions[index]);

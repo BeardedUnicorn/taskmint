@@ -1,6 +1,6 @@
 /**
  * Formatting Utilities
- * 
+ *
  * This file contains utility functions for formatting various data types
  * including time, currency, and other display formats.
  */
@@ -12,7 +12,7 @@ import { formattingLocale } from './locale';
  */
 export function formatTime(milliseconds: number): string {
   // Handle invalid input values
-  if (typeof milliseconds !== 'number' || isNaN(milliseconds) || milliseconds < 0) {
+  if (typeof milliseconds !== 'number' || Number.isNaN(milliseconds) || milliseconds < 0) {
     return '00:00:00';
   }
 
@@ -52,7 +52,7 @@ export function formatDate(date: Date): string {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
   });
 }
 
@@ -60,13 +60,11 @@ export function formatDate(date: Date): string {
  * Format currency amount with proper symbol and formatting
  */
 export function formatCurrency(amount: string | number, currency = 'USD'): string {
-  const numericAmount = typeof amount === 'string'
-    ? parseFloat(amount.replace(/[$,]/g, ''))
-    : amount;
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount.replace(/[$,]/g, '')) : amount;
 
   const format = (value: number, code: string) =>
     new Intl.NumberFormat(formattingLocale(), { style: 'currency', currency: code }).format(value);
-  const value = isNaN(numericAmount) ? 0 : numericAmount;
+  const value = Number.isNaN(numericAmount) ? 0 : numericAmount;
   try {
     return format(value, currency);
   } catch {
@@ -87,7 +85,7 @@ export function formatMultilineText(text: string, maxLength?: number): string {
   const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   if (maxLength && normalizedText.length > maxLength) {
-    return normalizedText.substring(0, maxLength) + '...';
+    return `${normalizedText.substring(0, maxLength)}...`;
   }
 
   return normalizedText;
@@ -102,13 +100,10 @@ export function createTextPreview(text: string, maxLength: number = 100): string
   }
 
   // Replace line breaks with bullet points for preview
-  const singleLinePreview = text
-    .replace(/\n+/g, ' • ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const singleLinePreview = text.replace(/\n+/g, ' • ').replace(/\s+/g, ' ').trim();
 
   if (singleLinePreview.length > maxLength) {
-    return singleLinePreview.substring(0, maxLength) + '...';
+    return `${singleLinePreview.substring(0, maxLength)}...`;
   }
 
   return singleLinePreview;

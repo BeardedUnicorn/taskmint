@@ -82,8 +82,8 @@ export function TokensSection({ session }: { session: WebSession }) {
   return (
     <SettingsSection title="API tokens" icon={<KeyIcon color="primary" />}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        The TaskMint browser extension sends captures with a token; a desktop app signed in to this server has one
-        too. Revoke a token you no longer use.
+        The TaskMint browser extension sends captures with a token; a desktop app signed in to this server has one too.
+        Revoke a token you no longer use.
       </Typography>
 
       <Box component="form" onSubmit={create} noValidate sx={{ mb: 3 }}>

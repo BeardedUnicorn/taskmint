@@ -10,18 +10,18 @@ function systemPrefers(dark: boolean) {
   const query = {
     matches: dark,
     addEventListener: vi.fn((_: string, listener: (event: MediaQueryListEvent) => void) => listeners.add(listener)),
-    removeEventListener: vi.fn((_: string, listener: (event: MediaQueryListEvent) => void) => listeners.delete(listener)),
+    removeEventListener: vi.fn((_: string, listener: (event: MediaQueryListEvent) => void) =>
+      listeners.delete(listener)
+    ),
   };
   vi.mocked(window.matchMedia).mockReturnValue(query as unknown as MediaQueryList);
   return {
     listeners,
-    change: (nowDark: boolean) =>
-      listeners.forEach(listener => listener({ matches: nowDark } as MediaQueryListEvent)),
+    change: (nowDark: boolean) => listeners.forEach(listener => listener({ matches: nowDark } as MediaQueryListEvent)),
   };
 }
 
-const themed = () =>
-  renderHook(() => ({ app: useTheme(), mui: useMuiTheme() }), { wrapper: ThemeProvider });
+const themed = () => renderHook(() => ({ app: useTheme(), mui: useMuiTheme() }), { wrapper: ThemeProvider });
 
 const chosen = (mode: string) => writeLocal<ThemeMode>('theme-mode', mode as ThemeMode, 'dark');
 
@@ -76,7 +76,7 @@ describe('ThemeProvider', () => {
     expect(result.current.app.mode).toBe('dark');
   });
 
-  it('is dark for a stored mode it doesn\'t know', () => {
+  it("is dark for a stored mode it doesn't know", () => {
     chosen('sepia');
     expect(themed().result.current.app.isDark).toBe(true);
   });

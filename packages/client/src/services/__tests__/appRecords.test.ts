@@ -159,10 +159,10 @@ describe('appRecords', () => {
 
   it('removes keys earlier versions left behind, and keeps settings', async () => {
     const left = {
-      'predefinedTasks_backup_1791001697839': '{}',
-      'noteTemplates_backup_1791001712854': '{}',
+      predefinedTasks_backup_1791001697839: '{}',
+      noteTemplates_backup_1791001712854: '{}',
       timeEntries: '[]',
-      'timeEntries_backup_1700000000000': '[]',
+      timeEntries_backup_1700000000000: '[]',
       dashboardWidgetPrefs: '{}',
     };
     for (const [key, value] of Object.entries(left)) window.localStorage.setItem(key, value);
@@ -194,7 +194,7 @@ describe('appRecords', () => {
     expect(readAppRecord('predefinedTasks')).toEqual(tasks);
   });
 
-  it("writes in order per record, and null removes it", async () => {
+  it('writes in order per record, and null removes it', async () => {
     const file = fakeAppData();
     await loadAppRecords({ importLegacy: false });
     const order: string[] = [];
@@ -233,7 +233,7 @@ describe('appRecords', () => {
     expect(readAppRecord('predefinedTasks')).toEqual(tasks);
   });
 
-  it("brings back a record whose removal failed, but not over a newer write", async () => {
+  it('brings back a record whose removal failed, but not over a newer write', async () => {
     fakeAppData({ predefinedTasks: tasks });
     await loadAppRecords({ importLegacy: false });
     mockInvoke.mockRejectedValueOnce(new Error('disk full'));

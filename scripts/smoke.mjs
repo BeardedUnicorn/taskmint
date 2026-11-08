@@ -25,7 +25,9 @@ const CAPTURE_HEADER = 'X-TaskMint-Capture';
 const TIME_ZONE_HEADER = 'X-TaskMint-TZ';
 
 const settings = readSettings();
-const base = new URL(settings.TASKMINT_URL ?? settings.PUBLIC_ORIGIN ?? `http://localhost:${settings.WEB_PORT ?? '8080'}`);
+const base = new URL(
+  settings.TASKMINT_URL ?? settings.PUBLIC_ORIGIN ?? `http://localhost:${settings.WEB_PORT ?? '8080'}`
+);
 const origin = base.origin;
 
 function readSettings() {
@@ -148,8 +150,7 @@ class EventStream {
     let data = [];
     for await (const chunk of body.pipeThrough(new TextDecoderStream())) {
       buffer += chunk;
-      let end;
-      while ((end = buffer.indexOf('\n')) >= 0) {
+      for (let end = buffer.indexOf('\n'); end >= 0; end = buffer.indexOf('\n')) {
         const line = buffer.slice(0, end).replace(/\r$/, '');
         buffer = buffer.slice(end + 1);
         if (line === '') {

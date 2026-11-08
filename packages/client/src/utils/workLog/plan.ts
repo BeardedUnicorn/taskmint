@@ -41,7 +41,7 @@ interface PlanDetails {
 export type WorkLogImportPlan =
   | { status: 'error'; error: string }
   | { status: 'empty' }
-  | ({ status: 'needs-mapping'; /** Still without a task. */ unresolved: Project[] } & PlanDetails)
+  | ({ status: 'needs-mapping' /** Still without a task. */; unresolved: Project[] } & PlanDetails)
   | ({ status: 'ready'; payload: WorkLogImportPayload } & PlanDetails);
 
 /** The distinct projects a payload mentions. */

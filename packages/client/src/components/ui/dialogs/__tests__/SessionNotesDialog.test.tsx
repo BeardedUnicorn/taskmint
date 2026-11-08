@@ -59,9 +59,11 @@ function SessionRowPreview() {
   const { notes } = useTaskNotes();
   return (
     <ul aria-label="row preview">
-      {notes.filter(n => n.sessionId === 's-1').map(n => (
-        <li key={n.id}>{noteText(n)}</li>
-      ))}
+      {notes
+        .filter(n => n.sessionId === 's-1')
+        .map(n => (
+          <li key={n.id}>{noteText(n)}</li>
+        ))}
     </ul>
   );
 }
@@ -69,17 +71,17 @@ function SessionRowPreview() {
 function renderDialog(timerInstanceId: string | null = null, onClose = () => {}, dialogTasks = tasks) {
   return render(
     <NotificationProvider>
-    <TaskNotesProvider>
-      <NoteTemplatesProvider>
-        <SessionNotesDialog
-          onClose={onClose}
-          session={session}
-          timerInstanceId={timerInstanceId}
-          tasks={dialogTasks}
-        />
-        <SessionRowPreview />
-      </NoteTemplatesProvider>
-    </TaskNotesProvider>
+      <TaskNotesProvider>
+        <NoteTemplatesProvider>
+          <SessionNotesDialog
+            onClose={onClose}
+            session={session}
+            timerInstanceId={timerInstanceId}
+            tasks={dialogTasks}
+          />
+          <SessionRowPreview />
+        </NoteTemplatesProvider>
+      </TaskNotesProvider>
     </NotificationProvider>
   );
 }

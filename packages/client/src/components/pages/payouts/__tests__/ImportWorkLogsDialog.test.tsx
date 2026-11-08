@@ -9,7 +9,11 @@ import { render, screen, fireEvent, waitFor } from '../../../../__tests__/setup/
 import { ImportWorkLogsDialog } from '../ImportWorkLogsDialog';
 import { WORKLOG_IMPORT_SOURCE, WorkLogImportPayload, WorkLogImportSummary } from '../../../../types/workLog';
 import { deriveTimedWorkDay } from '../../../../utils/workLogImport';
-import { createMockTask, createMockTaskSession, createMockTimerInstance } from '../../../../__tests__/setup/session-test-utils';
+import {
+  createMockTask,
+  createMockTaskSession,
+  createMockTimerInstance,
+} from '../../../../__tests__/setup/session-test-utils';
 import { TimerState } from '../../../../types/timer';
 
 const emptySummary: WorkLogImportSummary = {
@@ -94,9 +98,7 @@ describe('ImportWorkLogsDialog', () => {
       workDay,
       amountCents: 30000,
     });
-    expect(payload.mappings).toEqual([
-      expect.objectContaining({ projectId: 'proj-1', taskId: 'task-1' }),
-    ]);
+    expect(payload.mappings).toEqual([expect.objectContaining({ projectId: 'proj-1', taskId: 'task-1' })]);
     expect(payload.rewriteGroups).toHaveLength(1);
     expect(payload.rewriteGroups[0]).toMatchObject({ taskId: 'task-1', workDay });
     expect(payload.rewriteGroups[0].replacementSession!.timerInstances).toHaveLength(1);
@@ -294,14 +296,15 @@ describe('ImportWorkLogsDialog', () => {
     it("says how many records it couldn't read", () => {
       renderDialog();
       const records = (count: number) =>
-        JSON.stringify({ timedWorkEntries: Array.from({ length: count }, (_, i) => ({ type: 'TimedWorkEntry', id: `bad-${i}` })) });
+        JSON.stringify({
+          timedWorkEntries: Array.from({ length: count }, (_, i) => ({ type: 'TimedWorkEntry', id: `bad-${i}` })),
+        });
 
       pasteText(records(1));
       expect(screen.getByText(/1 record could not be read/)).toBeInTheDocument();
       pasteText(records(2));
       expect(screen.getByText(/2 records could not be read/)).toBeInTheDocument();
     });
-
 
     it('stays on the preview when the import fails (the hook said why)', async () => {
       const { props } = renderDialog({ onApply: vi.fn(async () => null) });

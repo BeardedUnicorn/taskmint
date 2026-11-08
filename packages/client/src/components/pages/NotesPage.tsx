@@ -28,11 +28,7 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Search as SearchIcon,
-  Notes as NotesIcon,
-} from '@mui/icons-material';
+import { Add as AddIcon, Search as SearchIcon, Notes as NotesIcon } from '@mui/icons-material';
 import { Task } from '../../types/task';
 import { TaskSession } from '../../types/timer';
 import { TaskNote, NoteTemplate } from '../../types/notes';
@@ -72,15 +68,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
   const [selectedTemplateFilter, setSelectedTemplateFilter] = useState<string>('all');
 
   // Hooks for notes (get all notes across all tasks)
-  const {
-    notes,
-    createNote,
-    updateNote,
-    deleteNote,
-    archiveNote,
-    unarchiveNote,
-    searchNotes,
-  } = useTaskNotes();
+  const { notes, createNote, updateNote, deleteNote, archiveNote, unarchiveNote, searchNotes } = useTaskNotes();
 
   // Hooks for templates
   const { templates } = useNoteTemplates();
@@ -113,10 +101,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
 
   // Task picker: active tasks, favorites and recently used first
   const pickerTasks = useMemo(() => orderTasksForStart(tasks, sessions), [tasks, sessions]);
-  const taskNames = useMemo(
-    () => Object.fromEntries(tasks.map(task => [task.id, task.name])),
-    [tasks]
-  );
+  const taskNames = useMemo(() => Object.fromEntries(tasks.map(task => [task.id, task.name])), [tasks]);
   // A note on an archived task can still be edited (and moved off it)
   const editorTasks = useMemo(() => {
     const noteTask = editingNote && tasks.find(task => task.id === editingNote.taskId);
@@ -221,10 +206,10 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                 <Typography variant="body2">
                   <strong>Active Timer:</strong> {runningTask.taskName}
                   {(() => {
-                    const defaultTemplate = activeTask?.defaultNoteTemplateId 
+                    const defaultTemplate = activeTask?.defaultNoteTemplateId
                       ? templates.find(t => t.id === activeTask.defaultNoteTemplateId)
                       : null;
-                    return defaultTemplate 
+                    return defaultTemplate
                       ? ` • New notes will use "${defaultTemplate.name}" template`
                       : ' • No default template set';
                   })()}
@@ -242,7 +227,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                 label="Search notes"
                 placeholder="Search notes..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={e => setSearchQuery(e.target.value)}
                 sx={{ minWidth: 250 }}
                 slotProps={{
                   input: {
@@ -251,7 +236,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                         <SearchIcon />
                       </InputAdornment>
                     ),
-                  }
+                  },
                 }}
               />
 
@@ -262,10 +247,10 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                   labelId={taskFilterLabelId}
                   value={selectedTaskFilter}
                   label="Filter by Task"
-                  onChange={(e) => setSelectedTaskFilter(e.target.value)}
+                  onChange={e => setSelectedTaskFilter(e.target.value)}
                 >
                   <MenuItem value="all">All Tasks</MenuItem>
-                  {tasks.map((task) => (
+                  {tasks.map(task => (
                     <MenuItem key={task.id} value={task.id}>
                       {task.name}
                     </MenuItem>
@@ -280,10 +265,10 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                   labelId={templateFilterLabelId}
                   value={selectedTemplateFilter}
                   label="Filter by Template"
-                  onChange={(e) => setSelectedTemplateFilter(e.target.value)}
+                  onChange={e => setSelectedTemplateFilter(e.target.value)}
                 >
                   <MenuItem value="all">All Templates</MenuItem>
-                  {usedTemplates.map((template) => (
+                  {usedTemplates.map(template => (
                     <MenuItem key={template.id} value={template.id}>
                       {template.name}
                     </MenuItem>

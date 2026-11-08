@@ -127,7 +127,11 @@ describe('FieldEditor', () => {
     expand();
     await chooseType('Select');
 
-    expect(latest()).toMatchObject({ type: 'select', validation: undefined, options: [{ label: 'Option 1', value: 'option1' }] });
+    expect(latest()).toMatchObject({
+      type: 'select',
+      validation: undefined,
+      options: [{ label: 'Option 1', value: 'option1' }],
+    });
     expect(screen.getByRole('button', { name: 'Remove option' })).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Option' }));

@@ -1,6 +1,6 @@
 /**
  * Note Template Service
- * 
+ *
  * This service handles all operations related to note templates including
  * CRUD operations, validation, and template management.
  */
@@ -178,7 +178,6 @@ export class NoteTemplateService {
 
       // Remove from cache
       this.templateCache.delete(templateId);
-
     } catch (error) {
       console.error(`Failed to delete template ${templateId}:`, error);
       throw new Error('Failed to delete note template');
@@ -202,9 +201,6 @@ export class NoteTemplateService {
    */
   async isTemplateNameUnique(name: string, excludeId?: string): Promise<boolean> {
     const templates = await this.getAllTemplates();
-    return !templates.some(template => 
-      template.name.toLowerCase() === name.toLowerCase() && 
-      template.id !== excludeId
-    );
+    return !templates.some(template => template.name.toLowerCase() === name.toLowerCase() && template.id !== excludeId);
   }
 }

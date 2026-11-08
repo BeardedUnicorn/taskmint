@@ -32,10 +32,8 @@ describe('ActiveTimerProvider', () => {
 });
 
 describe('SessionManagementProvider', () => {
-  it("shares the sessions the backend sent", async () => {
-    fakeBackend().call.mockImplementation(async (command: string) =>
-      command === 'get_sessions' ? [] : null
-    );
+  it('shares the sessions the backend sent', async () => {
+    fakeBackend().call.mockImplementation(async (command: string) => (command === 'get_sessions' ? [] : null));
     const wrapper = ({ children }: { children: ReactNode }) => (
       <ActiveTimerProvider>
         <SessionManagementProvider>{children}</SessionManagementProvider>

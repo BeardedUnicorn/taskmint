@@ -84,9 +84,7 @@ export const NoteFieldInput = memo(function NoteFieldInput({ field, value, error
       return (
         <FormControl error={!!error} required={field.required}>
           <FormControlLabel
-            control={
-              <Checkbox checked={value === true} onChange={event => onChange(field.id, event.target.checked)} />
-            }
+            control={<Checkbox checked={value === true} onChange={event => onChange(field.id, event.target.checked)} />}
             label={field.label}
             sx={{ alignItems: 'flex-start' }}
           />

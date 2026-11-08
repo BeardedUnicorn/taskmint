@@ -60,7 +60,12 @@ beforeEach(() => {
   seedAppRecords({
     taskNotes: [
       note('free'),
-      note('templated', { taskId: 'task-2', templateId: 'standup', templateName: 'Standup', fieldValues: { done: 'Shipped' } }),
+      note('templated', {
+        taskId: 'task-2',
+        templateId: 'standup',
+        templateName: 'Standup',
+        fieldValues: { done: 'Shipped' },
+      }),
       note('archived', { isArchived: true }),
     ],
     noteTemplates: [standup],

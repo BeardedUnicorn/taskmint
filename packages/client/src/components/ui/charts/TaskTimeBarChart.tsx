@@ -5,14 +5,7 @@ import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 import { TaskTimeData, millisecondsToHours, formatTimeForChart } from '../../../utils/chartDataHelpers';
 import { formatCurrency } from '../../../utils/formatters';
-import {
-  CHART_HEIGHT,
-  ChartLegend,
-  ChartTitle,
-  ChartTooltipCard,
-  ChartTooltipProps,
-  hoveredPoint,
-} from './ChartParts';
+import { CHART_HEIGHT, ChartLegend, ChartTitle, ChartTooltipCard, ChartTooltipProps, hoveredPoint } from './ChartParts';
 
 /** Longer names are cut on the axis; the tooltip shows them whole. */
 const AXIS_NAME_LENGTH = 15;
@@ -81,7 +74,12 @@ export function TaskTimeBarChart({ data }: { data: TaskTimeData[] }) {
             yAxisId="earnings"
             orientation="right"
             tick={{ fill: text, fontSize: 12 }}
-            label={{ value: 'Earnings ($)', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: text } }}
+            label={{
+              value: 'Earnings ($)',
+              angle: 90,
+              position: 'insideRight',
+              style: { textAnchor: 'middle', fill: text },
+            }}
           />
           <Tooltip content={<TaskTimeTooltip />} />
           <Legend

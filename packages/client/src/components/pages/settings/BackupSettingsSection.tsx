@@ -14,10 +14,7 @@ import {
   Chip,
   CircularProgress,
 } from '@mui/material';
-import {
-  Backup as BackupIcon,
-  Folder as FolderIcon,
-} from '@mui/icons-material';
+import { Backup as BackupIcon, Folder as FolderIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { useBackupSettingsContext } from '../../../contexts/BackupSettingsContext';
 import { BackupFrequency, getBackupFrequencyLabel } from '../../../types/backup';
@@ -64,7 +61,6 @@ export function BackupSettingsSection() {
 
   return (
     <SettingsSection title="Automatic Backups" icon={<BackupIcon color="primary" />}>
-
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Configure automatic periodic backups to protect your data. Backups are saved locally to your chosen directory.
       </Typography>
@@ -72,13 +68,7 @@ export function BackupSettingsSection() {
       {/* Enable/Disable Toggle */}
       <Box sx={{ mb: 3 }}>
         <FormControlLabel
-          control={
-            <Switch
-              checked={backupConfig.enabled}
-              onChange={toggleBackupEnabled}
-              color="primary"
-            />
-          }
+          control={<Switch checked={backupConfig.enabled} onChange={toggleBackupEnabled} color="primary" />}
           label="Enable automatic backups"
         />
       </Box>
@@ -100,7 +90,7 @@ export function BackupSettingsSection() {
                 slotProps={{
                   input: {
                     readOnly: true,
-                  }
+                  },
                 }}
               />
               <Button
@@ -122,9 +112,9 @@ export function BackupSettingsSection() {
               id="backup-frequency"
               value={backupConfig.frequency}
               label="Backup Frequency"
-              onChange={(e) => updateBackupFrequency(e.target.value as BackupFrequency)}
+              onChange={e => updateBackupFrequency(e.target.value as BackupFrequency)}
             >
-              {backupFrequencies.map((frequency) => (
+              {backupFrequencies.map(frequency => (
                 <MenuItem key={frequency} value={frequency}>
                   {getBackupFrequencyLabel(frequency)}
                 </MenuItem>
@@ -137,16 +127,16 @@ export function BackupSettingsSection() {
             label="Maximum Backups to Keep"
             type="number"
             value={maxBackupsText}
-            onChange={(e) => setMaxBackupsText(e.target.value)}
+            onChange={e => setMaxBackupsText(e.target.value)}
             onBlur={commitMaxBackups}
-            onKeyDown={(e) => {
+            onKeyDown={e => {
               if (e.key === 'Enter') commitMaxBackups();
             }}
             size="small"
             sx={{ maxWidth: 250 }}
             helperText="Older backups will be automatically deleted"
             slotProps={{
-              htmlInput: { min: 1, max: 100 }
+              htmlInput: { min: 1, max: 100 },
             }}
           />
 
@@ -173,10 +163,15 @@ export function BackupSettingsSection() {
         <Chip
           label={getStatusSummary()}
           color={
-            !backupConfig.enabled ? 'default' :
-            backupStatus.isRunning ? 'info' :
-            backupStatus.lastBackupSuccess === false ? 'error' :
-            backupStatus.lastBackupSuccess === true ? 'success' : 'default'
+            !backupConfig.enabled
+              ? 'default'
+              : backupStatus.isRunning
+                ? 'info'
+                : backupStatus.lastBackupSuccess === false
+                  ? 'error'
+                  : backupStatus.lastBackupSuccess === true
+                    ? 'success'
+                    : 'default'
           }
           variant="outlined"
         />

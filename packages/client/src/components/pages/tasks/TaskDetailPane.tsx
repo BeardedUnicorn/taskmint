@@ -66,7 +66,6 @@ export function TaskDetailPane({
   isRunning,
   onViewHistory,
 }: TaskDetailPaneProps) {
-
   // This task's finished entries (by id, or by name for older ones), newest first
   const taskEntries = useMemo(
     () =>
@@ -104,17 +103,10 @@ export function TaskDetailPane({
             <Typography variant="h5" sx={{ fontWeight: 600 }}>
               {task.name}
             </Typography>
-            {task.isArchived && (
-              <Chip label="Archived" size="small" color="warning" variant="outlined" />
-            )}
+            {task.isArchived && <Chip label="Archived" size="small" color="warning" variant="outlined" />}
           </Box>
           {!task.isArchived && (
-            <Button
-              variant="contained"
-              startIcon={<PlayIcon />}
-              onClick={() => onStart(task)}
-              disabled={isRunning}
-            >
+            <Button variant="contained" startIcon={<PlayIcon />} onClick={() => onStart(task)} disabled={isRunning}>
               {isRunning ? 'Running' : 'Start'}
             </Button>
           )}
@@ -142,9 +134,7 @@ export function TaskDetailPane({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <MoneyIcon color="action" fontSize="small" />
             <Typography variant="body2">
-              <strong>Hourly Rate:</strong> {
-                task.hourlyRate ? formatCurrency(task.hourlyRate) : 'Not set'
-              }
+              <strong>Hourly Rate:</strong> {task.hourlyRate ? formatCurrency(task.hourlyRate) : 'Not set'}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -171,11 +161,7 @@ export function TaskDetailPane({
               variant="outlined"
             />
           )}
-          <Chip
-            label={`${taskStats.entryCount} entries`}
-            color="info"
-            variant="outlined"
-          />
+          <Chip label={`${taskStats.entryCount} entries`} color="info" variant="outlined" />
         </Stack>
       </Box>
 
@@ -232,30 +218,22 @@ export function TaskDetailPane({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {taskEntries.slice(0, RECENT_ENTRY_COUNT).map((entry) => {
+                {taskEntries.slice(0, RECENT_ENTRY_COUNT).map(entry => {
                   const earnings = entryEarnings(entry, allTasks);
 
                   return (
                     <TableRow key={entry.id} hover>
                       <TableCell>
-                        <Typography variant="body2">
-                          {formatLocalDate(entry.startTime)}
-                        </Typography>
+                        <Typography variant="body2">{formatLocalDate(entry.startTime)}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {formatLocalTime(entry.startTime)}
-                        </Typography>
+                        <Typography variant="body2">{formatLocalTime(entry.startTime)}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {formatLocalTime(entryEnd(entry))}
-                        </Typography>
+                        <Typography variant="body2">{formatLocalTime(entryEnd(entry))}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {formatDuration(entry.duration)}
-                        </Typography>
+                        <Typography variant="body2">{formatDuration(entry.duration)}</Typography>
                       </TableCell>
                       {taskStats.hasRates && (
                         <TableCell>
@@ -277,19 +255,12 @@ export function TaskDetailPane({
                         ) : (
                           <>
                             <Tooltip title="Edit Entry">
-                              <IconButton
-                                size="small"
-                                onClick={() => onEditEntry(entry)}
-                              >
+                              <IconButton size="small" onClick={() => onEditEntry(entry)}>
                                 <EditIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="Delete Entry">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => onDeleteEntry(entry.id)}
-                              >
+                              <IconButton size="small" color="error" onClick={() => onDeleteEntry(entry.id)}>
                                 <DeleteIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>

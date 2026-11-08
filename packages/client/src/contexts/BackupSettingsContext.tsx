@@ -48,11 +48,7 @@ export function BackupSettingsProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [enabled, backupPath]);
 
-  return (
-    <BackupSettingsContext.Provider value={backup}>
-      {children}
-    </BackupSettingsContext.Provider>
-  );
+  return <BackupSettingsContext.Provider value={backup}>{children}</BackupSettingsContext.Provider>;
 }
 
 export function useBackupSettingsContext(): BackupSettingsContextValue {

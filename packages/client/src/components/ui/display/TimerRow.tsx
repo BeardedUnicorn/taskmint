@@ -56,7 +56,7 @@ export function TimerRow({
   return (
     <Box
       data-testid="timer-instance"
-      sx={(theme) => ({
+      sx={theme => ({
         display: 'flex',
         alignItems: 'center',
         gap: 1,
@@ -107,23 +107,9 @@ export function TimerRow({
         {formatTime(displayTime)}
       </Typography>
 
-      {isRunning && (
-        <Chip
-          size="small"
-          label="Running"
-          color="success"
-          sx={{ fontSize: '0.7rem' }}
-        />
-      )}
+      {isRunning && <Chip size="small" label="Running" color="success" sx={{ fontSize: '0.7rem' }} />}
 
-      {isPaused && (
-        <Chip
-          size="small"
-          label="Paused"
-          color="warning"
-          sx={{ fontSize: '0.7rem' }}
-        />
-      )}
+      {isPaused && <Chip size="small" label="Paused" color="warning" sx={{ fontSize: '0.7rem' }} />}
 
       {showControls && (
         <Box sx={{ display: 'flex', gap: 0.5 }}>

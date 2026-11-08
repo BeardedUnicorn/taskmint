@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  TextField,
-  InputAdornment,
-} from '@mui/material';
+import { Box, Typography, TextField, InputAdornment } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 
 interface SearchListHeaderProps {
@@ -17,7 +12,13 @@ interface SearchListHeaderProps {
 }
 
 /** A list's title and actions above a search field. */
-export function SearchListHeader({ title, actions, searchValue, onSearchChange, searchPlaceholder }: SearchListHeaderProps) {
+export function SearchListHeader({
+  title,
+  actions,
+  searchValue,
+  onSearchChange,
+  searchPlaceholder,
+}: SearchListHeaderProps) {
   return (
     <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>

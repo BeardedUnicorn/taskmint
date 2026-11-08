@@ -53,10 +53,7 @@ describe('useSessionNotesMigration', () => {
   });
 
   it("copies each session's text into the notes, then clears it from the session", async () => {
-    const { result, clearSessionNotes } = renderMigration([
-      session('s-1', 'Labelled 40 items'),
-      session('s-2'),
-    ]);
+    const { result, clearSessionNotes } = renderMigration([session('s-1', 'Labelled 40 items'), session('s-2')]);
 
     await waitFor(() => expect(clearSessionNotes).toHaveBeenCalledWith(['s-1']));
     expect(result.current.notes.map(note => note.id)).toEqual([sessionNoteId('s-1')]);
@@ -75,7 +72,7 @@ describe('useSessionNotesMigration', () => {
     expect(storedNotes()).toHaveLength(1);
   });
 
-  it("tries a session once per launch, even if its text is still there on the next reload", async () => {
+  it('tries a session once per launch, even if its text is still there on the next reload', async () => {
     const clearSessionNotes = vi.fn().mockRejectedValue(new Error('backend down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const sessions = [session('s-1', 'text')];

@@ -21,7 +21,12 @@ function SettingRow({ label, description, checked, disabled, onChange, children 
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, py: 1 }}>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography id={id} variant="body1" sx={{ fontWeight: 500 }} color={disabled ? 'text.disabled' : 'text.primary'}>
+        <Typography
+          id={id}
+          variant="body1"
+          sx={{ fontWeight: 500 }}
+          color={disabled ? 'text.disabled' : 'text.primary'}
+        >
           {label}
         </Typography>
         {description && (
@@ -66,7 +71,11 @@ const ACTIVITY: { key: CategoryKey; label: string; description: string }[] = [
     description: 'Captured, imported, or waiting for you to review.',
   },
   { key: 'backupFailure', label: 'Automatic backup failed', description: 'Retried every hour until it works.' },
-  { key: 'backupSuccess', label: 'Automatic backup saved', description: 'Off by default: backups run weekly on their own.' },
+  {
+    key: 'backupSuccess',
+    label: 'Automatic backup saved',
+    description: 'Off by default: backups run weekly on their own.',
+  },
   {
     key: 'errorsWhileAway',
     label: 'Errors while TaskMint is in the background',
@@ -95,9 +104,8 @@ export function NotificationSettingsSection() {
   return (
     <SettingsSection title="Notifications" icon={<NotificationsIcon color="primary" />}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        While you're using TaskMint, messages appear in the corner of the window. When it's in the
-        background or hidden in the tray, the ones below come as system notifications instead;
-        reminders always do.
+        While you're using TaskMint, messages appear in the corner of the window. When it's in the background or hidden
+        in the tray, the ones below come as system notifications instead; reminders always do.
       </Typography>
 
       <SettingRow

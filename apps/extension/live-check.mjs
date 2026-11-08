@@ -43,7 +43,10 @@ async function signIn() {
     body: JSON.stringify({ username: setting('ADMIN_USERNAME'), password: setting('ADMIN_PASSWORD') }),
   });
   if (res.status !== 200) fail(`signing in: ${res.status}`);
-  const cookie = res.headers.getSetCookie().map(header => header.split(';')[0]).join('; ');
+  const cookie = res.headers
+    .getSetCookie()
+    .map(header => header.split(';')[0])
+    .join('; ');
   const { csrfToken } = await res.json();
   return async (method, path, body) => {
     const reply = await fetch(`${base}/api/v1${path}`, {
@@ -102,7 +105,13 @@ function startExtension(target) {
     const data = {};
     return {
       data,
-      get: async keys => Object.fromEntries([keys].flat().filter(key => key in data).map(key => [key, data[key]])),
+      get: async keys =>
+        Object.fromEntries(
+          [keys]
+            .flat()
+            .filter(key => key in data)
+            .map(key => [key, data[key]])
+        ),
       set: async items => void Object.assign(data, items),
       remove: async keys => [keys].flat().forEach(key => delete data[key]),
     };
@@ -111,9 +120,13 @@ function startExtension(target) {
   const alarms = new Set();
   const chrome = {
     action: {
-      setBadgeText: async ({ text }) => void (badge.text = text),
+      setBadgeText: async ({ text }) => {
+        badge.text = text;
+      },
       setBadgeBackgroundColor: async () => {},
-      setTitle: async ({ title }) => void (badge.title = title),
+      setTitle: async ({ title }) => {
+        badge.title = title;
+      },
       onClicked: event('clicked'),
     },
     alarms: {
@@ -126,7 +139,18 @@ function startExtension(target) {
     tabs: {},
   };
   chrome.storage.local.data.target = target;
-  const context = vm.createContext({ chrome, fetch, crypto, TextEncoder, Blob, Response, CompressionStream, btoa, setTimeout, console });
+  const context = vm.createContext({
+    chrome,
+    fetch,
+    crypto,
+    TextEncoder,
+    Blob,
+    Response,
+    CompressionStream,
+    btoa,
+    setTimeout,
+    console,
+  });
   const dist = new URL('dist/', import.meta.url);
   vm.runInContext(readFileSync(new URL('background.js', dist), 'utf8'), context, { filename: 'background.js' });
   return {
@@ -134,7 +158,10 @@ function startExtension(target) {
     alarms,
     local: chrome.storage.local.data,
     capture: payloadText =>
-      listeners.message({ type: 'worklog-payload', payloadText }, { url: 'https://app.dataannotation.tech/workers/payments', tab: { id: 1 } }),
+      listeners.message(
+        { type: 'worklog-payload', payloadText },
+        { url: 'https://app.dataannotation.tech/workers/payments', tab: { id: 1 } }
+      ),
     setTarget: next => {
       chrome.storage.local.data.target = next;
       listeners.changed({ target: { newValue: next } }, 'local');
@@ -168,7 +195,8 @@ try {
   const payload = JSON.stringify({ workLogs: [], timedWorkEntries: [], liveCheck: Date.now() });
   extension.capture(payload);
   await until('the delivered badge', () => extension.badge.text === '✓');
-  if (extension.badge.title !== 'TaskMint capture: delivered to the TaskMint server') fail(`badge: ${extension.badge.title}`);
+  if (extension.badge.title !== 'TaskMint capture: delivered to the TaskMint server')
+    fail(`badge: ${extension.badge.title}`);
   await until('work-log-payload-captured', () => captured() === 1);
   const taken = await take();
   if (taken?.payload !== payload || taken.source !== 'extension') fail(`taken: ${JSON.stringify(taken)}`);

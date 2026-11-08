@@ -62,14 +62,7 @@ type Validation = NonNullable<TemplateField['validation']>;
 /** A number field's text as a limit: none when it's empty. */
 const limit = (text: string, parse: (text: string) => number) => (text ? parse(text) : undefined);
 
-export function FieldEditor({
-  field,
-  onUpdateField,
-  onDeleteField,
-  onMoveField,
-  isFirst,
-  isLast,
-}: FieldEditorProps) {
+export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, isFirst, isLast }: FieldEditorProps) {
   const [expanded, setExpanded] = useState(false);
   const typeLabelId = useId();
   const previewLabelId = useId();
@@ -116,8 +109,8 @@ export function FieldEditor({
           sx={{ flex: 1 }}
           slotProps={{
             input: {
-              sx: { fontSize: '1rem', fontWeight: 'medium' }
-            }
+              sx: { fontSize: '1rem', fontWeight: 'medium' },
+            },
           }}
         />
 
@@ -179,7 +172,7 @@ export function FieldEditor({
           <div data-testid="field-config">
             <Divider />
           </div>
-          
+
           {/* Basic Settings */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -205,12 +198,7 @@ export function FieldEditor({
             </FormControl>
 
             <FormControlLabel
-              control={
-                <Switch
-                  checked={field.required}
-                  onChange={e => update({ required: e.target.checked })}
-                />
-              }
+              control={<Switch checked={field.required} onChange={e => update({ required: e.target.checked })} />}
               label="Required"
             />
           </Box>
@@ -239,7 +227,7 @@ export function FieldEditor({
                   onChange={e => changeValidation({ min: limit(e.target.value, parseInt) })}
                   size="small"
                   slotProps={{
-                    htmlInput: { min: 0 }
+                    htmlInput: { min: 0 },
                   }}
                 />
                 <TextField
@@ -249,7 +237,7 @@ export function FieldEditor({
                   onChange={e => changeValidation({ max: limit(e.target.value, parseInt) })}
                   size="small"
                   slotProps={{
-                    htmlInput: { min: 0 }
+                    htmlInput: { min: 0 },
                   }}
                 />
               </Box>
@@ -323,12 +311,7 @@ export function FieldEditor({
                     </IconButton>
                   </Box>
                 ))}
-                <Button
-                  startIcon={<AddIcon />}
-                  onClick={addOption}
-                  variant="outlined"
-                  size="small"
-                >
+                <Button startIcon={<AddIcon />} onClick={addOption} variant="outlined" size="small">
                   Add Option
                 </Button>
               </Stack>
@@ -385,7 +368,7 @@ export function FieldEditor({
                   disabled
                   size="small"
                   slotProps={{
-                    inputLabel: { shrink: true }
+                    inputLabel: { shrink: true },
                   }}
                 />
               )}
@@ -399,11 +382,7 @@ export function FieldEditor({
               {field.type === 'select' && (
                 <FormControl fullWidth size="small" disabled>
                   <InputLabel id={previewLabelId}>{field.label}</InputLabel>
-                  <Select
-                    labelId={previewLabelId}
-                    value=""
-                    label={field.label}
-                  >
+                  <Select labelId={previewLabelId} value="" label={field.label}>
                     {options.map((option, index) => (
                       <MenuItem key={index} value={option.value}>
                         {option.label}

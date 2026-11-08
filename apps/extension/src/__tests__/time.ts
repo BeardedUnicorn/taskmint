@@ -24,7 +24,7 @@ export async function withTimePassing<T>(work: Promise<T>): Promise<T> {
   let settled = false;
   work.then(
     () => (settled = true),
-    () => (settled = true),
+    () => (settled = true)
   );
   await passTimeUntil(() => settled);
   return work;

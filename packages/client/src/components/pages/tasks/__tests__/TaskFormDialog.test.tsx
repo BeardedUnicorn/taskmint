@@ -23,15 +23,7 @@ describe('TaskFormDialog', () => {
   });
 
   it('shows validation error when required fields are missing', async () => {
-    render(
-      <TaskFormDialog
-        open={true}
-        onClose={onClose}
-        mode="add"
-        initialTask={null}
-        onSubmit={onSubmit}
-      />
-    );
+    render(<TaskFormDialog open={true} onClose={onClose} mode="add" initialTask={null} onSubmit={onSubmit} />);
 
     const form = document.querySelector('form');
     expect(form).toBeTruthy();
@@ -44,15 +36,7 @@ describe('TaskFormDialog', () => {
   });
 
   it('submits valid data in add mode', async () => {
-    render(
-      <TaskFormDialog
-        open={true}
-        onClose={onClose}
-        mode="add"
-        initialTask={null}
-        onSubmit={onSubmit}
-      />
-    );
+    render(<TaskFormDialog open={true} onClose={onClose} mode="add" initialTask={null} onSubmit={onSubmit} />);
 
     fireEvent.change(screen.getByPlaceholderText('Enter task name...'), { target: { value: ' New Task ' } });
     fireEvent.change(screen.getByLabelText('Hourly Rate'), { target: { value: '25' } });
@@ -84,9 +68,11 @@ describe('TaskFormDialog', () => {
   });
 
   it('shows a taken name next to the name field', async () => {
-    const failing = vi.fn().mockRejectedValue(
-      Object.assign(new Error('A task with the name "Design" already exists'), { code: 'TASK_DUPLICATE_NAME' })
-    );
+    const failing = vi
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error('A task with the name "Design" already exists'), { code: 'TASK_DUPLICATE_NAME' })
+      );
     render(<TaskFormDialog open onClose={onClose} mode="add" initialTask={null} onSubmit={failing} />);
 
     fireEvent.change(screen.getByPlaceholderText('Enter task name...'), { target: { value: 'Design' } });
@@ -108,15 +94,7 @@ describe('TaskFormDialog', () => {
   });
 
   it('has no Parent Task field', () => {
-    render(
-      <TaskFormDialog
-        open={true}
-        onClose={onClose}
-        mode="add"
-        initialTask={null}
-        onSubmit={onSubmit}
-      />
-    );
+    render(<TaskFormDialog open={true} onClose={onClose} mode="add" initialTask={null} onSubmit={onSubmit} />);
 
     expect(screen.queryByLabelText('Parent Task')).not.toBeInTheDocument();
   });
@@ -132,15 +110,7 @@ describe('TaskFormDialog', () => {
       updatedAt: '',
     };
 
-    render(
-      <TaskFormDialog
-        open={true}
-        onClose={onClose}
-        mode="edit"
-        initialTask={task}
-        onSubmit={onSubmit}
-      />
-    );
+    render(<TaskFormDialog open={true} onClose={onClose} mode="edit" initialTask={task} onSubmit={onSubmit} />);
 
     expect(screen.getByDisplayValue('Existing Task')).toBeInTheDocument();
     expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -198,7 +168,9 @@ describe('TaskFormDialog', () => {
       fireEvent.click(await screen.findByRole('option', { name: 'Standup' }));
       fireEvent.click(screen.getByText('Add Task'));
 
-      await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ defaultNoteTemplateId: 'standup' })));
+      await waitFor(() =>
+        expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ defaultNoteTemplateId: 'standup' }))
+      );
     });
 
     it('waits for the templates to load', () => {

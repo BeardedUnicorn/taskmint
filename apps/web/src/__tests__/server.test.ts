@@ -47,20 +47,29 @@ describe('requests to the server', () => {
 
   it("fail with the server's message and code", async () => {
     vi.stubGlobal('fetch', respond(409, '{"error":"that username is taken","code":"username_taken"}'));
-    const failure = (await createServer().request('POST', '/invites/x/accept', {}).catch((e: unknown) => e)) as ServerError;
+    const failure = (await createServer()
+      .request('POST', '/invites/x/accept', {})
+      .catch((e: unknown) => e)) as ServerError;
     expect(failure).toBeInstanceOf(ServerError);
     expect(failure).toMatchObject({ status: 409, code: 'username_taken', message: 'that username is taken' });
   });
 
   it('fail plainly for a reply that is not the API (a proxy error page)', async () => {
     vi.stubGlobal('fetch', respond(502, '<html>Bad gateway</html>'));
-    const failure = (await createServer().request('GET', '/auth/me').catch((e: unknown) => e)) as ServerError;
+    const failure = (await createServer()
+      .request('GET', '/auth/me')
+      .catch((e: unknown) => e)) as ServerError;
     expect(failure).toMatchObject({ status: 502, code: 'unexpected', message: 'The server answered 502.' });
   });
 
   it("say so when there's no answer at all", async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
-    const failure = (await createServer().request('GET', '/auth/me').catch((e: unknown) => e)) as ServerError;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new TypeError('Failed to fetch')))
+    );
+    const failure = (await createServer()
+      .request('GET', '/auth/me')
+      .catch((e: unknown) => e)) as ServerError;
     expect(failure).toMatchObject({ status: 0, code: 'unreachable' });
     expect(failure.message).toMatch(/Can't reach the TaskMint server/);
   });

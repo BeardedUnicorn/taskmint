@@ -66,8 +66,8 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
   const sessionStatus = useMemo(() => {
     if (!activeSession || !Array.isArray(activeSession.timerInstances)) return { running: 0, paused: 0 };
     return {
-        running: activeSession.timerInstances.filter(t => t.state === TimerState.running).length,
-        paused: activeSession.timerInstances.filter(t => t.state === TimerState.paused).length,
+      running: activeSession.timerInstances.filter(t => t.state === TimerState.running).length,
+      paused: activeSession.timerInstances.filter(t => t.state === TimerState.paused).length,
     };
   }, [activeSession?.timerInstances]);
 
@@ -97,7 +97,7 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
           bgcolor: 'background.paper',
           borderRadius: 2,
           border: '1px solid',
-          borderColor: 'divider'
+          borderColor: 'divider',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -111,19 +111,15 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
               value={selectedTask}
               onChange={(_, task) => setSelectedTask(task)}
               options={startOptions}
-              getOptionLabel={(task) => (task.isFavorite ? `★ ${task.name}` : task.name)}
+              getOptionLabel={task => (task.isFavorite ? `★ ${task.name}` : task.name)}
               isOptionEqualToValue={(option, value) => option.id === value.id}
               disabled={startOptions.length === 0}
               sx={{ minWidth: 300, flex: 1 }}
-              renderInput={(params) => (
+              renderInput={params => (
                 <TextField
                   {...params}
                   aria-label="Task to start"
-                  placeholder={
-                    startOptions.length === 0
-                      ? 'Add a task on the Tasks page to start'
-                      : 'Choose a task…'
-                  }
+                  placeholder={startOptions.length === 0 ? 'Add a task on the Tasks page to start' : 'Choose a task…'}
                   variant="outlined"
                   size="small"
                 />
@@ -175,9 +171,17 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
         />
 
         <Box sx={{ flex: 1, display: 'flex', gap: 1, alignItems: 'center' }}>
-            {sessionStatus.running > 0 && <Button variant="outlined" color="warning" size="small" onClick={onPauseAll} startIcon={<PauseIcon />}>Pause All</Button>}
-            {/* One timer runs at a time: resuming while one runs would stop it */}
-            {sessionStatus.paused > 0 && sessionStatus.running === 0 && <Button variant="outlined" color="success" size="small" onClick={onResumeAll} startIcon={<ResumeIcon />}>Resume All</Button>}
+          {sessionStatus.running > 0 && (
+            <Button variant="outlined" color="warning" size="small" onClick={onPauseAll} startIcon={<PauseIcon />}>
+              Pause All
+            </Button>
+          )}
+          {/* One timer runs at a time: resuming while one runs would stop it */}
+          {sessionStatus.paused > 0 && sessionStatus.running === 0 && (
+            <Button variant="outlined" color="success" size="small" onClick={onResumeAll} startIcon={<ResumeIcon />}>
+              Resume All
+            </Button>
+          )}
         </Box>
 
         {onSwitchTask && (
@@ -186,30 +190,25 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
           </Button>
         )}
 
-        <IconButton
-          onClick={handleMenuOpen}
-          aria-label="Session options"
-        >
+        <IconButton onClick={handleMenuOpen} aria-label="Session options">
           <MoreIcon />
         </IconButton>
 
-        <Button
-          variant="outlined"
-          color="error"
-          startIcon={<StopIcon />}
-          onClick={onEndSession}
-        >
+        <Button variant="outlined" color="error" startIcon={<StopIcon />} onClick={onEndSession}>
           End Session
         </Button>
       </Box>
 
-      <Menu
-        anchorEl={menuAnchor}
-        open={Boolean(menuAnchor)}
-        onClose={handleMenuClose}
-      >
-        <MenuItem onClick={() => { onOpenSessionNotes?.(activeSession.id); handleMenuClose(); }}>
-          <ListItemIcon><NotesIcon /></ListItemIcon>
+      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
+        <MenuItem
+          onClick={() => {
+            onOpenSessionNotes?.(activeSession.id);
+            handleMenuClose();
+          }}
+        >
+          <ListItemIcon>
+            <NotesIcon />
+          </ListItemIcon>
           <ListItemText>Session Notes</ListItemText>
         </MenuItem>
       </Menu>

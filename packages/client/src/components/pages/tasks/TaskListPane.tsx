@@ -49,9 +49,7 @@ export function TaskListPane({
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter by search first so it spans both sections, then partition
-  const filteredTasks = tasks.filter(task =>
-    task.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTasks = tasks.filter(task => task.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const activeTasks = filteredTasks.filter(task => !task.isArchived);
   const archivedTasks = filteredTasks.filter(task => task.isArchived);
 
@@ -113,19 +111,14 @@ export function TaskListPane({
                     variant="outlined"
                   />
                 ) : (
-                  <Chip
-                    label="No rate set"
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                  />
+                  <Chip label="No rate set" size="small" color="default" variant="outlined" />
                 )}
               </Box>
               <Box sx={{ display: 'flex', gap: 0.5 }}>
                 <IconButton
                   size="small"
                   aria-label="Edit task"
-                  onClick={(e) => {
+                  onClick={e => {
                     e.stopPropagation();
                     onEditTask(task);
                   }}
@@ -137,7 +130,7 @@ export function TaskListPane({
                     <IconButton
                       size="small"
                       aria-label="Unarchive task"
-                      onClick={(e) => {
+                      onClick={e => {
                         e.stopPropagation();
                         onUnarchiveTask(task);
                       }}
@@ -150,7 +143,7 @@ export function TaskListPane({
                     <IconButton
                       size="small"
                       aria-label="Archive task"
-                      onClick={(e) => {
+                      onClick={e => {
                         e.stopPropagation();
                         onArchiveTask(task);
                       }}
@@ -163,7 +156,7 @@ export function TaskListPane({
                   size="small"
                   color="error"
                   aria-label="Delete task"
-                  onClick={(e) => {
+                  onClick={e => {
                     e.stopPropagation();
                     onDeleteTask(task.id);
                   }}
@@ -189,12 +182,7 @@ export function TaskListPane({
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search tasks..."
         actions={
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={onAddClick}
-          >
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={onAddClick}>
             Add Task
           </Button>
         }
@@ -204,15 +192,18 @@ export function TaskListPane({
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         {filteredTasks.length === 0 ? (
           tasks.length === 0 ? (
-            <EmptyState plain icon={<TaskIcon />} title="No tasks created yet" description="Add one to start tracking time." />
+            <EmptyState
+              plain
+              icon={<TaskIcon />}
+              title="No tasks created yet"
+              description="Add one to start tracking time."
+            />
           ) : (
             <EmptyState plain title="No tasks match your search criteria" description="Try another search." />
           )
         ) : (
           <List sx={{ py: 0 }}>
-            {activeTasks.map((task, index) =>
-              renderTaskRow(task, index < activeTasks.length - 1)
-            )}
+            {activeTasks.map((task, index) => renderTaskRow(task, index < activeTasks.length - 1))}
 
             {archivedTasks.length > 0 && (
               <>
@@ -220,9 +211,7 @@ export function TaskListPane({
                 <ListSubheader disableSticky sx={{ bgcolor: 'transparent' }}>
                   Archived ({archivedTasks.length})
                 </ListSubheader>
-                {archivedTasks.map((task, index) =>
-                  renderTaskRow(task, index < archivedTasks.length - 1)
-                )}
+                {archivedTasks.map((task, index) => renderTaskRow(task, index < archivedTasks.length - 1))}
               </>
             )}
           </List>

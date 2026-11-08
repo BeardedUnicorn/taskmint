@@ -76,8 +76,7 @@ describe('events', () => {
     it('open it again once the session checks out, with every subscription', async () => {
       let signedIn: boolean | 'unreachable' = 'unreachable';
       const server = fakeServer({
-        'GET /auth/me': () =>
-          signedIn === true ? {} : failure(0, 'unreachable', "Can't reach the TaskMint server."),
+        'GET /auth/me': () => (signedIn === true ? {} : failure(0, 'unreachable', "Can't reach the TaskMint server.")),
       });
       const backend = createHttpBackend({ server, openStream: openFakeStream });
       const started = vi.fn();

@@ -1,6 +1,6 @@
 /**
  * Date and Time Helper Utilities
- * 
+ *
  * This file contains utility functions for date and time manipulation,
  * formatting, and calculations using dayjs.
  */
@@ -63,7 +63,7 @@ export function formatRelativeDate(date: Date | string): string {
   const dateObj = dayjs(date).local();
   const now = dayjs().local();
   const diffDays = now.diff(dateObj, 'day');
-  
+
   if (diffDays === 0) {
     return `Today at ${dateObj.format('h:mm A')}`;
   } else if (diffDays === 1) {

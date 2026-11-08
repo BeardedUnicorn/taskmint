@@ -24,9 +24,7 @@ function toMs(value: Date | string | null | undefined): number | null {
  */
 /** Whether any session has a timer running right now. */
 export function hasRunningTimer(sessions: TaskSession[]): boolean {
-  return sessions.some(session =>
-    session.timerInstances?.some(instance => instance.state === TimerState.running)
-  );
+  return sessions.some(session => session.timerInstances?.some(instance => instance.state === TimerState.running));
 }
 
 export function getInstanceElapsedMs(instance: TimerInstance, nowMs: number = Date.now()): number {
@@ -56,10 +54,7 @@ export function getInstanceElapsedMs(instance: TimerInstance, nowMs: number = Da
  */
 export function getSessionElapsedMs(session: TaskSession, nowMs: number = Date.now()): number {
   if (!session || !Array.isArray(session.timerInstances)) return 0;
-  return session.timerInstances.reduce(
-    (total, instance) => total + getInstanceElapsedMs(instance, nowMs),
-    0
-  );
+  return session.timerInstances.reduce((total, instance) => total + getInstanceElapsedMs(instance, nowMs), 0);
 }
 
 /**

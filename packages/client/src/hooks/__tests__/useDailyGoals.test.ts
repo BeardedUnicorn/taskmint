@@ -11,7 +11,7 @@ const mockSetCurrentGoal = vi.fn();
 const mockSetAchievements = vi.fn();
 
 vi.mock('../useAppRecord', () => ({
-  useAppRecord: vi.fn((key) => {
+  useAppRecord: vi.fn(key => {
     if (key === 'dailyGoal') {
       return [null, mockSetCurrentGoal];
     }
@@ -58,7 +58,7 @@ describe('useDailyGoals', () => {
     vi.setSystemTime(new Date('2024-01-02T12:00:00.000Z')); // Control date for tests
 
     // Reset the mock implementation of useAppRecord for each test
-    vi.mocked(useAppRecord).mockImplementation((key) => {
+    vi.mocked(useAppRecord).mockImplementation(key => {
       if (key === 'dailyGoal') {
         return [null, mockSetCurrentGoal];
       }
@@ -113,7 +113,8 @@ describe('useDailyGoals', () => {
       vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, vi.fn()];
         return [[], vi.fn()];
-      });      const { result } = renderHook(() => useDailyGoals());
+      });
+      const { result } = renderHook(() => useDailyGoals());
       expect(result.current.getCurrentGoal()).toEqual(mockGoal);
     });
   });
@@ -121,7 +122,7 @@ describe('useDailyGoals', () => {
   describe('updateDailyGoal', () => {
     it('should create new goal when none exists', async () => {
       const { result } = renderHook(() => useDailyGoals());
-      
+
       vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [null, mockSetCurrentGoal];
         return [[], vi.fn()];
@@ -259,7 +260,15 @@ describe('useDailyGoals', () => {
   describe('getAchievementsForDateRange', () => {
     const achievements = [
       { ...mockAchievement, id: 'ach1', date: '2024-01-01' },
-      { ...mockAchievement, id: 'ach2', date: '2024-01-02', earnedAmount: 110, status: 'exceeded', difference: 10, percentageAchieved: 110 },
+      {
+        ...mockAchievement,
+        id: 'ach2',
+        date: '2024-01-02',
+        earnedAmount: 110,
+        status: 'exceeded',
+        difference: 10,
+        percentageAchieved: 110,
+      },
       { ...mockAchievement, id: 'ach3', date: '2024-01-03' },
       { ...mockAchievement, id: 'ach4', date: '2024-01-05' },
     ];
@@ -335,10 +344,12 @@ describe('useDailyGoals', () => {
         newAchievement = await result.current.recordAchievement(achievementData);
       });
 
-      expect(newAchievement!).toEqual(expect.objectContaining({
-        ...achievementData,
-        recordedAt: '2024-01-02T12:00:00.000Z',
-      }));
+      expect(newAchievement!).toEqual(
+        expect.objectContaining({
+          ...achievementData,
+          recordedAt: '2024-01-02T12:00:00.000Z',
+        })
+      );
       expect(typeof newAchievement!.id).toBe('string');
       expect(newAchievement!.id).toMatch(/^achievement_\d{13}_[a-z0-9]+$/);
     });
@@ -349,19 +360,27 @@ describe('useDailyGoals', () => {
         return [null, vi.fn()];
       });
 
-      vi.spyOn(Math, 'random')
-        .mockReturnValueOnce(0.123456789)
-        .mockReturnValueOnce(0.987654321);
+      vi.spyOn(Math, 'random').mockReturnValueOnce(0.123456789).mockReturnValueOnce(0.987654321);
 
       const { result } = renderHook(() => useDailyGoals());
 
       const achievementData1 = {
-        date: '2024-01-01', goalAmount: 100, earnedAmount: 100, currency: 'USD',
-        percentageAchieved: 100, status: 'hit' as const, difference: 0,
+        date: '2024-01-01',
+        goalAmount: 100,
+        earnedAmount: 100,
+        currency: 'USD',
+        percentageAchieved: 100,
+        status: 'hit' as const,
+        difference: 0,
       };
       const achievementData2 = {
-        date: '2024-01-02', goalAmount: 100, earnedAmount: 80, currency: 'USD',
-        percentageAchieved: 80, status: 'missed' as const, difference: -20,
+        date: '2024-01-02',
+        goalAmount: 100,
+        earnedAmount: 80,
+        currency: 'USD',
+        percentageAchieved: 80,
+        status: 'missed' as const,
+        difference: -20,
       };
 
       let achievement1: DailyGoalAchievement, achievement2: DailyGoalAchievement;
@@ -389,7 +408,9 @@ describe('useDailyGoals', () => {
       ];
       for (const testCase of testCases) {
         const achievementData = {
-          date: '2024-01-01', goalAmount: 100, currency: 'USD',
+          date: '2024-01-01',
+          goalAmount: 100,
+          currency: 'USD',
           ...testCase,
         };
         let achievement: DailyGoalAchievement;
@@ -443,9 +464,7 @@ describe('useDailyGoals', () => {
         await act(async () => {
           await result.current.updateNotificationState(percent, '2024-01-02');
         });
-        expect(mockSetCurrentGoal).toHaveBeenCalledWith(
-          expect.objectContaining({ lastNotifiedPercent: percent })
-        );
+        expect(mockSetCurrentGoal).toHaveBeenCalledWith(expect.objectContaining({ lastNotifiedPercent: percent }));
       }
     });
   });
@@ -514,8 +533,13 @@ describe('useDailyGoals', () => {
       const { result } = renderHook(() => useDailyGoals());
 
       const minimalAchievement = {
-        date: '2024-01-01', goalAmount: 0, earnedAmount: 0, currency: 'USD',
-        percentageAchieved: 0, status: 'missed' as const, difference: 0,
+        date: '2024-01-01',
+        goalAmount: 0,
+        earnedAmount: 0,
+        currency: 'USD',
+        percentageAchieved: 0,
+        status: 'missed' as const,
+        difference: 0,
       };
 
       let achievement: DailyGoalAchievement | undefined;

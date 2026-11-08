@@ -36,20 +36,20 @@ export interface UseAsyncErrorReturn {
 }
 
 export function useAsyncError(): UseAsyncErrorReturn {
-  const executeAsync = useCallback(async <T>(
-    asyncFn: () => Promise<T>,
-    options: ExecuteAsyncOptions = {}
-  ): Promise<T> => {
-    const { operation, errorHandler } = options;
-    try {
-      return await asyncFn();
-    } catch (err) {
-      const asyncError = err instanceof AsyncError ? err : new AsyncError(err, operation);
-      errorHandler?.(asyncError);
-      console.error(`Async operation failed for "${operation}":`, asyncError);
-      throw asyncError;
-    }
-  }, []);
+  const executeAsync = useCallback(
+    async <T>(asyncFn: () => Promise<T>, options: ExecuteAsyncOptions = {}): Promise<T> => {
+      const { operation, errorHandler } = options;
+      try {
+        return await asyncFn();
+      } catch (err) {
+        const asyncError = err instanceof AsyncError ? err : new AsyncError(err, operation);
+        errorHandler?.(asyncError);
+        console.error(`Async operation failed for "${operation}":`, asyncError);
+        throw asyncError;
+      }
+    },
+    []
+  );
 
   return { executeAsync };
 }

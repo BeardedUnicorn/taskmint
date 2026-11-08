@@ -196,7 +196,11 @@ describe('buildPayoutCells', () => {
 
   it('drops days with nothing on them, and timers with no day', () => {
     const empty = makeSession({ timerInstances: [makeInstance({ endTime: makeInstance().startTime, duration: 0 })] });
-    const undated = makeSession({ id: 's2', date: '', timerInstances: [makeInstance({ id: 'x', startTime: 'garbled' })] });
+    const undated = makeSession({
+      id: 's2',
+      date: '',
+      timerInstances: [makeInstance({ id: 'x', startTime: 'garbled' })],
+    });
     expect(buildPayoutCells([], [empty, undated], [makeTask()], 7, NOW_MS)).toEqual([]);
   });
 
@@ -206,8 +210,20 @@ describe('buildPayoutCells', () => {
     expect(cell.releaseIso).toBe(new Date(2026, 8, 2, 12, 0).toISOString());
     expect(cell.releaseTime).toBe('12:00 PM');
 
-    const running = makeInstance({ id: 'live', endTime: undefined, state: TimerState.running, isRunning: true, startTime: new Date(2026, 7, 31, 11, 0).toISOString() });
-    const [live] = buildPayoutCells([], [makeSession({ date: dayStr(2026, 8, 31), timerInstances: [running] })], [makeTask()], 7, NOW_MS);
+    const running = makeInstance({
+      id: 'live',
+      endTime: undefined,
+      state: TimerState.running,
+      isRunning: true,
+      startTime: new Date(2026, 7, 31, 11, 0).toISOString(),
+    });
+    const [live] = buildPayoutCells(
+      [],
+      [makeSession({ date: dayStr(2026, 8, 31), timerInstances: [running] })],
+      [makeTask()],
+      7,
+      NOW_MS
+    );
     expect(live.releaseIso).toBe(new Date(NOW_MS + 7 * 86_400_000).toISOString());
   });
 
@@ -230,9 +246,21 @@ describe('buildPayoutCells', () => {
     const mine = makeSession({
       id: 'mine',
       date: dayStr(2026, 8, 20),
-      timerInstances: [makeInstance({ id: 'mine', startTime: new Date(2026, 7, 20, 10, 0).toISOString(), endTime: new Date(2026, 7, 20, 11, 0).toISOString() })],
+      timerInstances: [
+        makeInstance({
+          id: 'mine',
+          startTime: new Date(2026, 7, 20, 10, 0).toISOString(),
+          endTime: new Date(2026, 7, 20, 11, 0).toISOString(),
+        }),
+      ],
     });
-    const cells = buildPayoutCells([first, latest], [others, mine], [makeTask(), makeTask({ id: 'task-2', name: 'Annotation' })], 7, NOW_MS);
+    const cells = buildPayoutCells(
+      [first, latest],
+      [others, mine],
+      [makeTask(), makeTask({ id: 'task-2', name: 'Annotation' })],
+      7,
+      NOW_MS
+    );
     const imported = cells.find(cell => cell.taskId === 'task-1')!;
     expect(imported.releaseIso).toBe('2026-09-02T22:00:00.000Z');
     expect(imported.trackedMs).toBe(0);
@@ -266,7 +294,13 @@ describe('buildPayoutCells', () => {
   });
 
   it("leaves a tracked day's name blank when its task is gone", () => {
-    const [cell] = buildPayoutCells([], [makeSession({ taskId: 'deleted', timerInstances: [makeInstance()] })], [], 7, NOW_MS);
+    const [cell] = buildPayoutCells(
+      [],
+      [makeSession({ taskId: 'deleted', timerInstances: [makeInstance()] })],
+      [],
+      7,
+      NOW_MS
+    );
     expect(cell.taskName).toBe('');
   });
 });
@@ -280,7 +314,7 @@ describe('formatPayoutAmount', () => {
   });
 });
 
-describe('buildPayoutCells estimates use each session\'s rate', () => {
+describe("buildPayoutCells estimates use each session's rate", () => {
   it('keeps an earlier day at the rate it was tracked at after the task rate changes', () => {
     // Two hours tracked at $40; the task now pays $75
     const session = makeSession({ hourlyRate: 40, timerInstances: [makeInstance()] });
@@ -408,10 +442,21 @@ describe('buildReleaseSchedule', () => {
     const old = makeSession({
       id: 'old',
       date: dayStr(2026, 8, 10),
-      timerInstances: [makeInstance({ id: 'old', startTime: new Date(2026, 7, 10, 10, 0).toISOString(), endTime: new Date(2026, 7, 10, 12, 0).toISOString() })],
+      timerInstances: [
+        makeInstance({
+          id: 'old',
+          startTime: new Date(2026, 7, 10, 10, 0).toISOString(),
+          endTime: new Date(2026, 7, 10, 12, 0).toISOString(),
+        }),
+      ],
     });
     const cells = buildPayoutCells([], [tracked, old], [makeTask()], 7, NOW_MS);
-    const sameRelease = makeEntry({ id: 'same', taskId: 'task-2', createdAt: new Date(2026, 7, 26, 12, 0).toISOString(), amountCents: 100 });
+    const sameRelease = makeEntry({
+      id: 'same',
+      taskId: 'task-2',
+      createdAt: new Date(2026, 7, 26, 12, 0).toISOString(),
+      amountCents: 100,
+    });
 
     const rows = buildReleaseSchedule([...cells, makeCell({ actualCents: 999 })], today, [sameRelease], 7, NOW_MS);
     expect(rows).toEqual([
@@ -428,10 +473,17 @@ describe('centsToDollars', () => {
 });
 
 describe('groupCellsByMonth', () => {
-  it('groups rows by work-day month, newest first, with each month\'s totals', () => {
+  it("groups rows by work-day month, newest first, with each month's totals", () => {
     const cells = [
       makeCell({ workDay: '2026-10-03', taskId: 'a', trackedMs: 3_600_000, importedMinutes: 60, actualCents: 5000 }),
-      makeCell({ workDay: '2026-09-30', taskId: 'a', trackedMs: 1_800_000, importedMinutes: 0, actualCents: 0, estimatedCents: 2500 }),
+      makeCell({
+        workDay: '2026-09-30',
+        taskId: 'a',
+        trackedMs: 1_800_000,
+        importedMinutes: 0,
+        actualCents: 0,
+        estimatedCents: 2500,
+      }),
       makeCell({ workDay: '2026-10-01', taskId: 'b', trackedMs: 7_200_000, importedMinutes: 90, actualCents: 7500 }),
       makeCell({ workDay: '2026-09-02', taskId: 'b', trackedMs: 0, importedMinutes: 30, actualCents: 1000 }),
     ];
@@ -446,11 +498,15 @@ describe('groupCellsByMonth', () => {
       estimatedCents: 0,
     });
     expect(groups[0].cells.map(c => c.workDay)).toEqual(['2026-10-03', '2026-10-01']);
-    expect(groups[1]).toMatchObject({ trackedMs: 1_800_000, importedMinutes: 30, actualCents: 1000, estimatedCents: 2500 });
+    expect(groups[1]).toMatchObject({
+      trackedMs: 1_800_000,
+      importedMinutes: 30,
+      actualCents: 1000,
+      estimatedCents: 2500,
+    });
   });
 
   it('is empty without rows', () => {
     expect(groupCellsByMonth([])).toEqual([]);
   });
 });
-

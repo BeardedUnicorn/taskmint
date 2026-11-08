@@ -56,9 +56,7 @@ const appliedSummary: WorkLogImportSummary = {
   entriesAdded: 1,
   entriesUpdated: 0,
   mappingsSaved: 1,
-  groupsApplied: [
-    { taskId: 'task-1', workDay: WORK_DAY, deletedInstances: 0, sessionId: 'session_x' },
-  ],
+  groupsApplied: [{ taskId: 'task-1', workDay: WORK_DAY, deletedInstances: 0, sessionId: 'session_x' }],
   groupsSkipped: [],
 };
 
@@ -114,9 +112,7 @@ describe('useWorkLogCapture', () => {
       workDay: WORK_DAY,
       amountCents: 30000,
     });
-    expect(payload.mappings).toEqual([
-      expect.objectContaining({ projectId: 'proj-1', taskId: 'task-1' }),
-    ]);
+    expect(payload.mappings).toEqual([expect.objectContaining({ projectId: 'proj-1', taskId: 'task-1' })]);
     expect(payload.rewriteGroups).toHaveLength(1);
     expect(payload.rewriteGroups[0]).toMatchObject({ taskId: 'task-1', workDay: WORK_DAY });
 
@@ -388,7 +384,10 @@ describe('useWorkLogCapture', () => {
     const deps = makeDeps();
     renderHook(() => useWorkLogCapture(deps));
     await waitFor(() =>
-      expect(mockShowWarning).toHaveBeenCalledWith('1 captured record could not be read and will be skipped.', expect.anything())
+      expect(mockShowWarning).toHaveBeenCalledWith(
+        '1 captured record could not be read and will be skipped.',
+        expect.anything()
+      )
     );
 
     vi.clearAllMocks();
@@ -409,7 +408,9 @@ describe('useWorkLogCapture', () => {
 
   it('takes a capture that arrives mid-import once the import is done', async () => {
     let finish: (summary: WorkLogImportSummary) => void = () => {};
-    const deps = makeDeps({ applyImport: vi.fn(() => new Promise<WorkLogImportSummary>(resolve => (finish = resolve))) });
+    const deps = makeDeps({
+      applyImport: vi.fn(() => new Promise<WorkLogImportSummary>(resolve => (finish = resolve))),
+    });
     takeQueue.push(capture(samplePayloadText));
     renderHook(() => useWorkLogCapture(deps));
     await waitFor(() => expect(deps.applyImport).toHaveBeenCalledTimes(1));

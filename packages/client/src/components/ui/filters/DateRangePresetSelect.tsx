@@ -6,13 +6,7 @@
 
 import { MenuItem, TextField } from '@mui/material';
 import { Dayjs } from 'dayjs';
-import {
-  DATE_RANGE_PRESETS,
-  DateRange,
-  DateRangePreset,
-  matchPreset,
-  presetRange,
-} from '../../../utils/dateRanges';
+import { DATE_RANGE_PRESETS, DateRange, DateRangePreset, matchPreset, presetRange } from '../../../utils/dateRanges';
 
 interface DateRangePresetSelectProps {
   start: Dayjs | null;

@@ -17,8 +17,15 @@ import { findTaskFor } from '../../utils/earnings';
 interface TasksPageProps {
   tasks: Task[];
   timeEntries: TimeEntry[];
-  onAddTask: (taskData: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
-  onUpdateTask: (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => Promise<Task | null>;
+  onAddTask: (taskData: {
+    name: string;
+    hourlyRate?: number;
+    defaultNoteTemplateId?: string | null;
+  }) => Promise<Task | null>;
+  onUpdateTask: (
+    taskId: string,
+    updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }
+  ) => Promise<Task | null>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onArchiveTask: (taskId: string) => Promise<Task | null>;
   onUnarchiveTask: (taskId: string) => Promise<Task | null>;
@@ -88,7 +95,11 @@ export function TasksPage({
     setSelectedTask(task);
   };
 
-  const handleAddTaskDialog = async (taskData: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => {
+  const handleAddTaskDialog = async (taskData: {
+    name: string;
+    hourlyRate?: number;
+    defaultNoteTemplateId?: string | null;
+  }) => {
     const newTask = await onAddTask(taskData);
     if (newTask) {
       setShowNewTaskDialog(false);
@@ -97,10 +108,11 @@ export function TasksPage({
     return newTask;
   };
 
-
-
   // A failure goes back to the dialog, which shows a taken name at the field
-  const handleSaveEdit = async (taskId: string, updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }) => {
+  const handleSaveEdit = async (
+    taskId: string,
+    updates: { name: string; hourlyRate?: number; defaultNoteTemplateId?: string | null }
+  ) => {
     const updatedTask = await onUpdateTask(taskId, updates);
     if (updatedTask && selectedTask?.id === taskId) {
       setSelectedTask(updatedTask);
@@ -108,7 +120,7 @@ export function TasksPage({
     return updatedTask;
   };
 
-  const deletingTask = deletingTaskId ? tasks.find(t => t.id === deletingTaskId) ?? null : null;
+  const deletingTask = deletingTaskId ? (tasks.find(t => t.id === deletingTaskId) ?? null) : null;
 
   // Time tracked against the task being deleted, matched the same way the
   // detail pane matches its entries (task id, or name for older entries).
@@ -147,8 +159,6 @@ export function TasksPage({
   const handleAddTaskClick = () => {
     setShowNewTaskDialog(true);
   };
-
-
 
   return (
     <PageContainer fill>
@@ -235,7 +245,9 @@ export function TasksPage({
       <DeleteTaskDialog
         task={deletingTask}
         history={deletingTaskHistory}
-        onDelete={(taskId) => { void handleConfirmDelete(taskId); }}
+        onDelete={taskId => {
+          void handleConfirmDelete(taskId);
+        }}
         onArchive={taskId => void onArchiveTask(taskId)}
         onClose={() => setDeletingTaskId(null)}
       />

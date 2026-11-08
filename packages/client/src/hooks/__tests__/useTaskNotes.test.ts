@@ -155,7 +155,7 @@ describe('useTaskNotes', () => {
     expect(result.current.notes.map(n => n.isArchived)).toEqual([false, undefined]);
   });
 
-  it("searches past fields that are neither text nor numbers", async () => {
+  it('searches past fields that are neither text nor numbers', async () => {
     mockNotesService.getAllNotes.mockResolvedValue([note('1', { done: true, tags: ['x'] })]);
     const { result } = renderHook(() => useTaskNotes());
     await waitFor(() => expect(result.current.notes).toHaveLength(1));

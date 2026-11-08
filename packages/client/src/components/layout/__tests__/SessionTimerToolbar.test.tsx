@@ -155,9 +155,7 @@ describe('SessionTimerToolbar', () => {
     });
 
     it('should show Pause All for a running timer and call onPauseAll', () => {
-      render(
-        <SessionTimerToolbar {...mockProps} activeSession={sessionWith({ state: TimerState.running })} />
-      );
+      render(<SessionTimerToolbar {...mockProps} activeSession={sessionWith({ state: TimerState.running })} />);
 
       const pauseAllButton = screen.getByRole('button', { name: /pause all/i });
       expect(screen.queryByRole('button', { name: /resume all/i })).not.toBeInTheDocument();

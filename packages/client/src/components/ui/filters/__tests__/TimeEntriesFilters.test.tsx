@@ -25,7 +25,11 @@ function renderFilters(initial: Partial<TimeEntriesFiltersState> = {}) {
   const changes = vi.fn();
   const onClearFilters = vi.fn();
   function Page() {
-    const [filters, setFilters] = useState<TimeEntriesFiltersState>({ ...defaultFilters, datePreset: 'last7', ...initial });
+    const [filters, setFilters] = useState<TimeEntriesFiltersState>({
+      ...defaultFilters,
+      datePreset: 'last7',
+      ...initial,
+    });
     const [expanded, setExpanded] = useState(false);
     return (
       <TimeEntriesFilters
@@ -102,7 +106,10 @@ describe('TimeEntriesFilters', () => {
     const { latest } = renderFilters({ startDate: start, endDate: start.endOf('month'), datePreset: null });
     fireEvent.click(screen.getByRole('button', { name: 'Expand filters' }));
 
-    for (const [index, dayNumber] of [[0, '2'], [1, '20']] as const) {
+    for (const [index, dayNumber] of [
+      [0, '2'],
+      [1, '20'],
+    ] as const) {
       fireEvent.click((await screen.findAllByRole('button', { name: /Choose date/ }))[index]);
       fireEvent.click(within(await screen.findByRole('grid')).getByRole('gridcell', { name: dayNumber }));
       fireEvent.click(screen.getByRole('button', { name: 'OK' }));

@@ -45,8 +45,7 @@ describe('DataManagementSection', () => {
     } as any);
   };
 
-  const renderSection = () =>
-    render(<DataManagementSection />, { wrapper: TestWrapper });
+  const renderSection = () => render(<DataManagementSection />, { wrapper: TestWrapper });
 
   const openResetDialog = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(screen.getByRole('button', { name: /reset all data/i }));
@@ -100,10 +99,7 @@ describe('DataManagementSection', () => {
     renderSection();
 
     await openResetDialog(user);
-    await user.type(
-      screen.getByLabelText(`Type ${RESET_CONFIRMATION_WORD} to confirm`),
-      RESET_CONFIRMATION_WORD
-    );
+    await user.type(screen.getByLabelText(`Type ${RESET_CONFIRMATION_WORD} to confirm`), RESET_CONFIRMATION_WORD);
     await user.click(screen.getByRole('button', { name: /delete everything/i }));
 
     expect(mockResetAllData).toHaveBeenCalledTimes(1);

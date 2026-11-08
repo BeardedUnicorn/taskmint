@@ -50,9 +50,15 @@ describe('TaskTimeBarChart', () => {
     expect(screen.getAllByText('Earnings ($)').length).toBeGreaterThan(0);
   });
 
-
   it('shows the whole task, its time, earnings and entries on hover', () => {
-    const point = { taskName: 'A very…', fullTaskName: 'A very long task', timeHours: 1.5, totalTime: 1.5 * HOUR, earnings: 60, entryCount: 2 };
+    const point = {
+      taskName: 'A very…',
+      fullTaskName: 'A very long task',
+      timeHours: 1.5,
+      totalTime: 1.5 * HOUR,
+      earnings: 60,
+      entryCount: 2,
+    };
     const { container, rerender } = render(<TaskTimeTooltip active={false} payload={[{ payload: point }]} />);
     expect(container).toBeEmptyDOMElement();
 
@@ -100,7 +106,6 @@ describe('TimelineChart', () => {
     expect((await screen.findAllByText('2026-03')).length).toBeGreaterThan(0);
   });
 
-
   it('shows the period, its time, earnings and entries on hover', () => {
     const point = { period: '2026-W10', timeHours: 1, totalTime: HOUR, earnings: 40, entryCount: 1 };
     const { container, rerender } = render(<TimelineTooltip active payload={[]} label="2026-W10" />);
@@ -130,7 +135,6 @@ describe('TaskDistributionPieChart', () => {
     expect(screen.queryByText('2%')).not.toBeInTheDocument();
     expect(screen.getByText('Review')).toBeInTheDocument();
   });
-
 
   it("shows a task's time and share on hover", () => {
     const { container, rerender } = render(<TaskShareTooltip />);

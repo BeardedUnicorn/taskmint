@@ -17,28 +17,31 @@ export function useTimerEntryEdit(): (data: EditTimeEntryData) => Promise<boolea
   const { tasks } = useTaskManagementContext();
   const { notes, updateNote } = useTaskNotes();
 
-  return useCallback(async (data: EditTimeEntryData) => {
-    // Entry ids are raw timer-instance ids (the "session_" prefix is only
-    // used by the derived activeEntry).
-    const instanceId = data.id.replace(/^session_/, '');
-    const session = sessions.find(s => s.timerInstances.some(i => i.id === instanceId));
-    const instance = session?.timerInstances.find(i => i.id === instanceId);
-    if (!session || !instance) return false;
+  return useCallback(
+    async (data: EditTimeEntryData) => {
+      // Entry ids are raw timer-instance ids (the "session_" prefix is only
+      // used by the derived activeEntry).
+      const instanceId = data.id.replace(/^session_/, '');
+      const session = sessions.find(s => s.timerInstances.some(i => i.id === instanceId));
+      const instance = session?.timerInstances.find(i => i.id === instanceId);
+      if (!session || !instance) return false;
 
-    const target =
-      data.taskId !== instanceTaskId(instance, session) ? tasks.find(task => task.id === data.taskId) : undefined;
-    const sessionId = await editTimerEntry(instanceId, {
-      updates: buildTimerEditUpdates(instance, data.durationMs),
-      moveTo: target ? { taskId: target.id, taskName: target.name } : undefined,
-    });
-    if (!sessionId) return false;
+      const target =
+        data.taskId !== instanceTaskId(instance, session) ? tasks.find(task => task.id === data.taskId) : undefined;
+      const sessionId = await editTimerEntry(instanceId, {
+        updates: buildTimerEditUpdates(instance, data.durationMs),
+        moveTo: target ? { taskId: target.id, taskName: target.name } : undefined,
+      });
+      if (!sessionId) return false;
 
-    if (target) {
-      const timerNotes = notes.filter(note => note.timerInstanceId === instanceId);
-      for (const note of timerNotes) {
-        await updateNote(note.id, { sessionId, taskId: target.id });
+      if (target) {
+        const timerNotes = notes.filter(note => note.timerInstanceId === instanceId);
+        for (const note of timerNotes) {
+          await updateNote(note.id, { sessionId, taskId: target.id });
+        }
       }
-    }
-    return true;
-  }, [sessions, tasks, notes, editTimerEntry, updateNote]);
+      return true;
+    },
+    [sessions, tasks, notes, editTimerEntry, updateNote]
+  );
 }

@@ -24,8 +24,10 @@ describe('revealAction', () => {
   });
 });
 
-it("says Finder on a Mac", async () => {
-  const userAgent = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)');
+it('says Finder on a Mac', async () => {
+  const userAgent = vi
+    .spyOn(navigator, 'userAgent', 'get')
+    .mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)');
   vi.resetModules();
   const { REVEAL_LABEL: label } = await import('../reveal');
   expect(label).toBe('Show in Finder');

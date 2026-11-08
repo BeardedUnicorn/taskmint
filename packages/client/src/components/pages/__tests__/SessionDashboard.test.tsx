@@ -1,6 +1,6 @@
 /**
  * Unit Tests for SessionDashboard Component
- * 
+ *
  * Tests the main session management dashboard including session creation,
  * display, activation, and timer management functionality.
  */
@@ -141,7 +141,16 @@ const renderDashboard = () =>
   });
 
 vi.mock('../../ui/sessions/SessionList', () => ({
-  SessionList: ({ sessions, archivedTaskNames, isLoading, sessionNotes, selectedSessionId, onSelectSession, onStartSession, onOpenNotes }: any) => (
+  SessionList: ({
+    sessions,
+    archivedTaskNames,
+    isLoading,
+    sessionNotes,
+    selectedSessionId,
+    onSelectSession,
+    onStartSession,
+    onOpenNotes,
+  }: any) => (
     <div
       data-testid="session-list"
       data-loading={String(isLoading ?? false)}
@@ -163,7 +172,17 @@ vi.mock('../../ui/sessions/SessionList', () => ({
 }));
 
 vi.mock('../../ui/display/SessionTimerDisplay', () => ({
-  SessionTimerDisplay: ({ session, onStartTimer, onStopTimer, onPauseTimer, onResumeTimer, onDeleteTimer, onEditTimer, onOpenNotes, onAddTimer }: any) => (
+  SessionTimerDisplay: ({
+    session,
+    onStartTimer,
+    onStopTimer,
+    onPauseTimer,
+    onResumeTimer,
+    onDeleteTimer,
+    onEditTimer,
+    onOpenNotes,
+    onAddTimer,
+  }: any) => (
     <div data-testid="session-timer-display">
       <button onClick={() => onEditTimer(session.timerInstances.at(-1), session)}>Edit Timer</button>
       <button onClick={() => onAddTimer()}>Add Timer</button>
@@ -232,7 +251,7 @@ describe('SessionDashboard', () => {
 
     it('should render the dashboard with no sessions', () => {
       renderDashboard();
-      
+
       expect(screen.getByText('All Sessions')).toBeInTheDocument();
       // No floating + button (it covered the toasts): the toolbar, the empty
       // state and the tray start work
@@ -343,10 +362,7 @@ describe('SessionDashboard', () => {
       renderDashboard();
 
       // The list receives the archived names for chip filtering...
-      expect(screen.getByTestId('session-list')).toHaveAttribute(
-        'data-archived-task-names',
-        'Development Work'
-      );
+      expect(screen.getByTestId('session-list')).toHaveAttribute('data-archived-task-names', 'Development Work');
       // ...while the archived task's session history still reaches it
       expect(screen.getByText('Development Work')).toBeInTheDocument();
 
@@ -802,9 +818,7 @@ describe('SessionDashboard', () => {
         error: null,
       });
       Object.assign(mockTaskManagement, {
-        tasks: mockTasks.map((task) =>
-          task.id === 'task-1' ? { ...task, hourlyRate: 60 } : task
-        ),
+        tasks: mockTasks.map(task => (task.id === 'task-1' ? { ...task, hourlyRate: 60 } : task)),
       });
     });
 
@@ -863,7 +877,7 @@ describe('SessionDashboard', () => {
       expect(screen.getByText('Start a session to track earnings')).toBeInTheDocument();
     });
 
-    it('includes the active session\'s timers from earlier days', () => {
+    it("includes the active session's timers from earlier days", () => {
       // The cards total every timer in the active session: a timer that ran
       // yesterday counts the same as one running right now.
       const sessionAcrossDays = {
@@ -996,7 +1010,10 @@ describe('SessionDashboard', () => {
 
       fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-      expect(mockSessionManagement.editTimerEntry).toHaveBeenCalledWith('timer-done', expect.objectContaining({ moveTo: undefined }));
+      expect(mockSessionManagement.editTimerEntry).toHaveBeenCalledWith(
+        'timer-done',
+        expect.objectContaining({ moveTo: undefined })
+      );
     });
 
     it('closes the edit dialog on Cancel', async () => {

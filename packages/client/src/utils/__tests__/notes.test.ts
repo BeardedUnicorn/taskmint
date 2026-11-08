@@ -95,7 +95,11 @@ describe('noteText', () => {
 describe('newestFirst', () => {
   it('sorts by the last edit, newest first', () => {
     const at = (id: string, updatedAt: string) => ({ id, updatedAt }) as TaskNote;
-    const sorted = [at('old', '2026-10-01T00:00:00Z'), at('new', '2026-10-03T00:00:00Z'), at('mid', '2026-10-02T00:00:00Z')].sort(newestFirst);
+    const sorted = [
+      at('old', '2026-10-01T00:00:00Z'),
+      at('new', '2026-10-03T00:00:00Z'),
+      at('mid', '2026-10-02T00:00:00Z'),
+    ].sort(newestFirst);
     expect(sorted.map(n => n.id)).toEqual(['new', 'mid', 'old']);
   });
 });

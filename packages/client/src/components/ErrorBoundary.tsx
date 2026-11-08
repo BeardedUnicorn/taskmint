@@ -1,15 +1,5 @@
 import { Component, ReactNode, ErrorInfo } from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  Card,
-  CardContent,
-  Stack,
-  Alert,
-  Collapse,
-  LinearProgress,
-} from '@mui/material';
+import { Box, Typography, Button, Card, CardContent, Stack, Alert, Collapse, LinearProgress } from '@mui/material';
 import {
   Refresh as RefreshIcon,
   ExpandMore as ExpandMoreIcon,
@@ -165,11 +155,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <CardContent>
               <Stack spacing={3} sx={{ alignItems: 'center' }}>
                 <BugReportIcon sx={{ fontSize: 64, color: 'error.main' }} />
-                
+
                 <Typography variant="h4" component="h1" color="error" sx={{ textAlign: 'center' }}>
                   Oops! Something went wrong
                 </Typography>
-                
+
                 <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>
                   We're sorry, but something unexpected happened. The application has encountered an error.
                 </Typography>
@@ -197,8 +187,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 {this.state.recoveryAttempts >= MAX_RECOVERY_ATTEMPTS && !this.state.isRecovering && (
                   <Alert severity="warning" sx={{ width: '100%' }}>
                     <Typography variant="body2">
-                      Automatic recovery failed after {MAX_RECOVERY_ATTEMPTS} attempts.
-                      Please try manual recovery or reload the page.
+                      Automatic recovery failed after {MAX_RECOVERY_ATTEMPTS} attempts. Please try manual recovery or
+                      reload the page.
                     </Typography>
                   </Alert>
                 )}
@@ -214,12 +204,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                     Try Again
                   </Button>
 
-                  <Button
-                    variant="outlined"
-                    onClick={reloadApp}
-                    color="secondary"
-                    disabled={this.state.isRecovering}
-                  >
+                  <Button variant="outlined" onClick={reloadApp} color="secondary" disabled={this.state.isRecovering}>
                     Reload Page
                   </Button>
                 </Stack>
@@ -235,7 +220,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   >
                     {this.state.showDetails ? 'Hide' : 'Show'} Technical Details
                   </Button>
-                  
+
                   <Collapse in={this.state.showDetails}>
                     <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
                       <CardContent>
@@ -259,7 +244,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                         >
                           {this.state.error?.stack || 'No stack trace available'}
                         </Typography>
-                        
+
                         {this.state.errorInfo?.componentStack && (
                           <>
                             <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
@@ -302,4 +287,3 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return this.props.children;
   }
 }
-

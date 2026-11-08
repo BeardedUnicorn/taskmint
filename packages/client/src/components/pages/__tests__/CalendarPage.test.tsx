@@ -35,20 +35,12 @@ vi.mock('react-big-calendar', () => ({
     return (
       <div data-testid="calendar">
         {events.map((event: any) => (
-          <div
-            key={event.id}
-            data-testid={`calendar-event-${event.id}`}
-            onClick={() => onSelectEvent?.(event)}
-          >
-            {components.event && components.event({ event })}
+          <div key={event.id} data-testid={`calendar-event-${event.id}`} onClick={() => onSelectEvent?.(event)}>
+            {components.event?.({ event })}
           </div>
         ))}
         {/* An empty day cell of the shown month (the 20th) */}
-        <button
-          onClick={() =>
-            onSelectSlot?.({ start: new Date(date.getFullYear(), date.getMonth(), 20) })
-          }
-        >
+        <button onClick={() => onSelectSlot?.({ start: new Date(date.getFullYear(), date.getMonth(), 20) })}>
           empty day
         </button>
         <div data-testid="day-prop-getter-test">
@@ -83,11 +75,7 @@ function entriesToSessions(entries: TimeEntry[]): TaskSession[] {
         startTime: entry.startTime.toISOString(),
         endTime: entry.endTime?.toISOString(),
         duration: entry.duration,
-        state: entry.isRunning
-          ? TimerState.running
-          : entry.duration != null
-            ? TimerState.stopped
-            : TimerState.idle,
+        state: entry.isRunning ? TimerState.running : entry.duration != null ? TimerState.stopped : TimerState.idle,
         createdAt: now,
         updatedAt: now,
       },
@@ -284,9 +272,7 @@ describe('CalendarPage', () => {
 
       // The work day and its release day (7 days later) have events; no
       // other day in the month does
-      const eventIds = screen
-        .getAllByTestId(/calendar-event-/)
-        .map(node => node.getAttribute('data-testid'));
+      const eventIds = screen.getAllByTestId(/calendar-event-/).map(node => node.getAttribute('data-testid'));
       expect(eventIds).toContain(`calendar-event-${currentMonth}-01`);
       expect(eventIds).toContain(`calendar-event-${currentMonth}-08`);
       expect(eventIds).toHaveLength(2);

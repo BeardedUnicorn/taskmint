@@ -1,6 +1,6 @@
 /**
  * Session System Validation Tests
- * 
+ *
  * Validation tests to ensure the session-based timer system types and
  * data structures meet the specified requirements.
  */
@@ -17,7 +17,6 @@ import {
 import { TaskSession, TimerInstance, InactivitySettings } from '../../types/timer';
 
 describe('Session System Validation', () => {
-
   describe('Requirement: Task Session Management', () => {
     it('should allow selecting an existing task and creating a new session', () => {
       const task = createMockTask({ name: 'Development Work' });
@@ -65,7 +64,7 @@ describe('Session System Validation', () => {
       expect(instance1.sessionId).toBe(session.id);
       expect(instance2.sessionId).toBe(session.id);
       expect(instance1.id).not.toBe(instance2.id);
-      
+
       // Validate session can contain multiple instances
       const sessionWithInstances = createMockTaskSession({
         timerInstances: [instance1, instance2],
@@ -77,7 +76,7 @@ describe('Session System Validation', () => {
   describe('Requirement: Timer Functionality', () => {
     it('should implement automatic timer pausing based on inactivity', () => {
       const { session, runningInstance } = createActiveSessionScenario();
-      
+
       // Simulate inactivity detection triggering pause
       const pausedInstance: TimerInstance = {
         ...runningInstance,
@@ -211,7 +210,7 @@ describe('Session System Validation', () => {
 
     it('should clearly distinguish between individual timer instances and session totals', () => {
       const { session } = createActiveSessionScenario();
-      
+
       // Session has total duration
       expect(session.totalDuration).toBeDefined();
       expect(typeof session.totalDuration).toBe('number');
@@ -228,7 +227,7 @@ describe('Session System Validation', () => {
       const completedInstancesTotal = session.timerInstances
         .filter(i => i.duration)
         .reduce((sum, i) => sum + (i.duration || 0), 0);
-      
+
       expect(session.totalDuration).toBe(completedInstancesTotal);
     });
   });
@@ -309,12 +308,12 @@ describe('Session System Validation', () => {
   describe('Integration Validation', () => {
     it('should complete a full session workflow', () => {
       const task = createMockTask();
-      const session = createMockTaskSession({ 
+      const session = createMockTaskSession({
         taskId: task.id,
         taskName: task.name,
         isActive: true,
       });
-      const timerInstance = createMockTimerInstance({ 
+      const timerInstance = createMockTimerInstance({
         sessionId: session.id,
         isRunning: true,
       });

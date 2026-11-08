@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '../services/StorageService';
 import { STORAGE_KEYS } from '../constants';
@@ -13,16 +12,23 @@ export function useFundsReleaseSettings() {
 
   useEffect(() => {
     const fetchDays = async () => {
-      const storedDays = await storageService.getItem<number>(STORAGE_KEYS.FUNDS_RELEASE_DAYS, DEFAULT_FUNDS_RELEASE_DAYS, FundsReleaseDaysSchema);
+      const storedDays = await storageService.getItem<number>(
+        STORAGE_KEYS.FUNDS_RELEASE_DAYS,
+        DEFAULT_FUNDS_RELEASE_DAYS,
+        FundsReleaseDaysSchema
+      );
       setDays(storedDays);
     };
     fetchDays();
   }, [storageService]);
 
-  const updateDays = useCallback(async (newDays: number) => {
-    setDays(newDays);
-    await storageService.setItem(STORAGE_KEYS.FUNDS_RELEASE_DAYS, newDays, FundsReleaseDaysSchema);
-  }, [storageService]);
+  const updateDays = useCallback(
+    async (newDays: number) => {
+      setDays(newDays);
+      await storageService.setItem(STORAGE_KEYS.FUNDS_RELEASE_DAYS, newDays, FundsReleaseDaysSchema);
+    },
+    [storageService]
+  );
 
   return { days, updateDays };
 }

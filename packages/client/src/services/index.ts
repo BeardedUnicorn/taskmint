@@ -5,11 +5,11 @@
 import { TaskService } from './TaskService';
 import { StorageService } from './StorageService';
 
-export class ServiceFactory {
-  private static taskService: TaskService | undefined;
+let taskService: TaskService | undefined;
 
-  static getTaskService(): TaskService {
-    ServiceFactory.taskService ??= new TaskService(StorageService.getInstance());
-    return ServiceFactory.taskService;
-  }
-}
+export const ServiceFactory = {
+  getTaskService(): TaskService {
+    taskService ??= new TaskService(StorageService.getInstance());
+    return taskService;
+  },
+};

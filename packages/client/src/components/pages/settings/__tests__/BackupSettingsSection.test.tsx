@@ -55,7 +55,13 @@ describe('BackupSettingsSection', () => {
   });
 
   it('picks a folder, keeping the current one when the dialog is dismissed', async () => {
-    store({ enabled: true, frequency: 'daily', backupPath: '/old', maxBackups: 10, lastBackupTime: new Date().toISOString() });
+    store({
+      enabled: true,
+      frequency: 'daily',
+      backupPath: '/old',
+      maxBackups: 10,
+      lastBackupTime: new Date().toISOString(),
+    });
     section();
 
     fireEvent.click(screen.getByRole('button', { name: 'Browse' }));
@@ -68,7 +74,13 @@ describe('BackupSettingsSection', () => {
   });
 
   it('sets how often to back up', async () => {
-    store({ enabled: true, frequency: 'daily', backupPath: '/b', maxBackups: 10, lastBackupTime: new Date().toISOString() });
+    store({
+      enabled: true,
+      frequency: 'daily',
+      backupPath: '/b',
+      maxBackups: 10,
+      lastBackupTime: new Date().toISOString(),
+    });
     section();
 
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Backup Frequency' }));
@@ -77,7 +89,13 @@ describe('BackupSettingsSection', () => {
   });
 
   it('keeps 1 to 100 backups, saved when the field is left or Enter is pressed', () => {
-    store({ enabled: true, frequency: 'daily', backupPath: '/b', maxBackups: 10, lastBackupTime: new Date().toISOString() });
+    store({
+      enabled: true,
+      frequency: 'daily',
+      backupPath: '/b',
+      maxBackups: 10,
+      lastBackupTime: new Date().toISOString(),
+    });
     section();
 
     fireEvent.change(maxBackups(), { target: { value: '5' } });
@@ -98,7 +116,13 @@ describe('BackupSettingsSection', () => {
   });
 
   it('backs up now, showing it running, then how it went', async () => {
-    store({ enabled: true, frequency: 'daily', backupPath: '/b', maxBackups: 10, lastBackupTime: new Date().toISOString() });
+    store({
+      enabled: true,
+      frequency: 'daily',
+      backupPath: '/b',
+      maxBackups: 10,
+      lastBackupTime: new Date().toISOString(),
+    });
     let finish!: () => void;
     folders().write.mockImplementationOnce(
       () => new Promise(resolve => (finish = () => resolve({ success: false, error: 'Disk full', timestamp: 'now' })))

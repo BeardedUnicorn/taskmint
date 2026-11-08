@@ -55,8 +55,8 @@ function InviteForm({
     <form onSubmit={submit} noValidate>
       <Stack spacing={2}>
         <Typography variant="body2" color="text.secondary">
-          {invite.role === 'admin' ? "You're invited as an admin." : "You're invited to track your time here."} The
-          link works until {new Date(invite.expiresAt).toLocaleString()}.
+          {invite.role === 'admin' ? "You're invited as an admin." : "You're invited to track your time here."} The link
+          works until {new Date(invite.expiresAt).toLocaleString()}.
         </Typography>
         {error && <Alert severity="error">{error}</Alert>}
         <TextField

@@ -91,10 +91,17 @@ async function save() {
   const previous = await loadTarget();
   await saveTarget(target);
   // A server no longer used needn't stay reachable
-  if (previous.kind === 'server' && (target.kind !== 'server' || originPattern(previous.url) !== originPattern(target.url))) {
+  if (
+    previous.kind === 'server' &&
+    (target.kind !== 'server' || originPattern(previous.url) !== originPattern(target.url))
+  ) {
     await chrome.permissions.remove({ origins: [originPattern(previous.url)] });
   }
-  say(target.kind === 'server' ? `Saved: captures go to ${target.url}.` : 'Saved: captures go to the TaskMint app on this computer.');
+  say(
+    target.kind === 'server'
+      ? `Saved: captures go to ${target.url}.`
+      : 'Saved: captures go to the TaskMint app on this computer.'
+  );
 }
 
 /** The saved choice, and whether the server last refused its token. */

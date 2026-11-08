@@ -36,14 +36,11 @@ export const NotificationPreferencesSchema = z.object({
 
 export type NotificationPreferences = z.infer<typeof NotificationPreferencesSchema>;
 
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences =
-  NotificationPreferencesSchema.parse({});
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = NotificationPreferencesSchema.parse({});
 
 /** Saved preferences made whole (missing or invalid fields take their defaults). */
 export function parseNotificationPreferences(value: unknown): NotificationPreferences {
-  const result = NotificationPreferencesSchema.safeParse(
-    value && typeof value === 'object' ? value : {}
-  );
+  const result = NotificationPreferencesSchema.safeParse(value && typeof value === 'object' ? value : {});
   return result.success ? result.data : DEFAULT_NOTIFICATION_PREFERENCES;
 }
 
@@ -51,10 +48,7 @@ export function useNotificationPreferences(): readonly [
   NotificationPreferences,
   (updates: Partial<NotificationPreferences>) => void,
 ] {
-  const [stored, setStored] = useLocalStorage<unknown>(
-    NOTIFICATION_PREFERENCES_KEY,
-    DEFAULT_NOTIFICATION_PREFERENCES
-  );
+  const [stored, setStored] = useLocalStorage<unknown>(NOTIFICATION_PREFERENCES_KEY, DEFAULT_NOTIFICATION_PREFERENCES);
   const preferences = useMemo(() => parseNotificationPreferences(stored), [stored]);
   const update = useCallback(
     (updates: Partial<NotificationPreferences>) =>

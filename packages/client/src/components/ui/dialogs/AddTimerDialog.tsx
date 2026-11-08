@@ -7,15 +7,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import {
-  Autocomplete,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  TextField,
-} from '@mui/material';
+import { Autocomplete, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
 import { Task } from '../../../types/task';
 import { TaskSession } from '../../../types/timer';
 import { orderTasksForStart } from '../../../utils/taskOrdering';
@@ -66,12 +58,10 @@ export function AddTimerDialog({ session, tasks, sessions, onClose, onAdd }: Add
             options={options}
             value={selected}
             onChange={(_, task) => setSelected(task)}
-            getOptionLabel={(task) => (task.isFavorite ? `★ ${task.name}` : task.name)}
+            getOptionLabel={task => (task.isFavorite ? `★ ${task.name}` : task.name)}
             isOptionEqualToValue={(option, value) => option.id === value.id}
             sx={{ pt: 1 }}
-            renderInput={(params) => (
-              <TextField {...params} autoFocus label="Task" placeholder="Choose a task…" />
-            )}
+            renderInput={params => <TextField {...params} autoFocus label="Task" placeholder="Choose a task…" />}
           />
         </DialogContent>
         <DialogActions>

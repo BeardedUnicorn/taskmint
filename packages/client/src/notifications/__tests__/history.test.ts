@@ -76,7 +76,12 @@ describe('notification history', () => {
   it('counts repeats, keeping one unread if any arrival was missed', () => {
     const other = entry('b', 6, { read: true });
     let history = [entry('a', 5, { read: true }), other];
-    history = bumpHistoryEntry(history, 'a', { at: new Date(NOW).toISOString(), message: 'again', title: undefined, read: false });
+    history = bumpHistoryEntry(history, 'a', {
+      at: new Date(NOW).toISOString(),
+      message: 'again',
+      title: undefined,
+      read: false,
+    });
     expect(history[0]).toMatchObject({ count: 2, message: 'again', read: false });
     expect(history[1]).toBe(other);
     expect(unreadCount(history)).toBe(1);

@@ -13,7 +13,13 @@ export function cleanAmount(text: string): string {
   const typed = text.replace(/[^\d.]/g, '');
   const point = typed.indexOf('.');
   const amount =
-    point === -1 ? typed : typed.slice(0, point + 1) + typed.slice(point + 1).replace(/\./g, '').slice(0, 2);
+    point === -1
+      ? typed
+      : typed.slice(0, point + 1) +
+        typed
+          .slice(point + 1)
+          .replace(/\./g, '')
+          .slice(0, 2);
   return parseFloat(amount) > MAX_AMOUNT ? String(MAX_AMOUNT) : amount;
 }
 

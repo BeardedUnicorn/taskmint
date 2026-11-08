@@ -1,4 +1,3 @@
-
 import { ReactNode } from 'react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { viewShortcut } from '../../hooks/useKeyboardShortcuts';
@@ -70,21 +69,24 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
           backgroundColor: 'background.paper',
           borderRight: '1px solid',
           borderColor: 'divider',
-          transition: (theme) => theme.transitions.create('width', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
+          transition: theme =>
+            theme.transitions.create('width', {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
         },
       }}
     >
       {/* Header with Title and Toggle Button */}
-      <Box sx={{
-        p: 2,
-        display: 'flex',
-        flexDirection: isCollapsed ? 'column' : 'row',
-        alignItems: 'center',
-        gap: isCollapsed ? 1 : 0.5,
-      }}>
+      <Box
+        sx={{
+          p: 2,
+          display: 'flex',
+          flexDirection: isCollapsed ? 'column' : 'row',
+          alignItems: 'center',
+          gap: isCollapsed ? 1 : 0.5,
+        }}
+      >
         {!isCollapsed && (
           <Typography variant="h6" component="div" sx={{ fontWeight: 600, flex: 1 }}>
             TaskMint
@@ -104,7 +106,7 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
       <Divider />
 
       <List sx={{ pt: 1 }}>
-        {navigationItems.map((item) => {
+        {navigationItems.map(item => {
           const IconComponent = item.icon;
           const isSelected = activeView === item.id;
 
@@ -134,11 +136,15 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
               }}
             >
               <ListItemIcon
-                sx={isCollapsed ? {
-                  minWidth: 'auto',
-                  pr: 0,
-                  justifyContent: 'center'
-                } : {}}
+                sx={
+                  isCollapsed
+                    ? {
+                        minWidth: 'auto',
+                        pr: 0,
+                        justifyContent: 'center',
+                      }
+                    : {}
+                }
               >
                 <IconComponent />
               </ListItemIcon>

@@ -1,6 +1,6 @@
 /**
  * Goal Achievements Table
- * 
+ *
  * Displays daily goal achievements with status, progress, and earnings data
  * Shows historical performance against daily earnings goals
  */
@@ -36,7 +36,13 @@ const KINDS: Record<
   RowKind,
   { label: string; icon: ReactElement; color: 'info' | 'success' | 'error'; filled: boolean; tooltip: string }
 > = {
-  inProgress: { label: 'In Progress', icon: <Schedule />, color: 'info', filled: false, tooltip: 'Amount remaining to reach goal today' },
+  inProgress: {
+    label: 'In Progress',
+    icon: <Schedule />,
+    color: 'info',
+    filled: false,
+    tooltip: 'Amount remaining to reach goal today',
+  },
   hit: { label: 'Hit', icon: <CheckCircle />, color: 'success', filled: false, tooltip: 'Exact goal achievement' },
   exceeded: { label: 'Exceeded', icon: <TrendingUp />, color: 'success', filled: true, tooltip: 'Amount over goal' },
   missed: { label: 'Missed', icon: <Cancel />, color: 'error', filled: false, tooltip: 'Amount short of goal' },

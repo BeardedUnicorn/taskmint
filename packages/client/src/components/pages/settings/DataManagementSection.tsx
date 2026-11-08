@@ -85,8 +85,7 @@ export function DataManagementSection() {
   };
 
   return (
-      <SettingsSection title="Data Management" icon={<DataIcon color="primary" />}>
-
+    <SettingsSection title="Data Management" icon={<DataIcon color="primary" />}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Export your time tracking data for backup or import data from a previous backup.
       </Typography>
@@ -114,9 +113,9 @@ export function DataManagementSection() {
       </Stack>
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        Export saves your tasks, sessions and tracked time, imported work logs, notes, note
-        templates and goals to a JSON file. Import adds anything from an export file that
-        isn&apos;t already here, keeping what you have; the app reloads afterwards.
+        Export saves your tasks, sessions and tracked time, imported work logs, notes, note templates and goals to a
+        JSON file. Import adds anything from an export file that isn&apos;t already here, keeping what you have; the app
+        reloads afterwards.
       </Typography>
 
       <Divider sx={{ my: 3 }} />
@@ -126,8 +125,7 @@ export function DataManagementSection() {
       </Typography>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Permanently delete all app data and restore TaskMint to a fresh state.
-        Consider exporting your data first.
+        Permanently delete all app data and restore TaskMint to a fresh state. Consider exporting your data first.
       </Typography>
 
       <Button
@@ -159,14 +157,13 @@ export function DataManagementSection() {
               <li>Goals and every app setting</li>
               <li>The app&apos;s internal safety backups</li>
             </Box>
-            Backup files you exported to your own folders are not affected.
-            The app reloads after the reset.
+            Backup files you exported to your own folders are not affected. The app reloads after the reset.
           </DialogContentText>
 
           <TextField
             label={`Type ${RESET_CONFIRMATION_WORD} to confirm`}
             value={resetConfirmText}
-            onChange={(e) => setResetConfirmText(e.target.value)}
+            onChange={e => setResetConfirmText(e.target.value)}
             disabled={isResetting}
             fullWidth
             autoFocus

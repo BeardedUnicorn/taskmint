@@ -45,8 +45,18 @@ export const NOTE_LEVELS: Record<
   { icon: ReactElement; label: string; color: 'success' | 'primary' | 'secondary'; description: string }
 > = {
   task: { icon: <TaskIcon />, label: 'Task', color: 'success', description: 'Notes related to the entire task' },
-  session: { icon: <SessionIcon />, label: 'Session', color: 'primary', description: 'Notes for a specific work session' },
-  timer: { icon: <TimerIcon />, label: 'Timer', color: 'secondary', description: 'Notes for a specific timer instance' },
+  session: {
+    icon: <SessionIcon />,
+    label: 'Session',
+    color: 'primary',
+    description: 'Notes for a specific work session',
+  },
+  timer: {
+    icon: <TimerIcon />,
+    label: 'Timer',
+    color: 'secondary',
+    description: 'Notes for a specific timer instance',
+  },
 };
 
 const isFilled = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -63,7 +73,10 @@ function preview(note: TaskNote): string {
 function FieldValue({ value }: { value: unknown }) {
   if (typeof value === 'boolean') {
     return (
-      <Typography variant="body2" sx={{ ml: 1, fontWeight: 'medium', color: value ? 'success.main' : 'text.secondary' }}>
+      <Typography
+        variant="body2"
+        sx={{ ml: 1, fontWeight: 'medium', color: value ? 'success.main' : 'text.secondary' }}
+      >
         {value ? '✓ Yes' : '✗ No'}
       </Typography>
     );
@@ -161,7 +174,9 @@ export function NoteItem({
             {taskName && <Chip icon={<TaskIcon />} label={taskName} size="small" color="success" variant="outlined" />}
             <Chip label={note.templateName} size="small" color="primary" variant="outlined" />
             <Chip label={`${filledCount} fields`} size="small" variant="outlined" />
-            {level && <Chip icon={level.icon} label={level.label} size="small" color={level.color} variant="outlined" />}
+            {level && (
+              <Chip icon={level.icon} label={level.label} size="small" color={level.color} variant="outlined" />
+            )}
             {note.timeEntryId && <Chip label="Time Entry" size="small" color="secondary" variant="outlined" />}
             {note.sessionId && <Chip label="Session" size="small" color="info" variant="outlined" />}
             {note.timerInstanceId && <Chip label="Timer Instance" size="small" color="warning" variant="outlined" />}
@@ -211,7 +226,9 @@ export function NoteItem({
 
             <Divider sx={{ my: 1 }} />
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Box
+              sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
+            >
               <Typography variant="caption" color="text.secondary">
                 Created: {formatRelativeDate(note.createdAt)}
                 {note.createdAt !== note.updatedAt && <> • Updated: {formatRelativeDate(note.updatedAt)}</>}

@@ -5,9 +5,7 @@ import { Task } from '../../types/task';
 import { TimeEntry } from '../../types/timer';
 
 const HOUR = 3_600_000;
-const tasks: Task[] = [
-  { id: 'task-1', name: 'Annotation', hourlyRate: 60, createdAt: '', updatedAt: '' },
-];
+const tasks: Task[] = [{ id: 'task-1', name: 'Annotation', hourlyRate: 60, createdAt: '', updatedAt: '' }];
 
 const entry = (overrides: Partial<TimeEntry> = {}): TimeEntry => ({
   id: 'i-1',
@@ -28,9 +26,23 @@ describe('timeEntriesToCsv', () => {
   it('writes one row per finished entry, oldest first, at the rate it was tracked at', () => {
     const csv = timeEntriesToCsv(
       [
-        entry({ id: 'later', startTime: new Date(2026, 9, 11, 14, 0), endTime: new Date(2026, 9, 11, 14, 45), duration: 0.75 * HOUR, date: '2026-10-11', source: 'manual' }),
+        entry({
+          id: 'later',
+          startTime: new Date(2026, 9, 11, 14, 0),
+          endTime: new Date(2026, 9, 11, 14, 45),
+          duration: 0.75 * HOUR,
+          date: '2026-10-11',
+          source: 'manual',
+        }),
         entry(),
-        entry({ id: 'imported', source: 'worklog-import', startTime: new Date(2026, 9, 9, 8, 0), endTime: new Date(2026, 9, 9, 9, 0), duration: HOUR, date: '2026-10-09' }),
+        entry({
+          id: 'imported',
+          source: 'worklog-import',
+          startTime: new Date(2026, 9, 9, 8, 0),
+          endTime: new Date(2026, 9, 9, 9, 0),
+          duration: HOUR,
+          date: '2026-10-09',
+        }),
       ],
       tasks
     );
@@ -61,7 +73,7 @@ describe('timeEntriesToCsv', () => {
 });
 
 describe('csvCell', () => {
-  it("keeps a spreadsheet from running text as a formula", () => {
+  it('keeps a spreadsheet from running text as a formula', () => {
     expect(csvCell('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
     expect(csvCell('+1')).toBe("'+1");
     expect(csvCell('-2')).toBe("'-2");
@@ -90,7 +102,9 @@ describe('entries missing their end, duration or day', () => {
   it('end at start plus duration, are dated by their start, and are left out without a duration', () => {
     const open = entry({ endTime: undefined, date: '', duration: 30 * 60_000 });
     const csv = timeEntriesToCsv([open, entry({ id: 'none', duration: undefined })], tasks);
-    expect(lines(csv).slice(1)).toEqual(['2026-10-10,Annotation,2026-10-10 09:05,2026-10-10 09:35,0.50,40.00,20.00,Tracked']);
+    expect(lines(csv).slice(1)).toEqual([
+      '2026-10-10,Annotation,2026-10-10 09:05,2026-10-10 09:35,0.50,40.00,20.00,Tracked',
+    ]);
     expect(csvFileName([open])).toBe('taskmint-time-entries-2026-10-10.csv');
   });
 });

@@ -71,7 +71,7 @@ export function DurationFields({ value, onChange, errors = {} }: DurationFieldsP
         type="number"
         fullWidth
         value={value.hours}
-        onChange={(e) => onChange({ ...value, hours: e.target.value })}
+        onChange={e => onChange({ ...value, hours: e.target.value })}
         error={!!errors.hours}
         helperText={errors.hours}
         slotProps={{
@@ -83,7 +83,7 @@ export function DurationFields({ value, onChange, errors = {} }: DurationFieldsP
         type="number"
         fullWidth
         value={value.minutes}
-        onChange={(e) => onChange({ ...value, minutes: e.target.value })}
+        onChange={e => onChange({ ...value, minutes: e.target.value })}
         error={!!errors.minutes}
         helperText={errors.minutes}
         slotProps={{

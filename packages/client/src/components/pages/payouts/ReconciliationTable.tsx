@@ -79,11 +79,7 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
                   >
                     <TableCell colSpan={2} sx={{ whiteSpace: 'nowrap' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <IconButton
-                          size="small"
-                          aria-expanded={open}
-                          aria-label={`${open ? 'Hide' : 'Show'} ${label}`}
-                        >
+                        <IconButton size="small" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} ${label}`}>
                           {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                         </IconButton>
                         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -95,9 +91,7 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
                       {group.trackedMs > 0 ? formatDuration(group.trackedMs) : '—'}
                     </TableCell>
                     <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                      {group.importedMinutes > 0
-                        ? formatDuration(group.importedMinutes * 60_000)
-                        : '—'}
+                      {group.importedMinutes > 0 ? formatDuration(group.importedMinutes * 60_000) : '—'}
                     </TableCell>
                     <TableCell />
                     <TableCell align="right" sx={{ ...MONO, fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -117,9 +111,7 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
                             {cell.trackedMs > 0 ? formatDuration(cell.trackedMs) : '—'}
                           </TableCell>
                           <TableCell align="right" sx={MONO}>
-                            {hasImportedTime
-                              ? formatDuration(cell.importedMinutes * 60_000)
-                              : '—'}
+                            {hasImportedTime ? formatDuration(cell.importedMinutes * 60_000) : '—'}
                           </TableCell>
                           <TableCell
                             align="right"
@@ -132,19 +124,11 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
                           </TableCell>
                           <TableCell>
                             {cell.statuses.map(status => (
-                              <Chip
-                                key={status}
-                                label={status}
-                                size="small"
-                                variant="outlined"
-                                sx={{ mr: 0.5 }}
-                              />
+                              <Chip key={status} label={status} size="small" variant="outlined" sx={{ mr: 0.5 }} />
                             ))}
                           </TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                            {cell.actualCents > 0 || cell.estimatedCents > 0
-                              ? cell.releaseDay
-                              : '—'}
+                            {cell.actualCents > 0 || cell.estimatedCents > 0 ? cell.releaseDay : '—'}
                           </TableCell>
                           <TableCell>
                             {cell.actualCents > 0 ? (
@@ -165,9 +149,8 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
         </Table>
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-        Statuses are shown as the site reported them; all imported amounts count toward
-        availability by work day. Estimates use the rate each timer was tracked at, the
-        same amounts History and the Calendar show.
+        Statuses are shown as the site reported them; all imported amounts count toward availability by work day.
+        Estimates use the rate each timer was tracked at, the same amounts History and the Calendar show.
       </Typography>
     </Paper>
   );

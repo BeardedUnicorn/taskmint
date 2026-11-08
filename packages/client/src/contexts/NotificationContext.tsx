@@ -116,9 +116,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const notifications = getBackend().platform.notifications;
     if (!notifications.setPreferences) return;
-    notifications.setPreferences(preferences).catch(error =>
-      console.error('Failed to send notification preferences:', error)
-    );
+    notifications
+      .setPreferences(preferences)
+      .catch(error => console.error('Failed to send notification preferences:', error));
   }, [preferences]);
 
   // While you're away, toasts wait (their time doesn't run) and errors may go

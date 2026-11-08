@@ -161,10 +161,10 @@ describe('SessionTimerDisplay', () => {
     it('disables Add Timer at the per-session instance cap', () => {
       const maxedOutSession: TaskSession = {
         ...mockSession,
-        timerInstances: Array.from(
-          { length: SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION },
-          (_, i) => ({ ...stoppedInstance, id: `instance-${i}` })
-        ),
+        timerInstances: Array.from({ length: SESSION_CONSTANTS.MAX_TIMER_INSTANCES_PER_SESSION }, (_, i) => ({
+          ...stoppedInstance,
+          id: `instance-${i}`,
+        })),
       };
 
       render(<SessionTimerDisplay {...mockProps} session={maxedOutSession} />);

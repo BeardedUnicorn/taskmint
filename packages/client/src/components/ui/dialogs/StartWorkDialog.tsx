@@ -35,13 +35,7 @@ interface StartWorkDialogProps {
   onAddTask: () => void;
 }
 
-export function StartWorkDialog({
-  onClose,
-  tasks,
-  sessions,
-  onStart,
-  onAddTask,
-}: StartWorkDialogProps) {
+export function StartWorkDialog({ onClose, tasks, sessions, onStart, onAddTask }: StartWorkDialogProps) {
   const [selected, setSelected] = useState<Task | null>(null);
   const [isStarting, setIsStarting] = useState(false);
 
@@ -85,7 +79,7 @@ export function StartWorkDialog({
                 options={options}
                 value={selected}
                 onChange={(_, task) => setSelected(task)}
-                getOptionLabel={(task) => task.name}
+                getOptionLabel={task => task.name}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 openOnFocus
                 renderOption={(props, task) => {
@@ -110,9 +104,7 @@ export function StartWorkDialog({
                     </Box>
                   );
                 }}
-                renderInput={(params) => (
-                  <TextField {...params} autoFocus label="Task" placeholder="Choose a task…" />
-                )}
+                renderInput={params => <TextField {...params} autoFocus label="Task" placeholder="Choose a task…" />}
               />
             </Box>
           )}

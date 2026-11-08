@@ -16,7 +16,10 @@ describe("a timer's elapsed time", () => {
   const now = Date.parse('2026-10-27T10:00:00.000Z');
 
   it('counts from a start given as a Date', () => {
-    const running = instance({ state: TimerState.running, startTime: new Date('2026-10-27T09:30:00.000Z') as unknown as string });
+    const running = instance({
+      state: TimerState.running,
+      startTime: new Date('2026-10-27T09:30:00.000Z') as unknown as string,
+    });
     expect(getInstanceElapsedMs(running, now)).toBe(30 * 60_000);
   });
 
@@ -25,8 +28,15 @@ describe("a timer's elapsed time", () => {
   });
 
   it("is a paused timer's stored duration when it can't be worked out", () => {
-    expect(getInstanceElapsedMs(instance({ state: TimerState.paused, pausedAt: null, duration: 5_000 }), now)).toBe(5_000);
-    expect(getInstanceElapsedMs(instance({ state: TimerState.paused, startTime: '', pausedAt: '2026-10-27T09:10:00.000Z' }), now)).toBe(0);
+    expect(getInstanceElapsedMs(instance({ state: TimerState.paused, pausedAt: null, duration: 5_000 }), now)).toBe(
+      5_000
+    );
+    expect(
+      getInstanceElapsedMs(
+        instance({ state: TimerState.paused, startTime: '', pausedAt: '2026-10-27T09:10:00.000Z' }),
+        now
+      )
+    ).toBe(0);
   });
 });
 

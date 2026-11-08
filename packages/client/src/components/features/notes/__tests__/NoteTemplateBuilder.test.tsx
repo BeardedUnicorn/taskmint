@@ -35,7 +35,9 @@ const template = (overrides: Partial<NoteTemplate> = {}): NoteTemplate => ({
 /** The builder under a parent that keeps the selection, as the page does. */
 function renderBuilder(templates: NoteTemplate[] = []) {
   const handlers = {
-    create: vi.fn(async (data: Omit<NoteTemplate, 'id' | 'createdAt' | 'updatedAt'>) => template({ ...data, id: 'new' })),
+    create: vi.fn(async (data: Omit<NoteTemplate, 'id' | 'createdAt' | 'updatedAt'>) =>
+      template({ ...data, id: 'new' })
+    ),
     update: vi.fn(async (id: string, updates: Partial<NoteTemplate>) => template({ id, ...updates })),
     remove: vi.fn(async () => {}),
   };
@@ -57,8 +59,10 @@ function renderBuilder(templates: NoteTemplate[] = []) {
 }
 
 const name = () => screen.getByRole('textbox', { name: /Template Name/ });
-const describeAs = (text: string) => fireEvent.change(screen.getByLabelText('Description'), { target: { value: text } });
-const fieldLabels = () => screen.queryAllByPlaceholderText('Field Label').map(input => (input as HTMLInputElement).value);
+const describeAs = (text: string) =>
+  fireEvent.change(screen.getByLabelText('Description'), { target: { value: text } });
+const fieldLabels = () =>
+  screen.queryAllByPlaceholderText('Field Label').map(input => (input as HTMLInputElement).value);
 const click = (label: string | RegExp) => fireEvent.click(screen.getByRole('button', { name: label }));
 
 beforeEach(() => {
@@ -73,7 +77,10 @@ describe('NoteTemplateBuilder', () => {
   });
 
   it('lists each template with its field count, description and state', () => {
-    renderBuilder([template(), template({ id: 't2', name: 'Retro', description: undefined, isActive: false, fields: [] })]);
+    renderBuilder([
+      template(),
+      template({ id: 't2', name: 'Retro', description: undefined, isActive: false, fields: [] }),
+    ]);
 
     const [standup, retro] = screen.getAllByRole('listitem');
     expect(within(standup).getByText('2')).toBeInTheDocument();
@@ -93,7 +100,9 @@ describe('NoteTemplateBuilder', () => {
     click('Add Field');
     click('Create Template');
 
-    await waitFor(() => expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template created', { category: 'template' }));
+    await waitFor(() =>
+      expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template created', { category: 'template' })
+    );
     expect(create).toHaveBeenCalledWith({
       name: 'Review',
       description: 'For reviews',
@@ -165,7 +174,9 @@ describe('NoteTemplateBuilder', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Delete Field' })[0]);
     click('Update Template');
 
-    await waitFor(() => expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template saved', { category: 'template' }));
+    await waitFor(() =>
+      expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template saved', { category: 'template' })
+    );
     expect(update).toHaveBeenCalledWith('t1', {
       name: 'Standup',
       description: 'Daily notes',
@@ -181,9 +192,13 @@ describe('NoteTemplateBuilder', () => {
     const { update } = renderBuilder([template(), template({ id: 't2', name: 'Retro', isActive: false })]);
 
     click('Deactivate Standup');
-    await waitFor(() => expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template deactivated', { category: 'template' }));
+    await waitFor(() =>
+      expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template deactivated', { category: 'template' })
+    );
     click('Activate Retro');
-    await waitFor(() => expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template activated', { category: 'template' }));
+    await waitFor(() =>
+      expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template activated', { category: 'template' })
+    );
     expect(update.mock.calls).toEqual([
       ['t1', { isActive: false }],
       ['t2', { isActive: true }],
@@ -191,7 +206,9 @@ describe('NoteTemplateBuilder', () => {
 
     update.mockRejectedValueOnce('locked');
     click('Deactivate Standup');
-    await waitFor(() => expect(notifications.current.showError).toHaveBeenCalledWith('locked', { category: 'template' }));
+    await waitFor(() =>
+      expect(notifications.current.showError).toHaveBeenCalledWith('locked', { category: 'template' })
+    );
   });
 
   it('deletes a template once confirmed, closing it if it was open', async () => {
@@ -206,7 +223,9 @@ describe('NoteTemplateBuilder', () => {
     click('Delete Standup');
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template deleted', { category: 'template' }));
+    await waitFor(() =>
+      expect(notifications.current.showSuccess).toHaveBeenCalledWith('Template deleted', { category: 'template' })
+    );
     expect(remove).toHaveBeenCalledWith('t1');
     expect(name()).toHaveValue('');
   });
@@ -224,6 +243,8 @@ describe('NoteTemplateBuilder', () => {
     remove.mockRejectedValueOnce(new Error('in use'));
     click('Delete Retro');
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(notifications.current.showError).toHaveBeenCalledWith('in use', { category: 'template' }));
+    await waitFor(() =>
+      expect(notifications.current.showError).toHaveBeenCalledWith('in use', { category: 'template' })
+    );
   });
 });

@@ -21,9 +21,16 @@ import { NOTE_LEVELS, NoteItem, NoteLevel } from './NoteItem';
 
 const LEVEL_ORDER: NoteLevel[] = ['task', 'session', 'timer'];
 
-type ItemHandlers = Pick<NotesListProps, 'taskNames' | 'onEditNote' | 'onDeleteNote' | 'onArchiveNote' | 'onUnarchiveNote'>;
+type ItemHandlers = Pick<
+  NotesListProps,
+  'taskNames' | 'onEditNote' | 'onDeleteNote' | 'onArchiveNote' | 'onUnarchiveNote'
+>;
 
-function NoteItems({ notes, showLevelIndicator, ...handlers }: ItemHandlers & { notes: TaskNote[]; showLevelIndicator: boolean }) {
+function NoteItems({
+  notes,
+  showLevelIndicator,
+  ...handlers
+}: ItemHandlers & { notes: TaskNote[]; showLevelIndicator: boolean }) {
   return (
     <List disablePadding>
       {notes.map(note => (

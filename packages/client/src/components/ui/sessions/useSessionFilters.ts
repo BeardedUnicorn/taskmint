@@ -77,7 +77,9 @@ export function useSessionFilters({
   }, [sessions, searchQuery, statusFilter, taskFilters, sourceFilter, sessionNotes]);
 
   const { visible, olderCount } = useMemo(() => {
-    const cutoff = dayjs().subtract(RECENT_SESSION_DAYS - 1, 'day').format('YYYY-MM-DD');
+    const cutoff = dayjs()
+      .subtract(RECENT_SESSION_DAYS - 1, 'day')
+      .format('YYYY-MM-DD');
     const recent = filtered.filter(session => isRecent(session, cutoff));
     return { visible: showOlder ? filtered : recent, olderCount: filtered.length - recent.length };
   }, [filtered, showOlder]);
