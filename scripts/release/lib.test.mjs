@@ -1,7 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  assetName,
+  buildPlan,
+  buildTargets,
   bumpVersion,
+  bundlePath,
   cargoTomlName,
   cargoTomlVersion,
   changelogVersions,
@@ -9,13 +13,16 @@ import {
   highestBump,
   insertSection,
   isoDate,
+  isTarget,
   isVersion,
+  missingAssets,
   packageJsonVersion,
   parseNote,
   renderSection,
   setCargoLockVersions,
   setCargoTomlVersion,
   setPackageJsonVersion,
+  TARGETS,
 } from './lib.mjs';
 
 const note = (front, body = 'A change.') => `---\n${front}\n---\n${body}\n`;
@@ -212,5 +219,93 @@ describe('manifests', () => {
 
   it("refuses a package Cargo.lock doesn't list", () => {
     assert.throws(() => setCargoLockVersions(lock, ['taskmint-server'], '2.1.0'), /lists taskmint-server 0 times/);
+  });
+});
+
+describe('targets', () => {
+  const mac = { platform: 'darwin', arch: 'arm64' };
+  const intelMac = { platform: 'darwin', arch: 'x64' };
+  const windows = { platform: 'win32', arch: 'x64' };
+  const linux = { platform: 'linux', arch: 'x64' };
+
+  it('names each file the release ships', () => {
+    assert.deepEqual(
+      TARGETS.map(target => assetName('TaskMint', '2.2.0', target)),
+      [
+        'TaskMint-2.2.0-macos-arm64.dmg',
+        'TaskMint-2.2.0-macos-x64.dmg',
+        'TaskMint-2.2.0-windows-x64-setup.exe',
+        'TaskMint-2.2.0-chrome-extension.zip',
+      ]
+    );
+  });
+
+  it('tells a target from anything else', () => {
+    assert.equal(isTarget('windows-x64'), true);
+    assert.equal(isTarget('windows'), false);
+    assert.throws(() => assetName('TaskMint', '2.2.0', 'linux-x64'), /Unknown target "linux-x64" \(one of macos-arm64/);
+  });
+
+  it("lists the release's files that aren't there", () => {
+    const all = TARGETS.map(target => assetName('TaskMint', '2.2.0', target));
+    assert.deepEqual(missingAssets('TaskMint', '2.2.0', all), []);
+    assert.deepEqual(
+      missingAssets('TaskMint', '2.2.0', ['TaskMint-2.2.0-macos-arm64.dmg', 'TaskMint-2.1.0-macos-x64.dmg']),
+      ['TaskMint-2.2.0-macos-x64.dmg', 'TaskMint-2.2.0-windows-x64-setup.exe', 'TaskMint-2.2.0-chrome-extension.zip']
+    );
+  });
+
+  it('builds a Mac installer natively, or cross-compiled for the other CPU', () => {
+    assert.deepEqual(buildPlan('macos-arm64', mac), { kind: 'tauri', triple: null });
+    assert.deepEqual(buildPlan('macos-x64', mac), { kind: 'tauri', triple: 'x86_64-apple-darwin' });
+    assert.deepEqual(buildPlan('macos-x64', intelMac), { kind: 'tauri', triple: null });
+    assert.deepEqual(buildPlan('macos-arm64', intelMac), { kind: 'tauri', triple: 'aarch64-apple-darwin' });
+  });
+
+  it('builds the Windows installer on Windows, or with cargo-xwin on a Mac', () => {
+    assert.deepEqual(buildPlan('windows-x64', windows), { kind: 'tauri', triple: null });
+    assert.deepEqual(buildPlan('windows-x64', mac), { kind: 'xwin', triple: 'x86_64-pc-windows-msvc' });
+  });
+
+  it('zips the extension where there is a zip command', () => {
+    assert.deepEqual(buildPlan('chrome-extension', mac), { kind: 'zip' });
+    assert.deepEqual(buildPlan('chrome-extension', linux), { kind: 'zip' });
+  });
+
+  it("refuses a target the host can't build", () => {
+    assert.throws(() => buildPlan('macos-arm64', windows), /^Error: macos-arm64 can't be built on Windows \(x64\)$/);
+    assert.throws(() => buildPlan('windows-x64', linux), /windows-x64 can't be built on Linux \(x64\)/);
+    assert.throws(() => buildPlan('chrome-extension', windows), /chrome-extension can't be built on Windows/);
+    assert.throws(() => buildPlan('macos-x64', { platform: 'freebsd', arch: 'x64' }), /on freebsd \(x64\)/);
+  });
+
+  it("finds Tauri's installer in target/release, or under the triple when cross-compiled", () => {
+    const at = (target, host) => bundlePath('TaskMint', '2.2.0', target, buildPlan(target, host));
+    assert.equal(at('macos-arm64', mac), 'target/release/bundle/dmg/TaskMint_2.2.0_aarch64.dmg');
+    assert.equal(at('macos-x64', mac), 'target/x86_64-apple-darwin/release/bundle/dmg/TaskMint_2.2.0_x64.dmg');
+    assert.equal(at('windows-x64', windows), 'target/release/bundle/nsis/TaskMint_2.2.0_x64-setup.exe');
+    assert.equal(
+      at('windows-x64', mac),
+      'target/x86_64-pc-windows-msvc/release/bundle/nsis/TaskMint_2.2.0_x64-setup.exe'
+    );
+    assert.throws(() => bundlePath('TaskMint', '2.2.0', 'chrome-extension', { kind: 'zip' }), /isn't a Tauri bundle/);
+  });
+
+  it("builds the host's own installer unless targets are named", () => {
+    assert.deepEqual(buildTargets(mac), ['macos-arm64']);
+    assert.deepEqual(buildTargets(intelMac), ['macos-x64']);
+    assert.deepEqual(buildTargets(windows), ['windows-x64']);
+    assert.deepEqual(buildTargets({ ...linux, targets: ['chrome-extension'] }), ['chrome-extension']);
+    assert.throws(() => buildTargets(linux), /There's no installer for Linux \(x64\): name one with --target/);
+  });
+
+  it('builds the named targets once each, in order, with --windows adding windows-x64', () => {
+    assert.deepEqual(buildTargets({ ...mac, targets: ['macos-x64', 'macos-arm64', 'macos-x64'] }), [
+      'macos-x64',
+      'macos-arm64',
+    ]);
+    assert.deepEqual(buildTargets({ ...mac, windows: true }), ['macos-arm64', 'windows-x64']);
+    assert.deepEqual(buildTargets({ ...mac, windows: true, targets: ['windows-x64'] }), ['windows-x64']);
+    assert.throws(() => buildTargets({ ...mac, targets: ['ios'] }), /Unknown target "ios"/);
   });
 });

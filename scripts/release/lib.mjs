@@ -1,7 +1,8 @@
 /**
  * The release's pure parts (scripts/release.mjs does the files, git and
  * builds): reading change notes, the next version, the CHANGELOG section,
- * and the version in each manifest. Tested by lib.test.mjs (`node --test`).
+ * the version in each manifest, and what a release ships and how each host
+ * builds it. Tested by lib.test.mjs (`node --test`).
  */
 
 /** Bump levels, lowest first. */
@@ -183,4 +184,103 @@ export function setCargoLockVersions(text, names, version) {
     next = next.replace(entry, `$1${version}$2`);
   }
   return next;
+}
+
+// What a release ships: one file per target, each named
+// `<product>-<version>-<suffix>`. The Release workflow builds every target,
+// and a local release builds the computer's own installer unless told which.
+
+/** Every target a release ships, in the order the release lists them. */
+export const TARGETS = ['macos-arm64', 'macos-x64', 'windows-x64', 'chrome-extension'];
+
+const SUFFIXES = {
+  'macos-arm64': 'macos-arm64.dmg',
+  'macos-x64': 'macos-x64.dmg',
+  'windows-x64': 'windows-x64-setup.exe',
+  'chrome-extension': 'chrome-extension.zip',
+};
+
+/** The desktop targets: the OS and CPU each runs on, and the Tauri bundle it comes from. */
+const DESKTOP = {
+  'macos-arm64': {
+    platform: 'darwin',
+    arch: 'arm64',
+    triple: 'aarch64-apple-darwin',
+    bundle: 'dmg',
+    file: 'aarch64.dmg',
+  },
+  'macos-x64': { platform: 'darwin', arch: 'x64', triple: 'x86_64-apple-darwin', bundle: 'dmg', file: 'x64.dmg' },
+  'windows-x64': {
+    platform: 'win32',
+    arch: 'x64',
+    triple: 'x86_64-pc-windows-msvc',
+    bundle: 'nsis',
+    file: 'x64-setup.exe',
+  },
+};
+
+const PLATFORMS = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' };
+const describeHost = ({ platform, arch }) => `${PLATFORMS[platform] ?? platform} (${arch})`;
+
+export const isTarget = name => TARGETS.includes(name);
+
+function requireTarget(target) {
+  if (!isTarget(target)) throw new Error(`Unknown target "${target}" (one of ${TARGETS.join(', ')})`);
+}
+
+/** The file a target ships as. */
+export function assetName(product, version, target) {
+  requireTarget(target);
+  return `${product}-${version}-${SUFFIXES[target]}`;
+}
+
+/** Every file a release ships for the version that isn't among `files` (file names). */
+export function missingAssets(product, version, files) {
+  return TARGETS.map(target => assetName(product, version, target)).filter(name => !files.includes(name));
+}
+
+/**
+ * How a host builds a target: a Tauri build, `native` or cross-compiled with
+ * `--target <triple>` (the other Mac CPU); `xwin`, the Windows installer
+ * cross-compiled on a Mac; or `zip`, the extension zipped with the zip
+ * command. Throws for a target the host can't build.
+ */
+export function buildPlan(target, host) {
+  requireTarget(target);
+  const desktop = DESKTOP[target];
+  if (!desktop) {
+    if (host.platform === 'darwin' || host.platform === 'linux') return { kind: 'zip' };
+  } else if (desktop.platform === host.platform) {
+    return { kind: 'tauri', triple: desktop.arch === host.arch ? null : desktop.triple };
+  } else if (target === 'windows-x64' && host.platform === 'darwin') {
+    return { kind: 'xwin', triple: desktop.triple };
+  }
+  throw new Error(`${target} can't be built on ${describeHost(host)}`);
+}
+
+/** Where Tauri leaves a desktop target's installer, relative to the repository root. */
+export function bundlePath(product, version, target, plan) {
+  requireTarget(target);
+  const desktop = DESKTOP[target];
+  if (!desktop || plan.kind === 'zip') throw new Error(`${target} isn't a Tauri bundle`);
+  const dir = plan.triple ? `target/${plan.triple}/release` : 'target/release';
+  return `${dir}/bundle/${desktop.bundle}/${product}_${version}_${desktop.file}`;
+}
+
+/**
+ * The targets to build: the ones named (in order, once each), or else the
+ * host's own desktop installer. `windows` adds windows-x64.
+ */
+export function buildTargets({ targets = [], windows = false, platform, arch }) {
+  for (const target of targets) requireTarget(target);
+  let chosen = [...new Set(targets)];
+  if (chosen.length === 0) {
+    const own = Object.keys(DESKTOP).find(
+      target => DESKTOP[target].platform === platform && DESKTOP[target].arch === arch
+    );
+    if (!own) throw new Error(`There's no installer for ${describeHost({ platform, arch })}: name one with --target`);
+    chosen = [own];
+  }
+  if (windows && !chosen.includes('windows-x64')) chosen.push('windows-x64');
+  return chosen;
 }

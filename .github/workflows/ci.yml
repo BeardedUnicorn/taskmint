@@ -13,14 +13,14 @@ jobs:
   check:
     # macOS: the app's primary platform, and no extra WebKitGTK system
     # packages are needed to compile the Tauri crate.
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Version comes from package.json's packageManager field.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -45,7 +45,7 @@ jobs:
       - run: pnpm build
 
       # Load unpacked from the unzipped folder (apps/extension/README.md)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: taskmint-extension
           path: apps/extension/dist/
@@ -92,13 +92,13 @@ jobs:
     # Linux, where the images run. The server's own gates run in the compose
     # test profile (its tests need Postgres), then the whole stack is built
     # from scratch and smoke-tested through the web app.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The smoke test is plain Node, with nothing to install
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
 
