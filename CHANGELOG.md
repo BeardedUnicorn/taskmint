@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 2.2.0 – 2026-11-07
+
+### Added
+
+- Each release on GitHub now has installers for Intel Macs and Windows, next to the Apple silicon one, and the Chrome extension as a zip to load unpacked.
+
 ## 2.1.0 – 2026-11-07
 
 ### Added
