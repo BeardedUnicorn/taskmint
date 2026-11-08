@@ -1,4 +1,9 @@
-# TaskMint
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-dark.png">
+    <img src="assets/brand/logo.png" alt="TaskMint" width="440">
+  </picture>
+</h1>
 
 A desktop time tracker and earnings ledger built with Tauri v2, React and
 TypeScript. You track time in sessions against tasks with hourly rates,
@@ -145,6 +150,23 @@ and [Web app](#web-app).
 **Quit the installed TaskMint before running `pnpm tauri dev`.** Dev and
 release builds share the app identifier, so they share the data dir. The
 single-instance lock and the capture server port also collide.
+
+**App icons.** The masters are in `assets/brand/`: `icon.png` (the app icon),
+`icon-macos.png` (the same on Apple's icon grid), the wordmark `logo.png` and
+`logo-dark.png`, and the leaf `mark.png`. After changing the icon, regenerate
+the bundle icons, then replace the `.icns` with the macOS-grid one:
+
+```bash
+cd apps/desktop && pnpm tauri icon ../../assets/brand/icon.png
+```
+
+```bash
+cd apps/desktop && pnpm tauri icon ../../assets/brand/icon-macos.png -o /tmp/taskmint-icons && cp /tmp/taskmint-icons/icon.icns src-tauri/icons/
+```
+
+The menu-bar icon (`src-tauri/icons/tray-template.png`, a black leaf on
+transparent that macOS tints) and the images in `packages/client/public/` and
+`apps/extension/icons/` are made from the same masters.
 
 Copy `.env.example` to `.env` to set a Sentry DSN; otherwise reporting stays
 off.
@@ -508,7 +530,7 @@ packages/client/             React app (@taskmint/client)
   src/services/              Tasks, notes, templates (appRecords.ts: the appdata.json cache)
   src/utils/                 Pure logic: time math, payouts, work-log import, Sentry
   src/types/                 Shared types and zod schemas
-  public/                    Favicon and logos
+  public/                    Favicon, wordmark and app icon
 packages/contracts/          Wire types, CommandMap and constants (@taskmint/contracts),
                              generated from taskmint-core: don't edit src/generated
 crates/taskmint-core/        Business rules shared by every host: sessions, timers, work-log
@@ -533,6 +555,7 @@ apps/server/                 Server (taskmint-server): axum + Postgres, see "Ser
   migrations/                SQL migrations, embedded in the binary
   .sqlx/                     Query metadata for offline builds (cargo sqlx prepare)
   tests/api/                 HTTP and CLI tests against Postgres
+assets/brand/                Logo and app-icon masters (see Development)
 docs/                        ADRs, the coverage policy, the security review, the runbook
   qa/                        The manual checklist for the code coverage leaves out
 ```

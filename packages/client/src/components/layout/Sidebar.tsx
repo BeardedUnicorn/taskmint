@@ -8,7 +8,6 @@ import {
   ListItemIcon,
   ListItemText,
   Box,
-  Typography,
   Divider,
   IconButton,
   Tooltip,
@@ -26,6 +25,7 @@ import {
 } from '@mui/icons-material';
 
 import { VIEWS, VIEW_LABELS, type SidebarView } from '../../navigation/views';
+import { Wordmark } from '../ui/display/Wordmark';
 
 export type { SidebarView };
 
@@ -88,9 +88,9 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
         }}
       >
         {!isCollapsed && (
-          <Typography variant="h6" component="div" sx={{ fontWeight: 600, flex: 1 }}>
-            TaskMint
-          </Typography>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Wordmark height={28} />
+          </Box>
         )}
         {!isCollapsed && headerAction?.(false)}
         <IconButton

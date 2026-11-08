@@ -115,6 +115,9 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Tray menu.** The menu lists the start entries, the disabled label
       lines, separators and Quit. Renaming or archiving a task updates it
       without a restart.
+- [ ] **Tray icon.** On macOS the menu-bar icon is the one-color leaf, black
+      on a light menu bar and white on a dark one; on Windows and Linux it's
+      the app icon.
 - [ ] **Tray status.** While a timer runs, the tooltip names the task and its
       time, and on macOS the elapsed time shows beside the icon. Stopping
       clears that title.

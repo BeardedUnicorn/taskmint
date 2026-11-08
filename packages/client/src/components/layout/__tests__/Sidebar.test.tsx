@@ -22,17 +22,17 @@ describe('Sidebar', () => {
     const { unmount } = render(
       <Sidebar activeView="sessions" onViewChange={() => {}} footer={footer} headerAction={headerAction} />
     );
-    expect(screen.getByText('TaskMint')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'TaskMint' })).toBeInTheDocument();
     expect(screen.getByText('bell')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
-    expect(screen.queryByText('TaskMint')).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'TaskMint' })).not.toBeInTheDocument();
     expect(screen.getByText('small bell')).toBeInTheDocument();
     expect(screen.getByText('small footer')).toBeInTheDocument();
     unmount();
 
     render(<Sidebar activeView="sessions" onViewChange={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
-    expect(screen.getByText('TaskMint')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'TaskMint' })).toBeInTheDocument();
   });
 });
