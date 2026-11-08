@@ -89,7 +89,16 @@ export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDi
   const step = (days: number) => onChangeDate(dayjs(date).add(days, 'day').format('YYYY-MM-DD'));
 
   return (
-    <Dialog open onClose={onClose} maxWidth="md" fullWidth aria-labelledby="calendar-day-title">
+    <Dialog
+      open
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      aria-labelledby="calendar-day-title"
+      // Pinned to the top: centred, it moves with each day's height, and the
+      // day arrows would slide out from under the pointer
+      sx={{ '& .MuiDialog-container': { alignItems: 'flex-start' }, '& .MuiDialog-paper': { mt: '8vh' } }}
+    >
       <DialogTitle id="calendar-day-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box component="span" sx={{ flex: 1 }}>
           {formatDate(parseDateStringLocal(date))}

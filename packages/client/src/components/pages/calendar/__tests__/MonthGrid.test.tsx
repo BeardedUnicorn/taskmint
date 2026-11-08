@@ -202,7 +202,7 @@ describe('MonthGrid', () => {
     expect(thursday).toHaveTextContent('~$25.00');
     expect(thursday).toHaveTextContent('$712.50');
     expect(dayButton('2026-11-06')).toHaveTextContent('$100.00');
-    expect(dayButton('2026-11-08')).toHaveTextContent('Opens 6:25 PM');
+    expect(dayButton('2026-11-08')).toHaveTextContent('6:25 PM');
     expect(dayButton('2026-11-10')).toHaveTextContent('$525.00');
     expect(screen.getAllByRole('progressbar', { hidden: true })).toHaveLength(2);
     expect(weekCell('Week of Nov 1: 1h 0m, ~$550.00')).toHaveTextContent('~$550.00');

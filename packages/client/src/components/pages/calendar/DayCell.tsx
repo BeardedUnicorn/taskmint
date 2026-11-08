@@ -1,7 +1,8 @@
 /**
  * One day on the Calendar: its date, what was earned and tracked, a bar
  * toward the daily goal, and badges for money released, withdrawals, and the
- * next withdrawal's opening. A button that opens the day's breakdown.
+ * next withdrawal's opening (its time; the legend says what it is). A button
+ * that opens the day's breakdown.
  *
  * Narrow grids show whole dollars and coloured dots; wider ones (a container
  * query on the grid, see MonthGrid) show cents, time and labelled badges.
@@ -229,7 +230,7 @@ export function DayCell({ day, tabbable, onOpen, onFocusDay }: DayCellProps) {
             ))}
             {day.opensAtMs !== null && (
               <Badge tone="success" dashed icon={<OpensIcon />}>
-                Opens {formatClockTime(day.opensAtMs)}
+                {formatClockTime(day.opensAtMs)}
               </Badge>
             )}
             {day.openNow && (
