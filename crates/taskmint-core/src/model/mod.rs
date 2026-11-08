@@ -35,7 +35,6 @@ pub struct BackupResult {
     pub file_path: Option<String>,
     pub error: Option<String>,
     pub timestamp: String,
-    pub file_size: Option<u64>,
 }
 
 // Path validation result: `isValid` to the frontend (useBackupSettings

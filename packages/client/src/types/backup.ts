@@ -33,7 +33,6 @@ export interface BackupResult {
   filePath?: string;
   error?: string;
   timestamp: string;
-  fileSize?: number;
 }
 
 // Default backup configuration
