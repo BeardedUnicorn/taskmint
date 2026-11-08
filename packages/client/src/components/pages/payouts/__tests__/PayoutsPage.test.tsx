@@ -480,20 +480,29 @@ describe('PayoutsPage', () => {
     };
 
     it('counts a running timer toward today, second by second', () => {
-      const running = stoppedSessionOn(0, 'task-1', 1);
-      running.timerInstances[0] = {
-        ...running.timerInstances[0],
-        state: TimerState.running,
-        isRunning: true,
-        endTime: undefined,
-        duration: undefined,
-      };
-      mockSessionContext.sessions = [running];
-      mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Task task-1', hourlyRate: 60 })];
-      render(<PayoutsPage />);
+      // The timer starts at 09:00 today, so the clock reads noon: before 09:00
+      // it hadn't started yet. Only Date is faked, so the 1 s tick still runs.
+      const today = new Date();
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0));
+      try {
+        const running = stoppedSessionOn(0, 'task-1', 1);
+        running.timerInstances[0] = {
+          ...running.timerInstances[0],
+          state: TimerState.running,
+          isRunning: true,
+          endTime: undefined,
+          duration: undefined,
+        };
+        mockSessionContext.sessions = [running];
+        mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Task task-1', hourlyRate: 60 })];
+        render(<PayoutsPage />);
 
-      expect(screen.getByText('Daily reconciliation')).toBeInTheDocument();
-      expect(screen.getAllByText('Estimate').length).toBeGreaterThan(0);
+        expect(screen.getByText('Daily reconciliation')).toBeInTheDocument();
+        expect(screen.getAllByText('Estimate').length).toBeGreaterThan(0);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('says money is available a day later, for one day', () => {

@@ -48,13 +48,21 @@ capture as it arrives, in any open tab.
 
 ## Install (load unpacked)
 
-1. Build it: `pnpm --filter @taskmint/extension build` writes `apps/extension/dist/`
-   (CI also uploads it as the `taskmint-extension` artifact).
+1. Get it. Either download `TaskMint-X.Y.Z-chrome-extension.zip` from the
+   [GitHub release](https://github.com/BeardedUnicorn/taskmint/releases/latest)
+   and unzip it into a folder you'll keep (Chrome loads it from there each
+   time it starts), or build it: `pnpm --filter @taskmint/extension build`
+   writes `apps/extension/dist/` (CI also uploads it as the
+   `taskmint-extension` artifact).
 2. Open `chrome://extensions`.
 3. Enable **Developer mode** (top right).
-4. Click **Load unpacked** and select the `apps/extension/dist/` folder. After
-   a rebuild, click **Reload** on the extension's card.
+4. Click **Load unpacked** and select the unzipped folder, or
+   `apps/extension/dist/`. For a newer version, replace the folder's
+   contents (or rebuild), then click **Reload** on the extension's card.
 5. Visit the DataAnnotation payments page while logged in.
+
+The manifest's `key` gives the extension the same ID from any folder, and
+that ID is the one TaskMint accepts captures from.
 
 An extension loaded from `apps/extension/` itself (before it was built) has
 to be removed and loaded again from `dist/`. Its ID stays the same.

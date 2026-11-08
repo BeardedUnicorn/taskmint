@@ -206,7 +206,8 @@ them, and `git blame --ignore-revs-file .git-blame-ignore-revs` does locally.
 
 CI (`.github/workflows/ci.yml`) runs them on pushes to `main` and on pull
 requests: everything but the server on macOS, and the server's gates and the
-smoke-tested stack in a Linux docker job.
+smoke-tested stack in a Linux docker job. The Release workflow
+(`.github/workflows/release.yml`) builds the release files (see Releasing).
 
 ### Releasing
 
@@ -218,27 +219,53 @@ on `main`:
 ```bash
 pnpm release --dry-run    # the next version and its CHANGELOG section; changes nothing
 pnpm release              # bump, CHANGELOG, build the DMG, commit "Release X.Y.Z", tag vX.Y.Z
+pnpm release publish      # push main and the tag; CI builds and publishes the release
 ```
 
 `pnpm release` takes the highest `bump` among the notes. It writes that
 version into every manifest (the desktop, web, client and contracts
 `package.json`s, the three crates and `Cargo.lock`; the extension keeps its
-own), adds the CHANGELOG section, and deletes the notes. It then builds and
-copies the installer to `releases/TaskMint-X.Y.Z-macos-arm64.dmg`. Only after
-the build succeeds does it commit and tag. If the build fails, the version
-files, CHANGELOG and notes are put back. Nothing is pushed.
+own), adds the CHANGELOG section, and deletes the notes. It then builds this
+Mac's installer into `releases/TaskMint-X.Y.Z-macos-arm64.dmg`, to check the
+release builds before it's tagged. Only after the build succeeds does it
+commit and tag. If the build fails, the version files, CHANGELOG and notes
+are put back. Nothing is pushed.
 
 | Option | |
 |---|---|
 | `--patch`, `--minor`, `--major` | bump this level instead (needed when there are no notes) |
-| `--windows` | also cross-compile `releases/TaskMint-X.Y.Z-windows-x64-setup.exe` (needs cargo-xwin) |
+| `--target <name>` | build this instead of this computer's installer (repeat it for more): `macos-arm64`, `macos-x64` (cross-compiled on Apple silicon), `windows-x64`, `chrome-extension` |
+| `--windows` | also build `windows-x64` (on a Mac, cross-compiled with cargo-xwin) |
 | `--no-build` | version, CHANGELOG, commit and tag only |
-| `--rebuild` | build the current version's installers again, with no bump or commit |
-| `--publish` | then push `main` and the tag, and create the GitHub release with the notes and installers |
+| `--rebuild` | build the current version's installers again, with no bump or commit (takes `--target` and `--windows`) |
+| `--publish` | then push `main` and the tag |
 
-`pnpm release publish` publishes the current version on its own; if the
-GitHub release already exists, it adds the installers to it. The repository
-is public, so a published release's installers are public too.
+`pnpm release publish` pushes `main` and the current version's tag. The tag
+starts the Release workflow, which builds every file a release ships on
+GitHub's runners and then creates the GitHub release with the version's
+CHANGELOG section (`gh run list --workflow release.yml` follows it):
+
+| File | Built on |
+|---|---|
+| `TaskMint-X.Y.Z-macos-arm64.dmg` | macOS, Apple silicon |
+| `TaskMint-X.Y.Z-macos-x64.dmg` | macOS, cross-compiled for Intel |
+| `TaskMint-X.Y.Z-windows-x64-setup.exe` | Windows |
+| `TaskMint-X.Y.Z-chrome-extension.zip` | Linux ([apps/extension/README.md](apps/extension/README.md) says how to install it) |
+
+The release is created only once all four are built, and a re-run replaces
+the files of a release that already exists. The repository is public, so a
+published release's files are public too. Running the workflow by hand
+(Actions → Release → Run workflow), or a pull request that changes how
+releases are built, builds the same files as workflow artifacts and
+publishes nothing. The desktop builds report errors to Sentry when the
+repository has a `VITE_SENTRY_DSN` secret (Settings → Secrets and variables
+→ Actions); without it they report nothing.
+
+The installers aren't signed (the Mac app is signed ad hoc). The first time
+a downloaded build is opened, macOS says it can't verify TaskMint: open
+System Settings → Privacy & Security and click **Open Anyway**. On Windows,
+SmartScreen says it protected the PC: click **More info**, then **Run
+anyway**.
 
 A plain `pnpm tauri build` still works for a build that isn't a release; its
 installer stays in `target/release/bundle/`.

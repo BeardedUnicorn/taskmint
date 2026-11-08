@@ -1,0 +1,113 @@
+name: Release
+
+# A vX.Y.Z tag (pushed by `pnpm release publish`) builds every file a release
+# ships and creates the GitHub release with the version's CHANGELOG section.
+# Manual runs, and pull requests that change how releases are built, build the
+# same files as workflow artifacts and publish nothing.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - scripts/release.mjs
+      - scripts/release/**
+      - apps/desktop/src-tauri/tauri.conf.json
+      - apps/extension/build.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-arm64
+            os: macos-26
+          # Cross-compiled on Apple silicon (scripts/release/lib.mjs buildPlan)
+          - target: macos-x64
+            os: macos-26
+          - target: windows-x64
+            os: windows-2025
+          - target: chrome-extension
+            os: ubuntu-26.04
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      # CHANGELOG.md is bundled into the About page as text, so Windows keeps
+      # its LF line ends too.
+      - run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Version comes from package.json's packageManager field.
+      - uses: pnpm/action-setup@v6
+
+      # No dependency caches: a release is built from a clean install.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: The tag is the app's version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          version=$(node -p "require('./apps/desktop/package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME, but apps/desktop/package.json says $version"
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+
+      # The version and components in rust-toolchain.toml
+      - if: matrix.target != 'chrome-extension'
+        run: rustup toolchain install
+
+      - run: node scripts/release.mjs --rebuild --target ${{ matrix.target }}
+        env:
+          # Error reporting in the desktop builds; with no secret they report nothing
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          path: releases/
+          if-no-files-found: error
+
+  github-release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: releases
+          merge-multiple: true
+
+      - run: node scripts/release.mjs github-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
