@@ -489,16 +489,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
   );
 
   // Throws on failure: the caller (the session-notes move) retries next launch.
-  const clearSessionNotes = useCallback(
-    async (sessionIds: string[]): Promise<number> => {
-      if (sessionIds.length === 0) return 0;
-      const cleared = await getBackend().call('clear_session_notes', { sessionIds });
-      if (cleared > 0) await loadSessions({ silent: true });
-      return cleared;
-    },
-    [loadSessions]
-  );
-
   // Undo brings a deleted session back as history: inactive, any timer that
   // was running when it was deleted stopped at that moment.
   const restoreSession = useCallback(
@@ -628,7 +618,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
       activeSession,
       startTask,
       addManualTime,
-      clearSessionNotes,
       deleteSession,
       setActiveSession,
       endActiveSession,
@@ -649,7 +638,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
       activeSession,
       startTask,
       addManualTime,
-      clearSessionNotes,
       deleteSession,
       setActiveSession,
       endActiveSession,

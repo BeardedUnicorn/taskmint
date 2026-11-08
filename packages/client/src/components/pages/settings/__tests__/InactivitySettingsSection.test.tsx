@@ -13,8 +13,6 @@ function renderSection() {
 }
 
 function storeSettings(data: Record<string, unknown>) {
-  // The one-time off-by-default migration already ran on this install
-  window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_DEFAULT_OFF_APPLIED, 'true');
   window.localStorage.setItem(STORAGE_KEYS.INACTIVITY_SETTINGS, JSON.stringify({ version: 1, data }));
 }
 

@@ -102,23 +102,6 @@ describe('useDailyGoals', () => {
     });
   });
 
-  describe('getCurrentGoal', () => {
-    it('should return null when no goal exists', () => {
-      vi.mocked(useAppRecord).mockReturnValue([null, vi.fn()]);
-      const { result } = renderHook(() => useDailyGoals());
-      expect(result.current.getCurrentGoal()).toBe(null);
-    });
-
-    it('should return current goal when it exists', () => {
-      vi.mocked(useAppRecord).mockImplementation((key: string) => {
-        if (key === 'dailyGoal') return [mockGoal, vi.fn()];
-        return [[], vi.fn()];
-      });
-      const { result } = renderHook(() => useDailyGoals());
-      expect(result.current.getCurrentGoal()).toEqual(mockGoal);
-    });
-  });
-
   describe('updateDailyGoal', () => {
     it('should create new goal when none exists', async () => {
       const { result } = renderHook(() => useDailyGoals());
@@ -184,140 +167,6 @@ describe('useDailyGoals', () => {
       expect(updatedGoal.createdAt).toBe(mockGoal.createdAt);
       expect(updatedGoal.lastNotifiedPercent).toBe(mockGoal.lastNotifiedPercent);
       expect(updatedGoal.lastNotificationDate).toBe(mockGoal.lastNotificationDate);
-    });
-  });
-
-  describe('enableDailyGoal', () => {
-    it('should enable existing goal', async () => {
-      vi.mocked(useAppRecord).mockImplementation((key: string) => {
-        if (key === 'dailyGoal') return [{ ...mockGoal, isEnabled: false }, mockSetCurrentGoal];
-        return [[], vi.fn()];
-      });
-      const { result } = renderHook(() => useDailyGoals());
-
-      await act(async () => {
-        await result.current.enableDailyGoal(true);
-      });
-
-      expect(mockSetCurrentGoal).toHaveBeenCalledWith({
-        ...mockGoal,
-        isEnabled: true,
-        updatedAt: '2024-01-02T12:00:00.000Z',
-      });
-    });
-
-    it('should disable existing goal', async () => {
-      vi.mocked(useAppRecord).mockImplementation((key: string) => {
-        if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];
-        return [[], vi.fn()];
-      });
-      const { result } = renderHook(() => useDailyGoals());
-
-      await act(async () => {
-        await result.current.enableDailyGoal(false);
-      });
-
-      expect(mockSetCurrentGoal).toHaveBeenCalledWith({
-        ...mockGoal,
-        isEnabled: false,
-        updatedAt: '2024-01-02T12:00:00.000Z',
-      });
-    });
-
-    it('should create new goal when enabling and no goal exists', async () => {
-      vi.mocked(useAppRecord).mockImplementation((key: string) => {
-        if (key === 'dailyGoal') return [null, mockSetCurrentGoal];
-        return [[], vi.fn()];
-      });
-      const { result } = renderHook(() => useDailyGoals());
-
-      await act(async () => {
-        await result.current.enableDailyGoal(true);
-      });
-
-      expect(mockSetCurrentGoal).toHaveBeenCalledWith({
-        targetAmount: 0,
-        currency: 'USD',
-        isEnabled: true,
-        lastNotifiedPercent: 0,
-        lastNotificationDate: '',
-        createdAt: '2024-01-02T12:00:00.000Z',
-        updatedAt: '2024-01-02T12:00:00.000Z',
-      });
-    });
-
-    it('should not create goal when disabling and no goal exists', async () => {
-      const { result } = renderHook(() => useDailyGoals());
-
-      await act(async () => {
-        await result.current.enableDailyGoal(false);
-      });
-
-      expect(mockSetCurrentGoal).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('getAchievementsForDateRange', () => {
-    const achievements = [
-      { ...mockAchievement, id: 'ach1', date: '2024-01-01' },
-      {
-        ...mockAchievement,
-        id: 'ach2',
-        date: '2024-01-02',
-        earnedAmount: 110,
-        status: 'exceeded',
-        difference: 10,
-        percentageAchieved: 110,
-      },
-      { ...mockAchievement, id: 'ach3', date: '2024-01-03' },
-      { ...mockAchievement, id: 'ach4', date: '2024-01-05' },
-    ];
-
-    it('should return achievements within date range', async () => {
-      vi.mocked(useAppRecord).mockImplementation((key: string) => {
-        if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
-        return [null, vi.fn()];
-      });
-      const { result } = renderHook(() => useDailyGoals());
-
-      let filteredAchievements: DailyGoalAchievement[] = [];
-      await act(async () => {
-        filteredAchievements = await result.current.getAchievementsForDateRange('2024-01-02', '2024-01-04');
-      });
-
-      expect(filteredAchievements).toHaveLength(2);
-      expect(filteredAchievements.map(a => a.id)).toEqual(['ach2', 'ach3']);
-    });
-
-    it('should return empty array when no achievements in range', async () => {
-      vi.mocked(useAppRecord).mockImplementation((key: string) => {
-        if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
-        return [null, vi.fn()];
-      });
-      const { result } = renderHook(() => useDailyGoals());
-
-      let filteredAchievements: DailyGoalAchievement[] = [];
-      await act(async () => {
-        filteredAchievements = await result.current.getAchievementsForDateRange('2024-01-10', '2024-01-15');
-      });
-
-      expect(filteredAchievements).toHaveLength(0);
-    });
-
-    it('should include boundary dates', async () => {
-      vi.mocked(useAppRecord).mockImplementation((key: string) => {
-        if (key === 'dailyGoalAchievements') return [achievements, vi.fn()];
-        return [null, vi.fn()];
-      });
-      const { result } = renderHook(() => useDailyGoals());
-
-      let filteredAchievements: DailyGoalAchievement[] = [];
-      await act(async () => {
-        filteredAchievements = await result.current.getAchievementsForDateRange('2024-01-01', '2024-01-03');
-      });
-
-      expect(filteredAchievements).toHaveLength(3);
-      expect(filteredAchievements.map(a => a.id)).toEqual(['ach1', 'ach2', 'ach3']);
     });
   });
 
@@ -474,41 +323,20 @@ describe('useDailyGoals', () => {
       const { result } = renderHook(() => useDailyGoals());
       expect(result.current).toHaveProperty('currentGoal');
       expect(result.current).toHaveProperty('achievements');
-      expect(result.current).toHaveProperty('getCurrentGoal');
       expect(result.current).toHaveProperty('updateDailyGoal');
-      expect(result.current).toHaveProperty('enableDailyGoal');
-      expect(result.current).toHaveProperty('getAchievementsForDateRange');
       expect(result.current).toHaveProperty('recordAchievement');
       expect(result.current).toHaveProperty('updateNotificationState');
     });
 
     it('should return functions for all methods', () => {
       const { result } = renderHook(() => useDailyGoals());
-      expect(typeof result.current.getCurrentGoal).toBe('function');
       expect(typeof result.current.updateDailyGoal).toBe('function');
-      expect(typeof result.current.enableDailyGoal).toBe('function');
-      expect(typeof result.current.getAchievementsForDateRange).toBe('function');
       expect(typeof result.current.recordAchievement).toBe('function');
       expect(typeof result.current.updateNotificationState).toBe('function');
     });
   });
 
   describe('edge cases', () => {
-    it('should handle empty achievements array', async () => {
-      vi.mocked(useAppRecord).mockImplementation((key: string) => {
-        if (key === 'dailyGoalAchievements') return [[], mockSetAchievements];
-        return [null, vi.fn()];
-      });
-      const { result } = renderHook(() => useDailyGoals());
-
-      let achievements: DailyGoalAchievement[] = [];
-      await act(async () => {
-        achievements = await result.current.getAchievementsForDateRange('2024-01-01', '2024-01-31');
-      });
-
-      expect(achievements).toEqual([]);
-    });
-
     it('should handle goal updates with partial data', async () => {
       vi.mocked(useAppRecord).mockImplementation((key: string) => {
         if (key === 'dailyGoal') return [mockGoal, mockSetCurrentGoal];

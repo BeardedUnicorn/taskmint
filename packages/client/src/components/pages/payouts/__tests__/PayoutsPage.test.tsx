@@ -105,12 +105,9 @@ describe('PayoutsPage', () => {
       entries: [],
       mappings: [],
       isLoading: false,
-      error: null,
       loadWarning: null,
-      reload: vi.fn(),
       applyImport: vi.fn(),
       stagedCapture: null,
-      stageCapture: vi.fn(),
       clearStagedCapture: vi.fn(),
     };
     mockSessionContext.sessions = [];

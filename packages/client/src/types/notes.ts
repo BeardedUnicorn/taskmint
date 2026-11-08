@@ -59,50 +59,28 @@ export interface TaskNote {
   updatedAt: string;
 }
 
-// Field Value Types
-export interface FieldValue {
-  fieldId: string;
-  value: string | number | Date | null;
-  type: FieldType;
-}
-
 // Zod Validation Schemas
 export const SelectOptionSchema = z.object({
   label: z.string().min(1),
   value: z.string().min(1),
 });
 
-// 'command' fields (which ran a shell command to fill the value) were removed.
-// Templates saved or exported before that still carry them, so they load as
-// plain text fields instead of failing validation; saved values are kept.
-function migrateLegacyCommandField(field: unknown): unknown {
-  if (!field || typeof field !== 'object') return field;
-  const record = field as Record<string, unknown>;
-  if (record.type !== 'command') return field;
-  const migrated: Record<string, unknown> = { ...record, type: 'text' };
-  delete migrated.command;
-  return migrated;
-}
-
-export const TemplateFieldSchema = z.preprocess(
-  migrateLegacyCommandField,
-  z.object({
-    id: z.string().min(1),
-    label: z.string().min(1).max(100),
-    type: z.enum(['text', 'number', 'date', 'checkbox', 'select']),
-    required: z.boolean(),
-    placeholder: z.string().optional(),
-    order: z.number().min(0),
-    validation: z
-      .object({
-        min: z.number().optional(),
-        max: z.number().optional(),
-        pattern: z.string().optional(),
-      })
-      .optional(),
-    options: z.array(SelectOptionSchema).optional(),
-  })
-);
+export const TemplateFieldSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1).max(100),
+  type: z.enum(['text', 'number', 'date', 'checkbox', 'select']),
+  required: z.boolean(),
+  placeholder: z.string().optional(),
+  order: z.number().min(0),
+  validation: z
+    .object({
+      min: z.number().optional(),
+      max: z.number().optional(),
+      pattern: z.string().optional(),
+    })
+    .optional(),
+  options: z.array(SelectOptionSchema).optional(),
+});
 
 export const NoteTemplateSchema = z.object({
   id: z.string().min(1),
@@ -202,13 +180,9 @@ export interface UseNoteTemplatesReturn {
 export interface UseTaskNotesReturn {
   notes: TaskNote[];
   createNote: (note: Omit<TaskNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<TaskNote>;
-  /** Adds finished notes in one write, skipping ids that exist; returns the notes added. */
-  addNotes: (notes: TaskNote[]) => Promise<TaskNote[]>;
   updateNote: (noteId: string, updates: Partial<TaskNote>) => Promise<TaskNote>;
   deleteNote: (noteId: string) => Promise<void>;
   archiveNote: (noteId: string) => Promise<TaskNote>;
   unarchiveNote: (noteId: string) => Promise<TaskNote>;
   searchNotes: (query: string) => TaskNote[];
-  isLoading: boolean;
-  error: string | null;
 }

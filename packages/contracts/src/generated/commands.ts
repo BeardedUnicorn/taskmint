@@ -5,7 +5,6 @@ import type { AddManualTimeArgs } from "./AddManualTimeArgs";
 import type { AppRecords } from "./AppRecords";
 import type { ApplyIdleChoiceArgs } from "./ApplyIdleChoiceArgs";
 import type { ApplyWorkLogImportArgs } from "./ApplyWorkLogImportArgs";
-import type { ClearSessionNotesArgs } from "./ClearSessionNotesArgs";
 import type { CreateTimerInstanceArgs } from "./CreateTimerInstanceArgs";
 import type { ImportAppRecordsArgs } from "./ImportAppRecordsArgs";
 import type { InstanceArgs } from "./InstanceArgs";
@@ -39,7 +38,6 @@ export interface CommandMap {
   start_task: { args: StartTaskArgs; reply: StartTaskResult };
   add_manual_time: { args: AddManualTimeArgs; reply: TaskSession };
   set_active_session: { args: SetActiveSessionArgs; reply: Array<TaskSession> };
-  clear_session_notes: { args: ClearSessionNotesArgs; reply: number };
   delete_session: { args: SessionArgs; reply: TaskSession };
   restore_session: { args: RestoreSessionArgs; reply: TaskSession };
   restore_timer_instance: { args: RestoreTimerInstanceArgs; reply: TaskSession };

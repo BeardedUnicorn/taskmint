@@ -27,12 +27,6 @@ const THEMES = { light: createAppTheme('light'), dark: createAppTheme('dark') };
 // Create context
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// Theme provider props
-interface ThemeProviderProps {
-  children: ReactNode;
-  defaultMode?: ThemeMode;
-}
-
 /**
  * Hook to use theme context
  */
@@ -53,8 +47,8 @@ function getSystemTheme(): 'light' | 'dark' {
 /**
  * Theme Provider Component
  */
-export function ThemeProvider({ children, defaultMode = 'dark' }: ThemeProviderProps) {
-  const [mode, setMode] = useLocalStorage<ThemeMode>('theme-mode', defaultMode);
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [mode, setMode] = useLocalStorage<ThemeMode>('theme-mode', 'dark');
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(getSystemTheme);
 
   // Follow the system's light/dark changes

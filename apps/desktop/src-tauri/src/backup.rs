@@ -57,7 +57,6 @@ fn failed(error: String, at: DateTime<Utc>) -> BackupResult {
         file_path: None,
         error: Some(error),
         timestamp: at.to_rfc3339(),
-        file_size: None,
     }
 }
 
@@ -96,7 +95,6 @@ pub fn perform_automatic_backup(
         file_path: Some(file_path.to_string_lossy().to_string()),
         error: None,
         timestamp: at.to_rfc3339(),
-        file_size: fs::metadata(&file_path).ok().map(|metadata| metadata.len()),
     }
 }
 
@@ -187,7 +185,6 @@ mod tests {
         let result = perform_automatic_backup(text(&dir.0), r#"{"a":1}"#, 2, at(3));
 
         assert!(result.success);
-        assert_eq!(result.file_size, Some(7));
         assert_eq!(
             names(&dir.0),
             [

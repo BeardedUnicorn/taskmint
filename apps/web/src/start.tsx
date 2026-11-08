@@ -68,6 +68,5 @@ export async function start(container: HTMLElement, page: Page = window.location
   await startClient(container, {
     backend: createHttpBackend({ server }),
     extensions: webExtensions({ user: me.user, server, navigate: path => page.assign(path) }),
-    importLegacyRecords: false,
   });
 }

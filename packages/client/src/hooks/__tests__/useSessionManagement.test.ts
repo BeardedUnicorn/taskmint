@@ -1500,29 +1500,6 @@ describe('useSessionManagement', () => {
       });
     });
 
-    describe('session notes', () => {
-      it('clears nothing for no sessions', async () => {
-        const { result } = await ready();
-        await expect(result.current.clearSessionNotes([])).resolves.toBe(0);
-        expect(calls('clear_session_notes')).toHaveLength(0);
-      });
-
-      it('reloads only when notes were cleared', async () => {
-        primeCommand('clear_session_notes', 2, 0);
-        const { result } = await ready();
-
-        await act(async () => {
-          await expect(result.current.clearSessionNotes(['session-1', 'session-2'])).resolves.toBe(2);
-        });
-        expect(calls('get_sessions')).toHaveLength(2);
-
-        await act(async () => {
-          await expect(result.current.clearSessionNotes(['session-1'])).resolves.toBe(0);
-        });
-        expect(calls('get_sessions')).toHaveLength(2);
-      });
-    });
-
     describe('deleting a session', () => {
       it("counts the timers, and doesn't restore a session that came back", async () => {
         const stopped = { ...mockTimerInstance, state: TimerState.stopped, duration: 60_000 };
@@ -1543,11 +1520,8 @@ describe('useSessionManagement', () => {
 
         // Back already (another device restored it, and a reload brought it
         // in): Undo adds no second copy
-        primeCommand('clear_session_notes', 1);
-        await act(async () => {
-          await result.current.clearSessionNotes(['session-1']);
-        });
-        expect(result.current.sessions).toHaveLength(1);
+        act(() => fakeBackend().emit(BACKEND_EVENTS.SESSIONS_CHANGED, {}));
+        await waitFor(() => expect(result.current.sessions).toHaveLength(1));
         const [, { actions }] = mockShowInfo.mock.calls[0];
         await act(async () => {
           await actions[0].onClick();

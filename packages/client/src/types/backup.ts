@@ -33,7 +33,6 @@ export interface BackupResult {
   filePath?: string;
   error?: string;
   timestamp: string;
-  fileSize?: number;
 }
 
 // Default backup configuration
@@ -120,6 +119,3 @@ export const BackupFileSchema = z.object({
       .optional(),
   }),
 });
-
-/** restore_backup_data's reply. */
-export type { RestoreSummary } from '@taskmint/contracts';

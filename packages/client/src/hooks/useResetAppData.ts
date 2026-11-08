@@ -3,12 +3,6 @@ import { getBackend } from '../backend';
 import { reloadApp } from '../utils/appReload';
 import { flushAppRecords } from '../services/appRecords';
 
-/** Result of the backend's reset_all_app_data command. */
-export interface ResetAppDataSummary {
-  backupsDeleted: number;
-  warning: string | null;
-}
-
 interface UseResetAppDataProps {
   onError?: (error: string) => void;
 }

@@ -79,50 +79,10 @@ describe('Enhanced Notes Types', () => {
       expect(() => TemplateFieldSchema.parse(dateField)).not.toThrow();
     });
 
-    it('loads a legacy command field as a text field without its command', () => {
-      // Shape saved/exported before command fields were removed.
-      const legacyCommandField = {
-        id: 'field4',
-        label: 'Command Field',
-        type: 'command',
-        required: false,
-        order: 3,
-        command: 'echo "Hello World"',
-      };
-
-      const parsed = TemplateFieldSchema.parse(legacyCommandField);
-
-      expect(parsed).toEqual({
-        id: 'field4',
-        label: 'Command Field',
-        type: 'text',
-        required: false,
-        order: 3,
-      });
-      expect(parsed).not.toHaveProperty('command');
-    });
-
-    it("refuses a field that isn't one, as it always did", () => {
+    it("refuses a field that isn't one", () => {
       for (const notAField of [null, 'text', 7]) {
         expect(TemplateFieldSchema.safeParse(notAField).success).toBe(false);
       }
-    });
-
-    it('keeps a stored template with a legacy command field loadable', () => {
-      const parsed = NoteTemplateSchema.parse({
-        id: 'legacy',
-        name: 'Legacy',
-        fields: [
-          { id: 'f1', label: 'Hostname', type: 'command', required: true, order: 0, command: 'hostname' },
-          { id: 'f2', label: 'Notes', type: 'text', required: false, order: 1 },
-        ],
-        isActive: true,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-      });
-
-      expect(parsed.fields.map(f => f.type)).toEqual(['text', 'text']);
-      expect(parsed.fields[0]).not.toHaveProperty('command');
     });
 
     it('should validate checkbox field', () => {

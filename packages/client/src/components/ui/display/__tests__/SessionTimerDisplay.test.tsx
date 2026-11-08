@@ -54,8 +54,6 @@ describe('SessionTimerDisplay', () => {
   const mockProps = {
     session: mockSession,
     nowMs: NOW_MS,
-    showControls: true,
-    showNotes: true,
     size: 'large' as const,
     onStartTimer: vi.fn(),
     onStopTimer: vi.fn(),
@@ -170,12 +168,6 @@ describe('SessionTimerDisplay', () => {
       render(<SessionTimerDisplay {...mockProps} session={maxedOutSession} />);
 
       expect(screen.getByRole('button', { name: /add timer/i })).toBeDisabled();
-    });
-
-    it('omits the Add Timer button when no handler is provided', () => {
-      render(<SessionTimerDisplay {...mockProps} onAddTimer={undefined} />);
-
-      expect(screen.queryByRole('button', { name: /add timer/i })).not.toBeInTheDocument();
     });
   });
 

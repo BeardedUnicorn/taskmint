@@ -8,7 +8,6 @@ import { NoteTemplateService } from '../../services/NoteTemplateService';
 import { TaskNotesService } from '../../services/TaskNotesService';
 import { StorageService } from '../../services/StorageService';
 import { describe, it, beforeEach, expect } from 'vitest';
-import { seedAppRecords } from '../../testing';
 
 describe('Notes Integration', () => {
   let templateService: NoteTemplateService;
@@ -251,45 +250,6 @@ describe('Notes Integration', () => {
   });
 
   describe('Field Types Support', () => {
-    it('loads templates saved with legacy command fields as text fields', async () => {
-      // A template stored before command fields were removed.
-      seedAppRecords({
-        noteTemplates: [
-          {
-            id: 'legacy-template',
-            name: 'Command Template',
-            fields: [
-              {
-                id: 'command-field',
-                label: 'Command Output',
-                type: 'command',
-                required: false,
-                order: 0,
-                command: 'echo "Hello World"',
-              },
-            ],
-            isActive: true,
-            createdAt: '2024-01-01T00:00:00.000Z',
-            updatedAt: '2024-01-01T00:00:00.000Z',
-          },
-        ],
-      });
-
-      const [template] = await templateService.getAllTemplates();
-      expect(template.fields[0].type).toBe('text');
-      expect(template.fields[0]).not.toHaveProperty('command');
-
-      const note = await notesService.createNote({
-        taskId: 'test-task',
-        templateId: template.id,
-        templateName: template.name,
-        fieldValues: {
-          'command-field': 'Hello World',
-        },
-      });
-      expect(note.fieldValues['command-field']).toBe('Hello World');
-    });
-
     it('should support all field types', async () => {
       const template = await templateService.createTemplate({
         name: 'All Types Template',

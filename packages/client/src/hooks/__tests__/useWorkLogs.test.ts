@@ -63,7 +63,6 @@ describe('useWorkLogs', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.entries).toEqual([entry]);
     expect(result.current.mappings).toEqual([mapping]);
-    expect(result.current.error).toBeNull();
     expect(mockShowError).not.toHaveBeenCalled();
   });
 
@@ -92,7 +91,7 @@ describe('useWorkLogs', () => {
     error.mockRestore();
   });
 
-  it('surfaces the backend error string when loading fails', async () => {
+  it('toasts the backend error string when loading fails', async () => {
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === 'get_work_logs') throw 'Failed to lock work logs: poisoned';
       return undefined;
@@ -100,8 +99,8 @@ describe('useWorkLogs', () => {
 
     const { result } = renderHook(() => useWorkLogs());
 
-    await waitFor(() => expect(result.current.error).toBe('Failed to lock work logs: poisoned'));
-    expect(mockShowError).toHaveBeenCalledWith('Failed to lock work logs: poisoned');
+    await waitFor(() => expect(mockShowError).toHaveBeenCalledWith('Failed to lock work logs: poisoned'));
+    expect(result.current.isLoading).toBe(false);
   });
 
   it('shows a startup load warning once', async () => {
@@ -109,14 +108,16 @@ describe('useWorkLogs', () => {
       if (command === 'get_work_logs') {
         return { ...emptyResponse, loadWarning: '2 records skipped' };
       }
+      if (command === 'apply_work_log_import') return emptySummary;
       return undefined;
     });
 
     const { result } = renderHook(() => useWorkLogs());
 
     await waitFor(() => expect(result.current.loadWarning).toBe('2 records skipped'));
+    // An import reads the ledger again; the warning isn't shown twice
     await act(async () => {
-      await result.current.reload();
+      await result.current.applyImport(emptyPayload);
     });
     expect(mockShowWarning).toHaveBeenCalledTimes(1);
     expect(mockShowWarning).toHaveBeenCalledWith('2 records skipped', {
@@ -167,7 +168,6 @@ describe('useWorkLogs', () => {
     });
 
     expect(returned).toBeNull();
-    expect(result.current.error).toBe('replacement session id already exists');
     expect(mockShowError).toHaveBeenCalledWith('replacement session id already exists');
   });
 });

@@ -5,7 +5,7 @@
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import { WorkLogProvider, useWorkLogContext } from '../WorkLogContext';
 import { UseWorkLogsReturn } from '../../hooks/useWorkLogs';
 import { createMockTask, createMockWorkLogEntry } from '../../__tests__/setup/session-test-utils';
@@ -14,9 +14,7 @@ const mockWorkLogs: UseWorkLogsReturn = {
   entries: [createMockWorkLogEntry()],
   mappings: [],
   isLoading: false,
-  error: null,
   loadWarning: null,
-  reload: vi.fn(),
   applyImport: vi.fn(),
 };
 vi.mock('../../hooks/useWorkLogs', () => ({
@@ -44,13 +42,6 @@ function Probe() {
     <div>
       <span data-testid="entry-count">{context.entries.length}</span>
       <span data-testid="staged">{context.stagedCapture?.payloadText ?? 'none'}</span>
-      <button
-        onClick={() =>
-          context.stageCapture({ payloadText: '{"workLogs":[]}', receivedAt: 'T1', reason: 'unmapped-project' })
-        }
-      >
-        stage
-      </button>
       <button onClick={context.clearStagedCapture}>clear</button>
     </div>
   );
@@ -71,7 +62,11 @@ describe('WorkLogContext', () => {
     expect(screen.getByTestId('entry-count')).toHaveTextContent('1');
     expect(screen.getByTestId('staged')).toHaveTextContent('none');
 
-    fireEvent.click(screen.getByText('stage'));
+    // The capture handler stages a capture it can't apply yet
+    const { stageCapture } = mockUseWorkLogCapture.mock.lastCall![0] as {
+      stageCapture: (capture: { payloadText: string; receivedAt: string; reason: 'unmapped-project' }) => void;
+    };
+    act(() => stageCapture({ payloadText: '{"workLogs":[]}', receivedAt: 'T1', reason: 'unmapped-project' }));
     expect(screen.getByTestId('staged')).toHaveTextContent('{"workLogs":[]}');
 
     fireEvent.click(screen.getByText('clear'));

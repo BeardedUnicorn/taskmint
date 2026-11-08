@@ -34,14 +34,11 @@ export interface UseDailyGoalsReturn {
   achievements: DailyGoalAchievement[];
 
   // Goal management functions
-  getCurrentGoal(): DailyGoal | null;
   updateDailyGoal(
     goalData: Partial<Omit<DailyGoal, 'createdAt' | 'updatedAt' | 'lastNotifiedPercent' | 'lastNotificationDate'>>
   ): Promise<void>;
-  enableDailyGoal(isEnabled: boolean): Promise<void>;
 
   // Achievement management functions
-  getAchievementsForDateRange(startDate: string, endDate: string): Promise<DailyGoalAchievement[]>;
   recordAchievement(achievementData: Omit<DailyGoalAchievement, 'id' | 'recordedAt'>): Promise<DailyGoalAchievement>;
 
   // Notification state management
@@ -67,10 +64,6 @@ export function useDailyGoalsState(): UseDailyGoalsReturn {
     STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
     []
   );
-
-  const getCurrentGoal = useCallback((): DailyGoal | null => {
-    return currentGoal;
-  }, [currentGoal]);
 
   const updateDailyGoal = useCallback(
     async (
@@ -98,37 +91,6 @@ export function useDailyGoalsState(): UseDailyGoalsReturn {
       }
     },
     [currentGoal, setCurrentGoal]
-  );
-
-  const enableDailyGoal = useCallback(
-    async (isEnabled: boolean): Promise<void> => {
-      if (currentGoal) {
-        const updatedGoal: DailyGoal = {
-          ...currentGoal,
-          isEnabled,
-          updatedAt: new Date().toISOString(),
-        };
-        setCurrentGoal(updatedGoal);
-      } else if (isEnabled) {
-        // Create a new goal if enabling and no goal exists
-        const now = new Date().toISOString();
-        const newGoal: DailyGoal = {
-          ...DEFAULT_DAILY_GOAL,
-          isEnabled: true,
-          createdAt: now,
-          updatedAt: now,
-        };
-        setCurrentGoal(newGoal);
-      }
-    },
-    [currentGoal, setCurrentGoal]
-  );
-
-  const getAchievementsForDateRange = useCallback(
-    async (startDate: string, endDate: string): Promise<DailyGoalAchievement[]> => {
-      return achievements.filter(achievement => achievement.date >= startDate && achievement.date <= endDate);
-    },
-    [achievements]
   );
 
   const recordAchievement = useCallback(
@@ -177,22 +139,10 @@ export function useDailyGoalsState(): UseDailyGoalsReturn {
     () => ({
       currentGoal,
       achievements,
-      getCurrentGoal,
       updateDailyGoal,
-      enableDailyGoal,
-      getAchievementsForDateRange,
       recordAchievement,
       updateNotificationState,
     }),
-    [
-      currentGoal,
-      achievements,
-      getCurrentGoal,
-      updateDailyGoal,
-      enableDailyGoal,
-      getAchievementsForDateRange,
-      recordAchievement,
-      updateNotificationState,
-    ]
+    [currentGoal, achievements, updateDailyGoal, recordAchievement, updateNotificationState]
   );
 }

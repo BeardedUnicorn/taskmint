@@ -11,16 +11,10 @@ import { errorMessage } from './errors';
 export interface ErrorContext {
   service?: string;
   method?: string;
-  userId?: string;
   taskId?: string;
-  taskName?: string;
-  entryId?: string;
   noteId?: string;
   templateId?: string;
   timeEntryId?: string;
-  elapsedMs?: number;
-  operation?: string;
-  data?: Record<string, any>;
 }
 
 /**
