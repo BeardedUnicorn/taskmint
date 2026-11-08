@@ -86,7 +86,13 @@ export function AboutSettingsSection() {
             Earlier releases
           </Typography>
           {earlier.map(release => (
-            <Accordion key={release.version} disableGutters variant="outlined">
+            <Accordion
+              key={release.version}
+              disableGutters
+              variant="outlined"
+              // Rendered once opened, so the whole history isn't on the page
+              slotProps={{ transition: { unmountOnExit: true } }}
+            >
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
                 id={`release-${release.version}`}

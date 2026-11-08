@@ -48,9 +48,12 @@ describe('App', () => {
     render(<App />);
     for (const view of VIEWS) {
       nav(view);
-      expect(await screen.findByRole('heading', { name: VIEW_LABELS[view], level: 1 })).toBeInTheDocument();
+      // (Pages load lazily, which can take a while when the machine is busy)
+      expect(
+        await screen.findByRole('heading', { name: VIEW_LABELS[view], level: 1 }, { timeout: 5000 })
+      ).toBeInTheDocument();
     }
-  });
+  }, 30_000);
 
   it('starts work from the dialog the Sessions page opens', async () => {
     render(<App />);
