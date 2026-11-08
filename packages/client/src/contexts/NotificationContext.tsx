@@ -177,7 +177,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     (options: NotifyOptions): void => {
       const severity = options.severity ?? 'info';
       const category = options.category ?? 'general';
-      const key = options.dedupeKey ?? `${severity}|${category}|${options.title ?? ''}|${options.message}`;
+      // Toasts with the same severity, category, title and message merge (a "×2" count)
+      const key = `${severity}|${category}|${options.title ?? ''}|${options.message}`;
       const isAttended = isWindowAttended();
 
       let decision = routeNotification(

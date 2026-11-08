@@ -45,8 +45,6 @@ export interface NotifyOptions {
   actions?: NotificationAction[];
   /** How long the toast stays, in ms; null keeps it until dismissed. */
   duration?: number | null;
-  /** Toasts with the same key merge (a "×2" count) instead of stacking. */
-  dedupeKey?: string;
   desktop?: DesktopRoute;
   /** false: don't keep it in the notification history (e.g. "Copied"). */
   history?: boolean;

@@ -19,7 +19,6 @@ import { useTaskManagementContext } from './TaskManagementContext';
 
 export interface WorkLogContextValue extends UseWorkLogsReturn {
   stagedCapture: StagedCapture | null;
-  stageCapture: (capture: StagedCapture) => void;
   clearStagedCapture: () => void;
 }
 
@@ -50,8 +49,8 @@ export function WorkLogProvider({ children }: { children: ReactNode }) {
   });
 
   const value = useMemo(
-    () => ({ ...workLogs, stagedCapture, stageCapture, clearStagedCapture }),
-    [workLogs, stagedCapture, stageCapture, clearStagedCapture]
+    () => ({ ...workLogs, stagedCapture, clearStagedCapture }),
+    [workLogs, stagedCapture, clearStagedCapture]
   );
 
   return <WorkLogContext.Provider value={value}>{children}</WorkLogContext.Provider>;
