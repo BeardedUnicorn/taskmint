@@ -30,4 +30,15 @@ describe('PayoutSettingsSection', () => {
     fireEvent.click(within(await screen.findByRole('listbox')).getByRole('option', { name: '5' }));
     expect(screen.getByRole('combobox', { name: 'Days Before Funds Released' })).toHaveTextContent('5');
   });
+
+  it('saves how many days the site makes you wait between withdrawals', async () => {
+    localStorage.clear();
+    render(<PayoutSettingsSection />);
+    const interval = () => screen.getByRole('combobox', { name: 'Days Between Withdrawals' });
+    expect(interval()).toHaveTextContent('3');
+
+    fireEvent.mouseDown(interval());
+    fireEvent.click(within(await screen.findByRole('listbox')).getByRole('option', { name: '7' }));
+    expect(interval()).toHaveTextContent('7');
+  });
 });

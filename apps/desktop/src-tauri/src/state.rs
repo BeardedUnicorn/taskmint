@@ -62,6 +62,9 @@ pub struct Shell {
     idle: Mutex<IdleState>,
     // Which OS notifications the user allows (mirrored from the app).
     notification_prefs: Mutex<NotificationPrefs>,
+    // The tray's line about the next withdrawal (the app works it out and
+    // sends it; the money math lives there). In memory only.
+    tray_withdrawal: Mutex<Option<String>>,
 }
 
 /// The shell, shared by the IPC command, the tray, the idle monitor and
@@ -128,6 +131,7 @@ impl AppState {
                 tray: Mutex::new(TrayShown::default()),
                 idle: Mutex::new(IdleState::default()),
                 notification_prefs: Mutex::new(NotificationPrefs::default()),
+                tray_withdrawal: Mutex::new(None),
             }
         }))
     }
@@ -159,6 +163,12 @@ impl Shell {
         NotificationPrefs
     );
     accessors!(with_tray, with_tray_mut, tray, TrayShown);
+    accessors!(
+        with_tray_withdrawal,
+        with_tray_withdrawal_mut,
+        tray_withdrawal,
+        Option<String>
+    );
     accessors!(
         with_capture_server_status,
         with_capture_server_status_mut,

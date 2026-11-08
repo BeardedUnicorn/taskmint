@@ -189,6 +189,16 @@ describe('createTauriBackend', () => {
     });
   });
 
+  it("sets and clears the tray's withdrawal line", async () => {
+    await platform.tray!.setWithdrawalLabel('Withdrawal open · $10.00 available');
+    await platform.tray!.setWithdrawalLabel(null);
+
+    expect(dispatched()).toEqual([
+      ['set_tray_withdrawal', { label: 'Withdrawal open · $10.00 available' }],
+      ['set_tray_withdrawal', { label: null }],
+    ]);
+  });
+
   it('reveals files and reports the capture server', async () => {
     await platform.reveal!('/Users/me/export.json');
     await platform.captureStatus!();

@@ -97,7 +97,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn only_the_five_record_keys_are_records() {
+    fn only_the_listed_record_keys_are_records() {
         for key in APP_RECORD_KEYS {
             assert!(is_app_record_key(key));
         }

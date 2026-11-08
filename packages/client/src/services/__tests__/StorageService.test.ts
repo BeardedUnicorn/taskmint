@@ -154,4 +154,23 @@ describe('StorageService', () => {
       expect(await service.getGoalAchievements()).toEqual([achievement]);
     });
   });
+
+  describe('withdrawals', () => {
+    it('keeps the withdrawals in their app record, checked', async () => {
+      const service = StorageService.getInstance();
+      expect(await service.getWithdrawals()).toEqual([]);
+      const withdrawal = {
+        id: 'w1',
+        takenAt: '2026-11-07T18:25:00.000Z',
+        amountCents: 71250,
+        createdAt: '2026-11-07T18:30:00.000Z',
+        updatedAt: '2026-11-07T18:30:00.000Z',
+      };
+      await service.setWithdrawals([withdrawal]);
+      expect(await service.getWithdrawals()).toEqual([withdrawal]);
+      await expect(service.setWithdrawals([{ ...withdrawal, amountCents: -1 }])).rejects.toMatchObject({
+        code: 'STORAGE_VALIDATION_FAILED',
+      });
+    });
+  });
 });

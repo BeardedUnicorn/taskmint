@@ -8,6 +8,8 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, within, waitFor } from '../../../../__tests__/setup/test-helpers';
 import { PayoutsPage } from '../PayoutsPage';
+import { WithdrawalsProvider } from '../../../../contexts/WithdrawalsContext';
+import { PayoutDataProvider } from '../../../../contexts/PayoutDataContext';
 import { Task } from '../../../../types/task';
 import { TaskSession, TimerState } from '../../../../types/timer';
 import { WorkLogContextValue } from '../../../../contexts/WorkLogContext';
@@ -18,7 +20,8 @@ import {
   createMockWorkLogEntry,
 } from '../../../../__tests__/setup/session-test-utils';
 import userEvent from '@testing-library/user-event';
-import { fakeBackend, installFakeBackendForTest } from '../../../../testing';
+import { fakeBackend, installFakeBackendForTest, seedAppRecords } from '../../../../testing';
+import { createMockWithdrawal } from '../../../../__tests__/setup/payout-test-utils';
 
 const mockInvoke = fakeBackend().call;
 
@@ -47,6 +50,17 @@ const mockFundsRelease = vi.hoisted(() => ({ days: 7 }));
 vi.mock('../../../../hooks/useFundsReleaseSettings', () => ({
   useFundsReleaseSettings: () => ({ days: mockFundsRelease.days, updateDays: vi.fn() }),
 }));
+
+/** The page with the app's money providers around it (over the mocked contexts). */
+function renderPage() {
+  return render(
+    <WithdrawalsProvider>
+      <PayoutDataProvider>
+        <PayoutsPage />
+      </PayoutDataProvider>
+    </WithdrawalsProvider>
+  );
+}
 
 /** Local YYYY-MM-DD for today + offset days (calendar-safe across DST). */
 function dayOffset(offset: number): string {
@@ -104,13 +118,56 @@ describe('PayoutsPage', () => {
     mockFundsRelease.days = 7;
   });
 
+  describe('withdrawals', () => {
+    it('counts what is available from the last withdrawal, and lists the withdrawals', () => {
+      seedAppRecords({
+        withdrawals: [
+          createMockWithdrawal({ id: 'last', takenAt: new Date(Date.now() - 2 * 86_400_000).toISOString() }),
+        ],
+      });
+      mockWorkLogsReturn.entries = [
+        // Released after the withdrawal (its report time + 7 days), not yet reported again
+        createMockWorkLogEntry({
+          id: 'since',
+          status: 'Pending Approval',
+          workDay: dayOffset(-8),
+          createdAt: new Date(Date.now() - 8 * 86_400_000 + 3_600_000).toISOString(),
+          updatedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+          amountCents: 40000,
+        }),
+      ];
+      mockSessionContext.sessions = [stoppedSessionOn(-8, 'task-1', 1)];
+      mockTaskContext.tasks = [createMockTask({ id: 'task-1', hourlyRate: 10 })];
+
+      renderPage();
+
+      const card = screen.getByText('Available to withdraw').closest('.MuiCard-root')!;
+      expect(card).toHaveTextContent('$400.00');
+      expect(card).toHaveTextContent('released since your withdrawal on');
+      expect(screen.getByRole('region', { name: 'Withdrawals' })).toHaveTextContent('Next withdrawal');
+      expect(screen.getByRole('table', { name: 'Withdrawals' })).toHaveTextContent('$712.50');
+    });
+
+    it('marks estimates in what is available', () => {
+      seedAppRecords({
+        withdrawals: [createMockWithdrawal({ takenAt: new Date(Date.now() - 9 * 86_400_000).toISOString() })],
+      });
+      mockSessionContext.sessions = [stoppedSessionOn(-8, 'task-1', 2)];
+      mockTaskContext.tasks = [createMockTask({ id: 'task-1', hourlyRate: 10 })];
+
+      renderPage();
+
+      expect(screen.getByText('Available to withdraw').closest('.MuiCard-root')).toHaveTextContent('~$20.00');
+    });
+  });
+
   it('splits imported money into available and pending by release day', () => {
     mockWorkLogsReturn.entries = [
       createMockWorkLogEntry({ id: 'released', status: 'Untransferred', workDay: dayOffset(-10), amountCents: 30000 }),
       createMockWorkLogEntry({ id: 'waiting', status: 'Pending Approval', workDay: dayOffset(-2), amountCents: 12300 }),
     ];
 
-    render(<PayoutsPage />);
+    renderPage();
 
     const availableTitle = screen.getByText('Available now');
     const availableCard = availableTitle.closest('.MuiCard-root')!;
@@ -132,7 +189,7 @@ describe('PayoutsPage', () => {
       createMockWorkLogEntry({ id: 'pending', status: 'Pending Approval', workDay: dayOffset(-8), amountCents: 10000 }),
     ];
 
-    render(<PayoutsPage />);
+    renderPage();
 
     const availableTitle = screen.getByText('Available now');
     const availableCard = availableTitle.closest('.MuiCard-root')!;
@@ -179,7 +236,7 @@ describe('PayoutsPage', () => {
       }),
     ];
 
-    render(<PayoutsPage />);
+    renderPage();
 
     expect(screen.getByText('Upcoming releases')).toBeInTheDocument();
     const upcomingTable = screen.getByText('Upcoming releases').closest<HTMLElement>('.MuiPaper-root')!;
@@ -206,7 +263,7 @@ describe('PayoutsPage', () => {
     mockTaskContext.tasks = [createMockTask({ id: 'task-2', name: 'Rated', hourlyRate: 50 })];
     mockSessionContext.sessions = [stoppedSessionOn(0, 'task-2', 2)];
 
-    render(<PayoutsPage />);
+    renderPage();
 
     // 2h × $50 = $100 estimated scorecard, and an Estimate source chip.
     expect(screen.getByText('Estimated (not imported)')).toBeInTheDocument();
@@ -219,7 +276,7 @@ describe('PayoutsPage', () => {
       createMockWorkLogEntry({ workDay: dayOffset(-1), amountCents: 7500, timeInMinutes: 60 }),
     ];
 
-    render(<PayoutsPage />);
+    renderPage();
 
     expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByText('Pending Approval')).toBeInTheDocument();
@@ -258,7 +315,7 @@ describe('PayoutsPage', () => {
     });
 
     it('opens the current month and totals each month', () => {
-      render(<PayoutsPage />);
+      renderPage();
 
       expect(screen.getByRole('button', { name: `Hide ${monthLabel(0)}` })).toHaveAttribute('aria-expanded', 'true');
       expect(screen.getByRole('button', { name: `Show ${monthLabel(-1)}` })).toHaveAttribute('aria-expanded', 'false');
@@ -271,7 +328,7 @@ describe('PayoutsPage', () => {
     });
 
     it('shows and hides a month on click', () => {
-      render(<PayoutsPage />);
+      renderPage();
 
       fireEvent.click(screen.getByRole('button', { name: `Show ${monthLabel(-1)}` }));
       expect(screen.getByText(dayInMonth(-1, 10))).toBeInTheDocument();
@@ -283,7 +340,7 @@ describe('PayoutsPage', () => {
 
     it('opens the newest month when this month has nothing yet', () => {
       mockWorkLogsReturn.entries = mockWorkLogsReturn.entries.filter(e => e.id !== 'this-month');
-      render(<PayoutsPage />);
+      renderPage();
 
       expect(screen.getByRole('button', { name: `Hide ${monthLabel(-1)}` })).toBeInTheDocument();
       expect(screen.getByText(dayInMonth(-1, 10))).toBeInTheDocument();
@@ -291,7 +348,7 @@ describe('PayoutsPage', () => {
   });
 
   it('shows the empty state and opens the import dialog', async () => {
-    render(<PayoutsPage />);
+    renderPage();
 
     expect(screen.getByText('No payout data yet')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: /import work logs/i })[0]);
@@ -300,7 +357,7 @@ describe('PayoutsPage', () => {
 
   it('surfaces a persistent load warning', () => {
     mockWorkLogsReturn.loadWarning = '2 saved work-log record(s) could not be read';
-    render(<PayoutsPage />);
+    renderPage();
     expect(screen.getByText(/could not be read/)).toBeInTheDocument();
   });
 
@@ -312,7 +369,7 @@ describe('PayoutsPage', () => {
       reason: 'unmapped-project',
     };
 
-    render(<PayoutsPage />);
+    renderPage();
 
     expect(screen.getByText(/project without a task match/)).toBeInTheDocument();
 
@@ -328,7 +385,7 @@ describe('PayoutsPage', () => {
       reason: 'unmapped-project',
     };
 
-    render(<PayoutsPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(mockWorkLogsReturn.clearStagedCapture).toHaveBeenCalled();
@@ -341,7 +398,7 @@ describe('PayoutsPage', () => {
       reason: 'unverified-link',
     };
 
-    render(<PayoutsPage />);
+    renderPage();
 
     expect(screen.getByText(/arrived through a taskmint:\/\/ link/)).toBeInTheDocument();
     expect(screen.queryByText(/project without a task match/)).not.toBeInTheDocument();
@@ -355,7 +412,7 @@ describe('PayoutsPage', () => {
       warning: 'Browser capture server could not start on 127.0.0.1:43117',
     });
 
-    render(<PayoutsPage />);
+    renderPage();
 
     expect(await screen.findByText(/Browser capture server could not start/)).toBeInTheDocument();
   });
@@ -364,7 +421,7 @@ describe('PayoutsPage', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     fakeBackend().platform.captureStatus.mockRejectedValueOnce('no server');
 
-    render(<PayoutsPage />);
+    renderPage();
 
     await waitFor(() => expect(warn).toHaveBeenCalledWith('Failed to read the capture server status:', 'no server'));
     warn.mockRestore();
@@ -372,12 +429,12 @@ describe('PayoutsPage', () => {
 
   it('asks for no capture-server status where the platform runs none', () => {
     installFakeBackendForTest({ without: ['captureStatus'] });
-    render(<PayoutsPage />);
+    renderPage();
     expect(screen.queryByText(/Browser capture server/)).not.toBeInTheDocument();
   });
 
   it('renders no capture-server alert when the server is healthy', async () => {
-    render(<PayoutsPage />);
+    renderPage();
     expect(screen.queryByText(/Browser capture server/)).not.toBeInTheDocument();
   });
   describe('Last import', () => {
@@ -392,7 +449,7 @@ describe('PayoutsPage', () => {
         createMockWorkLogEntry({ id: 'b', workDay: dayOffset(-1), updatedAt: recent.toISOString() }),
       ];
 
-      render(<PayoutsPage />);
+      renderPage();
 
       const line = screen.getByText(/^Last import:/);
       expect(line).toHaveTextContent(recent.toLocaleString('en-US', { month: 'short', day: 'numeric' }));
@@ -407,13 +464,13 @@ describe('PayoutsPage', () => {
         }),
       ];
 
-      render(<PayoutsPage />);
+      renderPage();
 
       expect(screen.getByText(/^Last import:/)).toHaveTextContent('visit the payments page to refresh');
     });
 
     it('is hidden with no imported work logs', () => {
-      render(<PayoutsPage />);
+      renderPage();
       expect(screen.queryByText(/^Last import:/)).not.toBeInTheDocument();
     });
   });
@@ -434,7 +491,7 @@ describe('PayoutsPage', () => {
         groupsSkipped: [],
       });
 
-      render(<PayoutsPage />);
+      renderPage();
       await userEvent.click(screen.getByRole('button', { name: 'Show project mappings' }));
       await userEvent.click(screen.getByRole('combobox', { name: 'Task for Test Project' }));
       await userEvent.click(screen.getByRole('option', { name: 'Other Task' }));
@@ -496,7 +553,7 @@ describe('PayoutsPage', () => {
         };
         mockSessionContext.sessions = [running];
         mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Task task-1', hourlyRate: 60 })];
-        render(<PayoutsPage />);
+        renderPage();
 
         expect(screen.getByText('Daily reconciliation')).toBeInTheDocument();
         expect(screen.getAllByText('Estimate').length).toBeGreaterThan(0);
@@ -507,18 +564,18 @@ describe('PayoutsPage', () => {
 
     it('says money is available a day later, for one day', () => {
       mockFundsRelease.days = 1;
-      render(<PayoutsPage />);
+      renderPage();
       expect(screen.getByText(/becomes available 1 day later/)).toBeInTheDocument();
     });
 
     it('shows progress while the first work logs load', () => {
       mockWorkLogsReturn.isLoading = true;
-      render(<PayoutsPage />);
+      renderPage();
       expect(screen.getByRole('progressbar')).toBeInTheDocument();
     });
 
     it('closes the import without importing', async () => {
-      render(<PayoutsPage />);
+      renderPage();
       const dialog = await openImport();
       fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -527,7 +584,7 @@ describe('PayoutsPage', () => {
     it("creates a task for a new project, and says so when it couldn't", async () => {
       const error = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockAddTask.mockResolvedValueOnce(null).mockResolvedValueOnce(createMockTask({ id: 'new', name: 'Raccoon' }));
-      render(<PayoutsPage />);
+      renderPage();
       const dialog = await openImport();
       const create = async () => {
         fireEvent.click(within(dialog).getByRole('button', { name: 'Create New Task' }));
@@ -547,7 +604,7 @@ describe('PayoutsPage', () => {
     it("retires a staged capture once it's applied, and leaves the task's rate alone", async () => {
       mockTaskContext.tasks = [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 125 })];
       vi.mocked(mockWorkLogsReturn.applyImport).mockResolvedValueOnce(null).mockResolvedValueOnce(summary);
-      render(<PayoutsPage />);
+      renderPage();
       const dialog = await openImport();
       const apply = within(dialog).getByRole('button', { name: /apply import/i });
 

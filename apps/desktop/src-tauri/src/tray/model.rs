@@ -93,6 +93,8 @@ pub struct TraySnapshot {
     pub tasks: Vec<Task>,
     /// Server mode: what's wrong with the link to the server, if anything.
     pub server_problem: Option<&'static str>,
+    /// When the next withdrawal opens and how much it will be (the app sends it).
+    pub withdrawal: Option<String>,
 }
 
 impl TraySnapshot {
@@ -111,6 +113,7 @@ impl TraySnapshot {
                 .cloned()
                 .collect(),
             server_problem: None,
+            withdrawal: None,
         }
     }
 
@@ -161,6 +164,11 @@ impl TraySnapshot {
             None => items.push(TrayItem::Label("No active timer".to_string())),
         }
         items.push(TrayItem::Separator);
+
+        if let Some(withdrawal) = &self.withdrawal {
+            items.push(TrayItem::Label(format!("💰 {}", withdrawal)));
+            items.push(TrayItem::Separator);
+        }
 
         if self.tasks.is_empty() {
             // Work starts from existing tasks only; the app opens on Tasks.
@@ -326,6 +334,7 @@ mod tests {
             idle_paused,
             tasks,
             server_problem: None,
+            withdrawal: None,
         }
     }
 
@@ -357,6 +366,21 @@ mod tests {
                 "show_app 📊 Show App",
                 "-",
                 "quit"
+            ]
+        );
+    }
+
+    #[test]
+    fn the_next_withdrawal_has_its_own_line_under_the_timer() {
+        let mut with = snapshot(None, false, vec![]);
+        with.withdrawal = Some("Next withdrawal: Mon, Nov 10, 6:25 PM · $1,100.00".to_string());
+        assert_eq!(
+            labels(&with.menu().0)[..4],
+            [
+                "label No active timer",
+                "-",
+                "label 💰 Next withdrawal: Mon, Nov 10, 6:25 PM · $1,100.00",
+                "-"
             ]
         );
     }

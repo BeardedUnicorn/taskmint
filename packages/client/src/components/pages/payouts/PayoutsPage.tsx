@@ -2,9 +2,9 @@
  * Payouts Page
  *
  * The money view over the imported work-log ledger and tracked sessions:
- * what's available now, what's pending release (workDay + fundsReleaseDays),
- * the upcoming release schedule, and a per-day reconciliation of tracked vs
- * imported time. Imported amounts (cents from the site) are authoritative;
+ * the next withdrawal, what's available now, what's pending release
+ * (workDay + fundsReleaseDays), the upcoming release schedule, the recorded
+ * withdrawals, and a per-day reconciliation of tracked vs imported time. Imported amounts (cents from the site) are authoritative;
  * days without imported data show rate-based estimates.
  */
 
@@ -22,7 +22,7 @@ import { useTaskManagementContext } from '../../../contexts/TaskManagementContex
 import { useWorkLogContext } from '../../../contexts/WorkLogContext';
 import { Task } from '../../../types/task';
 import { WorkLogImportPayload } from '../../../types/workLog';
-import { centsToDollars } from '../../../utils/payoutCalculator';
+import { centsToDollars, formatCents } from '../../../utils/payoutCalculator';
 import { formatCurrency } from '../../../utils/formatters';
 import { StatsCard } from '../../ui/display/StatsCard';
 import { EmptyState } from '../../ui/display/EmptyState';
@@ -31,14 +31,16 @@ import { ImportWorkLogsDialog } from './ImportWorkLogsDialog';
 import { ProjectMappingsCard } from './ProjectMappingsCard';
 import { ReconciliationTable } from './ReconciliationTable';
 import { ReleaseScheduleTable } from './ReleaseScheduleTable';
-import { usePayoutData } from './usePayoutData';
+import { usePayoutData } from '../../../hooks/usePayoutData';
+import { NextWithdrawalPanel } from './withdrawals/NextWithdrawalPanel';
+import { WithdrawalsCard } from './withdrawals/WithdrawalsCard';
 import { formatShortDateTime } from '../../../utils/locale';
 
 export function PayoutsPage() {
   const { sessions } = useSessionManagementContext();
   const { tasks, addTask } = useTaskManagementContext();
   const workLogs = useWorkLogContext();
-  const { fundsReleaseDays, today, schedule, summary, monthGroups, lastImport, importIsStale, isEmpty } =
+  const { fundsReleaseDays, today, schedule, summary, monthGroups, plan, lastImport, importIsStale, isEmpty } =
     usePayoutData();
   const [importOpen, setImportOpen] = useState(false);
 
@@ -144,6 +146,8 @@ export function PayoutsPage() {
         />
       ) : (
         <>
+          <NextWithdrawalPanel />
+
           <Box
             sx={{
               display: 'grid',
@@ -152,13 +156,23 @@ export function PayoutsPage() {
               mb: 4,
             }}
           >
-            <StatsCard
-              title="Available now"
-              value={formatCurrency(centsToDollars(summary.availableCents))}
-              subtitle={`released through ${today}`}
-              icon={<WalletIcon fontSize="large" />}
-              color="success"
-            />
+            {plan ? (
+              <StatsCard
+                title="Available to withdraw"
+                value={`${plan.availableNow.estimatedCents > 0 ? '~' : ''}${formatCents(plan.availableNow.totalCents)}`}
+                subtitle={`released since your withdrawal on ${formatShortDateTime(plan.last.takenAt)}`}
+                icon={<WalletIcon fontSize="large" />}
+                color="success"
+              />
+            ) : (
+              <StatsCard
+                title="Available now"
+                value={formatCurrency(centsToDollars(summary.availableCents))}
+                subtitle={`released through ${today}, as the site reported at the last import`}
+                icon={<WalletIcon fontSize="large" />}
+                color="success"
+              />
+            )}
             <StatsCard
               title="Pending release"
               value={formatCurrency(centsToDollars(summary.pendingCents))}
@@ -180,6 +194,7 @@ export function PayoutsPage() {
           </Box>
 
           <ReleaseScheduleTable schedule={schedule} />
+          <WithdrawalsCard />
           <ReconciliationTable monthGroups={monthGroups} today={today} />
         </>
       )}

@@ -45,6 +45,19 @@ export function formatDurationCompact(milliseconds: number): string {
 }
 
 /**
+ * How long until something: "2d 23h", "5h 12m", or "12m" (rounded up to the
+ * minute, so it never says 0m before the moment).
+ */
+export function formatCountdown(milliseconds: number): string {
+  const totalMinutes = Math.ceil(Math.max(0, milliseconds) / 60_000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+/**
  * Format date to human-readable format
  */
 export function formatDate(date: Date): string {

@@ -11,10 +11,10 @@ import utc from 'dayjs/plugin/utc';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { formattingLocale } from './locale';
 
-// Extend dayjs with required plugins. Not `timezone`: nothing here needs
-// named zones, and when dayjs.tz exists react-big-calendar's localizer
-// switches to tz-mode date math that adds 24h per "day" across a DST change
-// (duplicating Nov 1 in US zones). See utils/calendarLocalizer.ts.
+// Extend dayjs with required plugins. Never `timezone`: nothing here needs
+// named zones, and loading it app-wide has broken local calendar-day math
+// before (a "day" of 24h repeats a date across a DST change). The Calendar
+// builds its days with plain local math (components/pages/calendar).
 dayjs.extend(localizedFormat);
 dayjs.extend(utc);
 dayjs.extend(relativeTime);

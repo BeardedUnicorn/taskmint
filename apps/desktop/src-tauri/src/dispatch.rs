@@ -38,6 +38,11 @@ enum Shell {
     SetNotificationPreferences {
         prefs: NotificationPrefs,
     },
+    /// The tray's line about the next withdrawal, or null for none. The app
+    /// sends it whenever it changes.
+    SetTrayWithdrawal {
+        label: Option<String>,
+    },
     /// Resolves to whether it was shown (false when the user's settings
     /// don't allow it).
     ShowDesktopNotification {
@@ -97,12 +102,13 @@ enum Shell {
     InstallUpdate {},
 }
 
-const SHELL_COMMANDS: [&str; 23] = [
+const SHELL_COMMANDS: [&str; 24] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
     "resolve_idle_pause",
     "set_notification_preferences",
+    "set_tray_withdrawal",
     "show_desktop_notification",
     "get_capture_server_status",
     "validate_backup_path",
@@ -158,6 +164,11 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         Shell::ResolveIdlePause { choice } => reply(crate::idle::resolve(state, &choice)?),
         Shell::SetNotificationPreferences { prefs } => {
             state.with_notification_prefs_mut(|current| *current = prefs);
+            Value::Null
+        }
+        Shell::SetTrayWithdrawal { label } => {
+            state.with_tray_withdrawal_mut(|current| *current = label);
+            crate::tray::sync(state);
             Value::Null
         }
         Shell::ShowDesktopNotification { kind, title, body } => {
@@ -321,6 +332,27 @@ mod tests {
             run(&f, "resolve_idle_pause", json!({ "choice": "later" })),
             Err("Unknown choice: later".to_string())
         );
+    }
+
+    #[test]
+    fn the_app_sets_and_clears_the_trays_withdrawal_line() {
+        let f = fixture();
+        assert!(crate::tray::start(&f.state));
+        let line = "Next withdrawal: Mon, Nov 10, 6:25 PM · $1,100.00";
+        assert_eq!(
+            run(&f, "set_tray_withdrawal", json!({ "label": line })),
+            Ok(Value::Null)
+        );
+        let menu = f.platform.recorded().menus.last().cloned().unwrap();
+        assert!(menu
+            .0
+            .contains(&crate::tray::model::TrayItem::Label(format!("💰 {}", line))));
+
+        assert_eq!(
+            run(&f, "set_tray_withdrawal", json!({ "label": null })),
+            Ok(Value::Null)
+        );
+        assert_eq!(f.state.with_tray_withdrawal(|label| label.clone()), None);
     }
 
     #[test]

@@ -63,11 +63,18 @@ export interface FolderBackupPlatform {
   write(backup: { folder: string; contents: string; maxBackups: number }): Promise<BackupResult>;
 }
 
+/** The system tray's menu (desktop). */
+export interface TrayPlatform {
+  /** The menu's line about the next withdrawal; null removes it. */
+  setWithdrawalLabel(label: string | null): Promise<void>;
+}
+
 export interface Platform {
   files: FilePlatform;
   notifications: NotificationPlatform;
   idle?: IdlePlatform;
   folderBackups?: FolderBackupPlatform;
+  tray?: TrayPlatform;
   /** Shows a file the app just wrote in the file manager. */
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */

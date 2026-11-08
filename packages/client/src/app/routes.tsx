@@ -21,7 +21,7 @@ const NotesPage = lazy(() => import('../components/pages/NotesPage').then(module
 const HistoryPage = lazy(() =>
   import('../components/pages/history/HistoryPage').then(module => ({ default: module.HistoryPage }))
 );
-const CalendarPage = lazy(() => import('../components/pages/CalendarPage'));
+const CalendarPage = lazy(() => import('../components/pages/calendar/CalendarPage'));
 const PayoutsPage = lazy(() =>
   import('../components/pages/payouts/PayoutsPage').then(module => ({ default: module.PayoutsPage }))
 );

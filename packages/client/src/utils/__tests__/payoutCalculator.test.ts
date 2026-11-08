@@ -9,8 +9,11 @@ import { TaskSession, TimerInstance, TimerState } from '../../types/timer';
 import { WorkLogEntry } from '../../types/workLog';
 import {
   buildPayoutCells,
+  buildReleaseEvents,
   buildReleaseSchedule,
   centsToDollars,
+  formatCents,
+  formatWholeCents,
   formatPayoutAmount,
   groupCellsByMonth,
   summarizePayouts,
@@ -402,9 +405,36 @@ describe('summarizePayouts', () => {
   });
 });
 
-describe('buildReleaseSchedule', () => {
-  const today = dayStr(2026, 8, 31);
+describe('buildReleaseEvents', () => {
+  it('has one event per imported entry with money and one per estimate, soonest first', () => {
+    const tracked = makeSession({ timerInstances: [makeInstance()] });
+    const cells = buildPayoutCells([], [tracked], [makeTask()], 7, NOW_MS);
+    const late = makeEntry({ id: 'late', createdAt: '2026-08-27T23:00:00.000Z', status: 'Paid' });
+    const early = makeEntry({ id: 'early', createdAt: '2026-08-25T14:30:00.000Z', amountCents: 2500 });
+    const unstamped = makeEntry({ id: 'unstamped', createdAt: '2026-08-25T15:00:00.000Z', updatedAt: 'never' });
+    const nothing = makeEntry({ id: 'nothing', amountCents: 0 });
 
+    const events = buildReleaseEvents(cells, [late, nothing, unstamped, early], 7);
+
+    expect(events.map(e => [e.releaseIso, e.actualCents, e.estimatedCents, e.status])).toEqual([
+      ['2026-09-01T14:30:00.000Z', 2500, 0, 'Pending Approval'],
+      ['2026-09-01T15:00:00.000Z', 30000, 0, 'Pending Approval'],
+      [cells[0].releaseIso, 0, 15000, undefined],
+      ['2026-09-03T23:00:00.000Z', 30000, 0, 'Paid'],
+    ]);
+    expect(events[0]).toMatchObject({
+      taskId: 'task-1',
+      taskName: 'Raccoon - SWE',
+      workDay: dayStr(2026, 8, 26),
+      reportedMs: Date.parse('2026-08-31T00:00:00Z'),
+    });
+    expect(events[1].reportedMs).toBeUndefined();
+    expect(events[2].workDay).toBe(cells[0].workDay);
+    expect(events[2].reportedMs).toBeUndefined();
+  });
+});
+
+describe('buildReleaseSchedule', () => {
   it('lists pending imports by release time, leaving out paid, available, empty and released ones', () => {
     const e1 = makeEntry({ id: 'e1', createdAt: '2026-08-25T14:30:00.000Z', amountCents: 2500 });
     const e2 = makeEntry({ id: 'e2', createdAt: '2026-08-25T18:00:00.000Z', amountCents: 4000 });
@@ -416,7 +446,7 @@ describe('buildReleaseSchedule', () => {
       makeEntry({ id: 'released', createdAt: '2026-08-20T12:00:00.000Z', workDay: dayStr(2026, 8, 20) }),
     ];
 
-    const rows = buildReleaseSchedule([], today, [e2, e1, sameTime, ...skipped], 7, NOW_MS);
+    const rows = buildReleaseSchedule(buildReleaseEvents([], [e2, e1, sameTime, ...skipped], 7), NOW_MS);
 
     // Both release on 9/1, at their own times
     expect(rows.map(r => [r.releaseDay, r.releaseIso, r.actualCents])).toEqual([
@@ -429,7 +459,7 @@ describe('buildReleaseSchedule', () => {
   it('puts an import with an odd report time at the start of its release day', () => {
     const odd = makeEntry({ id: 'odd', createdAt: 'not a date', amountCents: 300 });
     const timed = makeEntry({ id: 'timed', createdAt: '2026-08-26T20:00:00.000Z', amountCents: 700 });
-    const rows = buildReleaseSchedule([], today, [timed, odd], 7, NOW_MS);
+    const rows = buildReleaseSchedule(buildReleaseEvents([], [timed, odd], 7), NOW_MS);
     expect(rows.map(r => [r.releaseDay, r.releaseTime, r.actualCents])).toEqual([
       [dayStr(2026, 9, 2), undefined, 300],
       [dayStr(2026, 9, 2), rows[1].releaseTime, 700],
@@ -458,7 +488,10 @@ describe('buildReleaseSchedule', () => {
       amountCents: 100,
     });
 
-    const rows = buildReleaseSchedule([...cells, makeCell({ actualCents: 999 })], today, [sameRelease], 7, NOW_MS);
+    const rows = buildReleaseSchedule(
+      buildReleaseEvents([...cells, makeCell({ actualCents: 999 })], [sameRelease], 7),
+      NOW_MS
+    );
     expect(rows).toEqual([
       expect.objectContaining({ releaseDay: dayStr(2026, 9, 2), actualCents: 100, estimatedCents: 15000 }),
     ]);
@@ -469,6 +502,11 @@ describe('centsToDollars', () => {
   it('converts integer cents to float dollars', () => {
     expect(centsToDollars(33750)).toBe(337.5);
     expect(centsToDollars(0)).toBe(0);
+  });
+
+  it('formats cents as money', () => {
+    expect(formatCents(123450)).toBe('$1,234.50');
+    expect(formatWholeCents(123450)).toBe('$1,235');
   });
 });
 

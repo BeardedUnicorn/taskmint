@@ -110,6 +110,7 @@ export const BackupFileSchema = z.object({
     taskNotes: recordList.optional(),
     dailyGoal: z.any().optional(),
     goalAchievements: recordList.optional(),
+    withdrawals: recordList.optional(),
     sessions: recordList.optional(),
     workLogs: z
       .object({

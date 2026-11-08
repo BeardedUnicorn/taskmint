@@ -65,6 +65,7 @@ describe('appRecords', () => {
       STORAGE_KEYS.NOTE_TEMPLATES,
       STORAGE_KEYS.DAILY_GOAL,
       STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS,
+      STORAGE_KEYS.WITHDRAWALS,
     ]);
   });
 

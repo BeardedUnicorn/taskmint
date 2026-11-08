@@ -17,6 +17,7 @@ import { effectiveMinutes } from './workLogImport';
 import { getInstanceDateString, getInstanceElapsedMs, getTimersOnDate, instanceTaskId } from './timerHelpers';
 import { earningsForMs, instanceRate } from './earnings';
 import { formatCurrency } from './formatters';
+import { formattingLocale } from './locale';
 
 export interface PayoutDayCell {
   workDay: string;
@@ -303,6 +304,21 @@ export interface ReleaseScheduleRow {
   estimatedCents: number;
 }
 
+/**
+ * One amount of money becoming available: an imported entry (at its report
+ * time plus the release days) or a day's estimate for tracked time not
+ * imported yet (at its last timer's end plus the release days).
+ */
+export interface ReleaseEvent extends ReleaseScheduleRow {
+  taskId: string;
+  taskName: string;
+  workDay: string;
+  /** The site's status, for an imported entry; undefined for an estimate. */
+  status?: string;
+  /** When the site last reported the entry (its last import), for an imported entry. */
+  reportedMs?: number;
+}
+
 /** When an imported entry's money is released: its report time plus the release days, else its day's. */
 function entryRelease(entry: WorkLogEntry, fundsReleaseDays: number): ReleaseScheduleRow {
   if (isValidCreatedAtForWorkDay(entry.createdAt, entry.workDay)) {
@@ -326,50 +342,85 @@ function entryRelease(entry: WorkLogEntry, fundsReleaseDays: number): ReleaseSch
 }
 
 /**
+ * Every release, past and future, soonest first: one per imported entry with
+ * money, and one per day's estimate (tracked time not imported yet).
+ */
+export function buildReleaseEvents(
+  cells: PayoutDayCell[],
+  entries: WorkLogEntry[],
+  fundsReleaseDays: number
+): ReleaseEvent[] {
+  const events: ReleaseEvent[] = [];
+  for (const entry of entries) {
+    if (entry.amountCents <= 0) continue;
+    const reportedMs = Date.parse(entry.updatedAt);
+    events.push({
+      ...entryRelease(entry, fundsReleaseDays),
+      actualCents: entry.amountCents,
+      taskId: entry.taskId,
+      taskName: entry.taskName,
+      workDay: entry.workDay,
+      status: entry.status,
+      reportedMs: Number.isNaN(reportedMs) ? undefined : reportedMs,
+    });
+  }
+  // An estimate cell has tracked time on its day, so its release has an exact time
+  for (const cell of cells) {
+    if (!cell.isEstimate) continue;
+    events.push({
+      releaseDay: cell.releaseDay,
+      releaseTime: cell.releaseTime,
+      releaseIso: cell.releaseIso,
+      releaseMs: Date.parse(String(cell.releaseIso)),
+      actualCents: 0,
+      estimatedCents: cell.estimatedCents,
+      taskId: cell.taskId,
+      taskName: cell.taskName,
+      workDay: cell.workDay,
+    });
+  }
+  return events.sort((a, b) => a.releaseMs - b.releaseMs);
+}
+
+/** Imported money the site no longer holds back: Paid or Untransferred. */
+export function isSettledStatus(status?: string): boolean {
+  return isPaid(status) || isUntransferred(status);
+}
+
+/**
  * Upcoming releases (strictly after now), soonest first, one row per release
  * time: imported money still pending (not Paid, not Untransferred), and the
  * estimates of days not imported yet.
  */
-export function buildReleaseSchedule(
-  cells: PayoutDayCell[],
-  todayStr: string,
-  entries: WorkLogEntry[],
-  fundsReleaseDays: number = 7,
-  nowMs: number = Date.now()
-): ReleaseScheduleRow[] {
+export function buildReleaseSchedule(events: ReleaseEvent[], nowMs: number = Date.now()): ReleaseScheduleRow[] {
   const byKey = new Map<string, ReleaseScheduleRow>();
-  const rowFor = (release: ReleaseScheduleRow): ReleaseScheduleRow => {
-    const key = release.releaseTime ? `${release.releaseDay} ${release.releaseTime}` : release.releaseDay;
-    const row = byKey.get(key) ?? release;
+  for (const event of events) {
+    if (event.releaseMs <= nowMs || isSettledStatus(event.status)) continue;
+    const { releaseDay, releaseTime, releaseIso, releaseMs } = event;
+    const key = releaseTime ? `${releaseDay} ${releaseTime}` : releaseDay;
+    const row = byKey.get(key) ?? { releaseDay, releaseTime, releaseIso, releaseMs, actualCents: 0, estimatedCents: 0 };
     byKey.set(key, row);
-    return row;
-  };
-
-  for (const entry of entries) {
-    if (isPaid(entry.status) || isUntransferred(entry.status) || entry.amountCents <= 0) continue;
-    const release = entryRelease(entry, fundsReleaseDays);
-    if (release.releaseMs <= nowMs) continue;
-    rowFor(release).actualCents += entry.amountCents;
+    row.actualCents += event.actualCents;
+    row.estimatedCents += event.estimatedCents;
   }
-
-  // An estimate cell has tracked time on its day, so its release has an exact time
-  for (const cell of cells) {
-    if (!cell.isEstimate || !isFutureRelease(cell, todayStr, nowMs)) continue;
-    const { releaseDay, releaseTime, releaseIso } = cell;
-    rowFor({
-      releaseDay,
-      releaseTime,
-      releaseIso,
-      releaseMs: Date.parse(String(releaseIso)),
-      actualCents: 0,
-      estimatedCents: 0,
-    }).estimatedCents += cell.estimatedCents;
-  }
-
   return [...byKey.values()].sort((a, b) => a.releaseMs - b.releaseMs);
 }
 
 /** Convert ledger cents to the float dollars formatCurrency expects. */
 export function centsToDollars(cents: number): number {
   return cents / 100;
+}
+
+/** Cents as money ("$1,234.50"). */
+export function formatCents(cents: number): string {
+  return formatCurrency(centsToDollars(cents));
+}
+
+/** Cents as whole dollars, for tight spaces ("$1,235"). */
+export function formatWholeCents(cents: number): string {
+  return new Intl.NumberFormat(formattingLocale(), {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(Math.round(cents / 100));
 }

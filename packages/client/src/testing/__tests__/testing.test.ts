@@ -27,6 +27,7 @@ describe('createFakeBackend', () => {
     await expect(
       backend.platform.folderBackups.write({ folder: '/b', contents: '{}', maxBackups: 3 })
     ).resolves.toMatchObject({ success: true });
+    await expect(backend.platform.tray.setWithdrawalLabel('Withdrawal open')).resolves.toBeUndefined();
     await expect(backend.platform.reveal('/b/file')).resolves.toBeUndefined();
     await expect(backend.platform.captureStatus()).resolves.toEqual({ running: true, port: 43117, warning: null });
   });
@@ -34,7 +35,7 @@ describe('createFakeBackend', () => {
   it('takes other capabilities and leaves out platform features', () => {
     const backend = createFakeBackend({
       capabilities: { runtime: 'web', dataLocation: 'server' },
-      without: ['idle', 'folderBackups', 'reveal', 'captureStatus'],
+      without: ['idle', 'folderBackups', 'tray', 'reveal', 'captureStatus'],
     });
 
     expect(backend.capabilities).toEqual({ runtime: 'web', dataLocation: 'server' });

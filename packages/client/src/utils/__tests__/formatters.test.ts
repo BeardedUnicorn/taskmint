@@ -6,6 +6,7 @@ import {
   formatTime,
   formatDuration,
   formatDurationCompact,
+  formatCountdown,
   formatCurrency,
   formatMultilineText,
   createTextPreview,
@@ -37,6 +38,19 @@ describe('formatDurationCompact', () => {
   it('shows hours and minutes from an hour up', () => {
     expect(formatDurationCompact(65 * 60_000)).toBe('1h 5m');
     expect(formatDurationCompact(3 * 3_600_000)).toBe('3h 0m');
+  });
+});
+
+describe('formatCountdown', () => {
+  it('rounds up to the minute and never goes below zero', () => {
+    expect(formatCountdown(30_000)).toBe('1m');
+    expect(formatCountdown(-5_000)).toBe('0m');
+    expect(formatCountdown(12 * 60_000)).toBe('12m');
+  });
+
+  it('shows hours and minutes, then days and hours', () => {
+    expect(formatCountdown(5 * 3_600_000 + 12 * 60_000)).toBe('5h 12m');
+    expect(formatCountdown(71 * 3_600_000)).toBe('2d 23h');
   });
 });
 

@@ -33,6 +33,27 @@ export function formatShortDateTime(value: Date | string | number): string {
   return asDate(value).toLocaleString(pinned, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+/** "Mon, Oct 14" */
+export function formatWeekdayDate(value: Date | string | number): string {
+  return asDate(value).toLocaleDateString(pinned, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/** "Mon, Oct 14, 2:43 PM" */
+export function formatWeekdayDateTime(value: Date | string | number): string {
+  return asDate(value).toLocaleString(pinned, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+/** "October 2026" */
+export function formatMonthYear(value: Date | string | number): string {
+  return asDate(value).toLocaleDateString(pinned, { month: 'long', year: 'numeric' });
+}
+
 /** The date and time in full ("10/14/2026, 2:43:05 PM"). */
 export function formatDateTime(value: Date | string | number): string {
   return asDate(value).toLocaleString(pinned);

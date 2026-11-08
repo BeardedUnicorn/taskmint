@@ -4,6 +4,9 @@ import {
   formatNumber,
   formatShortDate,
   formatShortDateTime,
+  formatMonthYear,
+  formatWeekdayDate,
+  formatWeekdayDateTime,
   formattingLocale,
   setFormattingLocale,
 } from '../locale';
@@ -19,6 +22,9 @@ describe('formatting locale', () => {
     expect(formatShortDate(AT)).toBe('Oct 14');
     expect(formatClockTime(AT)).toBe('2:43 PM');
     expect(formatShortDateTime(AT)).toBe('Oct 14, 2:43 PM');
+    expect(formatWeekdayDate(AT)).toBe('Wed, Oct 14');
+    expect(formatWeekdayDateTime(AT)).toBe('Wed, Oct 14, 2:43 PM');
+    expect(formatMonthYear(AT)).toBe('October 2026');
     expect(formatNumber(12345)).toBe('12,345');
     expect(formatCurrency(1234.5)).toBe('$1,234.50');
   });

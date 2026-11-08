@@ -24,6 +24,9 @@ import { useUpdatedNotice } from './hooks/useUpdatedNotice';
 import { useDailySummary } from './hooks/useDailySummary';
 import { SessionManagementProvider, useSessionManagementContext } from './contexts/SessionManagementContext';
 import { WorkLogProvider } from './contexts/WorkLogContext';
+import { WithdrawalsProvider } from './contexts/WithdrawalsContext';
+import { PayoutDataProvider } from './contexts/PayoutDataContext';
+import { useTrayWithdrawalLabel } from './hooks/useTrayWithdrawalLabel';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
 import { PAGES } from './app/routes';
@@ -46,6 +49,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
     clearSessionNotes,
   });
   useEnhancedSystemTray({ onShowStartDialog });
+  useTrayWithdrawalLabel();
   useRecordConflictNotice();
   useUpdatedNotice();
   useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });
@@ -174,9 +178,13 @@ function App() {
                     <TaskNotesProvider>
                       <NoteTemplatesProvider>
                         <WorkLogProvider>
-                          <BackupSettingsProvider>
-                            <AppContent />
-                          </BackupSettingsProvider>
+                          <WithdrawalsProvider>
+                            <PayoutDataProvider>
+                              <BackupSettingsProvider>
+                                <AppContent />
+                              </BackupSettingsProvider>
+                            </PayoutDataProvider>
+                          </WithdrawalsProvider>
                         </WorkLogProvider>
                       </NoteTemplatesProvider>
                     </TaskNotesProvider>

@@ -11,6 +11,8 @@ export const STORAGE_KEYS = {
   DAILY_GOAL: 'dailyGoal',
   DAILY_GOAL_ACHIEVEMENTS: 'dailyGoalAchievements',
   FUNDS_RELEASE_DAYS: 'fundsReleaseDays',
+  WITHDRAWALS: 'withdrawals',
+  WITHDRAWAL_INTERVAL_DAYS: 'withdrawalIntervalDays',
   // Session-based storage keys (session data itself lives in the Rust
   // sessions.json store, not localStorage). ENHANCED_TIMER_SETTINGS is a
   // legacy blob, read only to seed INACTIVITY_SETTINGS on older installs.

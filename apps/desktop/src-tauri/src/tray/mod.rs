@@ -24,6 +24,7 @@ fn snapshot(state: &AppState) -> TraySnapshot {
         .backend
         .remote()
         .and_then(|remote| remote.status().problem());
+    snapshot.withdrawal = state.with_tray_withdrawal(|label| label.clone());
     snapshot
 }
 

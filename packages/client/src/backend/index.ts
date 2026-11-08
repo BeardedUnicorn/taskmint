@@ -7,6 +7,7 @@ export type {
   IdlePlatform,
   NotificationPlatform,
   Platform,
+  TrayPlatform,
   SavedFile,
 } from './types';
 export { getBackend, setBackend } from './registry';

@@ -1,0 +1,105 @@
+/**
+ * Payouts' list of recorded withdrawals, newest first, to edit or delete
+ * (with Undo).
+ */
+
+import { useState } from 'react';
+import {
+  Box,
+  IconButton,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import { Delete as DeleteIcon, Edit as EditIcon, Savings as SavingsIcon } from '@mui/icons-material';
+import { useWithdrawals } from '../../../../hooks/useWithdrawals';
+import { Withdrawal } from '../../../../types/withdrawal';
+import { formatCents } from '../../../../utils/payoutCalculator';
+import { formatShortDateTime, formatWeekdayDateTime } from '../../../../utils/locale';
+import { EmptyState } from '../../../ui/display/EmptyState';
+import { MONO, VISUALLY_HIDDEN } from '../payoutStyles';
+import { RecordWithdrawalDialog } from './RecordWithdrawalDialog';
+
+export function WithdrawalsCard() {
+  const { withdrawals, loadError, deleteWithdrawal } = useWithdrawals();
+  const [editing, setEditing] = useState<Withdrawal | null>(null);
+  // The panel above reports an unreadable record
+  if (loadError) return null;
+
+  const newestFirst = [...withdrawals].reverse();
+  const totalCents = withdrawals.reduce((sum, withdrawal) => sum + withdrawal.amountCents, 0);
+
+  return (
+    <Paper sx={{ p: 3, mb: 4 }}>
+      <Typography variant="h6">Withdrawals</Typography>
+      {withdrawals.length === 0 ? (
+        <EmptyState
+          plain
+          icon={<SavingsIcon />}
+          title="No withdrawals recorded"
+          description="Record one when you withdraw from the payment site, and TaskMint works out when the next one opens."
+        />
+      ) : (
+        <>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {withdrawals.length} recorded · {formatCents(totalCents)} in all
+          </Typography>
+          <Table size="small" aria-label="Withdrawals">
+            <TableHead>
+              <TableRow>
+                <TableCell>Date and time</TableCell>
+                <TableCell align="right">Amount</TableCell>
+                <TableCell>Note</TableCell>
+                <TableCell align="right" sx={{ width: 96 }}>
+                  <Box component="span" sx={VISUALLY_HIDDEN}>
+                    Actions
+                  </Box>
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {newestFirst.map(withdrawal => {
+                const when = formatShortDateTime(withdrawal.takenAt);
+                return (
+                  <TableRow key={withdrawal.id}>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatWeekdayDateTime(withdrawal.takenAt)}</TableCell>
+                    <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
+                      {formatCents(withdrawal.amountCents)}
+                    </TableCell>
+                    <TableCell sx={{ color: 'text.secondary' }}>{withdrawal.note ?? '—'}</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      <Tooltip title="Edit">
+                        <IconButton
+                          size="small"
+                          aria-label={`Edit the withdrawal on ${when}`}
+                          onClick={() => setEditing(withdrawal)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton
+                          size="small"
+                          aria-label={`Delete the withdrawal on ${when}`}
+                          onClick={() => deleteWithdrawal(withdrawal.id)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </>
+      )}
+      {editing && <RecordWithdrawalDialog withdrawal={editing} onClose={() => setEditing(null)} />}
+    </Paper>
+  );
+}

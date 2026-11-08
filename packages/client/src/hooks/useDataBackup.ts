@@ -49,18 +49,20 @@ export const useDataBackup = ({
     const storageService = StorageService.getInstance();
 
     try {
-      const [tasks, noteTemplates, taskNotes, dailyGoal, goalAchievements, sessions, workLogs] = await Promise.all([
-        storageService.getTasks(),
-        storageService.getNoteTemplates(),
-        storageService.getTaskNotes(),
-        storageService.getDailyGoal(),
-        storageService.getGoalAchievements(),
-        // Tracked time and the work-log ledger live in the backend. A failed
-        // read fails the backup rather than produce a file with no tracked
-        // time in it.
-        getBackend().call('get_sessions'),
-        getBackend().call('get_work_logs'),
-      ]);
+      const [tasks, noteTemplates, taskNotes, dailyGoal, goalAchievements, withdrawals, sessions, workLogs] =
+        await Promise.all([
+          storageService.getTasks(),
+          storageService.getNoteTemplates(),
+          storageService.getTaskNotes(),
+          storageService.getDailyGoal(),
+          storageService.getGoalAchievements(),
+          storageService.getWithdrawals(),
+          // Tracked time and the work-log ledger live in the backend. A failed
+          // read fails the backup rather than produce a file with no tracked
+          // time in it.
+          getBackend().call('get_sessions'),
+          getBackend().call('get_work_logs'),
+        ]);
 
       return {
         version: BACKUP_FORMAT_VERSION,
@@ -71,6 +73,7 @@ export const useDataBackup = ({
           taskNotes,
           dailyGoal,
           goalAchievements,
+          withdrawals,
           sessions,
           workLogs: {
             entries: workLogs.entries,
@@ -184,6 +187,13 @@ export const useDataBackup = ({
         items => storageService.setGoalAchievements(items),
         achievement => achievement.date
       );
+      await importList(
+        mode,
+        data.withdrawals,
+        () => storageService.getWithdrawals(),
+        items => storageService.setWithdrawals(items),
+        byId
+      );
 
       onImportSuccess?.({
         mode,
@@ -192,6 +202,7 @@ export const useDataBackup = ({
           noteTemplates: data.noteTemplates?.length ?? 0,
           taskNotes: data.taskNotes?.length ?? 0,
           goalAchievements: data.goalAchievements?.length ?? 0,
+          withdrawals: data.withdrawals?.length ?? 0,
           sessions: restored.sessionsRestored,
           workLogEntries: restored.workLogEntriesRestored,
         },

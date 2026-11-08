@@ -113,9 +113,9 @@ export function DataManagementSection() {
       </Stack>
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        Export saves your tasks, sessions and tracked time, imported work logs, notes, note templates and goals to a
-        JSON file. Import adds anything from an export file that isn&apos;t already here, keeping what you have; the app
-        reloads afterwards.
+        Export saves your tasks, sessions and tracked time, imported work logs, withdrawals, notes, note templates and
+        goals to a JSON file. Import adds anything from an export file that isn&apos;t already here, keeping what you
+        have; the app reloads afterwards.
       </Typography>
 
       <Divider sx={{ my: 3 }} />
@@ -152,7 +152,7 @@ export function DataManagementSection() {
             <Box component="ul" sx={{ mt: 1, mb: 1, pl: 3 }}>
               <li>All tasks (including archived) and favorites</li>
               <li>All sessions and tracked time</li>
-              <li>Imported work logs and project mappings</li>
+              <li>Imported work logs, project mappings and recorded withdrawals</li>
               <li>Task notes and note templates</li>
               <li>Goals and every app setting</li>
               <li>The app&apos;s internal safety backups</li>

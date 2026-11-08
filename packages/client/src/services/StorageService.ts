@@ -4,7 +4,8 @@
  * Centralized storage management with validation, migration, and error handling
  * Provides a unified interface for all data persistence operations
  *
- * The records (tasks, notes, note templates, the daily goal and its history)
+ * The records (tasks, notes, note templates, the daily goal and its history,
+ * withdrawals)
  * belong to the backend and are read through the records cache
  * (services/appRecords); every other key is a device setting in localStorage
  * (utils/localStore).
@@ -14,6 +15,7 @@ import { z } from 'zod';
 import { Task, TaskSchema } from '../types/task';
 import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../types/notes';
 import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
+import { Withdrawal, WithdrawalListSchema } from '../types/withdrawal';
 
 import { STORAGE_KEYS } from '../constants';
 import { readLocal, writeLocal } from '../utils/localStore';
@@ -37,6 +39,8 @@ export interface IStorageService {
   setDailyGoal(goal: DailyGoal): Promise<void>;
   getGoalAchievements(): Promise<DailyGoalAchievement[]>;
   setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void>;
+  getWithdrawals(): Promise<Withdrawal[]>;
+  setWithdrawals(withdrawals: Withdrawal[]): Promise<void>;
 }
 
 export class StorageService implements IStorageService {
@@ -149,5 +153,13 @@ export class StorageService implements IStorageService {
 
   async setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void> {
     await this.setItem(STORAGE_KEYS.DAILY_GOAL_ACHIEVEMENTS, achievements, z.array(DailyGoalAchievementSchema));
+  }
+
+  async getWithdrawals(): Promise<Withdrawal[]> {
+    return await this.getItem(STORAGE_KEYS.WITHDRAWALS, [], WithdrawalListSchema);
+  }
+
+  async setWithdrawals(withdrawals: Withdrawal[]): Promise<void> {
+    await this.setItem(STORAGE_KEYS.WITHDRAWALS, withdrawals, WithdrawalListSchema);
   }
 }

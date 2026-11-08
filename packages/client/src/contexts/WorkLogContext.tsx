@@ -64,8 +64,3 @@ export function useWorkLogContext(): WorkLogContextValue {
   }
   return context;
 }
-
-/** The work-log context when there is one (pages that only read entries). */
-export function useOptionalWorkLogContext(): WorkLogContextValue | null {
-  return useContext(WorkLogContext);
-}

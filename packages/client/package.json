@@ -32,7 +32,6 @@
     "@taskmint/contracts": "workspace:*",
     "dayjs": "^1.11.23",
     "react": "catalog:",
-    "react-big-calendar": "^1.20.0",
     "react-dom": "catalog:",
     "recharts": "^3.10.1",
     "zod": "^4.4.3"
@@ -43,7 +42,6 @@
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
-    "@types/react-big-calendar": "^1.16.3",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",

@@ -20,11 +20,13 @@ const mockStorageService = {
   getTaskNotes: vi.fn(),
   getDailyGoal: vi.fn(),
   getGoalAchievements: vi.fn(),
+  getWithdrawals: vi.fn(),
   setTasks: vi.fn(),
   setNoteTemplates: vi.fn(),
   setTaskNotes: vi.fn(),
   setDailyGoal: vi.fn(),
   setGoalAchievements: vi.fn(),
+  setWithdrawals: vi.fn(),
 } as unknown as Mocked<StorageService>;
 
 const mockSession = {
@@ -128,6 +130,16 @@ describe('useDataBackup', () => {
       },
     ]);
 
+    mockStorageService.getWithdrawals.mockResolvedValue([
+      {
+        id: 'withdrawal-1',
+        takenAt: '2023-01-01T18:25:00.000Z',
+        amountCents: 71250,
+        createdAt: '2023-01-01T18:30:00.000Z',
+        updatedAt: '2023-01-01T18:30:00.000Z',
+      },
+    ]);
+
     // Imports read the picked file; exports save where the dialog says
     files().openJson.mockResolvedValue('/mock/path/export.json');
     exportImpl = async () => '/mock/path/export.json';
@@ -180,6 +192,9 @@ describe('useDataBackup', () => {
       expect(backupData.data).toHaveProperty('taskNotes');
       expect(backupData.data).toHaveProperty('dailyGoal');
       expect(backupData.data).toHaveProperty('goalAchievements');
+      expect(backupData.data.withdrawals).toEqual([
+        expect.objectContaining({ id: 'withdrawal-1', amountCents: 71250 }),
+      ]);
       expect(backupData.data.sessions).toEqual([mockSession]);
       expect(backupData.data.workLogs).toEqual({
         entries: [mockWorkLogEntry],
@@ -207,6 +222,7 @@ describe('useDataBackup', () => {
       expect(mockStorageService.getTaskNotes).toHaveBeenCalledTimes(1);
       expect(mockStorageService.getDailyGoal).toHaveBeenCalledTimes(1);
       expect(mockStorageService.getGoalAchievements).toHaveBeenCalledTimes(1);
+      expect(mockStorageService.getWithdrawals).toHaveBeenCalledTimes(1);
     });
 
     it('should handle storage service errors', async () => {
@@ -417,6 +433,7 @@ describe('useDataBackup', () => {
           noteTemplates: 0,
           taskNotes: 0,
           goalAchievements: 0,
+          withdrawals: 0,
           sessions: 1,
           workLogEntries: 1,
         },
@@ -489,6 +506,7 @@ describe('useDataBackup', () => {
       expect(mockStorageService.setTaskNotes).toHaveBeenCalledWith(fromFile.taskNotes);
       expect(mockStorageService.setDailyGoal).toHaveBeenCalledWith(fromFile.dailyGoal);
       expect(mockStorageService.setGoalAchievements).toHaveBeenCalledWith(fromFile.goalAchievements);
+      expect(mockStorageService.setWithdrawals).toHaveBeenCalledWith(fromFile.withdrawals);
       expect(mockCallbacks.onImportError).not.toHaveBeenCalled();
     });
 
@@ -663,6 +681,7 @@ describe('useDataBackup', () => {
       const [template] = await mockStorageService.getNoteTemplates();
       const [note] = await mockStorageService.getTaskNotes();
       const [achievement] = await mockStorageService.getGoalAchievements();
+      const [withdrawal] = await mockStorageService.getWithdrawals();
 
       await importFile('merge', {
         data: {
@@ -676,6 +695,10 @@ describe('useDataBackup', () => {
             { ...achievement, id: 'other-id' },
             { ...achievement, date: '2023-01-02' },
           ],
+          withdrawals: [
+            { ...withdrawal, amountCents: 1 },
+            { ...withdrawal, id: 'withdrawal-2' },
+          ],
         },
       });
 
@@ -686,6 +709,10 @@ describe('useDataBackup', () => {
       expect(mockStorageService.setGoalAchievements).toHaveBeenCalledWith([
         achievement,
         { ...achievement, date: '2023-01-02' },
+      ]);
+      expect(mockStorageService.setWithdrawals).toHaveBeenCalledWith([
+        withdrawal,
+        { ...withdrawal, id: 'withdrawal-2' },
       ]);
       expect(mockStorageService.setDailyGoal).not.toHaveBeenCalled();
     });
@@ -709,6 +736,7 @@ describe('useDataBackup', () => {
       expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith([]);
       expect(mockStorageService.setTaskNotes).toHaveBeenCalledWith([]);
       expect(mockStorageService.setGoalAchievements).toHaveBeenCalledWith([]);
+      expect(mockStorageService.setWithdrawals).toHaveBeenCalledWith([]);
       expect(mockCallbacks.onImportSuccess).toHaveBeenCalledWith(
         expect.objectContaining({
           importedCounts: expect.objectContaining({ tasks: 0, noteTemplates: 0, taskNotes: 0, goalAchievements: 0 }),

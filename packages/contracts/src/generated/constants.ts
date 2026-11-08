@@ -88,6 +88,7 @@ export const APP_RECORD_KEYS = [
   "noteTemplates",
   "dailyGoal",
   "dailyGoalAchievements",
+  "withdrawals",
 ] as const;
 
 /** `source` of sessions synthesized from imported work-log entries. */

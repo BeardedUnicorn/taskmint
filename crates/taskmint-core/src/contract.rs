@@ -75,12 +75,13 @@ pub const TASKS_RECORD_KEY: &str = "predefinedTasks";
 
 /// The frontend's records (its STORAGE_KEYS names; APP_RECORD_KEYS in
 /// packages/client/src/services/appRecords.ts).
-pub const APP_RECORD_KEYS: [&str; 5] = [
+pub const APP_RECORD_KEYS: [&str; 6] = [
     TASKS_RECORD_KEY,
     "taskNotes",
     "noteTemplates",
     "dailyGoal",
     "dailyGoalAchievements",
+    "withdrawals",
 ];
 
 // ============================================================================
@@ -235,6 +236,17 @@ mod tests {
         assert_eq!(CAPTURE_HEADER, "X-TaskMint-Capture");
         assert_eq!(ERR_UNEXPECTED_PAYLOAD_SHAPE, "unexpected payload shape");
         assert_eq!(TASKS_RECORD_KEY, "predefinedTasks");
+        assert_eq!(
+            APP_RECORD_KEYS,
+            [
+                "predefinedTasks",
+                "taskNotes",
+                "noteTemplates",
+                "dailyGoal",
+                "dailyGoalAchievements",
+                "withdrawals"
+            ]
+        );
         assert_eq!(DEEP_LINK_SCHEME, "taskmint");
         assert_eq!(TIME_ZONE_HEADER, "X-TaskMint-TZ");
         assert_eq!(events::APP_RECORDS_CHANGED, "app-records-changed");

@@ -72,6 +72,9 @@ const platform: Platform = {
     getPending: () => command('get_idle_pause'),
     resolve: choice => command<void>('resolve_idle_pause', { choice }),
   },
+  tray: {
+    setWithdrawalLabel: label => command<void>('set_tray_withdrawal', { label }),
+  },
   folderBackups: {
     defaultFolder: () => command<string>('default_backup_dir'),
     pickFolder: () => command<string | null>('pick_backup_dir'),
