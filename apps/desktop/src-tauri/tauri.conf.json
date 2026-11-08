@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "TaskMint",
   "version": "../package.json",
-  "identifier": "com.taskmint.app",
+  "identifier": "com.taskmint.desktop",
   "build": {
     "beforeBuildCommand": "pnpm build",
     "beforeDevCommand": "pnpm dev",
@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "TaskMint",
+        "create": false,
         "width": 1620,
         "height": 1000,
         "minWidth": 800,

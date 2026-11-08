@@ -58,7 +58,11 @@ TaskMint stores everything locally. Nothing is synced anywhere.
 | Tasks, notes, note templates, the daily goal and its history | `appdata.json` in the app data dir, owned by the Rust backend (see below for data from older versions) |
 | Settings and UI preferences | The webview's `localStorage` |
 
-App data dir on macOS: `~/Library/Application Support/com.taskmint.app/`.
+App data dir on macOS: `~/Library/Application Support/com.taskmint.desktop/`.
+Before 2.1 the app identifier was `com.taskmint.app`: the first launch of a
+newer version moves that data folder, the webview's storage (the settings)
+and the server token's keychain item to the new identifier, and logs what it
+moved. Nothing moves if the new folder is already there.
 Before risky operations (a skipped-record load, an import that rewrites days, a
 restore), the backend writes timestamped `*.bak-*` copies next to the stores,
 keeping the newest 10 of each.
@@ -99,7 +103,8 @@ file or the webview), and restarts on the server's data.
   changing or resetting the account's password.
 - Sessions are dated in the time zone of the computer that started them.
 - To try it with a development build, set `TASKMINT_DATA_DIR` to a scratch
-  folder: the installed app's files and keychain item are then left alone.
+  folder: the build keeps its files and its logs (in `logs/`) there and uses
+  its own keychain item, so the installed app's are left alone.
 
 ## Browser capture (optional)
 
@@ -219,7 +224,7 @@ installer stays in `target/release/bundle/`.
 ### Logs
 
 The backend logs through `tauri-plugin-log` to stdout and to the app log dir
-(`~/Library/Logs/com.taskmint.app/` on macOS). Release builds log `info` and
+(`~/Library/Logs/com.taskmint.desktop/` on macOS). Release builds log `info` and
 above, dev builds include `debug`.
 
 ## Run the stack
@@ -515,7 +520,8 @@ apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri
   src-tauri/src/store/       sessions.json / worklogs.json / appdata.json and their .bak copies
   src-tauri/src/files.rs     Save/open dialogs, the backup folder, showing a file in Finder
   src-tauri/src/capture_server.rs  localhost capture server and taskmint:// deep links
-  src-tauri/src/tray.rs      System tray
+  src-tauri/src/tray/        System tray
+  src-tauri/src/legacy_identifier.rs  Moves the data left under the pre-2.1 identifier
   src-tauri/src/config.rs    Constants
   src-tauri/capabilities/    Frontend permission grants
 apps/web/                    Web app (@taskmint/web): Vite entry, sign-in pages, HttpBackend

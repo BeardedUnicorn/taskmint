@@ -10,6 +10,7 @@ mod dispatch;
 pub mod events;
 pub mod files;
 pub mod idle;
+pub mod legacy_identifier;
 pub mod notifications;
 pub mod platform;
 pub mod server;

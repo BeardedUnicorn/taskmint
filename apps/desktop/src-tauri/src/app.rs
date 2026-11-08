@@ -3,6 +3,7 @@
 //! manual QA checklist: it only wires up code that's tested elsewhere.
 
 use crate::capture_server::{self, CaptureServer};
+use crate::legacy_identifier::{self, Dirs, Os, LEGACY_IDENTIFIER};
 use crate::platform::keychain::Keychain;
 use crate::platform::os::TauriPlatform;
 use crate::state::AppState;
@@ -11,8 +12,10 @@ use crate::ticker::Ticker;
 use crate::{dispatch, idle, tray};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::utils::config::AppDirectoriesOverride;
+use tauri::{Manager, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_notification::NotificationExt;
 
 /// What runs in the background for as long as the app does.
 struct Background {
@@ -26,8 +29,30 @@ fn show_window(app: &tauri::AppHandle) {
     }
 }
 
+fn current_os() -> Os {
+    if cfg!(target_os = "macos") {
+        Os::MacOs
+    } else if cfg!(windows) {
+        Os::Windows
+    } else {
+        Os::Other
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    // A development build can keep its files (data, logs) and keychain items
+    // in a folder of its own, so trying server mode leaves the installed
+    // app's alone
+    let dev_data = std::env::var_os("TASKMINT_DATA_DIR")
+        .filter(|_| cfg!(debug_assertions))
+        .map(PathBuf::from);
+    if let Some(dir) = &dev_data {
+        context.config_mut().app.app_directories_override =
+            Some(AppDirectoriesOverride::Root(dir.clone()));
+    }
+
     tauri::Builder::default()
         // Must be the FIRST plugin: a second launch (e.g. a taskmint:// deep
         // link on Windows) forwards its args here and exits; the deep-link
@@ -52,29 +77,53 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .setup(|app| {
+        .setup(move |app| {
             let handle = app.handle().clone();
-            // A development build can use a folder (and keychain items) of
-            // its own, so trying server mode leaves the installed app's alone
-            let dev_data = std::env::var_os("TASKMINT_DATA_DIR")
-                .filter(|_| cfg!(debug_assertions))
-                .map(PathBuf::from);
-            let identifier = &app.config().identifier;
+            let identifier = app.config().identifier.clone();
             let service = match dev_data {
                 Some(_) => format!("{}.dev", identifier),
                 None => identifier.clone(),
             };
-            let data_dir = match dev_data {
-                Some(dir) => dir,
-                None => app.path().app_data_dir()?,
-            };
+            // Before 2.1 the identifier was com.taskmint.app: move what it
+            // left behind. This runs before the window exists, since the
+            // webview opens its storage when it's created.
+            if dev_data.is_none() {
+                let path = app.path();
+                let dirs = Dirs {
+                    home: path.home_dir()?,
+                    data: path.data_dir()?,
+                    local_data: path.local_data_dir()?,
+                };
+                legacy_identifier::run(
+                    current_os(),
+                    &dirs,
+                    &identifier,
+                    &Keychain::new(LEGACY_IDENTIFIER),
+                    &Keychain::new(service.as_str()),
+                );
+            }
             let state = AppState::open(
-                JsonFileStore::new(data_dir),
+                JsonFileStore::new(app.path().app_data_dir()?),
                 Arc::new(chrono::Utc::now),
                 Arc::new(TauriPlatform::new(handle.clone())),
                 Arc::new(Keychain::new(service)),
             );
             app.manage(state.clone());
+
+            // The main window ("create": false in tauri.conf.json, so it
+            // comes after the move above)
+            let window = app.config().app.windows[0].clone();
+            WebviewWindowBuilder::from_config(&handle, &window)?.build()?;
+
+            // Clicking a notification brings the window forward (it may be
+            // hidden to the tray). Registered before anything can notify:
+            // notifications shown before a handler exists report nothing.
+            let notified_state = state.clone();
+            app.notification().on_action(move |action| {
+                if action.action_id() == "tap" {
+                    notified_state.platform.show_main_window();
+                }
+            })?;
 
             let menu_state = state.clone();
             app.on_menu_event(move |_app, event| {
@@ -131,7 +180,7 @@ pub fn run() {
         })
         // Every webview call goes through dispatch (see dispatch.rs)
         .invoke_handler(tauri::generate_handler![dispatch::dispatch])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|_app, _event| {
             // macOS: clicking the Dock icon brings back a window hidden by close.
