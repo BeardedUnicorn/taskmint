@@ -22,7 +22,9 @@ pub const DEFAULT_BACKUP_FOLDER_NAME: &str = "TaskMint Backups";
 /// Written and removed to check a backup folder is writable.
 pub const BACKUP_WRITE_TEST_FILENAME: &str = ".taskmint_write_test";
 
-/// Tray icon files (relative to the binary in dev builds; the bundled icon is
-/// used when neither loads).
-pub const ICON_TRAY_PRIMARY: &str = "../icons/32x32.png";
-pub const ICON_TRAY_FALLBACK: &str = "../icons/icon.png";
+/// Tray icon files, named in the log when one fails to load (the images are
+/// compiled in). macOS uses the template, which the menu bar tints for its
+/// light or dark look; the others the app icon.
+pub const ICON_TRAY_TEMPLATE: &str = "icons/tray-template.png";
+pub const ICON_TRAY_PRIMARY: &str = "icons/32x32.png";
+pub const ICON_TRAY_FALLBACK: &str = "icons/icon.png";

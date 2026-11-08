@@ -1,4 +1,9 @@
-# TaskMint
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-dark.png">
+    <img src="assets/brand/logo.png" alt="TaskMint" width="440">
+  </picture>
+</h1>
 
 A desktop time tracker and earnings ledger built with Tauri v2, React and
 TypeScript. You track time in sessions against tasks with hourly rates,
@@ -58,7 +63,11 @@ TaskMint stores everything locally. Nothing is synced anywhere.
 | Tasks, notes, note templates, the daily goal and its history | `appdata.json` in the app data dir, owned by the Rust backend (see below for data from older versions) |
 | Settings and UI preferences | The webview's `localStorage` |
 
-App data dir on macOS: `~/Library/Application Support/com.taskmint.app/`.
+App data dir on macOS: `~/Library/Application Support/com.taskmint.desktop/`.
+Before 2.1 the app identifier was `com.taskmint.app`: the first launch of a
+newer version moves that data folder, the webview's storage (the settings)
+and the server token's keychain item to the new identifier, and logs what it
+moved. Nothing moves if the new folder is already there.
 Before risky operations (a skipped-record load, an import that rewrites days, a
 restore), the backend writes timestamped `*.bak-*` copies next to the stores,
 keeping the newest 10 of each.
@@ -99,7 +108,8 @@ file or the webview), and restarts on the server's data.
   changing or resetting the account's password.
 - Sessions are dated in the time zone of the computer that started them.
 - To try it with a development build, set `TASKMINT_DATA_DIR` to a scratch
-  folder: the installed app's files and keychain item are then left alone.
+  folder: the build keeps its files and its logs (in `logs/`) there and uses
+  its own keychain item, so the installed app's are left alone.
 
 ## Browser capture (optional)
 
@@ -140,6 +150,23 @@ and [Web app](#web-app).
 **Quit the installed TaskMint before running `pnpm tauri dev`.** Dev and
 release builds share the app identifier, so they share the data dir. The
 single-instance lock and the capture server port also collide.
+
+**App icons.** The masters are in `assets/brand/`: `icon.png` (the app icon),
+`icon-macos.png` (the same on Apple's icon grid), the wordmark `logo.png` and
+`logo-dark.png`, and the leaf `mark.png`. After changing the icon, regenerate
+the bundle icons, then replace the `.icns` with the macOS-grid one:
+
+```bash
+cd apps/desktop && pnpm tauri icon ../../assets/brand/icon.png
+```
+
+```bash
+cd apps/desktop && pnpm tauri icon ../../assets/brand/icon-macos.png -o /tmp/taskmint-icons && cp /tmp/taskmint-icons/icon.icns src-tauri/icons/
+```
+
+The menu-bar icon (`src-tauri/icons/tray-template.png`, a black leaf on
+transparent that macOS tints) and the images in `packages/client/public/` and
+`apps/extension/icons/` are made from the same masters.
 
 Copy `.env.example` to `.env` to set a Sentry DSN; otherwise reporting stays
 off.
@@ -219,7 +246,7 @@ installer stays in `target/release/bundle/`.
 ### Logs
 
 The backend logs through `tauri-plugin-log` to stdout and to the app log dir
-(`~/Library/Logs/com.taskmint.app/` on macOS). Release builds log `info` and
+(`~/Library/Logs/com.taskmint.desktop/` on macOS). Release builds log `info` and
 above, dev builds include `debug`.
 
 ## Run the stack
@@ -503,7 +530,7 @@ packages/client/             React app (@taskmint/client)
   src/services/              Tasks, notes, templates (appRecords.ts: the appdata.json cache)
   src/utils/                 Pure logic: time math, payouts, work-log import, Sentry
   src/types/                 Shared types and zod schemas
-  public/                    Favicon and logos
+  public/                    Favicon, wordmark and app icon
 packages/contracts/          Wire types, CommandMap and constants (@taskmint/contracts),
                              generated from taskmint-core: don't edit src/generated
 crates/taskmint-core/        Business rules shared by every host: sessions, timers, work-log
@@ -515,7 +542,8 @@ apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri
   src-tauri/src/store/       sessions.json / worklogs.json / appdata.json and their .bak copies
   src-tauri/src/files.rs     Save/open dialogs, the backup folder, showing a file in Finder
   src-tauri/src/capture_server.rs  localhost capture server and taskmint:// deep links
-  src-tauri/src/tray.rs      System tray
+  src-tauri/src/tray/        System tray
+  src-tauri/src/legacy_identifier.rs  Moves the data left under the pre-2.1 identifier
   src-tauri/src/config.rs    Constants
   src-tauri/capabilities/    Frontend permission grants
 apps/web/                    Web app (@taskmint/web): Vite entry, sign-in pages, HttpBackend
@@ -527,6 +555,7 @@ apps/server/                 Server (taskmint-server): axum + Postgres, see "Ser
   migrations/                SQL migrations, embedded in the binary
   .sqlx/                     Query metadata for offline builds (cargo sqlx prepare)
   tests/api/                 HTTP and CLI tests against Postgres
+assets/brand/                Logo and app-icon masters (see Development)
 docs/                        ADRs, the coverage policy, the security review, the runbook
   qa/                        The manual checklist for the code coverage leaves out
 ```

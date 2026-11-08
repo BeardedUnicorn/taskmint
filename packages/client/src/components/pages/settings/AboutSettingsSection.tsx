@@ -60,14 +60,19 @@ export function AboutSettingsSection() {
 
   return (
     <SettingsSection title="About" icon={<InfoIcon color="primary" />}>
-      <Typography variant="subtitle1" component="p" sx={{ fontWeight: 600 }}>
-        TaskMint {APP_VERSION}
-      </Typography>
-      {current && releasedOn(current) && (
-        <Typography variant="body2" color="text.secondary">
-          {releasedOn(current)}
-        </Typography>
-      )}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box component="img" src="/taskmint-icon.png" alt="" sx={{ width: 48, height: 48 }} />
+        <Box>
+          <Typography variant="subtitle1" component="p" sx={{ fontWeight: 600 }}>
+            TaskMint {APP_VERSION}
+          </Typography>
+          {current && releasedOn(current) && (
+            <Typography variant="body2" color="text.secondary">
+              {releasedOn(current)}
+            </Typography>
+          )}
+        </Box>
+      </Box>
 
       <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600, mt: 3, mb: 1 }}>
         What's new in {APP_VERSION}

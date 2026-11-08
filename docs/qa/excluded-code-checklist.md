@@ -24,10 +24,11 @@ implement.
 
 - **Quit the installed TaskMint.** A development build shares its data
   folder, its single-instance lock and port 43117.
-- **Back up the data folder:** `~/Library/Application Support/com.taskmint.app/`.
+- **Back up the data folder:** `~/Library/Application Support/com.taskmint.desktop/`
+  (`com.taskmint.app/` before 2.1).
 - **Use a dev build with its own data for most of this:**
   `TASKMINT_DATA_DIR=$HOME/tmp/taskmint-qa pnpm tauri dev`. That build uses
-  the folder you give it and the `com.taskmint.app.dev` keychain service, so
+  the folder you give it and the `com.taskmint.desktop.dev` keychain service, so
   the installed app's data and keychain item are left alone.
 - **Use the bundled app (`pnpm tauri build`, then open the `.dmg`) for deep
   links.** On macOS, `taskmint://` is registered only by an installed bundle.
@@ -49,8 +50,8 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Tray menu.** Start a task from the tray's menu, then pause and stop it.
       The window shows each change at once (menu events reach
       `tray::handle_menu_event`, and the change is emitted to the webview).
-- [ ] **Logs.** `~/Library/Logs/com.taskmint.app/` has today's log at `info`
-      and above; a dev build adds `debug`.
+- [ ] **Logs.** `~/Library/Logs/com.taskmint.desktop/` has today's log at
+      `info` and above; a dev build adds `debug`.
 - [ ] **Capture server.** `curl -s http://127.0.0.1:43117/api/health` answers
       `{"app":"TaskMint","version":…}` with the app's version.
 - [ ] **Capture server in use.** Quit the app, run `nc -l 43117` in a terminal,
@@ -61,7 +62,26 @@ Note anything that fails with the build, the OS version and what you saw.
       The timer pauses as of when input stopped; on your return the app comes
       forward and asks what to do with the away time.
 - [ ] **Dev data folder.** With `TASKMINT_DATA_DIR` set, the dev build's data
-      is in that folder. A release build ignores the variable.
+      is in that folder and its log in `logs/` there. A release build ignores
+      the variable.
+- [ ] **Notification click.** With the window hidden to the tray, clicking a
+      TaskMint notification (Settings → Notifications → Send test
+      notification) brings the window forward. Check it in the bundled app:
+      a dev build's notifications come from Terminal.
+
+**Moving the pre-2.1 identifier's data (bundled app, once per Mac).** Back up
+`~/Library/Application Support/com.taskmint.app/` and
+`~/Library/WebKit/com.taskmint.app/` first, and quit the old version.
+- [ ] The first launch moves both folders to `com.taskmint.desktop`: tasks,
+      sessions and work logs are there, and so are settings kept in the
+      webview (the funds-release delay, idle settings). The log names each
+      move.
+- [ ] Connected to a server before the update: still connected, with the
+      token in the `com.taskmint.desktop` keychain service and none left in
+      `com.taskmint.app`.
+- [ ] A second launch moves nothing.
+- [ ] macOS asks again for notification permission, and for access to
+      Documents at the next folder backup (both are granted per identifier).
 
 **Deep links (bundled app):**
 - [ ] With the app quit, `open 'taskmint://capture-pending'` launches it and
@@ -95,6 +115,9 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Tray menu.** The menu lists the start entries, the disabled label
       lines, separators and Quit. Renaming or archiving a task updates it
       without a restart.
+- [ ] **Tray icon.** On macOS the menu-bar icon is the one-color leaf, black
+      on a light menu bar and white on a dark one; on Windows and Linux it's
+      the app icon.
 - [ ] **Tray status.** While a timer runs, the tooltip names the task and its
       time, and on macOS the elapsed time shows beside the icon. Stopping
       clears that title.
@@ -110,7 +133,7 @@ Note anything that fails with the build, the OS version and what you saw.
 With the stack running and a dev build on its own data folder:
 - [ ] **Store.** Settings → Server → connect to `http://localhost:8080` with
       a user's credentials. Keychain Access then has an item for the
-      `com.taskmint.app.dev` service, account `server-token`.
+      `com.taskmint.desktop.dev` service, account `server-token`.
 - [ ] **Read.** After the restart and after quitting and relaunching, the app
       is still connected, with no prompt (or one prompt that "Always Allow"
       ends).

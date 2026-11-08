@@ -4,7 +4,9 @@
 //! decision made in the code that uses it.
 
 use super::{Platform, SaveDialog};
-use crate::config::{ICON_TRAY_FALLBACK, ICON_TRAY_PRIMARY, TRAY_TOOLTIP_APP_NAME};
+use crate::config::{
+    ICON_TRAY_FALLBACK, ICON_TRAY_PRIMARY, ICON_TRAY_TEMPLATE, TRAY_TOOLTIP_APP_NAME,
+};
 use crate::tray::model::{TrayItem, TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -76,6 +78,16 @@ fn build_menu(app: &AppHandle, menu: &TrayMenu) -> tauri::Result<Menu<Wry>> {
         built.append(menu_item(app, item)?.as_ref())?;
     }
     Ok(built)
+}
+
+/// macOS's one-color menu-bar icon (None elsewhere, or if it won't load).
+fn tray_template() -> Option<Image<'static>> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    Image::from_bytes(include_bytes!("../../icons/tray-template.png"))
+        .inspect_err(|e| log::error!("Failed to load {}: {:?}", ICON_TRAY_TEMPLATE, e))
+        .ok()
 }
 
 fn tray_icon() -> tauri::Result<Image<'static>> {
@@ -164,8 +176,11 @@ impl Platform for TauriPlatform {
             return tray.set_menu(Some(built)).map_err(text);
         }
         let app = self.app.clone();
-        let icon = TrayIconBuilder::new()
-            .icon(tray_icon().map_err(text)?)
+        let builder = match tray_template() {
+            Some(template) => TrayIconBuilder::new().icon(template).icon_as_template(true),
+            None => TrayIconBuilder::new().icon(tray_icon().map_err(text)?),
+        };
+        let icon = builder
             .menu(&built)
             .tooltip(TRAY_TOOLTIP_APP_NAME)
             .on_tray_icon_event(move |_tray, event| {
@@ -186,10 +201,9 @@ impl Platform for TauriPlatform {
             return Err("there's no tray icon".to_string());
         };
         tray.set_tooltip(Some(&status.tooltip)).map_err(text)?;
-        // macOS shows a title beside the icon. tray-icon's set_title(None)
-        // is a no-op there, so an empty title is what clears it.
+        // macOS shows a title beside the icon
         if cfg!(target_os = "macos") {
-            tray.set_title(Some(&status.title)).map_err(text)?;
+            tray.set_title(status.title.as_deref()).map_err(text)?;
         }
         Ok(())
     }
