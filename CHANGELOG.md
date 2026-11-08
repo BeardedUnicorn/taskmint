@@ -8,6 +8,18 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 2.1.0 – 2026-11-07
+
+### Added
+
+- Clicking a TaskMint notification brings the window forward, even when it's hidden in the tray.
+- Settings → About shows TaskMint's version and its release notes, with earlier releases below. After an update, a notice links to what's new.
+
+### Changed
+
+- TaskMint's app identifier is now `com.taskmint.desktop` (it was `com.taskmint.app`). The first launch moves your data, settings and server sign-in over from the old one, so nothing needs redoing, except that macOS asks once more for permission to show notifications and to use Documents for backups.
+- A new app icon and logo, in the Dock, the installer, the browser extension, the sidebar, the sign-in pages and Settings → About. On macOS the menu-bar icon is now a one-color leaf that follows the menu bar's light or dark look.
+
 ## 2.0.0 – 2026-11-07
 
 ### Added
