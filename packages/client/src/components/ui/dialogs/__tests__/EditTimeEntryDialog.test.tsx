@@ -44,15 +44,17 @@ describe('EditTimeEntryDialog', () => {
 
   const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
+  const taskField = () => screen.getByRole('combobox', { name: /^Task/ });
+
   const pickTask = async (name: string) => {
-    await userEvent.click(screen.getByLabelText('Task'));
+    await userEvent.click(taskField());
     await userEvent.click(within(screen.getByRole('listbox')).getByText(name));
   };
 
   it('prefills the task, hours and minutes from the entry', () => {
     renderDialog();
 
-    expect(screen.getByLabelText('Task')).toHaveValue('Deep work');
+    expect(taskField()).toHaveTextContent(/^Deep work$/);
     expect(screen.getByLabelText('Hours')).toHaveValue(1);
     expect(screen.getByLabelText('Minutes')).toHaveValue(35);
   });
@@ -74,8 +76,8 @@ describe('EditTimeEntryDialog', () => {
   it('offers active tasks only, plus the entry’s own archived task', async () => {
     renderDialog({ taskId: 'task-old' });
 
-    expect(screen.getByLabelText('Task')).toHaveValue('Old project');
-    await userEvent.click(screen.getByLabelText('Task'));
+    expect(taskField()).toHaveTextContent(/^Old project$/);
+    await userEvent.click(taskField());
     const options = within(screen.getByRole('listbox'))
       .getAllByRole('option')
       .map(o => o.textContent);
@@ -146,7 +148,7 @@ describe('EditTimeEntryDialog', () => {
         tasks={tasks.map(task => ({ ...task, isFavorite: true }))}
       />
     );
-    await userEvent.click(screen.getByLabelText('Task'));
-    expect(within(screen.getByRole('listbox')).getByText('★ Deep work')).toBeInTheDocument();
+    await userEvent.click(taskField());
+    expect(within(screen.getByRole('listbox')).getByRole('option', { name: '★Deep work' })).toBeInTheDocument();
   });
 });

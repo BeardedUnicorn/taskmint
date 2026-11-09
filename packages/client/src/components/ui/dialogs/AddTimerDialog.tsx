@@ -7,11 +7,12 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Autocomplete, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from '@mui/material';
 import { Task } from '../../../types/task';
 import { TaskSession } from '../../../types/timer';
 import { orderTasksForStart } from '../../../utils/taskOrdering';
 import { instanceTaskId } from '../../../utils/timerHelpers';
+import { TaskSelect } from '../forms/TaskSelect';
 
 /** The task the session's newest timer is on, else the session's own. */
 function latestTaskId(session: TaskSession): string {
@@ -31,9 +32,9 @@ interface AddTimerDialogProps {
 
 export function AddTimerDialog({ session, tasks, sessions, onClose, onAdd }: AddTimerDialogProps) {
   const options = useMemo(() => orderTasksForStart(tasks, sessions), [tasks, sessions]);
-  const [selected, setSelected] = useState<Task | null>(
-    () => options.find(task => task.id === latestTaskId(session)) ?? null
-  );
+  const [selectedId, setSelectedId] = useState(() => latestTaskId(session));
+  // None while the pick isn't offered (archived, say)
+  const selected = options.find(task => task.id === selectedId);
   const [isAdding, setIsAdding] = useState(false);
 
   const add =
@@ -54,14 +55,12 @@ export function AddTimerDialog({ session, tasks, sessions, onClose, onAdd }: Add
       <DialogTitle>Add Timer</DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent sx={{ pt: 1 }}>
-          <Autocomplete
-            options={options}
-            value={selected}
-            onChange={(_, task) => setSelected(task)}
-            getOptionLabel={task => (task.isFavorite ? `★ ${task.name}` : task.name)}
-            isOptionEqualToValue={(option, value) => option.id === value.id}
-            sx={{ pt: 1 }}
-            renderInput={params => <TextField {...params} autoFocus label="Task" placeholder="Choose a task…" />}
+          <TaskSelect
+            tasks={options}
+            value={selectedId}
+            onChange={task => setSelectedId(task.id)}
+            autoFocus
+            sx={{ mt: 1 }}
           />
         </DialogContent>
         <DialogActions>

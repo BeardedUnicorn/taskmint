@@ -8,17 +8,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Autocomplete,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Stack,
-  TextField,
-} from '@mui/material';
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -36,6 +26,7 @@ import {
   validateDuration,
   MS_PER_HOUR,
 } from '../forms/DurationFields';
+import { TaskSelect } from '../forms/TaskSelect';
 
 const MAX_DURATION_MS = 24 * MS_PER_HOUR;
 /** Same allowance the backend gives "ends now" for clock skew. */
@@ -101,7 +92,7 @@ interface AddTimeDialogProps {
 const DEFAULT_DURATION: DurationInput = { hours: '1', minutes: '0' };
 
 export function AddTimeDialog({ onClose, tasks, sessions, onAdd }: AddTimeDialogProps) {
-  const [task, setTask] = useState<Task | null>(null);
+  const [taskId, setTaskId] = useState('');
   const [duration, setDuration] = useState<DurationInput>(DEFAULT_DURATION);
   const [start, setStart] = useState<Dayjs>(() => endsNowStart(durationInputToMs(DEFAULT_DURATION)));
   const [day, setDay] = useState<Dayjs>(() => endsNowStart(durationInputToMs(DEFAULT_DURATION)).startOf('day'));
@@ -114,6 +105,8 @@ export function AddTimeDialog({ onClose, tasks, sessions, onAdd }: AddTimeDialog
   const [isSaving, setIsSaving] = useState(false);
 
   const options = useMemo(() => orderTasksForStart(tasks, sessions), [tasks, sessions]);
+  // None while the pick isn't offered (archived meanwhile, say)
+  const task = options.find(option => option.id === taskId);
   const durationMs = durationInputToMs(duration);
 
   useEffect(() => {
@@ -166,22 +159,15 @@ export function AddTimeDialog({ onClose, tasks, sessions, onAdd }: AddTimeDialog
         <form onSubmit={handleSubmit} noValidate>
           <DialogContent>
             <Stack spacing={2.5} sx={{ pt: 1 }}>
-              <Autocomplete
-                options={options}
-                value={task}
-                onChange={(_, value) => {
-                  setTask(value);
+              <TaskSelect
+                tasks={options}
+                value={taskId}
+                onChange={value => {
+                  setTaskId(value.id);
                   setFormError(null);
                 }}
-                getOptionLabel={option => (option.isFavorite ? `★ ${option.name}` : option.name)}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderInput={params => (
-                  <TextField
-                    {...params}
-                    label="Task"
-                    placeholder={options.length === 0 ? 'Add a task on the Tasks page first' : 'Choose a task…'}
-                  />
-                )}
+                disabled={options.length === 0}
+                helperText={options.length === 0 ? 'Add a task on the Tasks page first' : undefined}
               />
 
               <Stack direction="row" spacing={2}>

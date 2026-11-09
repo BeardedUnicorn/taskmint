@@ -33,11 +33,16 @@ describe('StartWorkDialog', () => {
       <StartWorkDialog onClose={onClose} tasks={dialogTasks} sessions={[]} onStart={onStart} onAddTask={onAddTask} />
     );
 
-  // The picker is focused on open and lists its tasks straight away
-  it('lists active tasks only, favorites first, with their rates', async () => {
-    renderDialog();
+  const taskField = () => screen.getByRole('combobox', { name: /^Task/ });
 
-    const options = (await screen.findAllByRole('option')).map(option => option.textContent);
+  // A plain dropdown, focused on open
+  it('lists active tasks only, favorites first, with their rates', () => {
+    renderDialog();
+    expect(taskField()).toHaveFocus();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(taskField());
+    const options = screen.getAllByRole('option').map(option => option.textContent);
 
     expect(options).toEqual(['★Review', 'Annotation$40.00/hr']);
   });
@@ -47,12 +52,28 @@ describe('StartWorkDialog', () => {
     const startButton = screen.getByRole('button', { name: 'Start' });
     expect(startButton).toBeDisabled();
 
-    fireEvent.click(await screen.findByRole('option', { name: /Annotation/ }));
+    fireEvent.mouseDown(taskField());
+    fireEvent.click(screen.getByRole('option', { name: /Annotation/ }));
     expect(startButton).not.toBeDisabled();
     fireEvent.click(startButton);
 
     await waitFor(() => expect(onStart).toHaveBeenCalledWith('t1', 'Annotation'));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it('will not start a picked task that was archived meanwhile', () => {
+    const { rerender } = renderDialog();
+    fireEvent.mouseDown(taskField());
+    fireEvent.click(screen.getByRole('option', { name: /Annotation/ }));
+    expect(screen.getByRole('button', { name: 'Start' })).not.toBeDisabled();
+
+    const archived = tasks.map(t => (t.id === 't1' ? { ...t, isArchived: true } : t));
+    rerender(
+      <StartWorkDialog onClose={onClose} tasks={archived} sessions={[]} onStart={onStart} onAddTask={onAddTask} />
+    );
+
+    expect(taskField()).not.toHaveTextContent(/\w/);
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
   });
 
   it('sends you to the Tasks page when there is nothing to start', () => {

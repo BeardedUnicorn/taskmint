@@ -138,8 +138,8 @@ describe('ImportWorkLogsDialog', () => {
     expect(screen.getByText('Referral bonus')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /apply import/i })).toBeDisabled();
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Referrals' } });
-    fireEvent.click(await screen.findByRole('option', { name: 'Referrals' }));
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /^Task/ }));
+    fireEvent.click(screen.getByRole('option', { name: 'Referrals' }));
     expect(screen.getByText('$100.00')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
@@ -329,14 +329,6 @@ describe('ImportWorkLogsDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
 
       expect(await screen.findByText(/existing entries; 1 day was rewritten/)).toBeInTheDocument();
-    });
-
-    it('keeps a typed name that is no task as unresolved', () => {
-      renderDialog({ tasks: [createMockTask({ id: 'other', name: 'Unrelated Task' })] });
-      pasteText(samplePayload);
-
-      fireEvent.change(screen.getByRole('combobox', { name: 'Task' }), { target: { value: 'Not a task' } });
-      expect(screen.getByRole('button', { name: /apply import/i })).toBeDisabled();
     });
   });
 });

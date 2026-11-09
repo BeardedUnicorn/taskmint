@@ -1,39 +1,26 @@
 import { useState, useMemo } from 'react';
-import { Autocomplete, TextField, Button, Box, Stack } from '@mui/material';
+import { TextField, Button, Box, Stack } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { TaskSelectorProps } from '../../../types/form';
 import { Task } from '../../../types/task';
+import { TaskSelect } from './TaskSelect';
 
 /**
- * Pick a task by name (or type one), or create a new one. Tasks are listed
- * by name; typing a task's exact name picks that task.
+ * Pick a task from a dropdown, listed by name, or create a new one without
+ * leaving the form (the import would lose its paste on the way to the Tasks
+ * page).
  */
-export function TaskSelector({ value, onChange, predefinedTasks, onCreateNewTask, placeholder }: TaskSelectorProps) {
+export function TaskSelector({ value, onChange, predefinedTasks, onCreateNewTask }: TaskSelectorProps) {
   const [showNewTaskInput, setShowNewTaskInput] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
+  // Listed until the caller's tasks include it, so it shows as picked at once
+  const [created, setCreated] = useState<Task | null>(null);
 
   // Sorted as a copy: the caller's (memoized) list stays as it is
-  const sortedTasks = useMemo(
-    () => [...predefinedTasks].sort((a, b) => a.name.localeCompare(b.name)),
-    [predefinedTasks]
-  );
-
-  // A typed name is reported as it's typed (handleInputChange), so the value
-  // always matches the input: a change here is a picked task, or a clear
-  const handleTaskChange = (_event: unknown, newValue: string | Task | null) => {
-    if (newValue !== null && typeof newValue === 'object') onChange(newValue.name, newValue);
-    else onChange('');
-  };
-
-  const handleInputChange = (_event: unknown, newInputValue: string) => {
-    // Typing a task's exact name shows that task as selected (selectedTask
-    // below), and picking its option is then a no-op for Autocomplete, so
-    // report the task here too.
-    onChange(
-      newInputValue,
-      sortedTasks.find(task => task.name === newInputValue)
-    );
-  };
+  const sortedTasks = useMemo(() => {
+    const pending = created && !predefinedTasks.some(task => task.id === created.id) ? [created] : [];
+    return [...predefinedTasks, ...pending].sort((a, b) => a.name.localeCompare(b.name));
+  }, [predefinedTasks, created]);
 
   const handleCancelNewTask = () => {
     setNewTaskName('');
@@ -46,15 +33,14 @@ export function TaskSelector({ value, onChange, predefinedTasks, onCreateNewTask
     if (!name) return;
     try {
       const newTask = await onCreateNewTask(name);
-      onChange(newTask.name, newTask);
+      setCreated(newTask);
+      onChange(newTask);
       handleCancelNewTask();
     } catch (error) {
       // The caller reports it; the name stays for another try
       console.error('Failed to create new task:', error);
     }
   };
-
-  const selectedTask = sortedTasks.find(task => task.name === value);
 
   if (showNewTaskInput) {
     return (
@@ -91,28 +77,7 @@ export function TaskSelector({ value, onChange, predefinedTasks, onCreateNewTask
 
   return (
     <Stack spacing={1}>
-      <Autocomplete
-        value={selectedTask ?? (value || null)}
-        onChange={handleTaskChange}
-        onInputChange={handleInputChange}
-        options={sortedTasks}
-        getOptionLabel={option => (typeof option === 'string' ? option : option.name)}
-        renderOption={(props, option) => {
-          const { key, ...otherProps } = props;
-          return (
-            <Box component="li" key={key} {...otherProps}>
-              <Box>
-                <Box>{option.name}</Box>
-                {option.hourlyRate ? (
-                  <Box sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>${option.hourlyRate}/hour</Box>
-                ) : null}
-              </Box>
-            </Box>
-          );
-        }}
-        freeSolo
-        renderInput={params => <TextField {...params} label="Task" placeholder={placeholder} fullWidth />}
-      />
+      <TaskSelect tasks={sortedTasks} value={value} onChange={onChange} />
 
       <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setShowNewTaskInput(true)} size="small">
         Create New Task
