@@ -1,6 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// `tauri android dev --host` (for a phone on the network) sets TAURI_DEV_HOST
+// to this computer's address there: the dev server then listens on it, and
+// live reload connects to it (tauri.android.conf.json's devCsp allows that).
+// Unset, as on the desktop and in the Android emulator, the server stays on
+// localhost.
+const host = process.env.TAURI_DEV_HOST;
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -12,6 +19,7 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    ...(host ? { host, hmr: { protocol: 'ws', host, port: 1420 } } : {}),
     watch: {
       ignored: ['**/src-tauri/**'],
     },

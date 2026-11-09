@@ -7,9 +7,11 @@ import { UpdatePrompt } from './UpdatePrompt';
 
 /**
  * The desktop's own parts of the client: the Server and Updates sections,
- * the update check, and in server mode a way back to local data.
+ * the update check, and in server mode a way back to local data. A phone or
+ * tablet has none of them: its build has no server mode or updater.
  */
-export function desktopExtensions({ dataLocation }: Capabilities): AppExtensions {
+export function desktopExtensions({ runtime, dataLocation }: Capabilities): AppExtensions {
+  if (runtime === 'mobile') return {};
   return {
     settingsSections: [
       { id: 'server', label: 'Server', Section: ServerSection },

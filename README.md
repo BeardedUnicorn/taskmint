@@ -188,6 +188,67 @@ transparent that macOS tints) and the images in `packages/client/public/` and
 Copy `.env.example` to `.env` to set a Sentry DSN; otherwise reporting stays
 off.
 
+### Android
+
+The desktop crate also builds as a Tauri Android app (`apps/desktop`, the same
+Rust and webview). It isn't released yet.
+
+**Prerequisites**, besides the ones above:
+
+- Android Studio, or the command-line tools, with SDK Manager's Android SDK
+  Platform, Platform-Tools, Build-Tools, Command-line Tools and NDK (Side by
+  side).
+- JDK 17 or later; Android Studio's own works
+  (`/Applications/Android Studio.app/Contents/jbr/Contents/Home` on macOS).
+- `JAVA_HOME`, `ANDROID_HOME` (usually `~/Library/Android/sdk`) and
+  `NDK_HOME` (`$ANDROID_HOME/ndk/<version>`) set in your shell.
+- The Rust Android targets. `tauri android init` installs them; by hand:
+
+```bash
+rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+```
+
+Generate the Android project once. It goes in `apps/desktop/src-tauri/gen/android`,
+made from `tauri.conf.json` and `tauri.android.conf.json`, and isn't committed
+yet: commit it once it has changes of its own (icons, release signing).
+
+```bash
+cd apps/desktop && pnpm tauri android init
+```
+
+Then run it in an emulator or on a phone plugged in over USB, or build a debug
+APK:
+
+```bash
+cd apps/desktop && pnpm tauri android dev
+```
+
+```bash
+cd apps/desktop && pnpm tauri android build --debug --apk --target aarch64
+```
+
+For a phone on the network, `pnpm tauri android dev --host` serves Vite on
+this computer's network address (`vite.config.ts` reads `TAURI_DEV_HOST`;
+`tauri.android.conf.json` lets live reload connect to it).
+
+On Android the Rust side reports the runtime `mobile` (`get_capabilities`).
+The app has its timers, data, dialogs and notifications (it asks for
+permission to notify at the first launch). The parts only a desktop has are
+left out, in the Rust (`#[cfg(desktop)]`, and those crates are desktop-only
+dependencies) and in the webview (`tauriBackend.ts`, `extensions.tsx`):
+the tray, idle detection and the long-run reminder, folder backups, showing a
+file in the file manager, the capture server and `taskmint://` links for the
+browser extension, server mode and its keychain token, updates, and the move
+from the old identifier. Export and Import don't work yet: Android's file
+pickers return `content://` addresses, which the shell can't open as files.
+
+To check the Rust compiles for Android without the Gradle build, point Cargo
+at the NDK's compiler (the `tauri android` commands do this themselves):
+
+```bash
+TC=$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin CC_aarch64_linux_android=$TC/aarch64-linux-android24-clang AR_aarch64_linux_android=$TC/llvm-ar cargo clippy -p taskmint --target aarch64-linux-android -- -D warnings
+```
+
 ### Checks
 
 `pnpm verify` (`scripts/verify.sh`) runs every gate below in order; run it before merging.

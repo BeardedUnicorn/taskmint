@@ -5,6 +5,11 @@
  * notifications, idle time, backups) as the Rust shell's commands. Events are
  * Tauri events. In server mode the Rust side passes the data commands on to
  * the server and its events back, so nothing here changes.
+ *
+ * On a phone or tablet (runtime 'mobile') the platform is the files and
+ * notifications only: there's no system idle time, tray, folder to back up
+ * to, file manager or browser extension, so the client leaves those features
+ * out, as it does in a browser.
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -50,7 +55,8 @@ function subscribe<T>(event: string, handler: (payload: T) => void): () => void 
   };
 }
 
-const platform: Platform = {
+/** What the app has everywhere it runs: dialogs for files, and OS notifications. */
+const everywhere: Platform = {
   files: {
     async save({ contents, suggestedName, format }) {
       const saving =
@@ -66,6 +72,10 @@ const platform: Platform = {
     show: (kind, title, body) => command<boolean>('show_desktop_notification', { kind, title, body }),
     setPreferences: prefs => command<void>('set_notification_preferences', { prefs }),
   },
+};
+
+/** What only a desktop has. */
+const desktopOnly: Omit<Platform, 'files' | 'notifications'> = {
   idle: {
     isSupported: () => command<boolean>('get_idle_support'),
     setSettings: settings => command<void>('set_idle_settings', { settings }),
@@ -96,6 +106,6 @@ export function createTauriBackend(capabilities: Capabilities): Backend {
       return command<CommandReply<K>>(name, args[0] as Record<string, unknown> | undefined);
     },
     subscribe,
-    platform,
+    platform: capabilities.runtime === 'mobile' ? everywhere : { ...everywhere, ...desktopOnly },
   };
 }

@@ -19,8 +19,11 @@ import type { IdleChoice, IdlePause, InactivitySettings } from '../types/timer';
 import type { CaptureServerStatus } from '@taskmint/contracts';
 
 export interface Capabilities {
-  /** The shell the client runs in. */
-  runtime: 'desktop' | 'web';
+  /**
+   * The shell the client runs in: the desktop app, the same app on a phone or
+   * tablet (Android, iOS), or a browser.
+   */
+  runtime: 'desktop' | 'mobile' | 'web';
   /** Where tracked time lives: on this computer, or on a TaskMint server. */
   dataLocation: 'local' | 'server';
 }
