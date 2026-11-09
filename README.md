@@ -235,27 +235,25 @@ on `main`:
 
 ```bash
 pnpm release --dry-run    # the next version and its CHANGELOG section; changes nothing
-pnpm release              # bump, CHANGELOG, build the DMG, commit "Release X.Y.Z", tag vX.Y.Z
+pnpm release              # bump, CHANGELOG, commit "Release X.Y.Z", tag vX.Y.Z
 pnpm release publish      # push main and the tag; CI builds and publishes the release
 ```
 
 `pnpm release` takes the highest `bump` among the notes. It writes that
 version into every manifest (the desktop, web, client and contracts
 `package.json`s, the three crates and `Cargo.lock`; the extension keeps its
-own), adds the CHANGELOG section, and deletes the notes. It then builds this
-Mac's installer into `releases/TaskMint-X.Y.Z-macos-arm64.dmg`, to check the
-release builds before it's tagged. Only after the build succeeds does it
-commit and tag. If the build fails, the version files, CHANGELOG and notes
-are put back. Nothing is pushed.
+own), adds the CHANGELOG section, deletes the notes, then commits and tags.
+It builds nothing: the Release workflow builds every installer from the
+pushed tag. If the commit fails, the version files, CHANGELOG and notes are
+put back. Nothing is pushed.
 
 | Option | |
 |---|---|
 | `--patch`, `--minor`, `--major` | bump this level instead (needed when there are no notes) |
-| `--target <name>` | build this instead of this computer's installer (repeat it for more): `macos-arm64`, `macos-x64` (cross-compiled on Apple silicon), `windows-x64`, `chrome-extension` |
-| `--windows` | also build `windows-x64` (on a Mac, cross-compiled with cargo-xwin) |
-| `--no-build` | version, CHANGELOG, commit and tag only |
-| `--rebuild` | build the current version's installers again, with no bump or commit (takes `--target` and `--windows`) |
 | `--publish` | then push `main` and the tag |
+| `--rebuild` | only build the current version's installers into `releases/`, with no bump or commit: this computer's (`TaskMint-X.Y.Z-macos-arm64.dmg` on Apple silicon), or the `--target` and `--windows` ones |
+| `--target <name>` | with `--rebuild`, build this instead of this computer's installer (repeat it for more): `macos-arm64`, `macos-x64` (cross-compiled on Apple silicon), `windows-x64`, `chrome-extension` |
+| `--windows` | with `--rebuild`, also build `windows-x64` (on a Mac, cross-compiled with cargo-xwin) |
 
 `pnpm release publish` pushes `main` and the current version's tag. The tag
 starts the Release workflow, which builds every file a release ships on
@@ -317,10 +315,10 @@ Updates are signed with a minisign key:
   The macOS update is made from the `app` bundle target, so `bundle.targets`
   must keep `app` next to `dmg`. The Tauri CLI refuses to sign with a public
   key it can't read, such as a placeholder.
-  `pnpm release` checks each signature against the public key before the
-  update goes into `releases/`, so a mismatched key can't ship.
-  Without the key, as in a local `pnpm release`, it builds the installer
-  only.
+  `pnpm release --rebuild` checks each signature against the public key
+  before the update goes into `releases/`, so a mismatched key can't ship.
+  Without the key, as in a local `pnpm release --rebuild`, it builds the
+  installer only.
 - The workflow's last step writes `latest.json` from the signatures and the
   CHANGELOG section.
 - `requireSignedVersion` is on. The bundler records the version in each

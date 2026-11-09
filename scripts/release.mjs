@@ -2,16 +2,16 @@
 /**
  * Cuts a TaskMint release from the change notes in changes/ (see
  * changes/README.md): bumps the shared version by the highest note, writes
- * the CHANGELOG section, builds the installers into releases/, then commits
- * "Release X.Y.Z" and tags vX.Y.Z. Nothing is pushed unless --publish. The
- * pushed tag starts the Release workflow (.github/workflows/release.yml),
- * which builds every installer with --rebuild and creates the GitHub release
- * with github-release.
+ * the CHANGELOG section, then commits "Release X.Y.Z" and tags vX.Y.Z. It
+ * builds nothing, and nothing is pushed unless --publish. The pushed tag
+ * starts the Release workflow (.github/workflows/release.yml), which builds
+ * every installer with --rebuild and creates the GitHub release with
+ * github-release.
  *
  * With the updater's signing key in TAURI_SIGNING_PRIVATE_KEY (the Release
- * workflow has it), each desktop build also makes the app's signed update,
- * and github-release adds latest.json, which installed apps read to update
- * themselves (the README's "Desktop updates").
+ * workflow has it), each desktop build that --rebuild makes also makes the
+ * app's signed update, and github-release adds latest.json, which installed
+ * apps read to update themselves (the README's "Desktop updates").
  *
  * Run it in the main checkout, on main: `pnpm release --help`.
  */
@@ -78,23 +78,26 @@ const USAGE = `Usage: pnpm release [options]
        pnpm release github-release
 
 Bumps the version by the highest change note in changes/, writes the
-CHANGELOG section, builds this computer's installer into releases/, then
-commits "Release X.Y.Z" and tags vX.Y.Z. Run it in the main checkout, on main.
+CHANGELOG section, then commits "Release X.Y.Z" and tags vX.Y.Z. It builds
+nothing: the Release workflow builds the installers from the pushed tag.
+Run it in the main checkout, on main.
 
 With the updater's signing key in TAURI_SIGNING_PRIVATE_KEY, each desktop
-build also makes the app's signed update (the README's "Desktop updates").
+build that --rebuild makes also makes the app's signed update (the README's
+"Desktop updates").
 
 Options:
   --dry-run              Print the next version and its section; change nothing
   --patch, --minor, --major
                          Bump this level instead of the notes' highest
-  --target <name>        Build this instead of this computer's installer; repeat
-                         it for more: ${TARGETS.join(', ')}
-  --windows              Also build windows-x64 (on a Mac, cross-compiled with cargo-xwin)
-  --no-build             Bump, write the changelog, commit and tag; no installers
-  --rebuild              Build the current version's installers into releases/
-                         (no bump, no commit)
   --publish              Then push main and the tag
+  --rebuild              Only build the current version's installers into
+                         releases/ (no bump, no commit): this computer's, or
+                         the --target and --windows ones
+  --target <name>        (With --rebuild) Build this instead of this computer's
+                         installer; repeat it for more: ${TARGETS.join(', ')}
+  --windows              (With --rebuild) Also build windows-x64 (on a Mac,
+                         cross-compiled with cargo-xwin)
   -h, --help             Show this
 
 publish                  Push main and the current version's tag. The tag starts
@@ -351,15 +354,12 @@ To release without any, pass --patch, --minor or --major.`);
 
   requireMainAndClean();
   if (tagExists(tagOf(version))) stop(`The tag ${tagOf(version)} already exists.`);
-  const plans = options.build ? planBuilds(options) : [];
 
   console.log(`Releasing ${version} (${current} → ${version}, ${level})`);
   const paths = releasePaths(notes);
   const before = git('rev-parse', 'HEAD');
-  let files = [];
   try {
     writeRelease(version, section, notes);
-    files = build(version, plans);
     commitAndTag(version, section, paths);
   } catch (error) {
     // Once the release is committed, only the tag is missing
@@ -367,8 +367,6 @@ To release without any, pass --patch, --minor or --major.`);
     throw error;
   }
   console.log(`\nCommitted "Release ${version}" and tagged ${tagOf(version)} (not pushed).`);
-  report(files);
-  reveal(files);
   if (options.publish) publish(version);
 }
 
@@ -476,7 +474,6 @@ function githubRelease(version = currentVersion()) {
 function parseArgs(args) {
   const options = {
     dryRun: false,
-    build: true,
     rebuild: false,
     windows: false,
     publish: false,
@@ -495,7 +492,6 @@ function parseArgs(args) {
       if (!isTarget(target)) stop(`--target takes one of ${TARGETS.join(', ')}${target ? ` (not ${target})` : ''}.`);
       options.targets.push(target);
     } else if (arg === '--dry-run') options.dryRun = true;
-    else if (arg === '--no-build') options.build = false;
     else if (arg === '--rebuild') options.rebuild = true;
     else if (arg === '--windows') options.windows = true;
     else if (arg === '--publish') options.publish = true;
@@ -505,11 +501,11 @@ function parseArgs(args) {
     } else stop(`Unknown option ${arg}\n\n${USAGE}`);
   }
   if (command !== 'release' && args.length > 1) stop(`\`pnpm release ${command}\` takes no options.`);
-  if (options.rebuild && (options.level || !options.build || options.publish || options.dryRun)) {
+  if (options.rebuild && (options.level || options.publish || options.dryRun)) {
     stop('--rebuild only takes --target and --windows.');
   }
-  if (!options.build && (options.windows || options.targets.length > 0)) {
-    stop('--target and --windows build installers, so they need a build.');
+  if (!options.rebuild && (options.windows || options.targets.length > 0)) {
+    stop('--target and --windows go with --rebuild: a release builds nothing.');
   }
   return { command, options };
 }
