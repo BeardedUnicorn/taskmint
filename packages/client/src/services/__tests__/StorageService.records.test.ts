@@ -75,6 +75,17 @@ describe('StorageService with app records', () => {
     await expect(storage.getTasks()).rejects.toMatchObject({ code: 'STORAGE_VALIDATION_FAILED' });
   });
 
+  it('reads and saves the account settings, which are none until saved', async () => {
+    expect(await storage.getAccountSettings()).toBeNull();
+    await storage.setAccountSettings({ fundsReleaseDays: 4, withdrawalIntervalDays: 3 });
+    expect(mockInvoke).toHaveBeenCalledWith('set_app_record', {
+      key: 'accountSettings',
+      value: { fundsReleaseDays: 4, withdrawalIntervalDays: 3 },
+      baseRevision: 0,
+    });
+    expect(await storage.getAccountSettings()).toEqual({ fundsReleaseDays: 4, withdrawalIntervalDays: 3 });
+  });
+
   it('rejects invalid data without saving it', async () => {
     await expect(storage.setTasks([{ id: '' } as never])).rejects.toMatchObject({
       code: 'STORAGE_VALIDATION_FAILED',

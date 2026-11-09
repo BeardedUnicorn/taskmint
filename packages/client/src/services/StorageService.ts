@@ -5,7 +5,7 @@
  * Provides a unified interface for all data persistence operations
  *
  * The records (tasks, notes, note templates, the daily goal and its history,
- * withdrawals)
+ * withdrawals, the account settings)
  * belong to the backend and are read through the records cache
  * (services/appRecords); every other key is a device setting in localStorage
  * (utils/localStore).
@@ -16,6 +16,7 @@ import { Task, TaskSchema } from '../types/task';
 import { NoteTemplate, TaskNote, NoteTemplateSchema, TaskNoteSchema } from '../types/notes';
 import { DailyGoal, DailyGoalAchievement, DailyGoalSchema, DailyGoalAchievementSchema } from '../types/goal';
 import { Withdrawal, WithdrawalListSchema } from '../types/withdrawal';
+import { AccountSettings, AccountSettingsSchema, parseAccountSettings } from '../types/accountSettings';
 
 import { STORAGE_KEYS } from '../constants';
 import { readLocal, writeLocal } from '../utils/localStore';
@@ -41,6 +42,8 @@ export interface IStorageService {
   setGoalAchievements(achievements: DailyGoalAchievement[]): Promise<void>;
   getWithdrawals(): Promise<Withdrawal[]>;
   setWithdrawals(withdrawals: Withdrawal[]): Promise<void>;
+  getAccountSettings(): Promise<AccountSettings | null>;
+  setAccountSettings(settings: AccountSettings): Promise<void>;
 }
 
 export class StorageService implements IStorageService {
@@ -152,5 +155,15 @@ export class StorageService implements IStorageService {
 
   async setWithdrawals(withdrawals: Withdrawal[]): Promise<void> {
     await this.setItem(STORAGE_KEYS.WITHDRAWALS, withdrawals, WithdrawalListSchema);
+  }
+
+  /** The account settings, made whole; null when none were ever saved. */
+  async getAccountSettings(): Promise<AccountSettings | null> {
+    const stored = readAppRecord(STORAGE_KEYS.ACCOUNT_SETTINGS);
+    return stored === undefined ? null : parseAccountSettings(stored);
+  }
+
+  async setAccountSettings(settings: AccountSettings): Promise<void> {
+    await this.setItem(STORAGE_KEYS.ACCOUNT_SETTINGS, settings, AccountSettingsSchema);
   }
 }

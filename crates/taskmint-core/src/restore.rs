@@ -1,11 +1,14 @@
-//! Restoring a TaskMint export into the sessions and the work-log ledger.
+//! Restoring a TaskMint export into the sessions and the work-log ledger,
+//! and in an exact restore (replace mode) the frontend's records too, all in
+//! one command.
 //!
-//! Records are parsed one at a time with the same tolerance as the startup
-//! load, so one unreadable record in an old export skips that record instead
-//! of failing the whole restore.
+//! Sessions and work logs are parsed one at a time with the same tolerance
+//! as the startup load, so one unreadable record in an old export skips that
+//! record instead of failing the whole restore.
 
 use crate::load::parse_sessions;
 use crate::model::{ProjectTaskMapping, TaskSession, WorkLogEntry};
+use crate::records::RecordMap;
 use crate::timer::{recalculate_total_duration, stop_active_instances};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -31,6 +34,11 @@ pub struct RestorePayload {
     /// are finalized at this moment (see finalize_time).
     #[serde(default)]
     pub exported_at: Option<String>,
+    /// Replace mode only: the frontend's records (validated by it) to put in
+    /// place of the stored ones. Each key listed replaces its record, a null
+    /// removes it, and a record not listed stays (the file didn't have it).
+    #[serde(default)]
+    pub records: Option<RecordMap>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -43,6 +51,8 @@ pub struct RestoreSummary {
     pub work_log_mappings_restored: usize,
     /// Records in the file that could not be read and were skipped.
     pub records_skipped: usize,
+    /// The frontend's records put in place (an exact restore).
+    pub app_records_restored: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]

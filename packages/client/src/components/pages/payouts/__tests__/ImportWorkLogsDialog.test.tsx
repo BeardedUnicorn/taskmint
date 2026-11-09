@@ -10,6 +10,7 @@ import { ImportWorkLogsDialog } from '../ImportWorkLogsDialog';
 import { WORKLOG_IMPORT_SOURCE, WorkLogImportPayload, WorkLogImportSummary } from '../../../../types/workLog';
 import { deriveTimedWorkDay } from '../../../../utils/workLogImport';
 import {
+  createEmptyImportUndo,
   createMockTask,
   createMockTaskSession,
   createMockTimerInstance,
@@ -22,6 +23,7 @@ const emptySummary: WorkLogImportSummary = {
   mappingsSaved: 1,
   groupsApplied: [],
   groupsSkipped: [],
+  undo: createEmptyImportUndo(),
 };
 
 const CREATED_AT = '2026-08-26T20:00:00.000Z';

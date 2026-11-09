@@ -1,14 +1,36 @@
-//! Automatic backups into a folder the user picks. Every outcome, failures
-//! included, is reported in the result the frontend shows.
+//! Automatic backups into a folder the user picks, and the list of them to
+//! restore from. Every outcome, failures included, is reported in the result
+//! the frontend shows.
 
 use crate::config::{
     BACKUP_FILENAME_EXTENSION, BACKUP_FILENAME_PREFIX, BACKUP_WRITE_TEST_FILENAME,
 };
 use crate::utils::is_valid_backup_timestamp;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
+use serde::Serialize;
+use serde_json::Value;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::Path;
 use taskmint_core::model::{BackupResult, PathValidationResult};
+
+/// One of TaskMint's backups in the backup folder (list_backups). camelCase
+/// like every type the frontend reads (BackupFileInfo in
+/// packages/client/src/types/backup.ts).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupFile {
+    pub name: String,
+    /// When it was written, from its name (RFC 3339, UTC).
+    pub taken_at: String,
+    /// In bytes.
+    pub size: u64,
+    /// Whether it reads as a TaskMint export; `problem` says why not.
+    pub valid: bool,
+    pub problem: Option<String>,
+    /// The time the export in it records.
+    pub exported_at: Option<String>,
+}
 
 fn valid() -> PathValidationResult {
     PathValidationResult {
@@ -98,12 +120,88 @@ pub fn perform_automatic_backup(
     }
 }
 
-/// Whether `name` is one of TaskMint's own backups: only those are ever
-/// deleted.
-fn is_backup_name(name: &str) -> bool {
+/// The `YYYYMMDD_HHMMSS` stamp in a backup's name, if it's one of TaskMint's
+/// own backups: only those are ever listed, read or deleted.
+fn backup_stamp(name: &str) -> Option<&str> {
     name.strip_prefix(BACKUP_FILENAME_PREFIX)
         .and_then(|rest| rest.strip_suffix(BACKUP_FILENAME_EXTENSION))
-        .is_some_and(is_valid_backup_timestamp)
+        .filter(|stamp| is_valid_backup_timestamp(stamp))
+}
+
+fn is_backup_name(name: &str) -> bool {
+    backup_stamp(name).is_some()
+}
+
+/// The export time in a backup's contents, or why they aren't an export.
+fn read_export(bytes: &[u8]) -> Result<Option<String>, String> {
+    let value: Value =
+        serde_json::from_slice(bytes).map_err(|_| "It isn't valid JSON".to_string())?;
+    if !value.get("data").is_some_and(Value::is_object) {
+        return Err("It isn't a TaskMint export".to_string());
+    }
+    Ok(value
+        .get("exportDate")
+        .and_then(Value::as_str)
+        .map(str::to_string))
+}
+
+fn describe_backup(folder: &Path, name: String, stamp: &str) -> BackupFile {
+    let taken_at = NaiveDateTime::parse_from_str(stamp, "%Y%m%d_%H%M%S")
+        .expect("a backup's stamp is a time")
+        .and_utc()
+        .to_rfc3339();
+    let read = fs::read(folder.join(&name));
+    let size = read.as_ref().map_or(0, |bytes| bytes.len() as u64);
+    let (valid, problem, exported_at) = match read
+        .map_err(|e| format!("It can't be read: {}", e))
+        .and_then(|bytes| read_export(&bytes))
+    {
+        Ok(exported_at) => (true, None, exported_at),
+        Err(problem) => (false, Some(problem), None),
+    };
+    BackupFile {
+        name,
+        taken_at,
+        size,
+        valid,
+        problem,
+        exported_at,
+    }
+}
+
+/// TaskMint's backups in `folder`, newest first, each checked to read as an
+/// export. A folder that isn't there has none.
+pub fn list_backups(folder: &str) -> Result<Vec<BackupFile>, String> {
+    let folder = Path::new(folder);
+    let entries = match fs::read_dir(folder) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(format!("Can't read the backup folder: {}", e)),
+    };
+    let mut backups: Vec<(String, String)> = entries
+        .flatten()
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter_map(|name| {
+            let stamp = backup_stamp(&name)?.to_string();
+            Some((stamp, name))
+        })
+        .collect();
+    // Their stamps sort by age: newest first
+    backups.sort_by(|a, b| b.cmp(a));
+    Ok(backups
+        .into_iter()
+        .map(|(stamp, name)| describe_backup(folder, name, &stamp))
+        .collect())
+}
+
+/// One of the backups list_backups found, to restore from. Only TaskMint's
+/// own backups, by name, in the folder given.
+pub fn read_backup(folder: &str, name: &str) -> Result<String, String> {
+    if !is_backup_name(name) {
+        return Err("That isn't one of TaskMint's backups".to_string());
+    }
+    fs::read_to_string(Path::new(folder).join(name))
+        .map_err(|e| format!("Can't read the backup: {}", e))
 }
 
 /// Best effort: a backup that can't be deleted stays, and is logged.
@@ -231,6 +329,114 @@ mod tests {
             .error
             .unwrap()
             .starts_with("Failed to write backup file: "));
+    }
+
+    #[test]
+    fn the_folders_backups_are_listed_newest_first_and_checked() {
+        let dir = TempDir::new("backup-list");
+        let name = |stamp: &str| {
+            format!(
+                "{}{}{}",
+                BACKUP_FILENAME_PREFIX, stamp, BACKUP_FILENAME_EXTENSION
+            )
+        };
+        let export =
+            r#"{"version":"3","exportDate":"2026-01-02T12:00:00.000Z","data":{"tasks":[]}}"#;
+        fs::write(dir.0.join(name("20260102_120000")), export).unwrap();
+        fs::write(dir.0.join(name("20260103_120000")), "not json").unwrap();
+        fs::write(dir.0.join(name("20260104_120000")), r#"{"data":[]}"#).unwrap();
+        fs::create_dir(dir.0.join(name("20260105_120000"))).unwrap();
+        fs::write(dir.0.join("notes.txt"), "mine").unwrap();
+        fs::write(dir.0.join(name("not_a_stamp")), export).unwrap();
+
+        let listed = list_backups(text(&dir.0)).unwrap();
+
+        let names: Vec<&str> = listed.iter().map(|b| b.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                name("20260105_120000"),
+                name("20260104_120000"),
+                name("20260103_120000"),
+                name("20260102_120000"),
+            ]
+        );
+        assert_eq!(
+            listed[3],
+            BackupFile {
+                name: name("20260102_120000"),
+                taken_at: "2026-01-02T12:00:00+00:00".to_string(),
+                size: export.len() as u64,
+                valid: true,
+                problem: None,
+                exported_at: Some("2026-01-02T12:00:00.000Z".to_string()),
+            }
+        );
+        assert_eq!(listed[2].problem.as_deref(), Some("It isn't valid JSON"));
+        assert_eq!(
+            listed[1].problem.as_deref(),
+            Some("It isn't a TaskMint export")
+        );
+        assert!(listed[0]
+            .problem
+            .as_deref()
+            .unwrap()
+            .starts_with("It can't be read: "));
+        assert_eq!((listed[0].valid, listed[0].size), (false, 0));
+
+        // Its JSON names are the frontend's
+        let json = serde_json::to_value(&listed[3]).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "name": name("20260102_120000"),
+                "takenAt": "2026-01-02T12:00:00+00:00",
+                "size": export.len(),
+                "valid": true,
+                "problem": null,
+                "exportedAt": "2026-01-02T12:00:00.000Z",
+            })
+        );
+    }
+
+    #[test]
+    fn a_missing_folder_has_no_backups_and_an_unreadable_one_says_so() {
+        let dir = TempDir::new("backup-list-missing");
+        assert_eq!(list_backups(text(&dir.0.join("gone"))), Ok(Vec::new()));
+        fs::write(dir.0.join("file"), "").unwrap();
+        assert!(list_backups(text(&dir.0.join("file")))
+            .unwrap_err()
+            .starts_with("Can't read the backup folder: "));
+    }
+
+    #[test]
+    fn only_taskmints_own_backups_are_read() {
+        let dir = TempDir::new("backup-read");
+        let name = format!(
+            "{}20260102_120000{}",
+            BACKUP_FILENAME_PREFIX, BACKUP_FILENAME_EXTENSION
+        );
+        fs::write(dir.0.join(&name), "{}").unwrap();
+        assert_eq!(read_backup(text(&dir.0), &name), Ok("{}".to_string()));
+
+        fs::write(dir.0.join("secrets.json"), "{}").unwrap();
+        for other in [
+            "secrets.json",
+            "../secrets.json",
+            "time_tracker_backup_x.json",
+        ] {
+            assert_eq!(
+                read_backup(text(&dir.0), other),
+                Err("That isn't one of TaskMint's backups".to_string())
+            );
+        }
+        let missing = format!(
+            "{}20260103_120000{}",
+            BACKUP_FILENAME_PREFIX, BACKUP_FILENAME_EXTENSION
+        );
+        assert!(read_backup(text(&dir.0), &missing)
+            .unwrap_err()
+            .starts_with("Can't read the backup: "));
     }
 
     #[test]

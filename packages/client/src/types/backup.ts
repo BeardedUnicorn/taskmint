@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { DeviceSettingsSchema } from '../utils/deviceSettings';
 
 // Backup frequency options
 export type BackupFrequency = 'daily' | 'weekly' | 'monthly';
@@ -42,6 +43,20 @@ export const DEFAULT_BACKUP_CONFIG: BackupConfig = {
   backupPath: '',
   maxBackups: 10,
 };
+
+/** A backup in the backup folder (the desktop shell's list_backups). */
+export interface BackupFileInfo {
+  name: string;
+  /** When it was written (ISO, from its name). */
+  takenAt: string;
+  /** In bytes. */
+  size: number;
+  /** Whether it reads as a TaskMint export; `problem` says why not. */
+  valid: boolean;
+  problem: string | null;
+  /** The export time it records. */
+  exportedAt: string | null;
+}
 
 const FREQUENCY_LABELS: Record<BackupFrequency, string> = {
   daily: 'Daily',
@@ -86,9 +101,11 @@ export function isBackupDue(config: BackupConfig): boolean {
 
 /**
  * "2": adds `data.workLogs`, and import restores `data.sessions` (v1 files
- * carried sessions that import ignored). v1 files still import.
+ * carried sessions that import ignored). "3": adds `data.accountSettings`
+ * (the payout settings record) and `data.settings` (the exporting device's
+ * own settings). Older files still import.
  */
-export const BACKUP_FORMAT_VERSION = '2';
+export const BACKUP_FORMAT_VERSION = '3';
 
 // Records stay untyped here; see the schema comment for where they are checked.
 const recordList = z.array(z.any());
@@ -110,6 +127,9 @@ export const BackupFileSchema = z.object({
     dailyGoal: z.any().optional(),
     goalAchievements: recordList.optional(),
     withdrawals: recordList.optional(),
+    accountSettings: z.any().optional(),
+    // The device settings; anything here that doesn't read is skipped
+    settings: DeviceSettingsSchema.optional().catch(undefined),
     sessions: recordList.optional(),
     workLogs: z
       .object({

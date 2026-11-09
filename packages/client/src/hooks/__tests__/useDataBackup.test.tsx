@@ -8,7 +8,7 @@
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach, type Mocked } from 'vitest';
-import { useDataBackup } from '../useDataBackup';
+import { parseBackupFile, useDataBackup } from '../useDataBackup';
 import { StorageService } from '../../services/StorageService';
 import { fakeBackend } from '../../testing';
 
@@ -21,12 +21,14 @@ const mockStorageService = {
   getDailyGoal: vi.fn(),
   getGoalAchievements: vi.fn(),
   getWithdrawals: vi.fn(),
+  getAccountSettings: vi.fn(),
   setTasks: vi.fn(),
   setNoteTemplates: vi.fn(),
   setTaskNotes: vi.fn(),
   setDailyGoal: vi.fn(),
   setGoalAchievements: vi.fn(),
   setWithdrawals: vi.fn(),
+  setAccountSettings: vi.fn(),
 } as unknown as Mocked<StorageService>;
 
 const mockSession = {
@@ -140,6 +142,9 @@ describe('useDataBackup', () => {
       },
     ]);
 
+    mockStorageService.getAccountSettings.mockResolvedValue({ fundsReleaseDays: 5, withdrawalIntervalDays: 3 });
+    localStorage.clear();
+
     // Imports read the picked file; exports save where the dialog says
     files().openJson.mockResolvedValue('/mock/path/export.json');
     exportImpl = async () => '/mock/path/export.json';
@@ -183,7 +188,7 @@ describe('useDataBackup', () => {
 
       const backupData = await result.current.createBackupData();
 
-      expect(backupData).toHaveProperty('version', '2');
+      expect(backupData).toHaveProperty('version', '3');
       expect(backupData).toHaveProperty('exportDate');
       expect(backupData).toHaveProperty('data');
       expect(backupData.data).not.toHaveProperty('timeEntries');
@@ -199,6 +204,31 @@ describe('useDataBackup', () => {
       expect(backupData.data.workLogs).toEqual({
         entries: [mockWorkLogEntry],
         mappings: [mockMapping],
+      });
+      expect(backupData.data.accountSettings).toEqual({ fundsReleaseDays: 5, withdrawalIntervalDays: 3 });
+      // Only the settings this device saved
+      expect(backupData.data.settings).toEqual({});
+    });
+
+    it("carries this device's saved settings, and the default payout settings when none were saved", async () => {
+      mockStorageService.getAccountSettings.mockResolvedValue(null);
+      localStorage.setItem('theme-mode', JSON.stringify({ version: 1, data: 'light' }));
+      localStorage.setItem(
+        'automaticBackupConfig',
+        JSON.stringify({
+          version: 1,
+          data: { enabled: true, frequency: 'weekly', backupPath: '/b', maxBackups: 5, lastBackupTime: 'then' },
+        })
+      );
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      const backupData = await result.current.createBackupData();
+
+      expect(backupData.data.accountSettings).toEqual({ fundsReleaseDays: 7, withdrawalIntervalDays: 3 });
+      // When this device last backed up isn't a setting
+      expect(backupData.data.settings).toEqual({
+        theme: 'light',
+        backups: { enabled: true, frequency: 'weekly', backupPath: '/b', maxBackups: 5 },
       });
     });
 
@@ -243,7 +273,7 @@ describe('useDataBackup', () => {
       });
 
       expect(files().save).toHaveBeenCalledWith({
-        contents: expect.stringContaining('"version": "2"'),
+        contents: expect.stringContaining('"version": "3"'),
         suggestedName: expect.stringMatching(/^taskmint_export_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.json$/),
         format: 'json',
       });
@@ -389,7 +419,7 @@ describe('useDataBackup', () => {
       const dataJson = exportCall[0].contents;
       const parsedData = JSON.parse(dataJson);
 
-      expect(parsedData.version).toBe('2');
+      expect(parsedData.version).toBe('3');
       expect(parsedData.exportDate).toBeDefined();
       expect(parsedData.data.tasks).toHaveLength(1);
       expect(parsedData.data.noteTemplates).toHaveLength(1);
@@ -423,7 +453,7 @@ describe('useDataBackup', () => {
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
       await act(async () => {
-        await result.current.importData('merge');
+        await result.current.importData();
       });
 
       expect(mockCallbacks.onImportSuccess).toHaveBeenCalledWith({
@@ -465,7 +495,7 @@ describe('useDataBackup', () => {
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
       await act(async () => {
-        await result.current.importData('merge');
+        await result.current.importData();
       });
 
       expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
@@ -481,33 +511,60 @@ describe('useDataBackup', () => {
       expect(mockCallbacks.onImportError).not.toHaveBeenCalled();
     });
 
-    it('round-trips: importing an export restores exactly what was exported', async () => {
+    it('round-trips: an exact restore of an export puts back exactly what was exported, in one change', async () => {
+      localStorage.setItem('theme-mode', JSON.stringify({ version: 1, data: 'system' }));
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
       const exported = await result.current.createBackupData();
-      files().openJson.mockResolvedValue(JSON.stringify(exported));
+      // As the file would be read back
+      const backup = parseBackupFile(JSON.stringify(exported));
+      const fromFile = JSON.parse(JSON.stringify(exported.data));
+      localStorage.setItem('theme-mode', JSON.stringify({ version: 1, data: 'dark' }));
 
       await act(async () => {
-        await result.current.importData('replace');
+        await result.current.restoreBackup(backup, 'replace');
       });
 
       expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
         payload: {
           mode: 'replace',
-          sessions: exported.data.sessions,
-          workLogEntries: exported.data.workLogs.entries,
-          workLogMappings: exported.data.workLogs.mappings,
+          sessions: fromFile.sessions,
+          workLogEntries: fromFile.workLogs.entries,
+          workLogMappings: fromFile.workLogs.mappings,
           exportedAt: exported.exportDate,
+          records: {
+            predefinedTasks: fromFile.tasks,
+            noteTemplates: fromFile.noteTemplates,
+            taskNotes: fromFile.taskNotes,
+            dailyGoal: fromFile.dailyGoal,
+            dailyGoalAchievements: fromFile.goalAchievements,
+            withdrawals: fromFile.withdrawals,
+            accountSettings: fromFile.accountSettings,
+          },
         },
       });
-      // JSON round-trip, as the file would be read back
-      const fromFile = JSON.parse(JSON.stringify(exported.data));
-      expect(mockStorageService.setTasks).toHaveBeenCalledWith(fromFile.tasks);
-      expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith(fromFile.noteTemplates);
-      expect(mockStorageService.setTaskNotes).toHaveBeenCalledWith(fromFile.taskNotes);
-      expect(mockStorageService.setDailyGoal).toHaveBeenCalledWith(fromFile.dailyGoal);
-      expect(mockStorageService.setGoalAchievements).toHaveBeenCalledWith(fromFile.goalAchievements);
-      expect(mockStorageService.setWithdrawals).toHaveBeenCalledWith(fromFile.withdrawals);
+      // The records went with it; nothing is merged in afterwards
+      expect(mockStorageService.setTasks).not.toHaveBeenCalled();
+      expect(mockStorageService.setAccountSettings).not.toHaveBeenCalled();
+      // The file's device settings take this device's place
+      expect(JSON.parse(localStorage.getItem('theme-mode')!).data).toBe('system');
+      expect(mockCallbacks.onImportSuccess).toHaveBeenCalledWith(expect.objectContaining({ mode: 'replace' }));
       expect(mockCallbacks.onImportError).not.toHaveBeenCalled();
+    });
+
+    it("refuses an exact restore of a file whose records don't read, before anything changes", async () => {
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      await act(async () => {
+        await result.current.restoreBackup(
+          parseBackupFile(JSON.stringify({ data: { tasks: [{ id: 1 }] } })),
+          'replace'
+        );
+      });
+
+      expect(fakeBackend().call).not.toHaveBeenCalledWith('restore_backup_data', expect.anything());
+      expect(mockCallbacks.onImportError).toHaveBeenCalledWith(
+        "The backup's tasks can't be read, so nothing was restored"
+      );
     });
 
     it('leaves work logs untouched when importing a v1 export without them', async () => {
@@ -521,7 +578,7 @@ describe('useDataBackup', () => {
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
       await act(async () => {
-        await result.current.importData('merge');
+        await result.current.importData();
       });
 
       expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
@@ -538,7 +595,7 @@ describe('useDataBackup', () => {
 
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
       await act(async () => {
-        await result.current.importData('merge');
+        await result.current.importData();
       });
 
       expect(fakeBackend().call).not.toHaveBeenCalledWith('restore_backup_data', expect.anything());
@@ -552,7 +609,7 @@ describe('useDataBackup', () => {
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
       await act(async () => {
-        await result.current.importData('merge');
+        await result.current.importData();
       });
 
       expect(mockCallbacks.onImportError).toHaveBeenCalledWith(expect.stringContaining('not valid JSON'));
@@ -565,7 +622,7 @@ describe('useDataBackup', () => {
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
       await act(async () => {
-        await result.current.importData('merge');
+        await result.current.importData();
       });
 
       expect(mockCallbacks.onImportSuccess).not.toHaveBeenCalled();
@@ -578,7 +635,7 @@ describe('useDataBackup', () => {
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
       await act(async () => {
-        await result.current.importData('merge');
+        await result.current.importData();
       });
 
       expect(mockCallbacks.onImportError).toHaveBeenCalledWith(
@@ -591,7 +648,7 @@ describe('useDataBackup', () => {
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
 
       await act(async () => {
-        await result.current.importData('merge');
+        await result.current.importData();
       });
 
       expect(mockCallbacks.onImportError).toHaveBeenCalledWith('Failed to read import file: permission denied');
@@ -668,11 +725,11 @@ describe('useDataBackup', () => {
   });
 
   describe('merge and replace', () => {
-    const importFile = async (mode: 'merge' | 'replace', file: object) => {
+    const importFile = async (file: object) => {
       files().openJson.mockResolvedValue(JSON.stringify(file));
       const { result } = renderHook(() => useDataBackup(mockCallbacks));
       await act(async () => {
-        await result.current.importData(mode);
+        await result.current.importData();
       });
     };
 
@@ -683,7 +740,7 @@ describe('useDataBackup', () => {
       const [achievement] = await mockStorageService.getGoalAchievements();
       const [withdrawal] = await mockStorageService.getWithdrawals();
 
-      await importFile('merge', {
+      await importFile({
         data: {
           tasks: [
             { ...task, name: 'Renamed in the file' },
@@ -717,8 +774,14 @@ describe('useDataBackup', () => {
       expect(mockStorageService.setDailyGoal).not.toHaveBeenCalled();
     });
 
+    it("takes a merged file's goal", async () => {
+      const goal = await mockStorageService.getDailyGoal();
+      await importFile({ data: { dailyGoal: goal } });
+      expect(mockStorageService.setDailyGoal).toHaveBeenCalledWith(goal);
+    });
+
     it('leaves what a merged file lacks alone', async () => {
-      await importFile('merge', { data: {} });
+      await importFile({ data: {} });
 
       expect(mockStorageService.setTasks).not.toHaveBeenCalled();
       expect(mockStorageService.setNoteTemplates).not.toHaveBeenCalled();
@@ -726,22 +789,89 @@ describe('useDataBackup', () => {
       expect(mockStorageService.setGoalAchievements).not.toHaveBeenCalled();
     });
 
-    it('empties what a replacing file lacks, and counts none of it', async () => {
-      await importFile('replace', { data: {} });
-
-      expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
-        payload: { mode: 'replace', sessions: null, workLogEntries: null, workLogMappings: null, exportedAt: null },
+    it('leaves what an exactly restored file lacks as it is (an older format), and counts none of it', async () => {
+      localStorage.setItem('theme-mode', JSON.stringify({ version: 1, data: 'dark' }));
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+      await act(async () => {
+        await result.current.restoreBackup(parseBackupFile(JSON.stringify({ data: { dailyGoal: null } })), 'replace');
       });
-      expect(mockStorageService.setTasks).toHaveBeenCalledWith([]);
-      expect(mockStorageService.setNoteTemplates).toHaveBeenCalledWith([]);
-      expect(mockStorageService.setTaskNotes).toHaveBeenCalledWith([]);
-      expect(mockStorageService.setGoalAchievements).toHaveBeenCalledWith([]);
-      expect(mockStorageService.setWithdrawals).toHaveBeenCalledWith([]);
+
+      // A goal of null removes it; the rest isn't sent
+      expect(fakeBackend().call).toHaveBeenCalledWith('restore_backup_data', {
+        payload: {
+          mode: 'replace',
+          sessions: null,
+          workLogEntries: null,
+          workLogMappings: null,
+          exportedAt: null,
+          records: { dailyGoal: null },
+        },
+      });
+      expect(JSON.parse(localStorage.getItem('theme-mode')!).data).toBe('dark');
       expect(mockCallbacks.onImportSuccess).toHaveBeenCalledWith(
         expect.objectContaining({
           importedCounts: expect.objectContaining({ tasks: 0, noteTemplates: 0, taskNotes: 0, goalAchievements: 0 }),
         })
       );
+    });
+
+    it('takes the payout settings in a merge only where none are set', async () => {
+      const settings = { fundsReleaseDays: 2, withdrawalIntervalDays: 1 };
+      await importFile({ data: { accountSettings: settings } });
+      expect(mockStorageService.setAccountSettings).not.toHaveBeenCalled();
+
+      mockStorageService.getAccountSettings.mockResolvedValue(null);
+      await importFile({ data: { accountSettings: settings } });
+      expect(mockStorageService.setAccountSettings).toHaveBeenCalledWith(settings);
+    });
+
+    it("leaves this device's settings alone in a merge", async () => {
+      localStorage.setItem('theme-mode', JSON.stringify({ version: 1, data: 'dark' }));
+      await importFile({ data: { settings: { theme: 'light' } } });
+      expect(JSON.parse(localStorage.getItem('theme-mode')!).data).toBe('dark');
+    });
+
+    it('lets a backup file be chosen to confirm first, then restored', async () => {
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      files().openJson.mockResolvedValueOnce(null);
+      await act(async () => {
+        await expect(result.current.chooseBackupFile()).resolves.toBeNull();
+      });
+
+      files().openJson.mockResolvedValueOnce('not json');
+      await act(async () => {
+        await expect(result.current.chooseBackupFile()).resolves.toBeNull();
+      });
+      expect(mockCallbacks.onImportError).toHaveBeenCalledWith('This file is not valid JSON');
+
+      files().openJson.mockResolvedValueOnce(JSON.stringify({ exportDate: 'then', data: { tasks: [] } }));
+      let chosen: unknown;
+      await act(async () => {
+        chosen = await result.current.chooseBackupFile();
+      });
+      expect(chosen).toEqual({ exportDate: 'then', data: { tasks: [] } });
+      expect(result.current.isImporting).toBe(false);
+      expect(fakeBackend().call).not.toHaveBeenCalledWith('restore_backup_data', expect.anything());
+    });
+
+    it('chooses and restores one file at a time', async () => {
+      let pick!: (contents: string | null) => void;
+      files().openJson.mockImplementation(() => new Promise(resolve => (pick = resolve)));
+      const { result } = renderHook(() => useDataBackup(mockCallbacks));
+
+      await act(async () => {
+        void result.current.chooseBackupFile();
+      });
+      await act(async () => {
+        await expect(result.current.chooseBackupFile()).resolves.toBeNull();
+        await result.current.restoreBackup(parseBackupFile('{"data":{}}'), 'merge');
+      });
+      expect(files().openJson).toHaveBeenCalledTimes(1);
+      expect(fakeBackend().call).not.toHaveBeenCalledWith('restore_backup_data', expect.anything());
+
+      await act(async () => pick(null));
+      expect(result.current.isImporting).toBe(false);
     });
 
     it('imports one file at a time', async () => {

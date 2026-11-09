@@ -16,6 +16,7 @@ const mockWorkLogs: UseWorkLogsReturn = {
   isLoading: false,
   loadWarning: null,
   applyImport: vi.fn(),
+  undoImport: vi.fn(),
 };
 vi.mock('../../hooks/useWorkLogs', () => ({
   useWorkLogs: () => mockWorkLogs,
@@ -85,6 +86,7 @@ describe('WorkLogContext', () => {
         entries: mockWorkLogs.entries,
         mappings: mockWorkLogs.mappings,
         applyImport: mockWorkLogs.applyImport,
+        undoImport: mockWorkLogs.undoImport,
         sessions: mockSessions,
         tasks: mockTasks,
         stageCapture: expect.any(Function),

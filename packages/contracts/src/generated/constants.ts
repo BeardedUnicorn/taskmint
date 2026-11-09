@@ -65,6 +65,7 @@ export const COMMAND_NAMES = [
   "apply_idle_choice",
   "get_work_logs",
   "apply_work_log_import",
+  "undo_work_log_import",
   "accept_capture",
   "take_pending_work_log_capture",
   "restore_backup_data",
@@ -82,6 +83,7 @@ export const APP_RECORD_KEYS = [
   "dailyGoal",
   "dailyGoalAchievements",
   "withdrawals",
+  "accountSettings",
 ] as const;
 
 /** `source` of sessions synthesized from imported work-log entries. */

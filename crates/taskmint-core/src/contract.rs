@@ -74,14 +74,17 @@ pub const IDLE_CHOICE_STAY_PAUSED: &str = "stayPaused";
 pub const TASKS_RECORD_KEY: &str = "predefinedTasks";
 
 /// The frontend's records (its STORAGE_KEYS names; APP_RECORD_KEYS in
-/// packages/client/src/services/appRecords.ts).
-pub const APP_RECORD_KEYS: [&str; 6] = [
+/// packages/client/src/services/appRecords.ts). `accountSettings` holds the
+/// settings that change the numbers (funds-release days, the withdrawal
+/// interval), so every device computes the same dates.
+pub const APP_RECORD_KEYS: [&str; 7] = [
     TASKS_RECORD_KEY,
     "taskNotes",
     "noteTemplates",
     "dailyGoal",
     "dailyGoalAchievements",
     "withdrawals",
+    "accountSettings",
 ];
 
 // ============================================================================
@@ -244,7 +247,8 @@ mod tests {
                 "noteTemplates",
                 "dailyGoal",
                 "dailyGoalAchievements",
-                "withdrawals"
+                "withdrawals",
+                "accountSettings"
             ]
         );
         assert_eq!(DEEP_LINK_SCHEME, "taskmint");

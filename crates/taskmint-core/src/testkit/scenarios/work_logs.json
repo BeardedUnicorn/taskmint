@@ -62,8 +62,17 @@
         "entriesUpdated": 0,
         "mappingsSaved": 1,
         "groupsApplied": [],
-        "groupsSkipped": []
+        "groupsSkipped": [],
+        "undo": {
+          "sessionsBefore": [],
+          "sessionsAfter": [],
+          "entriesBefore": [],
+          "entriesAfter": [{ "id": "e1" }],
+          "mappingsBefore": [],
+          "mappingsAfter": [{ "projectId": "p1" }]
+        }
       },
+      "save": { "firstImport": "/undo" },
       "events": ["work-logs-imported"]
     },
     {
@@ -116,8 +125,17 @@
             "workDay": "2026-03-02",
             "reason": "a timer is running or paused on 2026-03-02; stop it first, then re-import"
           }
-        ]
+        ],
+        "undo": {
+          "sessionsBefore": [{ "source": "manual" }],
+          "sessionsAfter": [{ "id": "session_import_1", "taskName": "Writing" }],
+          "entriesBefore": [],
+          "entriesAfter": [],
+          "mappingsBefore": [],
+          "mappingsAfter": []
+        }
       },
+      "save": { "rewrite": "/undo" },
       "events": ["work-logs-imported"]
     },
     {
@@ -145,6 +163,39 @@
       "call": "move_timer_instance",
       "args": { "instanceId": "instance_import_1", "taskId": "t1", "taskName": "Writing" },
       "error": "Imported time changes only through a work-log import"
+    },
+    {
+      "call": "undo_work_log_import",
+      "args": { "undo": "$rewrite" },
+      "reply": null,
+      "events": ["sessions-changed", "work-logs-imported"]
+    },
+    {
+      "reload": true,
+      "call": "get_sessions",
+      "reply": [
+        {
+          "source": "manual",
+          "totalDuration": 1800000,
+          "timerInstances": [{ "id": "$tracked", "duration": 1800000 }]
+        }
+      ]
+    },
+    {
+      "call": "undo_work_log_import",
+      "args": { "undo": "$rewrite" },
+      "error": "This import can't be undone: some of the days it changed have changed since."
+    },
+    {
+      "call": "undo_work_log_import",
+      "args": { "undo": "$firstImport" },
+      "reply": null,
+      "events": ["sessions-changed", "work-logs-imported"]
+    },
+    {
+      "reload": true,
+      "call": "get_work_logs",
+      "reply": { "entries": [], "mappings": [], "loadWarning": null }
     },
     { "call": "take_pending_work_log_capture", "reply": null },
     {

@@ -9,6 +9,7 @@ import { vi } from 'vitest';
 import { TaskSession, TimerInstance, InactivitySettings, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { TaskNote } from '../../types/notes';
+import type { WorkLogImportUndo } from '@taskmint/contracts';
 import { ProjectTaskMapping, WORKLOG_IMPORT_SOURCE, WorkLogEntry } from '../../types/workLog';
 
 // ============================================================================
@@ -333,3 +334,15 @@ export const measureRenderTime = async (renderFn: () => void) => {
 export const expectRenderTimeToBeReasonable = (renderTime: number, maxMs = 100) => {
   expect(renderTime).toBeLessThan(maxMs);
 };
+
+/** An import's undo with nothing in it (what an import that changed nothing replies). */
+export function createEmptyImportUndo(): WorkLogImportUndo {
+  return {
+    sessionsBefore: [],
+    sessionsAfter: [],
+    entriesBefore: [],
+    entriesAfter: [],
+    mappingsBefore: [],
+    mappingsAfter: [],
+  };
+}

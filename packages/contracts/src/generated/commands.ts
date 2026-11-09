@@ -24,6 +24,7 @@ import type { StartTaskArgs } from "./StartTaskArgs";
 import type { StartTaskResult } from "./StartTaskResult";
 import type { TaskSession } from "./TaskSession";
 import type { TimerInstance } from "./TimerInstance";
+import type { UndoWorkLogImportArgs } from "./UndoWorkLogImportArgs";
 import type { UpdateTimerInstanceArgs } from "./UpdateTimerInstanceArgs";
 import type { WorkLogImportSummary } from "./WorkLogImportSummary";
 import type { WorkLogs } from "./WorkLogs";
@@ -55,6 +56,7 @@ export interface CommandMap {
   apply_idle_choice: { args: ApplyIdleChoiceArgs; reply: boolean };
   get_work_logs: { args: void; reply: WorkLogs };
   apply_work_log_import: { args: ApplyWorkLogImportArgs; reply: WorkLogImportSummary };
+  undo_work_log_import: { args: UndoWorkLogImportArgs; reply: null };
   accept_capture: { args: AcceptCaptureArgs; reply: null };
   take_pending_work_log_capture: { args: void; reply: PendingCapture | null };
   restore_backup_data: { args: RestoreBackupDataArgs; reply: RestoreSummary };

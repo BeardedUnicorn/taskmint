@@ -81,6 +81,8 @@ const platform: Platform = {
     validateFolder: path => command('validate_backup_path', { path }),
     write: ({ folder, contents, maxBackups }) =>
       command('perform_automatic_backup', { backupPath: folder, currentDataJson: contents, maxBackups }),
+    list: folder => command('list_backups', { folder }),
+    read: (folder, name) => command<string>('read_backup', { folder, name }),
   },
   reveal: path => command<void>('reveal_path', { path }),
   captureStatus: () => command('get_capture_server_status'),

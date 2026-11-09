@@ -18,6 +18,13 @@ export function formattingLocale(): string | undefined {
 
 const asDate = (value: Date | string | number) => (value instanceof Date ? value : new Date(value));
 
+/** A file's size ("512 B", "820 KB", "1.4 MB"). */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes.toLocaleString(pinned)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toLocaleString(pinned, { maximumFractionDigits: 0 })} KB`;
+  return `${(bytes / (1024 * 1024)).toLocaleString(pinned, { maximumFractionDigits: 1 })} MB`;
+}
+
 /** "Oct 14" */
 export function formatShortDate(value: Date | string | number): string {
   return asDate(value).toLocaleDateString(pinned, { month: 'short', day: 'numeric' });

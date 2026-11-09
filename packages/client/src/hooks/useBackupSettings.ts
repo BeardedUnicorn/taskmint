@@ -24,8 +24,9 @@ import { revealAction } from '../utils/reveal';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNotificationPreferences } from '../notifications/preferences';
 import { formatDateTime } from '../utils/locale';
+import { STORAGE_KEYS } from '../constants';
 
-export const BACKUP_CONFIG_KEY = 'automaticBackupConfig';
+export const BACKUP_CONFIG_KEY = STORAGE_KEYS.BACKUP_CONFIG;
 
 /** Folder backups, which only some platforms have (the desktop app). */
 function folderBackups(): FolderBackupPlatform {

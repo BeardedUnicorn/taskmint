@@ -32,10 +32,14 @@ describe('DataManagementSection', () => {
 
   const exportData = vi.fn();
   const importData = vi.fn();
+  const chooseBackupFile = vi.fn();
+  const restoreBackup = vi.fn();
   const setupHookMocks = ({ isResetting = false, busy = false } = {}) => {
     mockUseDataBackup.mockReturnValue({
       exportData,
       importData,
+      chooseBackupFile,
+      restoreBackup,
       isExporting: busy,
       isImporting: busy,
     } as any);
@@ -145,7 +149,7 @@ describe('DataManagementSection', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Export Data' }));
       fireEvent.click(screen.getByRole('button', { name: 'Import Data' }));
       expect(exportData).toHaveBeenCalled();
-      expect(importData).toHaveBeenCalledWith('merge');
+      expect(importData).toHaveBeenCalledWith();
 
       setupHookMocks({ busy: true });
       rerender(<DataManagementSection />);
@@ -171,12 +175,91 @@ describe('DataManagementSection', () => {
       expect(mockShowError.mock.calls).toEqual([['Disk full'], ['Not a TaskMint export']]);
     });
 
-    it('reloads once an import has landed', async () => {
-      renderSection();
-      callbacks().onImportSuccess!({});
+    const result = (mode: 'merge' | 'replace') => ({
+      mode,
+      importedCounts: {
+        tasks: 0,
+        noteTemplates: 0,
+        taskNotes: 0,
+        goalAchievements: 0,
+        withdrawals: 0,
+        sessions: 0,
+        workLogEntries: 0,
+      },
+      recordsSkipped: 0,
+    });
 
-      expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ message: 'Data imported. Reloading…' }));
+    it('reloads once an import or a restore has landed', async () => {
+      renderSection();
+      callbacks().onImportSuccess!(result('merge'));
+      callbacks().onImportSuccess!(result('replace'));
+
+      expect(mockNotify.mock.calls.map(([notice]) => notice.message)).toEqual([
+        'Data imported. Reloading…',
+        'Backup restored. Reloading…',
+      ]);
       await waitFor(() => expect(reloadApp).toHaveBeenCalled());
+    });
+  });
+
+  describe('restoring a backup exactly', () => {
+    const backup = {
+      exportDate: '2026-11-01T12:00:00.000Z',
+      data: { tasks: [{ id: 't1' }], sessions: [{}, {}], workLogs: { entries: [{}] }, settings: { theme: 'dark' } },
+    };
+
+    it('asks for a file, then asks before replacing everything with it', async () => {
+      const user = userEvent.setup();
+      chooseBackupFile.mockResolvedValue(backup);
+      restoreBackup.mockResolvedValue(undefined);
+      renderSection();
+
+      await user.click(screen.getByRole('button', { name: 'Restore Exactly' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toHaveTextContent('Restore this backup exactly?');
+      expect(dialog).toHaveTextContent("Your current data is replaced with the backup's");
+      expect(dialog).toHaveTextContent('1 task');
+      expect(dialog).toHaveTextContent('2 sessions');
+      expect(dialog).toHaveTextContent('1 imported work-log entry');
+      expect(dialog).toHaveTextContent('0 notes');
+      expect(dialog).toHaveTextContent("This device's settings");
+      expect(restoreBackup).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole('button', { name: 'Replace My Data' }));
+      expect(restoreBackup).toHaveBeenCalledWith(backup, 'replace');
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('restores nothing when the file is dismissed or the restore cancelled', async () => {
+      const user = userEvent.setup();
+      chooseBackupFile.mockResolvedValueOnce(null).mockResolvedValueOnce({ data: {} });
+      renderSection();
+
+      await user.click(screen.getByRole('button', { name: 'Restore Exactly' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Restore Exactly' }));
+      const dialog = await screen.findByRole('dialog');
+      // A file without an export time or settings
+      expect(dialog).toHaveTextContent('The backup has:');
+      expect(dialog).not.toHaveTextContent("This device's settings");
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(restoreBackup).not.toHaveBeenCalled();
+    });
+
+    it("can't be closed while the restore runs", async () => {
+      const user = userEvent.setup();
+      chooseBackupFile.mockResolvedValue(backup);
+      const { rerender } = renderSection();
+      await user.click(screen.getByRole('button', { name: 'Restore Exactly' }));
+      const dialog = await screen.findByRole('dialog');
+
+      setupHookMocks({ busy: true });
+      rerender(<DataManagementSection />);
+      expect(screen.getByRole('button', { name: 'Restoring...' })).toBeDisabled();
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
   });
 

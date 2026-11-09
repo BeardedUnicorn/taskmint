@@ -232,6 +232,100 @@ fn a_restore_needs_a_copy_of_what_it_changes() {
 }
 
 #[test]
+fn an_exact_restore_replaces_the_records_with_a_copy_of_all_three_parts_first() {
+    let mut workspace = Workspace::default();
+    workspace
+        .records
+        .insert("dailyGoal".into(), json!({ "targetAmount": 5 }));
+    let tasks = json!([{
+        "id": "t1", "name": "Renamed", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"
+    }]);
+    let done = run(
+        &mut workspace,
+        "restore_backup_data",
+        json!({ "payload": {
+            "mode": "replace",
+            "sessions": [{ "id": "s1", "taskId": "t1", "taskName": "Old", "notes": null }],
+            "records": { "predefinedTasks": tasks, "dailyGoal": null, "unknown": 1 }
+        } }),
+    )
+    .unwrap();
+
+    assert_eq!(
+        done.backups,
+        vec![Backup::Saved {
+            parts: Parts::SESSIONS | Parts::WORK_LOGS | Parts::RECORDS,
+            failure: "Restore cancelled",
+            required: true
+        }]
+    );
+    assert_eq!(done.dirty, Parts::SESSIONS | Parts::RECORDS);
+    assert_eq!(done.reply["appRecordsRestored"], 2);
+    assert!(!workspace.records.contains_key("dailyGoal"));
+    // The restored session follows the restored task list
+    assert_eq!(workspace.sessions[0].task_name, "Renamed");
+    let names: Vec<&str> = done.events.iter().map(|e| e.name).collect();
+    assert_eq!(
+        names,
+        [
+            "app-records-changed",
+            "app-records-changed",
+            "sessions-changed"
+        ]
+    );
+}
+
+#[test]
+fn only_an_exact_restore_takes_records_and_never_over_unreadable_ones() {
+    let mut workspace = Workspace::default();
+    assert_eq!(
+        run(
+            &mut workspace,
+            "restore_backup_data",
+            json!({ "payload": { "mode": "merge", "records": {} } }),
+        )
+        .unwrap_err(),
+        CoreError::InvalidArgs("Records are restored this way only when replacing".to_string())
+    );
+    workspace.notes.records_error = Some("Failed to read appdata.json: oops".to_string());
+    assert_eq!(
+        run(
+            &mut workspace,
+            "restore_backup_data",
+            json!({ "payload": { "mode": "replace", "records": {} } }),
+        )
+        .unwrap_err(),
+        CoreError::Rejected("Failed to read appdata.json: oops".to_string())
+    );
+}
+
+#[test]
+fn undoing_an_import_keeps_a_copy_if_it_can() {
+    let mut workspace = Workspace::default();
+    let imported = run(
+        &mut workspace,
+        "apply_work_log_import",
+        json!({ "payload": { "entries": [{ "id": "e1", "kind": "timed" }] } }),
+    )
+    .unwrap();
+    let undone = run(
+        &mut workspace,
+        "undo_work_log_import",
+        json!({ "undo": imported.reply["undo"] }),
+    )
+    .unwrap();
+    assert_eq!(
+        undone.backups,
+        vec![Backup::Saved {
+            parts: Parts::SESSIONS | Parts::WORK_LOGS,
+            failure: "Failed to back up before undoing the import",
+            required: false
+        }]
+    );
+    assert!(workspace.work_log_entries.is_empty());
+}
+
+#[test]
 fn an_import_that_rewrites_days_asks_for_a_copy_of_the_sessions() {
     let mut workspace = Workspace::default();
     let plain = run(

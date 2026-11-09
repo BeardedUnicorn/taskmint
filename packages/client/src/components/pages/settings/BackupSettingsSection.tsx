@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { Backup as BackupIcon, Folder as FolderIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
+import { BackupFilesList } from './BackupFilesList';
 import { useBackupSettingsContext } from '../../../contexts/BackupSettingsContext';
 import { BackupFrequency, getBackupFrequencyLabel } from '../../../types/backup';
 
@@ -180,6 +181,10 @@ export function BackupSettingsSection() {
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
         Backups run on their own at the frequency you choose; Backup Now makes one any time.
       </Typography>
+
+      {backupConfig.backupPath.trim() && (
+        <BackupFilesList folder={backupConfig.backupPath.trim()} lastBackupTime={backupConfig.lastBackupTime} />
+      )}
     </SettingsSection>
   );
 }

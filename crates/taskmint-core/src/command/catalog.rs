@@ -8,7 +8,7 @@ use crate::records::RecordMap;
 use crate::restore::{RestorePayload, RestoreSummary};
 use crate::sessions::instances::TimerInstanceUpdates;
 use crate::sessions::start::StartTaskResult;
-use crate::worklogs::{WorkLogImportPayload, WorkLogImportSummary};
+use crate::worklogs::{WorkLogImportPayload, WorkLogImportSummary, WorkLogImportUndo};
 use crate::workspace::Parts;
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
@@ -47,6 +47,7 @@ pub enum Command {
     // Work logs and browser captures
     GetWorkLogs(NoArgs),
     ApplyWorkLogImport(ApplyWorkLogImportArgs),
+    UndoWorkLogImport(UndoWorkLogImportArgs),
     AcceptCapture(AcceptCaptureArgs),
     TakePendingWorkLogCapture(NoArgs),
     // Everything at once
@@ -118,6 +119,7 @@ command_types! {
     "apply_idle_choice": ApplyIdleChoiceArgs => bool,
     "get_work_logs": NoArgs => WorkLogs,
     "apply_work_log_import": ApplyWorkLogImportArgs => WorkLogImportSummary,
+    "undo_work_log_import": UndoWorkLogImportArgs => (),
     "accept_capture": AcceptCaptureArgs => (),
     "take_pending_work_log_capture": NoArgs => Option<PendingCapture>,
     "restore_backup_data": RestoreBackupDataArgs => RestoreSummary,
@@ -323,6 +325,14 @@ pub struct ApplyWorkLogImportArgs {
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+pub struct UndoWorkLogImportArgs {
+    /// The import's `undo`, as apply_work_log_import replied it.
+    pub undo: WorkLogImportUndo,
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
 pub struct AcceptCaptureArgs {
     /// The raw JSON text, as captured from the site.
     pub payload: String,
@@ -405,10 +415,12 @@ impl Command {
             | Command::ApplyIdleChoice(_) => Access::write(SESSIONS),
             Command::GetWorkLogs(_) => Access::read(Parts::WORK_LOGS),
             Command::ApplyWorkLogImport(_) => Access::write(records_and_links),
+            Command::UndoWorkLogImport(_) => Access::write(Parts::SESSIONS | Parts::WORK_LOGS),
             Command::AcceptCapture(_) | Command::TakePendingWorkLogCapture(_) => {
                 Access::write(Parts::CAPTURE)
             }
-            Command::RestoreBackupData(_) => Access::write(Parts::SESSIONS | Parts::WORK_LOGS),
+            // An exact restore replaces the records too
+            Command::RestoreBackupData(_) => Access::write(records_and_links),
             Command::ResetAllAppData(_) => Access::write(Parts::ALL),
         }
     }

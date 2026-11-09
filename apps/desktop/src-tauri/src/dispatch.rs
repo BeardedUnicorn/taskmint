@@ -62,6 +62,15 @@ enum Shell {
     },
     DefaultBackupDir {},
     PickBackupDir {},
+    /// The backups in the backup folder, newest first, to restore from.
+    ListBackups {
+        folder: String,
+    },
+    /// One of them, by the name list_backups gave.
+    ReadBackup {
+        folder: String,
+        name: String,
+    },
     #[serde(rename_all = "camelCase")]
     ExportDataToFile {
         data_json: String,
@@ -102,7 +111,7 @@ enum Shell {
     InstallUpdate {},
 }
 
-const SHELL_COMMANDS: [&str; 24] = [
+const SHELL_COMMANDS: [&str; 26] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -115,6 +124,8 @@ const SHELL_COMMANDS: [&str; 24] = [
     "perform_automatic_backup",
     "default_backup_dir",
     "pick_backup_dir",
+    "list_backups",
+    "read_backup",
     "export_data_to_file",
     "export_csv_file",
     "import_data_from_file",
@@ -190,6 +201,8 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         )),
         Shell::DefaultBackupDir {} => reply(files::default_backup_dir(state)?),
         Shell::PickBackupDir {} => reply(files::pick_backup_dir(state)),
+        Shell::ListBackups { folder } => reply(crate::backup::list_backups(&folder)?),
+        Shell::ReadBackup { folder, name } => reply(crate::backup::read_backup(&folder, &name)?),
         Shell::ExportDataToFile {
             data_json,
             suggested_filename,
@@ -409,6 +422,14 @@ mod tests {
         );
         f.platform.answer(Some(folder.clone()));
         assert_eq!(run(&f, "pick_backup_dir", json!({})), Ok(json!(path)));
+
+        let listed = run(&f, "list_backups", json!({ "folder": path })).unwrap();
+        assert_eq!(listed[0]["valid"], false);
+        let name = listed[0]["name"].clone();
+        assert_eq!(
+            run(&f, "read_backup", json!({ "folder": path, "name": name })),
+            Ok(json!("{}"))
+        );
     }
 
     #[test]
@@ -458,6 +479,8 @@ mod tests {
                 json!({ "csv": "a", "suggestedFilename": "x" }),
             ),
             ("import_data_from_file", json!({})),
+            ("list_backups", json!({ "folder": "/dev/null" })),
+            ("read_backup", json!({ "folder": "/tmp", "name": "x.json" })),
             ("reveal_path", json!({ "path": "/tmp/x" })),
             ("reveal_path", json!({})),
         ] {

@@ -21,10 +21,12 @@ import { getBackend, useBackendEvent } from '../backend';
 import { BACKEND_EVENTS } from '../constants/events';
 import { Task } from '../types/task';
 import { TaskSession } from '../types/timer';
+import type { WorkLogImportUndo } from '@taskmint/contracts';
 import { ProjectTaskMapping, WorkLogEntry, WorkLogImportPayload, WorkLogImportSummary } from '../types/workLog';
 import { parseWorkLogPayload, planWorkLogImport } from '../utils/workLogImport';
 import { useNotification, NotificationAction } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
+import { describeImport } from './useWorkLogs';
 
 // Captures arrive while you're in the browser, so they also reach the OS when
 // TaskMint isn't in front (the workLog category's route).
@@ -49,6 +51,7 @@ export interface UseWorkLogCaptureDeps {
   entries: WorkLogEntry[];
   mappings: ProjectTaskMapping[];
   applyImport: (payload: WorkLogImportPayload) => Promise<WorkLogImportSummary | null>;
+  undoImport: (undo: WorkLogImportUndo) => Promise<boolean>;
   sessions: TaskSession[];
   tasks: Task[];
   stagedCapture: StagedCapture | null;
@@ -168,15 +171,12 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
 
       // Task rates stay as you set them: an import's days carry the site's
       // own pay, and a capture spans days paid at different rates.
-      const days = summary.groupsApplied.length;
       notify({
         category: 'workLog',
         severity: 'success',
         title: 'Work logs imported',
-        message:
-          `${summary.entriesAdded} new, ${summary.entriesUpdated} updated, ` +
-          `${days} day${days === 1 ? '' : 's'} rewritten.`,
-        actions: VIEW_IN_PAYOUTS,
+        message: describeImport(summary),
+        actions: [...VIEW_IN_PAYOUTS, { label: 'Undo', onClick: () => void d.undoImport(summary.undo) }],
       });
       for (const skipped of summary.groupsSkipped) {
         showWarning(`${skipped.workDay}: ${skipped.reason}`, { category: 'workLog', desktop: 'never' });

@@ -9,6 +9,7 @@ import { ProjectMappingsCard } from '../ProjectMappingsCard';
 import { buildRemapPlan } from '../../../../utils/workLogImport';
 import type { WorkLogImportPayload, WorkLogImportSummary } from '../../../../types/workLog';
 import {
+  createEmptyImportUndo,
   createMockProjectTaskMapping,
   createMockTask,
   createMockWorkLogEntry,
@@ -50,6 +51,7 @@ const summary = (skipped: { workDay: string; reason: string }[] = []): WorkLogIm
   mappingsSaved: 1,
   groupsApplied: [],
   groupsSkipped: skipped as WorkLogImportSummary['groupsSkipped'],
+  undo: createEmptyImportUndo(),
 });
 
 type Apply = (payload: WorkLogImportPayload) => Promise<WorkLogImportSummary | null>;
