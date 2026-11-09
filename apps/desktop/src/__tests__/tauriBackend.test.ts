@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, onTestFinished } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type Event } from '@tauri-apps/api/event';
 import { CORE_ERRORS } from '@taskmint/contracts';
@@ -233,5 +233,23 @@ describe('createTauriBackend', () => {
 
     await mobile.platform.files.openJson();
     expect(dispatched()).toEqual([['import_data_from_file']]);
+  });
+
+  it('on Android, sets the status bar through the bridge MainActivity adds', () => {
+    const setTheme = vi.fn();
+    vi.stubGlobal('TaskMintSystemBars', { setTheme });
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
+    android.platform.systemBars!.setTheme('light');
+    android.platform.systemBars!.setTheme('dark');
+
+    expect(Object.keys(android.platform).sort()).toEqual(['files', 'notifications', 'systemBars']);
+    expect(setTheme.mock.calls).toEqual([['light'], ['dark']]);
+    expect(dispatched()).toEqual([]);
+    // The desktop has no status bar, bridge or not
+    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.systemBars).toBeUndefined();
   });
 });

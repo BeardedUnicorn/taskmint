@@ -79,12 +79,22 @@ export interface TrayPlatform {
   setWithdrawalLabel(label: string | null): Promise<void>;
 }
 
+/**
+ * A phone's status bar, which the app draws under (Android). It follows the
+ * app's own light or dark theme, not the system's.
+ */
+export interface SystemBarsPlatform {
+  /** Draws the clock and icons to read on this theme. */
+  setTheme(theme: 'light' | 'dark'): void;
+}
+
 export interface Platform {
   files: FilePlatform;
   notifications: NotificationPlatform;
   idle?: IdlePlatform;
   folderBackups?: FolderBackupPlatform;
   tray?: TrayPlatform;
+  systemBars?: SystemBarsPlatform;
   /** Shows a file the app just wrote in the file manager. */
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */
