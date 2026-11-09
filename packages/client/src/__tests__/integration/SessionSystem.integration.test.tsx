@@ -196,8 +196,7 @@ describe('Session System Integration', () => {
         expect(screen.getByText('Start Work')).toBeInTheDocument();
       });
 
-      const taskInput = screen.getByPlaceholderText('Choose a task…');
-      fireEvent.change(taskInput, { target: { value: 'Dev' } });
+      fireEvent.mouseDown(screen.getByRole('combobox', { name: /^Task/ }));
       fireEvent.click(await screen.findByRole('option', { name: 'Development Work' }));
       fireEvent.click(screen.getByRole('button', { name: 'Start' }));
 
@@ -212,8 +211,7 @@ describe('Session System Integration', () => {
 
       renderDashboard();
 
-      const taskInput = await screen.findByPlaceholderText('Choose a task…');
-      fireEvent.change(taskInput, { target: { value: 'Dev' } });
+      fireEvent.mouseDown(await screen.findByRole('combobox', { name: /^Task/ }));
       fireEvent.click(await screen.findByRole('option', { name: 'Development Work' }));
       fireEvent.click(screen.getByRole('button', { name: 'Start' }));
 
@@ -378,7 +376,7 @@ describe('Session System Integration', () => {
       );
 
       expect(screen.getByText('Start Work')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Choose a task…')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /^Task/ })).toBeInTheDocument();
     });
 
     it('should render timer bar with active session', () => {

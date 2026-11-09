@@ -9,21 +9,11 @@
  */
 
 import { useMemo, useState } from 'react';
-import {
-  Autocomplete,
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
 import { Task } from '../../../types/task';
 import { TaskSession } from '../../../types/timer';
 import { orderTasksForStart } from '../../../utils/taskOrdering';
-import { formatCurrency } from '../../../utils/formatters';
+import { TaskSelect } from '../forms/TaskSelect';
 
 /** Rendered while open, so each opening starts with nothing picked. */
 interface StartWorkDialogProps {
@@ -36,10 +26,12 @@ interface StartWorkDialogProps {
 }
 
 export function StartWorkDialog({ onClose, tasks, sessions, onStart, onAddTask }: StartWorkDialogProps) {
-  const [selected, setSelected] = useState<Task | null>(null);
+  const [selectedId, setSelectedId] = useState('');
   const [isStarting, setIsStarting] = useState(false);
 
   const options = useMemo(() => orderTasksForStart(tasks, sessions), [tasks, sessions]);
+  // Looked up each render: a pick archived meanwhile is no longer startable
+  const selected = options.find(task => task.id === selectedId);
 
   // Only once a task is picked (Start is disabled until then, and while it starts)
   const start =
@@ -75,37 +67,7 @@ export function StartWorkDialog({ onClose, tasks, sessions, onStart, onAddTask }
             </Typography>
           ) : (
             <Box sx={{ pt: 1 }}>
-              <Autocomplete
-                options={options}
-                value={selected}
-                onChange={(_, task) => setSelected(task)}
-                getOptionLabel={task => task.name}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                openOnFocus
-                renderOption={(props, task) => {
-                  const { key, ...optionProps } = props;
-                  return (
-                    <Box component="li" key={key} {...optionProps}>
-                      <Box sx={{ display: 'flex', width: '100%', gap: 1 }}>
-                        <Box sx={{ flex: 1 }}>
-                          {task.isFavorite && (
-                            <Box component="span" aria-label="Favorite" sx={{ color: 'warning.main', mr: 0.75 }}>
-                              ★
-                            </Box>
-                          )}
-                          {task.name}
-                        </Box>
-                        {task.hourlyRate ? (
-                          <Typography variant="body2" color="text.secondary">
-                            {formatCurrency(task.hourlyRate)}/hr
-                          </Typography>
-                        ) : null}
-                      </Box>
-                    </Box>
-                  );
-                }}
-                renderInput={params => <TextField {...params} autoFocus label="Task" placeholder="Choose a task…" />}
-              />
+              <TaskSelect tasks={options} value={selectedId} onChange={task => setSelectedId(task.id)} autoFocus />
             </Box>
           )}
         </DialogContent>

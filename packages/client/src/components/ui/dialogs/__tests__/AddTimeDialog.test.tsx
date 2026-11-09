@@ -95,7 +95,7 @@ describe('AddTimeDialog', () => {
   const renderDialog = () => render(<AddTimeDialog onClose={onClose} tasks={tasks} sessions={[]} onAdd={onAdd} />);
 
   const chooseTask = (name: string) => {
-    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Task' }));
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /^Task/ }));
     fireEvent.click(screen.getByRole('option', { name }));
   };
 
@@ -108,7 +108,7 @@ describe('AddTimeDialog', () => {
 
   it('offers active tasks only', () => {
     renderDialog();
-    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Task' }));
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /^Task/ }));
     expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Annotation']);
   });
 
@@ -252,12 +252,13 @@ describe('AddTimeDialog', () => {
     const { unmount } = render(
       <AddTimeDialog onClose={onClose} tasks={[{ ...tasks[0], isFavorite: true }]} sessions={[]} onAdd={onAdd} />
     );
-    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Task' }));
-    expect(screen.getByRole('option', { name: '★ Annotation' })).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /^Task/ }));
+    expect(screen.getByRole('option', { name: '★Annotation' })).toBeInTheDocument();
     unmount();
 
     render(<AddTimeDialog onClose={onClose} tasks={[tasks[1]]} sessions={[]} onAdd={onAdd} />);
-    expect(screen.getByPlaceholderText('Add a task on the Tasks page first')).toBeInTheDocument();
+    expect(screen.getByText('Add a task on the Tasks page first')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /^Task/ })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('button', { name: 'Add Time' })).toBeDisabled();
   });
 });

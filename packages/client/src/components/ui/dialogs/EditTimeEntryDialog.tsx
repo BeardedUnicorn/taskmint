@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Stack, TextField, Alert, Typography, Autocomplete } from '@mui/material';
+import { Stack, Alert, Typography } from '@mui/material';
 import { FormDialog } from './FormDialog';
 import { EditTimeEntryDialogProps } from '../../../types/form';
-import { Task } from '../../../types/task';
 import { formatDuration } from '../../../utils/formatters';
 import { orderTasksForStart } from '../../../utils/taskOrdering';
 import {
@@ -15,6 +14,7 @@ import {
   MS_PER_MINUTE,
 } from '../forms/DurationFields';
 import { formatDateTime } from '../../../utils/locale';
+import { TaskSelect } from '../forms/TaskSelect';
 
 const NO_SESSIONS: never[] = [];
 
@@ -88,27 +88,17 @@ export function EditTimeEntryDialog({ onClose, onSave, entry, tasks }: EditTimeE
   return (
     <FormDialog onClose={onClose} onSubmit={handleSubmit} title="Edit Time Entry">
       <Stack spacing={2}>
-        <Autocomplete<Task, false, true>
-          value={selectedTask}
-          onChange={(_, task) => {
+        <TaskSelect
+          tasks={taskOptions}
+          value={taskId}
+          onChange={task => {
             setTaskId(task.id);
             clearError('taskId');
           }}
-          options={taskOptions}
-          getOptionLabel={task => (task.isFavorite ? `★ ${task.name}` : task.name)}
-          isOptionEqualToValue={(option, value) => option.id === value.id}
-          disableClearable
-          renderInput={params => (
-            <TextField
-              {...params}
-              label="Task"
-              error={!!errors.taskId}
-              helperText={
-                errors.taskId ??
-                (moving ? `Moves this entry to "${selectedTask?.name}", at its hourly rate` : undefined)
-              }
-            />
-          )}
+          error={!!errors.taskId}
+          helperText={
+            errors.taskId ?? (moving ? `Moves this entry to "${selectedTask?.name}", at its hourly rate` : undefined)
+          }
         />
 
         <DurationFields

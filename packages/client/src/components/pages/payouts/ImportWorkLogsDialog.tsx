@@ -54,11 +54,6 @@ interface ImportWorkLogsDialogProps {
   onCreateTask: (name: string) => Promise<Task>;
 }
 
-interface TaskChoice {
-  name: string;
-  task: Task | null;
-}
-
 function signedMinutes(deltaMinutes: number): string {
   const rounded = Math.round(deltaMinutes);
   if (rounded === 0) return '±0m';
@@ -78,18 +73,21 @@ export function ImportWorkLogsDialog({
   // Rendered while open: each opening starts fresh, seeded with any staged
   // capture (a later change to it doesn't reset what's showing)
   const [rawText, setRawText] = useState(initialText ?? '');
-  const [taskChoices, setTaskChoices] = useState<Record<string, TaskChoice>>({});
+  const [taskChoices, setTaskChoices] = useState<Record<string, Task>>({});
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<WorkLogImportSummary | null>(null);
 
   const parsed = useMemo(() => parseWorkLogPayload(rawText), [rawText]);
+  // Archived tasks still match by stored mapping or name (planWorkLogImport
+  // gets them all); the picker offers active ones, as the start pickers do
+  const activeTasks = useMemo(() => tasks.filter(task => !task.isArchived), [tasks]);
   const hasRecords = parsed.timedEntries.length > 0 || parsed.workLogs.length > 0;
 
   // Tasks picked here for projects with no stored or same-named task
   const chosenMappings = useMemo((): ProjectTaskMapping[] => {
     const nowIso = new Date().toISOString();
     return payloadProjects(parsed).flatMap(project => {
-      const task = taskChoices[project.id]?.task;
+      const task = taskChoices[project.id];
       return task
         ? [
             {
@@ -218,16 +216,10 @@ export function ImportWorkLogsDialog({
                         </Typography>
                         <Box sx={{ flex: 1 }}>
                           <TaskSelector
-                            value={taskChoices[project.projectId]?.name ?? ''}
-                            onChange={(name, task) =>
-                              setTaskChoices(prev => ({
-                                ...prev,
-                                [project.projectId]: { name, task: task ?? null },
-                              }))
-                            }
-                            predefinedTasks={tasks}
+                            value={taskChoices[project.projectId]?.id ?? ''}
+                            onChange={task => setTaskChoices(prev => ({ ...prev, [project.projectId]: task }))}
+                            predefinedTasks={activeTasks}
                             onCreateNewTask={onCreateTask}
-                            placeholder="Pick or create a task…"
                           />
                         </Box>
                       </Box>

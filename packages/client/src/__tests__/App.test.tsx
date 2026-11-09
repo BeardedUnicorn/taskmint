@@ -80,6 +80,7 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Start a session' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Start Work' });
+    fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: /^Task/ }));
     fireEvent.click(await screen.findByRole('option', { name: /Annotation/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Start' }));
 

@@ -604,7 +604,7 @@ describe('PayoutsPage', () => {
       // The name is kept for another try
       fireEvent.click(within(dialog).getByRole('button', { name: 'Create Task' }));
       await waitFor(() => expect(mockAddTask).toHaveBeenCalledTimes(2));
-      expect(within(dialog).getByRole('combobox', { name: 'Task' })).toHaveValue('Raccoon');
+      expect(within(dialog).getByRole('combobox', { name: /^Task/ })).toHaveTextContent('Raccoon');
       error.mockRestore();
     });
 

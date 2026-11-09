@@ -11,12 +11,11 @@ import { Task } from './task';
 
 // Form Input Types
 export interface TaskSelectorProps {
-  /** The task name chosen or typed */
+  /** The chosen task's id, or '' */
   value: string;
-  onChange: (value: string, task?: Task | null) => void;
+  onChange: (task: Task) => void;
   predefinedTasks: Task[];
   onCreateNewTask: (taskName: string) => Promise<Task>;
-  placeholder: string;
 }
 
 export interface CurrencyInputProps {

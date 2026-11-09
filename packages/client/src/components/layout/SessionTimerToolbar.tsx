@@ -14,8 +14,6 @@ import {
   Button,
   Typography,
   Paper,
-  Autocomplete,
-  TextField,
   Chip,
   IconButton,
   Menu,
@@ -36,6 +34,7 @@ import {
 import { TaskSession, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { sessionTitle } from '../../utils/timerHelpers';
+import { TaskSelect } from '../ui/forms/TaskSelect';
 
 interface SessionTimerToolbarProps {
   activeSession: TaskSession | null;
@@ -60,7 +59,7 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
   onOpenSessionNotes,
   onSwitchTask,
 }: SessionTimerToolbarProps) {
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const sessionStatus = useMemo(() => {
@@ -71,13 +70,14 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
     };
   }, [activeSession?.timerInstances]);
 
-  // Work starts from existing tasks only: the picker takes no free text,
-  // and Start waits for a pick.
+  // Work starts from existing tasks only: Start waits for a pick that's
+  // still offered.
+  const selectedTask = startOptions.find(task => task.id === selectedTaskId);
   const start =
     selectedTask &&
     (async () => {
       await onStartTask(selectedTask.id, selectedTask.name);
-      setSelectedTask(null);
+      setSelectedTaskId('');
     });
 
   const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
@@ -107,23 +107,14 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
           </Typography>
 
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Autocomplete
-              value={selectedTask}
-              onChange={(_, task) => setSelectedTask(task)}
-              options={startOptions}
-              getOptionLabel={task => (task.isFavorite ? `★ ${task.name}` : task.name)}
-              isOptionEqualToValue={(option, value) => option.id === value.id}
+            <TaskSelect
+              tasks={startOptions}
+              value={selectedTaskId}
+              onChange={task => setSelectedTaskId(task.id)}
+              label={startOptions.length === 0 ? 'Add a task on the Tasks page to start' : 'Task'}
               disabled={startOptions.length === 0}
+              size="small"
               sx={{ minWidth: 300, flex: 1 }}
-              renderInput={params => (
-                <TextField
-                  {...params}
-                  aria-label="Task to start"
-                  placeholder={startOptions.length === 0 ? 'Add a task on the Tasks page to start' : 'Choose a task…'}
-                  variant="outlined"
-                  size="small"
-                />
-              )}
             />
 
             <Button

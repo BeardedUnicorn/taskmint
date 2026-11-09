@@ -117,6 +117,24 @@ describe('ImportWorkLogsDialog', () => {
     expect(screen.getByRole('button', { name: /apply import/i })).toBeDisabled();
   });
 
+  it('offers active tasks only, while an archived task still matches by name', () => {
+    const { unmount } = renderDialog({
+      tasks: [
+        createMockTask({ id: 'other', name: 'Unrelated Task' }),
+        createMockTask({ id: 'old', name: 'Old project', isArchived: true }),
+      ],
+    });
+    pasteText(samplePayload);
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /^Task/ }));
+    expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['Unrelated Task']);
+    unmount();
+
+    renderDialog({ tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', isArchived: true })] });
+    pasteText(samplePayload);
+    expect(screen.queryByText(/match site projects to tasks/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /apply import/i })).not.toBeDisabled();
+  });
+
   it('asks for a task for a referral bonus instead of skipping it', async () => {
     const referralPayload = JSON.stringify({
       workLogs: [
@@ -138,8 +156,8 @@ describe('ImportWorkLogsDialog', () => {
     expect(screen.getByText('Referral bonus')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /apply import/i })).toBeDisabled();
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Referrals' } });
-    fireEvent.click(await screen.findByRole('option', { name: 'Referrals' }));
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /^Task/ }));
+    fireEvent.click(screen.getByRole('option', { name: 'Referrals' }));
     expect(screen.getByText('$100.00')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
@@ -329,14 +347,6 @@ describe('ImportWorkLogsDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /apply import/i }));
 
       expect(await screen.findByText(/existing entries; 1 day was rewritten/)).toBeInTheDocument();
-    });
-
-    it('keeps a typed name that is no task as unresolved', () => {
-      renderDialog({ tasks: [createMockTask({ id: 'other', name: 'Unrelated Task' })] });
-      pasteText(samplePayload);
-
-      fireEvent.change(screen.getByRole('combobox', { name: 'Task' }), { target: { value: 'Not a task' } });
-      expect(screen.getByRole('button', { name: /apply import/i })).toBeDisabled();
     });
   });
 });

@@ -7,7 +7,6 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { SessionTimerToolbar } from '../SessionTimerToolbar';
@@ -75,7 +74,7 @@ describe('SessionTimerToolbar', () => {
   });
 
   describe('No Active Session State', () => {
-    const picker = () => screen.getByPlaceholderText('Choose a task…');
+    const picker = () => screen.getByRole('combobox', { name: /^Task/ });
 
     it('should render the start form when no session is active', () => {
       render(<SessionTimerToolbar {...mockProps} />);
@@ -88,7 +87,7 @@ describe('SessionTimerToolbar', () => {
     it('starts the chosen task in one step', () => {
       render(<SessionTimerToolbar {...mockProps} />);
 
-      fireEvent.change(picker(), { target: { value: 'Dev' } });
+      fireEvent.mouseDown(picker());
       fireEvent.click(screen.getByRole('option', { name: 'Development Work' }));
       const startButton = screen.getByRole('button', { name: 'Start' });
       expect(startButton).not.toBeDisabled();
@@ -97,15 +96,11 @@ describe('SessionTimerToolbar', () => {
       expect(mockProps.onStartTask).toHaveBeenCalledWith('task-1', 'Development Work');
     });
 
-    it('does not start from a typed name that is not a task', async () => {
-      const user = userEvent.setup();
+    it('is a plain dropdown: there is nothing to type a task name into', () => {
       render(<SessionTimerToolbar {...mockProps} />);
 
-      await user.type(picker(), 'Custom Task Name{Enter}');
-
-      expect(screen.getByText('No options')).toBeInTheDocument();
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
-      expect(mockProps.onStartTask).not.toHaveBeenCalled();
     });
 
     it('lists tasks in the order given, starring favorites', () => {
@@ -114,14 +109,14 @@ describe('SessionTimerToolbar', () => {
 
       fireEvent.mouseDown(picker());
       const options = screen.getAllByRole('option').map(option => option.textContent);
-      expect(options).toEqual(['★ Code Review', 'Development Work']);
+      expect(options).toEqual(['★Code Review', 'Development Work']);
     });
 
     it('points to the Tasks page when there are no tasks to start', () => {
       render(<SessionTimerToolbar {...mockProps} startOptions={[]} />);
 
-      const input = screen.getByPlaceholderText('Add a task on the Tasks page to start');
-      expect(input).toBeDisabled();
+      const field = screen.getByRole('combobox', { name: 'Add a task on the Tasks page to start' });
+      expect(field).toHaveAttribute('aria-disabled', 'true');
       expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     });
   });
