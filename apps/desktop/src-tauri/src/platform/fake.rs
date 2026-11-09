@@ -1,11 +1,13 @@
 //! A Platform for tests: it records what the shell asked of it, and answers
-//! dialogs with what the test queued. MemorySecrets stands in for the
-//! keychain.
+//! dialogs with what the test queued. A picked document (Android's) is a
+//! file the test names, or one it can't open. MemorySecrets stands in for
+//! the keychain.
 
-use super::{AvailableUpdate, DownloadEvent, Platform, SaveDialog, SecretStore};
+use super::{AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, SecretStore};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -30,7 +32,9 @@ pub struct Recorded {
 pub struct FakePlatform {
     pub recorded: Mutex<Recorded>,
     /// Answers for the next dialogs, in order (None: dismissed).
-    pub dialog_answers: Mutex<VecDeque<Option<PathBuf>>>,
+    pub dialog_answers: Mutex<VecDeque<Option<PickedFile>>>,
+    /// The file behind each picked document the system lets the app open.
+    document_files: Mutex<HashMap<url::Url, PathBuf>>,
     documents: Mutex<Option<PathBuf>>,
     /// What the update feed announces.
     update: Mutex<Option<AvailableUpdate>>,
@@ -52,7 +56,26 @@ impl FakePlatform {
     }
 
     pub fn answer(&self, answer: Option<PathBuf>) {
-        self.dialog_answers.lock().unwrap().push_back(answer);
+        self.dialog_answers
+            .lock()
+            .unwrap()
+            .push_back(answer.map(PickedFile::Path));
+    }
+
+    /// The next dialog picks the document `uri`, kept in `file` (None: one
+    /// the app can't open).
+    pub fn answer_document(&self, uri: &str, file: Option<PathBuf>) {
+        let url = url::Url::parse(uri).unwrap();
+        if let Some(file) = file {
+            self.document_files
+                .lock()
+                .unwrap()
+                .insert(url.clone(), file);
+        }
+        self.dialog_answers
+            .lock()
+            .unwrap()
+            .push_back(Some(PickedFile::Document(url)));
     }
 
     /// The update feed announces `update` from now on.
@@ -84,8 +107,27 @@ impl FakePlatform {
         }
     }
 
-    fn next_answer(&self) -> Option<PathBuf> {
+    fn next_answer(&self) -> Option<PickedFile> {
         self.dialog_answers.lock().unwrap().pop_front().flatten()
+    }
+
+    /// The file a picked file is, as the system would open it.
+    fn resolve(&self, file: &PickedFile) -> std::io::Result<PathBuf> {
+        match file {
+            PickedFile::Path(path) => Ok(path.clone()),
+            PickedFile::Document(url) => self
+                .document_files
+                .lock()
+                .unwrap()
+                .get(url)
+                .cloned()
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!("no access to {}", url),
+                    )
+                }),
+        }
     }
 }
 
@@ -106,19 +148,28 @@ impl Platform for FakePlatform {
         Ok(())
     }
 
-    fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PathBuf> {
+    fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile> {
         self.recorded().save_dialogs.push(dialog.clone());
         self.next_answer()
     }
 
-    fn pick_json_file(&self, title: &str) -> Option<PathBuf> {
+    fn pick_json_file(&self, title: &str) -> Option<PickedFile> {
         self.recorded().open_dialogs.push(title.to_string());
         self.next_answer()
+    }
+
+    fn create_picked(&self, file: &PickedFile) -> std::io::Result<File> {
+        File::create(self.resolve(file)?)
+    }
+
+    fn open_picked(&self, file: &PickedFile) -> std::io::Result<File> {
+        File::open(self.resolve(file)?)
     }
 
     fn pick_folder(&self, title: &str) -> Option<PathBuf> {
         self.recorded().folder_dialogs.push(title.to_string());
         self.next_answer()
+            .and_then(|folder| self.resolve(&folder).ok())
     }
 
     fn documents_dir(&self) -> Result<PathBuf, String> {

@@ -58,4 +58,13 @@ describe('useCsvExport', () => {
 
     expect(showSuccess).toHaveBeenCalledWith('Downloaded entries.csv', { category: 'export' });
   });
+
+  it("says a file saved where the phone's picker chose was saved", async () => {
+    save().mockResolvedValue({ kind: 'picked' });
+    const { result } = renderHook(() => useCsvExport());
+
+    await act(() => result.current.exportCsv('a', 'entries.csv'));
+
+    expect(showSuccess).toHaveBeenCalledWith('Saved the CSV', { category: 'export' });
+  });
 });

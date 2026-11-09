@@ -1,11 +1,16 @@
 //! Files the user picks: exports through a save dialog, an import through
 //! an open dialog, the backup folder, and showing a file in the file manager.
 //! The webview asks for these through dispatch; it has no file access itself.
+//!
+//! A picked file is a path on a desktop, and on Android a document with no
+//! path (PickedFile::Document): an export there replies null, since there's
+//! nothing to show or open a folder of.
 
 use crate::config::DEFAULT_BACKUP_FOLDER_NAME;
-use crate::platform::SaveDialog;
+use crate::platform::{PickedFile, SaveDialog};
 use crate::state::Shell;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Write};
+use std::path::Path;
 use taskmint_core::contract::{EXPORT_CANCELLED, IMPORT_CANCELLED, INVALID_JSON_FILE};
 
 /// A file name for the save dialog: no directory parts, and ending in
@@ -21,19 +26,23 @@ pub fn export_file_name(suggested: &str, fallback: &str, extension: &str) -> Str
     }
 }
 
-/// Asks where to save, then writes `contents` there. Returns the path, or
-/// `EXPORT_CANCELLED` if the dialog was dismissed.
+/// Asks where to save, then writes `contents` there. Returns where it went,
+/// or `EXPORT_CANCELLED` if the dialog was dismissed.
 fn save_with_dialog(
     shell: &Shell,
     dialog: SaveDialog,
     contents: String,
-) -> Result<PathBuf, String> {
-    let path = shell
+) -> Result<PickedFile, String> {
+    let file = shell
         .platform
         .pick_save_file(&dialog)
         .ok_or_else(|| EXPORT_CANCELLED.to_string())?;
-    std::fs::write(&path, contents).map_err(|e| format!("Failed to write export file: {}", e))?;
-    Ok(path)
+    shell
+        .platform
+        .create_picked(&file)
+        .and_then(|mut out| out.write_all(contents.as_bytes()))
+        .map_err(|e| format!("Failed to write export file: {}", e))?;
+    Ok(file)
 }
 
 fn path_text(path: &Path) -> String {
@@ -41,11 +50,12 @@ fn path_text(path: &Path) -> String {
 }
 
 /// Saves a TaskMint export where the user picks, then opens its folder.
+/// Returns its path (None for a document with no path).
 pub fn export_data_to_file(
     shell: &Shell,
     data_json: String,
     suggested_filename: Option<String>,
-) -> Result<String, String> {
+) -> Result<Option<String>, String> {
     let fallback = format!(
         "taskmint_export_{}",
         (shell.clock)().format("%Y%m%d_%H%M%S")
@@ -60,38 +70,48 @@ pub fn export_data_to_file(
             "json",
         ),
     };
-    let path = save_with_dialog(shell, dialog, data_json)?;
+    let PickedFile::Path(path) = save_with_dialog(shell, dialog, data_json)? else {
+        return Ok(None);
+    };
     // A saved file always has a folder
     let folder = path.parent().unwrap_or(&path);
     if let Err(e) = shell.platform.open_dir(folder) {
         log::warn!("Couldn't open the export's folder: {}", e);
     }
-    Ok(path_text(&path))
+    Ok(Some(path_text(&path)))
 }
 
-/// Saves a CSV the frontend built (Reports / Time Entries export).
+/// Saves a CSV the frontend built (Reports / Time Entries export). Returns
+/// its path, as export_data_to_file does.
 pub fn export_csv_file(
     shell: &Shell,
     csv: String,
     suggested_filename: &str,
-) -> Result<String, String> {
+) -> Result<Option<String>, String> {
     let dialog = SaveDialog {
         title: "Export CSV",
         filter_name: "CSV Files",
         extension: "csv",
         file_name: export_file_name(suggested_filename, "taskmint-time-entries", "csv"),
     };
-    save_with_dialog(shell, dialog, csv).map(|path| path_text(&path))
+    let PickedFile::Path(path) = save_with_dialog(shell, dialog, csv)? else {
+        return Ok(None);
+    };
+    Ok(Some(path_text(&path)))
 }
 
 /// The text of a JSON file the user picks, or IMPORT_CANCELLED.
 pub fn import_data_from_file(shell: &Shell) -> Result<String, String> {
-    let path = shell
+    let file = shell
         .platform
         .pick_json_file("Import Data")
         .ok_or_else(|| IMPORT_CANCELLED.to_string())?;
-    let contents =
-        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read import file: {}", e))?;
+    let mut contents = String::new();
+    shell
+        .platform
+        .open_picked(&file)
+        .and_then(|mut input| input.read_to_string(&mut contents))
+        .map_err(|e| format!("Failed to read import file: {}", e))?;
     serde_json::from_str::<serde_json::Value>(&contents)
         .map_err(|e| format!("{}: {}", INVALID_JSON_FILE, e))?;
     Ok(contents)
@@ -126,6 +146,7 @@ pub fn reveal_path(shell: &Shell, path: &str) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::testing::fixture;
+    use std::path::PathBuf;
 
     #[test]
     fn export_names_keep_a_single_extension() {
@@ -157,7 +178,7 @@ mod tests {
 
         let saved = export_data_to_file(&f.state, "{}".to_string(), None).unwrap();
 
-        assert_eq!(saved, path_text(&target));
+        assert_eq!(saved, Some(path_text(&target)));
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "{}");
         let recorded = f.platform.recorded();
         assert_eq!(
@@ -203,9 +224,58 @@ mod tests {
         f.platform.answer(Some(target.clone()));
         assert_eq!(
             export_csv_file(&f.state, "a,b".to_string(), "entries"),
-            Ok(path_text(&target))
+            Ok(Some(path_text(&target)))
         );
         assert!(f.platform.recorded().opened.is_empty());
+    }
+
+    #[test]
+    fn an_android_document_is_written_and_read_but_has_no_path() {
+        let f = fixture();
+        let stored = f.dir.0.join("document-7");
+        let uri = "content://com.android.providers.downloads.documents/document/msf%3A7";
+
+        f.platform.answer_document(uri, Some(stored.clone()));
+        assert_eq!(
+            export_data_to_file(&f.state, r#"{"version":"2"}"#.to_string(), None),
+            Ok(None)
+        );
+        assert_eq!(
+            std::fs::read_to_string(&stored).unwrap(),
+            r#"{"version":"2"}"#
+        );
+        // No folder to open
+        assert!(f.platform.recorded().opened.is_empty());
+
+        f.platform.answer_document(uri, Some(stored.clone()));
+        assert_eq!(
+            import_data_from_file(&f.state),
+            Ok(r#"{"version":"2"}"#.to_string())
+        );
+
+        // Saving over it replaces what was there
+        f.platform.answer_document(uri, Some(stored.clone()));
+        assert_eq!(
+            export_csv_file(&f.state, "a,b".to_string(), "entries"),
+            Ok(None)
+        );
+        assert_eq!(std::fs::read_to_string(&stored).unwrap(), "a,b");
+    }
+
+    #[test]
+    fn a_document_the_app_cant_open_is_an_error() {
+        let f = fixture();
+        let uri = "content://com.android.providers.downloads.documents/document/msf%3A8";
+        f.platform.answer_document(uri, None);
+        assert_eq!(
+            export_csv_file(&f.state, "a,b".to_string(), "entries"),
+            Err(format!("Failed to write export file: no access to {}", uri))
+        );
+        f.platform.answer_document(uri, None);
+        assert_eq!(
+            import_data_from_file(&f.state),
+            Err(format!("Failed to read import file: no access to {}", uri))
+        );
     }
 
     #[test]

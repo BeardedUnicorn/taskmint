@@ -119,6 +119,14 @@ describe('createTauriBackend', () => {
       expect(dispatched()).toEqual([['export_data_to_file', { dataJson: '{}', suggestedFilename: 'export.json' }]]);
     });
 
+    it("has no path for a document Android's picker chose", async () => {
+      mockInvoke.mockResolvedValue(null);
+
+      await expect(
+        platform.files.save({ contents: '{}', suggestedName: 'export.json', format: 'json' })
+      ).resolves.toEqual({ kind: 'picked' });
+    });
+
     it('is null when the Save dialog is dismissed, and rejects on a real failure', async () => {
       mockInvoke.mockRejectedValueOnce(EXPORT_CANCELLED);
       await expect(platform.files.save({ contents: 'a', suggestedName: 'a.csv', format: 'csv' })).resolves.toBeNull();

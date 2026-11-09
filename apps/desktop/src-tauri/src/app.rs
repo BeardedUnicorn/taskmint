@@ -93,6 +93,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init());
+    // Opens the documents Android's Save and Open dialogs pick
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_fs::init());
     #[cfg(desktop)]
     let builder = builder
         // Updates from GitHub's latest release (plugins.updater in

@@ -28,8 +28,11 @@ export interface Capabilities {
   dataLocation: 'local' | 'server';
 }
 
-/** Where a saved file went: a path on disk, or a browser download. */
-export type SavedFile = { kind: 'path'; path: string } | { kind: 'download'; name: string };
+/**
+ * Where a saved file went: a path on disk, a browser download, or a place the
+ * system's own picker chose (on a phone), which has no path to show.
+ */
+export type SavedFile = { kind: 'path'; path: string } | { kind: 'download'; name: string } | { kind: 'picked' };
 
 export interface FilePlatform {
   /** Asks where to save `contents` and saves it there. Null when the user cancels. */

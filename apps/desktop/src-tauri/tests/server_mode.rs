@@ -18,7 +18,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use taskmint_lib::backend::remote::Link;
 use taskmint_lib::backend::server_api::{ApiError, EventStream, ServerApi, Timeouts};
-use taskmint_lib::platform::{AvailableUpdate, DownloadEvent, Platform, SaveDialog, SecretStore};
+use taskmint_lib::platform::{
+    AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, SecretStore,
+};
 use taskmint_lib::server::{self, TOKEN_SECRET};
 use taskmint_lib::store::JsonFileStore;
 use taskmint_lib::tray::model::{TrayMenu, TrayStatus};
@@ -38,11 +40,17 @@ impl Platform for Webview {
     fn notify(&self, _: &str, _: &str, _: bool) -> Result<(), String> {
         Ok(())
     }
-    fn pick_save_file(&self, _: &SaveDialog) -> Option<PathBuf> {
+    fn pick_save_file(&self, _: &SaveDialog) -> Option<PickedFile> {
         None
     }
-    fn pick_json_file(&self, _: &str) -> Option<PathBuf> {
+    fn pick_json_file(&self, _: &str) -> Option<PickedFile> {
         None
+    }
+    fn create_picked(&self, _: &PickedFile) -> std::io::Result<std::fs::File> {
+        Err(std::io::Error::other("no files here"))
+    }
+    fn open_picked(&self, _: &PickedFile) -> std::io::Result<std::fs::File> {
+        Err(std::io::Error::other("no files here"))
     }
     fn pick_folder(&self, _: &str) -> Option<PathBuf> {
         None

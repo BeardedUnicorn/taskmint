@@ -7,13 +7,17 @@
 //! Android and iOS `mobile::DesktopParts` stands in for them and reports
 //! each one missing: there's then no tray (tray::start), and the webview
 //! leaves out the features that need the others (apps/desktop/src/tauriBackend.ts).
+//!
+//! The Save and Open dialogs pick a path on a desktop, and on Android a
+//! document (a content:// address) that the fs plugin opens for the app.
 
-use super::{AvailableUpdate, DownloadEvent, Platform, SaveDialog};
+use super::{AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, FilePath};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -51,6 +55,45 @@ impl TauriPlatform {
 
 fn text(error: impl std::fmt::Display) -> String {
     error.to_string()
+}
+
+/// What a dialog picked: a path, or a document's address.
+fn picked(file: FilePath) -> PickedFile {
+    match file {
+        FilePath::Path(path) => PickedFile::Path(path),
+        FilePath::Url(url) => PickedFile::Document(url),
+    }
+}
+
+/// Opens a picked file to write (emptied first) or to read. A desktop's
+/// dialogs only pick paths.
+#[cfg(desktop)]
+fn open_picked_file(_app: &AppHandle, file: &PickedFile, write: bool) -> std::io::Result<File> {
+    match file {
+        PickedFile::Path(path) if write => File::create(path),
+        PickedFile::Path(path) => File::open(path),
+        PickedFile::Document(url) => Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            format!("{} isn't a file on this computer", url),
+        )),
+    }
+}
+
+/// Opens a picked file to write (emptied first) or to read: the fs plugin
+/// asks the system for a document's file.
+#[cfg(mobile)]
+fn open_picked_file(app: &AppHandle, file: &PickedFile, write: bool) -> std::io::Result<File> {
+    use tauri_plugin_fs::{FsExt, OpenOptions};
+    let path = match file {
+        PickedFile::Path(path) => FilePath::Path(path.clone()),
+        PickedFile::Document(url) => FilePath::Url(url.clone()),
+    };
+    let mut options = OpenOptions::new();
+    match write {
+        true => options.write(true).create(true).truncate(true),
+        false => options.read(true),
+    };
+    app.fs().open(path, options)
 }
 
 /// The tray, the folder picker and the updater.
@@ -303,7 +346,7 @@ impl Platform for TauriPlatform {
         builder.show().map_err(text)
     }
 
-    fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PathBuf> {
+    fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile> {
         self.app
             .dialog()
             .file()
@@ -311,17 +354,25 @@ impl Platform for TauriPlatform {
             .add_filter(dialog.filter_name, &[dialog.extension])
             .set_file_name(&dialog.file_name)
             .blocking_save_file()
-            .map(|path| PathBuf::from(path.to_string()))
+            .map(picked)
     }
 
-    fn pick_json_file(&self, title: &str) -> Option<PathBuf> {
+    fn pick_json_file(&self, title: &str) -> Option<PickedFile> {
         self.app
             .dialog()
             .file()
             .set_title(title)
             .add_filter("JSON Files", &["json"])
             .blocking_pick_file()
-            .map(|path| PathBuf::from(path.to_string()))
+            .map(picked)
+    }
+
+    fn create_picked(&self, file: &PickedFile) -> std::io::Result<File> {
+        open_picked_file(&self.app, file, true)
+    }
+
+    fn open_picked(&self, file: &PickedFile) -> std::io::Result<File> {
+        open_picked_file(&self.app, file, false)
     }
 
     fn pick_folder(&self, title: &str) -> Option<PathBuf> {

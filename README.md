@@ -239,8 +239,10 @@ dependencies) and in the webview (`tauriBackend.ts`, `extensions.tsx`):
 the tray, idle detection and the long-run reminder, folder backups, showing a
 file in the file manager, the capture server and `taskmint://` links for the
 browser extension, server mode and its keychain token, updates, and the move
-from the old identifier. Export and Import don't work yet: Android's file
-pickers return `content://` addresses, which the shell can't open as files.
+from the old identifier. Export and Import go through Android's file picker,
+which returns a document (a `content://` address) rather than a path:
+`tauri-plugin-fs`, a mobile-only dependency, opens it (`platform/os.rs`), and
+the export's message names no location.
 
 To check the Rust compiles for Android without the Gradle build, point Cargo
 at the NDK's compiler (the `tauri android` commands do this themselves):
