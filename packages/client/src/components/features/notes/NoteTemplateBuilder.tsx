@@ -33,6 +33,7 @@ import { FieldEditor } from './FieldEditor';
 import { ConfirmDialog } from '../../ui';
 import { errorMessage } from '../../../utils/errors';
 import { useNotification } from '../../../contexts/NotificationContext';
+import { PHONE } from '../../../theme/media';
 
 export function NoteTemplateBuilder({
   templates,
@@ -185,9 +186,10 @@ export function NoteTemplateBuilder({
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', height: '100%', gap: 2 }}>
+    // On a phone the list sits above the builder, and the tab scrolls
+    <Box sx={{ display: 'flex', height: '100%', gap: 2, [PHONE]: { flexDirection: 'column', height: 'auto' } }}>
       {/* Left Panel - Template List */}
-      <Paper sx={{ width: 300, display: 'flex', flexDirection: 'column' }}>
+      <Paper sx={{ width: 300, display: 'flex', flexDirection: 'column', [PHONE]: { width: '100%' } }}>
         <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
           <Typography variant="h6" gutterBottom>
             Note Templates

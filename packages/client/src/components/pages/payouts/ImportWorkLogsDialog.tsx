@@ -22,6 +22,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   TextField,
@@ -41,6 +42,8 @@ import {
 import { formatCurrency, formatDuration } from '../../../utils/formatters';
 import { centsToDollars } from '../../../utils/payoutCalculator';
 import { TaskSelector } from '../../ui/forms/TaskSelector';
+import { PHONE } from '../../../theme/media';
+import { PHONE_TABLE } from '../../ui/tables/tableStyles';
 
 interface ImportWorkLogsDialogProps {
   onClose: () => void;
@@ -210,8 +213,22 @@ export function ImportWorkLogsDialog({
                   </Typography>
                   <Stack spacing={1.5}>
                     {unmatched.map(project => (
-                      <Box key={project.projectId} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap title={project.projectName}>
+                      // On a phone the project's name sits above its task picker
+                      <Box
+                        key={project.projectId}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          [PHONE]: { flexDirection: 'column', alignItems: 'stretch', gap: 0.5 },
+                        }}
+                      >
+                        <Typography
+                          variant="body2"
+                          sx={{ flex: 1, minWidth: 0, [PHONE]: { whiteSpace: 'normal' } }}
+                          noWrap
+                          title={project.projectName}
+                        >
                           {project.projectName}
                         </Typography>
                         <Box sx={{ flex: 1 }}>
@@ -238,68 +255,70 @@ export function ImportWorkLogsDialog({
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>
                     Preview
                   </Typography>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Day</TableCell>
-                        <TableCell>Project → Task</TableCell>
-                        <TableCell align="right">Tracked</TableCell>
-                        <TableCell align="right">Imported</TableCell>
-                        <TableCell align="right">Δ</TableCell>
-                        <TableCell align="right">Amount</TableCell>
-                        <TableCell />
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {preview.map(row => (
-                        <TableRow key={`${row.taskId}-${row.workDay}`}>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.workDay}</TableCell>
-                          <TableCell>
-                            {row.projectName}
-                            {row.projectName !== row.taskName && ` → ${row.taskName}`}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
-                            {formatDuration(row.trackedMs)}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
-                            {row.importedMinutes > 0 ? formatDuration(row.importedMinutes * 60_000) : '—'}
-                          </TableCell>
-                          <TableCell
-                            align="right"
-                            sx={{
-                              fontFamily: '"Roboto Mono", monospace',
-                              color:
-                                Math.round(row.deltaMinutes) === 0
-                                  ? 'text.secondary'
-                                  : row.deltaMinutes > 0
-                                    ? 'success.main'
-                                    : 'error.main',
-                            }}
-                          >
-                            {row.importedMinutes > 0 ? signedMinutes(row.deltaMinutes) : '—'}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
-                            {formatCurrency(centsToDollars(row.amountCents))}
-                          </TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                            {row.blocked && (
-                              <Tooltip title="A timer is running or paused on this day — it will be skipped until you stop it.">
-                                <WarningIcon color="warning" fontSize="small" />
-                              </Tooltip>
-                            )}
-                            {row.isRemap && (
-                              <Chip
-                                label="overwrites previous import"
-                                size="small"
-                                variant="outlined"
-                                sx={{ ml: 0.5 }}
-                              />
-                            )}
-                          </TableCell>
+                  <TableContainer>
+                    <Table size="small" sx={PHONE_TABLE}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Day</TableCell>
+                          <TableCell>Project → Task</TableCell>
+                          <TableCell align="right">Tracked</TableCell>
+                          <TableCell align="right">Imported</TableCell>
+                          <TableCell align="right">Δ</TableCell>
+                          <TableCell align="right">Amount</TableCell>
+                          <TableCell />
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHead>
+                      <TableBody>
+                        {preview.map(row => (
+                          <TableRow key={`${row.taskId}-${row.workDay}`}>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.workDay}</TableCell>
+                            <TableCell>
+                              {row.projectName}
+                              {row.projectName !== row.taskName && ` → ${row.taskName}`}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
+                              {formatDuration(row.trackedMs)}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
+                              {row.importedMinutes > 0 ? formatDuration(row.importedMinutes * 60_000) : '—'}
+                            </TableCell>
+                            <TableCell
+                              align="right"
+                              sx={{
+                                fontFamily: '"Roboto Mono", monospace',
+                                color:
+                                  Math.round(row.deltaMinutes) === 0
+                                    ? 'text.secondary'
+                                    : row.deltaMinutes > 0
+                                      ? 'success.main'
+                                      : 'error.main',
+                              }}
+                            >
+                              {row.importedMinutes > 0 ? signedMinutes(row.deltaMinutes) : '—'}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
+                              {formatCurrency(centsToDollars(row.amountCents))}
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                              {row.blocked && (
+                                <Tooltip title="A timer is running or paused on this day — it will be skipped until you stop it.">
+                                  <WarningIcon color="warning" fontSize="small" />
+                                </Tooltip>
+                              )}
+                              {row.isRemap && (
+                                <Chip
+                                  label="overwrites previous import"
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ ml: 0.5 }}
+                                />
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                     Applying replaces the tracked session data on {rewriteDayCount} day
                     {rewriteDayCount === 1 ? '' : 's'} with the imported entries

@@ -33,6 +33,7 @@ import { Task } from '../../types/task';
 import { TaskSession } from '../../types/timer';
 import { TaskNote, NoteTemplate } from '../../types/notes';
 import { NotesList, NoteEditor } from '../features/notes';
+import { PHONE } from '../../theme/media';
 import { PageContainer, PageHeader } from '../layout/PageLayout';
 import { EmptyState } from '../ui/display/EmptyState';
 import { useTaskNotes } from '../../hooks/useTaskNotes';
@@ -220,7 +221,21 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
 
           {/* Controls */}
           <Box sx={{ pb: 2 }}>
-            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* On a phone: search, then the two filters side by side, then Add Note */}
+            <Stack
+              direction="row"
+              spacing={2}
+              sx={{
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                [PHONE]: {
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: 1,
+                  '& > :not(style) ~ :not(style)': { ml: 0 },
+                },
+              }}
+            >
               {/* Search */}
               <TextField
                 size="small"
@@ -228,7 +243,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                 placeholder="Search notes..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                sx={{ minWidth: 250 }}
+                sx={{ minWidth: 250, [PHONE]: { minWidth: 0, gridColumn: '1 / -1' } }}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -241,7 +256,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
               />
 
               {/* Task Filter */}
-              <FormControl size="small" sx={{ minWidth: 150 }}>
+              <FormControl size="small" sx={{ minWidth: 150, [PHONE]: { minWidth: 0 } }}>
                 <InputLabel id={taskFilterLabelId}>Filter by Task</InputLabel>
                 <Select
                   labelId={taskFilterLabelId}
@@ -259,7 +274,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
               </FormControl>
 
               {/* Template Filter */}
-              <FormControl size="small" sx={{ minWidth: 150 }}>
+              <FormControl size="small" sx={{ minWidth: 150, [PHONE]: { minWidth: 0 } }}>
                 <InputLabel id={templateFilterLabelId}>Filter by Template</InputLabel>
                 <Select
                   labelId={templateFilterLabelId}
@@ -282,6 +297,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                 startIcon={<AddIcon />}
                 onClick={handleCreateNote}
                 disabled={pickerTasks.length === 0}
+                sx={{ [PHONE]: { gridColumn: '1 / -1' } }}
               >
                 Add Note
               </Button>
@@ -299,7 +315,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                 overflow: 'hidden',
               }}
             >
-              <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+              <Box sx={{ flex: 1, overflow: 'auto', p: 3, [PHONE]: { p: 2 } }}>
                 {/* Note Editor - Show when editing or creating */}
                 {(editingNote || selectedTemplate || isCreatingNewNote) && (
                   <Box sx={{ mb: 3 }}>

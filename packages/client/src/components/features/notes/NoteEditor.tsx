@@ -41,6 +41,7 @@ import { FREE_FORM_CONTENT, FieldValues, emptyValues, isEmptyDraft, orderedField
 import { ConfirmDialog } from '../../ui';
 import { NoteFieldInput } from './NoteFieldInput';
 import { formatClockTime } from '../../../utils/locale';
+import { HOVER } from '../../../theme/media';
 
 const isFilled = (value: unknown) => value !== undefined && value !== null && value !== '' && value !== false;
 
@@ -235,7 +236,7 @@ export function NoteEditor({
             display: 'flex',
             alignItems: 'center',
             cursor: 'pointer',
-            '&:hover': { bgcolor: 'action.hover' },
+            [HOVER]: { '&:hover': { bgcolor: 'action.hover' } },
           }}
           onClick={onToggleCollapse}
         >

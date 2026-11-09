@@ -10,6 +10,7 @@ import { Task } from '../../../types/task';
 import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import { entryEarnings } from '../../../utils/earnings';
 import { formatDuration } from '../../../utils/formatters';
+import { PHONE } from '../../../theme/media';
 
 interface HistorySummaryProps {
   /** Finished entries only */
@@ -29,8 +30,20 @@ export function HistorySummary({ entries, tasks }: HistorySummaryProps) {
   );
 
   return (
-    <Paper sx={{ p: 3, mb: 3 }} aria-label="Summary">
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={4}>
+    <Paper sx={{ p: 3, mb: 3, [PHONE]: { p: 2 } }} aria-label="Summary">
+      {/* Two by two on a phone */}
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={4}
+        sx={{
+          [PHONE]: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 2,
+            '& > :not(style) ~ :not(style)': { mt: 0 },
+          },
+        }}
+      >
         <Box>
           <Typography variant="body2" color="text.secondary">
             Total time

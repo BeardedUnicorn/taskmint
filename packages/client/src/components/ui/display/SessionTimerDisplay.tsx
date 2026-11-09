@@ -20,6 +20,8 @@ import { formatTime } from '../../../utils/formatters';
 import { getSessionElapsedMs, instanceTaskName, sessionTitle } from '../../../utils/timerHelpers';
 import { SESSION_CONSTANTS } from '../../../constants';
 import { TimerRow } from './TimerRow';
+import { PHONE } from '../../../theme/media';
+import { PhoneOwnLine, TWO_LINES } from '../phoneLayout';
 
 interface SessionTimerDisplayProps {
   session: TaskSession;
@@ -60,6 +62,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
       elevation={2}
       sx={{
         p: 3,
+        [PHONE]: { p: 2 },
         borderRadius: 2,
         bgcolor: 'background.paper',
         border: '1px solid',
@@ -69,7 +72,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
       }}
     >
       {/* Session Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, [PHONE]: { flexWrap: 'wrap', rowGap: 1 } }}>
         <SessionIcon fontSize="large" color="primary" />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography
@@ -77,7 +80,7 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
             noWrap
             title={title}
             // Fills the header, and a long name truncates instead of widening the page's column
-            sx={{ fontWeight: 600, mb: 0.5, width: 0, minWidth: '100%' }}
+            sx={{ fontWeight: 600, mb: 0.5, width: 0, minWidth: '100%', [PHONE]: TWO_LINES }}
           >
             {title}
           </Typography>
@@ -88,18 +91,21 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
           </Stack>
         </Box>
 
-        <Typography
-          variant="h3"
-          component="span"
-          aria-label="Session total time"
-          sx={{ fontFamily: '"Roboto Mono", monospace', fontWeight: 700 }}
-        >
-          {formatTime(getSessionElapsedMs(session, nowMs))}
-        </Typography>
+        {/* On a phone the total and notes go below the name */}
+        <PhoneOwnLine sx={{ justifyContent: 'space-between' }}>
+          <Typography
+            variant="h3"
+            component="span"
+            aria-label="Session total time"
+            sx={{ fontFamily: '"Roboto Mono", monospace', fontWeight: 700 }}
+          >
+            {formatTime(getSessionElapsedMs(session, nowMs))}
+          </Typography>
 
-        <IconButton size="small" onClick={() => onOpenNotes(session.id)} aria-label="Session notes">
-          <NotesIcon />
-        </IconButton>
+          <IconButton size="small" onClick={() => onOpenNotes(session.id)} aria-label="Session notes">
+            <NotesIcon />
+          </IconButton>
+        </PhoneOwnLine>
       </Box>
 
       {/* Timers */}

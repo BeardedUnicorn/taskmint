@@ -40,6 +40,10 @@ import {
   Remove as RemoveIcon,
 } from '@mui/icons-material';
 import { FieldEditorProps, TemplateField, FieldType, SelectOption } from '../../../types/notes';
+import { PHONE } from '../../../theme/media';
+
+/** Two fields side by side that share a phone's width instead of overflowing it. */
+const PAIR_ON_PHONE = { gap: 1, '& > *': { flex: 1, minWidth: 0 } } as const;
 
 const FIELD_TYPE_ICONS = {
   text: TextIcon,
@@ -96,7 +100,7 @@ export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, 
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       {/* Field Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: expanded ? 2 : 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: expanded ? 2 : 0, [PHONE]: { flexWrap: 'wrap' } }}>
         {/* Field Type Icon */}
         <TypeIcon color="primary" />
 
@@ -121,8 +125,8 @@ export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, 
           </Typography>
         )}
 
-        {/* Field Actions */}
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        {/* Field Actions: on their own line on a phone */}
+        <Box sx={{ display: 'flex', alignItems: 'center', [PHONE]: { flexBasis: '100%', justifyContent: 'flex-end' } }}>
           {/* (A disabled button gets no hover events: the span carries the tooltip) */}
           <Tooltip title="Move Up">
             <span>
@@ -174,7 +178,7 @@ export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, 
           </div>
 
           {/* Basic Settings */}
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, [PHONE]: { flexWrap: 'wrap' } }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel id={typeLabelId}>Field Type</InputLabel>
               <Select
@@ -219,7 +223,7 @@ export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, 
               <Typography variant="subtitle2" gutterBottom>
                 Text Validation
               </Typography>
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, [PHONE]: PAIR_ON_PHONE }}>
                 <TextField
                   label="Min Length"
                   type="number"
@@ -259,7 +263,7 @@ export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, 
               <Typography variant="subtitle2" gutterBottom>
                 Number Validation
               </Typography>
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, [PHONE]: PAIR_ON_PHONE }}>
                 <TextField
                   label="Minimum Value"
                   type="number"

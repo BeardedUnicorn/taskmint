@@ -6,6 +6,8 @@
 
 import { ReactNode } from 'react';
 import { Box, Skeleton, Stack, Typography } from '@mui/material';
+import { PHONE } from '../../theme/media';
+import { VISUALLY_HIDDEN } from '../ui/visuallyHidden';
 
 /** Widest a page's content gets. */
 export const PAGE_MAX_WIDTH = 1200;
@@ -23,7 +25,7 @@ export function PageContainer({ children, fill = false }: PageContainerProps) {
   return (
     <Box
       sx={{
-        p: 3,
+        p: { xs: 2, sm: 3 },
         width: '100%',
         maxWidth: PAGE_MAX_WIDTH,
         mx: 'auto',
@@ -47,20 +49,30 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ title, titleAdornment, subtitle, actions, children }: PageHeaderProps) {
+  // On a phone the top bar names the page: the title is for screen readers
+  // there, and a header with nothing else to show takes no room
+  const phoneShowsRow = Boolean(titleAdornment || actions);
   return (
-    <Box component="header" sx={{ mb: 3, flexShrink: 0 }}>
+    <Box component="header" sx={{ mb: 3, flexShrink: 0, [PHONE]: { mb: phoneShowsRow || children ? 2 : 0 } }}>
       <Box
-        sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 2,
+          flexWrap: 'wrap',
+          ...(!phoneShowsRow && { [PHONE]: VISUALLY_HIDDEN }),
+        }}
       >
         <Box sx={{ minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 600, [PHONE]: VISUALLY_HIDDEN }}>
               {title}
             </Typography>
             {titleAdornment}
           </Box>
           {subtitle && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, [PHONE]: { display: 'none' } }}>
               {subtitle}
             </Typography>
           )}
@@ -78,7 +90,7 @@ export function PageSkeleton() {
     <PageContainer>
       <Box aria-busy="true" aria-label="Loading">
         <Skeleton variant="text" width={220} height={48} />
-        <Skeleton variant="text" width={360} sx={{ mb: 3 }} />
+        <Skeleton variant="text" width={360} sx={{ mb: 3, maxWidth: '100%' }} />
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={96} />
           <Skeleton variant="rounded" height={240} />

@@ -35,6 +35,16 @@ import { orderTasksForStart } from '../../utils/taskOrdering';
 import { sessionEarnings, sessionRates } from '../../utils/earnings';
 import { newestFirst, noteText } from '../../utils/notes';
 import { useTaskNotes } from '../../hooks/useTaskNotes';
+import { PHONE } from '../../theme/media';
+
+/** The headline figures: as many 300px columns as fit; two narrower ones on a phone. */
+const STATS_GRID = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+  gap: 3,
+  mb: 4,
+  [PHONE]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2, mb: 3 },
+} as const;
 
 interface SessionDashboardProps {
   /** Opens the app's Start Work dialog (the + button, an empty list). */
@@ -179,7 +189,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
       <PageContainer>
         <Box aria-busy="true" aria-label="Loading sessions">
           <Skeleton variant="rounded" height={64} sx={{ mb: 4 }} />
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
+          <Box sx={STATS_GRID}>
             <Skeleton variant="rounded" height={120} />
             <Skeleton variant="rounded" height={120} />
           </Box>
@@ -225,7 +235,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
       </Box>
 
       {/* Overview Stats: the active session's time and earnings */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
+      <Box sx={STATS_GRID}>
         <StatsCard
           title="Session Time"
           value={activeSession ? formatTime(stats.totalTime) : '—'}

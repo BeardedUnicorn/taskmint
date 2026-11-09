@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import { NotesListProps, TaskNote } from '../../../types/notes';
 import { NOTE_LEVELS, NoteItem, NoteLevel } from './NoteItem';
+import { HOVER } from '../../../theme/media';
 
 const LEVEL_ORDER: NoteLevel[] = ['task', 'session', 'timer'];
 
@@ -82,7 +83,7 @@ function NotesByLevel({ notes, ...handlers }: ItemHandlers & { notes: TaskNote[]
                 bgcolor: 'action.hover',
                 borderRadius: 1,
                 cursor: 'pointer',
-                '&:hover': { bgcolor: 'action.selected' },
+                [HOVER]: { '&:hover': { bgcolor: 'action.selected' } },
               }}
             >
               <Box sx={{ color: `${config.color}.main`, mr: 1, display: 'flex' }}>{config.icon}</Box>

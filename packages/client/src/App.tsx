@@ -8,6 +8,7 @@ import { AddTimeDialog } from './components/ui/dialogs/AddTimeDialog';
 import { IdleReturnDialog } from './components/ui/dialogs/IdleReturnDialog';
 import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar } from './components/layout';
+import { CompactTopBar } from './components/layout/CompactTopBar';
 import { GoalFooter } from './components/layout/GoalFooter';
 import { PageSkeleton } from './components/layout/PageLayout';
 import { CommandCenter } from './components/command/CommandCenter';
@@ -30,6 +31,8 @@ import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
 import { PAGES } from './app/routes';
 import { useAppExtensions } from './app/extensions';
+import { useCompactLayout } from './hooks/useCompactLayout';
+import { VIEW_LABELS } from './navigation/views';
 
 /**
  * Work that runs whatever page is open: the tray's "Choose Task…", saying
@@ -95,10 +98,18 @@ function GlobalDialogs({
 
 const pageFallback = <PageSkeleton />;
 
-/** The window: sidebar, the current page, and the app-wide dialogs. */
+/**
+ * The window: sidebar, the current page, and the app-wide dialogs. On a
+ * phone a top bar takes the sidebar's place, and the sidebar slides in as
+ * a menu.
+ */
 function AppContent() {
   const { view: activeView, navigate } = useNavigation();
   const { activeTasks } = useTaskManagementContext();
+  const compact = useCompactLayout();
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const openNavigation = useCallback(() => setNavigationOpen(true), []);
+  const closeNavigation = useCallback(() => setNavigationOpen(false), []);
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [addTimeDialogOpen, setAddTimeDialogOpen] = useState(false);
 
@@ -138,12 +149,31 @@ function AppContent() {
       <CssBaseline enableColorScheme />
       <BackgroundJobs onShowStartDialog={showStartDialog} />
       <CommandCenter onStartWork={showStartDialog} onAddTime={showAddTime} />
-      <Box sx={{ height: '100vh', display: 'flex' }}>
-        <Sidebar activeView={activeView} onViewChange={navigate} footer={renderGoalFooter} headerAction={renderBell} />
+      {/* dvh: a phone's browser bars and keyboard don't hide the bottom */}
+      <Box sx={{ height: '100vh', '@supports (height: 100dvh)': { height: '100dvh' }, display: 'flex' }}>
+        {compact ? (
+          <Sidebar
+            variant="temporary"
+            open={navigationOpen}
+            onClose={closeNavigation}
+            activeView={activeView}
+            onViewChange={navigate}
+            footer={renderGoalFooter}
+          />
+        ) : (
+          <Sidebar
+            activeView={activeView}
+            onViewChange={navigate}
+            footer={renderGoalFooter}
+            headerAction={renderBell}
+          />
+        )}
         {/* minWidth 0: a wide table scrolls inside its page instead of
             stretching the content past the window */}
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ flex: 1, overflow: 'auto' }}>{page}</Box>
+          {compact && <CompactTopBar title={VIEW_LABELS[activeView]} onOpenNavigation={openNavigation} />}
+          {/* Clear of the gesture bar on an edge-to-edge phone screen */}
+          <Box sx={{ flex: 1, overflow: 'auto', pb: 'env(safe-area-inset-bottom)' }}>{page}</Box>
         </Box>
         <GlobalDialogs
           startOpen={startDialogOpen}

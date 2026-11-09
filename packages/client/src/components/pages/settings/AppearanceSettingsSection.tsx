@@ -1,8 +1,9 @@
-import { Divider, Typography } from '@mui/material';
+import { Box, Divider, Typography } from '@mui/material';
 import { Palette as AppearanceIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { ThemeSelector } from './ThemeSelector';
 import { KeyboardShortcutsList } from './KeyboardShortcutsList';
+import { TOUCH } from '../../../theme/media';
 
 export function AppearanceSettingsSection() {
   return (
@@ -12,11 +13,14 @@ export function AppearanceSettingsSection() {
       </Typography>
       <ThemeSelector />
 
-      <Divider sx={{ my: 3 }} />
-      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
-        Keyboard shortcuts
-      </Typography>
-      <KeyboardShortcutsList />
+      {/* No keyboard to speak of on a touch screen */}
+      <Box sx={{ [TOUCH]: { display: 'none' } }}>
+        <Divider sx={{ my: 3 }} />
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
+          Keyboard shortcuts
+        </Typography>
+        <KeyboardShortcutsList />
+      </Box>
     </SettingsSection>
   );
 }

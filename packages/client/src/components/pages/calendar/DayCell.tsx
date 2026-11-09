@@ -17,6 +17,7 @@ import { formatDate, formatDurationCompact } from '../../../utils/formatters';
 import { formatClockTime } from '../../../utils/locale';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { CalendarDay } from './calendarMonth';
+import { HOVER, PHONE } from '../../../theme/media';
 
 /** The grid is wide enough for cents, time and labelled badges. */
 export const WIDE = '@container calendar (min-width: 640px)';
@@ -134,9 +135,16 @@ export function DayCell({ day, tabbable, onOpen, onFocusDay }: DayCellProps) {
           border: `1px solid ${day.isToday ? theme.palette.primary.main : theme.palette.divider}`,
           bgcolor: worked && day.inMonth ? alpha(theme.palette.primary.main, 0.07) : 'transparent',
           transition: theme.transitions.create(['background-color', 'border-color'], { duration: 120 }),
-          '&:hover': { bgcolor: theme.palette.action.hover },
+          [HOVER]: { '&:hover': { bgcolor: theme.palette.action.hover } },
           '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
           [WIDE]: { minHeight: 112, p: 1 },
+          // A phone's day is too narrow for its amount: a stronger tint marks
+          // a worked day, and tapping it shows the details
+          [PHONE]: {
+            minHeight: 52,
+            p: 0.5,
+            ...(worked && day.inMonth && { bgcolor: alpha(theme.palette.primary.main, 0.18) }),
+          },
         })}
       >
         <Box sx={{ display: 'contents', '& > *': { opacity: day.inMonth ? 1 : 0.45 } }}>
@@ -152,6 +160,7 @@ export function DayCell({ day, tabbable, onOpen, onFocusDay }: DayCellProps) {
               fontWeight: day.isToday ? 700 : 600,
               color: day.isToday ? 'primary.contrastText' : day.inMonth ? 'text.primary' : 'text.secondary',
               bgcolor: day.isToday ? 'primary.main' : 'transparent',
+              [PHONE]: { width: 20, height: 20, fontSize: '0.75rem' },
             }}
           >
             {day.dayOfMonth}
@@ -167,6 +176,7 @@ export function DayCell({ day, tabbable, onOpen, onFocusDay }: DayCellProps) {
                   fontSize: '0.8rem',
                   lineHeight: 1.3,
                   [WIDE]: { display: 'none' },
+                  [PHONE]: { display: 'none' },
                 }}
               >
                 {estimate}

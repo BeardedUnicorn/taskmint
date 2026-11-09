@@ -17,6 +17,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   Typography,
@@ -29,6 +30,8 @@ import { buildRemapPlan, RemapPlan } from '../../../utils/workLogImport';
 import { formatDuration } from '../../../utils/formatters';
 import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
 import { useNotification } from '../../../contexts/NotificationContext';
+import { PHONE } from '../../../theme/media';
+import { PHONE_TABLE } from '../../ui/tables/tableStyles';
 
 interface ProjectMappingsCardProps {
   mappings: ProjectTaskMapping[];
@@ -116,7 +119,7 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
   };
 
   return (
-    <Paper sx={{ p: 3, mt: 4 }}>
+    <Paper sx={{ p: 3, mt: 4, [PHONE]: { p: 2 } }}>
       <Box
         sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
         onClick={() => setOpen(prev => !prev)}
@@ -133,44 +136,46 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
       </Box>
 
       <Collapse in={open} unmountOnExit>
-        <Table size="small" sx={{ mt: 2 }}>
-          <TableHead>
-            <TableRow>
-              <TableCell>Project</TableCell>
-              <TableCell>Task</TableCell>
-              <TableCell align="right">Entries</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sortedMappings.map(mapping => (
-              <TableRow key={mapping.projectId}>
-                <TableCell>{mapping.projectName}</TableCell>
-                <TableCell>
-                  <Select
-                    size="small"
-                    value={mapping.taskId}
-                    onChange={event => handleChange(mapping, event.target.value)}
-                    inputProps={{ 'aria-label': `Task for ${mapping.projectName}` }}
-                    sx={{ minWidth: 220 }}
-                  >
-                    {optionsFor(mapping).map(task => (
-                      <MenuItem key={task.id} value={task.id}>
-                        {task.name}
-                      </MenuItem>
-                    ))}
-                    {!tasks.some(task => task.id === mapping.taskId) && (
-                      // The mapped task was deleted; the next import asks again
-                      <MenuItem value={mapping.taskId} disabled>
-                        {mapping.taskName} (deleted)
-                      </MenuItem>
-                    )}
-                  </Select>
-                </TableCell>
-                <TableCell align="right">{entryCounts.get(mapping.projectId) ?? 0}</TableCell>
+        <TableContainer sx={{ mt: 2 }}>
+          <Table size="small" sx={PHONE_TABLE}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Project</TableCell>
+                <TableCell>Task</TableCell>
+                <TableCell align="right">Entries</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {sortedMappings.map(mapping => (
+                <TableRow key={mapping.projectId}>
+                  <TableCell>{mapping.projectName}</TableCell>
+                  <TableCell>
+                    <Select
+                      size="small"
+                      value={mapping.taskId}
+                      onChange={event => handleChange(mapping, event.target.value)}
+                      inputProps={{ 'aria-label': `Task for ${mapping.projectName}` }}
+                      sx={{ minWidth: 220, [PHONE]: { minWidth: 160 } }}
+                    >
+                      {optionsFor(mapping).map(task => (
+                        <MenuItem key={task.id} value={task.id}>
+                          {task.name}
+                        </MenuItem>
+                      ))}
+                      {!tasks.some(task => task.id === mapping.taskId) && (
+                        // The mapped task was deleted; the next import asks again
+                        <MenuItem value={mapping.taskId} disabled>
+                          {mapping.taskName} (deleted)
+                        </MenuItem>
+                      )}
+                    </Select>
+                  </TableCell>
+                  <TableCell align="right">{entryCounts.get(mapping.projectId) ?? 0}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Collapse>
 
       {pending && (

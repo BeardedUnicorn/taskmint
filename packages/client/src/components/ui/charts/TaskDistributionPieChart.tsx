@@ -4,7 +4,14 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, type PieLabe
 import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 import { generateChartColors, formatTimeForChart } from '../../../utils/chartDataHelpers';
-import { CHART_HEIGHT, ChartLegend, ChartTitle, ChartTooltipCard, ChartTooltipProps, hoveredPoint } from './ChartParts';
+import {
+  ChartLegend,
+  useChartLayout,
+  ChartTitle,
+  ChartTooltipCard,
+  ChartTooltipProps,
+  hoveredPoint,
+} from './ChartParts';
 
 interface TaskShare {
   name: string;
@@ -41,6 +48,7 @@ interface SliceLabelProps {
 
 export function TaskDistributionPieChart({ data }: { data: TaskShare[] }) {
   const theme = useTheme();
+  const layout = useChartLayout();
 
   const colors = generateChartColors(data.length);
   const SliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: SliceLabelProps) => {
@@ -67,7 +75,7 @@ export function TaskDistributionPieChart({ data }: { data: TaskShare[] }) {
   return (
     <Box>
       <ChartTitle>Task Time Distribution</ChartTitle>
-      <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+      <ResponsiveContainer width="100%" height={layout.height}>
         <PieChart>
           <Pie
             data={data}
@@ -76,7 +84,7 @@ export function TaskDistributionPieChart({ data }: { data: TaskShare[] }) {
             labelLine={false}
             // A rendered slice's label always gets its geometry (typed optional)
             label={(props: PieLabelRenderProps) => SliceLabel(props as SliceLabelProps)}
-            outerRadius={120}
+            outerRadius={layout.pieRadius}
             dataKey="value"
             stroke={theme.palette.background.paper}
             strokeWidth={2}

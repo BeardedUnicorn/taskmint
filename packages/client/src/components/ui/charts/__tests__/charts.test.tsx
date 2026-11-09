@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskTimeBarChart, TaskTimeTooltip } from '../TaskTimeBarChart';
 import { TimelineChart, TimelineTooltip } from '../TimelineChart';
 import { TaskDistributionPieChart, TaskShareTooltip } from '../TaskDistributionPieChart';
+import { setPhoneViewport } from '../../../../__tests__/setup/viewport';
 
 vi.mock('recharts', async importOriginal => ({
   ...(await importOriginal<typeof import('recharts')>()),
@@ -143,5 +144,28 @@ describe('TaskDistributionPieChart', () => {
     rerender(<TaskShareTooltip active payload={[{ payload: { name: 'Calls', value: 1.5, percentage: 33.33 } }]} />);
     expect(screen.getByText('Calls')).toBeInTheDocument();
     expect(screen.getByText('Percentage: 33.3%')).toBeInTheDocument();
+  });
+});
+
+describe('the charts on a phone', () => {
+  const totals = { totalTime: 2 * HOUR, totalEarnings: 80, entryCount: 3 };
+
+  it('give the plot the width: no axis titles, the legend names the series', async () => {
+    setPhoneViewport(['prefers-reduced-motion']);
+    const { unmount } = render(<TaskTimeBarChart data={[{ taskName: 'Annotation', ...totals }]} />);
+    expect(await screen.findByText('Annotation')).toBeInTheDocument();
+    expect(screen.queryByText('Hours')).not.toBeInTheDocument();
+    expect(screen.getByText('Earnings ($)')).toBeInTheDocument();
+    unmount();
+
+    render(<TimelineChart dataType="weekly" data={[{ week: '2026-W10', ...totals }]} />);
+    expect(await screen.findByText('2026-W10')).toBeInTheDocument();
+    expect(screen.queryByText('Hours')).not.toBeInTheDocument();
+  });
+
+  it('draw a smaller pie', async () => {
+    setPhoneViewport(['prefers-reduced-motion']);
+    render(<TaskDistributionPieChart data={[{ name: 'Annotation', value: 2 * HOUR, percentage: 100 }]} />);
+    expect(await screen.findByText('Annotation')).toBeInTheDocument();
   });
 });

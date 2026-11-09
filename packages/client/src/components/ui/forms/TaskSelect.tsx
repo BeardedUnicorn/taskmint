@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { Task } from '../../../types/task';
 import { formatCurrency } from '../../../utils/formatters';
+import { PHONE } from '../../../theme/media';
 
 interface TaskSelectProps {
   /** The tasks to offer, in the order to list them. */
@@ -76,12 +77,13 @@ export function TaskSelect({
         renderValue={id => <TaskName task={byId.get(id)!} />}
       >
         {tasks.map(task => (
-          <MenuItem key={task.id} value={task.id} sx={{ gap: 2 }}>
-            <Box sx={{ flex: 1 }}>
+          // On a phone a long name wraps rather than pushing the rate out of the menu
+          <MenuItem key={task.id} value={task.id} sx={{ gap: 2, [PHONE]: { whiteSpace: 'normal' } }}>
+            <Box sx={{ flex: 1, [PHONE]: { minWidth: 0, overflowWrap: 'anywhere' } }}>
               <TaskName task={task} />
             </Box>
             {task.hourlyRate ? (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ [PHONE]: { flexShrink: 0 } }}>
                 {formatCurrency(task.hourlyRate)}/hr
               </Typography>
             ) : null}
