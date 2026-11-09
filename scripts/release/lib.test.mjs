@@ -31,6 +31,7 @@ import {
   updateAssetNames,
   updateBundlePaths,
   updateManifest,
+  verifyApkSigner,
   verifyUpdateSignature,
 } from './lib.mjs';
 
@@ -244,6 +245,7 @@ describe('targets', () => {
         'TaskMint-2.2.0-macos-arm64.dmg',
         'TaskMint-2.2.0-macos-x64.dmg',
         'TaskMint-2.2.0-windows-x64-setup.exe',
+        'TaskMint-2.2.0-android-arm64.apk',
         'TaskMint-2.2.0-chrome-extension.zip',
       ]
     );
@@ -265,7 +267,12 @@ describe('targets', () => {
         'TaskMint-2.1.0-macos-x64.dmg',
         ...updates,
       ]),
-      ['TaskMint-2.2.0-macos-x64.dmg', 'TaskMint-2.2.0-windows-x64-setup.exe', 'TaskMint-2.2.0-chrome-extension.zip']
+      [
+        'TaskMint-2.2.0-macos-x64.dmg',
+        'TaskMint-2.2.0-windows-x64-setup.exe',
+        'TaskMint-2.2.0-android-arm64.apk',
+        'TaskMint-2.2.0-chrome-extension.zip',
+      ]
     );
     assert.deepEqual(missingAssets('TaskMint', '2.2.0', all.slice(0, TARGETS.length)), updates);
   });
@@ -282,6 +289,13 @@ describe('targets', () => {
     assert.deepEqual(buildPlan('windows-x64', mac), { kind: 'xwin', triple: 'x86_64-pc-windows-msvc' });
   });
 
+  it('builds the APK on macOS or Linux', () => {
+    const android = { kind: 'android', triple: 'aarch64-linux-android', tauriTarget: 'aarch64' };
+    assert.deepEqual(buildPlan('android-arm64', mac), android);
+    assert.deepEqual(buildPlan('android-arm64', intelMac), android);
+    assert.deepEqual(buildPlan('android-arm64', linux), android);
+  });
+
   it('zips the extension where there is a zip command', () => {
     assert.deepEqual(buildPlan('chrome-extension', mac), { kind: 'zip' });
     assert.deepEqual(buildPlan('chrome-extension', linux), { kind: 'zip' });
@@ -291,6 +305,7 @@ describe('targets', () => {
     assert.throws(() => buildPlan('macos-arm64', windows), /^Error: macos-arm64 can't be built on Windows \(x64\)$/);
     assert.throws(() => buildPlan('windows-x64', linux), /windows-x64 can't be built on Linux \(x64\)/);
     assert.throws(() => buildPlan('chrome-extension', windows), /chrome-extension can't be built on Windows/);
+    assert.throws(() => buildPlan('android-arm64', windows), /android-arm64 can't be built on Windows/);
     assert.throws(() => buildPlan('macos-x64', { platform: 'freebsd', arch: 'x64' }), /on freebsd \(x64\)/);
   });
 
@@ -306,11 +321,20 @@ describe('targets', () => {
     assert.throws(() => bundlePath('TaskMint', '2.2.0', 'chrome-extension', { kind: 'zip' }), /isn't a Tauri bundle/);
   });
 
+  it("finds Gradle's APK in the Android project", () => {
+    assert.equal(
+      bundlePath('TaskMint', '2.2.0', 'android-arm64', buildPlan('android-arm64', linux)),
+      'apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk'
+    );
+    assert.throws(() => bundlePath('TaskMint', '2.2.0', 'android-arm64', { kind: 'zip' }), /isn't a Tauri bundle/);
+  });
+
   it("builds the host's own installer unless targets are named", () => {
     assert.deepEqual(buildTargets(mac), ['macos-arm64']);
     assert.deepEqual(buildTargets(intelMac), ['macos-x64']);
     assert.deepEqual(buildTargets(windows), ['windows-x64']);
     assert.deepEqual(buildTargets({ ...linux, targets: ['chrome-extension'] }), ['chrome-extension']);
+    assert.deepEqual(buildTargets({ ...linux, targets: ['android-arm64'] }), ['android-arm64']);
     assert.throws(() => buildTargets(linux), /There's no installer for Linux \(x64\): name one with --target/);
   });
 
@@ -351,6 +375,7 @@ describe('desktop updates', () => {
       'TaskMint-2.3.0-windows-x64-setup.exe.sig',
     ]);
     assert.throws(() => updateAssetNames('TaskMint', '2.3.0', 'chrome-extension'), /chrome-extension has no updates/);
+    assert.throws(() => updateAssetNames('TaskMint', '2.3.0', 'android-arm64'), /android-arm64 has no updates/);
     assert.throws(() => updateAssetNames('TaskMint', '2.3.0', 'ios'), /Unknown target "ios"/);
   });
 
@@ -479,5 +504,34 @@ describe('update signatures', () => {
     for (const signature of ['', Buffer.from('a\nRVg=\n').toString('base64'), signFile(data, { algorithm: 'XX' })]) {
       assert.throws(() => verifyUpdateSignature({ publicKey, signature, data }), /isn't a minisign signature/);
     }
+  });
+});
+
+describe('verifyApkSigner', () => {
+  const digest = '48c12fdd37c71679f9d7316800fc01816583b6e6b38b6674ac1328db916c1f8b';
+  const other = 'a'.repeat(64);
+  const signer = (n, sha256) =>
+    [
+      `Signer #${n} certificate DN: CN=TaskMint`,
+      `Signer #${n} certificate SHA-256 digest: ${sha256}`,
+      `Signer #${n} certificate SHA-1 digest: ${'b'.repeat(40)}`,
+      `Signer #${n} certificate MD5 digest: ${'c'.repeat(32)}`,
+    ].join('\n');
+
+  it('accepts the one signer with the release certificate', () => {
+    assert.doesNotThrow(() => verifyApkSigner({ output: `Verifies\n${signer(1, digest)}\n`, digest }));
+    assert.doesNotThrow(() => verifyApkSigner({ output: signer(1, digest), digest: digest.toUpperCase() }));
+  });
+
+  it('refuses another key, no signer, or more than one', () => {
+    assert.throws(
+      () => verifyApkSigner({ output: signer(1, other), digest }),
+      new RegExp(`^Error: The APK is signed with certificate ${other}, but releases are signed with ${digest}$`)
+    );
+    assert.throws(() => verifyApkSigner({ output: 'Verifies\n', digest }), /apksigner found no signer in the APK/);
+    assert.throws(
+      () => verifyApkSigner({ output: `${signer(1, digest)}\n${signer(2, other)}`, digest }),
+      /The APK has 2 signers; a release has one/
+    );
   });
 });

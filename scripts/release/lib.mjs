@@ -194,12 +194,13 @@ export function setCargoLockVersions(text, names, version) {
 // and a local release builds the computer's own installer unless told which.
 
 /** Every target a release ships, in the order the release lists them. */
-export const TARGETS = ['macos-arm64', 'macos-x64', 'windows-x64', 'chrome-extension'];
+export const TARGETS = ['macos-arm64', 'macos-x64', 'windows-x64', 'android-arm64', 'chrome-extension'];
 
 const SUFFIXES = {
   'macos-arm64': 'macos-arm64.dmg',
   'macos-x64': 'macos-x64.dmg',
   'windows-x64': 'windows-x64-setup.exe',
+  'android-arm64': 'android-arm64.apk',
   'chrome-extension': 'chrome-extension.zip',
 };
 
@@ -219,6 +220,19 @@ const DESKTOP = {
     triple: 'x86_64-pc-windows-msvc',
     bundle: 'nsis',
     file: 'x64-setup.exe',
+  },
+};
+
+/**
+ * The Android targets: the Rust target, Tauri's name for it (`tauri android
+ * build --target`) and where Gradle leaves the APK, relative to the
+ * repository root.
+ */
+const ANDROID = {
+  'android-arm64': {
+    triple: 'aarch64-linux-android',
+    tauriTarget: 'aarch64',
+    apk: 'apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk',
   },
 };
 
@@ -255,14 +269,19 @@ export function missingAssets(product, version, files) {
 /**
  * How a host builds a target: a Tauri build, `native` or cross-compiled with
  * `--target <triple>` (the other Mac CPU); `xwin`, the Windows installer
- * cross-compiled on a Mac; or `zip`, the extension zipped with the zip
- * command. Throws for a target the host can't build.
+ * cross-compiled on a Mac; `android`, the APK from `tauri android build`
+ * (with the Android SDK, NDK and a JDK); or `zip`, the extension zipped with
+ * the zip command. Throws for a target the host can't build.
  */
 export function buildPlan(target, host) {
   requireTarget(target);
   const desktop = DESKTOP[target];
-  if (!desktop) {
-    if (host.platform === 'darwin' || host.platform === 'linux') return { kind: 'zip' };
+  const unixLike = host.platform === 'darwin' || host.platform === 'linux';
+  if (ANDROID[target]) {
+    const { triple, tauriTarget } = ANDROID[target];
+    if (unixLike) return { kind: 'android', triple, tauriTarget };
+  } else if (!desktop) {
+    if (unixLike) return { kind: 'zip' };
   } else if (desktop.platform === host.platform) {
     return { kind: 'tauri', triple: desktop.arch === host.arch ? null : desktop.triple };
   } else if (target === 'windows-x64' && host.platform === 'darwin') {
@@ -271,9 +290,10 @@ export function buildPlan(target, host) {
   throw new Error(`${target} can't be built on ${describeHost(host)}`);
 }
 
-/** Where Tauri leaves a desktop target's installer, relative to the repository root. */
+/** Where Tauri leaves a target's installer or APK, relative to the repository root. */
 export function bundlePath(product, version, target, plan) {
   requireTarget(target);
+  if (ANDROID[target] && plan.kind === 'android') return ANDROID[target].apk;
   const desktop = DESKTOP[target];
   if (!desktop || plan.kind === 'zip') throw new Error(`${target} isn't a Tauri bundle`);
   const dir = plan.triple ? `target/${plan.triple}/release` : 'target/release';
@@ -403,5 +423,25 @@ export function verifyUpdateSignature({ publicKey, signature, data }) {
   const comment = Buffer.from(trusted.replace(/^trusted comment: /, ''));
   if (!verify(null, Buffer.concat([signatureBytes.subarray(10), comment]), ed25519, Buffer.from(global, 'base64'))) {
     throw new Error("The update signature's trusted comment doesn't match it");
+  }
+}
+
+// The APK's signature. Android installs an APK over the app only when both
+// are signed with the same key, so every release has to be signed with the
+// release key (the README's "Android signing").
+
+/**
+ * Checks that `apksigner verify --print-certs` (its `output`) found exactly
+ * one signer, with the certificate whose SHA-256 is `digest`. Throws saying
+ * what's wrong.
+ */
+export function verifyApkSigner({ output, digest }) {
+  const found = [...output.matchAll(/^Signer #\d+ certificate SHA-256 digest: ([0-9a-f]+)\s*$/gim)].map(match =>
+    match[1].toLowerCase()
+  );
+  if (found.length === 0) throw new Error('apksigner found no signer in the APK');
+  if (found.length > 1) throw new Error(`The APK has ${found.length} signers; a release has one`);
+  if (found[0] !== digest.toLowerCase()) {
+    throw new Error(`The APK is signed with certificate ${found[0]}, but releases are signed with ${digest}`);
   }
 }
