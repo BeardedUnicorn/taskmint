@@ -5,12 +5,17 @@
  * notifications, idle time, backups) as the Rust shell's commands. Events are
  * Tauri events. In server mode the Rust side passes the data commands on to
  * the server and its events back, so nothing here changes.
+ *
+ * On a phone or tablet (runtime 'mobile') the platform is the files and
+ * notifications only: there's no system idle time, tray, folder to back up
+ * to, file manager or browser extension, so the client leaves those features
+ * out, as it does in a browser.
  */
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { CORE_ERRORS, type CommandName, type CommandReply } from '@taskmint/contracts';
-import type { Backend, Capabilities, CommandArgsParam, Platform } from '@taskmint/client/backend';
+import type { Backend, Capabilities, CommandArgsParam, Platform, SavedFile } from '@taskmint/client/backend';
 
 /** What a dismissed save or open dialog rejects with. */
 const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
@@ -50,15 +55,19 @@ function subscribe<T>(event: string, handler: (payload: T) => void): () => void 
   };
 }
 
-const platform: Platform = {
+/** What the app has everywhere it runs: dialogs for files, and OS notifications. */
+const everywhere: Platform = {
   files: {
-    async save({ contents, suggestedName, format }) {
+    save({ contents, suggestedName, format }) {
+      // The path it went to, or null for a document Android's picker chose
       const saving =
         format === 'csv'
-          ? command<string>('export_csv_file', { csv: contents, suggestedFilename: suggestedName })
-          : command<string>('export_data_to_file', { dataJson: contents, suggestedFilename: suggestedName });
-      const path = await unlessCancelled(saving, EXPORT_CANCELLED);
-      return path === null ? null : { kind: 'path', path };
+          ? command<string | null>('export_csv_file', { csv: contents, suggestedFilename: suggestedName })
+          : command<string | null>('export_data_to_file', { dataJson: contents, suggestedFilename: suggestedName });
+      return unlessCancelled<SavedFile>(
+        saving.then(path => (path === null ? { kind: 'picked' } : { kind: 'path', path })),
+        EXPORT_CANCELLED
+      );
     },
     openJson: () => unlessCancelled(command<string>('import_data_from_file'), IMPORT_CANCELLED),
   },
@@ -66,6 +75,10 @@ const platform: Platform = {
     show: (kind, title, body) => command<boolean>('show_desktop_notification', { kind, title, body }),
     setPreferences: prefs => command<void>('set_notification_preferences', { prefs }),
   },
+};
+
+/** What only a desktop has. */
+const desktopOnly: Omit<Platform, 'files' | 'notifications'> = {
   idle: {
     isSupported: () => command<boolean>('get_idle_support'),
     setSettings: settings => command<void>('set_idle_settings', { settings }),
@@ -96,6 +109,6 @@ export function createTauriBackend(capabilities: Capabilities): Backend {
       return command<CommandReply<K>>(name, args[0] as Record<string, unknown> | undefined);
     },
     subscribe,
-    platform,
+    platform: capabilities.runtime === 'mobile' ? everywhere : { ...everywhere, ...desktopOnly },
   };
 }

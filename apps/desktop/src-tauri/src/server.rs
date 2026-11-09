@@ -69,13 +69,18 @@ pub fn open_backend(
     ))
 }
 
+/// The shell, as get_capabilities names it: Android and iOS builds are
+/// "mobile", where the webview leaves out what only a desktop has (the
+/// tray, folder backups, idle detection, server mode, updates).
+pub const RUNTIME: &str = if cfg!(mobile) { "mobile" } else { "desktop" };
+
 /// get_capabilities: what the webview runs on.
 pub fn capabilities(state: &AppState) -> Value {
     let data_location = match state.backend.remote() {
         Some(_) => "server",
         None => "local",
     };
-    json!({ "runtime": "desktop", "dataLocation": data_location })
+    json!({ "runtime": RUNTIME, "dataLocation": data_location })
 }
 
 /// get_server_connection's reply: the server this launch uses, and the

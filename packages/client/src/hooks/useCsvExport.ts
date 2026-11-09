@@ -20,8 +20,10 @@ export function useCsvExport() {
         const saved = await getBackend().platform.files.save({ contents: csv, suggestedName: fileName, format: 'csv' });
         if (saved?.kind === 'path') {
           showSuccess(`Saved to ${saved.path}`, { category: 'export', actions: revealAction(saved.path) });
-        } else if (saved) {
+        } else if (saved?.kind === 'download') {
           showSuccess(`Downloaded ${saved.name}`, { category: 'export' });
+        } else if (saved) {
+          showSuccess('Saved the CSV', { category: 'export' });
         }
       } catch (err) {
         showError(`Couldn't export the CSV: ${errorMessage(err, 'Unknown error')}`);

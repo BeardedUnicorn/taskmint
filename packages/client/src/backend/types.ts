@@ -19,14 +19,20 @@ import type { IdleChoice, IdlePause, InactivitySettings } from '../types/timer';
 import type { CaptureServerStatus } from '@taskmint/contracts';
 
 export interface Capabilities {
-  /** The shell the client runs in. */
-  runtime: 'desktop' | 'web';
+  /**
+   * The shell the client runs in: the desktop app, the same app on a phone or
+   * tablet (Android, iOS), or a browser.
+   */
+  runtime: 'desktop' | 'mobile' | 'web';
   /** Where tracked time lives: on this computer, or on a TaskMint server. */
   dataLocation: 'local' | 'server';
 }
 
-/** Where a saved file went: a path on disk, or a browser download. */
-export type SavedFile = { kind: 'path'; path: string } | { kind: 'download'; name: string };
+/**
+ * Where a saved file went: a path on disk, a browser download, or a place the
+ * system's own picker chose (on a phone), which has no path to show.
+ */
+export type SavedFile = { kind: 'path'; path: string } | { kind: 'download'; name: string } | { kind: 'picked' };
 
 export interface FilePlatform {
   /** Asks where to save `contents` and saves it there. Null when the user cancels. */

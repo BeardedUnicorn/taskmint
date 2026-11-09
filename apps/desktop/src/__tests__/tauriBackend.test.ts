@@ -119,6 +119,14 @@ describe('createTauriBackend', () => {
       expect(dispatched()).toEqual([['export_data_to_file', { dataJson: '{}', suggestedFilename: 'export.json' }]]);
     });
 
+    it("has no path for a document Android's picker chose", async () => {
+      mockInvoke.mockResolvedValue(null);
+
+      await expect(
+        platform.files.save({ contents: '{}', suggestedName: 'export.json', format: 'json' })
+      ).resolves.toEqual({ kind: 'picked' });
+    });
+
     it('is null when the Save dialog is dismissed, and rejects on a real failure', async () => {
       mockInvoke.mockRejectedValueOnce(EXPORT_CANCELLED);
       await expect(platform.files.save({ contents: 'a', suggestedName: 'a.csv', format: 'csv' })).resolves.toBeNull();
@@ -214,5 +222,16 @@ describe('createTauriBackend', () => {
     await platform.captureStatus!();
 
     expect(dispatched()).toEqual([['reveal_path', { path: '/Users/me/export.json' }], ['get_capture_server_status']]);
+  });
+
+  it('on a phone or tablet, has only files and notifications', async () => {
+    const mobile = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
+    expect(mobile.capabilities.runtime).toBe('mobile');
+    expect(Object.keys(mobile.platform).sort()).toEqual(['files', 'notifications']);
+    expect(mobile.platform.files).toBe(platform.files);
+    expect(mobile.platform.notifications).toBe(platform.notifications);
+
+    await mobile.platform.files.openJson();
+    expect(dispatched()).toEqual([['import_data_from_file']]);
   });
 });

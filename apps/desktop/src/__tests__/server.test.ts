@@ -57,4 +57,8 @@ describe("the desktop's extensions", () => {
     expect(server.Background).toBe(UpdatePrompt);
     expect(server.StartupErrorActions).toBe(UseLocalData);
   });
+
+  it('add nothing on a phone or tablet, which has no server mode or updater', () => {
+    expect(desktopExtensions({ runtime: 'mobile', dataLocation: 'local' })).toEqual({});
+  });
 });

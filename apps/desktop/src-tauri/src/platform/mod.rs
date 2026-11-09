@@ -7,6 +7,7 @@
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde::Serialize;
 use serde_json::Value;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
 pub mod keychain;
@@ -22,6 +23,16 @@ pub struct SaveDialog {
     pub filter_name: &'static str,
     pub extension: &'static str,
     pub file_name: String,
+}
+
+/// A file the user picked in a Save or Open dialog.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PickedFile {
+    /// A path on this computer.
+    Path(PathBuf),
+    /// A document only the system can open, with no path to show: what
+    /// Android's pickers return (a content:// address).
+    Document(url::Url),
 }
 
 /// A newer release the update feed announced (GitHub's latest release).
@@ -52,9 +63,13 @@ pub trait Platform: Send + Sync {
     /// Shows an OS notification, with the system sound when `sound`.
     fn notify(&self, title: &str, body: &str, sound: bool) -> Result<(), String>;
     /// Where to save; None when the dialog is dismissed.
-    fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PathBuf>;
+    fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile>;
     /// A JSON file to open; None when the dialog is dismissed.
-    fn pick_json_file(&self, title: &str) -> Option<PathBuf>;
+    fn pick_json_file(&self, title: &str) -> Option<PickedFile>;
+    /// Opens the file a Save dialog picked to write, emptied first.
+    fn create_picked(&self, file: &PickedFile) -> std::io::Result<File>;
+    /// Opens the file an Open dialog picked to read.
+    fn open_picked(&self, file: &PickedFile) -> std::io::Result<File>;
     /// A folder; None when the dialog is dismissed.
     fn pick_folder(&self, title: &str) -> Option<PathBuf>;
     fn documents_dir(&self) -> Result<PathBuf, String>;
