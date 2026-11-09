@@ -48,7 +48,8 @@ describe('records changed elsewhere', () => {
   it('reload the notes', async () => {
     seedAppRecords({ taskNotes: [] });
     const { result } = renderHook(() => useTaskNotesState());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // Let the first load finish
+    await act(async () => {});
 
     seedAppRecords({ taskNotes: [createMockTaskNote({ id: 'n1' })] });
     act(() => elsewhere('taskNotes'));

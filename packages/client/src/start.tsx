@@ -21,13 +21,11 @@ import { setBackend, type Backend } from './backend';
 import { AppExtensionsProvider, type AppExtensions } from './app/extensions';
 import { errorMessage } from './utils/errors';
 
-export type { AppExtensions, SettingsSectionExtension } from './app/extensions';
+export type { AppExtensions } from './app/extensions';
 
 export interface StartOptions {
   backend: Backend;
   extensions: AppExtensions;
-  /** Move in records an older desktop version left in localStorage (see loadAppRecords). */
-  importLegacyRecords: boolean;
 }
 
 /**
@@ -35,28 +33,15 @@ export interface StartOptions {
  * the records load, and the app renders (or, when the records can't be
  * read, a startup error).
  */
-export async function startClient(
-  container: HTMLElement,
-  { backend, extensions, importLegacyRecords }: StartOptions
-): Promise<void> {
+export async function startClient(container: HTMLElement, { backend, extensions }: StartOptions): Promise<void> {
   initSentry();
-
-  // Clear data left behind by the removed subscription/paywall system.
-  for (const key of ['userSubscription', 'featureOverrides', 'taskLimitOverride']) {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Storage unavailable; nothing to clean up.
-    }
-  }
-
   setBackend(backend);
   const root = ReactDOM.createRoot(container);
 
   // Tasks, notes, templates and the goal load before the first render, so
   // every page can read them synchronously.
   try {
-    await loadAppRecords({ importLegacy: importLegacyRecords });
+    await loadAppRecords();
     await moveLocalAccountSettings();
   } catch (error) {
     console.error('Failed to load app records:', error);

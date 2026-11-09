@@ -1,8 +1,7 @@
 /**
  * TaskService Tests
  *
- * Tests validation, name uniqueness, archiving, the favorites migration,
- * and CRUD error handling.
+ * Tests validation, name uniqueness, archiving and CRUD error handling.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -98,52 +97,6 @@ describe('TaskService', () => {
     });
   });
 
-  describe('legacy favorites migration', () => {
-    const otherTask: Task = { ...baseTask, id: 'task2', name: 'Other Task' };
-
-    beforeEach(() => {
-      window.localStorage.clear();
-    });
-
-    const storeLegacyFavorites = (ids: string[]) =>
-      window.localStorage.setItem(
-        'favoriteTasks',
-        JSON.stringify({ version: 1, data: { favoriteTaskIds: ids, maxRecentTasks: 5 } })
-      );
-
-    it('moves the old favorites list onto the tasks once, then removes it', async () => {
-      storeLegacyFavorites(['task2']);
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }, { ...otherTask }]);
-
-      const tasks = await service.getAllTasks();
-
-      expect(tasks.find(t => t.id === 'task2')?.isFavorite).toBe(true);
-      expect(tasks.find(t => t.id === 'task1')?.isFavorite).toBeFalsy();
-      expect(mockStorageService.setTasks).toHaveBeenCalledWith([{ ...baseTask }, { ...otherTask, isFavorite: true }]);
-      expect(window.localStorage.getItem('favoriteTasks')).toBeNull();
-    });
-
-    it('does nothing when there is no old favorites list', async () => {
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }]);
-
-      await service.getAllTasks();
-
-      expect(mockStorageService.setTasks).not.toHaveBeenCalled();
-    });
-
-    it('keeps the old list to retry when saving the tasks fails', async () => {
-      storeLegacyFavorites(['task1']);
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask }]);
-      mockStorageService.setTasks = vi.fn().mockRejectedValue(new Error('disk full'));
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      const tasks = await service.getAllTasks();
-
-      expect(tasks[0].isFavorite).toBeFalsy();
-      expect(window.localStorage.getItem('favoriteTasks')).not.toBeNull();
-    });
-  });
-
   describe('CRUD error handling', () => {
     it('should reject creating task when validation fails', async () => {
       await expect(service.createTask({ name: '' } as any)).rejects.toMatchObject({
@@ -167,13 +120,13 @@ describe('TaskService', () => {
       });
     });
 
-    it('deletes just that task, keeping the others (and any parentId they carry)', async () => {
-      const child: Task = { ...baseTask, id: 'task2', name: 'Child', parentId: 'task1' };
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask, child]);
+    it('deletes just that task, keeping the others', async () => {
+      const other: Task = { ...baseTask, id: 'task2', name: 'Other' };
+      mockStorageService.getTasks = vi.fn().mockResolvedValue([baseTask, other]);
 
       await service.deleteTask('task1');
 
-      expect(mockStorageService.setTasks).toHaveBeenCalledWith([child]);
+      expect(mockStorageService.setTasks).toHaveBeenCalledWith([other]);
     });
 
     it('should reject deleting a task that does not exist', async () => {
@@ -265,33 +218,6 @@ describe('TaskService', () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
       mockStorageService.getTasks = vi.fn().mockRejectedValue(new Error('failure'));
       expect(await service.isTaskNameUnique('Anything')).toBe(false);
-    });
-  });
-
-  describe('legacy favorites, as older versions left them', () => {
-    beforeEach(() => {
-      window.localStorage.clear();
-      mockStorageService.getTasks = vi.fn().mockResolvedValue([{ ...baseTask, isFavorite: true }]);
-    });
-
-    it('reads an unversioned list, and drops it when there is nothing new to carry over', async () => {
-      window.localStorage.setItem('favoriteTasks', JSON.stringify({ favoriteTaskIds: ['task1', 7] }));
-      await service.getAllTasks();
-      expect(mockStorageService.setTasks).not.toHaveBeenCalled();
-      expect(window.localStorage.getItem('favoriteTasks')).toBeNull();
-    });
-
-    it("drops a list it can't read", async () => {
-      window.localStorage.setItem('favoriteTasks', 'not json');
-      expect(await service.getAllTasks()).toEqual([{ ...baseTask, isFavorite: true }]);
-      expect(window.localStorage.getItem('favoriteTasks')).toBeNull();
-    });
-
-    it("leaves the tasks as they are when localStorage can't be read", async () => {
-      vi.mocked(window.localStorage.getItem).mockImplementationOnce(() => {
-        throw new Error('SecurityError');
-      });
-      expect(await service.getAllTasks()).toEqual([{ ...baseTask, isFavorite: true }]);
     });
   });
 });

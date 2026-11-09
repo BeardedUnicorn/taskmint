@@ -14,7 +14,6 @@ export interface TaskTimeData {
   totalTime: number; // in milliseconds
   totalEarnings: number;
   entryCount: number;
-  color?: string;
 }
 
 export interface DailyData {

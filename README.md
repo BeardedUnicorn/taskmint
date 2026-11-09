@@ -174,6 +174,13 @@ cd apps/desktop && pnpm tauri icon ../../assets/brand/icon.png
 cd apps/desktop && pnpm tauri icon ../../assets/brand/icon-macos.png -o /tmp/taskmint-icons && cp /tmp/taskmint-icons/icon.icns src-tauri/icons/
 ```
 
+`tauri icon` also writes Android, iOS and Windows Store sizes the bundle
+doesn't use; delete them again:
+
+```bash
+cd apps/desktop/src-tauri/icons && rm -rf android ios Square*Logo.png StoreLogo.png 64x64.png
+```
+
 The menu-bar icon (`src-tauri/icons/tray-template.png`, a black leaf on
 transparent that macOS tints) and the images in `packages/client/public/` and
 `apps/extension/icons/` are made from the same masters.

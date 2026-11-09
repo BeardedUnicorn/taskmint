@@ -7,14 +7,13 @@
  * Writes update the cache and go to the backend, in order per record, each
  * based on the record's revision; a change made elsewhere (another tab or
  * device) replaces the cached record and tells subscribeToAppRecords'
- * listeners. The desktop app also moves in records an older version left in
- * the webview's localStorage.
+ * listeners.
  */
 
 import { APP_RECORD_KEYS, CORE_ERRORS, EVENTS, type AppRecords, type JsonValue } from '@taskmint/contracts';
 import { getBackend } from '../backend/registry';
 
-/** The backend's record keys: STORAGE_KEYS names, so an older version's localStorage copies are found. */
+/** The backend's record keys (STORAGE_KEYS names). */
 export { APP_RECORD_KEYS };
 
 export type AppRecordKey = (typeof APP_RECORD_KEYS)[number];
@@ -28,88 +27,11 @@ export function isAppRecordKey(key: string): key is AppRecordKey {
 }
 
 /**
- * The records an older version kept in this webview's localStorage, as plain
- * data (any {version, data} wrapper removed), and the keys they came from.
- * An unreadable value is left where it is rather than moved as garbage.
+ * Loads the records into the cache. Throws if they can't be read. From then
+ * on the cache follows changes made elsewhere (another tab or device).
  */
-function readLegacyRecords(): { records: Record<string, JsonValue>; keys: string[] } {
-  const records: Record<string, JsonValue> = {};
-  const keys: string[] = [];
-  for (const key of APP_RECORD_KEYS) {
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (raw === null) continue;
-      let value = JSON.parse(raw);
-      if (value && typeof value === 'object' && typeof value.version === 'number' && 'data' in value) {
-        value = value.data;
-      }
-      keys.push(key);
-      if (value !== null && value !== undefined) records[key] = value;
-    } catch {
-      // Unreadable: leave it
-    }
-  }
-  return { records, keys };
-}
-
-/** Keys earlier versions kept in localStorage that nothing reads anymore. */
-const RETIRED_LOCAL_KEYS = ['timeEntries', 'dashboardWidgetPrefs'];
-
-/**
- * Removes what earlier versions left in this webview's localStorage: the
- * retired keys, and the `<key>_backup_<time>` copies an old format upgrade
- * made of the records (which now live in appdata.json, with their own .bak
- * copies) and of the retired keys.
- */
-export function removeRetiredLocalKeys(): void {
-  try {
-    const prefixes = [...APP_RECORD_KEYS, ...RETIRED_LOCAL_KEYS].map(key => `${key}_backup_`);
-    const retired: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key && (RETIRED_LOCAL_KEYS.includes(key) || prefixes.some(prefix => key.startsWith(prefix)))) {
-        retired.push(key);
-      }
-    }
-    retired.forEach(key => window.localStorage.removeItem(key));
-  } catch (error) {
-    console.error('Failed to remove retired localStorage keys:', error);
-  }
-}
-
-export interface LoadOptions {
-  /**
-   * Move in records an older desktop version left in this webview's
-   * localStorage. Only the installed desktop app does: a development build's
-   * webview storage is separate from the installed app's (and often stale),
-   * but appdata.json is shared, so it would mix old test data into the real
-   * records.
-   */
-  importLegacy: boolean;
-}
-
-/**
- * Loads the records into the cache. Records still in localStorage from
- * before the move are added to the backend first (never replacing what's
- * there, with a copy kept beside it), then removed from localStorage so
- * there's one source of truth. Throws if the records can't be read or the
- * move fails; localStorage is untouched then. From then on the cache follows
- * changes made elsewhere (another tab or device).
- */
-export async function loadAppRecords({ importLegacy }: LoadOptions): Promise<void> {
-  const backend = getBackend();
-  const legacy = importLegacy ? readLegacyRecords() : { records: {}, keys: [] };
-  let response: AppRecords;
-  if (Object.keys(legacy.records).length > 0) {
-    response = await backend.call('import_app_records', { records: legacy.records });
-    console.info(`Moved ${Object.keys(legacy.records).join(', ')} into appdata.json`);
-  } else {
-    response = await backend.call('get_app_records');
-  }
-  for (const key of legacy.keys) {
-    window.localStorage.removeItem(key);
-  }
-  if (importLegacy) removeRetiredLocalKeys();
+export async function loadAppRecords(): Promise<void> {
+  const response = await getBackend().call('get_app_records');
   cache = new Map(Object.entries(response.records));
   revisions = new Map(Object.entries(response.revisions));
   stopFollowing?.();

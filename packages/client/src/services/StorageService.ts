@@ -72,17 +72,8 @@ export class StorageService implements IStorageService {
 
   /** A record from the records cache, validated like a localStorage read. */
   private readRecord<T>(key: AppRecordKey, defaultValue: T, schema: z.ZodType<T>): T {
-    let data = readAppRecord(key);
+    const data = readAppRecord(key);
     if (data === undefined) return defaultValue;
-    // Plain data is stored; tolerate a version wrapper restored from old data
-    if (
-      data &&
-      typeof data === 'object' &&
-      typeof (data as { version?: unknown }).version === 'number' &&
-      'data' in data
-    ) {
-      data = (data as { data: unknown }).data;
-    }
     return this.validated(key, data, schema);
   }
 

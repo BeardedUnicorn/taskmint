@@ -32,13 +32,11 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 describe('DailyGoalSettings', () => {
   const mockUpdateDailyGoal = vi.fn();
-  const mockEnableDailyGoal = vi.fn();
 
   const setupMocks = (goal: any) => {
     mockUseDailyGoals.mockReturnValue({
       currentGoal: goal,
       updateDailyGoal: mockUpdateDailyGoal,
-      enableDailyGoal: mockEnableDailyGoal,
     } as any);
   };
 

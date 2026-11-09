@@ -20,8 +20,6 @@ export interface TimerRowProps {
   index: number;
   /** Shared page clock — running rows derive their live elapsed from it. */
   nowMs: number;
-  showControls: boolean;
-  showNotes: boolean;
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
@@ -36,8 +34,6 @@ export function TimerRow({
   taskName,
   index,
   nowMs,
-  showControls,
-  showNotes,
   onStart,
   onStop,
   onPause,
@@ -111,72 +107,68 @@ export function TimerRow({
 
       {isPaused && <Chip size="small" label="Paused" color="warning" sx={{ fontSize: '0.7rem' }} />}
 
-      {showControls && (
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {/* A completed (stopped) timer is final: Start only appears on fresh timers */}
-          {instance.state === TimerState.idle && (
-            <Tooltip title="Start Timer">
-              <IconButton size="small" onClick={onStart}>
+      <Box sx={{ display: 'flex', gap: 0.5 }}>
+        {/* A completed (stopped) timer is final: Start only appears on fresh timers */}
+        {instance.state === TimerState.idle && (
+          <Tooltip title="Start Timer">
+            <IconButton size="small" onClick={onStart}>
+              <PlayIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+
+        {isRunning && (
+          <>
+            <Tooltip title="Pause Timer">
+              <IconButton size="small" onClick={onPause}>
+                <PauseIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Stop Timer">
+              <IconButton size="small" onClick={onStop}>
+                <StopIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
+
+        {isPaused && (
+          <>
+            <Tooltip title="Resume Timer">
+              <IconButton size="small" onClick={onResume}>
                 <PlayIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          )}
-
-          {isRunning && (
-            <>
-              <Tooltip title="Pause Timer">
-                <IconButton size="small" onClick={onPause}>
-                  <PauseIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Stop Timer">
-                <IconButton size="small" onClick={onStop}>
-                  <StopIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </>
-          )}
-
-          {isPaused && (
-            <>
-              <Tooltip title="Resume Timer">
-                <IconButton size="small" onClick={onResume}>
-                  <PlayIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Stop Timer">
-                <IconButton size="small" onClick={onStop}>
-                  <StopIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </>
-          )}
-
-          {isStopped && (
-            <Tooltip title="Edit Timer">
-              <IconButton size="small" onClick={onEdit}>
-                <EditIcon fontSize="small" />
+            <Tooltip title="Stop Timer">
+              <IconButton size="small" onClick={onStop}>
+                <StopIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          )}
+          </>
+        )}
 
-          {(instance.state === TimerState.idle || isStopped) && (
-            <Tooltip title="Delete Timer">
-              <IconButton size="small" onClick={onDelete}>
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-        </Box>
-      )}
+        {isStopped && (
+          <Tooltip title="Edit Timer">
+            <IconButton size="small" onClick={onEdit}>
+              <EditIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
 
-      {showNotes && (
-        <Tooltip title="Timer Notes">
-          <IconButton size="small" onClick={onOpenNotes}>
-            <NotesIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
+        {(instance.state === TimerState.idle || isStopped) && (
+          <Tooltip title="Delete Timer">
+            <IconButton size="small" onClick={onDelete}>
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+
+      <Tooltip title="Timer Notes">
+        <IconButton size="small" onClick={onOpenNotes}>
+          <NotesIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
     </Box>
   );
 }

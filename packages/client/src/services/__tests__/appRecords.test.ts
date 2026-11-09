@@ -17,7 +17,7 @@ const mockInvoke = fakeBackend().call;
 const tasks = [{ id: 't1', name: 'Annotation' }];
 
 /**
- * A fake appdata.json: what get_app_records / import / set operate on, with
+ * A fake appdata.json: what get_app_records / set_app_record operate on, with
  * each record's revision counted as the backend counts it.
  */
 function fakeAppData(initial: Record<string, unknown> = {}) {
@@ -28,17 +28,6 @@ function fakeAppData(initial: Record<string, unknown> = {}) {
   mockInvoke.mockImplementation(async (command: string, args?: any) => {
     switch (command) {
       case 'get_app_records':
-        return structuredClone(file);
-      case 'import_app_records':
-        // Like the backend: lists gain items by id, anything stored stays
-        for (const [key, value] of Object.entries<any>(args.records)) {
-          const stored = file.records[key];
-          if (stored == null) file.records[key] = value;
-          else if (Array.isArray(stored)) {
-            const ids = new Set(stored.map((item: any) => item.id));
-            stored.push(...value.filter((item: any) => !ids.has(item.id)));
-          }
-        }
         return structuredClone(file);
       case 'set_app_record': {
         const revision = file.revisions[args.key] ?? 0;
@@ -58,7 +47,7 @@ function fakeAppData(initial: Record<string, unknown> = {}) {
 }
 
 describe('appRecords', () => {
-  it("are the backend's record keys, under the names older versions stored them by", () => {
+  it("are the backend's record keys, under their STORAGE_KEYS names", () => {
     expect([...APP_RECORD_KEYS]).toEqual([
       STORAGE_KEYS.PREDEFINED_TASKS,
       STORAGE_KEYS.TASK_NOTES,
@@ -73,7 +62,6 @@ describe('appRecords', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetAppRecordsForTests();
-    window.localStorage.clear();
   });
 
   it('refuses reads and writes before the records load', () => {
@@ -81,114 +69,19 @@ describe('appRecords', () => {
     expect(() => writeAppRecord('predefinedTasks', tasks)).toThrow('App records are not loaded');
   });
 
-  it('moves records from an older version in from localStorage, then removes those copies', async () => {
-    window.localStorage.setItem('predefinedTasks', JSON.stringify(tasks));
-    // useLocalStorage's version wrapper is unwrapped
-    window.localStorage.setItem(
-      'dailyGoal',
-      JSON.stringify({ version: 1, data: { targetAmount: 100 }, migratedAt: '2026-10-01T00:00:00Z' })
-    );
-    window.localStorage.setItem('theme-mode', JSON.stringify('dark'));
-    const file = fakeAppData();
-
-    await loadAppRecords({ importLegacy: true });
-
-    expect(mockInvoke).toHaveBeenCalledWith('import_app_records', {
-      records: { predefinedTasks: tasks, dailyGoal: { targetAmount: 100 } },
-    });
-    expect(file.records).toEqual({ predefinedTasks: tasks, dailyGoal: { targetAmount: 100 } });
-    expect(readAppRecord('predefinedTasks')).toEqual(tasks);
-    expect(window.localStorage.getItem('predefinedTasks')).toBeNull();
-    expect(window.localStorage.getItem('dailyGoal')).toBeNull();
-    // Settings aren't records and stay put
-    expect(window.localStorage.getItem('theme-mode')).not.toBeNull();
-  });
-
-  it('adds moved records to the ones already in the file without replacing them', async () => {
-    window.localStorage.setItem('predefinedTasks', JSON.stringify([{ id: 't1', name: 'Old copy' }, { id: 't9' }]));
-    window.localStorage.setItem('dailyGoal', JSON.stringify({ targetAmount: 999 }));
-    fakeAppData({ predefinedTasks: tasks, dailyGoal: { targetAmount: 100 } });
-
-    await loadAppRecords({ importLegacy: true });
-
-    expect(readAppRecord('predefinedTasks')).toEqual([...tasks, { id: 't9' }]);
-    expect(readAppRecord('dailyGoal')).toEqual({ targetAmount: 100 });
-  });
-
-  it('keeps the localStorage copies when the move fails', async () => {
-    window.localStorage.setItem('predefinedTasks', JSON.stringify(tasks));
-    mockInvoke.mockRejectedValue(new Error('disk full'));
-
-    await expect(loadAppRecords({ importLegacy: true })).rejects.toThrow('disk full');
-
-    expect(() => readAppRecord('predefinedTasks')).toThrow('App records are not loaded');
-    expect(window.localStorage.getItem('predefinedTasks')).not.toBeNull();
-  });
-
-  it('just loads the file once nothing is left to move', async () => {
+  it('loads the records from the backend', async () => {
     fakeAppData({ predefinedTasks: tasks });
 
-    await loadAppRecords({ importLegacy: true });
+    await loadAppRecords();
 
     expect(mockInvoke).toHaveBeenCalledTimes(1);
     expect(mockInvoke).toHaveBeenCalledWith('get_app_records');
     expect(readAppRecord('predefinedTasks')).toEqual(tasks);
   });
 
-  it('clears records that are empty in localStorage without moving anything', async () => {
-    window.localStorage.setItem('dailyGoal', JSON.stringify({ version: 1, data: null }));
-    window.localStorage.setItem('taskNotes', '{ not json');
-    fakeAppData();
-
-    await loadAppRecords({ importLegacy: true });
-
-    expect(mockInvoke).not.toHaveBeenCalledWith('import_app_records', expect.anything());
-    expect(window.localStorage.getItem('dailyGoal')).toBeNull();
-    // Unreadable values are left alone
-    expect(window.localStorage.getItem('taskNotes')).toBe('{ not json');
-  });
-
-  it("doesn't move localStorage records unless asked to (a development build)", async () => {
-    window.localStorage.setItem('predefinedTasks', JSON.stringify([{ id: 'dev-only' }]));
-    fakeAppData({ predefinedTasks: tasks });
-
-    await loadAppRecords({ importLegacy: false });
-
-    expect(mockInvoke).not.toHaveBeenCalledWith('import_app_records', expect.anything());
-    expect(readAppRecord('predefinedTasks')).toEqual(tasks);
-    expect(window.localStorage.getItem('predefinedTasks')).not.toBeNull();
-  });
-
-  it('removes keys earlier versions left behind, and keeps settings', async () => {
-    const left = {
-      predefinedTasks_backup_1791001697839: '{}',
-      noteTemplates_backup_1791001712854: '{}',
-      timeEntries: '[]',
-      timeEntries_backup_1700000000000: '[]',
-      dashboardWidgetPrefs: '{}',
-    };
-    for (const [key, value] of Object.entries(left)) window.localStorage.setItem(key, value);
-    window.localStorage.setItem('inactivitySettings', '{}');
-    fakeAppData({ predefinedTasks: tasks });
-
-    await loadAppRecords({ importLegacy: true });
-
-    for (const key of Object.keys(left)) expect(window.localStorage.getItem(key)).toBeNull();
-    expect(window.localStorage.getItem('inactivitySettings')).toBe('{}');
-  });
-
-  it('leaves a development build’s leftovers alone', async () => {
-    window.localStorage.setItem('predefinedTasks_backup_1', '{}');
-    fakeAppData({ predefinedTasks: tasks });
-
-    await loadAppRecords({ importLegacy: false });
-
-    expect(window.localStorage.getItem('predefinedTasks_backup_1')).toBe('{}');
-  });
-
   it('hands out copies, so callers changing them leave the cache alone', async () => {
     fakeAppData({ predefinedTasks: tasks });
-    await loadAppRecords({ importLegacy: false });
+    await loadAppRecords();
 
     const copy = readAppRecord('predefinedTasks') as typeof tasks;
     copy.push({ id: 't2', name: 'Review' });
@@ -198,7 +91,7 @@ describe('appRecords', () => {
 
   it('writes in order per record, and null removes it', async () => {
     const file = fakeAppData();
-    await loadAppRecords({ importLegacy: false });
+    await loadAppRecords();
     const order: string[] = [];
     mockInvoke.mockImplementation(async (_command: string, args?: any) => {
       // The first write is slower than the second
@@ -224,7 +117,7 @@ describe('appRecords', () => {
 
   it('puts the previous value back when a write fails', async () => {
     fakeAppData({ predefinedTasks: tasks });
-    await loadAppRecords({ importLegacy: false });
+    await loadAppRecords();
     mockInvoke.mockRejectedValueOnce(new Error('disk full'));
 
     const failed = writeAppRecord('predefinedTasks', []);
@@ -237,7 +130,7 @@ describe('appRecords', () => {
 
   it('brings back a record whose removal failed, but not over a newer write', async () => {
     fakeAppData({ predefinedTasks: tasks });
-    await loadAppRecords({ importLegacy: false });
+    await loadAppRecords();
     mockInvoke.mockRejectedValueOnce(new Error('disk full'));
     await expect(writeAppRecord('predefinedTasks', null)).rejects.toThrow('disk full');
     expect(readAppRecord('predefinedTasks')).toEqual(tasks);
@@ -256,19 +149,6 @@ describe('appRecords', () => {
     expect(readAppRecord('predefinedTasks')).toEqual([{ id: 't3', name: 'Later' }]);
   });
 
-  it("carries on when it can't list what's in localStorage", async () => {
-    fakeAppData({ predefinedTasks: tasks });
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    window.localStorage.setItem('timeEntries', '[]');
-    vi.mocked(window.localStorage.key).mockImplementationOnce(() => {
-      throw new Error('SecurityError');
-    });
-    await loadAppRecords({ importLegacy: true });
-    expect(error).toHaveBeenCalledWith('Failed to remove retired localStorage keys:', expect.any(Error));
-    expect(readAppRecord('predefinedTasks')).toEqual(tasks);
-    error.mockRestore();
-  });
-
   describe('changes made elsewhere', () => {
     /** Another tab saves `key`: the stored record and its revision move on. */
     function savedElsewhere(file: ReturnType<typeof fakeAppData>, key: string, value: unknown) {
@@ -280,7 +160,7 @@ describe('appRecords', () => {
 
     it('takes a record another tab saved, and tells its listeners', async () => {
       const file = fakeAppData({ dailyGoal: { targetAmount: 50 } });
-      await loadAppRecords({ importLegacy: false });
+      await loadAppRecords();
       const listener = vi.fn();
       const unsubscribe = subscribeToAppRecords(listener);
 
@@ -302,7 +182,7 @@ describe('appRecords', () => {
 
     it("skips its own saves' events, and events for other keys", async () => {
       fakeAppData();
-      await loadAppRecords({ importLegacy: false });
+      await loadAppRecords();
       mockInvoke.mockClear();
       const listener = vi.fn();
       subscribeToAppRecords(listener);
@@ -321,7 +201,7 @@ describe('appRecords', () => {
 
     it('reads every record again on resync, except those being saved', async () => {
       const file = fakeAppData({ taskNotes: [] });
-      await loadAppRecords({ importLegacy: false });
+      await loadAppRecords();
       const listener = vi.fn();
       subscribeToAppRecords(listener);
       savedElsewhere(file, 'taskNotes', [{ id: 'remote' }]);
@@ -352,7 +232,7 @@ describe('appRecords', () => {
 
     it('logs when it cannot read the records again', async () => {
       fakeAppData();
-      await loadAppRecords({ importLegacy: false });
+      await loadAppRecords();
       const error = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockInvoke.mockRejectedValueOnce('offline');
 
@@ -364,7 +244,7 @@ describe('appRecords', () => {
 
     it('refuses a save made from a stale version, and takes the newer one', async () => {
       const file = fakeAppData({ predefinedTasks: tasks });
-      await loadAppRecords({ importLegacy: false });
+      await loadAppRecords();
       const listener = vi.fn();
       subscribeToAppRecords(listener);
       // Saved elsewhere, and this tab hasn't heard yet

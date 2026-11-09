@@ -10,4 +10,4 @@ export { ConfirmDialog } from './components/ui/dialogs/ConfirmDialog';
 export { useNotification } from './contexts/NotificationContext';
 export { Wordmark } from './components/ui/display/Wordmark';
 export { ReleaseNotes } from './components/ui/display/ReleaseNotes';
-export { parseReleaseSection, type ReleaseNotes as ReleaseNotesData } from './utils/changelog';
+export { parseReleaseSection } from './utils/changelog';

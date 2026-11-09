@@ -420,11 +420,14 @@ describe('Session System Integration', () => {
         <SessionTimerDisplay
           session={activeSession}
           nowMs={Date.now()}
-          showControls
           onStartTimer={vi.fn()}
           onStopTimer={onStopTimer}
           onPauseTimer={onPauseTimer}
           onResumeTimer={vi.fn()}
+          onDeleteTimer={vi.fn()}
+          onEditTimer={vi.fn()}
+          onOpenNotes={vi.fn()}
+          onAddTimer={vi.fn()}
         />
       );
 

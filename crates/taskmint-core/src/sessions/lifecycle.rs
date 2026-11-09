@@ -1,5 +1,5 @@
-//! Commands on whole sessions: clear notes, activate, and move a finished
-//! timer to another task.
+//! Commands on whole sessions: activate, and move a finished timer to
+//! another task.
 
 use crate::model::TaskSession;
 use crate::timer::{
@@ -7,23 +7,6 @@ use crate::timer::{
     timer_task_in,
 };
 use chrono::{DateTime, Utc};
-
-/// Clears the plain-text notes of the given sessions; returns how many had
-/// text. Session notes now live in the app's notes store, which copies the
-/// text first (see `sessionNotesToTaskNotes`), so this is the second half of
-/// that move.
-pub fn clear_notes(sessions: &mut [TaskSession], session_ids: &[String]) -> usize {
-    let mut cleared = 0;
-    for session in sessions.iter_mut() {
-        if !session_ids.contains(&session.id) {
-            continue;
-        }
-        if session.notes.take().is_some_and(|n| !n.is_empty()) {
-            cleared += 1;
-        }
-    }
-    cleared
-}
 
 /// Move one finished timer to another task: the time keeps its start and
 /// duration, stays in its session, and earns at the new task's rate. A

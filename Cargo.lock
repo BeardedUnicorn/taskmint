@@ -5142,9 +5142,8 @@ checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
 name = "taskmint"
-version = "2.4.0"
+version = "3.0.0"
 dependencies = [
- "anyhow",
  "base64 0.22.1",
  "chrono",
  "ctor 0.8.0",
@@ -5175,7 +5174,7 @@ dependencies = [
 
 [[package]]
 name = "taskmint-core"
-version = "2.4.0"
+version = "3.0.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -5190,7 +5189,7 @@ dependencies = [
 
 [[package]]
 name = "taskmint-server"
-version = "2.4.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "argon2",

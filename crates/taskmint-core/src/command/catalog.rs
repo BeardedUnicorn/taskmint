@@ -27,7 +27,6 @@ pub enum Command {
     StartTask(StartTaskArgs),
     AddManualTime(AddManualTimeArgs),
     SetActiveSession(SetActiveSessionArgs),
-    ClearSessionNotes(ClearSessionNotesArgs),
     DeleteSession(SessionArgs),
     RestoreSession(RestoreSessionArgs),
     RestoreTimerInstance(RestoreTimerInstanceArgs),
@@ -103,7 +102,6 @@ command_types! {
     "start_task": StartTaskArgs => StartTaskResult,
     "add_manual_time": AddManualTimeArgs => TaskSession,
     "set_active_session": SetActiveSessionArgs => Vec<TaskSession>,
-    "clear_session_notes": ClearSessionNotesArgs => usize,
     "delete_session": SessionArgs => TaskSession,
     "restore_session": RestoreSessionArgs => TaskSession,
     "restore_timer_instance": RestoreTimerInstanceArgs => TaskSession,
@@ -225,13 +223,6 @@ pub struct SetActiveSessionArgs {
     /// None deactivates every session.
     #[serde(default)]
     pub session_id: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-pub struct ClearSessionNotesArgs {
-    pub session_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -409,7 +400,6 @@ impl Command {
             | Command::CreateTimerInstance(_)
             | Command::MoveTimerInstance(_) => Access::write(sessions_and_tasks),
             Command::SetActiveSession(_)
-            | Command::ClearSessionNotes(_)
             | Command::DeleteSession(_)
             | Command::RestoreSession(_)
             | Command::RestoreTimerInstance(_)

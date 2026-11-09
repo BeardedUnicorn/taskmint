@@ -1094,28 +1094,6 @@ fn sessions_saved_without_a_rate_still_load() {
     assert!(round_trip.get("hourlyRate").is_some());
 }
 
-#[test]
-fn clearing_notes_touches_only_the_given_sessions() {
-    let with_notes = |id: &str, notes: Option<&str>| {
-        let mut s = fresh_session();
-        s.id = id.to_string();
-        s.notes = notes.map(str::to_string);
-        s
-    };
-    let mut sessions = vec![
-        with_notes("a", Some("moved")),
-        with_notes("b", Some("")),
-        with_notes("c", None),
-        with_notes("d", Some("not asked for")),
-    ];
-    let ids = ["a", "b", "c"].map(String::from);
-
-    assert_eq!(clear_notes(&mut sessions, &ids), 1);
-    assert_eq!(sessions[0].notes, None);
-    assert_eq!(sessions[3].notes.as_deref(), Some("not asked for"));
-    // Nothing left to clear the second time
-    assert_eq!(clear_notes(&mut sessions, &ids), 0);
-}
 // --- task names, day rollover, moving time --------------------------------
 
 #[test]

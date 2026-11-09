@@ -84,7 +84,6 @@
       "args": { "instanceId": "$first" },
       "error": "Cannot resume timer: timer is not paused"
     },
-    { "call": "clear_session_notes", "args": { "sessionIds": ["$session"] }, "reply": 0 },
     {
       "call": "set_active_session",
       "args": { "sessionId": null },

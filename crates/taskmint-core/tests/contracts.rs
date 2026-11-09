@@ -62,7 +62,6 @@ fn export_types(cfg: &Config) {
         StartTaskArgs,
         AddManualTimeArgs,
         SetActiveSessionArgs,
-        ClearSessionNotesArgs,
         SessionArgs,
         CreateTimerInstanceArgs,
         RestoreSessionArgs,
@@ -148,34 +147,9 @@ fn constants() -> Constants {
         used: BTreeSet::new(),
     };
     out.group(
-        "The errors the frontend recognizes, word for word.",
+        "The errors the frontend matches word for word.",
         "CORE_ERRORS",
         &[
-            (
-                "ERR_START_INACTIVE_SESSION",
-                "START_INACTIVE_SESSION",
-                json!(ERR_START_INACTIVE_SESSION),
-            ),
-            (
-                "ERR_RESUME_INACTIVE_SESSION",
-                "RESUME_INACTIVE_SESSION",
-                json!(ERR_RESUME_INACTIVE_SESSION),
-            ),
-            (
-                "ERR_ANOTHER_TIMER_RUNNING",
-                "ANOTHER_TIMER_RUNNING",
-                json!(ERR_ANOTHER_TIMER_RUNNING),
-            ),
-            (
-                "ERR_STOP_NOT_RUNNING",
-                "STOP_NOT_RUNNING",
-                json!(ERR_STOP_NOT_RUNNING),
-            ),
-            (
-                "ERR_PAUSE_NOT_RUNNING",
-                "PAUSE_NOT_RUNNING",
-                json!(ERR_PAUSE_NOT_RUNNING),
-            ),
             (
                 "EXPORT_CANCELLED",
                 "EXPORT_CANCELLED",
@@ -192,11 +166,6 @@ fn constants() -> Constants {
                 json!(INVALID_JSON_FILE),
             ),
             (
-                "ERR_UNEXPECTED_PAYLOAD_SHAPE",
-                "UNEXPECTED_PAYLOAD_SHAPE",
-                json!(ERR_UNEXPECTED_PAYLOAD_SHAPE),
-            ),
-            (
                 "ERR_RECORD_CONFLICT",
                 "RECORD_CONFLICT",
                 json!(ERR_RECORD_CONFLICT),
@@ -204,7 +173,7 @@ fn constants() -> Constants {
         ],
     );
     out.group(
-        "The parts of those errors the frontend looks for (the cancelled ones it matches whole).",
+        "The parts of the core's errors the frontend looks for.",
         "CORE_ERROR_PARTS",
         &[
             (
@@ -341,48 +310,6 @@ fn constants() -> Constants {
         json!(MAX_TIMER_INSTANCES_PER_SESSION),
     );
     out.group(
-        "What start_task reports.",
-        "START_OUTCOMES",
-        &[
-            (
-                "START_OUTCOME_STARTED",
-                "STARTED",
-                json!(START_OUTCOME_STARTED),
-            ),
-            (
-                "START_OUTCOME_RESUMED",
-                "RESUMED",
-                json!(START_OUTCOME_RESUMED),
-            ),
-            (
-                "START_OUTCOME_ALREADY_RUNNING",
-                "ALREADY_RUNNING",
-                json!(START_OUTCOME_ALREADY_RUNNING),
-            ),
-        ],
-    );
-    out.group(
-        "The answers to \"you were away\".",
-        "IDLE_CHOICES",
-        &[
-            (
-                "IDLE_CHOICE_DISCARD_RESUME",
-                "DISCARD_RESUME",
-                json!(IDLE_CHOICE_DISCARD_RESUME),
-            ),
-            (
-                "IDLE_CHOICE_KEEP_RESUME",
-                "KEEP_RESUME",
-                json!(IDLE_CHOICE_KEEP_RESUME),
-            ),
-            (
-                "IDLE_CHOICE_STAY_PAUSED",
-                "STAY_PAUSED",
-                json!(IDLE_CHOICE_STAY_PAUSED),
-            ),
-        ],
-    );
-    out.group(
         "What the server's API reads besides each endpoint's body.",
         "SERVER_API",
         &[(
@@ -401,22 +328,11 @@ fn constants() -> Constants {
                 json!(CAPTURE_SERVER_PORT),
             ),
             ("CAPTURE_PATH", "PATH", json!(CAPTURE_PATH)),
-            ("HEALTH_PATH", "HEALTH_PATH", json!(HEALTH_PATH)),
             ("CAPTURE_HEADER", "HEADER", json!(CAPTURE_HEADER)),
             (
                 "CAPTURE_EXTENSION_ORIGIN",
                 "EXTENSION_ORIGIN",
                 json!(CAPTURE_EXTENSION_ORIGIN),
-            ),
-            (
-                "MAX_CAPTURE_BODY_BYTES",
-                "MAX_BODY_BYTES",
-                json!(MAX_CAPTURE_BODY_BYTES),
-            ),
-            (
-                "MAX_ENCODED_LINK_BYTES",
-                "MAX_ENCODED_LINK_BYTES",
-                json!(MAX_ENCODED_LINK_BYTES),
             ),
         ],
     );
@@ -446,6 +362,32 @@ fn constants() -> Constants {
 }
 
 /// Every `pub const` contract.rs declares, by name.
+/// contract.rs constants only Rust reads, so constants.ts leaves them out.
+/// Add one here only when no TypeScript reads it (and drop it from here
+/// when one starts to).
+const RUST_ONLY: &[&str] = &[
+    // The frontend recognizes these timer errors by their parts (CORE_ERROR_PARTS)
+    "ERR_START_INACTIVE_SESSION",
+    "ERR_RESUME_INACTIVE_SESSION",
+    "ERR_ANOTHER_TIMER_RUNNING",
+    "ERR_STOP_NOT_RUNNING",
+    "ERR_PAUSE_NOT_RUNNING",
+    // The capture endpoint's own reply; the extension shows whatever comes back
+    "ERR_UNEXPECTED_PAYLOAD_SHAPE",
+    // start_task's and apply_idle_choice's values: the generated types already
+    // spell them, and TypeScript checks every use against those
+    "START_OUTCOME_STARTED",
+    "START_OUTCOME_RESUMED",
+    "START_OUTCOME_ALREADY_RUNNING",
+    "IDLE_CHOICE_DISCARD_RESUME",
+    "IDLE_CHOICE_KEEP_RESUME",
+    "IDLE_CHOICE_STAY_PAUSED",
+    // Limits and paths only the Rust servers enforce or serve
+    "HEALTH_PATH",
+    "MAX_CAPTURE_BODY_BYTES",
+    "MAX_ENCODED_LINK_BYTES",
+];
+
 fn contract_constant_names() -> BTreeSet<String> {
     let source = fs::read_to_string(manifest_dir().join("src/contract.rs")).unwrap();
     source
@@ -547,10 +489,11 @@ fn contracts_are_generated_from_the_rust() {
             );
         }
     }
-    // Every contract constant is in constants.ts
+    // Every contract constant is in constants.ts, unless only Rust reads it
     let missing: Vec<String> = contract_constant_names()
         .into_iter()
         .filter(|name| !constants.used.contains(name.as_str()))
+        .filter(|name| !RUST_ONLY.contains(&name.as_str()))
         .collect();
     assert!(
         missing.is_empty(),

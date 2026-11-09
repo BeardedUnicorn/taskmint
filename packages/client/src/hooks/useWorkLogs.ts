@@ -24,9 +24,7 @@ export interface UseWorkLogsReturn {
   entries: WorkLogEntry[];
   mappings: ProjectTaskMapping[];
   isLoading: boolean;
-  error: string | null;
   loadWarning: string | null;
-  reload: () => Promise<void>;
   applyImport: (payload: WorkLogImportPayload) => Promise<WorkLogImportSummary | null>;
   /**
    * Undoes an import (its summary's `undo`): the ledger and the sessions go
@@ -49,14 +47,12 @@ export function useWorkLogs(): UseWorkLogsReturn {
   const [entries, setEntries] = useState<WorkLogEntry[]>([]);
   const [mappings, setMappings] = useState<ProjectTaskMapping[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
 
   const { showError, showSuccess, showWarning } = useNotification();
 
   const reload = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
     try {
       const response = await getBackend().call('get_work_logs');
       setEntries(response.entries);
@@ -64,7 +60,6 @@ export function useWorkLogs(): UseWorkLogsReturn {
       setLoadWarning(response.loadWarning);
     } catch (err) {
       const message = errorMessage(err, 'Failed to load work logs');
-      setError(message);
       showError(message);
     } finally {
       setIsLoading(false);
@@ -73,14 +68,12 @@ export function useWorkLogs(): UseWorkLogsReturn {
 
   const applyImport = useCallback(
     async (payload: WorkLogImportPayload): Promise<WorkLogImportSummary | null> => {
-      setError(null);
       try {
         const summary = await getBackend().call('apply_work_log_import', { payload });
         await reload();
         return summary;
       } catch (err) {
         const message = errorMessage(err, 'Failed to apply work-log import');
-        setError(message);
         showError(message);
         return null;
       }
@@ -134,7 +127,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
   }, [loadWarning, showWarning]);
 
   return useMemo(
-    () => ({ entries, mappings, isLoading, error, loadWarning, reload, applyImport, undoImport }),
-    [entries, mappings, isLoading, error, loadWarning, reload, applyImport, undoImport]
+    () => ({ entries, mappings, isLoading, loadWarning, applyImport, undoImport }),
+    [entries, mappings, isLoading, loadWarning, applyImport, undoImport]
   );
 }

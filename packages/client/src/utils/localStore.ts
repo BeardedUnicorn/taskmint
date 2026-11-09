@@ -6,28 +6,21 @@
  * a write. useLocalStorage is built on it, so two components using the same
  * key always agree.
  *
- * Values are stored in the versioned envelope `{ version, data, migratedAt }`;
- * older unversioned values are migrated (with a backup) on first read.
+ * Values are stored in the envelope `{ version: 1, data, migratedAt }`; a
+ * stored value in any other shape reads as missing.
  */
-
-import { migrateData, createBackup, needsMigration, type VersionedData } from './dataMigration';
 
 type Listener = () => void;
 
 const cache = new Map<string, { raw: string | null; value: unknown }>();
 const listeners = new Map<string, Set<Listener>>();
 
-function parseStored(key: string, raw: string): { raw: string; value: unknown } {
+/** The value inside a stored envelope; undefined when `raw` isn't one. */
+function parseStored(raw: string): unknown {
   const parsed = JSON.parse(raw);
-  if (parsed === null) return { raw, value: null };
-  if (needsMigration(parsed)) {
-    createBackup(key, parsed);
-    const migrated: VersionedData = migrateData(key, parsed);
-    const migratedRaw = JSON.stringify(migrated);
-    window.localStorage.setItem(key, migratedRaw);
-    return { raw: migratedRaw, value: migrated.data };
-  }
-  return { raw, value: parsed.data };
+  if (parsed === null) return null;
+  if (typeof parsed !== 'object' || typeof parsed.version !== 'number' || !('data' in parsed)) return undefined;
+  return parsed.data;
 }
 
 /** The stored value for `key`, or `initial` when there is none or it can't be read. */
@@ -45,9 +38,10 @@ export function readLocal<T>(key: string, initial: T): T {
   if (cached && cached.raw === raw) return cached.value as T;
 
   try {
-    const entry = parseStored(key, raw);
-    cache.set(key, entry);
-    return entry.value as T;
+    const value = parseStored(raw);
+    if (value === undefined) return initial;
+    cache.set(key, { raw, value });
+    return value as T;
   } catch (error) {
     console.error(`Error reading localStorage key "${key}":`, error);
     return initial;

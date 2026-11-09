@@ -39,21 +39,22 @@ const note = (id: string, fieldValues: Record<string, unknown>, templateName = '
 });
 
 describe('useTaskNotes', () => {
-  it('loads every note, and is loading until then', async () => {
+  it('loads every note', async () => {
     mockNotesService.getAllNotes.mockResolvedValue([note('1', {}), note('2', {})]);
     const { result } = renderHook(() => useTaskNotes());
 
-    expect(result.current.isLoading).toBe(true);
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.notes.map(n => n.id)).toEqual(['1', '2']);
+    expect(result.current.notes).toEqual([]);
+    await waitFor(() => expect(result.current.notes.map(n => n.id)).toEqual(['1', '2']));
   });
 
-  it('keeps the load error as a message', async () => {
+  it('logs a failed load and lists no notes', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockNotesService.getAllNotes.mockRejectedValue('disk unreadable');
     const { result } = renderHook(() => useTaskNotes());
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.error).toBe('disk unreadable');
+    await waitFor(() => expect(error).toHaveBeenCalledWith('Failed to load notes:', 'disk unreadable'));
+    expect(result.current.notes).toEqual([]);
+    error.mockRestore();
   });
 
   it('searches the template name and text or number fields', async () => {
@@ -167,7 +168,7 @@ describe('useTaskNotes', () => {
     mockNotesService.getAllNotes.mockResolvedValue([]);
     mockNotesService.deleteNote.mockResolvedValue(undefined);
     const { result } = renderHook(() => useTaskNotes());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(mockNotesService.getAllNotes).toHaveBeenCalled());
 
     await act(async () => {
       await result.current.deleteNote('elsewhere');
@@ -211,7 +212,7 @@ describe('useTaskNotes', () => {
   it('rethrows a failed save with its message', async () => {
     mockNotesService.getAllNotes.mockResolvedValue([]);
     const { result } = renderHook(() => useTaskNotes());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(mockNotesService.getAllNotes).toHaveBeenCalled());
 
     mockNotesService.deleteNote.mockRejectedValue(new Error('Note with ID x not found'));
     await expect(result.current.deleteNote('x')).rejects.toThrow('Note with ID x not found');
