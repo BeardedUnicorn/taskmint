@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 
 import { VIEWS, VIEW_LABELS, type SidebarView } from '../../navigation/views';
+import { HOVER } from '../../theme/media';
 import { Wordmark } from '../ui/display/Wordmark';
 
 export type { SidebarView };
@@ -36,6 +37,14 @@ interface SidebarProps {
   footer?: (collapsed: boolean) => ReactNode;
   /** Beside the title (the notifications bell); below the toggle when collapsed. */
   headerAction?: (collapsed: boolean) => ReactNode;
+  /**
+   * `temporary` is the phone's menu: it slides in over the page while
+   * `open`, always expanded (no collapse toggle, no shortcut hints), and
+   * picking a page or tapping outside it calls `onClose`.
+   */
+  variant?: 'permanent' | 'temporary';
+  open?: boolean;
+  onClose?: () => void;
 }
 
 const SIDEBAR_WIDTH = 240;
@@ -53,29 +62,58 @@ const VIEW_ICONS: Record<SidebarView, typeof TaskIcon> = {
 
 const navigationItems = VIEWS.map(id => ({ id, label: VIEW_LABELS[id], icon: VIEW_ICONS[id] }));
 
-export function Sidebar({ activeView, onViewChange, footer, headerAction }: SidebarProps) {
+export function Sidebar({
+  activeView,
+  onViewChange,
+  footer,
+  headerAction,
+  variant = 'permanent',
+  open = false,
+  onClose,
+}: SidebarProps) {
   // Remembered across launches
-  const [isCollapsed, setIsCollapsed] = useLocalStorage('sidebarCollapsed', false);
+  const [collapsedSetting, setIsCollapsed] = useLocalStorage('sidebarCollapsed', false);
+  const temporary = variant === 'temporary';
+  const isCollapsed = !temporary && collapsedSetting;
 
   return (
     <Drawer
-      variant="permanent"
-      sx={{
-        width: isCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
-        flexShrink: 0,
-        '& .MuiDrawer-paper': {
-          width: isCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
-          boxSizing: 'border-box',
-          backgroundColor: 'background.paper',
-          borderRight: '1px solid',
-          borderColor: 'divider',
-          transition: theme =>
-            theme.transitions.create('width', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-        },
-      }}
+      variant={variant}
+      {...(temporary
+        ? {
+            open,
+            onClose,
+            // Clear of the status and navigation bars on an edge-to-edge screen
+            slotProps: {
+              paper: {
+                sx: {
+                  width: SIDEBAR_WIDTH,
+                  maxWidth: 'calc(100vw - 56px)',
+                  pt: 'env(safe-area-inset-top)',
+                  pb: 'env(safe-area-inset-bottom)',
+                  backgroundColor: 'background.paper',
+                },
+              },
+            },
+          }
+        : {
+            sx: {
+              width: isCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
+              flexShrink: 0,
+              '& .MuiDrawer-paper': {
+                width: isCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
+                boxSizing: 'border-box',
+                backgroundColor: 'background.paper',
+                borderRight: '1px solid',
+                borderColor: 'divider',
+                transition: theme =>
+                  theme.transitions.create('width', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
+              },
+            },
+          })}
     >
       {/* Header with Title and Toggle Button */}
       <Box
@@ -93,13 +131,15 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
           </Box>
         )}
         {!isCollapsed && headerAction?.(false)}
-        <IconButton
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          size="small"
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {isCollapsed ? <MenuIcon /> : <ChevronLeftIcon />}
-        </IconButton>
+        {!temporary && (
+          <IconButton
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            size="small"
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? <MenuIcon /> : <ChevronLeftIcon />}
+          </IconButton>
+        )}
         {isCollapsed && headerAction?.(true)}
       </Box>
 
@@ -115,7 +155,10 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
               key={item.id}
               selected={isSelected}
               aria-current={isSelected ? 'page' : undefined}
-              onClick={() => onViewChange(item.id)}
+              onClick={() => {
+                onViewChange(item.id);
+                onClose?.();
+              }}
               aria-label={item.label}
               sx={{
                 mx: 1,
@@ -130,8 +173,10 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
                     color: 'primary.contrastText',
                   },
                 },
-                '&:hover': {
-                  backgroundColor: 'action.hover',
+                [HOVER]: {
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                  },
                 },
               }}
             >
@@ -151,6 +196,9 @@ export function Sidebar({ activeView, onViewChange, footer, headerAction }: Side
               {!isCollapsed && <ListItemText primary={item.label} />}
             </ListItemButton>
           );
+
+          // No keyboard shortcuts to hint at on a phone
+          if (temporary) return listItemButton;
 
           // The page's shortcut on hover; its name too when collapsed
           const shortcut = viewShortcut(item.id);

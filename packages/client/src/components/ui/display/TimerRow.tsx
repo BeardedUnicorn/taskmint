@@ -12,6 +12,8 @@ import {
 import { TimerInstance, TimerState } from '../../../types/timer';
 import { formatTime } from '../../../utils/formatters';
 import { getInstanceElapsedMs } from '../../../utils/timerHelpers';
+import { PHONE } from '../../../theme/media';
+import { PhoneOwnLine, TWO_LINES } from '../phoneLayout';
 
 export interface TimerRowProps {
   instance: TimerInstance;
@@ -57,6 +59,8 @@ export function TimerRow({
         alignItems: 'center',
         gap: 1,
         p: 1,
+        // On a phone: name and time on top, the controls on a line below
+        [PHONE]: { flexWrap: 'wrap', rowGap: 0.5 },
         borderRadius: 1,
         border: '1px solid',
         borderLeft: '3px solid',
@@ -82,8 +86,8 @@ export function TimerRow({
       <TimerIcon fontSize="medium" sx={{ color: 'text.secondary' }} />
 
       {/* A set width, so the rows' times line up whatever their tasks are called */}
-      <Box sx={{ width: 160, minWidth: 0 }}>
-        <Typography variant="body2" noWrap title={taskName} sx={{ fontWeight: 600 }}>
+      <Box sx={{ width: 160, minWidth: 0, [PHONE]: { width: 'auto', flex: 1 } }}>
+        <Typography variant="body2" noWrap title={taskName} sx={{ fontWeight: 600, [PHONE]: TWO_LINES }}>
           {taskName}
         </Typography>
         <Typography variant="caption" component="div" sx={{ color: 'text.secondary' }}>
@@ -97,78 +101,81 @@ export function TimerRow({
           fontFamily: '"Roboto Mono", monospace',
           fontWeight: 600,
           flex: 1,
+          [PHONE]: { flex: 'none' },
           color: isStopped ? 'text.secondary' : 'text.primary',
         }}
       >
         {formatTime(displayTime)}
       </Typography>
 
-      {isRunning && <Chip size="small" label="Running" color="success" sx={{ fontSize: '0.7rem' }} />}
+      <PhoneOwnLine sx={{ justifyContent: 'flex-end' }}>
+        {isRunning && <Chip size="small" label="Running" color="success" sx={{ fontSize: '0.7rem' }} />}
 
-      {isPaused && <Chip size="small" label="Paused" color="warning" sx={{ fontSize: '0.7rem' }} />}
+        {isPaused && <Chip size="small" label="Paused" color="warning" sx={{ fontSize: '0.7rem' }} />}
 
-      <Box sx={{ display: 'flex', gap: 0.5 }}>
-        {/* A completed (stopped) timer is final: Start only appears on fresh timers */}
-        {instance.state === TimerState.idle && (
-          <Tooltip title="Start Timer">
-            <IconButton size="small" onClick={onStart}>
-              <PlayIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
-
-        {isRunning && (
-          <>
-            <Tooltip title="Pause Timer">
-              <IconButton size="small" onClick={onPause}>
-                <PauseIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Stop Timer">
-              <IconButton size="small" onClick={onStop}>
-                <StopIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </>
-        )}
-
-        {isPaused && (
-          <>
-            <Tooltip title="Resume Timer">
-              <IconButton size="small" onClick={onResume}>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {/* A completed (stopped) timer is final: Start only appears on fresh timers */}
+          {instance.state === TimerState.idle && (
+            <Tooltip title="Start Timer">
+              <IconButton size="small" onClick={onStart}>
                 <PlayIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Stop Timer">
-              <IconButton size="small" onClick={onStop}>
-                <StopIcon fontSize="small" />
+          )}
+
+          {isRunning && (
+            <>
+              <Tooltip title="Pause Timer">
+                <IconButton size="small" onClick={onPause}>
+                  <PauseIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Stop Timer">
+                <IconButton size="small" onClick={onStop}>
+                  <StopIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+
+          {isPaused && (
+            <>
+              <Tooltip title="Resume Timer">
+                <IconButton size="small" onClick={onResume}>
+                  <PlayIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Stop Timer">
+                <IconButton size="small" onClick={onStop}>
+                  <StopIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+
+          {isStopped && (
+            <Tooltip title="Edit Timer">
+              <IconButton size="small" onClick={onEdit}>
+                <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          </>
-        )}
+          )}
 
-        {isStopped && (
-          <Tooltip title="Edit Timer">
-            <IconButton size="small" onClick={onEdit}>
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
+          {(instance.state === TimerState.idle || isStopped) && (
+            <Tooltip title="Delete Timer">
+              <IconButton size="small" onClick={onDelete}>
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
 
-        {(instance.state === TimerState.idle || isStopped) && (
-          <Tooltip title="Delete Timer">
-            <IconButton size="small" onClick={onDelete}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
-
-      <Tooltip title="Timer Notes">
-        <IconButton size="small" onClick={onOpenNotes}>
-          <NotesIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
+        <Tooltip title="Timer Notes">
+          <IconButton size="small" onClick={onOpenNotes}>
+            <NotesIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </PhoneOwnLine>
     </Box>
   );
 }

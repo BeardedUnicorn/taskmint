@@ -19,6 +19,8 @@ import { Withdrawal } from '../../../../types/withdrawal';
 import { formatCents } from '../../../../utils/payoutCalculator';
 import { formatShortDateTime } from '../../../../utils/locale';
 import { DAY_MS, withdrawableAt, withdrawalBefore, withdrawalTooClose } from '../../../../utils/withdrawals';
+import { PHONE } from '../../../../theme/media';
+import { STACK_COLUMN } from '../../../ui/phoneLayout';
 
 /** A little slack for a withdrawal recorded "now" a moment after the clock read. */
 const FUTURE_TOLERANCE_MS = 60_000;
@@ -104,7 +106,7 @@ export function RecordWithdrawalDialog({ withdrawal, initialDay, onClose }: Reco
         onSubmit={handleSubmit}
       >
         <Stack spacing={2.5}>
-          <Stack direction="row" spacing={2}>
+          <Stack direction="row" spacing={2} sx={{ [PHONE]: STACK_COLUMN }}>
             <DatePicker
               label="Date"
               value={takenAt}

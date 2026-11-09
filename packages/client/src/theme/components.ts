@@ -1,10 +1,12 @@
 /**
  * Component defaults for both modes: visible focus rings, comfortable touch
- * targets (44px, 32px for small controls), and the few looks that differ by
- * mode (shadows, card edges, default chips).
+ * targets (44px, 32px for small controls with a mouse), the few looks that
+ * differ by mode (shadows, card edges, default chips), and dialogs that fit
+ * a phone.
  */
 
 import type { Components, Theme } from '@mui/material/styles';
+import { PHONE, TOUCH } from './media';
 import { BRAND, BRAND_TEXT_LIGHT, ColorMode } from './palettes';
 
 const focusRing = (offset: string) => ({
@@ -49,7 +51,8 @@ export function components(mode: ColorMode): Components<Theme> {
           padding: '8px 16px',
           ...focusRing('2px'),
         }),
-        sizeSmall: { minHeight: 32, padding: '4px 10px' },
+        // A finger needs the full target even on a small button
+        sizeSmall: { minHeight: 32, padding: '4px 10px', [TOUCH]: { minHeight: 44 } },
         // Hover tint for text buttons only: on root it also replaced the
         // contained buttons' fill (a red Delete went see-through on hover).
         text: { '&:hover': { backgroundColor: 'rgba(101, 214, 161, 0.08)' } },
@@ -71,7 +74,7 @@ export function components(mode: ColorMode): Components<Theme> {
       // Tooltip-derived name and hides which control this actually is.
       styleOverrides: {
         root: { minWidth: 44, minHeight: 44, ...focusRing('2px') },
-        sizeSmall: { minWidth: 32, minHeight: 32 },
+        sizeSmall: { minWidth: 32, minHeight: 32, [TOUCH]: { minWidth: 44, minHeight: 44 } },
       },
     },
     MuiTextField: {
@@ -106,7 +109,38 @@ export function components(mode: ColorMode): Components<Theme> {
         head: ({ theme }) => ({ fontWeight: 600, backgroundColor: theme.palette.action.hover }),
       },
     },
-    MuiDialog: { styleOverrides: { paper: focusRing('2px') } },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          ...focusRing('2px'),
+          // On a phone a dialog takes the screen's width; a wide one (md and
+          // up: notes, a calendar day, an import) takes the whole screen,
+          // clear of the system bars.
+          [PHONE]: {
+            margin: 16,
+            maxWidth: 'calc(100% - 32px)',
+            '&.MuiDialog-paperFullWidth': { width: 'calc(100% - 32px)' },
+            '&.MuiDialog-paperScrollPaper': { maxHeight: 'calc(100% - 32px)' },
+            '&.MuiDialog-paperWidthMd, &.MuiDialog-paperWidthLg, &.MuiDialog-paperWidthXl': {
+              margin: 0,
+              width: '100%',
+              maxWidth: '100%',
+              height: '100%',
+              maxHeight: '100%',
+              borderRadius: 0,
+              paddingTop: 'env(safe-area-inset-top)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+            },
+          },
+        },
+      },
+    },
+    // Too many buttons for one row on a phone wrap, right-aligned
+    MuiDialogActions: {
+      styleOverrides: {
+        root: { [PHONE]: { flexWrap: 'wrap', gap: 8, '& > :not(style) ~ :not(style)': { marginLeft: 0 } } },
+      },
+    },
     MuiTooltip: {
       styleOverrides: {
         tooltip: {

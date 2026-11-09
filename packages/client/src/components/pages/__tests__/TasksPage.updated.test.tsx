@@ -12,10 +12,11 @@ import '@testing-library/jest-dom/vitest';
 import { TasksPage } from '../TasksPage';
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';
+import { setPhoneViewport } from '../../../__tests__/setup/viewport';
 
 // Mock the task detail pane
 vi.mock('../tasks/TaskDetailPane', () => ({
-  TaskDetailPane: vi.fn(({ task, onEditEntry, onDeleteEntry, onToggleFavorite }) => {
+  TaskDetailPane: vi.fn(({ task, onEditEntry, onDeleteEntry, onToggleFavorite, onBack }) => {
     const startTime = new Date('2024-01-01T10:00:00Z');
     return (
       <div data-testid="task-detail-pane">
@@ -29,6 +30,7 @@ vi.mock('../tasks/TaskDetailPane', () => ({
         <button onClick={() => onEditEntry({ id: 'entry3', taskName: 'Gone', startTime })}>Edit Unlinked Entry</button>
         <button onClick={() => onDeleteEntry('entry1')}>Delete Entry</button>
         <button onClick={() => onToggleFavorite(task.id)}>Favorite</button>
+        {onBack && <button onClick={onBack}>All tasks</button>}
       </div>
     );
   }),
@@ -180,6 +182,23 @@ describe('TasksPage - Task List Layout', () => {
 
     // task3 is archived and first in the list, but selection lands on Task 1
     expect(screen.getByText('Task 1 Details')).toBeInTheDocument();
+  });
+
+  it('on a phone, shows the list or the picked task, with a way back to the list', async () => {
+    setPhoneViewport();
+    render(<TasksPage {...mockProps} />);
+
+    fireEvent.click(screen.getByText('Task 2'));
+    expect(await screen.findByText('Task 2 Details')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'All tasks' }));
+
+    // The selection stays for when the list opens it again
+    expect(screen.getByText('Task 2 Details')).toBeInTheDocument();
+  });
+
+  it('has no way back on a desktop, where the list stays beside the task', () => {
+    render(<TasksPage {...mockProps} />);
+    expect(screen.queryByRole('button', { name: 'All tasks' })).not.toBeInTheDocument();
   });
 
   it('allows selecting a task by clicking its row', async () => {

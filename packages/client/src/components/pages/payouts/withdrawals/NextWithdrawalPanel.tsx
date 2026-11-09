@@ -13,6 +13,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   Typography,
@@ -26,6 +27,8 @@ import { formatWeekdayDateTime } from '../../../../utils/locale';
 import { WaitStep, WithdrawableAmount } from '../../../../utils/withdrawals';
 import { MONO } from '../payoutStyles';
 import { RecordWithdrawalDialog } from './RecordWithdrawalDialog';
+import { PHONE } from '../../../../theme/media';
+import { PHONE_TABLE } from '../../../ui/tables/tableStyles';
 
 /** "includes ~$80.00 estimated · $800.00 awaiting site approval", or null when it's all settled money. */
 export function amountNotes(amount: WithdrawableAmount): string | null {
@@ -50,29 +53,31 @@ function IfYouWait({ steps }: { steps: WaitStep[] }) {
         If you wait
       </Button>
       <Collapse in={open} unmountOnExit>
-        <Table size="small" aria-label="If you wait" sx={{ mt: 1 }}>
-          <TableHead>
-            <TableRow>
-              <TableCell>Withdraw after</TableCell>
-              <TableCell align="right">Adds</TableCell>
-              <TableCell align="right">Withdrawal</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {steps.map(step => (
-              <TableRow key={step.atMs}>
-                <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatWeekdayDateTime(step.atMs)}</TableCell>
-                <TableCell align="right" sx={MONO}>
-                  +{step.hasEstimate ? '~' : ''}
-                  {formatCents(step.addedCents)}
-                </TableCell>
-                <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                  {formatCents(step.totalCents)}
-                </TableCell>
+        <TableContainer sx={{ mt: 1 }}>
+          <Table size="small" aria-label="If you wait" sx={PHONE_TABLE}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Withdraw after</TableCell>
+                <TableCell align="right">Adds</TableCell>
+                <TableCell align="right">Withdrawal</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {steps.map(step => (
+                <TableRow key={step.atMs}>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatWeekdayDateTime(step.atMs)}</TableCell>
+                  <TableCell align="right" sx={MONO}>
+                    +{step.hasEstimate ? '~' : ''}
+                    {formatCents(step.addedCents)}
+                  </TableCell>
+                  <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
+                    {formatCents(step.totalCents)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Collapse>
     </Box>
   );
@@ -166,7 +171,7 @@ export function NextWithdrawalPanel() {
   }
 
   return (
-    <Paper component="section" aria-label="Withdrawals" sx={{ p: 3, mb: 3 }}>
+    <Paper component="section" aria-label="Withdrawals" sx={{ p: 3, mb: 3, [PHONE]: { p: 2 } }}>
       {content}
       {recording && <RecordWithdrawalDialog onClose={() => setRecording(false)} />}
     </Paper>

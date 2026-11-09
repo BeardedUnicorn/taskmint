@@ -30,6 +30,7 @@ import { NextWithdrawalPanel } from '../payouts/withdrawals/NextWithdrawalPanel'
 import { buildCalendarMonth } from './calendarMonth';
 import { MonthGrid } from './MonthGrid';
 import { CalendarDayDialog } from './CalendarDayDialog';
+import { PHONE } from '../../../theme/media';
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -153,7 +154,7 @@ const CalendarPage = () => {
             mb: 2,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, [PHONE]: { width: '100%' } }}>
             <IconButton aria-label="Previous month" onClick={() => shiftMonth(-1)}>
               <ChevronLeft />
             </IconButton>
@@ -162,7 +163,12 @@ const CalendarPage = () => {
               variant="h5"
               component="h2"
               aria-live="polite"
-              sx={{ fontWeight: 700, minWidth: 190, textAlign: 'center' }}
+              sx={{
+                fontWeight: 700,
+                minWidth: 190,
+                textAlign: 'center',
+                [PHONE]: { minWidth: 0, flex: 1, fontSize: '1.1rem' },
+              }}
             >
               {formatMonthYear(dayjs(`${month}-01`).toDate())}
             </Typography>

@@ -16,6 +16,34 @@ describe('Sidebar', () => {
     expect(onViewChange).toHaveBeenCalledWith('tasks');
   });
 
+  it("slides in as a phone's menu: always expanded, no shortcuts, closed by picking a page", () => {
+    // Collapsed on the desktop: a phone's menu shows its labels anyway
+    localStorage.setItem('sidebarCollapsed', 'true');
+    const onViewChange = vi.fn();
+    const onClose = vi.fn();
+    const footer = vi.fn((collapsed: boolean) => <span>{collapsed ? 'ring' : 'bar'}</span>);
+    render(
+      <Sidebar
+        variant="temporary"
+        open
+        onClose={onClose}
+        activeView="sessions"
+        onViewChange={onViewChange}
+        footer={footer}
+      />
+    );
+
+    expect(screen.getByRole('img', { name: 'TaskMint' })).toBeInTheDocument();
+    expect(screen.getByText('bar')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sidebar/ })).not.toBeInTheDocument();
+    // Its items carry no shortcut hints
+    expect(screen.getByRole('button', { name: 'Payouts' })).not.toHaveAccessibleDescription();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Payouts' }));
+    expect(onViewChange).toHaveBeenCalledWith('payouts');
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it('collapses to icons, its extras told so, and stays collapsed next time', () => {
     const footer = vi.fn((collapsed: boolean) => <span>{collapsed ? 'small footer' : 'footer'}</span>);
     const headerAction = vi.fn((collapsed: boolean) => <span>{collapsed ? 'small bell' : 'bell'}</span>);

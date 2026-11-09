@@ -24,6 +24,8 @@ import { entryEarnings } from '../../../utils/earnings';
 import { sourceLabel } from '../../../utils/csvExport';
 import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 import dayjs from 'dayjs';
+import { PHONE } from '../../../theme/media';
+import { PHONE_TABLE } from './tableStyles';
 
 export type SortField = 'taskName' | 'startTime' | 'endTime' | 'duration' | 'date' | 'earnings' | 'source';
 export type SortDirection = 'asc' | 'desc';
@@ -96,8 +98,9 @@ export function TimeEntriesTable({
 
   return (
     <Paper variant="outlined">
-      <TableContainer sx={{ maxHeight: 600 }}>
-        <Table stickyHeader size="small">
+      {/* On a phone the page scrolls down and the table only sideways */}
+      <TableContainer sx={{ maxHeight: 600, [PHONE]: { maxHeight: 'none' } }}>
+        <Table stickyHeader size="small" sx={PHONE_TABLE}>
           <TableHead>
             <TableRow>
               {COLUMNS.map(({ field, label }) => (

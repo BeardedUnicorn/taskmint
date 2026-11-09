@@ -37,6 +37,7 @@ import { usePayoutData } from '../../../hooks/usePayoutData';
 import { NextWithdrawalPanel } from './withdrawals/NextWithdrawalPanel';
 import { WithdrawalsCard } from './withdrawals/WithdrawalsCard';
 import { formatShortDateTime } from '../../../utils/locale';
+import { PHONE } from '../../../theme/media';
 
 export function PayoutsPage() {
   const { sessions } = useSessionManagementContext();
@@ -104,7 +105,15 @@ export function PayoutsPage() {
       {workLogs.stagedCapture && (
         <Alert
           severity="info"
-          sx={{ mb: 3 }}
+          // On a phone the buttons go below the message
+          sx={{
+            mb: 3,
+            [PHONE]: {
+              flexWrap: 'wrap',
+              '& .MuiAlert-message': { flex: 1 },
+              '& .MuiAlert-action': { flexBasis: '100%', justifyContent: 'flex-end', m: 0, p: 0 },
+            },
+          }}
           action={
             <>
               <Button color="inherit" size="small" onClick={() => setImportOpen(true)}>
@@ -166,6 +175,8 @@ export function PayoutsPage() {
               gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
               gap: 3,
               mb: 4,
+              // Two narrower columns on a phone
+              [PHONE]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2, mb: 3 },
             }}
           >
             {plan ? (

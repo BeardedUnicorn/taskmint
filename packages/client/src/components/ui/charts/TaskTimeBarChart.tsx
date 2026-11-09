@@ -5,7 +5,14 @@ import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 import { TaskTimeData, millisecondsToHours, formatTimeForChart } from '../../../utils/chartDataHelpers';
 import { formatCurrency } from '../../../utils/formatters';
-import { CHART_HEIGHT, ChartLegend, ChartTitle, ChartTooltipCard, ChartTooltipProps, hoveredPoint } from './ChartParts';
+import {
+  ChartLegend,
+  useChartLayout,
+  ChartTitle,
+  ChartTooltipCard,
+  ChartTooltipProps,
+  hoveredPoint,
+} from './ChartParts';
 
 /** Longer names are cut on the axis; the tooltip shows them whole. */
 const AXIS_NAME_LENGTH = 15;
@@ -36,6 +43,7 @@ export function TaskTimeTooltip(props: ChartTooltipProps<TaskPoint>) {
 
 export function TaskTimeBarChart({ data }: { data: TaskTimeData[] }) {
   const theme = useTheme();
+  const layout = useChartLayout();
 
   const text = theme.palette.text.primary;
   const time = theme.palette.primary.main;
@@ -53,12 +61,12 @@ export function TaskTimeBarChart({ data }: { data: TaskTimeData[] }) {
   return (
     <Box>
       <ChartTitle>Time Spent by Task</ChartTitle>
-      <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <BarChart data={points} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+      <ResponsiveContainer width="100%" height={layout.height}>
+        <BarChart data={points} margin={{ top: 20, ...layout.sideMargin, bottom: 60 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
           <XAxis
             dataKey="taskName"
-            tick={{ fill: text, fontSize: 12 }}
+            tick={{ fill: text, fontSize: layout.tickFontSize }}
             angle={-45}
             textAnchor="end"
             height={80}
@@ -67,19 +75,29 @@ export function TaskTimeBarChart({ data }: { data: TaskTimeData[] }) {
           <YAxis
             yAxisId="time"
             orientation="left"
-            tick={{ fill: text, fontSize: 12 }}
-            label={{ value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: text } }}
+            width={layout.axisWidth}
+            tick={{ fill: text, fontSize: layout.tickFontSize }}
+            label={
+              layout.axisTitles
+                ? { value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: text } }
+                : undefined
+            }
           />
           <YAxis
             yAxisId="earnings"
             orientation="right"
-            tick={{ fill: text, fontSize: 12 }}
-            label={{
-              value: 'Earnings ($)',
-              angle: 90,
-              position: 'insideRight',
-              style: { textAnchor: 'middle', fill: text },
-            }}
+            width={layout.axisWidth}
+            tick={{ fill: text, fontSize: layout.tickFontSize }}
+            label={
+              layout.axisTitles
+                ? {
+                    value: 'Earnings ($)',
+                    angle: 90,
+                    position: 'insideRight',
+                    style: { textAnchor: 'middle', fill: text },
+                  }
+                : undefined
+            }
           />
           <Tooltip content={<TaskTimeTooltip />} />
           <Legend

@@ -54,8 +54,10 @@ const ToastCard = memo(function ToastCard({ toast, onDismiss, onAction, onHold, 
       aria-live={urgent ? 'assertive' : 'polite'}
       aria-atomic="true"
       tabIndex={-1}
-      onMouseEnter={() => onHold(toast.id, 'hover')}
-      onMouseLeave={() => onRelease(toast.id, 'hover')}
+      // A mouse resting on it holds it; a tap mustn't hold it until the
+      // next tap somewhere else
+      onPointerEnter={event => event.pointerType === 'mouse' && onHold(toast.id, 'hover')}
+      onPointerLeave={event => event.pointerType === 'mouse' && onRelease(toast.id, 'hover')}
       onFocus={() => onHold(toast.id, 'focus')}
       onBlur={event => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -146,7 +148,8 @@ export function ToastViewport({ toasts, ...handlers }: ToastViewportProps) {
       sx={{
         position: 'fixed',
         right: 16,
-        bottom: 16,
+        // Above the gesture bar on an edge-to-edge phone screen
+        bottom: 'calc(16px + env(safe-area-inset-bottom))',
         zIndex: theme => theme.zIndex.snackbar,
         alignItems: 'flex-end',
         // The empty area between toasts mustn't swallow clicks

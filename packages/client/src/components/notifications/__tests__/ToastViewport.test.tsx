@@ -46,13 +46,19 @@ describe('ToastViewport', () => {
     expect(onDismiss).toHaveBeenCalledWith('t1');
   });
 
-  it('holds its time under the pointer, and has a dismiss button', () => {
+  it('holds its time under the mouse, not after a tap, and has a dismiss button', () => {
     const { onHold, onRelease, onDismiss } = viewport([toast()]);
     const card = screen.getByRole('status');
 
-    fireEvent.mouseEnter(card);
+    // A finger passing over it doesn't hold it
+    fireEvent.pointerEnter(card, { pointerType: 'touch' });
+    fireEvent.pointerLeave(card, { pointerType: 'touch' });
+    expect(onHold).not.toHaveBeenCalled();
+    expect(onRelease).not.toHaveBeenCalled();
+
+    fireEvent.pointerEnter(card, { pointerType: 'mouse' });
     expect(onHold).toHaveBeenCalledWith('t1', 'hover');
-    fireEvent.mouseLeave(card);
+    fireEvent.pointerLeave(card, { pointerType: 'mouse' });
     expect(onRelease).toHaveBeenCalledWith('t1', 'hover');
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' }));

@@ -17,6 +17,8 @@ import { MANUAL_SOURCE, TaskSession, TimerState } from '../../../types/timer';
 import { formatDuration, formatTime } from '../../../utils/formatters';
 import { getSessionElapsedMs, sessionTaskTotals, sessionTitle } from '../../../utils/timerHelpers';
 import { isImportedSession } from './useSessionFilters';
+import { HOVER, PHONE } from '../../../theme/media';
+import { STACK_WRAP, TWO_LINES } from '../phoneLayout';
 
 interface SessionCardProps {
   session: TaskSession;
@@ -59,22 +61,37 @@ export const SessionCard = memo(function SessionCard({
         border: isSelected ? 2 : 1,
         borderColor: isSelected ? 'primary.main' : 'divider',
         bgcolor: session.isActive ? 'action.selected' : 'background.paper',
-        '&:hover': {
-          bgcolor: 'action.hover',
+        [HOVER]: {
+          '&:hover': {
+            bgcolor: 'action.hover',
+          },
         },
       }}
       onClick={() => onSelect(session)}
     >
       <CardContent sx={{ pb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+        {/* On a phone the buttons go below the details */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 2,
+            [PHONE]: { flexDirection: 'column', alignItems: 'stretch', gap: 1 },
+          }}
+        >
           <Box sx={{ flex: 1, minWidth: 0 }}>
             {/* width 0 + minWidth 100%: fills the card, and a long name truncates
                 instead of widening the page's column */}
-            <Typography variant="h6" noWrap title={title} sx={{ fontWeight: 600, mb: 1, width: 0, minWidth: '100%' }}>
+            <Typography
+              variant="h6"
+              noWrap
+              title={title}
+              sx={{ fontWeight: 600, mb: 1, width: 0, minWidth: '100%', [PHONE]: TWO_LINES }}
+            >
               {title}
             </Typography>
 
-            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+            <Stack direction="row" spacing={1} sx={{ mb: 2, [PHONE]: { mb: 1, ...STACK_WRAP } }}>
               <Chip
                 icon={<TimerIcon />}
                 label={formatElapsed(getSessionElapsedMs(session, nowMs))}
@@ -152,7 +169,7 @@ export const SessionCard = memo(function SessionCard({
             )}
           </Box>
 
-          <Stack direction="row" spacing={1} sx={{ mt: -1, mr: -1 }}>
+          <Stack direction="row" spacing={1} sx={{ mt: -1, mr: -1, [PHONE]: { m: 0, justifyContent: 'flex-end' } }}>
             {/* Imported days change only by importing again */}
             {!isImportedSession(session) && (
               <Button

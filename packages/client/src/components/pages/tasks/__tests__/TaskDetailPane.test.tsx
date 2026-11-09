@@ -214,3 +214,18 @@ describe('TaskDetailPane entries', () => {
     expect(screen.getByText('Not set')).toBeInTheDocument();
   });
 });
+
+describe('TaskDetailPane on a phone', () => {
+  it('leads back to the task list, which it replaces there', () => {
+    const onBack = vi.fn();
+    render(<TaskDetailPane {...base} task={task} timeEntries={[]} onBack={onBack} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All tasks' }));
+    expect(onBack).toHaveBeenCalled();
+  });
+
+  it('has no way back beside the list', () => {
+    renderPane(task, vi.fn());
+    expect(screen.queryByRole('button', { name: 'All tasks' })).not.toBeInTheDocument();
+  });
+});

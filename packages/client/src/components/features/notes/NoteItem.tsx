@@ -37,6 +37,7 @@ import { useNoteTemplates } from '../../../hooks/useNoteTemplates';
 import { createTextPreview, formatMultilineText } from '../../../utils/formatters';
 import { formatRelativeDate } from '../../../utils/dateHelpers';
 import { noteText } from '../../../utils/notes';
+import { HOVER } from '../../../theme/media';
 
 export type NoteLevel = NonNullable<TaskNote['noteLevel']>;
 
@@ -137,7 +138,7 @@ export function NoteItem({
       <ListItem
         component="div"
         onClick={() => setExpanded(open => !open)}
-        sx={{ '&:hover': { bgcolor: 'action.hover' }, cursor: 'pointer', pr: 12 }}
+        sx={{ [HOVER]: { '&:hover': { bgcolor: 'action.hover' } }, cursor: 'pointer', pr: 12 }}
         secondaryAction={
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Tooltip title={expanded ? 'Collapse' : 'Expand'}>

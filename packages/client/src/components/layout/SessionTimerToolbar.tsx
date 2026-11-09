@@ -35,6 +35,8 @@ import { TaskSession, TimerState } from '../../types/timer';
 import { Task } from '../../types/task';
 import { sessionTitle } from '../../utils/timerHelpers';
 import { TaskSelect } from '../ui/forms/TaskSelect';
+import { PHONE } from '../../theme/media';
+import { PhoneOwnLine, TWO_LINES } from '../ui/phoneLayout';
 
 interface SessionTimerToolbarProps {
   activeSession: TaskSession | null;
@@ -100,13 +102,14 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
           borderColor: 'divider',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, [PHONE]: { flexWrap: 'wrap', rowGap: 1.5 } }}>
           <SessionIcon color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
             Start Work
           </Typography>
 
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* On a phone the picker and Start get the full width, below */}
+          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, [PHONE]: { flexBasis: '100%', gap: 1 } }}>
             <TaskSelect
               tasks={startOptions}
               value={selectedTaskId}
@@ -114,7 +117,7 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
               label={startOptions.length === 0 ? 'Add a task on the Tasks page to start' : 'Task'}
               disabled={startOptions.length === 0}
               size="small"
-              sx={{ minWidth: 300, flex: 1 }}
+              sx={{ minWidth: 300, flex: 1, [PHONE]: { minWidth: 0 } }}
             />
 
             <Button
@@ -123,7 +126,7 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
               startIcon={<PlayIcon />}
               onClick={start ?? undefined}
               disabled={!start}
-              sx={{ minWidth: 120 }}
+              sx={{ minWidth: 120, [PHONE]: { minWidth: 0 } }}
             >
               Start
             </Button>
@@ -144,13 +147,15 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
         borderColor: 'divider',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Box
+        sx={{ display: 'flex', alignItems: 'center', gap: 2, [PHONE]: { flexWrap: 'wrap', columnGap: 1.5, rowGap: 1 } }}
+      >
         <SessionIcon color="primary" />
         <Typography
           variant="h6"
           noWrap
           title={sessionTitle(activeSession)}
-          sx={{ fontWeight: 600, minWidth: 0, maxWidth: '40%' }}
+          sx={{ fontWeight: 600, minWidth: 0, maxWidth: '40%', [PHONE]: { maxWidth: 'none', flex: 1, ...TWO_LINES } }}
         >
           {sessionTitle(activeSession)}
         </Typography>
@@ -161,33 +166,36 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
           variant="outlined"
         />
 
-        <Box sx={{ flex: 1, display: 'flex', gap: 1, alignItems: 'center' }}>
-          {sessionStatus.running > 0 && (
-            <Button variant="outlined" color="warning" size="small" onClick={onPauseAll} startIcon={<PauseIcon />}>
-              Pause All
-            </Button>
-          )}
-          {/* One timer runs at a time: resuming while one runs would stop it */}
-          {sessionStatus.paused > 0 && sessionStatus.running === 0 && (
-            <Button variant="outlined" color="success" size="small" onClick={onResumeAll} startIcon={<ResumeIcon />}>
-              Resume All
-            </Button>
-          )}
-        </Box>
+        {/* On a phone the session's buttons go on their own line(s) */}
+        <PhoneOwnLine sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Box sx={{ flex: 1, display: 'flex', gap: 1, alignItems: 'center' }}>
+            {sessionStatus.running > 0 && (
+              <Button variant="outlined" color="warning" size="small" onClick={onPauseAll} startIcon={<PauseIcon />}>
+                Pause All
+              </Button>
+            )}
+            {/* One timer runs at a time: resuming while one runs would stop it */}
+            {sessionStatus.paused > 0 && sessionStatus.running === 0 && (
+              <Button variant="outlined" color="success" size="small" onClick={onResumeAll} startIcon={<ResumeIcon />}>
+                Resume All
+              </Button>
+            )}
+          </Box>
 
-        {onSwitchTask && (
-          <Button variant="outlined" startIcon={<SwitchIcon />} onClick={onSwitchTask}>
-            Switch task
+          {onSwitchTask && (
+            <Button variant="outlined" startIcon={<SwitchIcon />} onClick={onSwitchTask}>
+              Switch task
+            </Button>
+          )}
+
+          <IconButton onClick={handleMenuOpen} aria-label="Session options">
+            <MoreIcon />
+          </IconButton>
+
+          <Button variant="outlined" color="error" startIcon={<StopIcon />} onClick={onEndSession}>
+            End Session
           </Button>
-        )}
-
-        <IconButton onClick={handleMenuOpen} aria-label="Session options">
-          <MoreIcon />
-        </IconButton>
-
-        <Button variant="outlined" color="error" startIcon={<StopIcon />} onClick={onEndSession}>
-          End Session
-        </Button>
+        </PhoneOwnLine>
       </Box>
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>

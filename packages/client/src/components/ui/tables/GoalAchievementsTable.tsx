@@ -24,6 +24,8 @@ import { CheckCircle, Cancel, TrendingUp, TrendingDown, Schedule } from '@mui/ic
 import { DailyGoalAchievement } from '../../../types/goal';
 import { formatCurrency } from '../../../utils/formatters';
 import { isToday, formatLocalDate, formatLocalDateWithDay } from '../../../utils/dateHelpers';
+import { HOVER } from '../../../theme/media';
+import { PHONE_TABLE } from './tableStyles';
 
 export interface GoalAchievementsTableProps {
   achievements: DailyGoalAchievement[];
@@ -100,7 +102,7 @@ export function GoalAchievementsTable({ achievements }: GoalAchievementsTablePro
 
   return (
     <TableContainer component={Paper} variant="outlined">
-      <Table>
+      <Table sx={PHONE_TABLE}>
         <TableHead>
           <TableRow>
             <TableCell>
@@ -140,7 +142,7 @@ export function GoalAchievementsTable({ achievements }: GoalAchievementsTablePro
             const kind = kindOf(achievement);
             const look = KINDS[kind];
             return (
-              <TableRow key={achievement.id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+              <TableRow key={achievement.id} hover sx={{ [HOVER]: { '&:hover': { backgroundColor: 'action.hover' } } }}>
                 <TableCell>
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>

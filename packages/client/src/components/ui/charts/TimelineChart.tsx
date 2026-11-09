@@ -13,7 +13,14 @@ import {
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { formatCurrency } from '../../../utils/formatters';
 import { formatShortDate } from '../../../utils/locale';
-import { CHART_HEIGHT, ChartLegend, ChartTitle, ChartTooltipCard, ChartTooltipProps, hoveredPoint } from './ChartParts';
+import {
+  ChartLegend,
+  useChartLayout,
+  ChartTitle,
+  ChartTooltipCard,
+  ChartTooltipProps,
+  hoveredPoint,
+} from './ChartParts';
 
 type TimelineData = DailyData | WeeklyData | MonthlyData;
 export type TimelineType = 'daily' | 'weekly' | 'monthly';
@@ -56,6 +63,7 @@ export function TimelineTooltip(props: ChartTooltipProps<PeriodPoint>) {
 
 export function TimelineChart({ data, dataType }: { data: TimelineData[]; dataType: TimelineType }) {
   const theme = useTheme();
+  const layout = useChartLayout();
 
   const text = theme.palette.text.primary;
   const time = theme.palette.primary.main;
@@ -75,26 +83,36 @@ export function TimelineChart({ data, dataType }: { data: TimelineData[]; dataTy
   return (
     <Box>
       <ChartTitle>{TITLES[dataType]}</ChartTitle>
-      <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <LineChart data={points} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+      <ResponsiveContainer width="100%" height={layout.height}>
+        <LineChart data={points} margin={{ top: 20, ...layout.sideMargin, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-          <XAxis dataKey="period" tick={{ fill: text, fontSize: 12 }} tickFormatter={formatPeriod} />
+          <XAxis dataKey="period" tick={{ fill: text, fontSize: layout.tickFontSize }} tickFormatter={formatPeriod} />
           <YAxis
             yAxisId="time"
             orientation="left"
-            tick={{ fill: text, fontSize: 12 }}
-            label={{ value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: text } }}
+            width={layout.axisWidth}
+            tick={{ fill: text, fontSize: layout.tickFontSize }}
+            label={
+              layout.axisTitles
+                ? { value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: text } }
+                : undefined
+            }
           />
           <YAxis
             yAxisId="earnings"
             orientation="right"
-            tick={{ fill: text, fontSize: 12 }}
-            label={{
-              value: 'Earnings ($)',
-              angle: 90,
-              position: 'insideRight',
-              style: { textAnchor: 'middle', fill: text },
-            }}
+            width={layout.axisWidth}
+            tick={{ fill: text, fontSize: layout.tickFontSize }}
+            label={
+              layout.axisTitles
+                ? {
+                    value: 'Earnings ($)',
+                    angle: 90,
+                    position: 'insideRight',
+                    style: { textAnchor: 'middle', fill: text },
+                  }
+                : undefined
+            }
           />
           <Tooltip content={<TimelineTooltip />} />
           <Legend

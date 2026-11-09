@@ -15,6 +15,7 @@ import { formatShortDate, formattingLocale } from '../../../utils/locale';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { CalendarMonth, CalendarWeek } from './calendarMonth';
 import { DayCell } from './DayCell';
+import { PHONE } from '../../../theme/media';
 
 /** The grid is wide enough for a column of week totals. */
 export const WITH_WEEKS = '@container calendar (min-width: 820px)';
@@ -129,7 +130,13 @@ export function MonthGrid({ view, focusedDate, onFocusDate, onMonthChange, onOpe
               role="columnheader"
               variant="caption"
               color="text.secondary"
-              sx={{ px: 1, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+              sx={{
+                px: 1,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                [PHONE]: { px: 0, letterSpacing: 0, textAlign: 'center', fontSize: '0.65rem' },
+              }}
             >
               {weekdayName(index)}
             </Typography>

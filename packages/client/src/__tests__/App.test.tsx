@@ -12,6 +12,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { announceAppRecordsChange, fakeBackend, seedAppRecords } from '../testing';
 import { VIEW_LABELS, VIEWS } from '../navigation/views';
 import { createMockTask, createMockTaskSession, createMockTimerInstance } from './setup/session-test-utils';
+import { setPhoneViewport } from './setup/viewport';
 
 let replies: Record<string, unknown>;
 const defaults = {
@@ -74,6 +75,26 @@ describe('App', () => {
       ).toBeInTheDocument();
     }
   }, 30_000);
+
+  it('on a phone, swaps the sidebar for a top bar whose menu opens each page', async () => {
+    setPhoneViewport();
+    render(<App />);
+
+    // No sidebar to collapse; the bell sits in the top bar with the page's name
+    expect(await screen.findByRole('button', { name: 'Open navigation' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Collapse sidebar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Payouts' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Notifications/ })).toBeInTheDocument();
+    expect(screen.getByText('Sessions', { selector: '.MuiToolbar-root *' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Payouts' }));
+
+    // The menu closes on the way, and the bar names the new page
+    expect(await screen.findByRole('heading', { name: 'Payouts', level: 1 }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText('Payouts', { selector: '.MuiToolbar-root *' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Tasks' })).not.toBeInTheDocument());
+  }, 15_000);
 
   it('starts work from the dialog the Sessions page opens', async () => {
     render(<App />);

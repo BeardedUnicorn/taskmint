@@ -1,13 +1,49 @@
 /**
- * What the History charts share: their height, the card shown for the point
+ * What the History charts share: their size, the card shown for the point
  * under the pointer, and a legend of swatches. Colors come from the theme, so
  * a chart reads in light and dark alike. (Charts only get finished entries,
  * each with time in it, so there's always something to draw.)
  */
 
 import { Box, Typography } from '@mui/material';
+import { useCompactLayout } from '../../../hooks/useCompactLayout';
 
-export const CHART_HEIGHT = 400;
+/** How a chart fits its space: the plot's height and the room its axes take. */
+export interface ChartLayout {
+  height: number;
+  /** Space beside the plot (the value axes have their own width too). */
+  sideMargin: { left: number; right: number };
+  /** Each value axis's width. */
+  axisWidth: number;
+  tickFontSize: number;
+  /** The value axes' titles; the legend names the series anyway. */
+  axisTitles: boolean;
+  pieRadius: number;
+}
+
+const DESKTOP_CHART: ChartLayout = {
+  height: 400,
+  sideMargin: { left: 20, right: 30 },
+  // recharts' own default
+  axisWidth: 60,
+  tickFontSize: 12,
+  axisTitles: true,
+  pieRadius: 120,
+};
+
+// A phone's width goes to the plot
+const PHONE_CHART: ChartLayout = {
+  height: 300,
+  sideMargin: { left: 0, right: 0 },
+  axisWidth: 40,
+  tickFontSize: 11,
+  axisTitles: false,
+  pieRadius: 100,
+};
+
+export function useChartLayout(): ChartLayout {
+  return useCompactLayout() ? PHONE_CHART : DESKTOP_CHART;
+}
 
 /** What recharts hands a tooltip's content: the hovered point(s), when there are any. */
 export interface ChartTooltipProps<Point> {

@@ -27,6 +27,8 @@ import {
   MS_PER_HOUR,
 } from '../forms/DurationFields';
 import { TaskSelect } from '../forms/TaskSelect';
+import { PHONE } from '../../../theme/media';
+import { STACK_COLUMN } from '../phoneLayout';
 
 const MAX_DURATION_MS = 24 * MS_PER_HOUR;
 /** Same allowance the backend gives "ends now" for clock skew. */
@@ -170,7 +172,7 @@ export function AddTimeDialog({ onClose, tasks, sessions, onAdd }: AddTimeDialog
                 helperText={options.length === 0 ? 'Add a task on the Tasks page first' : undefined}
               />
 
-              <Stack direction="row" spacing={2}>
+              <Stack direction="row" spacing={2} sx={{ [PHONE]: STACK_COLUMN }}>
                 <DatePicker
                   label="Date"
                   value={day}

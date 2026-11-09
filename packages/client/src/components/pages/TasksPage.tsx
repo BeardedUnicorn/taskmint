@@ -13,6 +13,8 @@ import { EditTimeEntryDialog } from '../ui/dialogs/EditTimeEntryDialog';
 import { EditTimeEntryData } from '../../types/form';
 import { getEntryElapsedMs } from '../../utils/timerHelpers';
 import { findTaskFor } from '../../utils/earnings';
+import { useCompactLayout } from '../../hooks/useCompactLayout';
+import { PHONE } from '../../theme/media';
 
 interface TasksPageProps {
   tasks: Task[];
@@ -68,6 +70,10 @@ export function TasksPage({
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  // A phone shows one pane at a time: the list, or the task picked from it
+  const compact = useCompactLayout();
+  const [phoneDetailOpen, setPhoneDetailOpen] = useState(false);
+  const phoneShowsDetail = phoneDetailOpen && selectedTask !== null;
 
   useEffect(() => {
     if (!newTaskRequested) return;
@@ -93,6 +99,7 @@ export function TasksPage({
 
   const handleSelectTask = (task: Task) => {
     setSelectedTask(task);
+    setPhoneDetailOpen(true);
   };
 
   const handleAddTaskDialog = async (taskData: {
@@ -182,6 +189,7 @@ export function TasksPage({
               height: '100%',
               borderRight: '1px solid',
               borderColor: 'divider',
+              [PHONE]: { width: '100%', borderRight: 0, display: phoneShowsDetail ? 'none' : 'block' },
             }}
           >
             <TaskListPane
@@ -196,9 +204,10 @@ export function TasksPage({
             />
           </Box>
 
-          <Box sx={{ flex: 1, minWidth: 0, height: '100%' }}>
+          <Box sx={{ flex: 1, minWidth: 0, height: '100%', [PHONE]: { display: phoneShowsDetail ? 'block' : 'none' } }}>
             {selectedTask ? (
               <TaskDetailPane
+                onBack={compact ? () => setPhoneDetailOpen(false) : undefined}
                 task={selectedTask}
                 timeEntries={timeEntries}
                 onToggleFavorite={taskId => void onToggleFavorite(taskId)}

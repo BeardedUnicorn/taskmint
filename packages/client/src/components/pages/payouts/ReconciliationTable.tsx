@@ -22,6 +22,8 @@ import { ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui
 import { PayoutDayCell, PayoutMonthGroup, formatPayoutAmount } from '../../../utils/payoutCalculator';
 import { formatDuration } from '../../../utils/formatters';
 import { MONO } from './payoutStyles';
+import { PHONE } from '../../../theme/media';
+import { PHONE_TABLE } from '../../ui/tables/tableStyles';
 
 function deltaLabel(cell: PayoutDayCell): { text: string; color: string } {
   const deltaMinutes = cell.importedMinutes - cell.trackedMs / 60_000;
@@ -47,12 +49,12 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
     });
 
   return (
-    <Paper sx={{ p: 3 }}>
+    <Paper sx={{ p: 3, [PHONE]: { p: 2 } }}>
       <Typography variant="h6" sx={{ mb: 2 }}>
         Daily reconciliation
       </Typography>
       <Box sx={{ overflowX: 'auto' }}>
-        <Table size="small">
+        <Table size="small" sx={PHONE_TABLE}>
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>

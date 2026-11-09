@@ -22,6 +22,7 @@ import { ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui
 import type { FinishedTimeEntry } from '../../../utils/csvExport';
 import { Task } from '../../../types/task';
 import { useLocalStorage } from '../../../hooks/useLocalStorage';
+import { PHONE } from '../../../theme/media';
 import {
   aggregateByDay,
   aggregateByMonth,
@@ -31,6 +32,9 @@ import {
 } from '../../../utils/chartDataHelpers';
 
 // Lazy: the chart library is large and only needed here
+/** A chart's card: a set height on a desktop, as tall as the (smaller) chart on a phone. */
+const CHART_CARD = { p: 2, height: 450, [PHONE]: { height: 'auto', p: 1.5 } } as const;
+
 const TaskTimeBarChart = lazy(() =>
   import('../../ui/charts/TaskTimeBarChart').then(module => ({ default: module.TaskTimeBarChart }))
 );
@@ -114,17 +118,17 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
             <Stack spacing={3} sx={{ mt: 3 }}>
               <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>
                 <Box sx={{ flex: { lg: 2 }, minWidth: 0 }}>
-                  <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
+                  <Paper variant="outlined" sx={CHART_CARD}>
                     <TaskTimeBarChart data={chartData.taskTimeData} />
                   </Paper>
                 </Box>
                 <Box sx={{ flex: { lg: 1 }, minWidth: 0 }}>
-                  <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
+                  <Paper variant="outlined" sx={CHART_CARD}>
                     <TaskDistributionPieChart data={chartData.taskDistributionData} />
                   </Paper>
                 </Box>
               </Box>
-              <Paper variant="outlined" sx={{ p: 2, height: 450 }}>
+              <Paper variant="outlined" sx={CHART_CARD}>
                 <TimelineChart data={chartData.timelineData} dataType={timelineView} />
               </Paper>
             </Stack>

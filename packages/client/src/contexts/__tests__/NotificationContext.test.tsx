@@ -231,13 +231,13 @@ describe('NotificationProvider', () => {
       result.current.api.showInfo('Read me', { duration: 1000 });
     });
 
-    fireEvent.mouseEnter(screen.getByRole('status'));
+    fireEvent.pointerEnter(screen.getByRole('status'), { pointerType: 'mouse' });
     act(() => {
       vi.advanceTimersByTime(60_000);
     });
     expect(toasts()).toEqual(['Read me']);
 
-    fireEvent.mouseLeave(screen.getByRole('status'));
+    fireEvent.pointerLeave(screen.getByRole('status'), { pointerType: 'mouse' });
     act(() => {
       vi.advanceTimersByTime(60_000);
     });

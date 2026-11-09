@@ -27,6 +27,7 @@ import {
   PlayArrow as PlayIcon,
   History as HistoryIcon,
   Timer as TimerIcon,
+  ArrowBack as BackIcon,
 } from '@mui/icons-material';
 import { Task } from '../../../types/task';
 import { EmptyState } from '../../ui/display/EmptyState';
@@ -37,6 +38,9 @@ import { EarningsDisplay } from '../../ui/display/EarningsDisplay';
 import { entryEarnings, entryRate } from '../../../utils/earnings';
 import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 import { entryEnd, exportableEntries } from '../../../utils/csvExport';
+import { PHONE } from '../../../theme/media';
+import { STACK_WRAP } from '../../ui/phoneLayout';
+import { PHONE_TABLE } from '../../ui/tables/tableStyles';
 
 /** The pane lists this many of the newest entries; History has them all. */
 export const RECENT_ENTRY_COUNT = 10;
@@ -54,6 +58,8 @@ interface TaskDetailPaneProps {
   isRunning: boolean;
   /** Opens History filtered to this task. */
   onViewHistory: (task: Task) => void;
+  /** On a phone, where the pane replaces the list: back to the list. */
+  onBack?: () => void;
 }
 
 export function TaskDetailPane({
@@ -65,6 +71,7 @@ export function TaskDetailPane({
   onStart,
   isRunning,
   onViewHistory,
+  onBack,
 }: TaskDetailPaneProps) {
   // This task's finished entries (by id, or by name for older ones), newest first
   const taskEntries = useMemo(
@@ -97,10 +104,24 @@ export function TaskDetailPane({
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
-      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
-            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', [PHONE]: { p: 2 } }}>
+        {onBack && (
+          <Button startIcon={<BackIcon />} onClick={onBack} sx={{ mb: 1, ml: -1 }}>
+            All tasks
+          </Button>
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, [PHONE]: { gap: 1 } }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              flex: 1,
+              minWidth: 0,
+              [PHONE]: { flexWrap: 'wrap', gap: 1 },
+            }}
+          >
+            <Typography variant="h5" sx={{ fontWeight: 600, [PHONE]: { overflowWrap: 'anywhere' } }}>
               {task.name}
             </Typography>
             {task.isArchived && <Chip label="Archived" size="small" color="warning" variant="outlined" />}
@@ -130,7 +151,11 @@ export function TaskDetailPane({
         </Box>
 
         {/* Task Info */}
-        <Stack direction="row" spacing={3} sx={{ mb: 2 }}>
+        <Stack
+          direction="row"
+          spacing={3}
+          sx={{ mb: 2, [PHONE]: { flexDirection: 'column', gap: 0.5, '& > :not(style) ~ :not(style)': { ml: 0 } } }}
+        >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <MoneyIcon color="action" fontSize="small" />
             <Typography variant="body2">
@@ -146,7 +171,7 @@ export function TaskDetailPane({
         </Stack>
 
         {/* Task Statistics */}
-        <Stack direction="row" spacing={2}>
+        <Stack direction="row" spacing={2} sx={{ [PHONE]: STACK_WRAP }}>
           <Chip
             icon={<TimeIcon />}
             label={`Total Time: ${formatDuration(taskStats.totalDuration)}`}
@@ -166,7 +191,7 @@ export function TaskDetailPane({
       </Box>
 
       {/* Time Entries Section */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: 3, [PHONE]: { p: 2 } }}>
         <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
           Time Entries
         </Typography>
@@ -180,7 +205,7 @@ export function TaskDetailPane({
           />
         ) : (
           <TableContainer component={Paper} sx={{ mt: 2 }}>
-            <Table size="small">
+            <Table size="small" sx={PHONE_TABLE}>
               <TableHead>
                 <TableRow>
                   <TableCell>

@@ -19,6 +19,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   Tooltip,
@@ -42,6 +43,8 @@ import { formatDateString, parseDateStringLocal } from '../../../utils/dateHelpe
 import { MONO } from '../payouts/payoutStyles';
 import { RecordWithdrawalDialog } from '../payouts/withdrawals/RecordWithdrawalDialog';
 import { cellTimeMs } from './calendarMonth';
+import { PHONE } from '../../../theme/media';
+import { PHONE_TABLE } from '../../ui/tables/tableStyles';
 
 interface CalendarDayDialogProps {
   /** YYYY-MM-DD, or null when closed */
@@ -97,7 +100,12 @@ export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDi
       aria-labelledby="calendar-day-title"
       // Pinned to the top: centred, it moves with each day's height, and the
       // day arrows would slide out from under the pointer
-      sx={{ '& .MuiDialog-container': { alignItems: 'flex-start' }, '& .MuiDialog-paper': { mt: '8vh' } }}
+      // (On a phone it fills the screen, so from the very top)
+      sx={{
+        '& .MuiDialog-container': { alignItems: 'flex-start' },
+        '& .MuiDialog-paper': { mt: '8vh' },
+        [PHONE]: { '& .MuiDialog-paper': { mt: 0 } },
+      }}
     >
       <DialogTitle id="calendar-day-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box component="span" sx={{ flex: 1 }}>
@@ -125,135 +133,141 @@ export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDi
 
         {worked.length > 0 && (
           <Section title="Worked">
-            <Table size="small" aria-label="Worked">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Task</TableCell>
-                  <TableCell align="right">Tracked</TableCell>
-                  <TableCell align="right">Reported</TableCell>
-                  <TableCell align="right">Amount</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {worked.map(cell => (
-                  <TableRow key={cell.taskId}>
-                    <TableCell>{cell.taskName}</TableCell>
-                    <TableCell align="right" sx={MONO}>
-                      {minutes(cell.trackedMs)}
-                    </TableCell>
-                    <TableCell align="right" sx={MONO}>
-                      {minutes(cell.importedMinutes * 60_000)}
-                    </TableCell>
-                    <TableCell align="right" sx={MONO}>
-                      {formatPayoutAmount(cell.actualCents, cell.estimatedCents)}
-                    </TableCell>
-                    <TableCell>
-                      <StatusChips statuses={cell.isEstimate ? ['Estimate'] : cell.statuses} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {worked.length > 1 && (
+            <TableContainer>
+              <Table size="small" aria-label="Worked" sx={PHONE_TABLE}>
+                <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
-                    <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                      {minutes(sum(worked, cell => cell.trackedMs))}
-                    </TableCell>
-                    <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                      {minutes(sum(worked, cell => cell.importedMinutes * 60_000))}
-                    </TableCell>
-                    <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                      {formatPayoutAmount(
-                        sum(worked, cell => cell.actualCents),
-                        sum(worked, cell => cell.estimatedCents)
-                      )}
-                    </TableCell>
-                    <TableCell />
+                    <TableCell>Task</TableCell>
+                    <TableCell align="right">Tracked</TableCell>
+                    <TableCell align="right">Reported</TableCell>
+                    <TableCell align="right">Amount</TableCell>
+                    <TableCell>Status</TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {worked.map(cell => (
+                    <TableRow key={cell.taskId}>
+                      <TableCell>{cell.taskName}</TableCell>
+                      <TableCell align="right" sx={MONO}>
+                        {minutes(cell.trackedMs)}
+                      </TableCell>
+                      <TableCell align="right" sx={MONO}>
+                        {minutes(cell.importedMinutes * 60_000)}
+                      </TableCell>
+                      <TableCell align="right" sx={MONO}>
+                        {formatPayoutAmount(cell.actualCents, cell.estimatedCents)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusChips statuses={cell.isEstimate ? ['Estimate'] : cell.statuses} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {worked.length > 1 && (
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
+                      <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
+                        {minutes(sum(worked, cell => cell.trackedMs))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
+                        {minutes(sum(worked, cell => cell.importedMinutes * 60_000))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
+                        {formatPayoutAmount(
+                          sum(worked, cell => cell.actualCents),
+                          sum(worked, cell => cell.estimatedCents)
+                        )}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Section>
         )}
 
         {released.length > 0 && (
           <Section title="Released">
-            <Table size="small" aria-label="Released">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Task</TableCell>
-                  <TableCell>Worked on</TableCell>
-                  <TableCell align="right">Amount</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {released.map((event, index) => (
-                  <TableRow key={`${event.taskId}-${event.releaseMs}-${index}`}>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {event.releaseTime ? formatClockTime(event.releaseMs) : '—'}
-                      {event.releaseMs > nowMs && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          upcoming
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>{event.taskName}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {formatWeekdayDate(parseDateStringLocal(event.workDay))}
-                    </TableCell>
-                    <TableCell align="right" sx={MONO}>
-                      {formatPayoutAmount(event.actualCents, event.estimatedCents)}
-                    </TableCell>
-                    <TableCell>
-                      <StatusChips statuses={[event.status ?? 'Estimate']} />
-                    </TableCell>
+            <TableContainer>
+              <Table size="small" aria-label="Released" sx={PHONE_TABLE}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Time</TableCell>
+                    <TableCell>Task</TableCell>
+                    <TableCell>Worked on</TableCell>
+                    <TableCell align="right">Amount</TableCell>
+                    <TableCell>Status</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {released.map((event, index) => (
+                    <TableRow key={`${event.taskId}-${event.releaseMs}-${index}`}>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {event.releaseTime ? formatClockTime(event.releaseMs) : '—'}
+                        {event.releaseMs > nowMs && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            upcoming
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{event.taskName}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {formatWeekdayDate(parseDateStringLocal(event.workDay))}
+                      </TableCell>
+                      <TableCell align="right" sx={MONO}>
+                        {formatPayoutAmount(event.actualCents, event.estimatedCents)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusChips statuses={[event.status ?? 'Estimate']} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Section>
         )}
 
         {withdrawn.length > 0 && (
           <Section title="Withdrawals">
-            <Table size="small" aria-label="Withdrawals">
-              <TableBody>
-                {withdrawn.map(withdrawal => {
-                  const at = formatClockTime(withdrawal.takenAt);
-                  return (
-                    <TableRow key={withdrawal.id}>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{at}</TableCell>
-                      <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                        {formatCents(withdrawal.amountCents)}
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary' }}>{withdrawal.note ?? ''}</TableCell>
-                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                        <Tooltip title="Edit">
-                          <IconButton
-                            size="small"
-                            aria-label={`Edit the withdrawal at ${at}`}
-                            onClick={() => setEditing(withdrawal)}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton
-                            size="small"
-                            aria-label={`Delete the withdrawal at ${at}`}
-                            onClick={() => deleteWithdrawal(withdrawal.id)}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <TableContainer>
+              <Table size="small" aria-label="Withdrawals" sx={PHONE_TABLE}>
+                <TableBody>
+                  {withdrawn.map(withdrawal => {
+                    const at = formatClockTime(withdrawal.takenAt);
+                    return (
+                      <TableRow key={withdrawal.id}>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{at}</TableCell>
+                        <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
+                          {formatCents(withdrawal.amountCents)}
+                        </TableCell>
+                        <TableCell sx={{ color: 'text.secondary' }}>{withdrawal.note ?? ''}</TableCell>
+                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                          <Tooltip title="Edit">
+                            <IconButton
+                              size="small"
+                              aria-label={`Edit the withdrawal at ${at}`}
+                              onClick={() => setEditing(withdrawal)}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              aria-label={`Delete the withdrawal at ${at}`}
+                              onClick={() => deleteWithdrawal(withdrawal.id)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Section>
         )}
       </DialogContent>
