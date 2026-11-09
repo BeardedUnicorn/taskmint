@@ -91,10 +91,60 @@ pub fn merge_imported_records(existing: &mut RecordMap, imported: RecordMap) -> 
     changed
 }
 
+/// Puts restored records in place of the stored ones (an exact restore):
+/// each record key listed replaces its record, a null removes it, and a
+/// record not listed stays as it is. Unknown keys are ignored. Returns the
+/// keys put in place.
+pub fn replace_records(existing: &mut RecordMap, restored: RecordMap) -> Vec<String> {
+    let mut replaced = Vec::new();
+    for (key, value) in restored {
+        if !is_app_record_key(&key) {
+            continue;
+        }
+        if value.is_null() {
+            existing.remove(&key);
+        } else {
+            existing.insert(key.clone(), value);
+        }
+        replaced.push(key);
+    }
+    replaced
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn restoring_records_replaces_the_listed_ones_only() {
+        let mut existing = RecordMap::new();
+        existing.insert("predefinedTasks".into(), json!([{ "id": "stored" }]));
+        existing.insert("dailyGoal".into(), json!({ "targetAmount": 50 }));
+        existing.insert("withdrawals".into(), json!([{ "id": "kept" }]));
+
+        let mut restored = RecordMap::new();
+        restored.insert("predefinedTasks".into(), json!([{ "id": "restored" }]));
+        restored.insert("dailyGoal".into(), serde_json::Value::Null);
+        restored.insert("accountSettings".into(), json!({ "fundsReleaseDays": 5 }));
+        restored.insert("theme-mode".into(), json!("dark"));
+
+        let mut replaced = replace_records(&mut existing, restored);
+        replaced.sort();
+
+        assert_eq!(
+            replaced,
+            vec!["accountSettings", "dailyGoal", "predefinedTasks"]
+        );
+        assert_eq!(existing["predefinedTasks"], json!([{ "id": "restored" }]));
+        assert!(!existing.contains_key("dailyGoal"));
+        assert_eq!(existing["withdrawals"], json!([{ "id": "kept" }]));
+        assert_eq!(
+            existing["accountSettings"],
+            json!({ "fundsReleaseDays": 5 })
+        );
+        assert!(!existing.contains_key("theme-mode"));
+    }
 
     #[test]
     fn only_the_listed_record_keys_are_records() {

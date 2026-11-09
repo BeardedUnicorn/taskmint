@@ -19,8 +19,8 @@ you've earned and when it pays out.
 | **Notes** | Free-form or template-based notes on a task (pick it on the Notes page), a session or a timer. A session's notes open from its row, which previews the newest one. Note templates have their own tab. |
 | **History** | Every tracked, added and imported entry: quick ranges (remembered), search and task filters, totals and charts, the sortable entries table (edit, move an entry to another task, delete, CSV export; imported days are read-only, since each import rebuilds them), and the daily goal's results over the range. |
 | **Calendar** | Earnings, hours and released amounts per day, and the month's totals; click a day for its tasks and releases. |
-| **Payouts** | Import DataAnnotation work logs and see available, pending and upcoming releases, when the last import was, and a daily reconciliation grouped by month. **Project mappings** lists which task each project goes to; moving a project moves its past imported days too. |
-| **Settings** | Appearance, funds-release delay, idle detection and the long-run reminder, daily goal, backups, data export/import/reset, privacy. |
+| **Payouts** | Import DataAnnotation work logs and see available, pending and upcoming releases, when the last import was, and a daily reconciliation grouped by month. An import's notice has **Undo**, which puts the ledger and the days it rewrote back as they were (refused once one of those days has changed). **Project mappings** lists which task each project goes to; moving a project moves its past imported days too. |
+| **Settings** | Appearance, payouts (funds-release delay, days between withdrawals), idle detection and the long-run reminder, daily goal, backups (and restoring one), data export/import/exact restore/reset, privacy. |
 
 The **system tray** (menu-bar item on macOS) shows the running or paused
 timer and can pause, resume or stop it, start a task's timer, or open the app.
@@ -60,8 +60,8 @@ TaskMint stores everything locally. Nothing is synced anywhere.
 |---|---|
 | Sessions and timer instances | `sessions.json` in the app data dir, owned by the Rust backend |
 | Imported work logs and project→task mappings | `worklogs.json` in the app data dir, owned by the Rust backend |
-| Tasks, notes, note templates, the daily goal and its history | `appdata.json` in the app data dir, owned by the Rust backend (see below for data from older versions) |
-| Settings and UI preferences | The webview's `localStorage` |
+| Tasks, notes, note templates, the daily goal and its history, withdrawals, and the payout settings (funds-release days, days between withdrawals) | `appdata.json` in the app data dir, owned by the Rust backend (see below for data from older versions) |
+| Other settings and UI preferences (appearance, notifications, idle and reminders, backups) | The webview's `localStorage` |
 
 App data dir on macOS: `~/Library/Application Support/com.taskmint.desktop/`.
 Before 2.1 the app identifier was `com.taskmint.app`: the first launch of a
@@ -78,14 +78,24 @@ moves any it finds into `appdata.json`: list items are added by id, nothing
 already in the file is replaced, a copy of what was moved is saved as
 `appdata.json.bak-<time>`, and the `localStorage` copies are then removed.
 Development builds (`pnpm tauri dev`) skip this: their webview storage is
-separate from the installed app's, but the data folder is shared.
+separate from the installed app's, but the data folder is shared. The payout
+settings used to be device settings: an installed build in local mode, and
+the web app, move this device's values into the `accountSettings` record
+once, unless it's set already, and then remove them from `localStorage`.
 
 **Backups.** Settings → Data Management exports everything above to one JSON
-file (format v2) and imports it back. Import adds what isn't already present
-(existing data wins), then the app reloads. Settings → Automatic Backups writes
-the same file to a folder daily, weekly or monthly, keeping the newest N. They
-start on (weekly, into `Documents/TaskMint Backups`; macOS asks once for access
-to Documents) unless you've saved a backup setting before.
+file (format v3, with a copy of this device's own settings) and imports it
+back. **Import Data** adds what isn't already present (existing data wins) and
+leaves this device's settings alone. **Restore Exactly** asks first, then
+replaces everything with the file's, this device's settings included, in one
+change (the backend keeps its `.bak` copies, or its server snapshots, first);
+a section an older file doesn't have (work logs in v1, withdrawals and payout
+settings before v3) is left as it is. The app reloads after either. Settings →
+Automatic Backups writes the same file to a folder daily, weekly or monthly,
+keeping the newest N, and lists the backups in that folder with **Restore
+exactly** and **Merge** for each. They start on (weekly, into
+`Documents/TaskMint Backups`; macOS asks once for access to Documents) unless
+you've saved a backup setting before.
 
 **Reset.** Settings → Data Management → Reset All Data wipes all three data
 files, their `.bak` copies and `localStorage`.

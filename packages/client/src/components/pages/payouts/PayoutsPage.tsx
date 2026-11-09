@@ -20,6 +20,8 @@ import { getBackend } from '../../../backend';
 import { useSessionManagementContext } from '../../../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../../../contexts/TaskManagementContext';
 import { useWorkLogContext } from '../../../contexts/WorkLogContext';
+import { useNotification } from '../../../contexts/NotificationContext';
+import { describeImport } from '../../../hooks/useWorkLogs';
 import { Task } from '../../../types/task';
 import { WorkLogImportPayload } from '../../../types/workLog';
 import { centsToDollars, formatCents } from '../../../utils/payoutCalculator';
@@ -40,6 +42,7 @@ export function PayoutsPage() {
   const { sessions } = useSessionManagementContext();
   const { tasks, addTask } = useTaskManagementContext();
   const workLogs = useWorkLogContext();
+  const { showSuccess } = useNotification();
   const { fundsReleaseDays, today, schedule, summary, monthGroups, plan, lastImport, importIsStale, isEmpty } =
     usePayoutData();
   const [importOpen, setImportOpen] = useState(false);
@@ -62,9 +65,18 @@ export function PayoutsPage() {
   };
 
   // A successful apply of a staged browser capture also retires the banner.
+  // Its notice can undo it, as a delete's can.
   const handleApplyImport = async (payload: WorkLogImportPayload) => {
     const summary = await workLogs.applyImport(payload);
-    if (summary) workLogs.clearStagedCapture();
+    if (summary) {
+      workLogs.clearStagedCapture();
+      showSuccess(describeImport(summary), {
+        category: 'workLog',
+        title: 'Work logs imported',
+        desktop: 'never',
+        actions: [{ label: 'Undo', onClick: () => void workLogs.undoImport(summary.undo) }],
+      });
+    }
     return summary;
   };
 

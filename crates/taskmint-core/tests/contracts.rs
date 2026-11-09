@@ -21,6 +21,7 @@ use taskmint_core::sessions::instances::TimerInstanceUpdates;
 use taskmint_core::sessions::start::StartTaskResult;
 use taskmint_core::worklogs::{
     AppliedGroup, RewriteGroup, SkippedGroup, WorkLogImportPayload, WorkLogImportSummary,
+    WorkLogImportUndo,
 };
 use ts_rs::{Config, TS};
 
@@ -72,10 +73,12 @@ fn export_types(cfg: &Config) {
         PauseTimerAtArgs,
         ApplyIdleChoiceArgs,
         ApplyWorkLogImportArgs,
+        UndoWorkLogImportArgs,
         AcceptCaptureArgs,
         RestoreBackupDataArgs,
         TimerInstanceUpdates,
         WorkLogImportPayload,
+        WorkLogImportUndo,
         RewriteGroup,
         AppliedGroup,
         SkippedGroup,

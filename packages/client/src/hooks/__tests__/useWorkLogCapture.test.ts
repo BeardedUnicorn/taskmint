@@ -12,7 +12,7 @@ import { useWorkLogCapture, UseWorkLogCaptureDeps, WORK_LOG_CAPTURED_EVENT } fro
 import { BACKEND_EVENTS } from '../../constants/events';
 import { deriveTimedWorkDay } from '../../utils/workLogImport';
 import { CaptureSource, PendingWorkLogCapture, WorkLogImportSummary } from '../../types/workLog';
-import { createMockTask } from '../../__tests__/setup/session-test-utils';
+import { createEmptyImportUndo, createMockTask } from '../../__tests__/setup/session-test-utils';
 
 import { fakeBackend } from '../../testing';
 const mockInvoke = fakeBackend().call;
@@ -58,6 +58,7 @@ const appliedSummary: WorkLogImportSummary = {
   mappingsSaved: 1,
   groupsApplied: [{ taskId: 'task-1', workDay: WORK_DAY, deletedInstances: 0, sessionId: 'session_x' }],
   groupsSkipped: [],
+  undo: createEmptyImportUndo(),
 };
 
 // Command-keyed queues for take_pending_work_log_capture; unprimed → null.
@@ -68,6 +69,7 @@ function makeDeps(overrides: Partial<UseWorkLogCaptureDeps> = {}): UseWorkLogCap
     entries: [],
     mappings: [],
     applyImport: vi.fn(async () => appliedSummary),
+    undoImport: vi.fn(async () => true),
     sessions: [],
     tasks: [createMockTask({ id: 'task-1', name: 'Raccoon - SWE', hourlyRate: 50 })],
     stagedCapture: null,
@@ -122,11 +124,19 @@ describe('useWorkLogCapture', () => {
         severity: 'success',
         title: 'Work logs imported',
         message: '1 new, 0 updated, 1 day rewritten.',
-        actions: [{ label: 'View in Payouts', view: 'payouts' }],
+        actions: [
+          { label: 'View in Payouts', view: 'payouts' },
+          { label: 'Undo', onClick: expect.any(Function) },
+        ],
       })
     );
     expect(deps.stageCapture).not.toHaveBeenCalled();
     expect(notified('error')).toHaveLength(0);
+
+    // Its Undo puts back what the import changed, as a delete's does
+    const [, undo] = mockNotify.mock.calls[0][0].actions;
+    undo.onClick();
+    expect(deps.undoImport).toHaveBeenCalledWith(appliedSummary.undo);
   });
 
   it("never changes a task's rate, even when the site's pay implies another", async () => {

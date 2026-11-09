@@ -42,6 +42,7 @@ export function WorkLogProvider({ children }: { children: ReactNode }) {
     entries: workLogs.entries,
     mappings: workLogs.mappings,
     applyImport: workLogs.applyImport,
+    undoImport: workLogs.undoImport,
     sessions,
     tasks,
     stagedCapture,

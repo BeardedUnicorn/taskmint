@@ -27,6 +27,8 @@ describe('createFakeBackend', () => {
     await expect(
       backend.platform.folderBackups.write({ folder: '/b', contents: '{}', maxBackups: 3 })
     ).resolves.toMatchObject({ success: true });
+    await expect(backend.platform.folderBackups.list('/b')).resolves.toEqual([]);
+    await expect(backend.platform.folderBackups.read('/b', 'backup.json')).resolves.toBe('{}');
     await expect(backend.platform.tray.setWithdrawalLabel('Withdrawal open')).resolves.toBeUndefined();
     await expect(backend.platform.reveal('/b/file')).resolves.toBeUndefined();
     await expect(backend.platform.captureStatus()).resolves.toEqual({ running: true, port: 43117, warning: null });

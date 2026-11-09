@@ -673,7 +673,7 @@ Each phase merges into local `main` (`git merge --no-ff`) with `verify.sh` green
 
 - **Production hosting:** TLS, a domain, and pg_dump scheduling (documented `docker compose exec db pg_dump` only).
 - **Sync and scale:** offline sync; `LISTEN/NOTIFY` for more than one server instance (SSE fan-out is in-process).
-- **Settings:** an `accountSettings` record for data-affecting settings.
+- **Settings:** an `accountSettings` record for data-affecting settings. (Done after the plan: funds-release days and the withdrawal interval, migration 0004.)
 - **Web parity:** idle detection and the long-run reminder.
 - **Email:** email-based flows.
 - **Lint:** ESLint/Prettier.

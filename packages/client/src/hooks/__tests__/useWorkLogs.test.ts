@@ -5,9 +5,13 @@
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useWorkLogs } from '../useWorkLogs';
+import { describeImport, useWorkLogs } from '../useWorkLogs';
 import { WorkLogImportPayload, WorkLogImportSummary } from '../../types/workLog';
-import { createMockProjectTaskMapping, createMockWorkLogEntry } from '../../__tests__/setup/session-test-utils';
+import {
+  createEmptyImportUndo,
+  createMockProjectTaskMapping,
+  createMockWorkLogEntry,
+} from '../../__tests__/setup/session-test-utils';
 import { fakeBackend } from '../../testing';
 import { BACKEND_EVENTS } from '../../constants/events';
 
@@ -15,11 +19,12 @@ const mockInvoke = fakeBackend().call;
 
 const mockShowError = vi.fn();
 const mockShowWarning = vi.fn();
+const mockShowSuccess = vi.fn();
 vi.mock('../../contexts/NotificationContext', () => ({
   useNotification: () => ({
     showError: mockShowError,
     showWarning: mockShowWarning,
-    showSuccess: vi.fn(),
+    showSuccess: mockShowSuccess,
   }),
 }));
 
@@ -31,6 +36,7 @@ const emptySummary: WorkLogImportSummary = {
   mappingsSaved: 0,
   groupsApplied: [],
   groupsSkipped: [],
+  undo: createEmptyImportUndo(),
 };
 
 const emptyPayload: WorkLogImportPayload = {
@@ -169,5 +175,39 @@ describe('useWorkLogs', () => {
     expect(returned).toBeNull();
     expect(result.current.error).toBe('replacement session id already exists');
     expect(mockShowError).toHaveBeenCalledWith('replacement session id already exists');
+  });
+
+  it('undoes an import, and says why when it no longer can', async () => {
+    const undo = { ...createEmptyImportUndo(), entriesAfter: [createMockWorkLogEntry()] };
+    const refused = "This import can't be undone: some of the days it changed have changed since.";
+    mockInvoke.mockImplementation(async (command: string) => {
+      if (command === 'get_work_logs') return emptyResponse;
+      if (command === 'undo_work_log_import') return null;
+      return undefined;
+    });
+    const { result } = renderHook(() => useWorkLogs());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockInvoke.mockClear();
+
+    await act(async () => {
+      await expect(result.current.undoImport(undo)).resolves.toBe(true);
+    });
+    expect(mockInvoke).toHaveBeenCalledWith('undo_work_log_import', { undo });
+    expect(mockInvoke).toHaveBeenCalledWith('get_work_logs');
+    expect(mockShowSuccess).toHaveBeenCalledWith('Import undone', { category: 'workLog', desktop: 'never' });
+
+    mockInvoke.mockRejectedValueOnce(refused);
+    await act(async () => {
+      await expect(result.current.undoImport(undo)).resolves.toBe(false);
+    });
+    expect(mockShowError).toHaveBeenCalledWith(refused, { category: 'workLog', desktop: 'never' });
+  });
+
+  it('describes what an import did', () => {
+    expect(describeImport({ ...emptySummary, entriesAdded: 2, entriesUpdated: 1 })).toBe(
+      '2 new, 1 updated, 0 days rewritten.'
+    );
+    const applied = { taskId: 't', workDay: '2026-11-01', deletedInstances: 1, sessionId: 's' };
+    expect(describeImport({ ...emptySummary, groupsApplied: [applied] })).toBe('0 new, 0 updated, 1 day rewritten.');
   });
 });

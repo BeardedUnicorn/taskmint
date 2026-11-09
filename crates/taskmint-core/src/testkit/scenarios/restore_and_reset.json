@@ -144,6 +144,58 @@
       "reply": [{ "id": "s_a" }, { "id": "s_b", "taskName": "B, renamed" }]
     },
     {
+      "call": "restore_backup_data",
+      "args": { "payload": { "mode": "merge", "records": { "dailyGoal": null } } },
+      "error": "Records are restored this way only when replacing"
+    },
+    {
+      "call": "restore_backup_data",
+      "args": {
+        "payload": {
+          "mode": "replace",
+          "sessions": [
+            { "id": "s_c", "taskId": "t3", "taskName": "C", "timerInstances": [], "notes": null }
+          ],
+          "records": {
+            "predefinedTasks": [
+              {
+                "id": "t3",
+                "name": "Copy editing",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "dailyGoal": null,
+            "accountSettings": { "fundsReleaseDays": 5, "withdrawalIntervalDays": 3 },
+            "theme-mode": "dark"
+          }
+        }
+      },
+      "reply": { "sessionsRestored": 1, "appRecordsRestored": 3, "recordsSkipped": 0 },
+      "events": [
+        "app-records-changed",
+        "app-records-changed",
+        "app-records-changed",
+        "sessions-changed"
+      ]
+    },
+    {
+      "reload": true,
+      "call": "get_app_records",
+      "reply": {
+        "records": {
+          "predefinedTasks": [{ "id": "t3", "name": "Copy editing" }],
+          "accountSettings": { "fundsReleaseDays": 5, "withdrawalIntervalDays": 3 },
+          "dailyGoal": "$absent",
+          "theme-mode": "$absent"
+        }
+      }
+    },
+    {
+      "call": "get_sessions",
+      "reply": [{ "id": "s_c", "taskName": "Copy editing" }]
+    },
+    {
       "call": "accept_capture",
       "args": { "payload": "{\"workLogs\": []}", "source": "extension" },
       "events": ["work-log-payload-captured"]

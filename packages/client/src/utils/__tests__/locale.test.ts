@@ -11,6 +11,7 @@ import {
   setFormattingLocale,
 } from '../locale';
 import { formatCurrency } from '../formatters';
+import { formatFileSize } from '../locale';
 
 const AT = new Date(2026, 9, 14, 14, 43);
 
@@ -39,5 +40,11 @@ describe('formatting locale', () => {
   it('takes ISO strings and timestamps too', () => {
     expect(formatShortDate(AT.toISOString())).toBe('Oct 14');
     expect(formatShortDate(AT.getTime())).toBe('Oct 14');
+  });
+});
+
+describe('file sizes', () => {
+  it('read in bytes, kilobytes or megabytes', () => {
+    expect([512, 839_680, 1_468_006].map(formatFileSize)).toEqual(['512 B', '820 KB', '1.4 MB']);
   });
 });

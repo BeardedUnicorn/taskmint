@@ -1,16 +1,9 @@
-import { z } from 'zod';
-import { STORAGE_KEYS } from '../constants';
-import { useLocalSetting } from './useLocalSetting';
+import { updateAccountSettings, useAccountSettings } from './useAccountSettings';
 
-const DEFAULT_FUNDS_RELEASE_DAYS = 7;
-const FundsReleaseDaysSchema = z.number().int().min(0);
+const updateDays = (days: number) => updateAccountSettings({ fundsReleaseDays: days });
 
-/** How many days after a work day its earnings are released (a device setting). */
+/** How many days after a work day its earnings are released (an account setting). */
 export function useFundsReleaseSettings() {
-  const [days, updateDays] = useLocalSetting(
-    STORAGE_KEYS.FUNDS_RELEASE_DAYS,
-    DEFAULT_FUNDS_RELEASE_DAYS,
-    FundsReleaseDaysSchema
-  );
-  return { days, updateDays };
+  const [settings] = useAccountSettings();
+  return { days: settings.fundsReleaseDays, updateDays };
 }

@@ -1,20 +1,13 @@
-import { z } from 'zod';
-import { STORAGE_KEYS } from '../constants';
-import { useLocalSetting } from './useLocalSetting';
+import { updateAccountSettings, useAccountSettings } from './useAccountSettings';
 
-export const DEFAULT_WITHDRAWAL_INTERVAL_DAYS = 3;
-const WithdrawalIntervalDaysSchema = z.number().int().min(0);
+const updateDays = (days: number) => updateAccountSettings({ withdrawalIntervalDays: days });
 
 /**
- * How many days the payment site makes you wait between withdrawals (a
- * device setting); the wait is counted to the minute, days × 24 hours from
+ * How many days the payment site makes you wait between withdrawals (an
+ * account setting); the wait is counted to the minute, days × 24 hours from
  * the last withdrawal.
  */
 export function useWithdrawalIntervalSetting() {
-  const [days, updateDays] = useLocalSetting(
-    STORAGE_KEYS.WITHDRAWAL_INTERVAL_DAYS,
-    DEFAULT_WITHDRAWAL_INTERVAL_DAYS,
-    WithdrawalIntervalDaysSchema
-  );
-  return { days, updateDays };
+  const [settings] = useAccountSettings();
+  return { days: settings.withdrawalIntervalDays, updateDays };
 }

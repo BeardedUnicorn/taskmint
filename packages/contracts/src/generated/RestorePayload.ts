@@ -11,4 +11,10 @@ export type RestorePayload = { mode: RestoreMode, sessions?: JsonValue, workLogE
  * The export's own timestamp; timers that were live when it was taken
  * are finalized at this moment (see finalize_time).
  */
-exportedAt?: string | null, };
+exportedAt?: string | null, 
+/**
+ * Replace mode only: the frontend's records (validated by it) to put in
+ * place of the stored ones. Each key listed replaces its record, a null
+ * removes it, and a record not listed stays (the file didn't have it).
+ */
+records?: { [key in string]: JsonValue } | null, };

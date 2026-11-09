@@ -4,4 +4,8 @@ export type RestoreSummary = { sessionsRestored: number, sessionsAlreadyPresent:
 /**
  * Records in the file that could not be read and were skipped.
  */
-recordsSkipped: number, };
+recordsSkipped: number, 
+/**
+ * The frontend's records put in place (an exact restore).
+ */
+appRecordsRestored: number, };

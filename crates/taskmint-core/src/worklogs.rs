@@ -11,9 +11,10 @@
 use crate::contract::{MAX_TIMER_INSTANCES_PER_SESSION, WORKLOG_IMPORT_SOURCE};
 use crate::model::{ProjectTaskMapping, Task, TaskSession, TimerInstance, WorkLogEntry};
 use crate::timer::recalculate_total_duration;
+use crate::workspace::Workspace;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// apply_work_log_import's payload: ledger rows and mappings to upsert, and
 /// the per-day rewrites they drive.
@@ -46,6 +47,193 @@ pub struct WorkLogImportSummary {
     pub mappings_saved: usize,
     pub groups_applied: Vec<AppliedGroup>,
     pub groups_skipped: Vec<SkippedGroup>,
+    /// What undo_work_log_import takes to put things back as they were.
+    pub undo: WorkLogImportUndo,
+}
+
+/// What an import changed, for undo_work_log_import: the sessions, ledger
+/// entries and project mappings it changed, added or removed, as they were
+/// before it and as it left them. Undo checks the "after" copies are still
+/// what's stored, so it never puts back days that changed since.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct WorkLogImportUndo {
+    /// Changed or removed by the import, as they were.
+    pub sessions_before: Vec<TaskSession>,
+    /// Changed or added by the import, as it left them.
+    pub sessions_after: Vec<TaskSession>,
+    pub entries_before: Vec<WorkLogEntry>,
+    pub entries_after: Vec<WorkLogEntry>,
+    pub mappings_before: Vec<ProjectTaskMapping>,
+    pub mappings_after: Vec<ProjectTaskMapping>,
+}
+
+/// Why an undo was refused: what it would put back has changed since.
+pub const ERR_IMPORT_CHANGED_SINCE: &str =
+    "This import can't be undone: some of the days it changed have changed since.";
+
+fn session_key(session: &TaskSession) -> &str {
+    &session.id
+}
+
+fn entry_key(entry: &WorkLogEntry) -> &str {
+    &entry.id
+}
+
+fn mapping_key(mapping: &ProjectTaskMapping) -> &str {
+    &mapping.project_id
+}
+
+/// The records that differ between `before` and `after`, by key: their
+/// versions in `before` (changed or removed) and in `after` (changed or
+/// added).
+fn differences<T: Clone + PartialEq>(
+    before: &[T],
+    after: &[T],
+    key: fn(&T) -> &str,
+) -> (Vec<T>, Vec<T>) {
+    let old: HashMap<&str, &T> = before.iter().map(|r| (key(r), r)).collect();
+    let new: HashMap<&str, &T> = after.iter().map(|r| (key(r), r)).collect();
+    let was = before
+        .iter()
+        .filter(|r| new.get(key(r)) != Some(r))
+        .cloned()
+        .collect();
+    let now = after
+        .iter()
+        .filter(|r| old.get(key(r)) != Some(r))
+        .cloned()
+        .collect();
+    (was, now)
+}
+
+/// Whether `store` still holds what an import left: each of `after`'s
+/// records as it is there, and none of the ones it removed (in `before`
+/// only).
+fn unchanged_since<T: PartialEq>(
+    store: &[T],
+    before: &[T],
+    after: &[T],
+    key: fn(&T) -> &str,
+) -> bool {
+    let current: HashMap<&str, &T> = store.iter().map(|r| (key(r), r)).collect();
+    let left: HashSet<&str> = after.iter().map(key).collect();
+    after.iter().all(|r| current.get(key(r)) == Some(&r))
+        && before
+            .iter()
+            .filter(|r| !left.contains(key(r)))
+            .all(|r| !current.contains_key(key(r)))
+}
+
+/// Puts `before` back in place of `after` in `store`: a record the import
+/// changed goes back to how it was, one it added goes, and one it removed
+/// comes back at the end.
+fn put_back<T>(store: &mut Vec<T>, before: Vec<T>, after: &[T], key: fn(&T) -> &str) {
+    let changed: HashSet<String> = after.iter().map(|r| key(r).to_string()).collect();
+    let order: Vec<String> = before.iter().map(|r| key(r).to_string()).collect();
+    let mut earlier: HashMap<String, T> = before
+        .into_iter()
+        .map(|r| (key(&r).to_string(), r))
+        .collect();
+    let mut restored = Vec::with_capacity(store.len());
+    for record in std::mem::take(store) {
+        if !changed.contains(key(&record)) {
+            restored.push(record);
+        } else if let Some(previous) = earlier.remove(key(&record)) {
+            restored.push(previous);
+        }
+    }
+    restored.extend(order.iter().filter_map(|k| earlier.remove(k)));
+    *store = restored;
+}
+
+impl WorkLogImportUndo {
+    /// What an import changed: `before` is the data as it was, `after` as the
+    /// import left it.
+    pub fn between(before: &Workspace, after: &Workspace) -> Self {
+        let (sessions_before, sessions_after) =
+            differences(&before.sessions, &after.sessions, session_key);
+        let (entries_before, entries_after) =
+            differences(&before.work_log_entries, &after.work_log_entries, entry_key);
+        let (mappings_before, mappings_after) = differences(
+            &before.work_log_mappings,
+            &after.work_log_mappings,
+            mapping_key,
+        );
+        Self {
+            sessions_before,
+            sessions_after,
+            entries_before,
+            entries_after,
+            mappings_before,
+            mappings_after,
+        }
+    }
+
+    /// Whether the timers it would put back clash with another session's.
+    fn timers_clash(&self, sessions: &[TaskSession]) -> bool {
+        let touched: HashSet<&str> = self
+            .sessions_before
+            .iter()
+            .chain(&self.sessions_after)
+            .map(session_key)
+            .collect();
+        let elsewhere: HashSet<&str> = sessions
+            .iter()
+            .filter(|s| !touched.contains(s.id.as_str()))
+            .flat_map(|s| s.timer_instances.iter().map(|i| i.id.as_str()))
+            .collect();
+        self.sessions_before
+            .iter()
+            .flat_map(|s| &s.timer_instances)
+            .any(|i| elsewhere.contains(i.id.as_str()))
+    }
+}
+
+/// Undoes an import: the sessions, ledger entries and mappings it changed go
+/// back to how they were. Refused, with nothing changed, when any of them
+/// has changed since (a timer edited on one of its days, another import, a
+/// project moved to another task).
+pub fn undo_import(workspace: &mut Workspace, undo: WorkLogImportUndo) -> Result<(), String> {
+    let unchanged = unchanged_since(
+        &workspace.sessions,
+        &undo.sessions_before,
+        &undo.sessions_after,
+        session_key,
+    ) && unchanged_since(
+        &workspace.work_log_entries,
+        &undo.entries_before,
+        &undo.entries_after,
+        entry_key,
+    ) && unchanged_since(
+        &workspace.work_log_mappings,
+        &undo.mappings_before,
+        &undo.mappings_after,
+        mapping_key,
+    ) && !undo.timers_clash(&workspace.sessions);
+    if !unchanged {
+        return Err(ERR_IMPORT_CHANGED_SINCE.to_string());
+    }
+    put_back(
+        &mut workspace.sessions,
+        undo.sessions_before,
+        &undo.sessions_after,
+        session_key,
+    );
+    put_back(
+        &mut workspace.work_log_entries,
+        undo.entries_before,
+        &undo.entries_after,
+        entry_key,
+    );
+    put_back(
+        &mut workspace.work_log_mappings,
+        undo.mappings_before,
+        &undo.mappings_after,
+        mapping_key,
+    );
+    Ok(())
 }
 
 /// One (task, workDay) rewrite: delete the listed finalized instances and
@@ -1124,5 +1312,154 @@ mod tests {
         upsert_mappings(&mut mappings, vec![stamped], "T1");
         assert_eq!(mappings[0].created_at, "T0");
         assert_eq!(mappings[0].updated_at, "T1");
+    }
+
+    // ---- undo --------------------------------------------------------------
+
+    /// A day's tracked time, its ledger and a mapping, then that day
+    /// imported: the tracked timer replaced, an entry revised, one added,
+    /// and the mapping moved.
+    fn imported_day() -> (Workspace, Workspace) {
+        let before = Workspace {
+            sessions: vec![
+                session_with(
+                    "tracked",
+                    "task-1",
+                    vec![finalized_instance("t1", "tracked", 0, 60_000)],
+                ),
+                session_with(
+                    "other_day",
+                    "task-1",
+                    vec![finalized_instance("o1", "other_day", 9_000, 1_000)],
+                ),
+            ],
+            work_log_entries: vec![entry("kept"), entry("revised")],
+            work_log_mappings: vec![mapping("proj-1", "task-1"), mapping("proj-2", "task-1")],
+            ..Workspace::default()
+        };
+
+        let mut after = before.clone();
+        apply_rewrite_groups(
+            &mut after.sessions,
+            vec![group(
+                "task-1",
+                vec!["t1"],
+                replacement(
+                    "task-1",
+                    "2026-08-25",
+                    vec![repl_instance("r1", 100, 30_000)],
+                ),
+            )],
+            ts(500),
+        );
+        let mut revised = entry("revised");
+        revised.amount_cents = 1;
+        upsert_entries(
+            &mut after.work_log_entries,
+            vec![revised, entry("new")],
+            "T1",
+            false,
+        );
+        upsert_mappings(
+            &mut after.work_log_mappings,
+            vec![mapping("proj-2", "task-2")],
+            "T1",
+        );
+        (before, after)
+    }
+
+    fn ids<T>(records: &[T], key: fn(&T) -> &str) -> Vec<String> {
+        records.iter().map(|r| key(r).to_string()).collect()
+    }
+
+    #[test]
+    fn an_import_records_only_what_it_changed() {
+        let (before, after) = imported_day();
+        let undo = WorkLogImportUndo::between(&before, &after);
+
+        // The tracked session went, its replacement came
+        assert_eq!(ids(&undo.sessions_before, session_key), ["tracked"]);
+        assert_eq!(ids(&undo.sessions_after, session_key), ["session_repl"]);
+        assert_eq!(ids(&undo.entries_before, entry_key), ["revised"]);
+        assert_eq!(ids(&undo.entries_after, entry_key), ["revised", "new"]);
+        assert_eq!(ids(&undo.mappings_before, mapping_key), ["proj-2"]);
+        assert_eq!(ids(&undo.mappings_after, mapping_key), ["proj-2"]);
+        // Nothing changed: nothing to put back
+        assert_eq!(
+            WorkLogImportUndo::between(&before, &before),
+            WorkLogImportUndo::default()
+        );
+    }
+
+    #[test]
+    fn undoing_an_import_puts_everything_back_as_it_was() {
+        let (before, mut after) = imported_day();
+        let undo = WorkLogImportUndo::between(&before, &after);
+
+        undo_import(&mut after, undo).unwrap();
+
+        // The removed session comes back at the end
+        assert_eq!(ids(&after.sessions, session_key), ["other_day", "tracked"]);
+        assert_eq!(after.sessions[1], before.sessions[0]);
+        assert_eq!(after.work_log_entries, before.work_log_entries);
+        assert_eq!(after.work_log_mappings, before.work_log_mappings);
+    }
+
+    #[test]
+    fn a_changed_session_goes_back_in_its_place() {
+        let before = Workspace {
+            sessions: vec![
+                session_with(
+                    "mixed",
+                    "task-1",
+                    vec![
+                        finalized_instance("a", "mixed", 0, 1_000),
+                        finalized_instance("b", "mixed", 10, 1_000),
+                    ],
+                ),
+                session_with("last", "task-2", vec![]),
+            ],
+            ..Workspace::default()
+        };
+        let mut after = before.clone();
+        after.sessions[0].timer_instances.remove(0);
+
+        let undo = WorkLogImportUndo::between(&before, &after);
+        undo_import(&mut after, undo).unwrap();
+
+        assert_eq!(after.sessions, before.sessions);
+    }
+
+    #[test]
+    fn an_import_whose_days_changed_since_cannot_be_undone() {
+        let (before, after) = imported_day();
+        let undo = WorkLogImportUndo::between(&before, &after);
+
+        // A timer on the imported day was edited
+        let mut edited = after.clone();
+        edited.sessions[1].timer_instances[0].duration = Some(1);
+        // The day was imported again
+        let mut reimported = after.clone();
+        reimported.work_log_entries[2].status = "Paid".to_string();
+        // The project moved to another task
+        let mut remapped = after.clone();
+        remapped.work_log_mappings[1].task_id = "task-3".to_string();
+        // Something with the id of a removed session is there now
+        let mut returned = after.clone();
+        returned.sessions.push(before.sessions[0].clone());
+        // A timer the undo would put back is in another session now
+        let mut moved = after.clone();
+        moved.sessions[0]
+            .timer_instances
+            .push(finalized_instance("t1", "other_day", 0, 60_000));
+
+        for changed in [edited, reimported, remapped, returned, moved] {
+            let mut current = changed.clone();
+            assert_eq!(
+                undo_import(&mut current, undo.clone()).unwrap_err(),
+                ERR_IMPORT_CHANGED_SINCE
+            );
+            assert_eq!(current, changed);
+        }
     }
 }

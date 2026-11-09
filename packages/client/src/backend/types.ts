@@ -14,7 +14,7 @@
 import type { CommandArgs, CommandName, CommandReply, EventName } from '@taskmint/contracts';
 import type { DesktopKind } from '../notifications/types';
 import type { NotificationPreferences } from '../notifications/preferences';
-import type { BackupResult } from '../types/backup';
+import type { BackupFileInfo, BackupResult } from '../types/backup';
 import type { IdleChoice, IdlePause, InactivitySettings } from '../types/timer';
 import type { CaptureServerStatus } from '@taskmint/contracts';
 
@@ -61,6 +61,10 @@ export interface FolderBackupPlatform {
   validateFolder(path: string): Promise<{ isValid: boolean; error?: string }>;
   /** Writes a backup and keeps the newest `maxBackups`. */
   write(backup: { folder: string; contents: string; maxBackups: number }): Promise<BackupResult>;
+  /** The backups in `folder`, newest first, each checked to read as an export (none when it isn't there). */
+  list(folder: string): Promise<BackupFileInfo[]>;
+  /** One of them, by the name `list` gave, to restore from. */
+  read(folder: string, name: string): Promise<string>;
 }
 
 /** The system tray's menu (desktop). */

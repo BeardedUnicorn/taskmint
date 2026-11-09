@@ -187,6 +187,16 @@ describe('createTauriBackend', () => {
         ['perform_automatic_backup', { backupPath: '/Users/me/Backups', currentDataJson: '{}', maxBackups: 10 }],
       ]);
     });
+
+    it('list the backups in the folder and read one through Rust', async () => {
+      await folders.list('/Users/me/Backups');
+      await folders.read('/Users/me/Backups', 'time_tracker_backup_20261101_120000.json');
+
+      expect(dispatched()).toEqual([
+        ['list_backups', { folder: '/Users/me/Backups' }],
+        ['read_backup', { folder: '/Users/me/Backups', name: 'time_tracker_backup_20261101_120000.json' }],
+      ]);
+    });
   });
 
   it("sets and clears the tray's withdrawal line", async () => {

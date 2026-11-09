@@ -15,6 +15,7 @@ import App from './App';
 import './styles.css';
 import { initSentry } from './utils/sentry';
 import { loadAppRecords } from './services/appRecords';
+import { moveLocalAccountSettings } from './services/localAccountSettings';
 import { StartupError } from './components/StartupError';
 import { setBackend, type Backend } from './backend';
 import { AppExtensionsProvider, type AppExtensions } from './app/extensions';
@@ -56,6 +57,7 @@ export async function startClient(
   // every page can read them synchronously.
   try {
     await loadAppRecords({ importLegacy: importLegacyRecords });
+    await moveLocalAccountSettings();
   } catch (error) {
     console.error('Failed to load app records:', error);
     root.render(

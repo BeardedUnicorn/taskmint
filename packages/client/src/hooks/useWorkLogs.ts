@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { getBackend, useBackendEvent } from '../backend';
 import { BACKEND_EVENTS } from '../constants/events';
+import type { WorkLogImportUndo } from '@taskmint/contracts';
 import { ProjectTaskMapping, WorkLogEntry, WorkLogImportPayload, WorkLogImportSummary } from '../types/workLog';
 import { useNotification } from '../contexts/NotificationContext';
 import { errorMessage } from '../utils/errors';
@@ -27,6 +28,21 @@ export interface UseWorkLogsReturn {
   loadWarning: string | null;
   reload: () => Promise<void>;
   applyImport: (payload: WorkLogImportPayload) => Promise<WorkLogImportSummary | null>;
+  /**
+   * Undoes an import (its summary's `undo`): the ledger and the sessions go
+   * back as they were before it. Refused, with the reason shown, when the
+   * days it changed have changed since. Resolves to whether it was undone.
+   */
+  undoImport: (undo: WorkLogImportUndo) => Promise<boolean>;
+}
+
+/** What an import did, for its notice ("3 new, 1 updated, 2 days rewritten."). */
+export function describeImport(summary: WorkLogImportSummary): string {
+  const days = summary.groupsApplied.length;
+  return (
+    `${summary.entriesAdded} new, ${summary.entriesUpdated} updated, ` +
+    `${days} day${days === 1 ? '' : 's'} rewritten.`
+  );
 }
 
 export function useWorkLogs(): UseWorkLogsReturn {
@@ -36,7 +52,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
   const [error, setError] = useState<string | null>(null);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
 
-  const { showError, showWarning } = useNotification();
+  const { showError, showSuccess, showWarning } = useNotification();
 
   const reload = useCallback(async () => {
     setIsLoading(true);
@@ -72,6 +88,21 @@ export function useWorkLogs(): UseWorkLogsReturn {
     [reload, showError]
   );
 
+  const undoImport = useCallback(
+    async (undo: WorkLogImportUndo): Promise<boolean> => {
+      try {
+        await getBackend().call('undo_work_log_import', { undo });
+      } catch (err) {
+        showError(errorMessage(err, "Couldn't undo the import"), { category: 'workLog', desktop: 'never' });
+        return false;
+      }
+      showSuccess('Import undone', { category: 'workLog', desktop: 'never' });
+      await reload();
+      return true;
+    },
+    [reload, showError, showSuccess]
+  );
+
   // Changed elsewhere (or this tab's own import, already shown): read it again
   useBackendEvent([BACKEND_EVENTS.WORK_LOGS_IMPORTED, BACKEND_EVENTS.RESYNC], () => {
     getBackend()
@@ -103,7 +134,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
   }, [loadWarning, showWarning]);
 
   return useMemo(
-    () => ({ entries, mappings, isLoading, error, loadWarning, reload, applyImport }),
-    [entries, mappings, isLoading, error, loadWarning, reload, applyImport]
+    () => ({ entries, mappings, isLoading, error, loadWarning, reload, applyImport, undoImport }),
+    [entries, mappings, isLoading, error, loadWarning, reload, applyImport, undoImport]
   );
 }

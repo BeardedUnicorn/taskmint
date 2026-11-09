@@ -79,6 +79,8 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
       pickFolder: vi.fn(async () => null),
       validateFolder: vi.fn(async () => ({ isValid: true })),
       write: vi.fn(async () => ({ success: true, timestamp: new Date().toISOString() })),
+      list: vi.fn(async () => []),
+      read: vi.fn(async () => '{}'),
     },
     tray: {
       setWithdrawalLabel: vi.fn(async () => undefined),

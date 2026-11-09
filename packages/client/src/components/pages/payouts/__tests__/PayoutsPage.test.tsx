@@ -15,6 +15,7 @@ import { TaskSession, TimerState } from '../../../../types/timer';
 import { WorkLogContextValue } from '../../../../contexts/WorkLogContext';
 import { formatDateString } from '../../../../utils/dateHelpers';
 import {
+  createEmptyImportUndo,
   createMockProjectTaskMapping,
   createMockTask,
   createMockWorkLogEntry,
@@ -109,6 +110,7 @@ describe('PayoutsPage', () => {
       loadWarning: null,
       reload: vi.fn(),
       applyImport: vi.fn(),
+      undoImport: vi.fn(),
       stagedCapture: null,
       stageCapture: vi.fn(),
       clearStagedCapture: vi.fn(),
@@ -489,6 +491,7 @@ describe('PayoutsPage', () => {
         mappingsSaved: 1,
         groupsApplied: [],
         groupsSkipped: [],
+        undo: createEmptyImportUndo(),
       });
 
       renderPage();
@@ -528,7 +531,14 @@ describe('PayoutsPage', () => {
         },
       ],
     });
-    const summary = { entriesAdded: 1, entriesUpdated: 0, mappingsSaved: 1, groupsApplied: [], groupsSkipped: [] };
+    const summary = {
+      entriesAdded: 1,
+      entriesUpdated: 0,
+      mappingsSaved: 1,
+      groupsApplied: [],
+      groupsSkipped: [],
+      undo: createEmptyImportUndo(),
+    };
     const openImport = async () => {
       fireEvent.click(screen.getAllByRole('button', { name: /import work logs/i }).at(-1)!);
       const dialog = await screen.findByRole('dialog');
@@ -617,6 +627,13 @@ describe('PayoutsPage', () => {
       await waitFor(() => expect(mockWorkLogsReturn.clearStagedCapture).toHaveBeenCalled());
       // The site paid $75/hr for this day; the task keeps the $125 you set
       expect(mockUpdateTask).not.toHaveBeenCalled();
+
+      // The import's notice can undo it, as a delete's can
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      const notice = await screen.findByText('1 new, 0 updated, 0 days rewritten.');
+      fireEvent.click(within(notice.closest('[role="status"]') as HTMLElement).getByRole('button', { name: 'Undo' }));
+      await waitFor(() => expect(mockWorkLogsReturn.undoImport).toHaveBeenCalledWith(summary.undo));
     });
   });
 });

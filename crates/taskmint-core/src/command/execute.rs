@@ -16,10 +16,10 @@ use crate::contract::{ERR_RECORD_CONFLICT, ERR_UNEXPECTED_PAYLOAD_SHAPE, TASKS_R
 use crate::idle::{apply_idle_choice, pause_for_idle, IdleChoice};
 use crate::load::{parse_project_mappings, parse_work_log_entries};
 use crate::model::{PendingCapture, Task, TimerTask};
-use crate::records::{is_app_record_key, merge_imported_records, RecordMap};
+use crate::records::{is_app_record_key, merge_imported_records, replace_records, RecordMap};
 use crate::restore::{
     finalize_time, parse_section, parse_sessions_section, restore_project_mappings,
-    restore_sessions, restore_work_log_entries, RestoreSummary,
+    restore_sessions, restore_work_log_entries, RestoreMode, RestoreSummary,
 };
 use crate::sessions::instances;
 use crate::sessions::lifecycle::{clear_notes, move_instance_to_task, set_active_session};
@@ -30,7 +30,8 @@ use crate::sessions::start::{
 use crate::sessions::task_links::task_rate;
 use crate::sessions::undo::{remove_session, restore_instance_into, restore_session_into};
 use crate::worklogs::{
-    apply_rewrite_groups, upsert_entries, upsert_mappings, WorkLogImportSummary,
+    apply_rewrite_groups, undo_import, upsert_entries, upsert_mappings, WorkLogImportSummary,
+    WorkLogImportUndo,
 };
 use crate::workspace::{Parts, TaskLinks, Workspace};
 use chrono::{DateTime, Utc};
@@ -412,6 +413,13 @@ pub fn execute(
         Command::ApplyWorkLogImport(args) => {
             let payload = args.payload;
             let now_iso = now.to_rfc3339();
+            // What Undo puts back
+            let before = Workspace {
+                sessions: workspace.sessions.clone(),
+                work_log_entries: workspace.work_log_entries.clone(),
+                work_log_mappings: workspace.work_log_mappings.clone(),
+                ..Workspace::default()
+            };
             let (entries_added, entries_updated) = upsert_entries(
                 &mut workspace.work_log_entries,
                 payload.entries,
@@ -447,8 +455,22 @@ pub fn execute(
                 mappings_saved,
                 groups_applied,
                 groups_skipped,
+                undo: WorkLogImportUndo::between(&before, workspace),
             });
             done
+        }
+        Command::UndoWorkLogImport(args) => {
+            undo_import(workspace, args.undo)?;
+            // The import's result goes. It can be imported again, so a copy
+            // that can't be written doesn't stop the undo.
+            Executed::new((), Parts::SESSIONS | Parts::WORK_LOGS)
+                .backup(Backup::Saved {
+                    parts: Parts::SESSIONS | Parts::WORK_LOGS,
+                    failure: "Failed to back up before undoing the import",
+                    required: false,
+                })
+                .event(Event::new(SESSIONS_CHANGED, ()))
+                .event(ledger_changed(0))
         }
         Command::AcceptCapture(args) => {
             if !payload_shape_ok(&args.payload) {
@@ -486,13 +508,27 @@ pub fn execute(
     })
 }
 
-/// Restores an export's sessions and work logs. The frontend restores its
-/// own records and reloads afterwards.
+/// Restores an export's sessions and work logs, and in an exact restore
+/// (replace mode) the frontend's records with them, in one change. A merge
+/// leaves the records to the frontend, which merges them item by item. The
+/// frontend reloads afterwards.
 fn restore(
     payload: crate::restore::RestorePayload,
     workspace: &mut Workspace,
     now: DateTime<Utc>,
 ) -> Result<Executed, CoreError> {
+    let records = match payload.records {
+        Some(_) if payload.mode == RestoreMode::Merge => {
+            return Err(CoreError::InvalidArgs(
+                "Records are restored this way only when replacing".to_string(),
+            ))
+        }
+        Some(records) => {
+            records_readable(workspace)?;
+            Some(records)
+        }
+        None => None,
+    };
     let finalize_at = finalize_time(payload.exported_at.as_deref(), now);
     // Everything is read before anything changes: a malformed section
     // refuses the restore.
@@ -524,12 +560,26 @@ fn restore(
             restore_project_mappings(&mut workspace.work_log_mappings, mappings, payload.mode);
         dirty |= Parts::WORK_LOGS;
     }
+    let mut copied = Parts::SESSIONS | Parts::WORK_LOGS;
+    let mut record_events = Vec::new();
+    if let Some(records) = records {
+        copied |= Parts::RECORDS;
+        dirty |= Parts::RECORDS;
+        for key in replace_records(&mut workspace.records, records) {
+            let revision = workspace.bump_revision(&key);
+            record_events.push(record_changed(&key, revision));
+            summary.app_records_restored += 1;
+        }
+        // The sessions and the ledger follow the restored task list
+        dirty |= workspace.sync_task_links().dirty;
+    }
     // Never without a copy of what's being replaced.
     let mut done = Executed::new(summary, dirty).backup(Backup::Saved {
-        parts: Parts::SESSIONS | Parts::WORK_LOGS,
+        parts: copied,
         failure: "Restore cancelled",
         required: true,
     });
+    done.events = record_events;
     // Every view of what was restored reads it again
     if dirty.contains(Parts::SESSIONS) {
         done = done.event(Event::new(SESSIONS_CHANGED, ()));

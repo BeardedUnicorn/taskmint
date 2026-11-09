@@ -16,17 +16,19 @@ import {
 import {
   Download as DownloadIcon,
   Upload as UploadIcon,
+  Restore as RestoreIcon,
   Storage as DataIcon,
   DeleteForever as ResetIcon,
 } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
+import { RestoreBackupDialog } from './RestoreBackupDialog';
+import { useImportOutcome } from './useImportOutcome';
 import { useDataBackup } from '../../../hooks/useDataBackup';
 import { useResetAppData } from '../../../hooks/useResetAppData';
-import { reloadApp } from '../../../utils/appReload';
-import { flushAppRecords } from '../../../services/appRecords';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { errorMessage } from '../../../utils/errors';
 import { revealAction } from '../../../utils/reveal';
+import type { BackupFile } from '../../../hooks/useDataBackup';
 
 // Typed confirmation guarding the full app-data reset.
 export const RESET_CONFIRMATION_WORD = 'RESET';
@@ -35,8 +37,10 @@ export function DataManagementSection() {
   const { notify, showError } = useNotification();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
+  // A backup file chosen for an exact restore, waiting to be confirmed
+  const [toRestore, setToRestore] = useState<BackupFile | null>(null);
 
-  const { exportData, importData, isExporting, isImporting } = useDataBackup({
+  const { exportData, importData, chooseBackupFile, restoreBackup, isExporting, isImporting } = useDataBackup({
     onExportSuccess: (path?: string) => {
       notify({
         severity: 'success',
@@ -48,16 +52,7 @@ export function DataManagementSection() {
     onExportError: (error: unknown) => {
       showError(errorMessage(error, "Couldn't export your data"));
     },
-    onImportSuccess: () => {
-      notify({ severity: 'success', category: 'settings', message: 'Data imported. Reloading…', history: false });
-      // Every provider (tasks, sessions, work logs, notes) re-reads the
-      // restored stores, same as after a reset, once pending record writes
-      // have landed.
-      void flushAppRecords().finally(reloadApp);
-    },
-    onImportError: (error: unknown) => {
-      showError(errorMessage(error, "Couldn't import that file"));
-    },
+    ...useImportOutcome(),
   });
 
   const { resetAllData, isResetting } = useResetAppData({
@@ -66,9 +61,15 @@ export function DataManagementSection() {
     },
   });
 
-  // Both report how they went through the callbacks above
+  // Each reports how it went through the callbacks above
   const handleExportData = () => void exportData();
-  const handleImportData = () => void importData('merge');
+  const handleImportData = () => void importData();
+  const handleChooseRestore = async () => setToRestore(await chooseBackupFile());
+  // On success the app reloads; on failure the dialog closes
+  const handleConfirmRestore = async (backup: BackupFile) => {
+    await restoreBackup(backup, 'replace');
+    setToRestore(null);
+  };
 
   const closeResetDialog = () => {
     if (isResetting) return;
@@ -110,12 +111,23 @@ export function DataManagementSection() {
         >
           {isImporting ? 'Importing...' : 'Import Data'}
         </Button>
+
+        <Button
+          variant="outlined"
+          startIcon={<RestoreIcon />}
+          onClick={() => void handleChooseRestore()}
+          disabled={isImporting}
+          sx={{ minWidth: 150 }}
+        >
+          Restore Exactly
+        </Button>
       </Stack>
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        Export saves your tasks, sessions and tracked time, imported work logs, withdrawals, notes, note templates and
-        goals to a JSON file. Import adds anything from an export file that isn&apos;t already here, keeping what you
-        have; the app reloads afterwards.
+        Export saves your tasks, sessions and tracked time, imported work logs, withdrawals, notes, note templates,
+        goals and payout settings to a JSON file, with this device&apos;s settings. Import adds anything from an export
+        file that isn&apos;t already here, keeping what you have. Restore Exactly replaces everything here with the
+        file&apos;s, this device&apos;s settings included. The app reloads afterwards.
       </Typography>
 
       <Divider sx={{ my: 3 }} />
@@ -138,6 +150,15 @@ export function DataManagementSection() {
       >
         {isResetting ? 'Resetting...' : 'Reset All Data'}
       </Button>
+
+      {toRestore && (
+        <RestoreBackupDialog
+          backup={toRestore}
+          restoring={isImporting}
+          onCancel={() => setToRestore(null)}
+          onConfirm={() => void handleConfirmRestore(toRestore)}
+        />
+      )}
 
       <Dialog open={resetDialogOpen} onClose={closeResetDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Reset All App Data?</DialogTitle>
