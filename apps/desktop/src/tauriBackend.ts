@@ -9,7 +9,8 @@
  * On a phone or tablet (runtime 'mobile') the platform is the files and
  * notifications only: there's no system idle time, tray, folder to back up
  * to, file manager or browser extension, so the client leaves those features
- * out, as it does in a browser.
+ * out, as it does in a browser. On Android it also has the status bar, which
+ * MainActivity.kt hands the webview directly, outside dispatch.
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -101,6 +102,19 @@ const desktopOnly: Omit<Platform, 'files' | 'notifications'> = {
   captureStatus: () => command('get_capture_server_status'),
 };
 
+/** What Android's MainActivity.kt adds to the webview, before the page loads. */
+interface AndroidSystemBars {
+  /** 'light' or 'dark': the status bar's icons then read on that theme. */
+  setTheme(theme: string): void;
+}
+
+/** The status bar on Android; elsewhere there's none to set. */
+function systemBars(): Pick<Platform, 'systemBars'> {
+  const android = (window as { TaskMintSystemBars?: AndroidSystemBars }).TaskMintSystemBars;
+  // Called on the bridge itself: Android refuses a method taken off it
+  return android ? { systemBars: { setTheme: theme => android.setTheme(theme) } } : {};
+}
+
 /** `capabilities` are what get_capabilities said, before the client started. */
 export function createTauriBackend(capabilities: Capabilities): Backend {
   return {
@@ -109,6 +123,7 @@ export function createTauriBackend(capabilities: Capabilities): Backend {
       return command<CommandReply<K>>(name, args[0] as Record<string, unknown> | undefined);
     },
     subscribe,
-    platform: capabilities.runtime === 'mobile' ? everywhere : { ...everywhere, ...desktopOnly },
+    platform:
+      capabilities.runtime === 'mobile' ? { ...everywhere, ...systemBars() } : { ...everywhere, ...desktopOnly },
   };
 }

@@ -15,6 +15,7 @@ import type {
   IdlePlatform,
   NotificationPlatform,
   Platform,
+  SystemBarsPlatform,
   TrayPlatform,
 } from '../backend/types';
 import type { CaptureServerStatus } from '@taskmint/contracts';
@@ -29,6 +30,7 @@ export interface FakePlatform extends Platform {
   idle: Mocked<IdlePlatform>;
   folderBackups: Mocked<FolderBackupPlatform>;
   tray: Mocked<TrayPlatform>;
+  systemBars: Mocked<SystemBarsPlatform>;
   reveal: Mock<(path: string) => Promise<void>>;
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
 }
@@ -53,7 +55,7 @@ export interface FakeBackend extends Omit<Backend, 'call' | 'subscribe'> {
 export interface FakeBackendOptions {
   capabilities?: Partial<Capabilities>;
   /** Optional platform features this backend lacks (as on the web). */
-  without?: ReadonlyArray<'idle' | 'folderBackups' | 'tray' | 'reveal' | 'captureStatus'>;
+  without?: ReadonlyArray<'idle' | 'folderBackups' | 'tray' | 'systemBars' | 'reveal' | 'captureStatus'>;
 }
 
 export function createFakeBackend({ capabilities, without = [] }: FakeBackendOptions = {}): FakeBackend {
@@ -84,6 +86,9 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     },
     tray: {
       setWithdrawalLabel: vi.fn(async () => undefined),
+    },
+    systemBars: {
+      setTheme: vi.fn(),
     },
     reveal: vi.fn(async () => undefined),
     captureStatus: vi.fn(async () => ({ running: true, port: 43117, warning: null })),
