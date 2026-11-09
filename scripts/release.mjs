@@ -11,7 +11,10 @@
  * With the updater's signing key in TAURI_SIGNING_PRIVATE_KEY (the Release
  * workflow has it), each desktop build that --rebuild makes also makes the
  * app's signed update, and github-release adds latest.json, which installed
- * apps read to update themselves (the README's "Desktop updates").
+ * apps read to update themselves (the README's "Desktop updates"). The
+ * Android APK is always signed with the release key, from
+ * TASKMINT_ANDROID_KEYSTORE and TASKMINT_ANDROID_KEYSTORE_PASSWORD (the
+ * README's "Android signing").
  *
  * Run it in the main checkout, on main: `pnpm release --help`.
  */
@@ -50,6 +53,7 @@ import {
   updateAssetNames,
   updateBundlePaths,
   updateManifest,
+  verifyApkSigner,
   verifyUpdateSignature,
 } from './release/lib.mjs';
 
@@ -72,6 +76,15 @@ const TAURI_CONF = 'apps/desktop/src-tauri/tauri.conf.json';
 /** Merged into tauri.conf.json for a build that makes updates (relative to apps/desktop, where Tauri runs). */
 const UPDATER_CONFIG = 'src-tauri/tauri.updater.conf.json';
 const RELEASE_WORKFLOW = 'release.yml';
+/** The Android project `tauri android build` builds (committed, with the release signing in app/build.gradle.kts). */
+const ANDROID_PROJECT = 'apps/desktop/src-tauri/gen/android';
+/**
+ * The SHA-256 of the release key's certificate. Every APK is signed with it,
+ * so each release installs over the one before (the README's "Android signing").
+ */
+const ANDROID_SIGNER_SHA256 = '48c12fdd37c71679f9d7316800fc01816583b6e6b38b6674ac1328db916c1f8b';
+/** The release key: a PKCS12 keystore, and its password (app/build.gradle.kts reads both). */
+const ANDROID_KEY_ENV = ['TASKMINT_ANDROID_KEYSTORE', 'TASKMINT_ANDROID_KEYSTORE_PASSWORD'];
 
 const USAGE = `Usage: pnpm release [options]
        pnpm release publish
@@ -84,7 +97,9 @@ Run it in the main checkout, on main.
 
 With the updater's signing key in TAURI_SIGNING_PRIVATE_KEY, each desktop
 build that --rebuild makes also makes the app's signed update (the README's
-"Desktop updates").
+"Desktop updates"). android-arm64 needs the Android SDK, NDK and a JDK, and
+the release key in TASKMINT_ANDROID_KEYSTORE (a PKCS12 file) and
+TASKMINT_ANDROID_KEYSTORE_PASSWORD (the README's "Android signing").
 
 Options:
   --dry-run              Print the next version and its section; change nothing
@@ -188,6 +203,7 @@ const productName = () => JSON.parse(read(TAURI_CONF)).productName;
 const updaterPublicKey = () => JSON.parse(read(TAURI_CONF)).plugins.updater.pubkey;
 /** Tauri signs updates with this key, so a build can make them. */
 const signsUpdates = () => Boolean(process.env.TAURI_SIGNING_PRIVATE_KEY);
+const missingAndroidKey = () => ANDROID_KEY_ENV.filter(name => !process.env[name]);
 
 function requireMainAndClean() {
   const branch = git('branch', '--show-current');
@@ -233,9 +249,17 @@ function restore(paths) {
 /** The targets to build and how this computer builds each; stops before anything is built if it can't. */
 function planBuilds({ targets, windows }) {
   const host = { platform: process.platform, arch: process.arch };
-  return checked(() =>
+  const plans = checked(() =>
     buildTargets({ targets, windows, ...host }).map(target => ({ target, ...buildPlan(target, host) }))
   );
+  const missing = missingAndroidKey();
+  if (plans.some(plan => plan.kind === 'android') && missing.length > 0) {
+    const isnt = missing.length > 1 ? "aren't" : "isn't";
+    stop(
+      `The APK is signed with the release key, but ${missing.join(' and ')} ${isnt} set (the README's "Android signing").`
+    );
+  }
+  return plans;
 }
 
 /**
@@ -247,13 +271,17 @@ function build(version, plans) {
   if (plans.length === 0) return [];
   mkdirSync(join(root, RELEASES), { recursive: true });
   const updates = signsUpdates();
-  if (!updates && plans.some(plan => plan.kind !== 'zip')) {
+  if (!updates && plans.some(plan => plan.kind === 'tauri' || plan.kind === 'xwin')) {
     console.log("\nTAURI_SIGNING_PRIVATE_KEY isn't set, so the desktop builds make no updates.");
   }
   return plans.flatMap(plan => {
     const destination = join(root, RELEASES, assetName(productName(), version, plan.target));
     if (plan.kind === 'zip') {
       zipExtension(destination);
+      return [destination];
+    }
+    if (plan.kind === 'android') {
+      copyBuilt(buildApk(version, plan), destination);
       return [destination];
     }
     copyBuilt(buildInstaller(version, plan, updates), destination);
@@ -271,6 +299,52 @@ function buildInstaller(version, plan, updates) {
     run('pnpm', ['--filter', '@taskmint/desktop', 'tauri', 'build', ...cross, ...config]);
   }
   return bundlePath(productName(), version, plan.target, plan);
+}
+
+/**
+ * Builds the APK with Tauri, signed with the release key, and checks it's
+ * signed with the release certificate; returns where Gradle left it.
+ */
+function buildApk(version, plan) {
+  run('rustup', ['target', 'add', plan.triple]);
+  // Gradle's incremental packaging can keep bytes from an earlier build
+  rmSync(join(root, ANDROID_PROJECT, 'app/build'), { recursive: true, force: true });
+  run('pnpm', [
+    '--filter',
+    '@taskmint/desktop',
+    'tauri',
+    'android',
+    'build',
+    '--apk',
+    '--target',
+    plan.tauriTarget,
+    '--ci',
+  ]);
+  const apk = bundlePath(productName(), version, plan.target, plan);
+  if (!existsSync(join(root, apk))) stop(`The build finished, but ${apk} isn't there.`);
+  const output = spawnSync(apksigner(), ['verify', '--print-certs', join(root, apk)], { encoding: 'utf8' });
+  if (output.error) stop(`apksigner: ${output.error.message}`);
+  if (output.status !== 0) {
+    stop(`apksigner says the APK isn't signed properly:\n${(output.stderr || output.stdout).trim()}`);
+  }
+  checked(() => verifyApkSigner({ output: output.stdout, digest: ANDROID_SIGNER_SHA256 }));
+  return apk;
+}
+
+/** The newest released Build-Tools' apksigner in the Android SDK. */
+function apksigner() {
+  const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
+  if (!sdk) stop("ANDROID_HOME (the Android SDK) isn't set.");
+  const dir = join(sdk, 'build-tools');
+  const byVersion = (a, b) => b.localeCompare(a, 'en', { numeric: true });
+  // (not a preview like 36.0.0-rc5)
+  const versions = existsSync(dir) ? readdirSync(dir).filter(name => /^[\d.]+$/.test(name)) : [];
+  const tool = versions
+    .sort(byVersion)
+    .map(version => join(dir, version, 'apksigner'))
+    .find(path => existsSync(path));
+  if (!tool) stop(`There's no apksigner in ${dir}: install Build-Tools with the SDK Manager.`);
+  return tool;
 }
 
 function copyBuilt(from, destination) {

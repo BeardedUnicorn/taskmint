@@ -191,7 +191,16 @@ off.
 ### Android
 
 The desktop crate also builds as a Tauri Android app (`apps/desktop`, the same
-Rust and webview). It isn't released yet.
+Rust and webview), package `com.taskmint.android` (`tauri.android.conf.json`
+sets it; the desktop app stays `com.taskmint.desktop`). Each release has
+`TaskMint-X.Y.Z-android-arm64.apk` for arm64 phones, every phone from roughly
+the last eight years.
+
+**Installing it.** Open the release on the phone and download the APK.
+Opening it asks you to let the browser (or Files) install unknown apps;
+allow it, go back and install. A later release's APK installs the same way,
+over the app, and keeps its data: they're all signed with the same key (see
+[Android signing](#android-signing)). The app doesn't update itself.
 
 **Prerequisites**, besides the ones above:
 
@@ -208,15 +217,30 @@ Rust and webview). It isn't released yet.
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 ```
 
-Generate the Android project once. It goes in `apps/desktop/src-tauri/gen/android`,
-made from `tauri.conf.json` and `tauri.android.conf.json`, and isn't committed
-yet: commit it once it has changes of its own (icons, release signing).
+The Android project, `apps/desktop/src-tauri/gen/android`, is committed. It
+was made by `pnpm tauri android init` from `tauri.conf.json` and
+`tauri.android.conf.json`, and changed in two places:
+
+- `app/build.gradle.kts` signs release builds with the release key when
+  `TASKMINT_ANDROID_KEYSTORE` and `TASKMINT_ANDROID_KEYSTORE_PASSWORD` are set
+  ([Android signing](#android-signing)). Without them a release build is
+  unsigned.
+- The launcher icons in `app/src/main/res` (`mipmap-*`, and the adaptive
+  icon's background in `values/ic_launcher_background.xml`) come from
+  `assets/brand/icon-macos.png`. Its padding keeps the clock and leaf
+  inside the circle a launcher crops to, and the background is the tile's
+  colour, so no edge shows. After changing the icon, make them again and
+  copy `android/` over `res`:
 
 ```bash
-cd apps/desktop && pnpm tauri android init
+cd apps/desktop && pnpm tauri icon ../../assets/brand/icon-macos.png --ios-color '#0A3A3E' -o /tmp/taskmint-icons && cp -R /tmp/taskmint-icons/android/. src-tauri/gen/android/app/src/main/res/
 ```
 
-Then run it in an emulator or on a phone plugged in over USB, or build a debug
+Tauri writes its per-build files into the project (they're gitignored), so a
+fresh checkout builds without an `init`. A Tauri upgrade can change the
+template: `tauri android init` in a scratch copy shows what's new.
+
+Run it in an emulator or on a phone plugged in over USB, or build a debug
 APK:
 
 ```bash
@@ -315,7 +339,7 @@ put back. Nothing is pushed.
 | `--patch`, `--minor`, `--major` | bump this level instead (needed when there are no notes) |
 | `--publish` | then push `main` and the tag |
 | `--rebuild` | only build the current version's installers into `releases/`, with no bump or commit: this computer's (`TaskMint-X.Y.Z-macos-arm64.dmg` on Apple silicon), or the `--target` and `--windows` ones |
-| `--target <name>` | with `--rebuild`, build this instead of this computer's installer (repeat it for more): `macos-arm64`, `macos-x64` (cross-compiled on Apple silicon), `windows-x64`, `chrome-extension` |
+| `--target <name>` | with `--rebuild`, build this instead of this computer's installer (repeat it for more): `macos-arm64`, `macos-x64` (cross-compiled on Apple silicon), `windows-x64`, `android-arm64` (on macOS or Linux, with the [Android](#android) prerequisites and the release key, see [Android signing](#android-signing)), `chrome-extension` |
 | `--windows` | with `--rebuild`, also build `windows-x64` (on a Mac, cross-compiled with cargo-xwin) |
 
 `pnpm release publish` pushes `main` and the current version's tag. The tag
@@ -328,13 +352,14 @@ CHANGELOG section (`gh run list --workflow release.yml` follows it):
 | `TaskMint-X.Y.Z-macos-arm64.dmg` | macOS, Apple silicon |
 | `TaskMint-X.Y.Z-macos-x64.dmg` | macOS, cross-compiled for Intel |
 | `TaskMint-X.Y.Z-windows-x64-setup.exe` | Windows |
+| `TaskMint-X.Y.Z-android-arm64.apk` | Linux, for arm64 Android phones ([Android](#android) says how to install it) |
 | `TaskMint-X.Y.Z-chrome-extension.zip` | Linux ([apps/extension/README.md](apps/extension/README.md) says how to install it) |
 
 Next to them are the desktop updates (see [Desktop updates](#desktop-updates)):
 `TaskMint-X.Y.Z-macos-{arm64,x64}.app.tar.gz` and their `.sig` files,
 `TaskMint-X.Y.Z-windows-x64-setup.exe.sig`, and `latest.json`.
 
-The release is created only once all four are built, and a re-run replaces
+The release is created only once all five are built, and a re-run replaces
 the files of a release that already exists. The repository is public, so a
 published release's files are public too. Running the workflow by hand
 (Actions → Release → Run workflow), or a pull request that changes how
@@ -402,6 +427,38 @@ Settings → Updates and its dialog come from `apps/desktop/src/updates.ts`,
 `UpdatePrompt.tsx` and `settings/UpdatesSection.tsx`.
 [docs/qa/excluded-code-checklist.md](docs/qa/excluded-code-checklist.md#updates-platformosrs)
 says how to try an update against a local feed.
+
+#### Android signing
+
+Android installs an APK over the app only when both are signed with the same
+key, so every release's APK is signed with one release key:
+
+- The key is a PKCS12 keystore with one key, alias `taskmint`, whose password
+  is the keystore's. The keystore (base64) and its password are the
+  repository secrets `ANDROID_KEYSTORE` and `ANDROID_KEYSTORE_PASSWORD`. The
+  Android build writes the keystore to the runner's temp folder, and only the
+  build step sees the password.
+- `pnpm release --rebuild --target android-arm64` refuses to build without
+  `TASKMINT_ANDROID_KEYSTORE` (the keystore's path) and
+  `TASKMINT_ANDROID_KEYSTORE_PASSWORD`. After the build it runs `apksigner`
+  and checks that the APK's one signer has the certificate whose SHA-256 is
+  `ANDROID_SIGNER_SHA256` in `scripts/release.mjs`. So an APK that wouldn't
+  install over the last one can't ship. A local build with the key:
+
+```bash
+TASKMINT_ANDROID_KEYSTORE=~/.android/taskmint-release.p12 TASKMINT_ANDROID_KEYSTORE_PASSWORD="$(cat ~/.android/taskmint-release.password)" pnpm release --rebuild --target android-arm64
+```
+
+- **Keep a copy of the keystore and its password** away from this computer
+  (in a password manager, say). Without them, no later APK installs over
+  the app.
+- **A new key** (lost or leaked): make one with `keytool -genkeypair
+  -storetype PKCS12 -alias taskmint -keyalg RSA -keysize 4096 -validity 36500
+  -dname "CN=TaskMint" -keystore <file>`, replace both secrets and
+  `ANDROID_SIGNER_SHA256` (`keytool -list -v -keystore <file>` shows the
+  SHA256, without the colons), and release. Phones have to uninstall the app
+  before installing that APK, which deletes its data: Settings → Data
+  Management → Export first, and Import after.
 
 ### Logs
 
