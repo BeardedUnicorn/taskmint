@@ -330,16 +330,14 @@ describe('SessionDashboard', () => {
     ];
 
     it('should display list of sessions', () => {
-      // Update mock to return sessions
+      // Update mock to return sessions (the list shows with no session active)
       (mockSessionManagement as any).sessions = mockSessions;
-      (mockSessionManagement as any).activeSession = mockSessions[1];
+      (mockSessionManagement as any).activeSession = null;
       mockSessionManagement.isLoading = false;
       mockSessionManagement.error = null;
 
       renderDashboard();
 
-      // Scoped to the list: the active session's name also appears in the
-      // Session Time score card subtitle.
       const list = within(screen.getByTestId('session-list'));
       expect(list.getByText('Development Work')).toBeInTheDocument();
       expect(list.getByText('Code Review')).toBeInTheDocument();
@@ -370,8 +368,7 @@ describe('SessionDashboard', () => {
       (mockSessionManagement as any).sessions = [];
     });
 
-    it('should highlight active session', () => {
-      // Update mock to return sessions with active session
+    it('gives an active session the page, without the list of every session', () => {
       (mockSessionManagement as any).sessions = mockSessions;
       (mockSessionManagement as any).activeSession = mockSessions[1];
       mockSessionManagement.isLoading = false;
@@ -379,10 +376,11 @@ describe('SessionDashboard', () => {
 
       renderDashboard();
 
-      const activeSessionCard = within(screen.getByTestId('session-list'))
-        .getByText('Code Review')
-        .closest('[data-testid="session-card"]');
-      expect(activeSessionCard).toHaveClass('active');
+      expect(screen.getByText('Active Session')).toBeInTheDocument();
+      expect(screen.getByTestId('session-timer-display')).toBeInTheDocument();
+      expect(screen.queryByTestId('session-list')).not.toBeInTheDocument();
+      expect(screen.queryByText('All Sessions')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Add time' })).not.toBeInTheDocument();
 
       // Reset for other tests
       (mockSessionManagement as any).sessions = [];
@@ -634,10 +632,10 @@ describe('SessionDashboard', () => {
     ];
 
     beforeEach(() => {
-      // Update the mock object directly
+      // Update the mock object directly (the list shows with no session active)
       Object.assign(mockSessionManagement, {
         sessions: mockSessions,
-        activeSession: mockSessions[1],
+        activeSession: null,
         isLoading: false,
         error: null,
       });
@@ -1023,7 +1021,11 @@ describe('SessionDashboard', () => {
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     });
 
+    // The session list only shows while no session is active
+    const withNoActiveSession = () => Object.assign(mockSessionManagement, { activeSession: null });
+
     it('selects a session, starts another, and opens its notes', async () => {
+      withNoActiveSession();
       renderDashboard();
 
       fireEvent.click(screen.getByText('Select session-2'));
@@ -1038,6 +1040,7 @@ describe('SessionDashboard', () => {
     });
 
     it("closes a session's notes once the session is gone", () => {
+      withNoActiveSession();
       const { rerender } = renderDashboard();
       fireEvent.click(screen.getByText('Notes for session-2'));
 
@@ -1054,6 +1057,7 @@ describe('SessionDashboard', () => {
         note('blank', { sessionId: 'session-1', fieldValues: { content: '   ' } }),
         note('task-wide', {}),
       ];
+      withNoActiveSession();
       renderDashboard();
 
       expect(screen.getByTestId('previews-session-1')).toHaveTextContent('newer | older');

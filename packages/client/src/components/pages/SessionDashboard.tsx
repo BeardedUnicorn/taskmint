@@ -86,9 +86,10 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
   // The page's single clock: the backend's session.totalDuration only sums
   // finalized instances (running/paused contribute 0) and sessions state only
   // changes on discrete timer events, so live durations are derived from
-  // instance state via getSessionElapsedMs. This nowMs feeds the score cards,
-  // the Active Session panel, and the session list so they never disagree on
-  // the displayed second; it ticks only while a timer is running.
+  // instance state via getSessionElapsedMs. This nowMs feeds the score cards
+  // and the Active Session panel (or, with no session active, the session
+  // list) so they never disagree on the displayed second; it ticks only while
+  // a timer is running.
   // Totals only accrue while a timer runs (paused time is frozen, idle time
   // is stored), so the clock only needs to tick during a run.
   const nowMs = useNowMs(hasRunningTimer(sessions), 1000);
@@ -249,30 +250,28 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
         />
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 4, flexDirection: { xs: 'column', md: 'row' } }}>
-        {/* Active Session Display */}
-        {activeSession && (
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Active Session
-            </Typography>
-            <SessionTimerDisplay
-              session={activeSession}
-              nowMs={nowMs}
-              onAddTimer={() => setIsAddingTimer(true)}
-              onStartTimer={startTimerInstance}
-              onStopTimer={stopTimerInstance}
-              onPauseTimer={pauseTimerInstance}
-              onResumeTimer={resumeTimerInstance}
-              onDeleteTimer={handleDeleteTimer}
-              onEditTimer={handleEditTimer}
-              onOpenNotes={handleOpenTimerNotes}
-            />
-          </Box>
-        )}
-
-        {/* Session List */}
-        <Box sx={{ flex: activeSession ? 1 : 2 }}>
+      {/* An active session has the page to itself; the list of every session
+          (and its Add time button) shows once no session is active. */}
+      {activeSession ? (
+        <Box>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Active Session
+          </Typography>
+          <SessionTimerDisplay
+            session={activeSession}
+            nowMs={nowMs}
+            onAddTimer={() => setIsAddingTimer(true)}
+            onStartTimer={startTimerInstance}
+            onStopTimer={stopTimerInstance}
+            onPauseTimer={pauseTimerInstance}
+            onResumeTimer={resumeTimerInstance}
+            onDeleteTimer={handleDeleteTimer}
+            onEditTimer={handleEditTimer}
+            onOpenNotes={handleOpenTimerNotes}
+          />
+        </Box>
+      ) : (
+        <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               All Sessions
@@ -298,7 +297,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
             archivedTaskNames={archivedTaskNames}
           />
         </Box>
-      </Box>
+      )}
 
       {/* (A session deleted meanwhile, on another device too, closes its notes) */}
       {notesSession && (
