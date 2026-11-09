@@ -78,6 +78,9 @@ export function ImportWorkLogsDialog({
   const [result, setResult] = useState<WorkLogImportSummary | null>(null);
 
   const parsed = useMemo(() => parseWorkLogPayload(rawText), [rawText]);
+  // Archived tasks still match by stored mapping or name (planWorkLogImport
+  // gets them all); the picker offers active ones, as the start pickers do
+  const activeTasks = useMemo(() => tasks.filter(task => !task.isArchived), [tasks]);
   const hasRecords = parsed.timedEntries.length > 0 || parsed.workLogs.length > 0;
 
   // Tasks picked here for projects with no stored or same-named task
@@ -215,7 +218,7 @@ export function ImportWorkLogsDialog({
                           <TaskSelector
                             value={taskChoices[project.projectId]?.id ?? ''}
                             onChange={task => setTaskChoices(prev => ({ ...prev, [project.projectId]: task }))}
-                            predefinedTasks={tasks}
+                            predefinedTasks={activeTasks}
                             onCreateNewTask={onCreateTask}
                           />
                         </Box>
