@@ -434,11 +434,15 @@ export function verifyUpdateSignature({ publicKey, signature, data }) {
  * Checks that `apksigner verify --print-certs` (its `output`) found exactly
  * one signer, with the certificate whose SHA-256 is `digest`. Throws saying
  * what's wrong.
+ *
+ * Build-Tools 36 and earlier print "Signer #1 certificate SHA-256 digest: …";
+ * 37 prints the strongest scheme it verified instead, numbering the signers
+ * only when there's more than one ("V2 Signer: certificate SHA-256 digest: …",
+ * "V2 Signer #2: certificate …"), so both read the same here.
  */
 export function verifyApkSigner({ output, digest }) {
-  const found = [...output.matchAll(/^Signer #\d+ certificate SHA-256 digest: ([0-9a-f]+)\s*$/gim)].map(match =>
-    match[1].toLowerCase()
-  );
+  const signerLine = /^(?:V[\d.]+ Signer(?: #\d+)?:|Signer #\d+) certificate SHA-256 digest: ([0-9a-f]+)\s*$/gim;
+  const found = [...output.matchAll(signerLine)].map(match => match[1].toLowerCase());
   if (found.length === 0) throw new Error('apksigner found no signer in the APK');
   if (found.length > 1) throw new Error(`The APK has ${found.length} signers; a release has one`);
   if (found[0] !== digest.toLowerCase()) {
