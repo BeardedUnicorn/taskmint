@@ -110,6 +110,15 @@ impl AppState {
         for event in published.events {
             crate::events::emit_quiet(self, event.name, &event.payload);
         }
+        // Whoever changed it (the app, the tray, the idle monitor), cloud
+        // sync sends it
+        if published
+            .changed
+            .intersects(Parts::SESSIONS | Parts::WORK_LOGS | Parts::RECORDS)
+            && self.backend.read(|w| w.sync.account.is_some())
+        {
+            crate::events::emit_quiet(self, crate::events::SYNC_PENDING, ());
+        }
         if published
             .changed
             .intersects(Parts::SESSIONS | Parts::RECORDS)
@@ -145,6 +154,33 @@ impl Shell {
 #[cfg(test)]
 mod tests {
     use crate::testing::fixture;
+    use serde_json::json;
+
+    #[test]
+    fn changes_that_sync_are_announced_for_cloud_sync() {
+        let f = fixture();
+        let synced = |f: &crate::testing::Fixture| {
+            f.platform
+                .event_names()
+                .iter()
+                .filter(|name| *name == "sync-pending")
+                .count()
+        };
+        let call = |name: &str, args| f.state.backend.call_named(name, args).unwrap();
+        // Nothing to send while this device doesn't sync
+        call("set_app_record", json!({ "key": "dailyGoal", "value": 1 }));
+        call(
+            "link_sync_account",
+            json!({ "uid": "u", "epoch": 1, "mode": "merge" }),
+        );
+        assert_eq!(synced(&f), 0);
+        call("set_app_record", json!({ "key": "dailyGoal", "value": 2 }));
+        assert_eq!(synced(&f), 1);
+        // The capture waiting for the app, and sync's own state, don't sync
+        call("take_pending_work_log_capture", json!({}));
+        call("unlink_sync_account", json!({}));
+        assert_eq!(synced(&f), 1);
+    }
 
     #[test]
     fn a_lock_stays_usable_after_a_panic_while_it_was_held() {

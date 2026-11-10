@@ -14,6 +14,7 @@ pub mod notifications;
 pub mod records;
 pub mod restore;
 pub mod sessions;
+pub mod sync;
 pub mod testkit;
 pub mod timer;
 pub mod worklogs;

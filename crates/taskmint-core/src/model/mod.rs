@@ -105,6 +105,12 @@ pub struct TimerInstance {
     pub created_at: String,
     #[serde(rename = "updatedAt", default)]
     pub updated_at: String,
+    // The device that last started or resumed it (its sync device id), so
+    // each device's idle detection and long-run reminder act only on its
+    // own timers. None: this device's, or from before sync.
+    #[serde(rename = "runningOn", default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub running_on: Option<String>,
 }
 
 // Task Session - A stretch of work: its timers, each on a task. `task_id` is

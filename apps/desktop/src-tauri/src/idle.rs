@@ -184,6 +184,7 @@ pub fn tick(state: &AppState, idle_ms: Option<u64>) {
     let long_run = state.backend.read(|workspace| {
         long_run_tick(
             &workspace.sessions,
+            &workspace.sync.device_id,
             idle_state.long_run_reminded.as_deref(),
             idle_state.settings.long_run_hours,
             now,
@@ -196,9 +197,15 @@ pub fn tick(state: &AppState, idle_ms: Option<u64>) {
     let Some(idle_ms) = idle_ms else {
         return;
     };
-    let action = state
-        .backend
-        .read(|workspace| idle_tick(&workspace.sessions, &idle_state, idle_ms, now));
+    let action = state.backend.read(|workspace| {
+        idle_tick(
+            &workspace.sessions,
+            &workspace.sync.device_id,
+            &idle_state,
+            idle_ms,
+            now,
+        )
+    });
     match action {
         IdleAction::None => {}
         IdleAction::Pause {

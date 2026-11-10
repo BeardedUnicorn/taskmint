@@ -19,6 +19,7 @@ use taskmint_core::notifications::{NotificationKind, NotificationPrefs};
 use taskmint_core::restore::{RestoreMode, RestorePayload, RestoreSummary};
 use taskmint_core::sessions::instances::TimerInstanceUpdates;
 use taskmint_core::sessions::start::StartTaskResult;
+use taskmint_core::sync::{IncomingDoc, OutgoingDoc, SyncAccount, SyncApplied, SyncStatus};
 use taskmint_core::worklogs::{
     AppliedGroup, RewriteGroup, SkippedGroup, WorkLogImportPayload, WorkLogImportSummary,
     WorkLogImportUndo,
@@ -75,6 +76,14 @@ fn export_types(cfg: &Config) {
         UndoWorkLogImportArgs,
         AcceptCaptureArgs,
         RestoreBackupDataArgs,
+        LinkSyncAccountArgs,
+        LinkMode,
+        ApplySyncIncomingArgs,
+        SyncStatus,
+        SyncAccount,
+        SyncApplied,
+        OutgoingDoc,
+        IncomingDoc,
         TimerInstanceUpdates,
         WorkLogImportPayload,
         WorkLogImportUndo,
@@ -269,6 +278,7 @@ fn constants() -> Constants {
                 "UPDATE_PROGRESS",
                 json!(events::UPDATE_PROGRESS),
             ),
+            ("SYNC_PENDING", "SYNC_PENDING", json!(events::SYNC_PENDING)),
         ],
     );
     out.line("export type EventName = (typeof EVENTS)[keyof typeof EVENTS];\n");
@@ -303,6 +313,11 @@ fn constants() -> Constants {
         "Most timer instances one session may hold.",
         "MAX_TIMER_INSTANCES_PER_SESSION",
         json!(MAX_TIMER_INSTANCES_PER_SESSION),
+    );
+    out.value(
+        "The cloud documents' schema; a device leaves newer ones alone.",
+        "SYNC_SCHEMA",
+        json!(SYNC_SCHEMA),
     );
     out.group(
         "What the server's API reads besides each endpoint's body.",

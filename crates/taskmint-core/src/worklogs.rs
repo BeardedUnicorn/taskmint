@@ -308,7 +308,9 @@ pub fn sync_work_log_task_names(
 
 /// Upsert ledger entries by id. An existing entry is replaced wholesale (the
 /// site may revise minutes/amount/status) except `imported_at`, which keeps
-/// its first-seen value. Returns (added, updated).
+/// its first-seen value, and `updated_at`, which moves only when something
+/// else changed (so re-importing the same days changes nothing to sync).
+/// Returns (added, updated).
 pub fn upsert_entries(
     store: &mut Vec<WorkLogEntry>,
     incoming: Vec<WorkLogEntry>,
@@ -326,7 +328,11 @@ pub fn upsert_entries(
                 } else {
                     existing.imported_at.clone()
                 };
-                if keep_updated_at && !existing.updated_at.is_empty() {
+                let unchanged = WorkLogEntry {
+                    updated_at: existing.updated_at.clone(),
+                    ..entry.clone()
+                } == *existing;
+                if unchanged || (keep_updated_at && !existing.updated_at.is_empty()) {
                     entry.updated_at = existing.updated_at.clone();
                 }
                 *existing = entry;
@@ -345,7 +351,8 @@ pub fn upsert_entries(
 }
 
 /// Upsert project→task mappings by project id, keeping `created_at` of an
-/// existing mapping. Returns the number of mappings written.
+/// existing mapping, and its `updated_at` when nothing else changed.
+/// Returns the number of mappings written.
 pub fn upsert_mappings(
     store: &mut Vec<ProjectTaskMapping>,
     incoming: Vec<ProjectTaskMapping>,
@@ -364,6 +371,13 @@ pub fn upsert_mappings(
                 } else {
                     existing.created_at.clone()
                 };
+                let unchanged = ProjectTaskMapping {
+                    updated_at: existing.updated_at.clone(),
+                    ..mapping.clone()
+                } == *existing;
+                if unchanged {
+                    mapping.updated_at = existing.updated_at.clone();
+                }
                 *existing = mapping;
             }
             None => {
@@ -618,6 +632,7 @@ mod tests {
             notes: None,
             created_at: ts(start_secs).to_rfc3339(),
             updated_at: ts(start_secs).to_rfc3339(),
+            running_on: None,
         }
     }
 
@@ -692,6 +707,19 @@ mod tests {
             upsert_entries(&mut store, vec![entry("e1"), entry("e2")], "T2", false);
         assert_eq!((added, updated), (0, 2));
         assert_eq!(store.len(), 2);
+        // Nothing changed, so nothing new to sync
+        assert_eq!(store[0].updated_at, "T1");
+    }
+
+    #[test]
+    fn upsert_mappings_keeps_updated_at_when_nothing_changed() {
+        let mut store = Vec::new();
+        upsert_mappings(&mut store, vec![mapping("proj-1", "task-1")], "T1");
+        assert_eq!(
+            upsert_mappings(&mut store, vec![mapping("proj-1", "task-1")], "T2"),
+            1
+        );
+        assert_eq!(store[0].updated_at, "T1");
     }
 
     #[test]

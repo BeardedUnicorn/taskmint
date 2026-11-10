@@ -1,0 +1,141 @@
+{
+  "name": "cloud sync links an account, sends what changed, takes what came in, and starts over on another account",
+  "steps": [
+    {
+      "call": "get_sync_status",
+      "reply": { "account": null, "deviceId": "", "cursor": null, "pending": 0, "held": 0, "hasData": false }
+    },
+    { "call": "get_sync_outgoing", "reply": [] },
+    {
+      "call": "link_sync_account",
+      "args": { "uid": "  ", "epoch": 1, "mode": "merge" },
+      "error": "Sign in to sync"
+    },
+    {
+      "call": "start_task",
+      "args": { "taskId": "t1", "taskName": "Writing" },
+      "reply": { "outcome": "started" },
+      "events": ["timer-instance-started"]
+    },
+    {
+      "call": "get_sessions",
+      "reply": [{ "timerInstances": [{ "isRunning": true, "runningOn": "$absent" }] }]
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 100 } },
+      "reply": { "revision": 1 },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "link_sync_account",
+      "args": { "uid": "u1", "epoch": 1, "mode": "merge" },
+      "reply": {
+        "account": { "uid": "u1", "epoch": 1 },
+        "deviceId": "$any",
+        "cursor": null,
+        "pending": 2,
+        "held": 0,
+        "hasData": true
+      }
+    },
+    {
+      "call": "get_sessions",
+      "reply": [{ "timerInstances": [{ "isRunning": true, "runningOn": "$any" }] }]
+    },
+    {
+      "call": "get_sync_outgoing",
+      "reply": [
+        { "docId": "record~dailyGoal", "kind": "record", "id": "dailyGoal", "json": "{\"targetAmount\":100}", "hash": "$any" },
+        { "docId": "$any", "kind": "session", "id": "$any", "json": "$any", "hash": "$any" }
+      ],
+      "save": { "sessionDoc": "/1/docId", "sessionJson": "/1/json", "goalJson": "/0/json" }
+    },
+    {
+      "call": "apply_sync_incoming",
+      "args": {
+        "docs": [
+          { "docId": "$sessionDoc", "json": "$sessionJson", "schema": 1 },
+          { "docId": "record~dailyGoal", "json": "$goalJson", "schema": 1 }
+        ],
+        "cursor": "c1"
+      },
+      "reply": { "applied": 0, "merged": 0, "skipped": 0, "held": 0 }
+    },
+    { "call": "get_sync_status", "reply": { "pending": 0, "cursor": "c1" } },
+    {
+      "call": "apply_sync_incoming",
+      "args": {
+        "docs": [
+          { "docId": "record~withdrawals", "json": "[{\"id\":\"w1\"}]", "schema": 1 },
+          {
+            "docId": "worklog~e1",
+            "json": "{\"id\":\"e1\",\"kind\":\"timed\",\"createdAt\":\"2026-03-01T10:00:00Z\",\"workDay\":\"2026-03-01\",\"projectId\":\"p\",\"projectName\":\"P\",\"taskId\":\"t1\",\"taskName\":\"Writing\",\"timeInMinutes\":30,\"amountCents\":1000,\"status\":\"paid\"}",
+            "schema": 1
+          },
+          {
+            "docId": "session~elsewhere",
+            "json": "{\"id\":\"elsewhere\",\"taskId\":\"t1\",\"taskName\":\"Writing\",\"notes\":null,\"createdAt\":\"2026-03-01T10:00:00Z\"}",
+            "schema": 1
+          },
+          { "docId": "session~newer", "json": "{}", "schema": 2 }
+        ]
+      },
+      "reply": { "applied": 3, "merged": 0, "skipped": 0, "held": 1 },
+      "events": ["app-records-changed", "work-logs-imported", "resync"]
+    },
+    {
+      "call": "get_app_records",
+      "reply": { "records": { "withdrawals": [{ "id": "w1" }] }, "revisions": { "withdrawals": 1 } }
+    },
+    {
+      "call": "get_work_logs",
+      "reply": { "entries": [{ "id": "e1" }] }
+    },
+    {
+      "call": "get_sessions",
+      "reply": [{ "id": "elsewhere" }, { "taskId": "t1" }]
+    },
+    { "call": "get_sync_status", "reply": { "pending": 0, "held": 1, "cursor": "c1" } },
+    {
+      "advanceMs": 60000,
+      "call": "start_task",
+      "args": { "taskId": "t2", "taskName": "Reviews" },
+      "reply": { "outcome": "started", "stoppedTaskName": "Writing" },
+      "events": ["timer-instance-stopped", "timer-instance-started"]
+    },
+    {
+      "call": "get_sessions",
+      "reply": [
+        { "id": "elsewhere" },
+        {
+          "taskId": "t1",
+          "timerInstances": [
+            { "isRunning": false },
+            { "isRunning": true, "runningOn": "$any", "task": { "taskId": "t2" } }
+          ]
+        }
+      ]
+    },
+    { "reload": true, "call": "get_sync_status", "reply": { "account": { "uid": "u1" }, "pending": 1 } },
+    { "call": "unlink_sync_account", "reply": null },
+    {
+      "call": "get_sync_status",
+      "reply": { "account": null, "deviceId": "$any", "cursor": null, "pending": 0, "held": 0, "hasData": true }
+    },
+    {
+      "call": "link_sync_account",
+      "args": { "uid": "u2", "epoch": 2, "mode": "replace" },
+      "reply": { "account": { "uid": "u2", "epoch": 2 }, "pending": 0, "hasData": false },
+      "events": ["app-records-changed", "app-records-changed", "resync"]
+    },
+    { "call": "get_sessions", "reply": [] },
+    { "call": "get_work_logs", "reply": { "entries": [], "mappings": [] } },
+    { "call": "get_app_records", "reply": { "records": {} } },
+    { "call": "reset_all_app_data" },
+    {
+      "call": "get_sync_status",
+      "reply": { "account": null, "deviceId": "", "hasData": false }
+    }
+  ]
+}

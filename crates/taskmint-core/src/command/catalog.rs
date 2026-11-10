@@ -8,6 +8,7 @@ use crate::records::RecordMap;
 use crate::restore::{RestorePayload, RestoreSummary};
 use crate::sessions::instances::TimerInstanceUpdates;
 use crate::sessions::start::StartTaskResult;
+use crate::sync::{IncomingDoc, OutgoingDoc, SyncApplied, SyncStatus};
 use crate::worklogs::{WorkLogImportPayload, WorkLogImportSummary, WorkLogImportUndo};
 use crate::workspace::Parts;
 use chrono::{DateTime, Utc};
@@ -53,6 +54,12 @@ pub enum Command {
     // Everything at once
     RestoreBackupData(RestoreBackupDataArgs),
     ResetAllAppData(NoArgs),
+    // Cloud sync (crate::sync)
+    GetSyncStatus(NoArgs),
+    LinkSyncAccount(LinkSyncAccountArgs),
+    UnlinkSyncAccount(NoArgs),
+    GetSyncOutgoing(NoArgs),
+    ApplySyncIncoming(ApplySyncIncomingArgs),
 }
 
 /// Every command, by name, with its arguments and its reply. It drives the
@@ -124,6 +131,11 @@ command_types! {
     "take_pending_work_log_capture": NoArgs => Option<PendingCapture>,
     "restore_backup_data": RestoreBackupDataArgs => RestoreSummary,
     "reset_all_app_data": NoArgs => ResetSummary,
+    "get_sync_status": NoArgs => SyncStatus,
+    "link_sync_account": LinkSyncAccountArgs => SyncStatus,
+    "unlink_sync_account": NoArgs => (),
+    "get_sync_outgoing": NoArgs => Vec<OutgoingDoc>,
+    "apply_sync_incoming": ApplySyncIncomingArgs => SyncApplied,
 }
 
 /// `reply` read as a `T` and written back.
@@ -346,6 +358,37 @@ pub struct RestoreBackupDataArgs {
     pub payload: RestorePayload,
 }
 
+/// How a device starts syncing when it has data of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub enum LinkMode {
+    /// Its data joins the cloud's.
+    Merge,
+    /// Its data is replaced by the cloud's (a copy is kept first).
+    Replace,
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct LinkSyncAccountArgs {
+    pub uid: String,
+    pub epoch: u64,
+    pub mode: LinkMode,
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
+#[serde(rename_all = "camelCase")]
+pub struct ApplySyncIncomingArgs {
+    /// In the order they were written.
+    pub docs: Vec<IncomingDoc>,
+    /// Where reading carries on from next time; absent keeps the last one.
+    #[serde(default)]
+    pub cursor: Option<String>,
+}
+
 /// What a command needs: the parts to load, and whether it may change them
 /// (a host runs a write on a draft, or under a write lock).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -389,30 +432,33 @@ impl Command {
         // record follows it in the sessions and the ledger.
         let sessions_and_tasks = Parts::SESSIONS | Parts::RECORDS;
         let records_and_links = Parts::RECORDS | Parts::SESSIONS | Parts::WORK_LOGS;
+        // Starting or resuming a timer marks it as this device's
+        let running = Parts::SESSIONS | Parts::SYNC;
+        let synced = records_and_links | Parts::SYNC;
         match self {
             Command::GetAppRecords(_) => Access::read(Parts::RECORDS),
             Command::SetAppRecord(_) | Command::ImportAppRecords(_) => {
                 Access::write(records_and_links)
             }
             Command::GetSessions(_) | Command::GetSessionLoadWarning(_) => Access::read(SESSIONS),
-            Command::StartTask(_)
-            | Command::AddManualTime(_)
+            Command::StartTask(_) => Access::write(sessions_and_tasks | Parts::SYNC),
+            Command::AddManualTime(_)
             | Command::CreateTimerInstance(_)
             | Command::MoveTimerInstance(_) => Access::write(sessions_and_tasks),
+            Command::StartTimerInstance(_)
+            | Command::ResumeTimerInstance(_)
+            | Command::ApplyIdleChoice(_) => Access::write(running),
             Command::SetActiveSession(_)
             | Command::DeleteSession(_)
             | Command::RestoreSession(_)
             | Command::RestoreTimerInstance(_)
             | Command::UpdateTimerInstance(_)
-            | Command::StartTimerInstance(_)
             | Command::StopTimerInstance(_)
             | Command::PauseTimerInstance(_)
-            | Command::ResumeTimerInstance(_)
             | Command::DeleteTimerInstance(_)
             | Command::StopLiveTimer(_)
             | Command::PauseLiveTimer(_)
-            | Command::PauseTimerAt(_)
-            | Command::ApplyIdleChoice(_) => Access::write(SESSIONS),
+            | Command::PauseTimerAt(_) => Access::write(SESSIONS),
             Command::GetWorkLogs(_) => Access::read(Parts::WORK_LOGS),
             Command::ApplyWorkLogImport(_) => Access::write(records_and_links),
             Command::UndoWorkLogImport(_) => Access::write(Parts::SESSIONS | Parts::WORK_LOGS),
@@ -422,6 +468,9 @@ impl Command {
             // An exact restore replaces the records too
             Command::RestoreBackupData(_) => Access::write(records_and_links),
             Command::ResetAllAppData(_) => Access::write(Parts::ALL),
+            Command::GetSyncStatus(_) | Command::GetSyncOutgoing(_) => Access::read(synced),
+            Command::LinkSyncAccount(_) | Command::ApplySyncIncoming(_) => Access::write(synced),
+            Command::UnlinkSyncAccount(_) => Access::write(Parts::SYNC),
         }
     }
 }

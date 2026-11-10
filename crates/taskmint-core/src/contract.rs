@@ -77,6 +77,11 @@ pub const TASKS_RECORD_KEY: &str = "predefinedTasks";
 /// packages/client/src/services/appRecords.ts). `accountSettings` holds the
 /// settings that change the numbers (funds-release days, the withdrawal
 /// interval), so every device computes the same dates.
+/// The cloud documents' schema (sync). A device skips documents from a newer
+/// one, so a field added to a synced entity raises it: an older TaskMint
+/// would drop the field, then write the entity back without it.
+pub const SYNC_SCHEMA: u32 = 1;
+
 pub const APP_RECORD_KEYS: [&str; 7] = [
     TASKS_RECORD_KEY,
     "taskNotes",
@@ -163,6 +168,9 @@ pub mod events {
     /// The desktop app's update download moved on, or finished and is being
     /// installed: `{ downloaded, total, installing }`.
     pub const UPDATE_PROGRESS: &str = "update-progress";
+    /// Data that syncs changed on this device (in the app, the tray or the
+    /// idle monitor): cloud sync sends what's new.
+    pub const SYNC_PENDING: &str = "sync-pending";
 }
 
 #[cfg(test)]

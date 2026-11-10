@@ -40,6 +40,7 @@ fn fresh_instance() -> TimerInstance {
         notes: None,
         created_at: ts(0).to_rfc3339(),
         updated_at: ts(0).to_rfc3339(),
+        running_on: None,
     }
 }
 

@@ -34,6 +34,7 @@ export const EVENTS = {
   SHOW_START_TASK_DIALOG: "show-start-task-dialog",
   NOTIFICATION_POSTED: "notification-posted",
   UPDATE_PROGRESS: "update-progress",
+  SYNC_PENDING: "sync-pending",
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
 
@@ -69,6 +70,11 @@ export const COMMAND_NAMES = [
   "take_pending_work_log_capture",
   "restore_backup_data",
   "reset_all_app_data",
+  "get_sync_status",
+  "link_sync_account",
+  "unlink_sync_account",
+  "get_sync_outgoing",
+  "apply_sync_incoming",
 ] as const;
 
 /** The record holding the task list. */
@@ -93,6 +99,9 @@ export const MANUAL_SOURCE = "manual";
 
 /** Most timer instances one session may hold. */
 export const MAX_TIMER_INSTANCES_PER_SESSION = 50;
+
+/** The cloud documents' schema; a device leaves newer ones alone. */
+export const SYNC_SCHEMA = 1;
 
 /** What the server's API reads besides each endpoint's body. */
 export const SERVER_API = {

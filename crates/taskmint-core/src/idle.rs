@@ -12,7 +12,7 @@ use crate::contract::{
     ERR_ANOTHER_TIMER_RUNNING, ERR_RESUME_INACTIVE_SESSION, IDLE_CHOICE_DISCARD_RESUME,
     IDLE_CHOICE_KEEP_RESUME, IDLE_CHOICE_STAY_PAUSED,
 };
-use crate::model::TaskSession;
+use crate::model::{TaskSession, TimerInstance};
 use crate::timer::{keep_idle_time, pause_instance_at, resume_instance};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -93,11 +93,18 @@ pub struct LongRun {
     pub run_ms: u64,
 }
 
+/// Whether `device` runs the timer: one another device started (cloud sync)
+/// is that device's to pause for idleness or remind about.
+pub fn runs_here(instance: &TimerInstance, device: &str) -> bool {
+    instance.running_on.as_deref().is_none_or(|on| on == device)
+}
+
 /// The long-run reminder, as a pure function: the running timer whose
 /// current run (since it started or last resumed) has lasted `hours`, unless
 /// this run was already reminded about.
 pub fn long_run_tick(
     sessions: &[TaskSession],
+    device: &str,
     reminded: Option<&str>,
     hours: u32,
     now: DateTime<Utc>,
@@ -108,7 +115,7 @@ pub fn long_run_tick(
     let (session, instance) = sessions.iter().find_map(|s| {
         s.timer_instances
             .iter()
-            .find(|i| i.is_running)
+            .find(|i| i.is_running && runs_here(i, device))
             .map(|i| (s, i))
     })?;
     let run_began = instance.resumed_at.unwrap_or(instance.start_time);
@@ -146,6 +153,7 @@ pub enum IdleAction {
 /// the sampled system idle time.
 pub fn idle_tick(
     sessions: &[TaskSession],
+    device: &str,
     idle: &IdleState,
     idle_ms: u64,
     now: DateTime<Utc>,
@@ -175,7 +183,7 @@ pub fn idle_tick(
     let Some((session, instance)) = sessions.iter().find_map(|s| {
         s.timer_instances
             .iter()
-            .find(|i| i.is_running)
+            .find(|i| i.is_running && runs_here(i, device))
             .map(|i| (s, i))
     }) else {
         return IdleAction::None;
@@ -291,7 +299,7 @@ pub fn pause_for_idle(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{TimerInstance, TimerTask};
+    use crate::model::TimerTask;
     use chrono::TimeZone;
 
     fn ts(secs: i64) -> DateTime<Utc> {
@@ -317,6 +325,7 @@ mod tests {
             notes: None,
             created_at: ts(start).to_rfc3339(),
             updated_at: ts(start).to_rfc3339(),
+            running_on: None,
         }
     }
 
@@ -369,11 +378,11 @@ mod tests {
         let now = ts(3_600);
 
         assert_eq!(
-            idle_tick(&sessions, &enabled(15), 15 * MIN_MS - 1, now),
+            idle_tick(&sessions, "", &enabled(15), 15 * MIN_MS - 1, now),
             IdleAction::None
         );
         assert_eq!(
-            idle_tick(&sessions, &enabled(15), 20 * MIN_MS, now),
+            idle_tick(&sessions, "", &enabled(15), 20 * MIN_MS, now),
             IdleAction::Pause {
                 instance_id: "r".to_string(),
                 task_name: "Annotation".to_string(),
@@ -394,11 +403,11 @@ mod tests {
         };
         let sessions = vec![session(true, vec![reviews])];
         assert!(matches!(
-            idle_tick(&sessions, &enabled(1), 30 * MIN_MS, ts(3_600)),
+            idle_tick(&sessions, "", &enabled(1), 30 * MIN_MS, ts(3_600)),
             IdleAction::Pause { task_name, .. } if task_name == "Reviews"
         ));
         assert_eq!(
-            long_run_tick(&sessions, None, 1, ts(3_600))
+            long_run_tick(&sessions, "", None, 1, ts(3_600))
                 .unwrap()
                 .task_name,
             "Reviews"
@@ -409,7 +418,7 @@ mod tests {
     fn idle_since_never_precedes_the_runs_own_start() {
         // Started 5 minutes ago, idle for 30: lose only the 5 minutes.
         let sessions = vec![session(true, vec![running("r", 3_300)])];
-        let action = idle_tick(&sessions, &enabled(1), 30 * MIN_MS, ts(3_600));
+        let action = idle_tick(&sessions, "", &enabled(1), 30 * MIN_MS, ts(3_600));
         assert!(matches!(action, IdleAction::Pause { idle_since, .. } if idle_since == ts(3_300)));
     }
 
@@ -418,7 +427,7 @@ mod tests {
         let running_sessions = vec![session(true, vec![running("r", 0)])];
         let disabled = IdleState::default();
         assert_eq!(
-            idle_tick(&running_sessions, &disabled, 60 * MIN_MS, ts(7_200)),
+            idle_tick(&running_sessions, "", &disabled, 60 * MIN_MS, ts(7_200)),
             IdleAction::None
         );
 
@@ -427,7 +436,7 @@ mod tests {
         paused.is_paused = true;
         let idle_only = vec![session(true, vec![paused, instance("i", 0)])];
         assert_eq!(
-            idle_tick(&idle_only, &enabled(1), 60 * MIN_MS, ts(7_200)),
+            idle_tick(&idle_only, "", &enabled(1), 60 * MIN_MS, ts(7_200)),
             IdleAction::None
         );
     }
@@ -443,18 +452,18 @@ mod tests {
 
         // Still away: nothing
         assert_eq!(
-            idle_tick(&sessions, &state, 30 * MIN_MS, ts(2_400)),
+            idle_tick(&sessions, "", &state, 30 * MIN_MS, ts(2_400)),
             IdleAction::None
         );
         // Input just now: back
         assert_eq!(
-            idle_tick(&sessions, &state, 2_000, ts(2_400)),
+            idle_tick(&sessions, "", &state, 2_000, ts(2_400)),
             IdleAction::Returned
         );
         // Already marked back: not again
         state.pause = Some(pending("r", 600, Some(2_400)));
         assert_eq!(
-            idle_tick(&sessions, &state, 1_000, ts(2_500)),
+            idle_tick(&sessions, "", &state, 1_000, ts(2_500)),
             IdleAction::None
         );
     }
@@ -466,12 +475,12 @@ mod tests {
 
         let resumed = vec![session(true, vec![running("r", 0)])];
         assert_eq!(
-            idle_tick(&resumed, &state, 1_000, ts(2_500)),
+            idle_tick(&resumed, "", &state, 1_000, ts(2_500)),
             IdleAction::ClearPending
         );
         let gone: Vec<TaskSession> = vec![session(true, vec![])];
         assert_eq!(
-            idle_tick(&gone, &state, 1_000, ts(2_500)),
+            idle_tick(&gone, "", &state, 1_000, ts(2_500)),
             IdleAction::ClearPending
         );
     }
@@ -590,8 +599,11 @@ mod tests {
     fn reminds_once_a_run_reaches_the_setting() {
         let sessions = vec![session(true, vec![running("r", 0)])];
 
-        assert_eq!(long_run_tick(&sessions, None, 4, ts(4 * HOUR - 1)), None);
-        let reminder = long_run_tick(&sessions, None, 4, ts(4 * HOUR)).unwrap();
+        assert_eq!(
+            long_run_tick(&sessions, "", None, 4, ts(4 * HOUR - 1)),
+            None
+        );
+        let reminder = long_run_tick(&sessions, "", None, 4, ts(4 * HOUR)).unwrap();
         assert_eq!(reminder.run_ms, 4 * 3_600_000);
         assert!(reminder.key.starts_with("r@"));
     }
@@ -599,10 +611,10 @@ mod tests {
     #[test]
     fn the_same_run_is_reminded_about_once() {
         let sessions = vec![session(true, vec![running("r", 0)])];
-        let first = long_run_tick(&sessions, None, 4, ts(4 * HOUR)).unwrap();
+        let first = long_run_tick(&sessions, "", None, 4, ts(4 * HOUR)).unwrap();
 
         assert_eq!(
-            long_run_tick(&sessions, Some(&first.key), 4, ts(9 * HOUR)),
+            long_run_tick(&sessions, "", Some(&first.key), 4, ts(9 * HOUR)),
             None
         );
     }
@@ -615,19 +627,37 @@ mod tests {
         let earlier_key = format!("r@{}", ts(0).to_rfc3339());
 
         assert_eq!(
-            long_run_tick(&sessions, Some(&earlier_key), 4, ts(8 * HOUR)),
+            long_run_tick(&sessions, "", Some(&earlier_key), 4, ts(8 * HOUR)),
             None
         );
-        assert!(long_run_tick(&sessions, Some(&earlier_key), 4, ts(9 * HOUR)).is_some());
+        assert!(long_run_tick(&sessions, "", Some(&earlier_key), 4, ts(9 * HOUR)).is_some());
+    }
+
+    #[test]
+    fn another_devices_timer_is_neither_paused_nor_reminded_about() {
+        let mut phone = running("r", 0);
+        phone.running_on = Some("phone".to_string());
+        let sessions = vec![session(true, vec![phone])];
+        assert_eq!(
+            long_run_tick(&sessions, "desk", None, 1, ts(10 * HOUR)),
+            None
+        );
+        assert_eq!(
+            idle_tick(&sessions, "desk", &enabled(1), 30 * MIN_MS, ts(3_600)),
+            IdleAction::None
+        );
+        // On the phone it's its own
+        assert!(long_run_tick(&sessions, "phone", None, 1, ts(10 * HOUR)).is_some());
     }
 
     #[test]
     fn no_reminder_when_off_or_nothing_runs() {
         let sessions = vec![session(true, vec![running("r", 0)])];
-        assert_eq!(long_run_tick(&sessions, None, 0, ts(10 * HOUR)), None);
+        assert_eq!(long_run_tick(&sessions, "", None, 0, ts(10 * HOUR)), None);
         assert_eq!(
             long_run_tick(
                 &[session(true, vec![instance("i", 0)])],
+                "",
                 None,
                 4,
                 ts(10 * HOUR)
