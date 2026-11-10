@@ -88,6 +88,14 @@ export interface SystemBarsPlatform {
   setTheme(theme: 'light' | 'dark'): void;
 }
 
+/** Usage analytics (Firebase Analytics): the web app's, and Android's native SDK. */
+export interface AnalyticsPlatform {
+  /** On or off, as Settings → Privacy says. */
+  setEnabled(enabled: boolean): void;
+  /** A page the app showed. */
+  screen(name: string): void;
+}
+
 export interface Platform {
   files: FilePlatform;
   notifications: NotificationPlatform;
@@ -105,6 +113,7 @@ export interface Platform {
    * where the browser's popup does it, or the build has no client for it.
    */
   googleSignIn?(): Promise<string>;
+  analytics?: AnalyticsPlatform;
 }
 
 /** A command's arguments, left out for a command that takes none. */

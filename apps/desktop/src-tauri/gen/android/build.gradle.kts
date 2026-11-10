@@ -5,7 +5,11 @@ buildscript {
     }
     dependencies {
         classpath("com.android.tools.build:gradle:9.3.1")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.10")
+        // 2.3 reads the Kotlin 2.4 metadata Firebase and googleid ship with
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21")
+        // TaskMint: Firebase reads app/google-services.json (Analytics, and the
+        // web client id Google sign-in asks Credential Manager for)
+        classpath("com.google.gms:google-services:4.5.0")
     }
 }
 

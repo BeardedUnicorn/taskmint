@@ -108,6 +108,20 @@ interface AndroidSystemBars {
   setTheme(theme: string): void;
 }
 
+/** What Android's MainActivity.kt adds for Firebase Analytics. */
+interface AndroidAnalytics {
+  setEnabled(enabled: boolean): void;
+  screen(name: string): void;
+}
+
+/** Usage analytics on Android (its native SDK); the desktop has none. */
+function analytics(): Pick<Platform, 'analytics'> {
+  const android = (window as { TaskMintAnalytics?: AndroidAnalytics }).TaskMintAnalytics;
+  return android
+    ? { analytics: { setEnabled: enabled => android.setEnabled(enabled), screen: name => android.screen(name) } }
+    : {};
+}
+
 /** The status bar on Android; elsewhere there's none to set. */
 function systemBars(): Pick<Platform, 'systemBars'> {
   const android = (window as { TaskMintSystemBars?: AndroidSystemBars }).TaskMintSystemBars;
@@ -165,7 +179,7 @@ export function createTauriBackend(capabilities: Capabilities, google?: GoogleDe
     subscribe,
     platform: {
       ...everywhere,
-      ...(capabilities.runtime === 'mobile' ? systemBars() : desktopOnly),
+      ...(capabilities.runtime === 'mobile' ? { ...systemBars(), ...analytics() } : desktopOnly),
       ...googleSignIn(capabilities.runtime, google),
     },
   };

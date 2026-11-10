@@ -253,6 +253,20 @@ describe('createTauriBackend', () => {
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.systemBars).toBeUndefined();
   });
 
+  it("counts usage through Android's native analytics, and the desktop has none", () => {
+    const bridge = { setEnabled: vi.fn(), screen: vi.fn() };
+    vi.stubGlobal('TaskMintAnalytics', bridge);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
+    android.platform.analytics!.setEnabled(false);
+    android.platform.analytics!.screen('tasks');
+    expect(bridge.setEnabled).toHaveBeenCalledWith(false);
+    expect(bridge.screen).toHaveBeenCalledWith('tasks');
+    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.analytics).toBeUndefined();
+  });
+
   describe('Google sign-in', () => {
     it("goes through the desktop's browser when the build has a client, and isn't there without one", async () => {
       mockInvoke.mockResolvedValueOnce({ idToken: 'id-token' });

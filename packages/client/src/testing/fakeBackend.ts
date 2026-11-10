@@ -8,6 +8,7 @@
 
 import { vi, type Mock } from 'vitest';
 import type {
+  AnalyticsPlatform,
   Backend,
   Capabilities,
   FilePlatform,
@@ -34,6 +35,7 @@ export interface FakePlatform extends Platform {
   reveal: Mock<(path: string) => Promise<void>>;
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
   googleSignIn: Mock<() => Promise<string>>;
+  analytics: Mocked<AnalyticsPlatform>;
 }
 
 /**
@@ -57,7 +59,7 @@ export interface FakeBackendOptions {
   capabilities?: Partial<Capabilities>;
   /** Optional platform features this backend lacks (as on the web). */
   without?: ReadonlyArray<
-    'idle' | 'folderBackups' | 'tray' | 'systemBars' | 'reveal' | 'captureStatus' | 'googleSignIn'
+    'idle' | 'folderBackups' | 'tray' | 'systemBars' | 'reveal' | 'captureStatus' | 'googleSignIn' | 'analytics'
   >;
 }
 
@@ -96,6 +98,10 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     reveal: vi.fn(async () => undefined),
     captureStatus: vi.fn(async () => ({ running: true, port: 43117, warning: null })),
     googleSignIn: vi.fn(async () => 'google-id-token'),
+    analytics: {
+      setEnabled: vi.fn(),
+      screen: vi.fn(),
+    },
   };
   for (const feature of without) delete platform[feature];
 

@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "695801278605",
+    "project_id": "taskmint-f9a05",
+    "storage_bucket": "taskmint-f9a05.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:695801278605:android:8af68f5b8c650c3568b2c4",
+        "android_client_info": {
+          "package_name": "com.taskmint.android"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "695801278605-a58eul073h3481eiuibioib4gp4qm191.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.taskmint.android",
+            "certificate_hash": "e4305d1f99521801bbef8b4c10e6c92695074da1"
+          }
+        },
+        {
+          "client_id": "695801278605-l3q43bk5ukgk982ekrhsg77nlar54pv4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.taskmint.android",
+            "certificate_hash": "081dc4d95d3cbeeb83473b62b0c9080010a080f7"
+          }
+        },
+        {
+          "client_id": "695801278605-jon1g9g7met5u2rjkgc05n0lgnlfst6s.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkza-5fuVkShUQ8PCeZWjKpjW8M-ro8C0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "695801278605-jon1g9g7met5u2rjkgc05n0lgnlfst6s.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
