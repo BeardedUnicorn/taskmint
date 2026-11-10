@@ -11,6 +11,8 @@ import { createFakeBackend, type FakeBackend, type FakeBackendOptions } from './
 
 export { createFakeBackend };
 export type { FakeBackend, FakeBackendOptions, FakePlatform } from './fakeBackend';
+export { bea, createFakeCloudStore } from './fakeCloudStore';
+export type { FakeCloudStore } from './fakeCloudStore';
 
 let installed: FakeBackend | null = null;
 

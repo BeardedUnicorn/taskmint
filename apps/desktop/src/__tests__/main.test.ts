@@ -3,6 +3,7 @@ import { startClient } from '@taskmint/client/start';
 import type { Capabilities } from '@taskmint/client/backend';
 import { command, createTauriBackend } from '../tauriBackend';
 import { desktopExtensions } from '../extensions';
+import { desktopCloud } from '../firebaseConfig';
 
 vi.mock('@taskmint/client/start', () => ({ startClient: vi.fn(async () => undefined) }));
 vi.mock('../tauriBackend', () => ({ createTauriBackend: vi.fn(() => ({ name: 'tauri' })), command: vi.fn() }));
@@ -41,6 +42,7 @@ describe('the desktop entry', () => {
     expect(startClient).toHaveBeenCalledWith(root, {
       backend: { name: 'tauri' },
       extensions: { name: 'desktop' },
+      cloud: desktopCloud(import.meta.env),
     });
   });
 });

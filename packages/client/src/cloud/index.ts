@@ -1,0 +1,52 @@
+/**
+ * The page's cloud sync, when the shell's build has a Firebase app: started
+ * once with the client (startClient), read by the Settings section and the
+ * data reset.
+ */
+
+import { useSyncExternalStore } from 'react';
+import type { Backend } from '../backend';
+import { SyncEngine, type SyncView } from './engine';
+import type { CloudConfig, CloudStore } from './types';
+
+export type { CloudConfig, CloudUser } from './types';
+export type { SyncPhase, SyncView } from './engine';
+export { SyncEngine } from './engine';
+
+let current: SyncEngine | null = null;
+
+const loadFirebase = (config: CloudConfig) => () =>
+  import('./firebaseStore').then(({ createFirebaseStore }) => createFirebaseStore(config));
+
+/** Starts syncing `backend` with Firebase (or, in tests, with `load`'s store). */
+export function startCloudSync(
+  backend: Backend,
+  config: CloudConfig,
+  load: () => Promise<CloudStore> = loadFirebase(config)
+): SyncEngine {
+  current?.stop();
+  current = new SyncEngine(backend, load);
+  void current.start();
+  return current;
+}
+
+/** The page's sync, or null when this build has none. */
+export function getCloudSync(): SyncEngine | null {
+  return current;
+}
+
+/** Tests: start without sync, or with the engine given. */
+export function setCloudSyncForTest(engine: SyncEngine | null): void {
+  current?.stop();
+  current = engine;
+}
+
+const NO_SYNC = (): (() => void) => () => {};
+const NO_VIEW = (): null => null;
+
+/** The sync's state, as it changes; null without sync. */
+export function useCloudSync(): { engine: SyncEngine; view: SyncView } | null {
+  const engine = current;
+  const view = useSyncExternalStore(engine?.subscribe ?? NO_SYNC, engine?.getView ?? NO_VIEW);
+  return engine && view ? { engine, view } : null;
+}

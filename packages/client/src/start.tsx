@@ -20,12 +20,16 @@ import { StartupError } from './components/StartupError';
 import { setBackend, type Backend } from './backend';
 import { AppExtensionsProvider, type AppExtensions } from './app/extensions';
 import { errorMessage } from './utils/errors';
+import { startCloudSync, type CloudConfig } from './cloud';
 
 export type { AppExtensions } from './app/extensions';
+export type { CloudConfig } from './cloud';
 
 export interface StartOptions {
   backend: Backend;
   extensions: AppExtensions;
+  /** The shell build's Firebase app, for cloud sync; none: the data stays on this device. */
+  cloud?: CloudConfig;
 }
 
 /**
@@ -33,7 +37,7 @@ export interface StartOptions {
  * the records load, and the app renders (or, when the records can't be
  * read, a startup error).
  */
-export async function startClient(container: HTMLElement, { backend, extensions }: StartOptions): Promise<void> {
+export async function startClient(container: HTMLElement, { backend, extensions, cloud }: StartOptions): Promise<void> {
   initSentry();
   setBackend(backend);
   const root = ReactDOM.createRoot(container);
@@ -50,6 +54,7 @@ export async function startClient(container: HTMLElement, { backend, extensions 
     );
     return;
   }
+  if (cloud) startCloudSync(backend, cloud);
   root.render(
     <React.StrictMode>
       <AppExtensionsProvider value={extensions}>

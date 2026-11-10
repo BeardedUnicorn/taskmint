@@ -7,6 +7,8 @@ import { readAppRecord } from '../services/appRecords';
 import { asBackend, createFakeBackend, installFakeBackend } from '../testing';
 
 vi.mock('../utils/sentry', () => ({ initSentry: vi.fn() }));
+const cloud = vi.hoisted(() => ({ startCloudSync: vi.fn() }));
+vi.mock('../cloud', () => cloud);
 vi.mock('../App', () => ({
   default: function FakeApp() {
     const { settingsSections = [] } = useAppExtensions();
@@ -43,6 +45,16 @@ describe('startClient', () => {
     expect(backend.call).toHaveBeenCalledWith('get_app_records');
     expect(readAppRecord('dailyGoal')).toEqual({ targetAmount: 50 });
     expect(screen.getByText('app with Account')).toBeInTheDocument();
+    // Without a Firebase app, nothing syncs
+    expect(cloud.startCloudSync).not.toHaveBeenCalled();
+  });
+
+  it("starts cloud sync when the shell's build has a Firebase app", async () => {
+    const backend = createFakeBackend();
+    backend.call.mockResolvedValue({ records: {}, revisions: {} });
+    const config = { persistentCache: false, popupSignIn: false } as never;
+    await act(() => startClient(container(), { backend: asBackend(backend), extensions: {}, cloud: config }));
+    expect(cloud.startCloudSync).toHaveBeenCalledWith(backend, config);
   });
 
   it("shows why it couldn't start when the records can't be read", async () => {
