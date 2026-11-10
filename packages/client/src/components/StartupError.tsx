@@ -6,6 +6,7 @@
 
 import type { ComponentType } from 'react';
 import { getBackend } from '../backend';
+import { HideSplashScreen } from './HideSplashScreen';
 import { reloadApp } from '../utils/appReload';
 
 interface StartupErrorProps {
@@ -58,6 +59,8 @@ export function StartupError({ message, Actions }: StartupErrorProps) {
         Try again
       </button>
       {Actions && <Actions />}
+      {/* A phone's launch screen would otherwise cover this */}
+      <HideSplashScreen />
     </div>
   );
 }

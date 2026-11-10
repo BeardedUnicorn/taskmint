@@ -108,6 +108,12 @@ interface AndroidSystemBars {
   setTheme(theme: string): void;
 }
 
+/** What Android's MainActivity.kt adds for its launch screen. */
+interface AndroidSplash {
+  /** The page has drawn: the launch screen fades out. */
+  hide(): void;
+}
+
 /** What Android's MainActivity.kt adds for Firebase Analytics. */
 interface AndroidAnalytics {
   setEnabled(enabled: boolean): void;
@@ -127,6 +133,12 @@ function systemBars(): Pick<Platform, 'systemBars'> {
   const android = (window as { TaskMintSystemBars?: AndroidSystemBars }).TaskMintSystemBars;
   // Called on the bridge itself: Android refuses a method taken off it
   return android ? { systemBars: { setTheme: theme => android.setTheme(theme) } } : {};
+}
+
+/** The launch screen on Android; the desktop has none. */
+function splashScreen(): Pick<Platform, 'splashScreen'> {
+  const android = (window as { TaskMintSplash?: AndroidSplash }).TaskMintSplash;
+  return android ? { splashScreen: { hide: () => android.hide() } } : {};
 }
 
 /** The "Desktop app" OAuth client Google sign-in uses (the build's VITE_GOOGLE_DESKTOP_CLIENT_*). */
@@ -179,7 +191,7 @@ export function createTauriBackend(capabilities: Capabilities, google?: GoogleDe
     subscribe,
     platform: {
       ...everywhere,
-      ...(capabilities.runtime === 'mobile' ? { ...systemBars(), ...analytics() } : desktopOnly),
+      ...(capabilities.runtime === 'mobile' ? { ...systemBars(), ...splashScreen(), ...analytics() } : desktopOnly),
       ...googleSignIn(capabilities.runtime, google),
     },
   };

@@ -18,6 +18,7 @@ import { DailyGoalProvider } from './contexts/DailyGoalContext';
 import { TaskNotesProvider } from './contexts/TaskNotesContext';
 import { NoteTemplatesProvider } from './contexts/NoteTemplatesContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { HideSplashScreen } from './components/HideSplashScreen';
 import { useEnhancedSystemTray } from './hooks/useEnhancedSystemTray';
 import { useRecordConflictNotice } from './hooks/useRecordConflictNotice';
 import { useUpdatedNotice } from './hooks/useUpdatedNotice';
@@ -104,6 +105,16 @@ function GlobalDialogs({
 const pageFallback = <PageSkeleton />;
 
 /**
+ * A phone's launch screen stays until the page (not its skeleton) and the
+ * session list every page starts from are on screen. (A list that fails to
+ * load leaves it to the launch screen's own time limit.)
+ */
+function AppDrawn() {
+  const { hasLoaded } = useSessionManagementContext();
+  return <HideSplashScreen when={hasLoaded} />;
+}
+
+/**
  * The window: sidebar, the current page, and the app-wide dialogs. On a
  * phone a top bar takes the sidebar's place, and the sidebar slides in as
  * a menu.
@@ -143,6 +154,7 @@ function AppContent() {
       <ErrorBoundary key={activeView} level="page">
         <Suspense fallback={pageFallback}>
           <Page onStartWork={showStartDialog} onAddTime={showAddTime} />
+          <AppDrawn />
         </Suspense>
       </ErrorBoundary>
     ),

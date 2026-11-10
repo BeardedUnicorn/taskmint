@@ -9,6 +9,7 @@ import {
 } from '@mui/icons-material';
 import { captureException, addBreadcrumb, setContext } from '../utils/sentry';
 import { reloadApp } from '../utils/appReload';
+import { HideSplashScreen } from './HideSplashScreen';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -151,6 +152,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             bgcolor: 'background.default',
           }}
         >
+          {/* A phone's launch screen would otherwise cover this */}
+          <HideSplashScreen />
           <Card sx={{ maxWidth: 600, width: '100%' }}>
             <CardContent>
               <Stack spacing={3} sx={{ alignItems: 'center' }}>

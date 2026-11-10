@@ -16,6 +16,7 @@ import type {
   IdlePlatform,
   NotificationPlatform,
   Platform,
+  SplashScreenPlatform,
   SystemBarsPlatform,
   TrayPlatform,
 } from '../backend/types';
@@ -32,6 +33,7 @@ export interface FakePlatform extends Platform {
   folderBackups: Mocked<FolderBackupPlatform>;
   tray: Mocked<TrayPlatform>;
   systemBars: Mocked<SystemBarsPlatform>;
+  splashScreen: Mocked<SplashScreenPlatform>;
   reveal: Mock<(path: string) => Promise<void>>;
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
   googleSignIn: Mock<() => Promise<string>>;
@@ -59,7 +61,15 @@ export interface FakeBackendOptions {
   capabilities?: Partial<Capabilities>;
   /** Optional platform features this backend lacks (as on the web). */
   without?: ReadonlyArray<
-    'idle' | 'folderBackups' | 'tray' | 'systemBars' | 'reveal' | 'captureStatus' | 'googleSignIn' | 'analytics'
+    | 'idle'
+    | 'folderBackups'
+    | 'tray'
+    | 'systemBars'
+    | 'splashScreen'
+    | 'reveal'
+    | 'captureStatus'
+    | 'googleSignIn'
+    | 'analytics'
   >;
 }
 
@@ -94,6 +104,9 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     },
     systemBars: {
       setTheme: vi.fn(),
+    },
+    splashScreen: {
+      hide: vi.fn(),
     },
     reveal: vi.fn(async () => undefined),
     captureStatus: vi.fn(async () => ({ running: true, port: 43117, warning: null })),

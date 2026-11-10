@@ -31,6 +31,7 @@ describe('createFakeBackend', () => {
     await expect(backend.platform.folderBackups.read('/b', 'backup.json')).resolves.toBe('{}');
     await expect(backend.platform.tray.setWithdrawalLabel('Withdrawal open')).resolves.toBeUndefined();
     expect(backend.platform.systemBars.setTheme('dark')).toBeUndefined();
+    expect(backend.platform.splashScreen.hide()).toBeUndefined();
     await expect(backend.platform.reveal('/b/file')).resolves.toBeUndefined();
     await expect(backend.platform.captureStatus()).resolves.toEqual({ running: true, port: 43117, warning: null });
   });
@@ -38,7 +39,17 @@ describe('createFakeBackend', () => {
   it('takes other capabilities and leaves out platform features', () => {
     const backend = createFakeBackend({
       capabilities: { runtime: 'web', dataLocation: 'cloud' },
-      without: ['idle', 'folderBackups', 'tray', 'systemBars', 'reveal', 'captureStatus', 'googleSignIn', 'analytics'],
+      without: [
+        'idle',
+        'folderBackups',
+        'tray',
+        'systemBars',
+        'splashScreen',
+        'reveal',
+        'captureStatus',
+        'googleSignIn',
+        'analytics',
+      ],
     });
 
     expect(backend.capabilities).toEqual({ runtime: 'web', dataLocation: 'cloud' });

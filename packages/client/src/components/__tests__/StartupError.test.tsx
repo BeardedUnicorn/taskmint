@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { reloadApp } from '../../utils/appReload';
-import { installFakeBackendForTest } from '../../testing';
+import { fakeBackend, installFakeBackendForTest } from '../../testing';
 import { StartupError } from '../StartupError';
 
 vi.mock('../../utils/appReload', () => ({ reloadApp: vi.fn() }));
@@ -18,6 +18,13 @@ describe('StartupError', () => {
     render(<StartupError message="Can't reach the cloud" Actions={() => <button type="button">Sign out</button>} />);
     expect(screen.getByRole('alert')).toHaveTextContent('kept in your TaskMint cloud account');
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+  });
+
+  it("takes a phone's launch screen down, so the error shows", async () => {
+    const { hide } = fakeBackend().platform.splashScreen;
+    hide.mockClear();
+    render(<StartupError message="disk unplugged" />);
+    await waitFor(() => expect(hide).toHaveBeenCalledTimes(1));
   });
 
   it('tries starting again', () => {

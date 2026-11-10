@@ -10,8 +10,11 @@
 -keepclassmembers class com.taskmint.android.MainActivity$SystemBars {
    @android.webkit.JavascriptInterface public <methods>;
 }
-# and the Google sign-in and Analytics bridges (window.TaskMintGoogleSignIn,
-# window.TaskMintAnalytics)
+# and the launch screen, Google sign-in and Analytics bridges
+# (window.TaskMintSplash, window.TaskMintGoogleSignIn, window.TaskMintAnalytics)
+-keepclassmembers class com.taskmint.android.MainActivity$Splash {
+   @android.webkit.JavascriptInterface public <methods>;
+}
 -keepclassmembers class com.taskmint.android.MainActivity$GoogleSignIn {
    @android.webkit.JavascriptInterface public <methods>;
 }
