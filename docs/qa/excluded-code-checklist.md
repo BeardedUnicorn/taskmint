@@ -15,6 +15,8 @@ Tauri or plugin versions, or to the `Platform` trait they implement.
 | `apps/desktop/src-tauri/src/app.rs` | the Tauri builder: plugins, setup, window events, the run loop | [Startup and wiring](#startup-and-wiring-apprs) |
 | `apps/desktop/src-tauri/src/platform/os.rs` | `TauriPlatform`: events, notifications, dialogs, reveal and open, the window, the tray, the updater | [The platform](#the-platform-platformosrs), [Updates](#updates-platformosrs) |
 | `apps/desktop/src-tauri/src/main.rs` | calls `taskmint_lib::run`; no console window on Windows | [Windows and Linux](#windows-and-linux) |
+| `apps/desktop/src-tauri/gen/android/…/MainActivity.kt` | the webview's bridges: system bars, Google sign-in, analytics (Kotlin isn't measured) | [Android](#android) |
+| cloud sync against the real Firebase project | the tested engine and rules, on Google's servers and in real webviews | [Cloud sync](#cloud-sync) |
 | desktop `cfg(target_os = "windows" \| "linux")` code | not compiled on the macOS coverage run | [Windows and Linux](#windows-and-linux) |
 
 ## Before you start
@@ -103,6 +105,9 @@ Note anything that fails with the build, the OS version and what you saw.
       reveals the file, selected, in Finder.
 - [ ] **Bring the window forward.** Covered by "Second launch" and the deep
       links.
+- [ ] **Open in the browser.** Settings → Cloud sync → Continue with Google
+      (a build with the Google client in `.env`) opens Google's sign-in in
+      the default browser.
 - [ ] **Tray menu.** The menu lists the start entries, the disabled label
       lines, separators and Quit. Renaming or archiving a task updates it
       without a restart.
@@ -179,6 +184,46 @@ real key never leaves CI). Every file goes in one scratch folder, `$S`:
       development build can't install updates.
 - [ ] **A real release.** After a release, an install of the version before
       it finds and installs it from GitHub.
+
+## Cloud sync
+
+With the bundled desktop app on a scratch data folder
+(`TASKMINT_DATA_DIR`), the Android APK, and the web app, all signed in to
+one test account of your own on the real project:
+
+- [ ] **Sign in by email** on the desktop: Settings → Cloud sync shows
+      "Signed in as …" and "Up to date".
+- [ ] **Google on the desktop:** Continue with Google opens the browser;
+      after choosing the account, the page says "You're signed in", and the
+      app is. Cancelling on Google's page says the sign-in was cancelled;
+      closing the tab instead times out after 5 minutes.
+- [ ] **Both have data:** signing in on a device with data, to an account
+      with data, asks Merge them / Use the cloud's data.
+- [ ] **A change travels:** a task made on the desktop shows on the phone
+      and in the web app within seconds, and the other way round.
+- [ ] **A phone timer** shows in the desktop's tray, and the desktop's idle
+      detection doesn't pause it.
+- [ ] **Offline:** with a device offline, start a timer and edit a task;
+      back online, both arrive, and only one timer is left running.
+- [ ] **Stop syncing** keeps the device's data and signs it out.
+- [ ] **Delete cloud data** (on a test account): every device says the
+      cloud data was deleted and keeps its data; **Sync again** uploads it.
+- [ ] **The web app on Hosting** (after a deploy): https://taskmint-f9a05.web.app
+      opens to sign-in, Continue with Google signs in through the popup, and
+      the browser console shows no Content Security Policy errors.
+
+## Android
+
+On a phone with Google Play services, with the release APK:
+
+- [ ] **Google sign-in:** Settings → Cloud sync → Continue with Google shows
+      Android's account sheet and signs in. (A debug APK works too: both
+      keys' SHA-1s are registered.)
+- [ ] **Analytics:** with Settings → Privacy → Share usage statistics on,
+      page views reach Firebase (Analytics → DebugView, after
+      `adb shell setprop debug.firebase.analytics.app com.taskmint.android`);
+      off, they stop.
+- [ ] **Status bar** follows the app's theme, light and dark.
 
 ## Windows and Linux
 

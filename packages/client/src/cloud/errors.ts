@@ -15,7 +15,7 @@ const MESSAGES: Record<string, string> = {
   'auth/popup-closed-by-user': 'Google sign-in was closed before it finished.',
   'auth/popup-blocked': 'The browser blocked Google’s sign-in window. Allow pop-ups for this site.',
   'auth/account-exists-with-different-credential':
-    'This email signs in another way. Use it, then link Google in Settings → Account.',
+    'This email’s account signs in another way. Sign in that way instead.',
   'auth/requires-recent-login': 'Sign in again first, then try once more.',
   'permission-denied': 'The cloud refused this device’s data. Sign out and in again.',
   unavailable: 'Can’t reach the cloud. Changes will sync once it’s back.',

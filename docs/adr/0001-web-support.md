@@ -1,6 +1,8 @@
 # ADR 0001: TaskMint on the web
 
-- **Status:** accepted (2026-10-25)
+- **Status:** accepted (2026-10-25); decisions 1–3, 5, 6 and 10 superseded by
+  [ADR 0002](0002-firebase.md) (2026-11-09): the server is retired, and the
+  devices and the web app sync through Firebase
 - **Scope:** monorepo layout, server, web client, desktop server mode, extension targets, Docker, coverage
 
 ## Context
