@@ -429,8 +429,9 @@ so no key is stored: the repository variables `GCP_WORKLOAD_IDENTITY_PROVIDER`
 and `GCP_DEPLOY_SERVICE_ACCOUNT` name the provider (pool `github`, provider
 `taskmint-releases`, which trusts only this repository's `v*` tags) and the
 `github-deploy` service account, which can deploy Hosting, the rules and the
-indexes, and read the project (Firebase Viewer, which includes reading
-Firestore and the user list), but not change anyone's data. [docs/runbook.md](docs/runbook.md) says how to
+indexes, and can't read or change anyone's data (Hosting Admin, Firebase
+Rules Admin, Cloud Datastore Index Admin and Service Usage Consumer; no
+viewer role, since Firebase Viewer reads Firestore and the user list). [docs/runbook.md](docs/runbook.md) says how to
 deploy by hand, or roll back.
 
 The installers aren't signed (the Mac app is signed ad hoc). The first time

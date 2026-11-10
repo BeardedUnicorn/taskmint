@@ -145,7 +145,8 @@ signing", including registering the new key's SHA-1 with Firebase.
   design; the rules protect the data.
 - **Authorized domains** (Authentication → Settings) should list only
   `localhost` and the project's own `firebaseapp.com` and `web.app` domains.
-- **The deploy service account** holds Hosting Admin, Firebase Rules Admin,
-  Cloud Datastore Index Admin, Firebase Viewer and Service Usage Consumer.
-  Firebase Viewer can read Firestore and the user list; nothing else needs
-  more.
+- **The deploy service account** holds Firebase Hosting Admin, Firebase
+  Rules Admin, Cloud Datastore Index Admin and Service Usage Consumer, which
+  between them cover every call firebase-tools makes to deploy (Hosting
+  Admin includes looking up the project). Don't add Firebase Viewer or any
+  other viewer role: they read Firestore documents and the user list.

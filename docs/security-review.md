@@ -110,11 +110,11 @@ rules; the release signing keys.
   ids, `google-services.json`) only name the project. The keys are limited
   to Firebase's APIs, and the rules decide what a sign-in can reach.
 
-## Open
+## Fixed in this review
 
-| # | Severity | Where | What | Next |
+| # | Severity | Where | What was wrong | Fix |
 |---|---|---|---|---|
-| 1 | Medium | the `github-deploy` service account | **The deploy can read every account's data.** Firebase Viewer, which firebase-tools uses to look up the project, includes reading Firestore documents and the user list. A compromised workflow dependency on a tag run could read them. | Swap Firebase Viewer for a custom role with only what the deploy needs (starting from `firebase.projects.get`), and check it on the next tag. |
+| 1 | Medium | the `github-deploy` service account | **The deploy could read every account's data.** It held Firebase Viewer, which includes reading Firestore documents and the user list, so a compromised workflow dependency on a tag run could have read them. | Firebase Viewer is removed (2026-11-09). The deploy's calls (firebase-tools 15.35.0: the project lookup, the API check, Hosting, the rules, the database and its indexes) are all within Hosting Admin, Rules Admin, Index Admin and Service Usage Consumer, none of which read data. The next tag's deploy confirms it. |
 
 ## Accepted risks
 
@@ -135,7 +135,7 @@ rules; the release signing keys.
   anything under their own account; it can only break their own data, and
   core skips what it can't read.
 - **The data isn't end-to-end encrypted.** Google encrypts it at rest;
-  Google, and the project's owners (and the deploy, until #1), can read it.
+  Google and the project's owners can read it.
 - **`style-src 'unsafe-inline'`.** MUI's styles are injected at run time.
   Scripts stay `'self'` and the listed Google hosts.
 - **Actions are pinned by major version,** not commit. The deploy job runs
