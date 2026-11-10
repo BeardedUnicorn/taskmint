@@ -41,6 +41,22 @@ describe('the page’s cloud sync', () => {
     await vi.waitFor(() => expect(result.current?.view.user).toEqual(bea()));
   });
 
+  it("signs in with Google the shell's way, else in a popup where the build has one", async () => {
+    const store = createFakeCloudStore();
+    const native = startCloudSync(asBackend(createFakeBackend()), CONFIG, async () => store);
+    await vi.waitFor(() => expect(native.getView().phase).toBe('signedOut'));
+    await native.signInWithGoogle();
+    expect(store.signInWithGoogle).toHaveBeenLastCalledWith('google-id-token');
+
+    const browser = createFakeBackend({ without: ['googleSignIn'] });
+    const popup = startCloudSync(asBackend(browser), { ...CONFIG, popupSignIn: true }, async () => store);
+    await vi.waitFor(() => expect(popup.getView().phase).not.toBe('loading'));
+    await popup.signInWithGoogle();
+    expect(store.signInWithGoogle).toHaveBeenLastCalledWith(null);
+
+    expect(startCloudSync(asBackend(browser), CONFIG, async () => store).canUseGoogle).toBe(false);
+  });
+
   it('loads Firebase itself by default', async () => {
     const engine = startCloudSync(asBackend(createFakeBackend()), CONFIG);
     await vi.waitFor(() => expect(engine.getView().phase).toBe('signedOut'));

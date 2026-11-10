@@ -19,6 +19,7 @@ pub struct Recorded {
     pub folder_dialogs: Vec<String>,
     pub revealed: Vec<PathBuf>,
     pub opened: Vec<PathBuf>,
+    pub opened_urls: Vec<String>,
     pub windows_shown: usize,
     pub menus: Vec<TrayMenu>,
     pub statuses: Vec<TrayStatus>,
@@ -188,6 +189,12 @@ impl Platform for FakePlatform {
     fn open_dir(&self, path: &Path) -> Result<(), String> {
         self.check("open_dir")?;
         self.recorded().opened.push(path.to_path_buf());
+        Ok(())
+    }
+
+    fn open_url(&self, url: &str) -> Result<(), String> {
+        self.check("open_url")?;
+        self.recorded().opened_urls.push(url.to_string());
         Ok(())
     }
 

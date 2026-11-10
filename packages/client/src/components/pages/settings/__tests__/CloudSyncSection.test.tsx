@@ -12,8 +12,13 @@ const OPTIONS = { sendDelayMs: 1, retryMs: 10_000 };
 afterEach(() => setCloudSyncForTest(null));
 
 /** The section on a real engine, over a fake cloud and a scripted backend. */
-async function shown(host = syncHost(), store: FakeCloudStore = createFakeCloudStore(), load = async () => store) {
-  const engine = new SyncEngine(asBackend(host.backend), load, OPTIONS);
+async function shown(
+  host = syncHost(),
+  store: FakeCloudStore = createFakeCloudStore(),
+  load = async () => store,
+  google: (() => Promise<string | null>) | null = null
+) {
+  const engine = new SyncEngine(asBackend(host.backend), load, OPTIONS, google);
   setCloudSyncForTest(engine);
   render(<CloudSyncSection />);
   await act(() => engine.start());
@@ -32,6 +37,27 @@ describe('Settings → Cloud sync, signed out', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(store.signIn).toHaveBeenLastCalledWith('bea@example.com', 'secret');
     expect(await screen.findByText('Signed in as bea@example.com')).toBeInTheDocument();
+  });
+
+  it('signs in with Google where the build can, and says why it was refused', async () => {
+    const { store, user } = await shown(syncHost(), createFakeCloudStore(), undefined, async () => 'token');
+    vi.mocked(store.signInWithGoogle).mockRejectedValueOnce({ code: 'auth/popup-closed-by-user' });
+    await user.click(screen.getByRole('button', { name: 'Continue with Google' }));
+    expect(await screen.findByText('Google sign-in was closed before it finished.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue with Google' }));
+    expect(store.signInWithGoogle).toHaveBeenLastCalledWith('token');
+    expect(await screen.findByText('Signed in as bea@example.com')).toBeInTheDocument();
+  });
+
+  it('leaves Google out where the build has no way to it, and while sending a reset link', async () => {
+    const { user } = await shown(syncHost(), createFakeCloudStore(), undefined, async () => null);
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Forgot password?' }));
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument();
+    setCloudSyncForTest(null);
+    document.body.innerHTML = '';
+    await shown();
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument();
   });
 
   it('makes an account, or sends a reset link, and goes back to signing in', async () => {

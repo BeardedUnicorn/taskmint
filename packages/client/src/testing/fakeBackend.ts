@@ -33,6 +33,7 @@ export interface FakePlatform extends Platform {
   systemBars: Mocked<SystemBarsPlatform>;
   reveal: Mock<(path: string) => Promise<void>>;
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
+  googleSignIn: Mock<() => Promise<string>>;
 }
 
 /**
@@ -55,7 +56,9 @@ export interface FakeBackend extends Omit<Backend, 'call' | 'subscribe'> {
 export interface FakeBackendOptions {
   capabilities?: Partial<Capabilities>;
   /** Optional platform features this backend lacks (as on the web). */
-  without?: ReadonlyArray<'idle' | 'folderBackups' | 'tray' | 'systemBars' | 'reveal' | 'captureStatus'>;
+  without?: ReadonlyArray<
+    'idle' | 'folderBackups' | 'tray' | 'systemBars' | 'reveal' | 'captureStatus' | 'googleSignIn'
+  >;
 }
 
 export function createFakeBackend({ capabilities, without = [] }: FakeBackendOptions = {}): FakeBackend {
@@ -92,6 +95,7 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     },
     reveal: vi.fn(async () => undefined),
     captureStatus: vi.fn(async () => ({ running: true, port: 43117, warning: null })),
+    googleSignIn: vi.fn(async () => 'google-id-token'),
   };
   for (const feature of without) delete platform[feature];
 

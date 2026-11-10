@@ -3,9 +3,12 @@
 //! backups, updates) and passes every other one to the data backend by name.
 //!
 //! It's async because Tauri runs synchronous commands on the main thread,
-//! where a blocking dialog or a slow save would freeze the window.
+//! where a blocking dialog or a slow save would freeze the window. Each call
+//! runs on a blocking thread, so one that waits a long time (Google sign-in
+//! waits for the browser) holds up no other.
 
 use crate::files;
+use crate::google_sign_in::{self, GoogleClient};
 use crate::notifications::{self, Origin};
 use crate::state::AppState;
 use crate::updates;
@@ -93,9 +96,16 @@ enum Shell {
     /// Installs what the last check found and restarts into it, sending
     /// update-progress events as it downloads.
     InstallUpdate {},
+    /// Signs in with Google in the system browser, for cloud sync: the
+    /// Google ID token Firebase takes.
+    #[serde(rename_all = "camelCase")]
+    GoogleSignIn {
+        client_id: String,
+        client_secret: String,
+    },
 }
 
-const SHELL_COMMANDS: [&str; 21] = [
+const SHELL_COMMANDS: [&str; 22] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -117,6 +127,7 @@ const SHELL_COMMANDS: [&str; 21] = [
     "get_capabilities",
     "check_for_update",
     "install_update",
+    "google_sign_in",
 ];
 
 /// The shell command `name` with `args`; None when it's a data command.
@@ -202,6 +213,16 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
             updates::install(state)?;
             Value::Null
         }
+        Shell::GoogleSignIn {
+            client_id,
+            client_secret,
+        } => {
+            let client = GoogleClient {
+                client_id,
+                client_secret,
+            };
+            return google_sign_in::sign_in_with_google(state.platform.as_ref(), &client);
+        }
     })
 }
 
@@ -220,7 +241,10 @@ pub async fn dispatch(
     command: String,
     args: Value,
 ) -> Result<Value, String> {
-    route(&state, &command, args)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || route(&state, &command, args))
+        .await
+        .expect("commands don't panic")
 }
 
 #[cfg(test)]
@@ -472,6 +496,15 @@ mod tests {
             run(&f, "get_capabilities", json!({})),
             Ok(json!({ "runtime": "desktop", "dataLocation": "local" }))
         );
+    }
+
+    #[test]
+    fn google_sign_in_opens_the_browser_and_says_when_it_cannot() {
+        let f = fixture();
+        f.platform.fail("open_url");
+        let args = json!({ "clientId": "c", "clientSecret": "s" });
+        assert!(run(&f, "google_sign_in", args).is_err());
+        assert!(run(&f, "google_sign_in", json!({})).is_err());
     }
 
     #[test]

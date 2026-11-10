@@ -115,15 +115,58 @@ function systemBars(): Pick<Platform, 'systemBars'> {
   return android ? { systemBars: { setTheme: theme => android.setTheme(theme) } } : {};
 }
 
+/** The "Desktop app" OAuth client Google sign-in uses (the build's VITE_GOOGLE_DESKTOP_CLIENT_*). */
+export interface GoogleDesktopClient {
+  clientId: string;
+  clientSecret: string;
+}
+
+/** What Android's MainActivity.kt adds for Google sign-in (Credential Manager). */
+interface AndroidGoogleSignIn {
+  /** Shows the account picker; the answer comes to `window.__taskmintGoogleSignIn`. */
+  start(): void;
+}
+
+type GoogleAnswer = { idToken: string } | { error: string };
+
+declare global {
+  interface Window {
+    __taskmintGoogleSignIn?: (answer: GoogleAnswer) => void;
+  }
+}
+
+/** Google sign-in: Android's account picker, or the desktop's browser when the build has a client. */
+function googleSignIn(runtime: Capabilities['runtime'], client?: GoogleDesktopClient): Pick<Platform, 'googleSignIn'> {
+  if (runtime === 'mobile') {
+    const android = (window as { TaskMintGoogleSignIn?: AndroidGoogleSignIn }).TaskMintGoogleSignIn;
+    if (!android) return {};
+    return {
+      googleSignIn: () =>
+        new Promise<string>((resolve, reject) => {
+          window.__taskmintGoogleSignIn = answer =>
+            'idToken' in answer ? resolve(answer.idToken) : reject(answer.error);
+          android.start();
+        }),
+    };
+  }
+  if (!client) return {};
+  return {
+    googleSignIn: () => command<{ idToken: string }>('google_sign_in', { ...client }).then(({ idToken }) => idToken),
+  };
+}
+
 /** `capabilities` are what get_capabilities said, before the client started. */
-export function createTauriBackend(capabilities: Capabilities): Backend {
+export function createTauriBackend(capabilities: Capabilities, google?: GoogleDesktopClient): Backend {
   return {
     capabilities,
     call<K extends CommandName>(name: K, ...args: CommandArgsParam<K>) {
       return command<CommandReply<K>>(name, args[0] as Record<string, unknown> | undefined);
     },
     subscribe,
-    platform:
-      capabilities.runtime === 'mobile' ? { ...everywhere, ...systemBars() } : { ...everywhere, ...desktopOnly },
+    platform: {
+      ...everywhere,
+      ...(capabilities.runtime === 'mobile' ? systemBars() : desktopOnly),
+      ...googleSignIn(capabilities.runtime, google),
+    },
   };
 }

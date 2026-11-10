@@ -10,6 +10,7 @@ pub mod config;
 mod dispatch;
 pub mod events;
 pub mod files;
+pub mod google_sign_in;
 pub mod idle;
 pub mod legacy_identifier;
 pub mod notifications;

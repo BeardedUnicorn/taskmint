@@ -37,8 +37,18 @@ describe('cloud sync, signing in', () => {
     await engine.signUp('cal@example.com', 'pw');
     expect(store.signUp).toHaveBeenCalledWith('cal@example.com', 'pw');
     await engine.signOut();
-    await engine.signInWithGoogle('token');
+    expect(engine.canUseGoogle).toBe(false);
+    const withGoogle = new SyncEngine(
+      asBackend(syncHost().backend),
+      async () => store,
+      OPTIONS,
+      async () => 'token'
+    );
+    await withGoogle.start();
+    expect(withGoogle.canUseGoogle).toBe(true);
+    await withGoogle.signInWithGoogle();
     expect(store.signInWithGoogle).toHaveBeenCalledWith('token');
+    withGoogle.stop();
     await engine.signOut();
     await engine.signIn('bea@example.com', 'pw');
     expect(store.signIn).toHaveBeenCalledWith('bea@example.com', 'pw');

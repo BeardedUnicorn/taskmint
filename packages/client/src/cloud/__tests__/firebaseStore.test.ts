@@ -21,9 +21,11 @@ const sdk = vi.hoisted(() => {
 
 vi.mock('firebase/app', () => ({ initializeApp: vi.fn(() => ({ name: 'app' })) }));
 vi.mock('firebase/auth', () => {
-  class GoogleAuthProvider {
-    static credential = vi.fn((token: string) => ({ token }));
-  }
+  // Constructed for a popup; its credential() wraps a token
+  const GoogleAuthProvider = Object.assign(
+    vi.fn(function GoogleAuthProvider() {}),
+    { credential: vi.fn((token: string) => ({ token })) }
+  );
   return {
     initializeAuth: vi.fn(() => sdk.auth),
     indexedDBLocalPersistence: 'indexedDB',

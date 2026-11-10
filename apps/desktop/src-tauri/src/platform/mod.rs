@@ -75,6 +75,8 @@ pub trait Platform: Send + Sync {
     fn reveal(&self, path: &Path) -> Result<(), String>;
     /// Opens a folder in the file manager.
     fn open_dir(&self, path: &Path) -> Result<(), String>;
+    /// Opens a web page in the system browser (Google sign-in).
+    fn open_url(&self, url: &str) -> Result<(), String>;
     /// Shows and focuses the main window.
     fn show_main_window(&self);
     /// Shows `menu` in the tray, creating the tray icon the first time. An

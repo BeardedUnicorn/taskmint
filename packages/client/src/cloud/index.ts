@@ -6,7 +6,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { Backend } from '../backend';
-import { SyncEngine, type SyncView } from './engine';
+import { ENGINE_OPTIONS, SyncEngine, type SyncView } from './engine';
 import type { CloudConfig, CloudStore } from './types';
 
 export type { CloudConfig, CloudUser } from './types';
@@ -25,7 +25,10 @@ export function startCloudSync(
   load: () => Promise<CloudStore> = loadFirebase(config)
 ): SyncEngine {
   current?.stop();
-  current = new SyncEngine(backend, load);
+  // Google sign-in: the shell's own (desktop, Android), else a browser's popup
+  const { googleSignIn } = backend.platform;
+  const google = googleSignIn ? () => googleSignIn() : config.popupSignIn ? async () => null : null;
+  current = new SyncEngine(backend, load, ENGINE_OPTIONS, google);
   void current.start();
   return current;
 }

@@ -6,6 +6,7 @@
  */
 
 import type { CloudConfig } from '@taskmint/client/start';
+import type { GoogleDesktopClient } from './tauriBackend';
 
 export const DESKTOP_FIREBASE: CloudConfig['firebase'] = {
   apiKey: 'AIzaSyCOyTKQkIpE8WkRx-PDqFx53ROCN_TkSz8',
@@ -16,6 +17,19 @@ export const DESKTOP_FIREBASE: CloudConfig['firebase'] = {
   appId: '1:695801278605:web:4d1a2fba9e5b026168b2c4',
   measurementId: 'G-NBZ80ZGGMB',
 };
+
+/**
+ * The "Desktop app" OAuth client for Google sign-in (Google Cloud console →
+ * Credentials), from the build's environment: repo secrets in CI, the
+ * repo-root .env locally. Without one, sign-in is email and password only.
+ */
+export function googleDesktopClient(env: {
+  VITE_GOOGLE_DESKTOP_CLIENT_ID?: string;
+  VITE_GOOGLE_DESKTOP_CLIENT_SECRET?: string;
+}): GoogleDesktopClient | undefined {
+  const { VITE_GOOGLE_DESKTOP_CLIENT_ID: clientId, VITE_GOOGLE_DESKTOP_CLIENT_SECRET: clientSecret } = env;
+  return clientId && clientSecret ? { clientId, clientSecret } : undefined;
+}
 
 /**
  * The app keeps its data in its own files, so Firestore needs no cache of

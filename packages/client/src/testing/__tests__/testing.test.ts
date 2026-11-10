@@ -38,7 +38,7 @@ describe('createFakeBackend', () => {
   it('takes other capabilities and leaves out platform features', () => {
     const backend = createFakeBackend({
       capabilities: { runtime: 'web', dataLocation: 'server' },
-      without: ['idle', 'folderBackups', 'tray', 'systemBars', 'reveal', 'captureStatus'],
+      without: ['idle', 'folderBackups', 'tray', 'systemBars', 'reveal', 'captureStatus', 'googleSignIn'],
     });
 
     expect(backend.capabilities).toEqual({ runtime: 'web', dataLocation: 'server' });

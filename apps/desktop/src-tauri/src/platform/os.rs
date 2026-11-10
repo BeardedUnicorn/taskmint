@@ -394,6 +394,13 @@ impl Platform for TauriPlatform {
             .map_err(text)
     }
 
+    fn open_url(&self, url: &str) -> Result<(), String> {
+        self.app
+            .opener()
+            .open_url(url, None::<String>)
+            .map_err(text)
+    }
+
     fn show_main_window(&self) {
         let Some(window) = self.app.get_webview_window("main") else {
             log::error!("Main window not found");

@@ -99,6 +99,12 @@ export interface Platform {
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */
   captureStatus?(): Promise<CaptureServerStatus>;
+  /**
+   * Google sign-in for cloud sync, the shell's own way (the desktop's
+   * system browser, Android's account picker): the Google ID token. Absent
+   * where the browser's popup does it, or the build has no client for it.
+   */
+  googleSignIn?(): Promise<string>;
 }
 
 /** A command's arguments, left out for a command that takes none. */

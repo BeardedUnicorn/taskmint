@@ -7,7 +7,7 @@
 
 import { FormEvent, useState } from 'react';
 import { Alert, Box, Button, Chip, CircularProgress, Stack, TextField, Typography } from '@mui/material';
-import { CloudSync as CloudIcon } from '@mui/icons-material';
+import { CloudSync as CloudIcon, Google as GoogleIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
 import { useCloudSync, type SyncEngine, type SyncView } from '../../../cloud';
@@ -29,6 +29,18 @@ function SignInForm({ engine }: { engine: SyncEngine }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const google = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await engine.signInWithGoogle();
+    } catch (error) {
+      setProblem(cloudErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const switchTo = (next: FormMode) => {
     setMode(next);
@@ -108,6 +120,13 @@ function SignInForm({ engine }: { engine: SyncEngine }) {
             <Button onClick={() => switchTo('signIn')}>I have an account</Button>
           )}
         </Stack>
+        {engine.canUseGoogle && mode !== 'reset' && (
+          <Box>
+            <Button variant="outlined" startIcon={<GoogleIcon />} disabled={busy} onClick={() => void google()}>
+              Continue with Google
+            </Button>
+          </Box>
+        )}
       </Stack>
     </Box>
   );
