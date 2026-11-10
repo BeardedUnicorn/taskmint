@@ -49,3 +49,9 @@ coverage/
 
 # Installers that `pnpm release` collects (scripts/release.mjs)
 /releases/
+
+# Firebase CLI: its deploy cache and the emulators' logs
+.firebase/
+firebase-debug*.log
+firestore-debug.log
+ui-debug.log

@@ -21,6 +21,9 @@ pnpm exec biome ci
 step "The release script's logic (node --test)"
 pnpm test:scripts
 
+step "Firestore security rules, on the emulator (firebase/firestore.rules)"
+scripts/test-rules.sh
+
 step "TypeScript (sources and tests)"
 pnpm typecheck
 

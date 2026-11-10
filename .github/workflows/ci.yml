@@ -37,6 +37,15 @@ jobs:
       # The release script's logic (scripts/release/lib.test.mjs)
       - run: pnpm test:scripts
 
+      # The Firestore emulator needs Java 21 or later
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Firestore security rules (emulator)
+        run: scripts/test-rules.sh
+
       # Sources and tests, every package.
       - run: pnpm typecheck
 
