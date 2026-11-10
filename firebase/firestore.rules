@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// TaskMint's cloud copy (crates/taskmint-core/src/sync): each user's own,
+// and nobody else's.
+//
+//   users/{uid}             { epoch }: deleting the cloud data starts a new
+//                           epoch, and writes from an older one are refused
+//   users/{uid}/data/{id}   one session, work-log entry, project mapping or
+//                           record: { kind, id, json, hash, deleted,
+//                           deviceId, schema, epoch, updatedAt }
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read: if signedInAs(uid);
+      allow create: if signedInAs(uid)
+        && request.resource.data.keys().hasOnly(['epoch'])
+        && request.resource.data.epoch == 1;
+      // One epoch at a time
+      allow update: if signedInAs(uid)
+        && request.resource.data.keys().hasOnly(['epoch'])
+        && request.resource.data.epoch == resource.data.epoch + 1;
+      allow delete: if signedInAs(uid);
+
+      function account() {
+        return get(/databases/$(database)/documents/users/$(uid)).data;
+      }
+
+      function validDoc(docId) {
+        let doc = request.resource.data;
+        let fields = ['kind', 'id', 'json', 'hash', 'deleted', 'deviceId', 'schema', 'epoch', 'updatedAt'];
+        return doc.keys().hasOnly(fields)
+          && doc.keys().hasAll(fields)
+          && doc.kind in ['session', 'worklog', 'mapping', 'record']
+          && docId.matches(doc.kind + '~.+')
+          && doc.id is string && doc.id.size() <= 1000
+          && doc.deleted is bool
+          && (doc.deleted
+                ? doc.json == null && doc.hash == ''
+                : doc.json is string && doc.json.size() <= 900000)
+          && doc.hash is string && doc.hash.size() <= 32
+          && doc.deviceId is string && doc.deviceId.size() <= 64
+          && doc.schema is int && doc.schema >= 1
+          && doc.updatedAt == request.time
+          && doc.epoch == account().epoch;
+      }
+
+      match /data/{docId} {
+        allow read: if signedInAs(uid);
+        allow create, update: if signedInAs(uid) && validDoc(docId);
+        allow delete: if signedInAs(uid);
+      }
+    }
+  }
+}

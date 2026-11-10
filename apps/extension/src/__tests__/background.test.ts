@@ -7,7 +7,6 @@ import { CAPTURE_PENDING_LINK } from '../delivery/desktop';
 type Worker = typeof import('../background');
 
 const DESKTOP_ENDPOINT = `http://127.0.0.1:${CAPTURE.SERVER_PORT}${CAPTURE.PATH}`;
-const SERVER = { kind: 'server', url: 'https://taskmint.example.com', token: 'tmk_capture' } as const;
 const PAYLOAD = '{"workLogs":[{"id":"w1","minutes":30}]}';
 const SITE_TAB = 5;
 
@@ -28,16 +27,6 @@ function reachable(status = 204) {
 
 function unreachable() {
   fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-}
-
-function refuses(status: number) {
-  fetchMock.mockImplementation(async () =>
-    Response.json({ error: 'sign in first', code: 'unauthenticated' }, { status })
-  );
-}
-
-function useServer() {
-  chrome.storage.local.data.target = SERVER;
 }
 
 beforeEach(async () => {
@@ -142,67 +131,6 @@ describe('delivering to the app on this computer', () => {
   });
 });
 
-describe('delivering to a TaskMint server', () => {
-  beforeEach(useServer);
-
-  it('posts it with the token and shows it delivered there', async () => {
-    reachable(200);
-    await worker.handleCapture(PAYLOAD, SITE_TAB);
-    expect(fetchMock).toHaveBeenCalledWith('https://taskmint.example.com/api/v1/capture', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer tmk_capture',
-        'X-TaskMint-Capture': '1',
-        'Content-Type': 'application/json',
-      },
-      body: PAYLOAD,
-    });
-    expect(badge(chrome).title).toBe('TaskMint capture: delivered to the TaskMint server');
-  });
-
-  it("queues what the server can't take now, and never launches the desktop app", async () => {
-    unreachable();
-    await worker.handleCapture(PAYLOAD, SITE_TAB);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
-    expect(chrome.alarms.armed.has(worker.RETRY_ALARM)).toBe(true);
-    expect(badge(chrome)).toEqual({
-      text: '!',
-      color: '#d32f2f',
-      title: 'TaskMint capture: waiting for the TaskMint server — retrying every minute',
-    });
-  });
-
-  it('stops retrying when the server refuses the token, until the options change', async () => {
-    for (const status of [401, 403]) {
-      refuses(status);
-      await worker.handleCapture(`{"try":${status}}`, SITE_TAB);
-      expect(chrome.storage.local.data.tokenRejected).toBe(true);
-    }
-    expect(chrome.storage.local.data.pendingCapture).toEqual(expect.objectContaining({ payloadText: '{"try":403}' }));
-    expect(chrome.alarms.armed.has(worker.RETRY_ALARM)).toBe(false);
-    expect(badge(chrome)).toEqual({
-      text: '✕',
-      color: '#d32f2f',
-      title: "TaskMint capture: the server refused the token — set a new one in the extension's options",
-    });
-
-    // The alarm and a restart don't try again
-    fetchMock.mockClear();
-    await worker.retryPending();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(badge(chrome).text).toBe('✕');
-
-    // A new token in the options does
-    reachable(200);
-    chrome.storage.local.data.target = { ...SERVER, token: 'tmk_new' };
-    chrome.storage.onChanged.emit({ target: { newValue: chrome.storage.local.data.target } }, 'local');
-    await vi.waitFor(() => expect(badge(chrome).text).toBe('✓'));
-    expect(fetchMock.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({ Authorization: 'Bearer tmk_new' }));
-    expect(chrome.storage.local.data).toEqual({ target: { ...SERVER, token: 'tmk_new' } });
-  });
-});
-
 describe('the retry queue', () => {
   it('with nothing queued, stops retrying and shows idle', async () => {
     await chrome.alarms.create(worker.RETRY_ALARM, { periodInMinutes: 1 });
@@ -216,33 +144,17 @@ describe('the retry queue', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('shows the queued or refused badge again when the worker starts', async () => {
-    for (const [rejected, text] of [
-      [false, '!'],
-      [true, '✕'],
-    ] as const) {
-      chrome = installChromeFake();
-      chrome.storage.local.data.pendingCapture = { payloadText: PAYLOAD, capturedAt: 'then' };
-      if (rejected) chrome.storage.local.data.tokenRejected = true;
-      await start();
-      await vi.waitFor(() => expect(badge(chrome).text).toBe(text));
-    }
+  it('shows the queued badge again when the worker starts', async () => {
+    chrome = installChromeFake();
+    chrome.storage.local.data.pendingCapture = { payloadText: PAYLOAD, capturedAt: 'then' };
+    await start();
+    await vi.waitFor(() => expect(badge(chrome).text).toBe('!'));
 
     // Nothing queued: the badge is left alone
     chrome = installChromeFake();
     await start();
     await vi.waitFor(() => expect(chrome.storage.local.get).toHaveBeenCalled());
     expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
-  });
-
-  it('starts over for a new target: what was delivered and refused is forgotten', async () => {
-    chrome.storage.session.data.lastDeliveredHash = await worker.sha256Hex(PAYLOAD);
-    chrome.storage.local.data.tokenRejected = true;
-    await worker.targetChanged();
-    expect(chrome.storage.session.data).toEqual({});
-    expect(chrome.storage.local.data).toEqual({});
-    await worker.handleCapture(PAYLOAD, SITE_TAB);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -275,8 +187,6 @@ describe('the listeners', () => {
     ] as [unknown, chrome.runtime.MessageSender][]) {
       chrome.runtime.onMessage.emit(message, sender);
     }
-    chrome.storage.onChanged.emit({ pendingCapture: {} }, 'local');
-    chrome.storage.onChanged.emit({ target: {} }, 'sync');
     await new Promise(resolve => setTimeout(resolve, 10));
     expect(fetchMock).not.toHaveBeenCalled();
     expect(chrome.storage.session.remove).not.toHaveBeenCalled();
@@ -287,13 +197,11 @@ describe('the listeners', () => {
     await vi.waitFor(() => expect(chrome.storage.session.get).toHaveBeenCalled());
   });
 
-  it('retry on the alarm, at startup and for new options, and clear the badge on its alarm and at install', async () => {
+  it('retry on the alarm and at startup, and clear the badge on its alarm and at install', async () => {
     chrome.alarms.onAlarm.emit({ name: worker.RETRY_ALARM } as chrome.alarms.Alarm);
     await vi.waitFor(() => expect(chrome.alarms.clear).toHaveBeenCalledWith(worker.RETRY_ALARM));
     chrome.runtime.onStartup.emit();
     await vi.waitFor(() => expect(chrome.alarms.clear).toHaveBeenCalledTimes(2));
-    chrome.storage.onChanged.emit({ target: { newValue: SERVER } }, 'local');
-    await vi.waitFor(() => expect(chrome.alarms.clear).toHaveBeenCalledTimes(3));
 
     chrome.action.setTitle.mockClear();
     chrome.alarms.onAlarm.emit({ name: worker.BADGE_CLEAR_ALARM } as chrome.alarms.Alarm);
@@ -310,12 +218,12 @@ describe('the listeners', () => {
     chrome.alarms.onAlarm.emit({ name: worker.BADGE_CLEAR_ALARM } as chrome.alarms.Alarm);
     chrome.runtime.onStartup.emit();
     chrome.runtime.onInstalled.emit();
-    chrome.storage.onChanged.emit({ target: {} }, 'local');
     chrome.action.onClicked.emit({ id: SITE_TAB, url: fromSite.url } as chrome.tabs.Tab);
-    await vi.waitFor(() => expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(1));
-    // The worker's own read at startup, then the alarm's, the badge alarm's and the restart's
-    await vi.waitFor(() => expect(chrome.storage.local.get).toHaveBeenCalledTimes(4));
-    await vi.waitFor(() => expect(chrome.storage.local.remove).toHaveBeenCalledTimes(2));
+    // The badge alarm's and the install's
+    await vi.waitFor(() => expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(2));
+    // The worker's own read at startup, then the alarm's and the restart's
+    await vi.waitFor(() => expect(chrome.storage.local.get).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(chrome.storage.local.remove).toHaveBeenCalledTimes(1));
 
     // Starting with storage gone
     chrome = installChromeFake();
@@ -324,10 +232,9 @@ describe('the listeners', () => {
     await vi.waitFor(() => expect(chrome.storage.local.get).toHaveBeenCalled());
   });
 
-  it('the toolbar button forgets what was sent and refused, and captures the payments page again', async () => {
+  it('the toolbar button forgets what was sent and queued, and captures the payments page again', async () => {
     chrome.storage.session.data.lastDeliveredHash = 'abc';
     chrome.storage.local.data.pendingCapture = { payloadText: PAYLOAD, capturedAt: 'then' };
-    chrome.storage.local.data.tokenRejected = true;
     chrome.action.onClicked.emit({ id: SITE_TAB, url: fromSite.url } as chrome.tabs.Tab);
     await vi.waitFor(() => expect(chrome.tabs.reload).toHaveBeenCalledWith(SITE_TAB));
     expect(chrome.storage.session.data).toEqual({});

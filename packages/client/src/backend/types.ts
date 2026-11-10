@@ -24,8 +24,11 @@ export interface Capabilities {
    * tablet (Android, iOS), or a browser.
    */
   runtime: 'desktop' | 'mobile' | 'web';
-  /** Where tracked time lives: on this computer, or on a TaskMint server. */
-  dataLocation: 'local' | 'server';
+  /**
+   * Where tracked time lives: on this device (synced with the cloud once
+   * signed in), or only in the cloud (the web app, whose page holds a copy).
+   */
+  dataLocation: 'local' | 'cloud';
 }
 
 /**
@@ -88,6 +91,14 @@ export interface SystemBarsPlatform {
   setTheme(theme: 'light' | 'dark'): void;
 }
 
+/** Usage analytics (Firebase Analytics): the web app's, and Android's native SDK. */
+export interface AnalyticsPlatform {
+  /** On or off, as Settings → Privacy says. */
+  setEnabled(enabled: boolean): void;
+  /** A page the app showed. */
+  screen(name: string): void;
+}
+
 export interface Platform {
   files: FilePlatform;
   notifications: NotificationPlatform;
@@ -99,6 +110,13 @@ export interface Platform {
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */
   captureStatus?(): Promise<CaptureServerStatus>;
+  /**
+   * Google sign-in for cloud sync, the shell's own way (the desktop's
+   * system browser, Android's account picker): the Google ID token. Absent
+   * where the browser's popup does it, or the build has no client for it.
+   */
+  googleSignIn?(): Promise<string>;
+  analytics?: AnalyticsPlatform;
 }
 
 /** A command's arguments, left out for a command that takes none. */

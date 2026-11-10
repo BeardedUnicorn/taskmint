@@ -9,6 +9,7 @@ import {
   CHECK_INTERVAL_MS,
   lastCheckedAt,
   resetUpdatesForTest,
+  sentence,
   updates,
   type AvailableUpdate,
 } from '../updates';
@@ -440,5 +441,12 @@ describe('Settings → Updates', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Update…' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Download and install' }));
     expect(await screen.findByText('Updating to TaskMint 2.3.0…')).toBeInTheDocument();
+  });
+});
+
+describe('a refusal from the Rust side', () => {
+  it('reads as a sentence', () => {
+    expect(sentence('the release feed is down')).toBe('The release feed is down.');
+    expect(sentence('No network!')).toBe('No network!');
   });
 });

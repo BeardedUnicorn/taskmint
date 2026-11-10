@@ -8,7 +8,7 @@ use super::{
 };
 use crate::capture::payload_shape_ok;
 use crate::contract::events::{
-    APP_RECORDS_CHANGED, SESSIONS_CHANGED, TIMER_INSTANCE_DELETED, TIMER_INSTANCE_PAUSED,
+    APP_RECORDS_CHANGED, RESYNC, SESSIONS_CHANGED, TIMER_INSTANCE_DELETED, TIMER_INSTANCE_PAUSED,
     TIMER_INSTANCE_RESUMED, TIMER_INSTANCE_STARTED, TIMER_INSTANCE_STOPPED, WORK_LOGS_IMPORTED,
     WORK_LOG_PAYLOAD_CAPTURED,
 };
@@ -29,6 +29,7 @@ use crate::sessions::start::{
 };
 use crate::sessions::task_links::task_rate;
 use crate::sessions::undo::{remove_session, restore_instance_into, restore_session_into};
+use crate::sync::SyncAccount;
 use crate::worklogs::{
     apply_rewrite_groups, undo_import, upsert_entries, upsert_mappings, WorkLogImportSummary,
     WorkLogImportUndo,
@@ -150,6 +151,19 @@ pub fn execute(
     workspace: &mut Workspace,
     ctx: &Ctx,
 ) -> Result<Executed, CoreError> {
+    let done = run(command, workspace, ctx)?;
+    // A timer started or resumed here is this device's (sync's idle rule)
+    let started: Vec<&str> = done
+        .events
+        .iter()
+        .filter(|e| [TIMER_INSTANCE_STARTED, TIMER_INSTANCE_RESUMED].contains(&e.name))
+        .filter_map(|e| e.payload["instanceId"].as_str())
+        .collect();
+    crate::sync::claim_timers(workspace, &started);
+    Ok(done)
+}
+
+fn run(command: Command, workspace: &mut Workspace, ctx: &Ctx) -> Result<Executed, CoreError> {
     let Ctx { now, zone } = *ctx;
     let sessions = &mut workspace.sessions;
     Ok(match command {
@@ -501,7 +515,73 @@ pub fn execute(
             done.purge_backups = true;
             done
         }
+
+        Command::GetSyncStatus(_) => Executed::read(crate::sync::status(workspace)),
+        Command::LinkSyncAccount(args) => link(workspace, args)?,
+        Command::UnlinkSyncAccount(_) => {
+            crate::sync::unlink(workspace);
+            Executed::new((), Parts::SYNC)
+        }
+        Command::GetSyncOutgoing(_) => Executed::read(crate::sync::outgoing(workspace)),
+        Command::ApplySyncIncoming(args) => {
+            let applied = crate::sync::apply_incoming(workspace, args.docs, args.cursor);
+            let mut done = Executed::new(&applied.summary, applied.changed | Parts::SYNC);
+            for key in &applied.records {
+                done = done.event(record_changed(key, workspace.revision(key)));
+            }
+            if applied.changed.contains(Parts::WORK_LOGS) {
+                done = done.event(ledger_changed(0));
+            }
+            // Sessions changed elsewhere: every view reads them again
+            if applied.changed.contains(Parts::SESSIONS) {
+                done = done.event(Event::new(RESYNC, ()));
+            }
+            done
+        }
     })
+}
+
+/// Starts syncing. Replacing this device's data with the cloud's clears it
+/// first, never without a copy of it.
+fn link(
+    workspace: &mut Workspace,
+    args: super::catalog::LinkSyncAccountArgs,
+) -> Result<Executed, CoreError> {
+    let account = SyncAccount {
+        uid: args.uid.trim().to_string(),
+        epoch: args.epoch,
+    };
+    if account.uid.is_empty() {
+        return Err(CoreError::InvalidArgs("Sign in to sync".to_string()));
+    }
+    let mut done = Executed::read(());
+    if args.mode == super::catalog::LinkMode::Replace {
+        records_readable(workspace)?;
+        done = done.backup(Backup::Saved {
+            parts: Parts::SESSIONS | Parts::WORK_LOGS | Parts::RECORDS,
+            failure: "Replacing this device's data was cancelled",
+            required: true,
+        });
+        workspace.sessions.clear();
+        workspace.work_log_entries.clear();
+        workspace.work_log_mappings.clear();
+        let keys: Vec<String> = std::mem::take(&mut workspace.records)
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect();
+        for key in keys {
+            let revision = workspace.bump_revision(&key);
+            done = done.event(record_changed(&key, revision));
+        }
+        done.dirty |= Parts::SESSIONS | Parts::WORK_LOGS | Parts::RECORDS;
+        done = done.event(Event::new(RESYNC, ()));
+    }
+    if crate::sync::link(workspace, account) {
+        done.dirty |= Parts::SESSIONS;
+    }
+    done.dirty |= Parts::SYNC;
+    done.reply = super::to_value(crate::sync::status(workspace));
+    Ok(done)
 }
 
 /// Restores an export's sessions and work logs, and in an exact restore

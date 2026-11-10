@@ -86,7 +86,7 @@ fn apply_pause(
     task_name: String,
     idle_since: DateTime<Utc>,
 ) -> Result<(), String> {
-    let paused = state.backend.call(
+    let paused = state.backend.call_named(
         "pause_timer_at",
         json!({ "instanceId": instance_id, "idleSince": idle_since }),
     )?;
@@ -151,7 +151,7 @@ pub fn resolve(state: &AppState, choice: &str) -> Result<(), String> {
     let Some(pause) = state.with_idle(|idle| idle.pause.clone()) else {
         return Ok(());
     };
-    state.backend.call(
+    state.backend.call_named(
         "apply_idle_choice",
         json!({ "instanceId": pause.instance_id, "choice": choice }),
     )?;
@@ -184,6 +184,7 @@ pub fn tick(state: &AppState, idle_ms: Option<u64>) {
     let long_run = state.backend.read(|workspace| {
         long_run_tick(
             &workspace.sessions,
+            &workspace.sync.device_id,
             idle_state.long_run_reminded.as_deref(),
             idle_state.settings.long_run_hours,
             now,
@@ -196,9 +197,15 @@ pub fn tick(state: &AppState, idle_ms: Option<u64>) {
     let Some(idle_ms) = idle_ms else {
         return;
     };
-    let action = state
-        .backend
-        .read(|workspace| idle_tick(&workspace.sessions, &idle_state, idle_ms, now));
+    let action = state.backend.read(|workspace| {
+        idle_tick(
+            &workspace.sessions,
+            &workspace.sync.device_id,
+            &idle_state,
+            idle_ms,
+            now,
+        )
+    });
     match action {
         IdleAction::None => {}
         IdleAction::Pause {
@@ -251,7 +258,7 @@ mod tests {
         let started = f
             .state
             .backend
-            .call(
+            .call_named(
                 "start_task",
                 json!({ "taskId": "t1", "taskName": "Writing" }),
             )
@@ -316,7 +323,7 @@ mod tests {
         tick(&f.state, Some(10 * MIN_MS));
         f.state
             .backend
-            .call(
+            .call_named(
                 "resume_timer_instance",
                 json!({ "instanceId": instance_id }),
             )

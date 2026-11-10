@@ -32,28 +32,24 @@ chrono = { version = "0.4", features = ["serde"] }
 url = "2.5"
 base64 = "0.22"
 tiny_http = "0.12"
-flate2 = "1"
-# Server mode: a blocking client suits the shell's threads (and works inside
-# dispatch's async runtime, where reqwest's blocking client would panic)
+# Google sign-in for cloud sync (google_sign_in.rs): the token exchange, the
+# PKCE challenge, and the random verifier and state
 ureq = { version = "2.12", default-features = false, features = ["tls", "json"] }
-# The zone server mode dates sessions in (X-TaskMint-TZ), and the name the
-# device's token gets
-iana-time-zone = "0.1"
-whoami = "1.6"
+sha2 = "0.10"
+uuid = { version = "1.0", features = ["v4"] }
+flate2 = "1"
 # Failpoints (fail_point!) are no-ops unless the failpoints feature is on;
 # the coverage run turns it on to reach errors no real fault can.
 fail = "=0.5.1"
 
 # Desktop only (Tauri's `desktop` cfg; the code that uses them is behind
 # #[cfg(desktop)]). Android and iOS have no second instance to forward to, no
-# browser extension sending taskmint:// links, no keychain keyring can reach,
-# and no updater: the app hides what needs them there.
+# browser extension sending taskmint:// links, and no updater: the app hides
+# what needs them there.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-deep-link = "2.6"
 tauri-plugin-single-instance = { version = "2.5", features = ["deep-link"] }
 tauri-plugin-updater = "2.14"
-# The server token lives in the OS keychain (platform/keychain.rs)
-keyring = { version = "3.6", features = ["apple-native", "windows-native", "linux-native"] }
 
 # Android's Save and Open dialogs pick documents (content:// addresses) that
 # only the fs plugin can open (platform/os.rs). A desktop opens paths itself.
@@ -64,8 +60,6 @@ tauri-plugin-fs = "2.7"
 failpoints = ["fail/failpoints"]
 
 [dev-dependencies]
-# Unique temp folder names in tests
-uuid = { version = "1.0", features = ["v4"] }
 # A mock app, so the data-file tests can run the store plugin TaskMint used
 # before P5 and check it reads what the app writes now
 tauri = { version = "2.12", features = ["test"] }

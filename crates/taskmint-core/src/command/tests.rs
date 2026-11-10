@@ -123,6 +123,16 @@ fn records_that_could_not_be_loaded_are_never_saved_over() {
         ),
         refused
     );
+    // Nor replaced by the cloud's
+    assert_eq!(
+        run(
+            &mut workspace,
+            "link_sync_account",
+            json!({ "uid": "u", "epoch": 1, "mode": "replace" })
+        ),
+        refused
+    );
+    assert_eq!(workspace.sync.account, None);
     // A reset is how the user gets past it
     run(&mut workspace, "reset_all_app_data", json!({})).unwrap();
     assert_eq!(workspace.notes.records_error, None);

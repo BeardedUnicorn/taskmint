@@ -5,9 +5,13 @@ packages:
   - packages/*
 
 # Dependencies' install scripts, reviewed. esbuild's only checks its platform
-# binary, which it finds without it.
+# binary, which it finds without it. @firebase/util's writes App Hosting's
+# FIREBASE_WEBAPP_CONFIG into the package (TaskMint passes its config in), and
+# protobufjs's only warns about version schemes.
 allowBuilds:
   esbuild: false
+  "@firebase/util": false
+  protobufjs: false
 
 # Versions shared by more than one package; packages refer to them as "catalog:".
 catalog:
@@ -23,6 +27,7 @@ catalog:
   "@types/react-dom": ^19.2.4
   "@vitejs/plugin-react": ^6.0.5
   "@vitest/coverage-v8": ^4.1.10
+  firebase: ^13.2.0
   jsdom: ^30.0.1
   react: ^19.2.8
   react-dom: ^19.2.8

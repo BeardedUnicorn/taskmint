@@ -5,10 +5,12 @@
   </picture>
 </h1>
 
-A desktop time tracker and earnings ledger built with Tauri v2, React and
-TypeScript. You track time in sessions against tasks with hourly rates,
-reconcile it against work logs imported from DataAnnotation, and see what
-you've earned and when it pays out.
+A time tracker and earnings ledger for the desktop, Android and the web,
+built with Tauri v2, React, TypeScript and Rust. You track time in sessions
+against tasks with hourly rates, reconcile it against work logs imported from
+DataAnnotation, and see what you've earned and when it pays out. Signed in,
+your devices and the web app (https://taskmint-f9a05.web.app) share the same
+data through Firebase.
 
 ## What it does
 
@@ -20,7 +22,7 @@ you've earned and when it pays out.
 | **History** | Every tracked, added and imported entry: quick ranges (remembered), search and task filters, totals and charts, the sortable entries table (edit, move an entry to another task, delete, CSV export; imported days are read-only, since each import rebuilds them), and the daily goal's results over the range. |
 | **Calendar** | Earnings, hours and released amounts per day, and the month's totals; click a day for its tasks and releases. |
 | **Payouts** | Import DataAnnotation work logs and see available, pending and upcoming releases, when the last import was, and a daily reconciliation grouped by month. An import's notice has **Undo**, which puts the ledger and the days it rewrote back as they were (refused once one of those days has changed). **Project mappings** lists which task each project goes to; moving a project moves its past imported days too. |
-| **Settings** | Appearance, payouts (funds-release delay, days between withdrawals), idle detection and the long-run reminder, daily goal, backups (and restoring one), data export/import/exact restore/reset, privacy. |
+| **Settings** | Cloud sync, appearance, payouts (funds-release delay, days between withdrawals), idle detection and the long-run reminder, daily goal, backups (and restoring one), data export/import/exact restore/reset, privacy. |
 
 The **system tray** (menu-bar item on macOS) shows the running or paused
 timer and can pause, resume or stop it, start a task's timer, or open the app.
@@ -54,20 +56,23 @@ stop. It works with inactivity detection off.
 
 ## Where data lives
 
-TaskMint stores everything locally. Nothing is synced anywhere.
+The desktop and Android apps keep everything on the device and work offline.
+With [cloud sync](#cloud-sync) on, they also keep it in step with your other
+devices and the web app.
 
 | Data | Store |
 |---|---|
 | Sessions and timer instances | `sessions.json` in the app data dir, owned by the Rust backend |
 | Imported work logs and project→task mappings | `worklogs.json` in the app data dir, owned by the Rust backend |
 | Tasks, notes, note templates, the daily goal and its history, withdrawals, and the payout settings (funds-release days, days between withdrawals) | `appdata.json` in the app data dir, owned by the Rust backend (see below for data from older versions) |
-| Other settings and UI preferences (appearance, notifications, idle and reminders, backups) | The webview's `localStorage` |
+| Cloud sync: the account this device syncs with, this device's id, and what the cloud last said | `sync.json` in the app data dir, owned by the Rust backend |
+| Other settings and UI preferences (appearance, notifications, idle and reminders, backups, analytics) | The webview's `localStorage` (each device has its own) |
 
 App data dir on macOS: `~/Library/Application Support/com.taskmint.desktop/`.
 Before 2.1 the app identifier was `com.taskmint.app`: the first launch of a
-newer version moves that data folder, the webview's storage (the settings)
-and the server token's keychain item to the new identifier, and logs what it
-moved. Nothing moves if the new folder is already there.
+newer version moves that data folder and the webview's storage (the
+settings) to the new identifier, and logs what it moved. Nothing moves if the
+new folder is already there.
 Before risky operations (a skipped-record load, an import that rewrites days, a
 restore), the backend writes timestamped `*.bak-*` copies next to the stores,
 keeping the newest 10 of each.
@@ -79,16 +84,16 @@ already in the file is replaced, a copy of what was moved is saved as
 `appdata.json.bak-<time>`, and the `localStorage` copies are then removed.
 Development builds (`pnpm tauri dev`) skip this: their webview storage is
 separate from the installed app's, but the data folder is shared. The payout
-settings used to be device settings: an installed build in local mode, and
-the web app, move this device's values into the `accountSettings` record
-once, unless it's set already, and then remove them from `localStorage`.
+settings used to be device settings: an installed build, and the web app,
+move this device's values into the `accountSettings` record once, unless
+it's set already, and then remove them from `localStorage`.
 
 **Backups.** Settings → Data Management exports everything above to one JSON
 file (format v3, with a copy of this device's own settings) and imports it
 back. **Import Data** adds what isn't already present (existing data wins) and
 leaves this device's settings alone. **Restore Exactly** asks first, then
 replaces everything with the file's, this device's settings included, in one
-change (the backend keeps its `.bak` copies, or its server snapshots, first);
+change (the backend keeps its `.bak` copies first);
 a section an older file doesn't have (work logs in v1, withdrawals and payout
 settings before v3) is left as it is. The app reloads after either. Settings →
 Automatic Backups writes the same file to a folder daily, weekly or monthly,
@@ -97,56 +102,87 @@ exactly** and **Merge** for each. They start on (weekly, into
 `Documents/TaskMint Backups`; macOS asks once for access to Documents) unless
 you've saved a backup setting before.
 
-**Reset.** Settings → Data Management → Reset All Data wipes all three data
-files, their `.bak` copies and `localStorage`.
+**Reset.** Settings → Data Management → Reset All Data wipes the data files
+(`sync.json` too), their `.bak` copies and `localStorage`, and signs this
+device out of cloud sync. The cloud's copy and your other devices keep their
+data. In the web app, whose data is the cloud's, it deletes the cloud data.
 
-**Server mode.** Settings → Server connects this computer to a TaskMint
-server ([Run the stack](#run-the-stack)). Enter the address you open it at in a
-browser, a username and a password. It must be `https://`, except for a
-server on this computer (`http://localhost:8080`). The app signs this
-computer in with a device token, which stays in the OS keychain (never in a
-file or the webview), and restarts on the server's data.
-- The tray, idle detection, the long-run reminder, captures and folder
-  backups keep working, and what they change is changed on the server.
-  Changes made in a browser or on another computer show up live.
-- The files on this computer are left as they were. **Copy this computer's
-  data here** adds them to the server's: lists merge by id, nothing there is
-  replaced, and timers still running in the files are stopped as of then.
-  **Disconnect** signs this computer out and restarts on its files.
-- Without the server, changes fail and the tray says so; the app reconnects
-  by itself. A revoked token ("Signed out") needs signing in again; so does
-  changing or resetting the account's password.
-- Sessions are dated in the time zone of the computer that started them.
-- To try it with a development build, set `TASKMINT_DATA_DIR` to a scratch
-  folder: the build keeps its files and its logs (in `logs/`) there and uses
-  its own keychain item, so the installed app's are left alone.
+**A scratch data folder.** `TASKMINT_DATA_DIR=<folder>` makes a development
+build keep its files and its logs (in `logs/`) there, so the installed app's
+are left alone.
+
+## Cloud sync
+
+Settings → Cloud sync signs this device in with an email and password, or
+with Google, and keeps its sessions, work logs, tasks, notes, templates,
+goal, withdrawals and payout settings in step with your other devices and
+the web app. Anyone can make an account. Without one, everything stays on
+the device. Device settings (appearance, notifications, idle, backups)
+don't sync.
+
+- **First sign-in.** When both this device and the account already have
+  data, TaskMint asks: **Merge them** (lists join by id; where the same item
+  changed on both, this device's version wins), or **Use the cloud's data**
+  (this device's is replaced, after a copy is kept in the data folder).
+- **Offline.** Changes wait on the device and go when it's back online. The
+  chip says how many are waiting. When two devices changed the same data
+  meanwhile, the changes merge: timers added to the same session on both are
+  both kept, and where the same task, note or setting changed on both, the
+  device that syncs last wins.
+- **One running timer.** When devices started timers while apart, the one
+  started or resumed last keeps running and the others stop at its start.
+  Each timer runs on the device that started it: idle detection and the
+  long-run reminder on the desktop act only on timers running there, not on
+  the phone's.
+- **Stop syncing** signs this device out and keeps its data; the cloud and
+  the other devices keep theirs. **Delete cloud data** deletes the account's
+  data from the cloud and stops every device syncing, each keeping its own
+  copy.
+- **Another account.** A device that syncs with one account and is signed in
+  with another says so, and offers to sync with the new one from then on
+  (its data joins that account's).
+- **Newer data.** Data saved by a newer TaskMint is left alone and Settings
+  says to update.
+
+The design is [ADR 0002](docs/adr/0002-firebase.md). How the Firebase
+project is set up, and how to develop against its emulators:
+[Firebase](#firebase).
 
 ## Browser capture (optional)
 
 `apps/extension/` is a Chrome extension that captures your DataAnnotation
 work logs from the payments page and delivers them to the app over
 `http://127.0.0.1:43117`, or through a `taskmint://` link that launches the app
-if it's closed. Its options can send them to a TaskMint server instead, with
-a "Browser extension" token from the web app. The app accepts localhost deliveries only from this
+if it's closed. The app accepts localhost deliveries only from this
 extension's fixed ID. Payloads that arrive only by link wait in Payouts for
 review, since any web page can open a link. When the app window isn't in
-front, each capture's result also shows as a desktop notification. See
+front, each capture's result also shows as a desktop notification. With cloud
+sync on, a capture reaches your other devices and the web app from there. See
 [apps/extension/README.md](apps/extension/README.md).
 
-## Error reporting
+## Error reporting and analytics
 
 If `VITE_SENTRY_DSN` is set at build time, crashes and errors are reported to
 Sentry. Reports contain the error and where in the app it happened. Task
 names, notes, earnings and work-log data are stripped before sending, and
 there's no session replay or tracing. Turn it off in Settings → Privacy.
 
+The web app and the Android app also send which pages are opened to Firebase
+Analytics, and nothing else: no data. **Share usage statistics** in Settings
+→ Privacy turns it off on that device; in the web app, Google's tag doesn't
+load while it's off. The desktop app has no analytics.
+
 ## Development
 
 **Prerequisites:** Node 24 (`.node-version`), pnpm (pinned via
-`packageManager`; `corepack enable` picks it up), and rustup. The Rust version
-and its components are pinned in `rust-toolchain.toml`; `rustup toolchain
-install` in the repo installs them. `node scripts/check-toolchains.mjs` checks
-that the Dockerfiles' `rust:` and `node:` images match the pins.
+`packageManager`; `corepack enable` picks it up), and rustup. The Rust version,
+its components and the `wasm32-unknown-unknown` target are pinned in
+`rust-toolchain.toml`; `rustup toolchain install` in the repo installs them.
+The web app's core also needs the `wasm-bindgen` CLI at the version of the
+`wasm-bindgen` crate in `Cargo.lock` (`pnpm build:wasm` says which, and how
+to install it), and the Firestore rules' tests need Java 21 or later
+(`brew install openjdk`). `node scripts/check-toolchains.mjs` checks the pins
+agree.
 
 ```bash
 pnpm install
@@ -154,8 +190,7 @@ pnpm tauri dev      # desktop app with hot reload (Vite on :1420)
 pnpm dev            # Vite only, for tauri dev; a plain browser has no backend and stops at the startup error
 ```
 
-TaskMint in a browser runs against the server: see [Run the stack](#run-the-stack)
-and [Web app](#web-app).
+TaskMint in a browser is the web app: see [Web app](#web-app).
 
 **Quit the installed TaskMint before running `pnpm tauri dev`.** Dev and
 release builds share the app identifier, so they share the data dir. The
@@ -185,8 +220,9 @@ The menu-bar icon (`src-tauri/icons/tray-template.png`, a black leaf on
 transparent that macOS tints) and the images in `packages/client/public/` and
 `apps/extension/icons/` are made from the same masters.
 
-Copy `.env.example` to `.env` to set a Sentry DSN; otherwise reporting stays
-off.
+Copy `.env.example` to `.env` to set a Sentry DSN (otherwise reporting stays
+off), the desktop's Google sign-in client ([Firebase](#firebase); without
+it the desktop signs in by email only), or the Firebase emulators' host.
 
 ### Android
 
@@ -219,12 +255,24 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 
 The Android project, `apps/desktop/src-tauri/gen/android`, is committed. It
 was made by `pnpm tauri android init` from `tauri.conf.json` and
-`tauri.android.conf.json`, and changed in two places:
+`tauri.android.conf.json`, and changed in these places (each marked
+`TaskMint:`):
 
 - `app/build.gradle.kts` signs release builds with the release key when
   `TASKMINT_ANDROID_KEYSTORE` and `TASKMINT_ANDROID_KEYSTORE_PASSWORD` are set
   ([Android signing](#android-signing)). Without them a release build is
   unsigned.
+- Firebase: `app/google-services.json` (the Android app's public config,
+  downloaded from the Firebase console), the `google-services` Gradle plugin
+  (in the root `build.gradle.kts`, applied in `app/build.gradle.kts`), and
+  the Firebase BoM with Analytics, Credential Manager and googleid as
+  dependencies. Firebase and googleid need Kotlin 2.3, which the root
+  `build.gradle.kts` and `buildSrc/build.gradle.kts` pin.
+- `MainActivity.kt` gives the webview three bridges: `TaskMintSystemBars`
+  (the status bar follows the app's theme), `TaskMintGoogleSignIn` (Credential
+  Manager's Google sign-in, for cloud sync) and `TaskMintAnalytics` (Firebase
+  Analytics, and its off switch). `app/proguard-rules.pro` keeps them, and
+  Credential Manager's Play services provider, through R8.
 - The launcher icons in `app/src/main/res` (`mipmap-*`, and the adaptive
   icon's background in `values/ic_launcher_background.xml`) come from
   `assets/brand/icon-macos.png`. Its padding keeps the clock and leaf
@@ -257,13 +305,17 @@ this computer's network address (`vite.config.ts` reads `TAURI_DEV_HOST`;
 
 On Android the Rust side reports the runtime `mobile` (`get_capabilities`).
 The app has its timers, data, dialogs and notifications (it asks for
-permission to notify at the first launch). The parts only a desktop has are
-left out, in the Rust (`#[cfg(desktop)]`, and those crates are desktop-only
-dependencies) and in the webview (`tauriBackend.ts`, `extensions.tsx`):
-the tray, idle detection and the long-run reminder, folder backups, showing a
-file in the file manager, the capture server and `taskmint://` links for the
-browser extension, server mode and its keychain token, updates, and the move
-from the old identifier. Export and Import go through Android's file picker,
+permission to notify at the first launch), and cloud sync. Google sign-in
+there needs Google Play services, and the build's signing certificate
+registered on the Firebase Android app (Firebase console → Project settings
+→ Your apps): the debug key's and the release key's SHA-1 are. A new key
+needs its own, and `google-services.json` downloaded again. The parts only a
+desktop has are left out, in the Rust (`#[cfg(desktop)]`, and those crates
+are desktop-only dependencies) and in the webview (`tauriBackend.ts`,
+`extensions.tsx`): the tray, idle detection and the long-run reminder, folder
+backups, showing a file in the file manager, the capture server and
+`taskmint://` links for the browser extension, updates, and the move from the
+old identifier. Export and Import go through Android's file picker,
 which returns a document (a `content://` address) rather than a path:
 `tauri-plugin-fs`, a mobile-only dependency, opens it (`platform/os.rs`), and
 the export's message names no location.
@@ -277,28 +329,26 @@ TC=$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin CC_aarch64_linux_android
 
 ### Checks
 
-`pnpm verify` (`scripts/verify.sh`) runs every gate below in order; run it before merging.
-It needs Docker: it ends with the server's gates in the compose `test`
-profile, and the images built and smoke-tested as a stack of their own
-([Run the stack](#run-the-stack)), with the desktop's server mode run against
-it (`apps/desktop/src-tauri/tests/server_mode.rs`).
+`pnpm verify` (`scripts/verify.sh`) runs every gate below in order; run it
+before merging. It needs the [prerequisites](#development) above, Java
+included, and nothing else: no Docker, and no network once firebase-tools
+and its Firestore emulator have been downloaded the first time.
 
 ```bash
 pnpm lint                         # Biome: formatting and lint for the TypeScript and JavaScript
-pnpm typecheck                    # tsc for sources and tests, every package
-pnpm build                        # tsc for every package + desktop vite build
+pnpm test:rules                   # the Firestore rules' tests, on the emulator (Java 21+)
+pnpm build:wasm                   # the web app's core in WebAssembly (apps/web/src/wasm, not committed)
+pnpm typecheck                    # tsc for sources and tests, every package (needs build:wasm first)
+pnpm build                        # tsc for every package + the desktop and web vite builds
 pnpm test                         # vitest in every package
 pnpm test:coverage                # vitest, held at 100% coverage
-cargo test --workspace            # Rust tests (bare `cargo` skips the desktop crate;
-                                  # server tests need DATABASE_URL, see "Server")
+cargo test --workspace            # Rust tests (bare `cargo` skips the desktop crate)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 cargo llvm-cov -p taskmint-core --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100  # verify.sh adds the policy's ignore regex
-scripts/check-server.sh            # the server's .sqlx check and coverage; needs DATABASE_URL
 node scripts/check-coverage-policy.mjs   # see docs/coverage-policy.md
-node scripts/check-toolchains.mjs        # the Dockerfiles match the pinned toolchains
+node scripts/check-toolchains.mjs        # the wasm target and wasm-bindgen pins agree
 pnpm test:scripts                  # the release script's logic (node --test)
-node scripts/smoke.mjs             # the running stack, end to end
 ```
 
 `pnpm lint:fix` applies Biome's formatting and safe fixes (`biome.jsonc` says
@@ -309,9 +359,8 @@ with `cargo fmt --check`. It only checks; `git commit --no-verify` skips it.
 them, and `git blame --ignore-revs-file .git-blame-ignore-revs` does locally.
 
 CI (`.github/workflows/ci.yml`) runs them on pushes to `main` and on pull
-requests: everything but the server on macOS, and the server's gates and the
-smoke-tested stack in a Linux docker job. The Release workflow
-(`.github/workflows/release.yml`) builds the release files (see Releasing).
+requests, on macOS. The Release workflow (`.github/workflows/release.yml`)
+builds the release files and deploys the web app (see Releasing).
 
 ### Releasing
 
@@ -366,7 +415,24 @@ published release's files are public too. Running the workflow by hand
 releases are built, builds the same files as workflow artifacts and
 publishes nothing. The desktop builds report errors to Sentry when the
 repository has a `VITE_SENTRY_DSN` secret (Settings → Secrets and variables
-→ Actions); without it they report nothing.
+→ Actions); without it they report nothing. They sign in to cloud sync with
+Google when it has `VITE_GOOGLE_DESKTOP_CLIENT_ID` and
+`VITE_GOOGLE_DESKTOP_CLIENT_SECRET` ([Firebase](#firebase)); without them,
+by email only.
+
+**The web app.** The workflow also builds the web app, and a tag deploys
+it to Firebase Hosting (https://taskmint-f9a05.web.app) with the Firestore
+rules and indexes, once every build has passed (`deploy-web`). The GitHub
+release doesn't wait for the deploy, and a failed deploy can be re-run on
+its own. The deploy signs in to Google through Workload Identity Federation,
+so no key is stored: the repository variables `GCP_WORKLOAD_IDENTITY_PROVIDER`
+and `GCP_DEPLOY_SERVICE_ACCOUNT` name the provider (pool `github`, provider
+`taskmint-releases`, which trusts only this repository's `v*` tags) and the
+`github-deploy` service account, which can deploy Hosting, the rules and the
+indexes, and can't read or change anyone's data (Hosting Admin, Firebase
+Rules Admin, Cloud Datastore Index Admin and Service Usage Consumer; no
+viewer role, since Firebase Viewer reads Firestore and the user list). [docs/runbook.md](docs/runbook.md) says how to
+deploy by hand, or roll back.
 
 The installers aren't signed (the Mac app is signed ad hoc). The first time
 a downloaded build is opened, macOS says it can't verify TaskMint: open
@@ -458,7 +524,10 @@ TASKMINT_ANDROID_KEYSTORE=~/.android/taskmint-release.p12 TASKMINT_ANDROID_KEYST
   `ANDROID_SIGNER_SHA256` (`keytool -list -v -keystore <file>` shows the
   SHA256, without the colons), and release. Phones have to uninstall the app
   before installing that APK, which deletes its data: Settings → Data
-  Management → Export first, and Import after.
+  Management → Export first, and Import after (or sync it first, and sign
+  in again after). Register the new key's SHA-1 on the Firebase Android
+  app and commit the new `google-services.json`, or Google sign-in stops
+  working on the phone ([Android](#android)).
 
 ### Logs
 
@@ -466,278 +535,128 @@ The backend logs through `tauri-plugin-log` to stdout and to the app log dir
 (`~/Library/Logs/com.taskmint.desktop/` on macOS). Release builds log `info` and
 above, dev builds include `debug`.
 
-## Run the stack
+## Firebase
 
-TaskMint in a browser is three services and a migration job, all in
-`compose.yaml`: Postgres, the server, and the web app's nginx in front of
-it. Docker with Compose v2 is all it needs.
+Cloud sync and the web app run on the Firebase project `taskmint-f9a05`
+(`.firebaserc`), on the free Spark plan with billing off. There's no server
+of TaskMint's own: every client runs TaskMint's rules itself, and Firestore
+holds the shared copy ([ADR 0002](docs/adr/0002-firebase.md)).
 
-```bash
-cp .env.example .env                  # then set ADMIN_PASSWORD
-docker compose up --build -d --wait   # builds the images, waits until healthy
-node scripts/smoke.mjs                # optional: checks the stack end to end
-open http://localhost:8080
-```
+| Part | What it's for |
+|---|---|
+| **Authentication** | Accounts: email and password, and Google. Anyone can sign up |
+| **Firestore** (`(default)`, nam5) | Each account's data: `users/{uid}` holds its epoch, `users/{uid}/data/{kind~key}` one session, work-log entry, project mapping or record each |
+| **Hosting** | The web app, at https://taskmint-f9a05.web.app |
+| **Analytics** | Page views from the web app and the Android app ([Error reporting and analytics](#error-reporting-and-analytics)) |
 
-| Service | What it is | Published on |
-|---|---|---|
-| `db` | Postgres 18; its data is in the `db-data` volume | `127.0.0.1:${DB_PORT:-5433}` (for the server's tests) |
-| `migrate` | the server image, applying the migrations before the server starts, then exiting | – |
-| `server` | the API (`apps/server`) | `127.0.0.1:${SERVER_PORT:-3000}` (for the web app's dev server) |
-| `web` | the web app (`apps/web`), served by nginx, which passes `/api` to `server` | `127.0.0.1:${WEB_PORT:-8080}`: open this one |
-| `server-tests` | profile `test` only: the server's gates in Linux (below) | – |
+Each client has its own Firebase app registration and config: the desktop's
+web config in `apps/desktop/src/firebaseConfig.ts`, the web app's in
+`apps/web/src/firebaseConfig.ts`, and Android's `google-services.json`.
+They're public by design: the API key only names the project, and the rules
+decide what a signed-in user can reach.
 
-**The first admin.** Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env`
-before the first start: a server that starts with no users creates that
-admin. Sign in, then invite people from Settings → Invites. To recover
-access, print a one-time link from the command line:
+**The rules** (`firebase/firestore.rules`) let a signed-in user read and
+write only under their own `users/{uid}`. A data document must have exactly
+the sync fields, with a known kind, an `updatedAt` of the server's time, and
+the account's current epoch, so a device that missed a Delete cloud data
+can't write its old copy back. `firebase/firestore.rules.test.mjs` tests
+them on the emulator (`pnpm test:rules`), and `firestore.indexes.json` keeps
+the `json` and `hash` fields out of the indexes.
 
-```bash
-docker compose exec server taskmint-server admin create-invite --role admin
-docker compose exec server taskmint-server admin reset-password <username>
-```
+**Hosting** (`firebase.json`) serves `apps/web/dist` with a content security
+policy (`script-src 'self' 'wasm-unsafe-eval'`, plus Google's sign-in and
+Analytics hosts), nosniff, a referrer policy, COOP (`same-origin-allow-popups`,
+for Google's popup), CORP, `X-Frame-Options` and a permissions policy. Every
+path the app doesn't have serves `index.html`. The hashed files in `/assets`
+are cached for a year; everything else is revalidated.
 
-**`PUBLIC_ORIGIN`** must be the address you open, `http://localhost:8080`
-by default. Invite and reset links start with it, and the server refuses
-changes from any other origin, so `http://127.0.0.1:8080` in the address bar
-gets "cross-origin request refused". Change it along with `WEB_PORT`.
+`pnpm firebase` runs firebase-tools at the version `package.json` pins
+(through npx, outside the workspace). Deploys normally come from the
+release workflow ([Releasing](#releasing)); [docs/runbook.md](docs/runbook.md)
+has deploying by hand and rolling back.
 
-### Check it
+### Develop against the emulators
 
-`scripts/smoke.mjs` (plain Node 22+, nothing to install) goes through the
-stack the way people use it. Through nginx, it signs in as the admin from
-`ADMIN_USERNAME`/`ADMIN_PASSWORD` (the environment, or `.env`). It invites a
-new user, who signs up, makes tokens and opens an event stream. It saves a
-task, starts and stops a timer, and posts a capture as the browser
-extension would. Each change must reach the stream, and a stale save must be
-refused. It then checks the security headers, that a capture token can't
-run commands, and that the admin can't see the new user's data. Last, it
-revokes the tokens and checks that the stream closes, then signs the user
-out and disables them. Each run leaves one disabled `smoke-…` user behind,
-so `verify.sh` runs it on a throwaway stack of its own (project
-`taskmint-verify`, ports 18080, 13000 and 15433). Set `TASKMINT_URL` to
-test another address.
-
-The server's own gates (the `.sqlx` check, and its tests at 100% coverage)
-run in Linux in the `test` profile, the same way CI runs them. The tests
-make their own databases on `db`:
+The Auth and Firestore emulators (`firebase.json`: 9099 and 8085) need Java
+21 or later. A development build talks to them when
+`VITE_FIREBASE_EMULATOR_HOST` is set; installed builds ignore it.
 
 ```bash
-docker compose --profile test run --rm --build server-tests
+pnpm firebase emulators:start --project taskmint-f9a05 --only auth,firestore
 ```
-
-The first run builds everything, which takes several minutes. The
-`server-tests-*` volumes keep the build for the next run.
-
-### Day to day
 
 ```bash
-docker compose ps                     # health of each service
-docker compose logs -f server         # JSON lines; LOG_FORMAT=text in .env for plain text
-docker compose up --build -d --wait   # after pulling changes; migrations run first
-docker compose down                   # stop (the data stays)
-docker compose --profile test down -v # stop, and delete the database and the test build
+VITE_FIREBASE_EMULATOR_HOST=127.0.0.1 pnpm --filter @taskmint/web dev    # http://localhost:1421
 ```
-
-A copy of the database, and putting one back (into an empty database:
-`down -v`, then `up` once before restoring):
 
 ```bash
-mkdir -p backups    # git ignores it
-docker compose exec -T db pg_dump -U taskmint --clean --if-exists taskmint > backups/taskmint.sql
-docker compose exec -T db psql -U taskmint -v ON_ERROR_STOP=1 taskmint < backups/taskmint.sql
+TASKMINT_DATA_DIR=$HOME/tmp/taskmint-dev VITE_FIREBASE_EMULATOR_HOST=127.0.0.1 pnpm tauri dev
 ```
 
-[docs/runbook.md](docs/runbook.md) has scheduled backups and checking that one restores.
+From the Android emulator the host is `10.0.2.2`. Accounts made there exist
+only in the emulator, and its data is gone when it stops.
 
-### How it's locked down
-
-- **Containers:** each has a read-only root filesystem (with tmpfs where
-  nginx and Postgres write), no Linux capabilities, and no-new-privileges.
-  Each runs as a non-root user: the server is distroless with no shell, nginx
-  runs as uid 101, and Postgres as uid 70 from the start. Each has memory and
-  process limits, and logs rotate at 3 × 10 MB.
-- **Networks:** `web` shares a network with `server` only. `db` is on
-  another network, so the web app can't reach it. Everything is published on
-  127.0.0.1 only.
-- **Headers:** nginx sends a content security policy, nosniff, a referrer
-  policy, COOP, CORP, `X-Frame-Options` and a permissions policy, and hides
-  its version. The server sets `Cache-Control: no-store` on the API.
-- **Stopping:** the server ends its event streams when it's told to stop, so
-  `docker compose down` takes a moment, not the 10 s before a kill. Open
-  tabs reconnect when it's back.
-- **Load:** password hashing (argon2id, 19 MiB each) runs one per CPU at a
-  time, so a burst of sign-ins waits instead of exhausting the server's
-  memory. Sign-ins and links are rate-limited per address and per account.
-
-- **Logs:** nginx's access log writes invite and reset links with the
-  secret replaced by `[redacted]`, and leaves out the Referer. The server's
-  request spans name the route, never the path.
-
-[docs/runbook.md](docs/runbook.md) has the operator's procedures: backups and
-restores, upgrades, account recovery, and what to do in an incident.
-[docs/security-review.md](docs/security-review.md) has what was reviewed,
-the accepted risks, and what a deployment others can reach needs.
-
-**Before the internet.** This stack is for one machine. It has no TLS, and
-`COOKIE_SECURE=false` sends the session cookie over plain HTTP. To expose
-it, put an HTTPS proxy in front of `web` (adding HSTS there). Set
-`COOKIE_SECURE=true` and `PUBLIC_ORIGIN` to the `https://` address, use a
-strong `POSTGRES_PASSWORD`, and stop publishing `db` and `server`. Each
-server variable also takes `<NAME>_FILE`, for Docker secrets.
-
-## Server
-
-`apps/server` (`taskmint-server`) is the multi-user server that the web app
-and the desktop app's server mode talk to: Rust, axum and PostgreSQL.
-Accounts are invite-only: an admin hands out one-time invite and
-password-reset links, and there's no email. It runs the same rules as the
-desktop app (`crates/taskmint-core`) on each account's data in Postgres.
-The web app (`apps/web`, below) is how people use it.
-
-Run it with the rest of the stack in Docker: [Run the stack](#run-the-stack).
-
-### API
-
-Everything except the health checks is under `/api/v1`. Errors are JSON
-`{"error": "…", "code": "…"}`.
-
-| Endpoint | Who | What |
-|---|---|---|
-| `GET /healthz`, `GET /readyz` | anyone | the process is up; the database answers too |
-| `GET meta` | anyone | `{version, apiVersion, minDesktopVersion}` |
-| `POST auth/login` | anyone, rate-limited | sets the session cookie, returns `{user, csrfToken}` |
-| `POST auth/logout`, `GET auth/me`, `POST auth/password` | session | a password change signs out the other sessions; `me` also accepts a `full` token |
-| `POST auth/device-token` | username and password, rate-limited | a `full` token for the desktop app |
-| `DELETE auth/device-token` | the token itself | revokes it (the desktop app disconnecting) |
-| `GET invites/:token`, `POST invites/:token/accept` | anyone, rate-limited | accepting creates the account and signs it in |
-| `GET password-resets/:token`, `POST password-resets/:token/accept` | anyone, rate-limited | sets the password, signs out everywhere, signs in |
-| `GET/POST tokens`, `DELETE tokens/:id` | session | API tokens, scope `capture` (browser extension) or `full`; the secret is shown once |
-| `GET admin/users`, `PATCH admin/users/:id`, `POST admin/users/:id/password-reset` | admin session | disable/enable and change roles (never the last active admin); reset links |
-| `GET/POST admin/invites`, `DELETE admin/invites/:id` | admin session | invite links with a role and a note |
-| `POST commands/:name` | session or `full` token | a desktop command by name (`get_sessions`, `start_task`, …) with its arguments as the JSON body; replies and errors are the desktop's |
-| `GET events` | session or `full` token | the account's events as server-sent events |
-| `POST capture`, `GET capture/ping` | `capture` or `full` token, `X-TaskMint-Capture` | the browser extension's captures, and its "Test" button |
-
-**Sessions** are an `HttpOnly`, `SameSite=Strict` cookie that slides to 30
-days on use. Requests that change something and use the cookie must send the
-session's CSRF token in `X-CSRF-Token`, and cross-origin ones are refused
-(`Sec-Fetch-Site`/`Origin`). There's no CORS: browsers reach the API through
-the web app's origin. **Tokens** go in `Authorization: Bearer tmk_…`.
-Passwords are hashed with argon2id; tokens, cookies and links are stored as
-SHA-256 hashes. Disabling a user signs them out and revokes their tokens.
-Admin actions, password changes and token changes go to `audit_events`.
-
-**Commands** run on the caller's own data; no request names a user. A
-command's sessions are dated in the zone the client sends in
-`X-TaskMint-TZ` (an IANA name such as `America/New_York`), or else the
-account's. Errors carry core's message, word for word: 400 `rejected` or
-`invalid_args`, 404 `unknown_command`, and 409 `conflict` when a record is
-saved with a stale `baseRevision` (another tab or device changed it). Each
-record, session, ledger entry and mapping is a row of its own, and a row
-the server can't read is reported and left as it is. Before a change that
-replaces data (a restore, an import that rewrites days), a copy goes in
-`data_snapshots`; the newest 10 of each kind are kept.
-
-**Events** are named as the desktop app's (`timer-instance-started`,
-`app-records-changed`, …) with their JSON payloads as data. A stream that
-falls behind, and every stream after Reset All Data, gets `resync`: read
-everything again. Signing out, a password change or reset, a revoked token
-or an admin's change to the account closes the account's streams; clients
-still signed in reconnect.
-
-### Configuration
-
-Environment variables; each also accepts `<NAME>_FILE`, a file holding the
-value (for Docker secrets).
-
-| Variable | Default | |
-|---|---|---|
-| `TASKMINT_BIND` | `0.0.0.0:3000` | listen address |
-| `DATABASE_URL` | – | Postgres URL; without it the libpq `PG*` variables are used |
-| `TASKMINT_PUBLIC_ORIGIN` | `http://localhost:8080` | where people open the web app: link base and the trusted origin |
-| `TASKMINT_COOKIE_SECURE` | `true` | `Secure` cookie named `__Host-taskmint_session`; `false` for plain HTTP |
-| `TASKMINT_TRUST_PROXY` | `false` | take the client IP from the last `X-Forwarded-For` hop |
-| `TASKMINT_SESSION_TTL_DAYS` | `30` | idle time before a session expires |
-| `TASKMINT_INVITE_TTL_HOURS`, `TASKMINT_RESET_TTL_HOURS` | `72`, `24` | link lifetimes |
-| `TASKMINT_MAX_BODY_MB` | `32` | request body limit |
-| `TASKMINT_ADMIN_USERNAME`, `TASKMINT_ADMIN_PASSWORD` | – | the first admin, created when there are no users |
-| `RUST_LOG`, `TASKMINT_LOG_FORMAT` | `info`, `text` | log filter; `json` for one JSON object per line |
-
-The binary's subcommands: `serve`, `migrate`, `healthcheck` (the image's
-`HEALTHCHECK`; there's no shell in it), and `admin create-invite|reset-password`.
-
-### Develop and test
-
-The tests run against a real Postgres: each test gets its own fresh
-database on the compose `db`.
+To check the production headers, build the web app and serve it from the
+Hosting emulator (port 5002). That build talks to the real project, so sign
+in only with your own account:
 
 ```bash
-docker compose up -d --wait db
-export DATABASE_URL=postgres://taskmint:taskmint@127.0.0.1:5433/taskmint
-cargo test -p taskmint-server
-scripts/check-server.sh    # the .sqlx check, then coverage at 100%
+pnpm build:wasm && pnpm --filter @taskmint/web build && pnpm firebase emulators:start --project taskmint-f9a05 --only hosting
 ```
 
-`check-server.sh` is what the compose `test` profile runs in Linux
-(`docker compose --profile test run --rm --build server-tests`), so it also
-works with no Rust tools on the host.
+### Google sign-in
 
-SQL queries are checked at compile time against `apps/server/.sqlx`, so
-builds need no database (`.cargo/config.toml` sets `SQLX_OFFLINE`). After
-changing a query or adding a migration, refresh it with sqlx-cli 0.8.6
-(`cargo install sqlx-cli --version 0.8.6 --no-default-features --features rustls,postgres --locked`):
-
-```bash
-cd apps/server
-cargo sqlx migrate run    # bring the compose database up to date
-cargo sqlx prepare        # rewrite .sqlx; commit it
-```
-
-Migrations are forward-only: never edit one that has shipped.
+- **Web app:** Firebase's Google provider (Authentication → Sign-in method),
+  in a popup. Its OAuth client was made by Firebase. The popup works only on
+  the authorized domains (Authentication → Settings): the Hosting domains
+  and `localhost`.
+- **Desktop:** the system browser, then back to a loopback address the app
+  listens on (`src-tauri/src/google_sign_in.rs`, with PKCE). It's Google's
+  "Desktop app" OAuth client in Google Cloud console → APIs & Services →
+  Credentials. Its id and secret go in `.env` as
+  `VITE_GOOGLE_DESKTOP_CLIENT_ID` and `VITE_GOOGLE_DESKTOP_CLIENT_SECRET`,
+  and in the repository secrets of the same names. Google treats an
+  installed app's secret as public, but keep it out of the repository
+  anyway. Without them the button is hidden.
+- **Android:** Credential Manager, with the web client's id from
+  `google-services.json` ([Android](#android) says which certificates must
+  be registered).
 
 ## Web app
 
-`apps/web` (`@taskmint/web`) is TaskMint in a browser, against the server:
-the same app as the desktop's (`packages/client`), with its data on the
-server instead of in local files.
+`apps/web` (`@taskmint/web`) is TaskMint in a browser, at
+https://taskmint-f9a05.web.app: the same app as the desktop's
+(`packages/client`), on TaskMint's own rules compiled to WebAssembly
+(`crates/taskmint-wasm`), with the account's data from Firestore.
 
-- **Pages of its own:** signing in (`/login`), and the one-time links an
-  admin hands out: `/invite/<token>` creates an account, `/reset/<token>`
-  sets a new password. Every other path is the app.
-- **Settings** gains *Account* (change password, sign out) and *API tokens*
-  (for the browser extension and scripts; a secret is shown once), and for
-  admins *Users* (roles, disable, reset links) and *Invites*.
-- **Live across tabs and devices:** timers, sessions, records and imports
-  follow the server's event stream. A change saved from an out-of-date view
-  is refused rather than writing over a newer one: the app then shows the
-  newer version and says so.
+- **Signing in** comes first: an email and password, a new account, a reset
+  link, or Google. The app's code loads only after that, and opens once the
+  account's data has been read.
+- **Settings → Account:** the email you're signed in with, sign out, change
+  password (by an emailed link), and delete the account with its cloud data.
+  Reset All Data deletes the cloud data and keeps the account.
+- **Live across tabs and devices:** changes from your other devices and tabs
+  show up as they're made. Each tab is a device of its own to sync.
+- **Offline:** the app needs the network to open. Once open, it keeps
+  working, and Firestore keeps the changes in the browser until it's back
+  online (if the tab is closed first, they go the next time the app opens
+  there).
 - **What only the desktop app has:** idle detection and the long-run
   reminder, automatic backups into a folder, the system tray, and the
   localhost capture server. Their settings are hidden. Exports are
-  downloads, and imports use the browser's file picker. ⌘N and ⌘, belong
-  to the browser, so the command palette (⌘K) offers both instead.
-- **Many tabs:** each tab holds one event stream open, and a browser opens
-  at most six connections to a site over HTTP/1.1, so a seventh tab of the
-  app stalls until one closes. Serving it over HTTP/2 removes the limit.
+  downloads, and imports use the browser's file picker. ⌘N and ⌘, belong to
+  the browser, so the command palette (⌘K) offers both instead.
 
-Develop it against the compose server (`/api` is proxied to it):
-
-```bash
-docker compose up -d --wait db migrate server
-pnpm --filter @taskmint/web dev    # http://localhost:1421
-```
-
-The image (`apps/web/Dockerfile`) builds the app with Node 24 and serves it
-with unprivileged nginx (`apps/web/nginx/default.conf.template`): content
-security policy, long caching for the hashed assets, and an unbuffered proxy
-for the event stream.
+Develop it against the emulators ([Firebase](#develop-against-the-emulators)).
+`pnpm build:wasm` must run first, and again after a change to
+`crates/taskmint-core`.
 
 ## Project layout
 
-A pnpm workspace and a Cargo workspace share the repo root. The plan for
-running TaskMint in browsers against a server is in
-[docs/adr/0001-web-support.md](docs/adr/0001-web-support.md).
+A pnpm workspace and a Cargo workspace share the repo root. How the code
+came to be shared by every app is
+[docs/adr/0001-web-support.md](docs/adr/0001-web-support.md); how sync and
+the web app work, [docs/adr/0002-firebase.md](docs/adr/0002-firebase.md).
 
 ```
 packages/client/             React app (@taskmint/client)
@@ -745,33 +664,35 @@ packages/client/             React app (@taskmint/client)
   src/contexts/              App-wide providers: sessions, tasks, work logs, backups, …
   src/hooks/                 Data hooks (useSessionManagement, useWorkLogs, useDataBackup, …)
   src/services/              Tasks, notes, templates (appRecords.ts: the appdata.json cache)
-  src/utils/                 Pure logic: time math, payouts, work-log import, Sentry
+  src/cloud/                 Cloud sync: the engine, and Firebase behind the CloudStore seam
+  src/utils/                 Pure logic: time math, payouts, work-log import, Sentry, analytics
   src/types/                 Shared types and zod schemas
   public/                    Favicon, wordmark and app icon
 packages/contracts/          Wire types, CommandMap and constants (@taskmint/contracts),
                              generated from taskmint-core: don't edit src/generated
 crates/taskmint-core/        Business rules shared by every host: sessions, timers, work-log
-                             import, restore, idle, the wire contract (pure: no I/O, no clock)
+                             import, restore, idle, sync, the wire contract (pure: no I/O, no clock)
+  src/sync/                  Cloud sync's rules: what to send, applying the cloud's, merges
+crates/taskmint-wasm/        taskmint-core in WebAssembly, for the web app (pnpm build:wasm)
 apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri shell
   src/tauriBackend.ts        The client's Backend: every call goes through dispatch
   src-tauri/src/dispatch.rs  The one IPC command: shell commands here, data commands to the backend
   src-tauri/src/backend/     LocalBackend: one lock, run taskmint-core on a copy, save, then swap
-  src-tauri/src/store/       sessions.json / worklogs.json / appdata.json and their .bak copies
+  src-tauri/src/store/       sessions.json / worklogs.json / appdata.json / sync.json and the .bak copies
   src-tauri/src/files.rs     Save/open dialogs, the backup folder, showing a file in Finder
   src-tauri/src/capture_server.rs  localhost capture server and taskmint:// deep links
+  src-tauri/src/google_sign_in.rs  Google sign-in for cloud sync: the browser and a loopback address
   src-tauri/src/tray/        System tray
   src-tauri/src/legacy_identifier.rs  Moves the data left under the pre-2.1 identifier
   src-tauri/src/config.rs    Constants
   src-tauri/capabilities/    Frontend permission grants
-apps/web/                    Web app (@taskmint/web): Vite entry, sign-in pages, HttpBackend
-  src/httpBackend.ts         The client's Backend: /api/v1/commands, and the event stream
-  src/settings/              Account, API tokens, Users and Invites sections
-  nginx/                     The image's nginx config
+  src-tauri/gen/android/     The Android project (see Android)
+apps/web/                    Web app (@taskmint/web): sign-in page, then the client on the wasm core
+  src/wasmBackend.ts         The client's Backend: taskmint-core in WebAssembly
+  src/settings/              The Account section
+  src/wasm/                  pnpm build:wasm's output (not committed)
 apps/extension/              Work-log capture extension (MV3, TypeScript; built into dist/)
-apps/server/                 Server (taskmint-server): axum + Postgres, see "Server" above
-  migrations/                SQL migrations, embedded in the binary
-  .sqlx/                     Query metadata for offline builds (cargo sqlx prepare)
-  tests/api/                 HTTP and CLI tests against Postgres
+firebase/                    Firestore rules, their tests, and indexes (firebase.json deploys them)
 assets/brand/                Logo and app-icon masters (see Development)
 docs/                        ADRs, the coverage policy, the security review, the runbook
   qa/                        The manual checklist for the code coverage leaves out

@@ -18,11 +18,13 @@ import { AboutSettingsSection } from './settings/AboutSettingsSection';
 import { InactivitySettingsSection } from './settings/InactivitySettingsSection';
 import { NotificationSettingsSection } from './settings/NotificationSettingsSection';
 import { PayoutSettingsSection } from './settings/PayoutSettingsSection';
+import { CloudSyncSection } from './settings/CloudSyncSection';
 import { PageContainer, PageHeader } from '../layout/PageLayout';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { SETTINGS_SECTION_LABELS, SettingsSectionId, availableSettingsSections } from '../../navigation/views';
 import { useAppExtensions } from '../../app/extensions';
 import { getBackend } from '../../backend';
+import { syncsThisDevice } from '../../cloud';
 
 const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
   appearance: AppearanceSettingsSection,
@@ -32,6 +34,7 @@ const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
   notifications: NotificationSettingsSection,
   backups: BackupSettingsSection,
   data: DataManagementSection,
+  sync: CloudSyncSection,
   privacy: PrivacySettingsSection,
   about: AboutSettingsSection,
 };
@@ -64,7 +67,7 @@ const NO_EXTENSION_SECTIONS: never[] = [];
 export function SettingsPage() {
   const { settingsSections = NO_EXTENSION_SECTIONS } = useAppExtensions();
   const sections = useMemo(() => {
-    const available = availableSettingsSections(getBackend().platform);
+    const available = availableSettingsSections(getBackend().platform, syncsThisDevice());
     const builtIn = SETTINGS_SECTIONS.filter(({ id }) => available.includes(id));
     return [
       ...builtIn.filter(({ id }) => id !== 'about'),

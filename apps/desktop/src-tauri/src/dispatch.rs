@@ -1,14 +1,15 @@
 //! The webview's one IPC command. `dispatch(command, args)` runs the shell's
 //! own commands here (dialogs, files, OS notifications, idle detection,
-//! backups, the server connection, updates) and passes every other one to
-//! the data backend by name.
+//! backups, updates) and passes every other one to the data backend by name.
 //!
 //! It's async because Tauri runs synchronous commands on the main thread,
-//! where a blocking dialog or a slow save would freeze the window.
+//! where a blocking dialog or a slow save would freeze the window. Each call
+//! runs on a blocking thread, so one that waits a long time (Google sign-in
+//! waits for the browser) holds up no other.
 
 use crate::files;
+use crate::google_sign_in::{self, GoogleClient};
 use crate::notifications::{self, Origin};
-use crate::server;
 use crate::state::AppState;
 use crate::updates;
 use serde::{Deserialize, Serialize};
@@ -89,29 +90,22 @@ enum Shell {
     /// What the webview runs on: `{ runtime, dataLocation }`, read before
     /// the client starts.
     GetCapabilities {},
-    /// The server this launch uses and the link to it; null in local mode.
-    GetServerConnection {},
-    /// Signs this computer in to a server; restart_app then switches to it.
-    ConnectServer {
-        url: String,
-        username: String,
-        password: String,
-    },
-    /// Signs out and forgets the server; restart_app then switches back to
-    /// the data on this computer.
-    DisconnectServer {},
-    /// Adds the data on this computer to the server's (server mode).
-    UploadLocalData {},
-    RestartApp {},
     /// Asks GitHub's latest release whether there's a newer version: what
     /// it is, or null.
     CheckForUpdate {},
     /// Installs what the last check found and restarts into it, sending
     /// update-progress events as it downloads.
     InstallUpdate {},
+    /// Signs in with Google in the system browser, for cloud sync: the
+    /// Google ID token Firebase takes.
+    #[serde(rename_all = "camelCase")]
+    GoogleSignIn {
+        client_id: String,
+        client_secret: String,
+    },
 }
 
-const SHELL_COMMANDS: [&str; 26] = [
+const SHELL_COMMANDS: [&str; 22] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -131,13 +125,9 @@ const SHELL_COMMANDS: [&str; 26] = [
     "import_data_from_file",
     "reveal_path",
     "get_capabilities",
-    "get_server_connection",
-    "connect_server",
-    "disconnect_server",
-    "upload_local_data",
-    "restart_app",
     "check_for_update",
     "install_update",
+    "google_sign_in",
 ];
 
 /// The shell command `name` with `args`; None when it's a data command.
@@ -217,23 +207,21 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         } => reply(files::export_csv_file(state, csv, &suggested_filename)?),
         Shell::ImportDataFromFile {} => reply(files::import_data_from_file(state)?),
         Shell::RevealPath { path } => reply(files::reveal_path(state, &path)?),
-        Shell::GetCapabilities {} => server::capabilities(state),
-        Shell::GetServerConnection {} => reply(server::connection(state)),
-        Shell::ConnectServer {
-            url,
-            username,
-            password,
-        } => reply(server::connect(state, &url, &username, &password)?),
-        Shell::DisconnectServer {} => reply(server::disconnect(state)?),
-        Shell::UploadLocalData {} => reply(server::upload_local_data(state)?),
-        Shell::RestartApp {} => {
-            state.platform.restart();
-            Value::Null
-        }
+        Shell::GetCapabilities {} => crate::capabilities::capabilities(),
         Shell::CheckForUpdate {} => reply(state.platform.check_update()?),
         Shell::InstallUpdate {} => {
             updates::install(state)?;
             Value::Null
+        }
+        Shell::GoogleSignIn {
+            client_id,
+            client_secret,
+        } => {
+            let client = GoogleClient {
+                client_id,
+                client_secret,
+            };
+            return google_sign_in::sign_in_with_google(state.platform.as_ref(), &client);
         }
     })
 }
@@ -242,7 +230,7 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
 fn route(state: &AppState, command: &str, args: Value) -> Result<Value, String> {
     match parse_shell(command, &args) {
         Some(shell) => run_shell(state, shell?),
-        None => state.backend.call(command, args),
+        None => state.backend.call_named(command, args),
     }
 }
 
@@ -253,13 +241,16 @@ pub async fn dispatch(
     command: String,
     args: Value,
 ) -> Result<Value, String> {
-    route(&state, &command, args)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || route(&state, &command, args))
+        .await
+        .expect("commands don't panic")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{fixture, server_fixture, FakeServer, Fixture};
+    use crate::testing::{fixture, Fixture};
     use serde_json::json;
     use std::path::PathBuf;
 
@@ -499,65 +490,21 @@ mod tests {
     }
 
     #[test]
-    fn the_server_connection_is_the_shells_to_manage() {
-        let server = FakeServer::start();
-        server.reply(
-            "POST",
-            "/api/v1/auth/device-token",
-            201,
-            json!({ "token": "tmk_new", "user": { "username": "bea" } }),
-        );
+    fn the_capabilities_name_the_runtime_and_the_data_location() {
         let f = fixture();
         assert_eq!(
             run(&f, "get_capabilities", json!({})),
             Ok(json!({ "runtime": "desktop", "dataLocation": "local" }))
         );
-        assert_eq!(run(&f, "get_server_connection", json!({})), Ok(Value::Null));
-        let args = json!({ "url": server.url, "username": "bea", "password": "secret" });
-        assert_eq!(run(&f, "connect_server", args).unwrap()["username"], "bea");
-        assert_eq!(run(&f, "restart_app", json!({})), Ok(Value::Null));
-        assert_eq!(f.platform.recorded().restarts, 1);
-        assert_eq!(
-            run(&f, "disconnect_server", json!({})),
-            Ok(json!({ "signedOut": false }))
-        );
-        assert!(run(&f, "upload_local_data", json!({})).is_err());
-        assert!(run(&f, "connect_server", json!({ "url": "x" })).is_err());
-        let args = json!({ "url": "x", "username": "bea", "password": "secret" });
-        assert!(run(&f, "connect_server", args).is_err());
-        f.secrets.fail();
-        assert!(run(&f, "disconnect_server", json!({})).is_err());
     }
 
     #[test]
-    fn in_server_mode_data_commands_go_to_the_server() {
-        let server = FakeServer::start();
-        let f = server_fixture(&server);
-        assert_eq!(run(&f, "get_sessions", json!({})), Ok(json!([])));
-        assert_eq!(
-            server.seen_at("/api/v1/commands/get_sessions")[0].headers["authorization"],
-            format!("Bearer {}", crate::testing::TOKEN)
-        );
-        assert_eq!(
-            run(&f, "get_server_connection", json!({})).unwrap()["url"],
-            server.url
-        );
-        server.reply(
-            "POST",
-            "/api/v1/commands/import_app_records",
-            200,
-            json!({ "records": {}, "revisions": {} }),
-        );
-        server.reply(
-            "POST",
-            "/api/v1/commands/restore_backup_data",
-            200,
-            json!({}),
-        );
-        assert_eq!(
-            run(&f, "upload_local_data", json!({})).unwrap()["records"],
-            0
-        );
+    fn google_sign_in_opens_the_browser_and_says_when_it_cannot() {
+        let f = fixture();
+        f.platform.fail("open_url");
+        let args = json!({ "clientId": "c", "clientSecret": "s" });
+        assert!(run(&f, "google_sign_in", args).is_err());
+        assert!(run(&f, "google_sign_in", json!({})).is_err());
     }
 
     #[test]

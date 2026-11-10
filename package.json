@@ -12,6 +12,9 @@
     "test": "pnpm -r test",
     "test:coverage": "pnpm -r test:coverage",
     "test:scripts": "node --test 'scripts/**/*.test.mjs'",
+    "test:rules": "scripts/test-rules.sh",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "firebase": "npx --yes firebase-tools@15.35.0",
     "dev": "pnpm --filter @taskmint/desktop dev",
     "tauri": "pnpm --filter @taskmint/desktop tauri",
     "check:coverage-policy": "node scripts/check-coverage-policy.mjs",
@@ -24,6 +27,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
+    "@firebase/rules-unit-testing": "6.0.0",
+    "firebase": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

@@ -77,6 +77,11 @@ pub const TASKS_RECORD_KEY: &str = "predefinedTasks";
 /// packages/client/src/services/appRecords.ts). `accountSettings` holds the
 /// settings that change the numbers (funds-release days, the withdrawal
 /// interval), so every device computes the same dates.
+/// The cloud documents' schema (sync). A device skips documents from a newer
+/// one, so a field added to a synced entity raises it: an older TaskMint
+/// would drop the field, then write the entity back without it.
+pub const SYNC_SCHEMA: u32 = 1;
+
 pub const APP_RECORD_KEYS: [&str; 7] = [
     TASKS_RECORD_KEY,
     "taskNotes",
@@ -151,8 +156,8 @@ pub mod events {
     /// A record was saved: `{ key, revision }`. Other tabs and devices read
     /// it again.
     pub const APP_RECORDS_CHANGED: &str = "app-records-changed";
-    /// The server's event stream may have missed events (it fell behind, or
-    /// the data was reset): the client reads everything again.
+    /// Events may have been missed, or the data changed under the client
+    /// (a sync brought in other devices' changes): it reads everything again.
     pub const RESYNC: &str = "resync";
     pub const IDLE_RETURNED: &str = "idle-returned";
     pub const IDLE_RESOLVED: &str = "idle-resolved";
@@ -160,12 +165,12 @@ pub mod events {
     /// A notification the backend showed itself (long-run, idle pause), for the
     /// frontend's notification history.
     pub const NOTIFICATION_POSTED: &str = "notification-posted";
-    /// The desktop app's link to its TaskMint server came up, dropped, or
-    /// was signed out (server mode only): `{ status, detail }`.
-    pub const SERVER_CONNECTION_CHANGED: &str = "server-connection-changed";
     /// The desktop app's update download moved on, or finished and is being
     /// installed: `{ downloaded, total, installing }`.
     pub const UPDATE_PROGRESS: &str = "update-progress";
+    /// Data that syncs changed on this device (in the app, the tray or the
+    /// idle monitor): cloud sync sends what's new.
+    pub const SYNC_PENDING: &str = "sync-pending";
 }
 
 #[cfg(test)]

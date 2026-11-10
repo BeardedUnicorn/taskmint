@@ -6,6 +6,7 @@
   "exports": {
     "./start": "./src/start.tsx",
     "./backend": "./src/backend/index.ts",
+    "./cloud": "./src/cloud/index.ts",
     "./testing": "./src/testing/index.ts",
     "./ui": "./src/ui.ts"
   },
@@ -31,6 +32,7 @@
     "@sentry/react": "^10.70.0",
     "@taskmint/contracts": "workspace:*",
     "dayjs": "^1.11.23",
+    "firebase": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "recharts": "^3.10.1",

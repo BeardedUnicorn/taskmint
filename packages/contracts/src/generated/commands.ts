@@ -4,11 +4,14 @@ import type { AcceptCaptureArgs } from "./AcceptCaptureArgs";
 import type { AddManualTimeArgs } from "./AddManualTimeArgs";
 import type { AppRecords } from "./AppRecords";
 import type { ApplyIdleChoiceArgs } from "./ApplyIdleChoiceArgs";
+import type { ApplySyncIncomingArgs } from "./ApplySyncIncomingArgs";
 import type { ApplyWorkLogImportArgs } from "./ApplyWorkLogImportArgs";
 import type { CreateTimerInstanceArgs } from "./CreateTimerInstanceArgs";
 import type { ImportAppRecordsArgs } from "./ImportAppRecordsArgs";
 import type { InstanceArgs } from "./InstanceArgs";
+import type { LinkSyncAccountArgs } from "./LinkSyncAccountArgs";
 import type { MoveTimerInstanceArgs } from "./MoveTimerInstanceArgs";
+import type { OutgoingDoc } from "./OutgoingDoc";
 import type { PauseTimerAtArgs } from "./PauseTimerAtArgs";
 import type { PendingCapture } from "./PendingCapture";
 import type { ResetSummary } from "./ResetSummary";
@@ -22,6 +25,8 @@ import type { SetActiveSessionArgs } from "./SetActiveSessionArgs";
 import type { SetAppRecordArgs } from "./SetAppRecordArgs";
 import type { StartTaskArgs } from "./StartTaskArgs";
 import type { StartTaskResult } from "./StartTaskResult";
+import type { SyncApplied } from "./SyncApplied";
+import type { SyncStatus } from "./SyncStatus";
 import type { TaskSession } from "./TaskSession";
 import type { TimerInstance } from "./TimerInstance";
 import type { UndoWorkLogImportArgs } from "./UndoWorkLogImportArgs";
@@ -61,6 +66,11 @@ export interface CommandMap {
   take_pending_work_log_capture: { args: void; reply: PendingCapture | null };
   restore_backup_data: { args: RestoreBackupDataArgs; reply: RestoreSummary };
   reset_all_app_data: { args: void; reply: ResetSummary };
+  get_sync_status: { args: void; reply: SyncStatus };
+  link_sync_account: { args: LinkSyncAccountArgs; reply: SyncStatus };
+  unlink_sync_account: { args: void; reply: null };
+  get_sync_outgoing: { args: void; reply: Array<OutgoingDoc> };
+  apply_sync_incoming: { args: ApplySyncIncomingArgs; reply: SyncApplied };
 }
 
 export type CommandName = keyof CommandMap;

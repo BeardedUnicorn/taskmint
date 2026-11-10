@@ -1,5 +1,9 @@
 # Web support plan (approved 2026-10-25)
 
+> **Historical.** The server, the compose stack and the desktop's server mode
+> this plan built were retired on 2026-11-09. The devices and the web app now
+> sync through Firebase: see [ADR 0002](adr/0002-firebase.md).
+
 Status: P0 (spikes, ADR), P1 (monorepo move), P2 (shared TS config), P3 (frontend seam), P4 (core extraction), P5 (command layer and LocalBackend), P6 (contracts codegen), P7 (desktop Rust to 100%), P8 (server auth), P9 (server workspace and realtime), P10 (the web app), P11 (stack hardening), P12 (desktop server mode), P13a (the extension in TypeScript), P13b (the extension's server target), P14a (client utils, services, types and theme at 100%), P14b (client hooks at 100%), P14c (client contexts and notifications at 100%), P14d (client components, pages and App at 100%: the whole client) and P15 (security review, QA checklist, runbook) are done: every phase is; see [ADR 0001](adr/0001-web-support.md) for what the spikes established.
 
 

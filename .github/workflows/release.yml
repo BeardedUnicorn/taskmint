@@ -10,6 +10,10 @@ name: Release
 # installed apps check for updates (the README's "Desktop updates"). The
 # Android APK is signed with the release key in the ANDROID_KEYSTORE secret,
 # so each one installs over the one before (the README's "Android signing").
+#
+# The web app is built too, and a tag deploys it to Firebase Hosting
+# (taskmint-f9a05.web.app) with the Firestore rules and indexes, once every
+# build has passed (the README's "Web app").
 on:
   push:
     tags: ['v*']
@@ -23,6 +27,8 @@ on:
       - apps/desktop/src-tauri/tauri.android.conf.json
       - apps/desktop/src-tauri/gen/android/**
       - apps/extension/build.mjs
+      - firebase.json
+      - scripts/build-wasm.mjs
   workflow_dispatch:
 
 permissions:
@@ -138,6 +144,10 @@ jobs:
         env:
           # Error reporting in the app builds; with no secret they report nothing
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          # The desktop's Google sign-in client; without it, the desktop signs
+          # in to cloud sync by email only
+          VITE_GOOGLE_DESKTOP_CLIENT_ID: ${{ matrix.desktop && secrets.VITE_GOOGLE_DESKTOP_CLIENT_ID || '' }}
+          VITE_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ matrix.desktop && secrets.VITE_GOOGLE_DESKTOP_CLIENT_SECRET || '' }}
           # Signs the desktop builds' updates (only this step sees the key; the
           # APK and the extension have no updates)
           TAURI_SIGNING_PRIVATE_KEY: ${{ matrix.desktop && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
@@ -150,6 +160,80 @@ jobs:
           name: ${{ matrix.target }}
           path: releases/
           if-no-files-found: error
+
+  web:
+    name: web
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - run: pnpm install --frozen-lockfile
+
+      # TaskMint's rules in WebAssembly: the Rust toolchain with its wasm
+      # target, and the wasm-bindgen CLI Cargo.lock pins (check-toolchains)
+      - run: rustup toolchain install
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.127
+
+      - run: pnpm build:wasm
+
+      - run: pnpm --filter @taskmint/web build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web
+          path: apps/web/dist/
+          if-no-files-found: error
+
+  deploy-web:
+    name: Deploy the web app
+    if: github.ref_type == 'tag'
+    needs: [build, web]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      # The GitHub OIDC token Google's Workload Identity Federation takes
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: web
+          path: apps/web/dist
+
+      # No stored key: the provider trusts this repository's v* tags only, as
+      # the github-deploy service account (Hosting, Rules and index admin)
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      # firebase-tools at the version package.json's "firebase" script pins
+      - run: pnpm firebase deploy --only hosting,firestore:rules,firestore:indexes --project taskmint-f9a05 --non-interactive
 
   github-release:
     if: github.ref_type == 'tag'

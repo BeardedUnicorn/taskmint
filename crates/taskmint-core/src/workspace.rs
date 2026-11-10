@@ -8,6 +8,7 @@ use crate::records::{tasks_from_records, RecordMap, RecordRevisions};
 use crate::sessions::task_links::{
     fill_imported_session_rates, fill_missing_session_rates, sync_session_task_names,
 };
+use crate::sync::SyncState;
 use crate::worklogs::sync_work_log_task_names;
 use std::ops::{BitOr, BitOrAssign};
 
@@ -23,7 +24,9 @@ impl Parts {
     pub const RECORDS: Parts = Parts(1 << 2);
     /// The capture waiting for the frontend.
     pub const CAPTURE: Parts = Parts(1 << 3);
-    pub const ALL: Parts = Parts(0b1111);
+    /// Cloud sync's state: the account, and the baseline (sync::SyncState).
+    pub const SYNC: Parts = Parts(1 << 4);
+    pub const ALL: Parts = Parts(0b1_1111);
 
     pub fn contains(self, other: Parts) -> bool {
         self.0 & other.0 == other.0
@@ -78,6 +81,7 @@ pub struct Workspace {
     /// The latest capture from the browser extension, until the frontend
     /// takes it.
     pub pending_capture: Option<PendingCapture>,
+    pub sync: SyncState,
     pub notes: LoadNotes,
 }
 
@@ -167,6 +171,7 @@ mod tests {
             Parts::WORK_LOGS,
             Parts::RECORDS,
             Parts::CAPTURE,
+            Parts::SYNC,
         ] {
             all |= part;
         }

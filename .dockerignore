@@ -1,3 +1,0 @@
-# Deny all: each Dockerfile has its own allowlist next to it
-# (<name>.dockerignore), which replaces this file.
-*

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { useEffect } from 'react';
 import '@testing-library/jest-dom/vitest';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -21,6 +21,14 @@ vi.mock('../settings/NotificationSettingsSection', () => ({
 }));
 vi.mock('../settings/PayoutSettingsSection', () => ({ PayoutSettingsSection: () => <div>Payouts section</div> }));
 vi.mock('../settings/AboutSettingsSection', () => ({ AboutSettingsSection: () => <div>About section</div> }));
+vi.mock('../settings/CloudSyncSection', () => ({ CloudSyncSection: () => <div>Sync section</div> }));
+
+// A build that syncs, unless a test says otherwise
+const cloud = vi.hoisted(() => ({ syncs: true }));
+vi.mock('../../../cloud', () => ({ syncsThisDevice: () => cloud.syncs }));
+beforeEach(() => {
+  cloud.syncs = true;
+});
 
 describe('currentSection', () => {
   it('is the last section whose top has reached the top of the window', () => {
@@ -63,6 +71,7 @@ describe('SettingsPage', () => {
 
   it('leaves out the sections this platform has no use for', () => {
     installFakeBackendForTest({ capabilities: { runtime: 'web' }, without: ['idle', 'folderBackups'] });
+    cloud.syncs = false;
     render(<SettingsPage />, { wrapper: NavigationProvider });
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
     const labels = within(nav)
@@ -71,7 +80,8 @@ describe('SettingsPage', () => {
 
     expect(labels).not.toContain('Backups');
     expect(labels).not.toContain(SETTINGS_SECTIONS.find(({ id }) => id === 'idle')!.label);
-    expect(labels).toHaveLength(SETTINGS_SECTIONS.length - 2);
+    expect(labels).not.toContain('Cloud sync');
+    expect(labels).toHaveLength(SETTINGS_SECTIONS.length - 3);
     expect(screen.queryByText('Idle section')).not.toBeInTheDocument();
     expect(
       screen.getByText("Appearance, payouts, your daily goal, notifications, data and what's new")

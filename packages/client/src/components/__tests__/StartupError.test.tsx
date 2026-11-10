@@ -14,15 +14,10 @@ describe('StartupError', () => {
     expect(screen.getAllByRole('button')).toHaveLength(1);
     unmount();
 
-    installFakeBackendForTest({ capabilities: { dataLocation: 'server' } });
-    render(
-      <StartupError
-        message="Can't reach the TaskMint server"
-        Actions={() => <button type="button">Use the data on this computer</button>}
-      />
-    );
-    expect(screen.getByRole('alert')).toHaveTextContent('kept on your TaskMint server');
-    expect(screen.getByRole('button', { name: 'Use the data on this computer' })).toBeInTheDocument();
+    installFakeBackendForTest({ capabilities: { dataLocation: 'cloud' } });
+    render(<StartupError message="Can't reach the cloud" Actions={() => <button type="button">Sign out</button>} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('kept in your TaskMint cloud account');
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
 
   it('tries starting again', () => {

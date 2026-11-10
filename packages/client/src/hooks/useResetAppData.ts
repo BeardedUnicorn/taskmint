@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getBackend } from '../backend';
 import { reloadApp } from '../utils/appReload';
 import { flushAppRecords } from '../services/appRecords';
+import { getCloudSync } from '../cloud';
 
 interface UseResetAppDataProps {
   onError?: (error: string) => void;
@@ -9,9 +10,10 @@ interface UseResetAppDataProps {
 
 /**
  * Full app-data reset: wipes the backend's data (sessions, work logs, the
- * tasks/notes/templates/goal records, and on the desktop their on-disk
- * backups and tray/timer state), then clears localStorage (settings) and
- * reloads the app so every provider re-initializes from the empty stores.
+ * tasks/notes/templates/goal records, cloud sync's link, and on the desktop
+ * their on-disk backups and tray/timer state), signs out of cloud sync (the
+ * cloud's copy stays), then clears localStorage (settings) and reloads the
+ * app so every provider re-initializes from the empty stores.
  */
 export const useResetAppData = ({ onError }: UseResetAppDataProps = {}) => {
   const [isResetting, setIsResetting] = useState(false);
@@ -29,6 +31,11 @@ export const useResetAppData = ({ onError }: UseResetAppDataProps = {}) => {
         console.warn(summary.warning);
       }
 
+      // The device stopped syncing with the reset; signed in, it would start
+      // again at once and bring the cloud's data back. The web app's data is
+      // the cloud's, so there it goes too.
+      if (getBackend().capabilities.dataLocation === 'cloud') await getCloudSync()?.deleteCloudData();
+      else await getCloudSync()?.signOut();
       window.localStorage.clear();
       reloadApp();
       // Deliberately leave isResetting true: the page is about to unload, and

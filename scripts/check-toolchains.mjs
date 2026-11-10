@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 /**
- * The pinned toolchains agree everywhere they're named:
+ * The pinned toolchains are well formed and agree:
  *
- * - rust-toolchain.toml's X.Y is the server image's rust:X.Y (the Docker
- *   builds don't see the toolchain file, so the image keeps its own tag);
- * - .node-version is the major of every node:NN image in the Dockerfiles
- *   (CI's setup-node reads .node-version itself).
+ * - rust-toolchain.toml names an exact X.Y.Z channel, with the wasm target
+ *   the web app's core builds for;
+ * - .node-version is a major version (CI's setup-node reads it);
+ * - every workflow installs the wasm-bindgen CLI at the wasm-bindgen crate's
+ *   version in Cargo.lock (scripts/build-wasm.mjs refuses any other).
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,29 +18,26 @@ const read = file => readFileSync(join(root, file), 'utf8');
 
 const problems = [];
 
-const channel = read('rust-toolchain.toml').match(/^channel\s*=\s*"(\d+)\.(\d+)(?:\.\d+)?"/m);
-if (!channel) {
-  problems.push('rust-toolchain.toml: no channel = "X.Y.Z"');
-} else {
-  const rust = `${channel[1]}.${channel[2]}`;
-  const images = [...read('apps/server/Dockerfile').matchAll(/FROM rust:(\d+\.\d+)\S*/g)].map(match => match[1]);
-  if (images.length === 0) problems.push('apps/server/Dockerfile: no FROM rust:X.Y image');
-  for (const image of images) {
-    if (image !== rust) problems.push(`apps/server/Dockerfile uses rust:${image}, rust-toolchain.toml says ${rust}`);
+const toolchain = read('rust-toolchain.toml');
+const channel = toolchain.match(/^channel\s*=\s*"(\d+\.\d+\.\d+)"/m);
+if (!channel) problems.push('rust-toolchain.toml: no channel = "X.Y.Z"');
+if (!/^targets\s*=.*"wasm32-unknown-unknown"/m.test(toolchain)) {
+  problems.push('rust-toolchain.toml: targets should list wasm32-unknown-unknown');
+}
+
+const wasmBindgen = read('Cargo.lock').match(/name = "wasm-bindgen"\nversion = "([^"]+)"/)?.[1];
+for (const file of readdirSync(join(root, '.github/workflows'))) {
+  for (const [, version] of read(`.github/workflows/${file}`).matchAll(/tool: wasm-bindgen@(\S+)/g)) {
+    if (version !== wasmBindgen)
+      problems.push(`${file} installs wasm-bindgen ${version}, Cargo.lock has ${wasmBindgen}`);
   }
 }
 
 const node = read('.node-version').trim();
 if (!/^\d+$/.test(node)) problems.push(`.node-version should be a major version, not "${node}"`);
-for (const file of ['apps/web/Dockerfile', 'apps/server/Dockerfile']) {
-  const images = [...read(file).matchAll(/\bnode:(\d+)\S*/g)].map(match => match[1]);
-  for (const image of images) {
-    if (image !== node) problems.push(`${file} uses node:${image}, .node-version says ${node}`);
-  }
-}
 
 if (problems.length > 0) {
   for (const problem of problems) console.error(problem);
   process.exit(1);
 }
-console.log(`Toolchains agree: Rust ${channel[1]}.${channel[2]}, Node ${node}`);
+console.log(`Toolchains pinned: Rust ${channel[1]}, Node ${node}`);

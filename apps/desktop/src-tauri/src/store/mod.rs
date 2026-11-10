@@ -13,5 +13,10 @@ pub const WORK_LOGS_FILE: &str = "worklogs.json";
 /// its history), one key each.
 pub const RECORDS_FILE: &str = "appdata.json";
 
+/// Cloud sync's state: the account, and each document as it last agreed
+/// with the cloud (taskmint_core::sync::SyncState). Never copied aside: a
+/// lost one only means joining the cloud's data again.
+pub const SYNC_FILE: &str = "sync.json";
+
 /// Every data file, so their safety copies can be found.
 pub const DATA_FILES: [&str; 3] = [SESSIONS_FILE, WORK_LOGS_FILE, RECORDS_FILE];

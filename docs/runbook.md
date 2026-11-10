@@ -1,213 +1,152 @@
-# Runbook: the TaskMint server stack
+# Runbook: TaskMint on Firebase
 
-How to run, back up, recover and lock down the compose stack. For setting it
-up, see the README's "Run the stack". The commands run from the repository
-root. They use `psql` inside the `db` container, so they need nothing
-installed on the host.
-
-```bash
-alias tmsql='docker compose exec -T db psql -U taskmint -d taskmint -v ON_ERROR_STOP=1'
-```
+How to deploy, watch, recover and lock down cloud sync and the web app, on
+the Firebase project `taskmint-f9a05`. The design is
+[ADR 0002](adr/0002-firebase.md); the README's "Firebase" section has the
+setup. Commands run from the repository root. `pnpm firebase` is
+firebase-tools at the pinned version, and needs `pnpm firebase login` once
+(or gcloud's application default credentials). The self-hosted server this
+runbook used to cover was retired on 2026-11-09.
 
 ## Health
 
-```bash
-docker compose ps                        # each service's health
-curl -s http://localhost:8080/healthz    # nginx answers
-docker compose exec server taskmint-server healthcheck && echo server ok
-docker compose logs --since 1h server    # JSON lines (LOG_FORMAT=text for plain)
-docker compose logs --since 1h web       # nginx access log (link secrets redacted)
-```
+- **The web app:** https://taskmint-f9a05.web.app opens to the sign-in page.
+- **Deploys:** `gh run list --workflow release.yml`. A tag's `Deploy the web
+  app` job deploys Hosting, the Firestore rules and the indexes.
+- **Usage against the free quotas:** Firebase console → Firestore → Usage, and
+  Authentication → Usage. Spark allows 50,000 reads, 20,000 writes and
+  20,000 deletes a day, and 1 GiB stored. A day's quota resets at midnight
+  Pacific time.
+- **Errors in the apps:** Sentry, when the builds had `VITE_SENTRY_DSN`.
 
-- The server's `/readyz` answers 503 when it can't reach the database. The
-  image's health check runs `healthcheck`, which only asks `/healthz`.
-- Container logs rotate at 3 × 10 MB per service.
-- `RUST_LOG=debug` in `.env` (then `docker compose up -d`) adds a span per
-  request. It names the route, never the path, so link secrets stay out.
+When a quota runs out, Firestore refuses until it resets: devices keep
+working on their own data, show the sync error with **Try again**, and catch
+up afterwards. The web app can't open until then. With billing off, there's
+no charge.
 
-## Backups
+## Deploying by hand
 
-Everything is in Postgres: accounts, every account's data, the server's own
-copies (`data_snapshots`) and the audit log. Back it up with `pg_dump`, and
-keep copies somewhere other than this machine. `backups/` is ignored by git,
-since its files hold every account's data.
+The release workflow deploys on each tag. By hand, for a rules fix between
+releases, or when the workflow's deploy failed:
 
 ```bash
-mkdir -p backups
-docker compose exec -T db pg_dump -U taskmint -Fc taskmint > "backups/taskmint-$(date +%Y%m%d-%H%M).dump"
+pnpm test:rules
+pnpm firebase deploy --only firestore:rules,firestore:indexes --project taskmint-f9a05
 ```
 
-**Daily, with cron** (`crontab -e`; adjust the path; `%` must be escaped in
-crontab):
-
-```cron
-15 3 * * * cd /path/to/taskmint-app && docker compose exec -T db pg_dump -U taskmint -Fc taskmint > backups/taskmint-$(date +\%Y\%m\%d).dump && find backups -name 'taskmint-*.dump' -mtime +30 -delete
-```
-
-**Check that a backup restores** into a throwaway Postgres, without touching
-the stack. Run it now and then:
+The web app, from a clean checkout of the release's tag (Hosting serves
+whatever `apps/web/dist` holds, so never deploy a working tree's build):
 
 ```bash
-docker run -d --name tm-restore-check -e POSTGRES_PASSWORD=check postgres:18-alpine
-sleep 5
-docker exec -i tm-restore-check pg_restore -U postgres -d postgres --no-owner < backups/<file>.dump
-docker exec tm-restore-check psql -U postgres -c 'SELECT count(*) AS users FROM users' -c 'SELECT count(*) AS sessions FROM sessions'
-docker rm -f tm-restore-check
+pnpm install --frozen-lockfile && pnpm build:wasm && pnpm --filter @taskmint/web build
+pnpm firebase deploy --only hosting --project taskmint-f9a05
 ```
 
-**Restore the stack from a backup.** Every account goes back to the time of
-the dump.
+Re-running the tag's `Deploy the web app` job (`gh run rerun <run id>
+--job <job id>`, or the Actions page) does the same with no local login.
 
-```bash
-docker compose stop server web
-docker compose exec -T db pg_restore -U taskmint -d taskmint --clean --if-exists --no-owner < backups/<file>.dump
-docker compose up -d --wait
-```
+## Rolling back
 
-Open tabs and desktop apps reconnect by themselves. Anything made after the
-dump is gone: sessions, links and tokens included.
-
-**One account's data.** The server has no per-account restore. Two options:
-- The user re-imports a backup file they exported (Settings → Data
-  Management → Import). This adds what's missing; nothing present is replaced.
-- An operator restores the whole database, as above.
-
-Before a risky command (an import that rewrites days, a restore, a reset),
-the server keeps a copy of the account's affected data: the newest 10 of each
-kind (`sessions`, `work_logs`, `records`, `incoming_records`). They're for
-inspection and hand repair:
-
-```bash
-tmsql -c "SELECT s.id, s.kind, s.reason, s.created_at FROM data_snapshots s JOIN users u ON u.id = s.user_id WHERE u.username = 'alice' ORDER BY s.id DESC"
-tmsql -At -c "SELECT data FROM data_snapshots WHERE id = 123" > backups/snapshot-123.json
-```
-
-## Upgrading
-
-Migrations run before the server starts (the `migrate` service), and they're
-forward-only: an older server image can't run on a newer schema.
-
-```bash
-docker compose exec -T db pg_dump -U taskmint -Fc taskmint > backups/before-upgrade.dump
-git pull
-docker compose up --build -d --wait
-node scripts/smoke.mjs    # optional; leaves one disabled smoke-… user behind
-```
-
-**Going back** to the previous version means its code and the database from
-before the upgrade. Check out the previous commit, restore
-`before-upgrade.dump` as above, then run `docker compose up --build -d --wait`.
+- **The web app:** Firebase console → Hosting → the release history → the
+  release before → Roll back. Open tabs keep the version they loaded until
+  they reload.
+- **The rules:** Firebase console → Firestore → Rules keeps each version, or
+  deploy an older file:
+  `git show <good commit>:firebase/firestore.rules > firebase/firestore.rules`,
+  then deploy the rules as above and put the file back with git.
+- **A release whose sync is wrong** (data merged badly): roll back the web
+  app, and on the desktop and Android install the previous release by hand.
+  Each device keeps its own data, so nothing is lost by stopping. If the
+  cloud copy needs replacing, see [Recovering data](#recovering-data).
 
 ## Accounts
 
-Admins do most of this in the web app: Settings → Users and Settings →
-Invites. The command line and SQL below are for when nobody can sign in as an
-admin, or for an incident.
-
-**Links from the command line.** Each prints a one-time URL; pass it on.
-Invites last `TASKMINT_INVITE_TTL_HOURS`, reset links
-`TASKMINT_RESET_TTL_HOURS`.
-
-```bash
-docker compose exec server taskmint-server admin create-invite --role admin --note "recovery"
-docker compose exec server taskmint-server admin reset-password <username>
-```
-
-- **No admin can sign in:** create an admin invite, accept it in a private
-  window, then fix the old accounts from Settings → Users.
-- **A forgotten password:** a reset link. Accepting it signs the user out
-  everywhere, browsers and desktop apps alike. Tokens made on the tokens page
-  keep working.
-- **The last admin** can't be disabled or demoted, from the web app or the
-  API. Make another admin first.
-
-**Who did what:**
+In the Firebase console → Authentication → Users:
+- **A forgotten password:** the user taps **Forgot password?** at sign-in,
+  or the console's menu for the user → Reset password. Both email a link.
+- **Disable** stops new sign-ins and token refreshes. A token already
+  issued keeps working for up to an hour.
+- **Delete** removes the account, but not its data. The app's Settings →
+  Account → Delete account (web) deletes both. To remove what's left of a
+  deleted account:
 
 ```bash
-tmsql -c "SELECT a.at, actor.username AS actor, a.action, target.username AS target, a.detail, a.ip
-          FROM audit_events a
-          LEFT JOIN users actor ON actor.id = a.actor_id
-          LEFT JOIN users target ON target.id = a.target_user_id
-          ORDER BY a.id DESC LIMIT 50"
+pnpm firebase firestore:delete users/<uid> --recursive --project taskmint-f9a05
 ```
 
-Actions: `user.bootstrap`, `user.update`, `invite.create`, `invite.accept`,
-`invite.revoke`, `password_reset.create`, `password_reset.accept`,
-`password.change`, `token.create` and `token.revoke`. Sign-ins aren't audited.
+**Sign-up** is open to anyone. To close it: Authentication → Settings →
+User actions → untick **Enable create (sign-up)**. Existing accounts keep
+signing in.
+
+## Recovering data
+
+The project has no Firestore backups or point-in-time recovery set up. Every
+synced device keeps a full copy of the account's data, and the desktop's
+folder backups keep working. So:
+
+- **One device lost its data:** sign in on it again. With nothing local,
+  it takes the cloud's copy.
+- **The cloud copy is wrong or lost:** on the device with the best copy,
+  Settings → Cloud sync → **Delete cloud data**, then **Sync again**: its
+  data becomes the cloud's. Each other device shows that the cloud data was
+  deleted. **Sync again** there merges its data in, so first pick, for each,
+  whether its copy should join (sync again) or be replaced (Data
+  Management → Reset All Data, then sign in).
+- **From a backup file:** on one device, Settings → Data Management →
+  Restore Exactly (or Import Data to add only what's missing). Its changes
+  sync to the others.
 
 ## Incidents
 
-**An account may be compromised.**
-1. Disable it: Settings → Users → Disable. That ends its sessions, revokes
-   every token and closes its event streams at once.
-2. Read its audit trail (above) and its tokens:
-   `tmsql -c "SELECT name, kind, scope, created_at, last_used_at, revoked_at FROM api_tokens WHERE user_id = (SELECT id FROM users WHERE username = 'alice') ORDER BY created_at"`.
-3. Enable it again, and give the owner a reset link. They make new tokens for
-   the extension or scripts; the desktop signs in again.
+**An account may be compromised.** Disable it (above), then have the owner
+reset their password and enable it again. The rules keep each account to
+its own data, so others' aren't exposed.
 
-**Without a working admin session**, the same in SQL. Lookups refuse a
-disabled user at once; restarting the server closes the streams already open:
+**Someone is burning the quota** (a burst of sign-ups, reads or writes in
+Usage). In order of effort:
+1. Disable or delete the accounts responsible (Authentication → Users,
+   sorted by created).
+2. Close sign-up (above).
+3. Turn on App Check for Firestore and Auth, which then needs the apps to
+   attest first (a code change: ADR 0002 lists it as the follow-up).
 
-```bash
-tmsql -c "UPDATE users SET disabled_at = now() WHERE username = 'alice'"
-tmsql -c "UPDATE api_tokens SET revoked_at = now() WHERE revoked_at IS NULL AND user_id = (SELECT id FROM users WHERE username = 'alice')"
-docker compose restart server
-```
+**A bad rules deploy** (sync failing with "missing or insufficient
+permissions" everywhere): roll the rules back (above). Devices retry with
+**Try again** and lose nothing.
 
-**A link was sent to the wrong person.** For an invite, revoke it in Settings
-→ Invites. For a reset link, issue a new one: that expires the old.
-
-**Sign everyone out** (say, after the database or a backup leaked). Browser
-sessions and every token end. Users sign in again and make new tokens; people
-with no admin need a reset link.
+**The deploy path is misused or leaks** (an unexpected Hosting release or
+rules change, or a compromised workflow dependency). Stop it at once, then
+look:
 
 ```bash
-tmsql -c "DELETE FROM auth_sessions"
-tmsql -c "UPDATE api_tokens SET revoked_at = now() WHERE revoked_at IS NULL"
-docker compose restart server
+gcloud iam workload-identity-pools providers update-oidc taskmint-releases --location=global --workload-identity-pool=github --project=taskmint-f9a05 --disabled
 ```
 
-Stored passwords are argon2id hashes. After a leak, still have everyone
-change theirs.
+Roll back what was deployed, and check Cloud Logging's audit logs for the
+`github-deploy@taskmint-f9a05.iam.gserviceaccount.com` service account.
+`--no-disabled` turns it back on. The provider trusts only this repository's
+`v*` tags, so a tag pushed by someone with write access to the repository is
+the other way in: check the repository's tags and collaborators too.
 
-**Rotate the database password.** Use hex, so it needs no escaping in
-`DATABASE_URL`:
+**The desktop's Google client secret leaked.** Google treats it as public
+(it ships in every installed app), so a leak lets someone show Google's
+consent screen under TaskMint's name, not sign in as anyone. To rotate it:
+Google Cloud console → APIs & Services → Credentials → the Desktop client →
+add a secret, update `VITE_GOOGLE_DESKTOP_CLIENT_SECRET` in the repository
+secrets and `.env`, release, then delete the old secret.
 
-```bash
-NEW=$(openssl rand -hex 24)
-tmsql -c "ALTER ROLE taskmint PASSWORD '$NEW'"
-# set POSTGRES_PASSWORD=$NEW in .env, then:
-docker compose up -d --wait
-```
-
-`POSTGRES_PASSWORD` only takes effect when the volume is first created, so
-the `ALTER ROLE` is what changes the password. `.env` then hands it to
-`migrate` and `server`.
-
-**The admin password from `.env`** (`ADMIN_PASSWORD`) is used only when the
-server starts with no users. Change it in Settings → Account; editing `.env`
-later does nothing.
+**The Android release key leaked or was lost:** the README's "Android
+signing", including registering the new key's SHA-1 with Firebase.
 
 ## Housekeeping
 
-Used-up and expired rows stay, for the audit trail. They're small, but to
-prune them:
-
-```bash
-tmsql -c "DELETE FROM auth_sessions WHERE expires_at < now()"
-tmsql -c "DELETE FROM password_resets WHERE expires_at < now() - interval '30 days'"
-```
-
-Disk: `docker system df` shows images, volumes and the build cache.
-`docker builder prune` clears the build cache; the `db-data` volume is the
-data, so never prune volumes on this stack.
-
-## Before others can reach it
-
-The stack is for one machine, so follow the deployment requirements in
-[docs/security-review.md](security-review.md#deployment-requirements) before
-anyone else can reach it:
-- HTTPS in front, with HSTS.
-- `COOKIE_SECURE=true` and an `https://` `PUBLIC_ORIGIN`.
-- `db` and `server` no longer published.
-- Strong secrets, ideally through `<NAME>_FILE`.
+- **API keys** (Google Cloud console → APIs & Services → Credentials): the
+  browser and Android keys are limited to Firebase's APIs. They're public by
+  design; the rules protect the data.
+- **Authorized domains** (Authentication → Settings) should list only
+  `localhost` and the project's own `firebaseapp.com` and `web.app` domains.
+- **The deploy service account** holds Firebase Hosting Admin, Firebase
+  Rules Admin, Cloud Datastore Index Admin and Service Usage Consumer, which
+  between them cover every call firebase-tools makes to deploy (Hosting
+  Admin includes looking up the project). Don't add Firebase Viewer or any
+  other viewer role: they read Firestore documents and the user list.

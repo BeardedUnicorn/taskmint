@@ -5,7 +5,6 @@
  * device has the old keys left.
  */
 
-import { getBackend } from '../backend/registry';
 import { STORAGE_KEYS } from '../constants';
 import { parseAccountSettings } from '../types/accountSettings';
 import { readLocal } from '../utils/localStore';
@@ -23,12 +22,10 @@ const LOCAL_KEYS = {
  * removes the device's copies. A record set elsewhere in the meantime stays;
  * a save that fails leaves the copies for the next launch. Skipped in a
  * development build (its webview storage isn't the installed app's, but the
- * data folder is shared) and on a desktop using a server (it keeps them for
- * when it runs on its own files again).
+ * data folder is shared).
  */
 export async function moveLocalAccountSettings(): Promise<void> {
-  const { runtime, dataLocation } = getBackend().capabilities;
-  if (import.meta.env.DEV || (runtime === 'desktop' && dataLocation === 'server')) return;
+  if (import.meta.env.DEV) return;
   const stored = Object.entries(LOCAL_KEYS).filter(([, key]) => window.localStorage.getItem(key) !== null);
   if (stored.length === 0) return;
   if (readAppRecord(STORAGE_KEYS.ACCOUNT_SETTINGS) === undefined) {

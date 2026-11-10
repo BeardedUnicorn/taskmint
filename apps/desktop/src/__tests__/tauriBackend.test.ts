@@ -31,7 +31,7 @@ describe('createTauriBackend', () => {
 
   it('is the desktop the Rust side reported', () => {
     expect(backend.capabilities).toEqual({ runtime: 'desktop', dataLocation: 'local' });
-    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'server' }).capabilities.dataLocation).toBe('server');
+    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'cloud' }).capabilities.dataLocation).toBe('cloud');
   });
 
   it('runs data commands by name through dispatch', async () => {
@@ -251,5 +251,52 @@ describe('createTauriBackend', () => {
     expect(dispatched()).toEqual([]);
     // The desktop has no status bar, bridge or not
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.systemBars).toBeUndefined();
+  });
+
+  it("counts usage through Android's native analytics, and the desktop has none", () => {
+    const bridge = { setEnabled: vi.fn(), screen: vi.fn() };
+    vi.stubGlobal('TaskMintAnalytics', bridge);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
+    android.platform.analytics!.setEnabled(false);
+    android.platform.analytics!.screen('tasks');
+    expect(bridge.setEnabled).toHaveBeenCalledWith(false);
+    expect(bridge.screen).toHaveBeenCalledWith('tasks');
+    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.analytics).toBeUndefined();
+  });
+
+  describe('Google sign-in', () => {
+    it("goes through the desktop's browser when the build has a client, and isn't there without one", async () => {
+      mockInvoke.mockResolvedValueOnce({ idToken: 'id-token' });
+      const desktop = createTauriBackend(
+        { runtime: 'desktop', dataLocation: 'local' },
+        { clientId: 'client', clientSecret: 'secret' }
+      );
+      expect(await desktop.platform.googleSignIn!()).toBe('id-token');
+      expect(dispatched()).toEqual([['google_sign_in', { clientId: 'client', clientSecret: 'secret' }]]);
+      expect(platform.googleSignIn).toBeUndefined();
+    });
+
+    it("uses Android's account picker through the bridge MainActivity adds", async () => {
+      expect(createTauriBackend({ runtime: 'mobile', dataLocation: 'local' }).platform.googleSignIn).toBeUndefined();
+      const start = vi.fn();
+      vi.stubGlobal('TaskMintGoogleSignIn', { start });
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+        delete window.__taskmintGoogleSignIn;
+      });
+      const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
+
+      const signedIn = android.platform.googleSignIn!();
+      expect(start).toHaveBeenCalledTimes(1);
+      window.__taskmintGoogleSignIn!({ idToken: 'android-token' });
+      expect(await signedIn).toBe('android-token');
+
+      const cancelled = android.platform.googleSignIn!();
+      window.__taskmintGoogleSignIn!({ error: 'Google sign-in was cancelled.' });
+      await expect(cancelled).rejects.toBe('Google sign-in was cancelled.');
+    });
   });
 });

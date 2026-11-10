@@ -18,6 +18,7 @@
     "@mui/material": "catalog:",
     "@taskmint/client": "workspace:*",
     "@taskmint/contracts": "workspace:*",
+    "firebase": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

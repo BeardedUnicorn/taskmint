@@ -1,11 +1,11 @@
-//! Local mode: the data lives in JSON files in the app data folder, and
-//! commands run in this process. One mutex guards the whole workspace (so
+//! The data lives in JSON files in the app data folder, and commands run in
+//! this process. One mutex guards the whole workspace (so
 //! there's no lock order to keep). A write runs on a copy of it, the parts
 //! it changed are saved, and only then does the copy replace the live data:
 //! a failed save leaves memory as it was on disk.
 
 use crate::store::json_file::JsonMap;
-use crate::store::{JsonFileStore, RECORDS_FILE, SESSIONS_FILE, WORK_LOGS_FILE};
+use crate::store::{JsonFileStore, RECORDS_FILE, SESSIONS_FILE, SYNC_FILE, WORK_LOGS_FILE};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -14,6 +14,7 @@ use taskmint_core::command::{execute, Backup, Command, Ctx, Event, ResetSummary}
 use taskmint_core::load::{parse_project_mappings, parse_sessions, parse_work_log_entries};
 use taskmint_core::records::is_app_record_key;
 use taskmint_core::restore::SectionParser;
+use taskmint_core::sync::SyncState;
 use taskmint_core::workspace::{Parts, Workspace};
 use taskmint_core::DayZone;
 
@@ -32,12 +33,6 @@ pub struct Published<'a> {
 }
 
 pub type Publish = Box<dyn Fn(&Published) + Send + Sync>;
-
-/// Publishes nothing: for a backend opened only to read the files (server
-/// mode uploading them).
-pub fn quiet() -> Publish {
-    Box::new(|_| {})
-}
 
 pub struct LocalBackend {
     store: JsonFileStore,
@@ -77,10 +72,11 @@ fn list_at<T>(
 
 /// The saved parts, in the order they're written. The capture waiting for
 /// the frontend is kept in memory only.
-const FILES: [(Parts, &str); 3] = [
+const FILES: [(Parts, &str); 4] = [
     (Parts::SESSIONS, SESSIONS_FILE),
     (Parts::WORK_LOGS, WORK_LOGS_FILE),
     (Parts::RECORDS, RECORDS_FILE),
+    (Parts::SYNC, SYNC_FILE),
 ];
 
 fn files_in(parts: Parts) -> impl Iterator<Item = (Parts, &'static str)> {
@@ -97,8 +93,11 @@ fn file_contents(workspace: &Workspace, part: Parts) -> JsonMap {
     } else if part == Parts::WORK_LOGS {
         file.insert(ENTRIES_KEY.into(), to_value(&workspace.work_log_entries));
         file.insert(MAPPINGS_KEY.into(), to_value(&workspace.work_log_mappings));
-    } else {
+    } else if part == Parts::RECORDS {
         file = workspace.records.clone();
+    } else {
+        file =
+            serde_json::from_value(to_value(&workspace.sync)).expect("the sync state is an object");
     }
     file
 }
@@ -119,6 +118,7 @@ impl LocalBackend {
         let mut repaired = Self::load_sessions(&store, &mut workspace, now);
         Self::load_work_logs(&store, &mut workspace, now);
         repaired |= Self::load_records(&store, &mut workspace);
+        workspace.sync = Self::load_sync(&store);
         // Sessions without a rate, or with a task's old name, follow the
         // task list (the frontend used to send it after every launch).
         repaired |= workspace.sync_task_links().dirty;
@@ -254,6 +254,19 @@ impl LocalBackend {
                 Parts::NONE
             }
         }
+    }
+
+    /// sync.json. One that can't be read starts this device over, unlinked:
+    /// linking again joins its data with the cloud's, so nothing is lost.
+    fn load_sync(store: &JsonFileStore) -> SyncState {
+        let loaded = store.load(SYNC_FILE).and_then(|file| {
+            serde_json::from_value(Value::Object(file.unwrap_or_default()))
+                .map_err(|e| format!("Failed to read {}: {}", SYNC_FILE, e))
+        });
+        loaded.unwrap_or_else(|e| {
+            log::error!("{}; sync starts over", e);
+            SyncState::default()
+        })
     }
 
     /// Runs a command by name, as the webview sends it.
@@ -407,14 +420,6 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 3, 2, 15, 0, 0).unwrap()
     }
 
-    #[test]
-    fn a_quiet_backend_publishes_nothing() {
-        quiet()(&Published {
-            events: &[],
-            changed: Parts::ALL,
-        });
-    }
-
     /// What the backend published: event names and changed parts, per call.
     type Log = Arc<Mutex<Vec<(Vec<&'static str>, Parts)>>>;
 
@@ -552,6 +557,31 @@ mod tests {
             .collect();
         names.sort();
         assert_eq!(names, ["sessions.json"]);
+    }
+
+    #[test]
+    fn the_sync_state_is_kept_in_its_own_file_and_an_unreadable_one_starts_over() {
+        let dir = TempDir::new("sync-state");
+        let (backend, _) = open(&dir);
+        backend
+            .call_named(
+                "link_sync_account",
+                json!({ "uid": "u1", "epoch": 2, "mode": "merge" }),
+            )
+            .unwrap();
+        let saved = read_file(&dir, "sync.json");
+        assert_eq!(saved["account"], json!({ "uid": "u1", "epoch": 2 }));
+        let (again, _) = open(&dir);
+        assert_eq!(
+            again.read(|w| w.sync.clone()),
+            backend.read(|w| w.sync.clone())
+        );
+
+        for unreadable in [&b"{ nope"[..], br#"{"account": 3}"#] {
+            fs::write(dir.0.join("sync.json"), unreadable).unwrap();
+            let (over, _) = open(&dir);
+            assert_eq!(over.read(|w| w.sync.clone()), Default::default());
+        }
     }
 
     #[test]
@@ -815,7 +845,9 @@ mod tests {
             json!({ "entries": [], "mappings": [] })
         );
         assert_eq!(read_file(&dir, "appdata.json"), json!({}));
-        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 3);
+        // and this device stops syncing
+        assert_eq!(read_file(&dir, "sync.json")["account"], Value::Null);
+        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 4);
         assert_eq!(*log.lock().unwrap(), vec![(vec![], Parts::ALL)]);
     }
 

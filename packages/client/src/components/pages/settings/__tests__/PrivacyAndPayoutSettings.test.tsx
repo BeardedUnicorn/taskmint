@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { PrivacySettingsSection } from '../PrivacySettingsSection';
 import { PayoutSettingsSection } from '../PayoutSettingsSection';
 import { setErrorReportingEnabled } from '../../../../utils/sentry';
+import { fakeBackend, installFakeBackendForTest } from '../../../../testing';
 
 vi.mock('../../../../utils/sentry', () => ({
   isErrorReportingEnabled: () => true,
@@ -18,6 +19,26 @@ describe('PrivacySettingsSection', () => {
     fireEvent.click(toggle);
     expect(toggle).not.toBeChecked();
     expect(setErrorReportingEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it('turns usage statistics off and on where the shell has them', () => {
+    localStorage.clear();
+    const backend = fakeBackend();
+    render(<PrivacySettingsSection />);
+    const toggle = screen.getByRole('switch', { name: 'Share usage statistics' });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    expect(backend.platform.analytics.setEnabled).toHaveBeenLastCalledWith(false);
+    expect(localStorage.getItem('analyticsEnabled')).toBe('false');
+    fireEvent.click(toggle);
+    expect(backend.platform.analytics.setEnabled).toHaveBeenLastCalledWith(true);
+  });
+
+  it('has no usage statistics where the shell has none', () => {
+    installFakeBackendForTest({ without: ['analytics'] });
+    render(<PrivacySettingsSection />);
+    expect(screen.queryByRole('switch', { name: 'Share usage statistics' })).not.toBeInTheDocument();
   });
 });
 

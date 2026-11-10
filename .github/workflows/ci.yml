@@ -37,6 +37,29 @@ jobs:
       # The release script's logic (scripts/release/lib.test.mjs)
       - run: pnpm test:scripts
 
+      # The Firestore emulator needs Java 21 or later
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Firestore security rules (emulator)
+        run: scripts/test-rules.sh
+
+      # The version and components in rust-toolchain.toml, with the wasm
+      # target (rustup no longer installs it on first use)
+      - run: rustup toolchain install
+
+      # The wasm-bindgen CLI, the version Cargo.lock has (check-toolchains)
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.127
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The web app's core in WebAssembly: the TypeScript imports it
+      - run: pnpm build:wasm
+
       # Sources and tests, every package.
       - run: pnpm typecheck
 
@@ -52,13 +75,7 @@ jobs:
 
       - run: pnpm test:coverage
 
-      # The version and components in rust-toolchain.toml (rustup no longer
-      # installs it on first use)
-      - run: rustup toolchain install
-
       - uses: taiki-e/install-action@cargo-llvm-cov
-
-      - uses: Swatinem/rust-cache@v2
 
       - name: cargo fmt
         run: cargo fmt --all --check
@@ -72,9 +89,8 @@ jobs:
       - name: Contracts match the Rust
         run: scripts/check-contracts.sh
 
-      # The server's tests need Postgres: the docker job runs them
       - name: cargo test
-        run: cargo test --workspace --exclude taskmint-server
+        run: cargo test --workspace
 
       - name: taskmint-core coverage (100%)
         run: >-
@@ -87,37 +103,3 @@ jobs:
           cargo llvm-cov -p taskmint --features failpoints --summary-only
           --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/desktop/src-tauri)"
           --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
-
-  docker:
-    # Linux, where the images run. The server's own gates run in the compose
-    # test profile (its tests need Postgres), then the whole stack is built
-    # from scratch and smoke-tested through the web app.
-    runs-on: ubuntu-26.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-
-      # The smoke test is plain Node, with nothing to install
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-
-      # The defaults, with the bootstrap admin the smoke test signs in as
-      - run: cp .env.example .env
-
-      - name: Server query metadata and tests (100% coverage)
-        run: docker compose --profile test run --rm --build server-tests
-
-      - name: Build and start the stack
-        run: docker compose up --build -d --wait
-
-      - name: Smoke test
-        run: node scripts/smoke.mjs
-
-      - name: Logs
-        if: failure()
-        run: docker compose logs --no-color
-
-      - name: Stop the stack
-        if: always()
-        run: docker compose --profile test down -v

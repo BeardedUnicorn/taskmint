@@ -9,6 +9,7 @@ import { useNavigation } from '../../contexts/NavigationContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
+import { syncsThisDevice } from '../../cloud';
 import { SETTINGS_SECTION_LABELS, VIEWS, VIEW_LABELS, availableSettingsSections } from '../../navigation/views';
 import { TimerState } from '../../types/timer';
 import { orderTasksForStart } from '../../utils/taskOrdering';
@@ -132,7 +133,7 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
       run: () => navigate(view),
     }));
 
-    const settings: Command[] = availableSettingsSections(getBackend().platform).map(section => ({
+    const settings: Command[] = availableSettingsSections(getBackend().platform, syncsThisDevice()).map(section => ({
       id: `settings-${section}`,
       label: `Settings: ${SETTINGS_SECTION_LABELS[section]}`,
       group: 'Settings',

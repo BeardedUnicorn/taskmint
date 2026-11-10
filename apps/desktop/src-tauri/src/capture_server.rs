@@ -118,7 +118,7 @@ pub fn accept_capture_payload(
 ) -> Result<(), String> {
     state
         .backend
-        .call(
+        .call_named(
             "accept_capture",
             json!({ "payload": body, "source": source }),
         )
@@ -429,7 +429,7 @@ mod tests {
         let taken = f
             .state
             .backend
-            .call("take_pending_work_log_capture", serde_json::Value::Null)
+            .call_named("take_pending_work_log_capture", serde_json::Value::Null)
             .unwrap();
         (!taken.is_null()).then_some(taken)
     }

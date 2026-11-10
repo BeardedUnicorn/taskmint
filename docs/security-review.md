@@ -1,138 +1,146 @@
-# Security review (P15, October 2026)
+# Security review (Firebase, November 2026)
 
-A review of what the web-support plan added: the server, the web app and its
-nginx, the desktop app's server mode and capture paths, and the browser
-extension. It was done by reading the code against the threats below, with the
-fixes proven by tests. Run it again when an endpoint, an auth path or a
-capture path changes.
+A review of what [ADR 0002](adr/0002-firebase.md) changed: accounts in
+Firebase Auth, Firestore as the shared copy and its rules, cloud sync on the
+desktop and Android, Google sign-in on each, the web app on Firebase Hosting
+with TaskMint's rules in WebAssembly, analytics, and the release workflow's
+deploy. It was done by reading the code and the project's cloud setup
+against the threats below, and by testing the rules and the production
+headers. Run it again when the rules, a sign-in path, the CSP or the deploy
+path changes.
+
+The October 2026 review (P15) covered the self-hosted server, its nginx and
+the desktop's server mode, all retired with ADR 0002. It's in git history
+(`git show da268fd:docs/security-review.md`). Its findings about the capture
+paths, the desktop webview and the extension still hold, and are repeated
+below.
 
 ## What's protected, and from whom
 
-**Assets:** each account's data (sessions, work logs, earnings, notes),
-passwords, session cookies, API and device tokens, and the one-time invite and
-reset links.
+**Assets:** each account's data, in Firestore and on each device; the
+Firebase sign-in each app keeps; the path that deploys the web app and the
+rules; the release signing keys.
 
 **Threats considered:**
-- Someone on the internet with no account: guessing passwords, replaying or
-  guessing tokens and links, forging requests.
-- A signed-in user reaching another account's data, or acting as an admin.
-- A web page open in the user's browser: cross-site requests, open redirects,
-  `taskmint://` links, requests to the desktop app's local capture server.
-- Someone who can read logs or error reports.
-- The network between a client and the server.
+- Anyone on the internet, with or without an account (sign-up is open):
+  reading or changing another account's data, writing data that breaks a
+  device, spending the project's quota.
+- A web page open in the user's browser: framing the web app, injecting
+  script, cross-site use of the desktop's capture server and `taskmint://`
+  links.
+- A compromised dependency of the release workflow, or a tag pushed with
+  bad intent.
+- Someone who can read error reports or analytics.
+- The network between a client and Google (TLS throughout).
 
 **Out of scope:**
-- Code already running on the user's computer. It can read the desktop app's
-  data files, and on the compose stack it can reach Postgres directly.
-- Denial of service beyond the limits listed below.
-- A hosted, internet-facing deployment, which the plan defers. See
-  [Deployment requirements](#deployment-requirements).
+- Code already running on the user's computer or phone. It can read the
+  data files and the webview's storage, the Firebase sign-in included.
+- Google's own infrastructure and staff.
+- Denial of service beyond the daily quotas (below).
+
+## Checked and sound
+
+- **The Firestore rules** (`firebase/firestore.rules`):
+  - Everything is under `users/{uid}`, and only a user signed in as that
+    `uid` can read or write it. Nothing else in the database is reachable.
+  - The account document holds only `epoch`. It's created at 1, and moves
+    only one up at a time.
+  - A data document must have exactly the sync fields, one of the four
+    kinds, an id that starts with its kind, sizes under limits (the entity
+    under 900 KB), `updatedAt` equal to the server's time, and the account's
+    current epoch. A device can't backdate a write past others' cursors, and
+    a device that missed a Delete cloud data can't write its old copy back.
+  - `firebase/firestore.rules.test.mjs` checks each of these on the emulator,
+    including another user and no user at all, in `verify.sh` and CI.
+- **Reading what others wrote.** Even the owner's own documents are parsed
+  defensively: a document core can't read is skipped, and one from a newer
+  schema is held, not applied. Neither stops sync.
+- **Sign-in:**
+  - Passwords and reset links are Firebase Auth's. Its email enumeration
+    protection is on, so sign-in and the reset form answer the same whether
+    or not an address has an account. Signing up with a taken address still
+    says so, as any open sign-up must.
+  - Google's popup works only on the authorized domains: `localhost` and
+    the project's `firebaseapp.com` and `web.app` domains.
+  - The desktop's Google sign-in (`google_sign_in.rs`) uses PKCE (S256) and
+    a random `state`, which the loopback listener on `127.0.0.1` checks
+    before taking a code. It gives up after 5 minutes. The code is exchanged
+    in Rust over TLS, and only Google's ID token reaches the webview.
+  - Android's goes through Credential Manager, with the project's web client
+    id. Neither the desktop nor Android loads a Google script in its webview.
+  - The web app's popup runs on the project's own auth domain, which is the
+    only frame the CSP allows.
+- **The web app on Hosting** (`firebase.json`):
+  - The CSP allows scripts from the site, Google's sign-in and Analytics
+    hosts, and `'wasm-unsafe-eval'` for the core, not `'unsafe-eval'`.
+    Connections go only to the Firebase, Analytics and Sentry hosts.
+    Checked on the Hosting emulator: `eval` is blocked, the core compiles,
+    and a fetch to another host is refused.
+  - `frame-ancestors 'none'` and `X-Frame-Options: DENY` stop framing;
+    nosniff, a referrer policy, COOP (`same-origin-allow-popups`, which
+    Google's popup needs), CORP and a permissions policy are sent too.
+  - It renders no raw HTML (no `dangerouslySetInnerHTML`). Its code loads
+    only after sign-in, Sentry with it, and Sentry keeps only diagnostic
+    fields.
+- **Analytics** sends page views only: the page's name, never data. The web
+  app doesn't load Google's tag while it's off. The desktop has none, since
+  the tag would run inside a webview that can call every IPC command.
+- **The desktop webview** still has only `core:default`: every call goes
+  through `dispatch`, and dialogs and files are in Rust. Its CSP adds only
+  the Firestore and Auth hosts to `connect-src` (the emulators' ports only
+  in `devCsp`).
+- **The deploy path:**
+  - `deploy-web` signs in through Workload Identity Federation. Its provider
+    accepts only GitHub's tokens for `BeardedUnicorn/taskmint` on a
+    `refs/tags/v*` ref, and no key is stored anywhere.
+  - Only that job has `id-token: write`. Checkouts don't keep credentials,
+    and firebase-tools runs at a pinned version.
+- **Captures** (unchanged since P15):
+  - The desktop's capture server listens on 127.0.0.1 only and takes a
+    delivery only with `X-TaskMint-Capture`. A web page can't add that
+    header without a preflight, which fails for any origin but the pinned
+    extension's, so DNS rebinding gets nowhere either.
+  - A payload that arrives by `taskmint://` link (any page can open one) is
+    held in Payouts for review instead of rewriting tracked days. Decoded
+    link payloads are size-capped before and after gunzip.
+  - With sync on, an applied capture reaches the account's other devices,
+    as any change made on the desktop does.
+- **Public config.** The Firebase configs in the repository (API keys, app
+  ids, `google-services.json`) only name the project. The keys are limited
+  to Firebase's APIs, and the rules decide what a sign-in can reach.
 
 ## Fixed in this review
 
 | # | Severity | Where | What was wrong | Fix |
 |---|---|---|---|---|
-| 1 | Medium | `apps/web/src/routes.ts` | **Open redirect after sign-in.** `safeNext` refused `//host` and `/\host`, but browsers drop tabs and newlines while parsing a URL, so `/login?next=/%09/evil.example` passed the check and signing in went to `//evil.example`. | `next` is resolved the way the browser resolves it, and kept only if it stays on the site. Tests cover tab, newline, `javascript:` and unparseable values. |
-| 2 | Medium | `apps/web/nginx/default.conf.template` | **Link secrets in the access log.** Invite and reset tokens are in the path of the page and of its API calls, and the default log format recorded both, plus the Referer, which repeats the page's URL. Anyone with the logs could use a pending invite or reset link. | A `taskmint` log format writes those paths with `[redacted]` in place of the secret, and leaves out the Referer. `verify.sh` checks the stack's logs after the smoke test accepts an invite. |
-| 3 | Medium | `apps/server/src/http/{auth,links}.rs` | **Password changes and resets left desktop sign-ins working.** A device token is a desktop sign-in made with the password, but changing or resetting the password ended only browser sessions. After a reset meant to lock someone out, a desktop signed in with the old password kept full access. | Both revoke the user's `device` tokens in the same statement. Tokens made on the tokens page stay, since they weren't issued for the password. Tests cover both paths. |
-| 4 | Low | desktop `server.rs`, extension `target.ts` | **Plain HTTP to other hosts.** Server mode sends the password (`auth/device-token`) and then a full-scope token, and the extension sends its token. Both accepted `http://` for any host. | `http://` is accepted only for this computer (localhost, 127.x.x.x, ::1); anything else needs `https://`, with a message saying why. |
-| 5 | Low | `apps/server/src/http/mod.rs` | **Full URIs in request spans.** `TraceLayer`'s default span records the URI at debug level, so `RUST_LOG=debug` would log link secrets. | Spans record the matched route (`/api/v1/invites/{token}`) instead. |
-
-## Checked and sound
-
-- **Passwords:** argon2id (19 MiB, 2 passes), hashed on the blocking pool,
-  one per CPU at a time. An unknown or disabled user is checked against a
-  dummy hash, so the answer and its timing match a wrong password. Passwords
-  are 8–256 characters.
-- **Secrets at rest:** session cookies, CSRF tokens, links and API tokens are
-  32 random bytes and stored only as SHA-256 hashes. API tokens keep a
-  10-character prefix in clear for the list. The desktop keeps its device
-  token in the OS keychain, never in a file or the webview.
-- **Cookies and CSRF:**
-  - The session cookie is `HttpOnly`, `SameSite=Strict`, `Secure` with the
-    `__Host-` prefix when `COOKIE_SECURE`, and its expiry slides.
-  - Unsafe requests from another origin are refused (`Sec-Fetch-Site`/`Origin`).
-    Cookie-authenticated ones also need the session's `X-CSRF-Token`, compared
-    in constant time.
-  - The server has no CORS at all, so a page on another origin can't read a
-    response.
-- **Authorization:**
-  - Every workspace query is scoped by the caller's user id, which never comes
-    from a request body. `tests/isolation.rs` proves one account can't read or
-    change another's, and the smoke test checks that the admin can't either.
-  - Admin endpoints need a cookie session with the admin role. The last active
-    admin can't be disabled or demoted, even by two admins at once (the admin
-    rows are locked first).
-  - A token can't mint, list or revoke tokens. A `capture` token can only
-    post captures.
-- **Disabling a user** ends their sessions, revokes every token and closes
-  their event streams. Session and token lookups also check `disabled_at`,
-  so a disabled user is refused even before that runs.
-- **Links:** single use, expiring, and used up in the same statement that
-  creates the account or sets the password. A new reset link expires the
-  user's pending one.
-- **Rate limits:** sign-in, device sign-in, password changes and the public
-  link endpoints are limited per client (30 a minute; IPv6 by /64) and per
-  client and username (5 a minute).
-- **Inputs:** bodies are capped (32 MB, 8 MB for captures), unknown admin
-  fields are refused, and usernames, names and notes are length-checked in
-  code and in the schema. Database errors reach the client only as
-  `internal error`.
-- **Captures:**
-  - The server takes them only with a bearer token and `X-TaskMint-Capture`,
-    from no Origin or the pinned extension.
-  - The desktop's capture server listens on 127.0.0.1 only. A web page can't
-    add the header without a preflight, which fails for any origin but the
-    extension's, so DNS rebinding gets nowhere either.
-  - A payload that arrives by `taskmint://` link (any page can open one) is
-    held in Payouts for review instead of rewriting tracked days. Decoded link
-    payloads are size-capped before and after gunzip.
-- **The desktop webview** has only `core:default`: every call goes through
-  `dispatch`, and dialogs, files, the keychain and the network are in Rust.
-  Its HTTP client never forwards `Authorization` across a redirect.
-- **The extension** asks for host access to a server only in answer to a
-  click, takes messages only from its own content scripts, and pauses its
-  retries when a token is refused.
-- **The web app:**
-  - It renders no raw HTML (no `dangerouslySetInnerHTML`).
-  - nginx sends a CSP with `script-src 'self'`, plus `frame-ancestors 'none'`,
-    nosniff, a referrer policy, COOP, CORP and a permissions policy.
-  - Sentry starts only after sign-in, drops the request URL and fetch
-    breadcrumbs, and keeps only diagnostic fields.
+| 1 | Medium | the `github-deploy` service account | **The deploy could read every account's data.** It held Firebase Viewer, which includes reading Firestore documents and the user list, so a compromised workflow dependency on a tag run could have read them. | Firebase Viewer is removed (2026-11-09). The deploy's calls (firebase-tools 15.35.0: the project lookup, the API check, Hosting, the rules, the database and its indexes) are all within Hosting Admin, Rules Admin, Index Admin and Service Usage Consumer, none of which read data. The next tag's deploy confirms it. |
 
 ## Accepted risks
 
-- **Distributed password guessing.** The per-username limit is per client,
-  so many addresses can each try 5 a minute. A global per-username limit would
-  let anyone lock a user out instead. Passwords are at least 8 characters,
-  and argon2 makes each guess expensive.
-- **Long-lived credentials.** A session lasts while it's used at least every
-  30 days. API tokens don't expire. The tokens page shows each token's last
-  use; revoke what you don't recognize.
-- **nginx's error log** records the request line when nginx can't reach the
-  server, so a link opened during an outage leaves its secret there.
-- **No quotas.** A signed-in user can store as much as the body limit allows
-  per request, and open many event streams. Accounts are invite-only.
-- **Admin actions don't ask for the password again.** An admin's open session
-  is enough.
-- **Sign-ins aren't audited.** Changes are written to `audit_events`, but
-  sign-ins and failed attempts aren't (failures are rate-limited).
-- **`style-src 'unsafe-inline'`.** MUI's styles are injected at run time. Scripts
-  stay `'self'` only.
+- **Open sign-up without App Check.** Anyone can make accounts and spend the
+  daily quotas (50,000 reads, 20,000 writes and 20,000 deletes). With billing
+  off, the worst case is sync stopping for everyone until the next day, not
+  a bill. [docs/runbook.md](runbook.md) has the responses; App Check is the
+  follow-up if it happens.
+- **The API keys have no application restrictions.** A referrer or app
+  restriction is easily forged and would need the desktop's `tauri://`
+  origin, so it adds little. They stay limited to Firebase's APIs.
+- **The Firebase sign-in sits in the webview's IndexedDB,** not the OS
+  keychain, next to the data files it guards. A process on the computer can
+  read either.
+- **Disabling an account takes up to an hour** to stop a token already
+  issued.
+- **The rules check a document's shape, not its content.** A user can write
+  anything under their own account; it can only break their own data, and
+  core skips what it can't read.
+- **The data isn't end-to-end encrypted.** Google encrypts it at rest;
+  Google and the project's owners can read it.
+- **`style-src 'unsafe-inline'`.** MUI's styles are injected at run time.
+  Scripts stay `'self'` and the listed Google hosts.
+- **Actions are pinned by major version,** not commit. The deploy job runs
+  only the checkout, pnpm and Node setup, the artifact download, Google's
+  auth action and firebase-tools.
 - **Local processes are trusted.** The desktop's capture server accepts a
-  delivery with no Origin, as a script's, and applies it like the extension's.
-
-## Deployment requirements
-
-The compose stack is for one machine. Before anyone else can reach it:
-- Put an HTTPS proxy in front of `web`, and send HSTS from it. Set
-  `COOKIE_SECURE=true` and `PUBLIC_ORIGIN` to the `https://` address.
-- Stop publishing `db` and `server`. With `TRUST_PROXY=true`, the server
-  believes the last `X-Forwarded-For` hop, so a client that can reach it
-  without nginx can pick its own address and dodge the per-client limits.
-- Set a strong `POSTGRES_PASSWORD` (hex, so it fits in `DATABASE_URL`) and
-  admin password, ideally through the `<NAME>_FILE` variables.
-- Ship the logs only to places that may hold account names and addresses.
-
-[docs/runbook.md](runbook.md) has the procedures: backups, account recovery,
-signing everyone out, and rotating secrets.
+  delivery with no Origin, as a script's, and applies it like the
+  extension's.

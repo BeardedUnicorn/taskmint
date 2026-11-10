@@ -8,7 +8,6 @@
 //! from the old identifier.
 
 use crate::dispatch;
-use crate::platform::keychain::Keychain;
 use crate::platform::os::TauriPlatform;
 use crate::state::AppState;
 use crate::store::JsonFileStore;
@@ -20,7 +19,7 @@ use tauri_plugin_notification::NotificationExt;
 #[cfg(desktop)]
 use {
     crate::capture_server::{self, CaptureServer},
-    crate::legacy_identifier::{self, Dirs, Os, LEGACY_IDENTIFIER},
+    crate::legacy_identifier::{self, Dirs, Os},
     crate::ticker::Ticker,
     crate::{idle, tray},
     tauri_plugin_deep_link::DeepLinkExt,
@@ -54,9 +53,8 @@ fn current_os() -> Os {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut context = tauri::generate_context!();
-    // A development build can keep its files (data, logs) and keychain items
-    // in a folder of its own, so trying server mode leaves the installed
-    // app's alone
+    // A development build can keep its files (data, logs) in a folder of its
+    // own, so trying sync leaves the installed app's alone
     let dev_data = std::env::var_os("TASKMINT_DATA_DIR")
         .filter(|_| cfg!(debug_assertions))
         .map(PathBuf::from);
@@ -119,11 +117,8 @@ pub fn run() {
     builder
         .setup(move |app| {
             let handle = app.handle().clone();
+            #[cfg(desktop)]
             let identifier = app.config().identifier.clone();
-            let service = match dev_data {
-                Some(_) => format!("{}.dev", identifier),
-                None => identifier.clone(),
-            };
             // Before 2.1 the identifier was com.taskmint.app: move what it
             // left behind. This runs before the window exists, since the
             // webview opens its storage when it's created.
@@ -135,19 +130,12 @@ pub fn run() {
                     data: path.data_dir()?,
                     local_data: path.local_data_dir()?,
                 };
-                legacy_identifier::run(
-                    current_os(),
-                    &dirs,
-                    &identifier,
-                    &Keychain::new(LEGACY_IDENTIFIER),
-                    &Keychain::new(service.as_str()),
-                );
+                legacy_identifier::run(current_os(), &dirs, &identifier);
             }
             let state = AppState::open(
                 JsonFileStore::new(app.path().app_data_dir()?),
                 Arc::new(chrono::Utc::now),
                 Arc::new(TauriPlatform::new(handle.clone())),
-                Arc::new(Keychain::new(service)),
             );
             app.manage(state.clone());
 

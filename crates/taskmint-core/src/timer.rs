@@ -158,6 +158,7 @@ pub fn new_timer_instance(session_id: &str, now: DateTime<Utc>) -> TimerInstance
         notes: None,
         created_at: now.to_rfc3339(),
         updated_at: now.to_rfc3339(),
+        running_on: None,
     }
 }
 

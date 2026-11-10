@@ -9,7 +9,13 @@ import { useSyncExternalStore } from 'react';
 import { EVENTS } from '@taskmint/contracts';
 import { getBackend } from '@taskmint/client/backend';
 import { command } from './tauriBackend';
-import { sentence } from './server';
+
+/** A refusal as a sentence: the Rust side's words start in lower case. */
+export function sentence(reason: unknown): string {
+  const text = String(reason);
+  const capital = text.charAt(0).toUpperCase() + text.slice(1);
+  return /[.!?]$/.test(capital) ? capital : `${capital}.`;
+}
 
 /** check_for_update's reply when there's a newer release. */
 export interface AvailableUpdate {

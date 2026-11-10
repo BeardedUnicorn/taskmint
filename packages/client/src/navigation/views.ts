@@ -24,6 +24,7 @@ export type SettingsSectionId =
   | 'notifications'
   | 'backups'
   | 'data'
+  | 'sync'
   | 'privacy'
   | 'about';
 
@@ -36,6 +37,7 @@ export const SETTINGS_SECTION_LABELS: Record<SettingsSectionId, string> = {
   notifications: 'Notifications',
   backups: 'Backups',
   data: 'Data',
+  sync: 'Cloud sync',
   privacy: 'Privacy',
   about: 'About',
 };
@@ -58,8 +60,14 @@ export function isSidebarView(value: unknown): value is SidebarView {
  * The Settings sections this platform can use: idle detection and folder
  * backups need the desktop app.
  */
-export function availableSettingsSections(platform: { idle?: unknown; folderBackups?: unknown }): SettingsSectionId[] {
+export function availableSettingsSections(
+  platform: { idle?: unknown; folderBackups?: unknown },
+  syncs: boolean
+): SettingsSectionId[] {
   return (Object.keys(SETTINGS_SECTION_LABELS) as SettingsSectionId[]).filter(
-    id => (id !== 'idle' || platform.idle !== undefined) && (id !== 'backups' || platform.folderBackups !== undefined)
+    id =>
+      (id !== 'idle' || platform.idle !== undefined) &&
+      (id !== 'backups' || platform.folderBackups !== undefined) &&
+      (id !== 'sync' || syncs)
   );
 }

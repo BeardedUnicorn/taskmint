@@ -15,7 +15,8 @@ vi.mock('../../utils/appReload', () => ({
 
 import { reloadApp } from '../../utils/appReload';
 import { useResetAppData } from '../useResetAppData';
-import { fakeBackend } from '../../testing';
+import { fakeBackend, installFakeBackendForTest } from '../../testing';
+import { setCloudSyncForTest, type SyncEngine } from '../../cloud';
 
 const mockInvoke = fakeBackend().call;
 const mockReloadApp = vi.mocked(reloadApp);
@@ -26,6 +27,39 @@ describe('useResetAppData', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockInvoke.mockResolvedValue({ backupsDeleted: 0, warning: null });
+  });
+
+  it('signs out of cloud sync, so the emptied device downloads nothing back', async () => {
+    const signOut = vi.fn(async () => undefined);
+    setCloudSyncForTest({ signOut, stop: vi.fn() } as unknown as SyncEngine);
+    const { result } = renderHook(() => useResetAppData({ onError }));
+
+    await act(async () => {
+      await result.current.resetAllData();
+    });
+
+    expect(signOut).toHaveBeenCalled();
+    expect(mockReloadApp).toHaveBeenCalled();
+    setCloudSyncForTest(null);
+  });
+
+  it("deletes the cloud data instead where that's where the data lives (the web app)", async () => {
+    const deleteCloudData = vi.fn(async () => undefined);
+    const signOut = vi.fn(async () => undefined);
+    setCloudSyncForTest({ deleteCloudData, signOut, stop: vi.fn() } as unknown as SyncEngine);
+    installFakeBackendForTest({ capabilities: { runtime: 'web', dataLocation: 'cloud' } }).call.mockResolvedValue({
+      backupsDeleted: 0,
+      warning: null,
+    });
+    const { result } = renderHook(() => useResetAppData({ onError }));
+
+    await act(async () => {
+      await result.current.resetAllData();
+    });
+
+    expect(deleteCloudData).toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+    setCloudSyncForTest(null);
   });
 
   it('resets backend data, clears localStorage, and reloads the app', async () => {

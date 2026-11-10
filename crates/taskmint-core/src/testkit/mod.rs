@@ -1,6 +1,6 @@
 //! Conformance scenarios: the same command sequences, run against every
-//! host (core in memory, the desktop's LocalBackend on disk, the server over
-//! HTTP), so they all keep the same rules, replies, errors and events.
+//! host (core in memory, the desktop's LocalBackend on disk), so they all
+//! keep the same rules, replies, errors and events.
 //!
 //! A scenario is a JSON file in `scenarios/`. Each step may move the clock
 //! (`advanceMs`), reload the host from what it saved (`reload`), and run a
@@ -74,7 +74,7 @@ fn present<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Value>, 
     Value::deserialize(deserializer).map(Some)
 }
 
-const SCENARIOS: [&str; 11] = [
+const SCENARIOS: [&str; 12] = [
     include_str!("scenarios/records.json"),
     include_str!("scenarios/timer.json"),
     include_str!("scenarios/starting_work.json"),
@@ -86,6 +86,7 @@ const SCENARIOS: [&str; 11] = [
     include_str!("scenarios/tray_and_idle.json"),
     include_str!("scenarios/work_logs.json"),
     include_str!("scenarios/restore_and_reset.json"),
+    include_str!("scenarios/sync.json"),
 ];
 
 pub fn scenarios() -> Vec<Scenario> {

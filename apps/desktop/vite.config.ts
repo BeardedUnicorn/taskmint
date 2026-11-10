@@ -38,6 +38,8 @@ export default defineConfig({
           if (id.includes('/node_modules/dayjs/')) return 'date-vendor';
           if (id.includes('/node_modules/@tauri-apps/')) return 'tauri-vendor';
           if (id.includes('/node_modules/@sentry/')) return 'sentry-vendor';
+          // Loaded only once sync starts
+          if (/\/node_modules\/(firebase|@firebase)\//.test(id)) return 'firebase-vendor';
           return undefined;
         },
       },

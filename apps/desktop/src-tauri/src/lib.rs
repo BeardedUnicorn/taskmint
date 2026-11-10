@@ -4,16 +4,17 @@
 mod app;
 pub mod backend;
 pub mod backup;
+pub mod capabilities;
 pub mod capture_server;
 pub mod config;
 mod dispatch;
 pub mod events;
 pub mod files;
+pub mod google_sign_in;
 pub mod idle;
 pub mod legacy_identifier;
 pub mod notifications;
 pub mod platform;
-pub mod server;
 pub mod state;
 pub mod store;
 pub mod ticker;

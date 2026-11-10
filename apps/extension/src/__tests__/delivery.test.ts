@@ -2,11 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeFake, type ChromeFake } from './chromeFake';
 import { fakeWaits, withTimePassing } from './time';
 import { CAPTURE_PENDING_LINK, gzipBase64Url, launchDesktop } from '../delivery/desktop';
-import { deliverToServer, pingServer, TokenRejected } from '../delivery/server';
 
 const PAYLOAD = '{"workLogs":[{"id":"w1","minutes":30}]}';
 const SITE_TAB = 5;
-const SERVER = { url: 'http://localhost:8080', token: 'tmk_capture' };
 
 let chrome: ChromeFake;
 const fetchMock = vi.fn<typeof fetch>();
@@ -89,42 +87,5 @@ describe('launching the desktop app', () => {
   it('compresses as the desktop app reads it, past one chunk of the conversion', async () => {
     const long = 'x'.repeat(100).concat(...Array.from({ length: 3000 }, (_, i) => `${i * 7919}`));
     expect(await linkPayload(`taskmint://import-worklogs?v=1&d=${await gzipBase64Url(long)}`)).toBe(long);
-  });
-});
-
-describe('a TaskMint server', () => {
-  it('takes a capture with the token', async () => {
-    fetchMock.mockResolvedValue(Response.json({ status: 'accepted' }));
-    await deliverToServer(SERVER, PAYLOAD);
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/api/v1/capture', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer tmk_capture', 'X-TaskMint-Capture': '1', 'Content-Type': 'application/json' },
-      body: PAYLOAD,
-    });
-  });
-
-  it('says who the token signs in as', async () => {
-    fetchMock.mockResolvedValue(Response.json({ app: 'TaskMint', version: '1.0.0', username: 'bea' }));
-    expect(await pingServer(SERVER)).toEqual({ app: 'TaskMint', version: '1.0.0', username: 'bea' });
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/api/v1/capture/ping', {
-      headers: { Authorization: 'Bearer tmk_capture', 'X-TaskMint-Capture': '1' },
-    });
-  });
-
-  it('refuses a token as rejected, and anything else in its own words', async () => {
-    for (const status of [401, 403]) {
-      fetchMock.mockResolvedValueOnce(Response.json({ error: 'sign in first', code: 'unauthenticated' }, { status }));
-      const refusal = await deliverToServer(SERVER, PAYLOAD).catch(error => error);
-      expect(refusal).toBeInstanceOf(TokenRejected);
-      expect(refusal.message).toBe('sign in first');
-    }
-    fetchMock.mockResolvedValueOnce(Response.json({ error: 'the payload is not a work-log capture' }, { status: 400 }));
-    await expect(deliverToServer(SERVER, PAYLOAD)).rejects.toThrow(/^the payload is not a work-log capture$/);
-    fetchMock.mockResolvedValueOnce(new Response('<html>Bad Gateway</html>', { status: 502 }));
-    await expect(pingServer(SERVER)).rejects.toThrow(/^the server responded 502$/);
-    fetchMock.mockResolvedValueOnce(Response.json({ error: { nested: true } }, { status: 500 }));
-    await expect(pingServer(SERVER)).rejects.toThrow(/^the server responded 500$/);
-    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    await expect(deliverToServer(SERVER, PAYLOAD)).rejects.toThrow('Failed to fetch');
   });
 });

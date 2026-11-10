@@ -16,6 +16,8 @@ export const STORAGE_KEYS = {
   INACTIVITY_SETTINGS: 'inactivitySettings',
   // Error reporting (read synchronously before React mounts)
   ERROR_REPORTING_ENABLED: 'errorReportingEnabled',
+  // Usage analytics, where the shell has them (utils/analytics)
+  ANALYTICS_ENABLED: 'analyticsEnabled',
   INSTALL_ID: 'installId',
   // The settings that change the numbers: a record (types/accountSettings).
   // FUNDS_RELEASE_DAYS and WITHDRAWAL_INTERVAL_DAYS are where each device

@@ -3,6 +3,7 @@
 use super::*;
 use crate::command::{execute, Command, Ctx};
 use crate::model::{ProjectTaskMapping, TaskSession, WorkLogEntry};
+use crate::sync::SyncState;
 use crate::workspace::{Parts, Workspace};
 use crate::zone::DayZone;
 use serde_json::json;
@@ -47,6 +48,9 @@ fn changed(before: &Workspace, after: &Workspace) -> Parts {
     if before.pending_capture != after.pending_capture {
         parts |= Parts::CAPTURE;
     }
+    if before.sync != after.sync {
+        parts |= Parts::SYNC;
+    }
     parts
 }
 
@@ -67,6 +71,9 @@ fn with_parts(workspace: &Workspace, from: &Workspace, parts: Parts) -> Workspac
     }
     if parts.contains(Parts::CAPTURE) {
         merged.pending_capture = from.pending_capture.clone();
+    }
+    if parts.contains(Parts::SYNC) {
+        merged.sync = from.sync.clone();
     }
     merged
 }
@@ -154,6 +161,7 @@ impl Host for MemoryHost {
             records: saved.records.clone(),
             record_revisions: Default::default(),
             pending_capture: saved.pending_capture.clone(),
+            sync: round_trip::<SyncState>(&saved.sync),
             notes: Default::default(),
         };
     }

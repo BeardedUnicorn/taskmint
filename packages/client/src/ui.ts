@@ -7,6 +7,7 @@
 export { ThemeProvider as AppThemeProvider } from './contexts/ThemeContext';
 export { SettingsSection } from './components/pages/settings/SettingsSection';
 export { ConfirmDialog } from './components/ui/dialogs/ConfirmDialog';
+export { SignInForm, type SignInActions } from './components/pages/settings/CloudSyncSection';
 export { useNotification } from './contexts/NotificationContext';
 export { Wordmark } from './components/ui/display/Wordmark';
 export { ReleaseNotes } from './components/ui/display/ReleaseNotes';
