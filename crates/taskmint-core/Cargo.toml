@@ -1,6 +1,6 @@
 [package]
 name = "taskmint-core"
-version = "3.1.0"
+version = "4.0.0"
 description = "TaskMint's business rules, shared by the desktop, Android and web apps"
 authors = ["Mike Herold"]
 edition = "2021"

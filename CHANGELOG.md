@@ -8,6 +8,25 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.0.0 – 2026-11-09
+
+### Added
+
+- The web app and the Android app send which pages you open to Firebase Analytics, so we can see what's used; never your data. Turn it off in Settings → Privacy → Share usage statistics. The desktop app sends none.
+- TaskMint runs on Android phones: each release has an APK (`TaskMint-X.Y.Z-android-arm64.apk`) to install on arm64 phones, and a later release's APK installs over it and keeps your data (see the README's Android section). On a phone it has its timers, data and notifications, and Export, Import and Restore Exactly go through Android's own file picker. The tray, idle detection and the long-run reminder, folder backups, browser capture and updates stay on the desktop. The desktop app is unchanged.
+- Cloud sync: sign in under Settings → Cloud sync, with an email and password or with Google, and your computers and phones keep their sessions, work logs, tasks, notes, templates, daily goal, withdrawals and payout settings in step. Each device keeps working offline and catches up when it's back; timers from two devices in the same session are both kept, and only the timer started last keeps running. Signing in on a device that already has data asks whether to merge it with the account's or use the account's. Stop syncing signs a device out and keeps its data; Delete cloud data removes the account's copy and stops every device, each keeping its own. Device settings (appearance, notifications, idle, backups) stay on each device, and idle detection and the long-run reminder act only on timers running on that computer. Without signing in, everything stays on the device as before.
+- TaskMint runs in a browser at https://taskmint-f9a05.web.app, signed in to the same account as your devices: sign up there or with the apps, by email or with Google. Its settings have Account (sign out, change password, delete the account). Browser captures reach it through the desktop app's sync.
+- TaskMint fits a phone screen. Below 600px wide, a top bar with a menu replaces the sidebar, pages stack into one column, Tasks shows the list or one task at a time, dialogs fill the width (the larger ones the whole screen), and wide tables scroll sideways with their first column pinned. On a touch screen, small buttons get bigger and the keyboard shortcuts list is hidden. The desktop layout is unchanged.
+
+### Changed
+
+- While a session is active, the Sessions page shows only that session. The All Sessions list and its Add time button come back once the session ends (Add time is still in the command palette and on the History page).
+- Choosing a task is a plain dropdown everywhere you start work, add a timer, log or edit time, or match an imported project: tasks are added on the Tasks page, so there's no search box to type into. Favorites are starred and each task's hourly rate shows in the list, and the import no longer offers archived tasks (a project already matched to one still imports to it).
+
+### Removed
+
+- The self-hosted TaskMint server, its web app and the desktop's server mode are gone, replaced by cloud sync. Settings → Server is now Settings → Cloud sync, and the browser extension delivers captures only to the desktop app (its option to send them to a server is gone). Data kept on a TaskMint server isn't moved: export it from that server's web app first, then import it on a device.
+
 ## 3.1.0 – 2026-11-08
 
 ### Added
