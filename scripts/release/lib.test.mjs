@@ -510,17 +510,36 @@ describe('update signatures', () => {
 describe('verifyApkSigner', () => {
   const digest = '48c12fdd37c71679f9d7316800fc01816583b6e6b38b6674ac1328db916c1f8b';
   const other = 'a'.repeat(64);
-  const signer = (n, sha256) =>
+  // Build-Tools 36 and earlier: "Signer #1 certificate …"
+  const signer = (n, sha256) => lines(`Signer #${n} certificate`, sha256);
+  // Build-Tools 37: the strongest scheme it verified, and a number only when
+  // there's more than one signer ("V2 Signer: certificate …",
+  // "V3.0 Signer: certificate …", "V2 Signer #2: certificate …")
+  const schemeSigner = (scheme, n, sha256) => lines(`${scheme} Signer${n ? ` #${n}` : ''}: certificate`, sha256);
+  const lines = (prefix, sha256) =>
     [
-      `Signer #${n} certificate DN: CN=TaskMint`,
-      `Signer #${n} certificate SHA-256 digest: ${sha256}`,
-      `Signer #${n} certificate SHA-1 digest: ${'b'.repeat(40)}`,
-      `Signer #${n} certificate MD5 digest: ${'c'.repeat(32)}`,
+      `${prefix} DN: CN=TaskMint`,
+      `${prefix} SHA-256 digest: ${sha256}`,
+      `${prefix} SHA-1 digest: ${'b'.repeat(40)}`,
+      `${prefix} MD5 digest: ${'c'.repeat(32)}`,
     ].join('\n');
 
   it('accepts the one signer with the release certificate', () => {
     assert.doesNotThrow(() => verifyApkSigner({ output: `Verifies\n${signer(1, digest)}\n`, digest }));
     assert.doesNotThrow(() => verifyApkSigner({ output: signer(1, digest), digest: digest.toUpperCase() }));
+  });
+
+  it("reads Build-Tools 37's signer lines too", () => {
+    assert.doesNotThrow(() => verifyApkSigner({ output: schemeSigner('V2', 0, digest), digest }));
+    assert.doesNotThrow(() => verifyApkSigner({ output: `${schemeSigner('V3.0', 0, digest)}\n`, digest }));
+    assert.throws(
+      () => verifyApkSigner({ output: schemeSigner('V2', 0, other), digest }),
+      new RegExp(`^Error: The APK is signed with certificate ${other}, but releases are signed with ${digest}$`)
+    );
+    assert.throws(
+      () => verifyApkSigner({ output: `${schemeSigner('V2', 1, digest)}\n${schemeSigner('V2', 2, other)}`, digest }),
+      /The APK has 2 signers; a release has one/
+    );
   });
 
   it('refuses another key, no signer, or more than one', () => {
