@@ -1,9 +1,8 @@
 //! A Platform for tests: it records what the shell asked of it, and answers
 //! dialogs with what the test queued. A picked document (Android's) is a
-//! file the test names, or one it can't open. MemorySecrets stands in for
-//! the keychain.
+//! file the test names, or one it can't open.
 
-use super::{AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, SecretStore};
+use super::{AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
@@ -234,42 +233,6 @@ impl Platform for FakePlatform {
         events.into_iter().for_each(&mut *progress);
         self.check("install_update")?;
         self.recorded().updates_installed += 1;
-        Ok(())
-    }
-}
-
-/// The keychain, in memory. `fail()` makes every call fail from then on.
-#[derive(Default)]
-pub struct MemorySecrets {
-    secrets: Mutex<HashMap<String, String>>,
-    failing: Mutex<bool>,
-}
-
-impl MemorySecrets {
-    pub fn fail(&self) {
-        *self.failing.lock().unwrap() = true;
-    }
-
-    fn check(&self) -> Result<std::sync::MutexGuard<'_, HashMap<String, String>>, String> {
-        match *self.failing.lock().unwrap() {
-            true => Err("the keychain is locked".to_string()),
-            false => Ok(self.secrets.lock().unwrap()),
-        }
-    }
-}
-
-impl SecretStore for MemorySecrets {
-    fn get(&self, name: &str) -> Result<Option<String>, String> {
-        Ok(self.check()?.get(name).cloned())
-    }
-
-    fn set(&self, name: &str, secret: &str) -> Result<(), String> {
-        self.check()?.insert(name.to_string(), secret.to_string());
-        Ok(())
-    }
-
-    fn delete(&self, name: &str) -> Result<(), String> {
-        self.check()?.remove(name);
         Ok(())
     }
 }

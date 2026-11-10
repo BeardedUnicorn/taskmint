@@ -10,15 +10,14 @@ it('keeps the ID the desktop app accepts captures from', () => {
   expect(`chrome-extension://${id}`).toBe(CAPTURE.EXTENSION_ORIGIN);
 });
 
-it('loads the scripts and page the build writes', () => {
+it('loads the scripts the build writes', () => {
   expect(manifest.background.service_worker).toBe('background.js');
   expect(manifest.content_scripts.map(script => script.js)).toEqual([['interceptor.js'], ['content.js']]);
   expect(manifest.content_scripts[0].world).toBe('MAIN');
-  expect(manifest.options_ui.page).toBe('options.html');
 });
 
-it('may reach the desktop app, and a server only once allowed', () => {
+it('may reach only the desktop app', () => {
   expect(manifest.host_permissions).toEqual([`http://127.0.0.1:${CAPTURE.SERVER_PORT}/*`]);
-  expect(manifest.optional_host_permissions).toEqual(['https://*/*', 'http://*/*']);
+  expect('optional_host_permissions' in manifest).toBe(false);
   expect(manifest.permissions).toEqual(['storage', 'alarms']);
 });

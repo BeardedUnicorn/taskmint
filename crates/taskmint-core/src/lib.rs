@@ -1,4 +1,4 @@
-//! TaskMint's business rules, shared by the desktop app and the server.
+//! TaskMint's business rules, shared by the desktop, Android and web apps.
 //!
 //! Core is pure: no I/O, no async, and no clock reads (clippy.toml bans the
 //! clock and filesystem calls). Hosts pass the current time and the user's

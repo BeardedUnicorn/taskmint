@@ -86,7 +86,7 @@ fn apply_pause(
     task_name: String,
     idle_since: DateTime<Utc>,
 ) -> Result<(), String> {
-    let paused = state.backend.call(
+    let paused = state.backend.call_named(
         "pause_timer_at",
         json!({ "instanceId": instance_id, "idleSince": idle_since }),
     )?;
@@ -151,7 +151,7 @@ pub fn resolve(state: &AppState, choice: &str) -> Result<(), String> {
     let Some(pause) = state.with_idle(|idle| idle.pause.clone()) else {
         return Ok(());
     };
-    state.backend.call(
+    state.backend.call_named(
         "apply_idle_choice",
         json!({ "instanceId": pause.instance_id, "choice": choice }),
     )?;
@@ -251,7 +251,7 @@ mod tests {
         let started = f
             .state
             .backend
-            .call(
+            .call_named(
                 "start_task",
                 json!({ "taskId": "t1", "taskName": "Writing" }),
             )
@@ -316,7 +316,7 @@ mod tests {
         tick(&f.state, Some(10 * MIN_MS));
         f.state
             .backend
-            .call(
+            .call_named(
                 "resume_timer_instance",
                 json!({ "instanceId": instance_id }),
             )

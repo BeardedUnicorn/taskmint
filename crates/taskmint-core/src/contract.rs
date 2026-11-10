@@ -151,8 +151,8 @@ pub mod events {
     /// A record was saved: `{ key, revision }`. Other tabs and devices read
     /// it again.
     pub const APP_RECORDS_CHANGED: &str = "app-records-changed";
-    /// The server's event stream may have missed events (it fell behind, or
-    /// the data was reset): the client reads everything again.
+    /// Events may have been missed, or the data changed under the client
+    /// (a sync brought in other devices' changes): it reads everything again.
     pub const RESYNC: &str = "resync";
     pub const IDLE_RETURNED: &str = "idle-returned";
     pub const IDLE_RESOLVED: &str = "idle-resolved";
@@ -160,9 +160,6 @@ pub mod events {
     /// A notification the backend showed itself (long-run, idle pause), for the
     /// frontend's notification history.
     pub const NOTIFICATION_POSTED: &str = "notification-posted";
-    /// The desktop app's link to its TaskMint server came up, dropped, or
-    /// was signed out (server mode only): `{ status, detail }`.
-    pub const SERVER_CONNECTION_CHANGED: &str = "server-connection-changed";
     /// The desktop app's update download moved on, or finished and is being
     /// installed: `{ downloaded, total, installing }`.
     pub const UPDATE_PROGRESS: &str = "update-progress";

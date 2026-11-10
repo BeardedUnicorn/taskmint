@@ -265,11 +265,6 @@ fn constants() -> Constants {
                 json!(events::NOTIFICATION_POSTED),
             ),
             (
-                "SERVER_CONNECTION_CHANGED",
-                "SERVER_CONNECTION_CHANGED",
-                json!(events::SERVER_CONNECTION_CHANGED),
-            ),
-            (
                 "UPDATE_PROGRESS",
                 "UPDATE_PROGRESS",
                 json!(events::UPDATE_PROGRESS),

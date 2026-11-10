@@ -1,8 +1,7 @@
-//! What the desktop shell needs from the OS and from Tauri, as two seams:
-//! `Platform`, and `SecretStore` for the server token. `os.rs` and
-//! `keychain.rs` are the real things (they need a real UI session, so the
-//! coverage policy leaves them to the manual QA checklist); tests use
-//! `fake::FakePlatform` and `fake::MemorySecrets`.
+//! What the desktop shell needs from the OS and from Tauri, as one seam:
+//! `Platform`. `os.rs` is the real thing (it needs a real UI session, so the
+//! coverage policy leaves it to the manual QA checklist); tests use
+//! `fake::FakePlatform`.
 
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde::Serialize;
@@ -10,7 +9,6 @@ use serde_json::Value;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-pub mod keychain;
 pub mod os;
 
 #[cfg(test)]
@@ -102,13 +100,4 @@ pub trait Platform: Send + Sync {
         &self,
         progress: &mut (dyn FnMut(DownloadEvent) + Send),
     ) -> Result<(), String>;
-}
-
-/// Secrets kept out of the data folder and the webview (the server token),
-/// by name.
-pub trait SecretStore: Send + Sync {
-    fn get(&self, name: &str) -> Result<Option<String>, String>;
-    fn set(&self, name: &str, secret: &str) -> Result<(), String>;
-    /// Deleting one that isn't there succeeds.
-    fn delete(&self, name: &str) -> Result<(), String>;
 }

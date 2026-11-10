@@ -33,7 +33,6 @@ export const EVENTS = {
   IDLE_RESOLVED: "idle-resolved",
   SHOW_START_TASK_DIALOG: "show-start-task-dialog",
   NOTIFICATION_POSTED: "notification-posted",
-  SERVER_CONNECTION_CHANGED: "server-connection-changed",
   UPDATE_PROGRESS: "update-progress",
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

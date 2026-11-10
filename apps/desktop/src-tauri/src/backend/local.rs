@@ -1,5 +1,5 @@
-//! Local mode: the data lives in JSON files in the app data folder, and
-//! commands run in this process. One mutex guards the whole workspace (so
+//! The data lives in JSON files in the app data folder, and commands run in
+//! this process. One mutex guards the whole workspace (so
 //! there's no lock order to keep). A write runs on a copy of it, the parts
 //! it changed are saved, and only then does the copy replace the live data:
 //! a failed save leaves memory as it was on disk.
@@ -32,12 +32,6 @@ pub struct Published<'a> {
 }
 
 pub type Publish = Box<dyn Fn(&Published) + Send + Sync>;
-
-/// Publishes nothing: for a backend opened only to read the files (server
-/// mode uploading them).
-pub fn quiet() -> Publish {
-    Box::new(|_| {})
-}
 
 pub struct LocalBackend {
     store: JsonFileStore,
@@ -405,14 +399,6 @@ mod tests {
 
     fn now() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 3, 2, 15, 0, 0).unwrap()
-    }
-
-    #[test]
-    fn a_quiet_backend_publishes_nothing() {
-        quiet()(&Published {
-            events: &[],
-            changed: Parts::ALL,
-        });
     }
 
     /// What the backend published: event names and changed parts, per call.

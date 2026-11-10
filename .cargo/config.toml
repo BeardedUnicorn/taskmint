@@ -1,5 +1,0 @@
-[env]
-# sqlx's query macros check against the committed apps/server/.sqlx data, so
-# builds never need a live database. `cargo sqlx prepare` (run in apps/server
-# with DATABASE_URL set) refreshes it; it overrides this for its own build.
-SQLX_OFFLINE = "true"

@@ -2,10 +2,8 @@
 // state (the tray, idle detection, notification preferences, the capture
 // server).
 
-use crate::backend::server_api::Timeouts;
-use crate::backend::{Clock, DataBackend, Published};
-use crate::events::SERVER_CONNECTION_CHANGED;
-use crate::platform::{Platform, SecretStore};
+use crate::backend::{Clock, LocalBackend, Published};
+use crate::platform::Platform;
 use crate::store::JsonFileStore;
 use crate::tray::model::{TrayMenu, TrayStatus};
 use std::ops::Deref;
@@ -45,14 +43,11 @@ pub struct TrayShown {
 }
 
 pub struct Shell {
-    /// Sessions, work logs, records and captures, and every command on them:
-    /// in the data files, or on a TaskMint server (see crate::server).
-    pub backend: DataBackend,
-    /// The app data folder: the data files, and server mode's connection.
+    /// Sessions, work logs, records and captures, and every command on them,
+    /// in the data files.
+    pub backend: LocalBackend,
+    /// The app data folder.
     pub store: JsonFileStore,
-    /// The server token.
-    pub secrets: Arc<dyn SecretStore>,
-    pub timeouts: Timeouts,
     pub platform: Arc<dyn Platform>,
     pub clock: Clock,
     capture_server_status: Mutex<CaptureServerStatus>,
@@ -81,26 +76,9 @@ impl Deref for AppState {
 }
 
 impl AppState {
-    /// Loads the data in `store`, or connects to the server it names. Saved
-    /// changes reach the webview as events, and the tray follows the
-    /// sessions, the tasks and the server link.
-    pub fn open(
-        store: JsonFileStore,
-        clock: Clock,
-        platform: Arc<dyn Platform>,
-        secrets: Arc<dyn SecretStore>,
-    ) -> AppState {
-        Self::open_with(store, clock, platform, secrets, Timeouts::APP)
-    }
-
-    /// `open`, waiting on a server as long as `timeouts` say.
-    pub fn open_with(
-        store: JsonFileStore,
-        clock: Clock,
-        platform: Arc<dyn Platform>,
-        secrets: Arc<dyn SecretStore>,
-        timeouts: Timeouts,
-    ) -> AppState {
+    /// Loads the data in `store`. Saved changes reach the webview as events,
+    /// and the tray follows the sessions and the tasks.
+    pub fn open(store: JsonFileStore, clock: Clock, platform: Arc<dyn Platform>) -> AppState {
         AppState(Arc::new_cyclic(|shell: &Weak<Shell>| {
             let shell = shell.clone();
             // Nothing is published while the shell is built
@@ -111,16 +89,8 @@ impl AppState {
                     .for_each(|shell| AppState(shell).publish(published))
             };
             Shell {
-                backend: crate::server::open_backend(
-                    &store,
-                    clock.clone(),
-                    secrets.as_ref(),
-                    timeouts,
-                    Box::new(publish),
-                ),
+                backend: LocalBackend::open(store.clone(), clock.clone(), Box::new(publish)),
                 store,
-                secrets,
-                timeouts,
                 platform,
                 clock,
                 capture_server_status: Mutex::new(CaptureServerStatus {
@@ -140,14 +110,9 @@ impl AppState {
         for event in published.events {
             crate::events::emit_quiet(self, event.name, &event.payload);
         }
-        let link_changed = published
-            .events
-            .iter()
-            .any(|event| event.name == SERVER_CONNECTION_CHANGED);
-        if link_changed
-            || published
-                .changed
-                .intersects(Parts::SESSIONS | Parts::RECORDS)
+        if published
+            .changed
+            .intersects(Parts::SESSIONS | Parts::RECORDS)
         {
             crate::tray::sync(self);
         }

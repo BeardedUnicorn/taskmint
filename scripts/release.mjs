@@ -66,7 +66,7 @@ const PACKAGE_JSONS = [
   'packages/client/package.json', // the About page and Sentry's release
   'packages/contracts/package.json',
 ];
-const CARGO_TOMLS = ['apps/desktop/src-tauri/Cargo.toml', 'apps/server/Cargo.toml', 'crates/taskmint-core/Cargo.toml'];
+const CARGO_TOMLS = ['apps/desktop/src-tauri/Cargo.toml', 'crates/taskmint-core/Cargo.toml'];
 const CARGO_LOCK = 'Cargo.lock';
 const CHANGELOG = 'CHANGELOG.md';
 const CHANGES = 'changes';

@@ -62,11 +62,6 @@ export function createChromeFake() {
     storage: {
       local: new FakeStorageArea(),
       session: new FakeStorageArea(),
-      onChanged: new FakeEvent<[Record<string, chrome.storage.StorageChange>, string]>(),
-    },
-    permissions: {
-      request: vi.fn(async (_permissions: chrome.permissions.Permissions) => true),
-      remove: vi.fn(async (_permissions: chrome.permissions.Permissions) => true),
     },
     tabs: {
       sendMessage: vi.fn(async (_tabId: number, _message: unknown): Promise<unknown> => undefined),

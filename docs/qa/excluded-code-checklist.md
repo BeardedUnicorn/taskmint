@@ -8,16 +8,13 @@ calls, and every decision lives in tested code. That leaves the calls
 themselves, which this checklist checks by hand.
 
 Run it before a release, and after any change to one of these files, to the
-Tauri or plugin versions, or to the `Platform`/`SecretStore` traits they
-implement.
+Tauri or plugin versions, or to the `Platform` trait they implement.
 
 | File | What it does | Section |
 |---|---|---|
 | `apps/desktop/src-tauri/src/app.rs` | the Tauri builder: plugins, setup, window events, the run loop | [Startup and wiring](#startup-and-wiring-apprs) |
 | `apps/desktop/src-tauri/src/platform/os.rs` | `TauriPlatform`: events, notifications, dialogs, reveal and open, the window, the tray, the updater | [The platform](#the-platform-platformosrs), [Updates](#updates-platformosrs) |
-| `apps/desktop/src-tauri/src/platform/keychain.rs` | `Keychain`: the device token in the OS keychain | [The keychain](#the-keychain-platformkeychainrs) |
 | `apps/desktop/src-tauri/src/main.rs` | calls `taskmint_lib::run`; no console window on Windows | [Windows and Linux](#windows-and-linux) |
-| `apps/server/src/main.rs` | arguments, environment and signals into the tested `cli::run` | [The server process](#the-server-process-mainrs) |
 | desktop `cfg(target_os = "windows" \| "linux")` code | not compiled on the macOS coverage run | [Windows and Linux](#windows-and-linux) |
 
 ## Before you start
@@ -28,12 +25,9 @@ implement.
   (`com.taskmint.app/` before 2.1).
 - **Use a dev build with its own data for most of this:**
   `TASKMINT_DATA_DIR=$HOME/tmp/taskmint-qa pnpm tauri dev`. That build uses
-  the folder you give it and the `com.taskmint.desktop.dev` keychain service, so
-  the installed app's data and keychain item are left alone.
+  the folder you give it, so the installed app's data is left alone.
 - **Use the bundled app (`pnpm tauri build`, then open the `.dmg`) for deep
   links.** On macOS, `taskmint://` is registered only by an installed bundle.
-- **Server-mode items need the stack:** `docker compose up -d --wait` (README,
-  "Run the stack").
 
 Note anything that fails with the build, the OS version and what you saw.
 
@@ -76,9 +70,6 @@ Note anything that fails with the build, the OS version and what you saw.
       sessions and work logs are there, and so are settings kept in the
       webview (the funds-release delay, idle settings). The log names each
       move.
-- [ ] Connected to a server before the update: still connected, with the
-      token in the `com.taskmint.desktop` keychain service and none left in
-      `com.taskmint.app`.
 - [ ] A second launch moves nothing.
 - [ ] macOS asks again for notification permission, and for access to
       Documents at the next folder backup (both are granted per identifier).
@@ -123,16 +114,12 @@ Note anything that fails with the build, the OS version and what you saw.
       clears that title.
 - [ ] **Tray double-click** (Windows and Linux) shows the window.
 - [ ] **Version.** The capture server's `/api/health` reports the version in
-      `apps/desktop/package.json`. Connecting to a server checks the same
-      version.
-- [ ] **Restart.** Connecting to or disconnecting from a server restarts the
-      app on the other data.
+      `apps/desktop/package.json`.
 
 ## Updates (platform/os.rs)
 
 An update needs a release build and a feed newer than it. Try it on a build
-with its own identifier, so the installed app, its data and its keychain item
-are left alone, and against a local feed signed with a throwaway key (the
+with its own identifier, so the installed app and its data are left alone, and against a local feed signed with a throwaway key (the
 real key never leaves CI). Every file goes in one scratch folder, `$S`:
 
 1. **A key:** `pnpm --filter @taskmint/desktop exec tauri signer generate --ci -p "" -w $S/test.key`.
@@ -192,34 +179,6 @@ real key never leaves CI). Every file goes in one scratch folder, `$S`:
       development build can't install updates.
 - [ ] **A real release.** After a release, an install of the version before
       it finds and installs it from GitHub.
-
-## The keychain (platform/keychain.rs)
-
-With the stack running and a dev build on its own data folder:
-- [ ] **Store.** Settings → Server → connect to `http://localhost:8080` with
-      a user's credentials. Keychain Access then has an item for the
-      `com.taskmint.desktop.dev` service, account `server-token`.
-- [ ] **Read.** After the restart and after quitting and relaunching, the app
-      is still connected, with no prompt (or one prompt that "Always Allow"
-      ends).
-- [ ] **Delete.** Disconnect removes the item. Disconnecting again, or
-      relaunching, gives no keychain error.
-- [ ] **Refused.** Deny the keychain prompt (lock the login keychain first, or
-      choose Deny). The Server settings say the keychain couldn't be read, and
-      the app runs on its local data.
-- [ ] **Revoked elsewhere.** Revoke the device token in the web app (Settings
-      → API tokens), or change the user's password there. The desktop shows
-      "Signed out" and asks to sign in again.
-
-## The server process (main.rs)
-
-- [ ] **Stopping.** `docker compose stop server` returns within a couple of
-      seconds: SIGTERM ends the event streams and the server exits cleanly.
-      Open web tabs reconnect once it's back.
-- [ ] **Ctrl-C.** `cargo run -p taskmint-server -- serve` (with the
-      environment from `.env`) stops on Ctrl-C.
-- [ ] **Exit codes.** `docker compose exec server taskmint-server healthcheck; echo $?`
-      prints 0. An unknown subcommand prints its usage and exits 2.
 
 ## Windows and Linux
 
