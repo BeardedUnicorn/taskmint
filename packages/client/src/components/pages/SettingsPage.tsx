@@ -24,7 +24,7 @@ import { useNavigation } from '../../contexts/NavigationContext';
 import { SETTINGS_SECTION_LABELS, SettingsSectionId, availableSettingsSections } from '../../navigation/views';
 import { useAppExtensions } from '../../app/extensions';
 import { getBackend } from '../../backend';
-import { getCloudSync } from '../../cloud';
+import { syncsThisDevice } from '../../cloud';
 
 const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
   appearance: AppearanceSettingsSection,
@@ -67,7 +67,7 @@ const NO_EXTENSION_SECTIONS: never[] = [];
 export function SettingsPage() {
   const { settingsSections = NO_EXTENSION_SECTIONS } = useAppExtensions();
   const sections = useMemo(() => {
-    const available = availableSettingsSections(getBackend().platform, getCloudSync() !== null);
+    const available = availableSettingsSections(getBackend().platform, syncsThisDevice());
     const builtIn = SETTINGS_SECTIONS.filter(({ id }) => available.includes(id));
     return [
       ...builtIn.filter(({ id }) => id !== 'about'),

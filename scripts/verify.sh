@@ -24,6 +24,9 @@ pnpm test:scripts
 step "Firestore security rules, on the emulator (firebase/firestore.rules)"
 scripts/test-rules.sh
 
+step "The web app's core in WebAssembly (the TypeScript below imports it)"
+pnpm build:wasm
+
 step "TypeScript (sources and tests)"
 pnpm typecheck
 

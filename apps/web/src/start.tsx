@@ -1,37 +1,55 @@
 /**
- * The web app's start: its own pages (signing in, invite and reset links),
- * or, for a signed-in browser, the TaskMint app against the server.
- * Signing in and out reload the page, so each page load has one backend.
+ * The web app's start: Firebase first, then a sign-in page until someone is
+ * signed in, then TaskMint, on TaskMint's rules in WebAssembly and the
+ * account's data from the cloud. Signing out (or deleting the account)
+ * reloads the page, so each page load has one user.
  */
 
 import { createRoot } from 'react-dom/client';
 import { Alert, Button, Stack } from '@mui/material';
+import type { Backend } from '@taskmint/client/backend';
+import { loadFirebase, type CloudStore } from '@taskmint/client/cloud';
+import { SignInForm } from '@taskmint/client/ui';
 import { AuthLayout } from './auth/AuthLayout';
-import { LoginPage } from './auth/LoginPage';
-import { InvitePage } from './auth/InvitePage';
-import { ResetPage } from './auth/ResetPage';
-import { createHttpBackend } from './httpBackend';
-import { loginPath, matchRoute, type Route } from './routes';
-import { createServer, problem, type ServerError } from './server';
+import { webCloud } from './firebaseConfig';
 import { webExtensions } from './settings/extensions';
-import type { SessionInfo } from './types';
+import { createWasmBackend } from './wasmBackend';
+import { createWebPlatform } from './webPlatform';
 
-type Page = Pick<Location, 'pathname' | 'search' | 'assign' | 'reload'>;
+type Page = Pick<Location, 'reload'>;
 
-function AuthPage({ route, page }: { route: Exclude<Route, { kind: 'app' }>; page: Page }) {
-  const server = createServer();
-  const enterApp = (path: string) => () => page.assign(path);
-  switch (route.kind) {
-    case 'login':
-      return <LoginPage server={server} onSignedIn={enterApp(route.next)} />;
-    case 'invite':
-      return <InvitePage server={server} token={route.token} onSignedIn={enterApp('/')} />;
-    case 'reset':
-      return <ResetPage server={server} token={route.token} onSignedIn={enterApp('/')} />;
-  }
+export interface WebStart {
+  /** Firebase's SDK, signed in or not. */
+  loadStore(): Promise<CloudStore>;
+  /** TaskMint's rules for this page. */
+  createBackend(): Promise<Backend>;
 }
 
-/** The server didn't answer (or answered with an error) when the page opened. */
+const CLOUD = webCloud(import.meta.env);
+
+const DEFAULTS: WebStart = {
+  loadStore: loadFirebase(CLOUD),
+  createBackend: () => createWasmBackend(createWebPlatform()),
+};
+
+export function SignInPage({ store }: { store: CloudStore }) {
+  return (
+    <AuthLayout title="Sign in to TaskMint">
+      <SignInForm
+        intro="Your sessions, tasks and work logs, here and on your other devices."
+        engine={{
+          signIn: store.signIn,
+          signUp: store.signUp,
+          resetPassword: store.resetPassword,
+          signInWithGoogle: () => store.signInWithGoogle(null),
+          canUseGoogle: true,
+        }}
+      />
+    </AuthLayout>
+  );
+}
+
+/** Firebase couldn't load when the page opened. */
 function Unreachable({ message, page }: { message: string; page: Page }) {
   return (
     <AuthLayout title="TaskMint can't start">
@@ -45,28 +63,41 @@ function Unreachable({ message, page }: { message: string; page: Page }) {
   );
 }
 
-export async function start(container: HTMLElement, page: Page = window.location): Promise<void> {
-  const route = matchRoute(page.pathname, page.search);
-  if (route.kind !== 'app') {
-    createRoot(container).render(<AuthPage route={route} page={page} />);
-    return;
-  }
-
-  const signIn = () => page.assign(loginPath(page));
-  let me: SessionInfo;
+export async function start(container: HTMLElement, page: Page = window.location, web: WebStart = DEFAULTS) {
+  const root = createRoot(container);
+  let store: CloudStore;
   try {
-    me = await createServer().request<SessionInfo>('GET', '/auth/me');
+    store = await web.loadStore();
   } catch (error) {
-    if ((error as ServerError).status === 401) signIn();
-    else createRoot(container).render(<Unreachable message={problem(error)} page={page} />);
+    root.render(<Unreachable message={String(error)} page={page} />);
     return;
   }
 
-  const server = createServer({ csrfToken: me.csrfToken ?? undefined, onUnauthorized: signIn });
+  let entered = false;
+  store.onUser(user => {
+    if (entered) {
+      // Signed out, or the account deleted: back to signing in
+      if (!user) page.reload();
+      return;
+    }
+    if (!user) {
+      root.render(<SignInPage store={store} />);
+      return;
+    }
+    entered = true;
+    root.unmount();
+    void enter(container, store, web);
+  });
+}
+
+async function enter(container: HTMLElement, store: CloudStore, web: WebStart) {
+  const backend = await web.createBackend();
   // The app's code loads only once signed in
   const { startClient } = await import('@taskmint/client/start');
   await startClient(container, {
-    backend: createHttpBackend({ server }),
-    extensions: webExtensions({ user: me.user, server, navigate: path => page.assign(path) }),
+    backend,
+    extensions: webExtensions(),
+    cloud: CLOUD,
+    cloudStore: async () => store,
   });
 }

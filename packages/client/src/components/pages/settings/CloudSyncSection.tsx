@@ -21,8 +21,20 @@ const FORM_TITLES: Record<FormMode, string> = {
   reset: 'Send reset link',
 };
 
-/** Email and password: signing in, making an account, or a reset link. */
-function SignInForm({ engine }: { engine: SyncEngine }) {
+/** What signing in needs: the sync engine, or the web app's store before the app starts. */
+export interface SignInActions {
+  signIn(email: string, password: string): Promise<void>;
+  signUp(email: string, password: string): Promise<void>;
+  resetPassword(email: string): Promise<void>;
+  signInWithGoogle(): Promise<void>;
+  readonly canUseGoogle: boolean;
+}
+
+const INTRO =
+  "Sign in to keep this device's sessions, tasks and work logs in step with your other devices and the web app. Without it, everything stays on this device.";
+
+/** Email and password: signing in, making an account, or a reset link. And Google, where the build can. */
+export function SignInForm({ engine, intro = INTRO }: { engine: SignInActions; intro?: string }) {
   const [mode, setMode] = useState<FormMode>('signIn');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,8 +82,7 @@ function SignInForm({ engine }: { engine: SyncEngine }) {
   return (
     <Box component="form" onSubmit={submit} noValidate sx={{ maxWidth: 420 }}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Sign in to keep this device's sessions, tasks and work logs in step with your other devices and the web app.
-        Without it, everything stays on this device.
+        {intro}
       </Typography>
       {notice && (
         <Alert severity="success" sx={{ mb: 2 }}>

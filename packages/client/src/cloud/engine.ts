@@ -53,6 +53,9 @@ export interface EngineOptions {
 
 export const ENGINE_OPTIONS: EngineOptions = { sendDelayMs: 1000, retryMs: 30_000 };
 
+/** Phases where no data is on its way, so nothing waits for it (firstSync). */
+const WAITS_FOR_NOTHING = new Set<SyncPhase>(['signedOut', 'choose', 'otherAccount', 'error', 'cloudReset']);
+
 export class SyncEngine {
   private store: CloudStore | null = null;
   private view: SyncView = { phase: 'loading', user: null, pending: 0, held: 0, error: null };
@@ -70,6 +73,9 @@ export class SyncEngine {
   private timer: ReturnType<typeof setTimeout> | undefined;
   /** Bumped on each change of user, so work for an earlier one is dropped. */
   private generation = 0;
+  /** Waiting for the cloud's data to first come in (firstSync). */
+  private caughtUp = false;
+  private readonly waiting: (() => void)[] = [];
 
   /**
    * `google` gets a Google ID token the shell's own way (null: Firebase's
@@ -168,6 +174,30 @@ export class SyncEngine {
     this.set({ phase: 'cloudReset', pending: 0, held: 0 });
   }
 
+  /**
+   * Deletes the account: its cloud data, then the account itself. Firebase
+   * may want a recent sign-in for the second; trying again then skips the
+   * data, already gone.
+   */
+  async deleteAccount(): Promise<void> {
+    if (this.linked) await this.deleteCloudData();
+    await this.cloud.deleteUser();
+  }
+
+  /**
+   * Resolves once the cloud's data has first come in, or once there's none
+   * to wait for (signed out, a choice to make, an error). The web app waits
+   * for it before showing anything: until then its page holds no data.
+   */
+  firstSync(): Promise<void> {
+    return this.caughtUp ? Promise.resolve() : new Promise(resolve => this.waiting.push(resolve));
+  }
+
+  private catchUp(): void {
+    this.caughtUp = true;
+    for (const resolve of this.waiting.splice(0)) resolve();
+  }
+
   /** After an error: starts over with the signed-in user. */
   retry = () => this.userChanged(this.view.user);
 
@@ -178,6 +208,7 @@ export class SyncEngine {
 
   private set(changes: Partial<SyncView>): void {
     this.view = { ...this.view, ...changes };
+    if (WAITS_FOR_NOTHING.has(this.view.phase)) this.catchUp();
     for (const listener of this.listeners) listener();
   }
 
@@ -276,6 +307,7 @@ export class SyncEngine {
         await this.backend.call('apply_sync_incoming', { docs: batch.docs, cursor: batch.cursor });
         for (const doc of batch.docs) this.sent.delete(doc.docId);
       });
+      this.catchUp();
       // A merge may have something to send back
       this.send(0);
     } catch (error) {

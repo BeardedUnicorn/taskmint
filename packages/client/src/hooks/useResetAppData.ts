@@ -32,8 +32,10 @@ export const useResetAppData = ({ onError }: UseResetAppDataProps = {}) => {
       }
 
       // The device stopped syncing with the reset; signed in, it would start
-      // again at once and bring the cloud's data back
-      await getCloudSync()?.signOut();
+      // again at once and bring the cloud's data back. The web app's data is
+      // the cloud's, so there it goes too.
+      if (getBackend().capabilities.dataLocation === 'cloud') await getCloudSync()?.deleteCloudData();
+      else await getCloudSync()?.signOut();
       window.localStorage.clear();
       reloadApp();
       // Deliberately leave isResetting true: the page is about to unload, and

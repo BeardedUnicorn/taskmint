@@ -17,6 +17,8 @@
       // The Rust crates' trees (fixtures and scenarios are test data)
       "!apps/desktop/src-tauri",
       "!crates",
+      // wasm-bindgen's output (scripts/build-wasm.mjs)
+      "!apps/web/src/wasm",
       // Generated from crates/taskmint-core; scripts/check-contracts.sh
       // compares it byte for byte with what the Rust generates
       "!packages/contracts/src/generated"

@@ -6,6 +6,7 @@
   "exports": {
     "./start": "./src/start.tsx",
     "./backend": "./src/backend/index.ts",
+    "./cloud": "./src/cloud/index.ts",
     "./testing": "./src/testing/index.ts",
     "./ui": "./src/ui.ts"
   },

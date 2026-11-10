@@ -24,10 +24,10 @@ vi.mock('../settings/AboutSettingsSection', () => ({ AboutSettingsSection: () =>
 vi.mock('../settings/CloudSyncSection', () => ({ CloudSyncSection: () => <div>Sync section</div> }));
 
 // A build that syncs, unless a test says otherwise
-const cloud = vi.hoisted(() => ({ engine: {} as unknown }));
-vi.mock('../../../cloud', () => ({ getCloudSync: () => cloud.engine }));
+const cloud = vi.hoisted(() => ({ syncs: true }));
+vi.mock('../../../cloud', () => ({ syncsThisDevice: () => cloud.syncs }));
 beforeEach(() => {
-  cloud.engine = {};
+  cloud.syncs = true;
 });
 
 describe('currentSection', () => {
@@ -71,7 +71,7 @@ describe('SettingsPage', () => {
 
   it('leaves out the sections this platform has no use for', () => {
     installFakeBackendForTest({ capabilities: { runtime: 'web' }, without: ['idle', 'folderBackups'] });
-    cloud.engine = null;
+    cloud.syncs = false;
     render(<SettingsPage />, { wrapper: NavigationProvider });
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
     const labels = within(nav)

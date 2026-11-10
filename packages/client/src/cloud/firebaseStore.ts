@@ -77,6 +77,9 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
         : auth.signInWithPopup(session, new auth.GoogleAuthProvider()));
     },
     signOut: () => auth.signOut(session),
+    async deleteUser() {
+      await auth.deleteUser(session.currentUser!);
+    },
 
     account: async uid => epochOf(await fs.getDoc(accountDoc(uid))),
     async createAccount(uid) {
@@ -98,10 +101,15 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
       const changed = cursor
         ? fs.query(data(uid), fs.where('updatedAt', '>', decode(cursor)), fs.orderBy('updatedAt'))
         : fs.query(data(uid), fs.orderBy('updatedAt'));
+      // The server's first answer counts even with nothing new: sync then
+      // knows it has caught up
+      let answered = false;
       return fs.onSnapshot(
         changed,
         { includeMetadataChanges: true },
         snapshot => {
+          const first = !answered && !snapshot.metadata.fromCache;
+          answered ||= first;
           // A write in flight comes back once the server has it, with its time
           const confirmed = snapshot.docs.filter(doc => !doc.metadata.hasPendingWrites);
           const docs: CloudDoc[] = snapshot
@@ -117,7 +125,7 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
             docs,
             cursor: snapshot.metadata.fromCache || !last ? null : cursorOf(last.get('updatedAt') as Timestamp),
           };
-          if (batch.docs.length > 0 || batch.cursor) onBatch(batch);
+          if (batch.docs.length > 0 || batch.cursor || first) onBatch(batch);
         },
         onError
       );

@@ -20,7 +20,7 @@ import { StartupError } from './components/StartupError';
 import { setBackend, type Backend } from './backend';
 import { AppExtensionsProvider, type AppExtensions } from './app/extensions';
 import { errorMessage } from './utils/errors';
-import { startCloudSync, type CloudConfig } from './cloud';
+import { startCloudSync, type CloudConfig, type CloudStore } from './cloud';
 
 export type { AppExtensions } from './app/extensions';
 export type { CloudConfig } from './cloud';
@@ -30,6 +30,8 @@ export interface StartOptions {
   extensions: AppExtensions;
   /** The shell build's Firebase app, for cloud sync; none: the data stays on this device. */
   cloud?: CloudConfig;
+  /** The Firebase SDK the shell already loaded (the web app signs in before starting). */
+  cloudStore?: () => Promise<CloudStore>;
 }
 
 /**
@@ -37,10 +39,16 @@ export interface StartOptions {
  * the records load, and the app renders (or, when the records can't be
  * read, a startup error).
  */
-export async function startClient(container: HTMLElement, { backend, extensions, cloud }: StartOptions): Promise<void> {
+export async function startClient(
+  container: HTMLElement,
+  { backend, extensions, cloud, cloudStore }: StartOptions
+): Promise<void> {
   initSentry();
   setBackend(backend);
   const root = ReactDOM.createRoot(container);
+  const sync = cloud ? startCloudSync(backend, cloud, cloudStore) : null;
+  // A page whose data is only in the cloud has none until the cloud's comes in
+  if (backend.capabilities.dataLocation === 'cloud') await sync?.firstSync();
 
   // Tasks, notes, templates and the goal load before the first render, so
   // every page can read them synchronously.
@@ -54,7 +62,6 @@ export async function startClient(container: HTMLElement, { backend, extensions,
     );
     return;
   }
-  if (cloud) startCloudSync(backend, cloud);
   root.render(
     <React.StrictMode>
       <AppExtensionsProvider value={extensions}>

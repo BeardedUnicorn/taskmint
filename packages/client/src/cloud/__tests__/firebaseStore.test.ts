@@ -13,7 +13,7 @@ const sdk = vi.hoisted(() => {
   return {
     Timestamp,
     batch,
-    auth: {} as Record<string, unknown>,
+    auth: {} as Record<string, unknown> & { currentUser?: unknown },
     db: {} as Record<string, unknown>,
     authListener: null as ((user: unknown) => void) | null,
   };
@@ -42,6 +42,7 @@ vi.mock('firebase/auth', () => {
     signInWithCredential: vi.fn(async () => ({})),
     signInWithPopup: vi.fn(async () => ({})),
     signOut: vi.fn(async () => undefined),
+    deleteUser: vi.fn(async () => undefined),
     GoogleAuthProvider,
   };
 });
@@ -135,6 +136,9 @@ describe('the Firebase store', () => {
     expect(auth.signInWithPopup).toHaveBeenCalledWith(sdk.auth, expect.any(auth.GoogleAuthProvider));
     await store.signOut();
     expect(auth.signOut).toHaveBeenCalledWith(sdk.auth);
+    sdk.auth.currentUser = { uid: 'bea' };
+    await store.deleteUser();
+    expect(auth.deleteUser).toHaveBeenCalledWith({ uid: 'bea' });
   });
 
   it('reads, starts and watches the account, and asks whether it has data', async () => {
@@ -221,6 +225,17 @@ describe('the Firebase store', () => {
     onChanges({ metadata: { fromCache: false }, docs: [], docChanges: () => [] });
     onChanges({ metadata: { fromCache: true }, docs: [], docChanges: () => [] });
     expect(onBatch).not.toHaveBeenCalled();
+  });
+
+  it("passes on the server's first answer even with nothing in it", async () => {
+    const store = await createFirebaseStore(CONFIG);
+    const onFirst = vi.fn();
+    store.listen('cal', null, onFirst, vi.fn());
+    const onNothing = vi.mocked(fs.onSnapshot).mock.calls.at(-1)![2] as unknown as (snapshot: unknown) => void;
+    onNothing({ metadata: { fromCache: true }, docs: [], docChanges: () => [] });
+    onNothing({ metadata: { fromCache: false }, docs: [], docChanges: () => [] });
+    onNothing({ metadata: { fromCache: false }, docs: [], docChanges: () => [] });
+    expect(onFirst.mock.calls).toEqual([[{ docs: [], cursor: null }]]);
   });
 
   it('writes documents in batches Firestore takes, with what the rules ask for', async () => {

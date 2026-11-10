@@ -1,0 +1,20 @@
+[package]
+name = "taskmint-wasm"
+version = "3.1.0"
+description = "TaskMint's business rules for the web app: taskmint-core in WebAssembly"
+authors = ["Mike Herold"]
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+taskmint-core = { path = "../taskmint-core" }
+# Exactly the version scripts/build-wasm.mjs's wasm-bindgen CLI is
+wasm-bindgen = "=0.2.127"
+
+# Core makes ids with uuid's v4, whose randomness in a browser is the
+# Web Crypto API (.cargo/config.toml picks getrandom's backend for it)
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1.0", features = ["js"] }

@@ -31,7 +31,7 @@ describe('createTauriBackend', () => {
 
   it('is the desktop the Rust side reported', () => {
     expect(backend.capabilities).toEqual({ runtime: 'desktop', dataLocation: 'local' });
-    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'server' }).capabilities.dataLocation).toBe('server');
+    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'cloud' }).capabilities.dataLocation).toBe('cloud');
   });
 
   it('runs data commands by name through dispatch', async () => {

@@ -73,20 +73,18 @@ describe("moving this device's payout settings into their record", () => {
     expect(left()[0]).not.toBeNull();
   });
 
-  it('leaves them in a development build, and on a desktop using a server', async () => {
+  it('leaves them in a development build', async () => {
     keep('fundsReleaseDays', 2);
     vi.stubEnv('DEV', true);
     await moveLocalAccountSettings();
     vi.stubEnv('DEV', false);
-    installFakeBackendForTest({ capabilities: { dataLocation: 'server' } });
-    await moveLocalAccountSettings();
 
     expect(left()[0]).not.toBeNull();
     expect(readAppRecord('accountSettings')).toBeUndefined();
   });
 
   it("moves the web app's own into the account's record", async () => {
-    installFakeBackendForTest({ capabilities: { runtime: 'web', dataLocation: 'server' } });
+    installFakeBackendForTest({ capabilities: { runtime: 'web', dataLocation: 'cloud' } });
     keep('withdrawalIntervalDays', 4);
 
     await moveLocalAccountSettings();

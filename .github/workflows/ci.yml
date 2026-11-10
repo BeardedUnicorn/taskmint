@@ -46,6 +46,20 @@ jobs:
       - name: Firestore security rules (emulator)
         run: scripts/test-rules.sh
 
+      # The version and components in rust-toolchain.toml, with the wasm
+      # target (rustup no longer installs it on first use)
+      - run: rustup toolchain install
+
+      # The wasm-bindgen CLI, the version Cargo.lock has (check-toolchains)
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.127
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The web app's core in WebAssembly: the TypeScript imports it
+      - run: pnpm build:wasm
+
       # Sources and tests, every package.
       - run: pnpm typecheck
 
@@ -61,13 +75,7 @@ jobs:
 
       - run: pnpm test:coverage
 
-      # The version and components in rust-toolchain.toml (rustup no longer
-      # installs it on first use)
-      - run: rustup toolchain install
-
       - uses: taiki-e/install-action@cargo-llvm-cov
-
-      - uses: Swatinem/rust-cache@v2
 
       - name: cargo fmt
         run: cargo fmt --all --check

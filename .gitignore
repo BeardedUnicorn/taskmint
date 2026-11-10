@@ -55,3 +55,6 @@ coverage/
 firebase-debug*.log
 firestore-debug.log
 ui-debug.log
+
+# The web app's core, built by scripts/build-wasm.mjs
+apps/web/src/wasm/

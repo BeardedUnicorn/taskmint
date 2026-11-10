@@ -1,13 +1,15 @@
 /**
  * The browser as the client's platform: exports are downloads, an import is
  * a file picked in the browser's dialog, and notifications are the Web
- * Notification API's. The desktop-only features (idle detection, folder
- * backups, reveal, the capture server) are absent, so the client leaves out
- * what needs them.
+ * Notification API's, and usage analytics are Firebase Analytics'. The
+ * desktop-only features (idle detection, folder backups, reveal, the capture
+ * server) are absent, so the client leaves out what needs them. Google
+ * sign-in opens in a popup, Firebase's own way.
  */
 
 import { CORE_ERRORS } from '@taskmint/contracts';
 import type { Platform } from '@taskmint/client/backend';
+import { createWebAnalytics } from './analytics';
 
 const MEDIA_TYPES = { json: 'application/json', csv: 'text/csv' } as const;
 
@@ -84,5 +86,6 @@ export function createWebPlatform(): Platform {
     notifications: {
       show: (_kind, title, body) => notify(title, body),
     },
+    analytics: createWebAnalytics(),
   };
 }

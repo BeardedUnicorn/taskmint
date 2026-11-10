@@ -1,0 +1,4 @@
+# The web app's core (crates/taskmint-wasm): getrandom, which uuid's v4 ids
+# use, reaches the browser's Web Crypto API only with this backend chosen.
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

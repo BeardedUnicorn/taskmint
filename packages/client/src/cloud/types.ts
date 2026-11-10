@@ -73,6 +73,8 @@ export interface CloudStore {
   /** With a Google ID token the shell got itself, or (null) in a popup. */
   signInWithGoogle(idToken: string | null): Promise<void>;
   signOut(): Promise<void>;
+  /** Deletes the signed-in user's account (Firebase may ask them to sign in again first). */
+  deleteUser(): Promise<void>;
   /** The account's epoch; null when it has none yet. */
   account(uid: string): Promise<number | null>;
   /** Starts the account on its first epoch. */

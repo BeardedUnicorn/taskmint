@@ -13,6 +13,7 @@
     "test:coverage": "pnpm -r test:coverage",
     "test:scripts": "node --test 'scripts/**/*.test.mjs'",
     "test:rules": "scripts/test-rules.sh",
+    "build:wasm": "node scripts/build-wasm.mjs",
     "firebase": "npx --yes firebase-tools@15.35.0",
     "dev": "pnpm --filter @taskmint/desktop dev",
     "tauri": "pnpm --filter @taskmint/desktop tauri",

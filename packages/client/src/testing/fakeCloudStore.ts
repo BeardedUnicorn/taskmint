@@ -51,6 +51,7 @@ export function createFakeCloudStore(): FakeCloudStore {
     resetPassword: vi.fn(async () => undefined),
     signInWithGoogle: vi.fn(async () => store.setUser({ ...bea(), providers: ['google.com'] })),
     signOut: vi.fn(async () => store.setUser(null)),
+    deleteUser: vi.fn(async () => store.setUser(null)),
     account: vi.fn(async (uid: string) => epochs.get(uid) ?? null),
     createAccount: vi.fn(async (uid: string) => {
       epochs.set(uid, 1);

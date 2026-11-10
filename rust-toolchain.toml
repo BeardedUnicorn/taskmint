@@ -5,3 +5,5 @@
 channel = "1.93.0"
 profile = "minimal"
 components = ["rustfmt", "clippy", "llvm-tools-preview"]
+# The web app's core (crates/taskmint-wasm)
+targets = ["wasm32-unknown-unknown"]

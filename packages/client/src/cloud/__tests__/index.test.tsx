@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { cloudErrorMessage } from '../errors';
-import { getCloudSync, setCloudSyncForTest, startCloudSync, useCloudSync } from '..';
-import { asBackend, bea, createFakeBackend, createFakeCloudStore } from '../../testing';
+import { getCloudSync, setCloudSyncForTest, startCloudSync, syncsThisDevice, useCloudSync } from '..';
+import { asBackend, bea, createFakeBackend, createFakeCloudStore, installFakeBackendForTest } from '../../testing';
 import type { CloudConfig } from '../types';
 
 // The real SDK can’t run in jsdom: the default load gets a fake store
@@ -61,6 +61,17 @@ describe('the page’s cloud sync', () => {
     const engine = startCloudSync(asBackend(createFakeBackend()), CONFIG);
     await vi.waitFor(() => expect(engine.getView().phase).toBe('signedOut'));
     expect(firebase.createFirebaseStore).toHaveBeenCalledWith(CONFIG);
+  });
+});
+
+describe('whether this device syncs', () => {
+  it("is so where the build syncs, unless the data is the cloud's own (the web app)", () => {
+    expect(syncsThisDevice()).toBe(false);
+    const backend = installFakeBackendForTest({});
+    startCloudSync(asBackend(backend), CONFIG, async () => createFakeCloudStore());
+    expect(syncsThisDevice()).toBe(true);
+    installFakeBackendForTest({ capabilities: { runtime: 'web', dataLocation: 'cloud' } });
+    expect(syncsThisDevice()).toBe(false);
   });
 });
 

@@ -289,6 +289,39 @@ describe('cloud sync, linked', () => {
     expect(phaseOf(engine)).toBe('synced');
   });
 
+  it('resolves the first sync once the cloud has answered, and at once after that', async () => {
+    // Signed in already, as the web app starts it
+    store.setEpoch('bea', 1);
+    store.setUser(bea());
+    const host = syncHost({ account: { uid: 'bea', epoch: 1 } });
+    const engine = await started(host);
+    let done = false;
+    const first = engine.firstSync().then(() => (done = true));
+    await vi.waitFor(() => expect(store.listens).toHaveLength(1));
+    expect(done).toBe(false);
+    store.emit({ docs: [], cursor: null });
+    await first;
+    await engine.firstSync();
+  });
+
+  it("doesn't keep the first sync waiting when nothing will come", async () => {
+    const engine = await started(syncHost());
+    await engine.firstSync();
+  });
+
+  it('deletes the account: its cloud data, then itself', async () => {
+    const { engine, host } = await linked();
+    await engine.deleteAccount();
+    expect(store.deleteAll).toHaveBeenCalledWith('bea', 1);
+    expect(store.deleteUser).toHaveBeenCalled();
+    expect(host.state.account).toBeNull();
+
+    // Again (Firebase wanted a fresh sign-in): the data is gone already
+    await engine.deleteAccount();
+    expect(store.deleteAll).toHaveBeenCalledTimes(1);
+    expect(store.deleteUser).toHaveBeenCalledTimes(2);
+  });
+
   it('deletes the cloud data, stopping this device too', async () => {
     const { engine, host } = await linked();
     await engine.deleteCloudData();

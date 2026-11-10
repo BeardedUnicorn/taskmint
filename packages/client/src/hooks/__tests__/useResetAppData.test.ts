@@ -15,7 +15,7 @@ vi.mock('../../utils/appReload', () => ({
 
 import { reloadApp } from '../../utils/appReload';
 import { useResetAppData } from '../useResetAppData';
-import { fakeBackend } from '../../testing';
+import { fakeBackend, installFakeBackendForTest } from '../../testing';
 import { setCloudSyncForTest, type SyncEngine } from '../../cloud';
 
 const mockInvoke = fakeBackend().call;
@@ -40,6 +40,25 @@ describe('useResetAppData', () => {
 
     expect(signOut).toHaveBeenCalled();
     expect(mockReloadApp).toHaveBeenCalled();
+    setCloudSyncForTest(null);
+  });
+
+  it("deletes the cloud data instead where that's where the data lives (the web app)", async () => {
+    const deleteCloudData = vi.fn(async () => undefined);
+    const signOut = vi.fn(async () => undefined);
+    setCloudSyncForTest({ deleteCloudData, signOut, stop: vi.fn() } as unknown as SyncEngine);
+    installFakeBackendForTest({ capabilities: { runtime: 'web', dataLocation: 'cloud' } }).call.mockResolvedValue({
+      backupsDeleted: 0,
+      warning: null,
+    });
+    const { result } = renderHook(() => useResetAppData({ onError }));
+
+    await act(async () => {
+      await result.current.resetAllData();
+    });
+
+    expect(deleteCloudData).toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
     setCloudSyncForTest(null);
   });
 

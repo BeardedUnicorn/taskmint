@@ -1,6 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["crates/taskmint-core", "apps/desktop/src-tauri"]
+members = ["crates/taskmint-core", "crates/taskmint-wasm", "apps/desktop/src-tauri"]
 # The desktop crate needs WebKitGTK on Linux, so plain `cargo` commands at the
 # root leave it out; `--workspace` or `-p taskmint` includes it.
 default-members = ["crates/taskmint-core"]
+
+# The web app's core goes over the network: smaller beats faster there
+[profile.release.package.taskmint-wasm]
+opt-level = "s"

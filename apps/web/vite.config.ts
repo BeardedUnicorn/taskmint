@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// The web app. In development the API comes from a local taskmint-server
-// (`docker compose up -d --wait db migrate server`), through this proxy, so
-// the browser sees one origin as it does behind nginx.
+// The web app: built into dist/, which Firebase Hosting serves
+// (firebase.json). In development it syncs with the real project, or with
+// the emulators when VITE_FIREBASE_EMULATOR_HOST is set (.env).
 export default defineConfig({
   plugins: [react()],
   // Favicon and logos live with the shared client.
@@ -13,9 +13,6 @@ export default defineConfig({
   server: {
     port: 1421,
     strictPort: true,
-    proxy: {
-      '/api': { target: 'http://127.0.0.1:3000' },
-    },
   },
   build: {
     chunkSizeWarningLimit: 1000,
@@ -27,6 +24,7 @@ export default defineConfig({
           if (!id.includes('node_modules')) return undefined;
           if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react-vendor';
           if (id.includes('/node_modules/@mui/')) return 'mui-vendor';
+          if (/\/node_modules\/(firebase|@firebase)\//.test(id)) return 'firebase-vendor';
           if (/\/node_modules\/(recharts|victory-vendor|d3-[^/]+)\//.test(id)) return 'chart-vendor';
           if (id.includes('/node_modules/dayjs/')) return 'date-vendor';
           if (id.includes('/node_modules/@sentry/')) return 'sentry-vendor';

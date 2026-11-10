@@ -1,97 +1,75 @@
-import { useState, type FormEvent } from 'react';
-import { Alert, Box, Button, Chip, Divider, Stack, TextField, Typography } from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import { SettingsSection, useNotification } from '@taskmint/client/ui';
-import { PasswordFields, passwordProblem } from '../auth/PasswordFields';
-import { problem } from '../server';
-import type { WebSession } from '../session';
+/**
+ * Settings → Account (the web app): who's signed in, signing out, a new
+ * password by email, and deleting the account with all its data. The web
+ * app's data is the cloud's own, so this stands in for Cloud sync.
+ */
 
-/** Who's signed in, a new password, and signing out. */
-export function AccountSection({ session }: { session: WebSession }) {
-  const { user, server, navigate } = session;
-  const { showSuccess, showError } = useNotification();
-  const [current, setCurrent] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmation, setConfirmation] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+import { useState } from 'react';
+import { Alert, Button, Stack, Typography } from '@mui/material';
+import { AccountCircle as AccountIcon } from '@mui/icons-material';
+import { ConfirmDialog, SettingsSection } from '@taskmint/client/ui';
+import { cloudErrorMessage, useCloudSync } from '@taskmint/client/cloud';
 
-  const changePassword = async (event: FormEvent) => {
-    event.preventDefault();
-    const invalid = passwordProblem(password, confirmation);
-    if (invalid) {
-      setError(invalid);
-      return;
-    }
-    setBusy(true);
-    setError(null);
+export function AccountSection() {
+  // The web app runs signed in, with sync
+  const { engine, view } = useCloudSync()!;
+  const email = view.user?.email ?? '';
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const attempt = async (action: () => Promise<void>) => {
+    setProblem(null);
     try {
-      await server.request('POST', '/auth/password', { currentPassword: current, newPassword: password });
-      setCurrent('');
-      setPassword('');
-      setConfirmation('');
-      showSuccess('Password changed. Every other device was signed out.');
-    } catch (failure) {
-      setError(problem(failure));
-    } finally {
-      setBusy(false);
+      await action();
+    } catch (error) {
+      setProblem(cloudErrorMessage(error));
+      throw error;
     }
-  };
-
-  const signOut = async () => {
-    try {
-      await server.request('POST', '/auth/logout');
-    } catch (failure) {
-      showError(problem(failure));
-      return;
-    }
-    navigate('/login');
   };
 
   return (
-    <SettingsSection
-      title="Account"
-      icon={<PersonIcon color="primary" />}
-      headerChildren={user.role === 'admin' && <Chip label="Admin" size="small" color="primary" />}
-    >
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography>
-          Signed in as <strong>{user.displayName || user.username}</strong>
-          {user.displayName && ` (${user.username})`}
-        </Typography>
-        <Button variant="outlined" onClick={signOut}>
+    <SettingsSection title="Account" icon={<AccountIcon color="primary" />}>
+      <Typography variant="body1" sx={{ mb: 2 }}>
+        Signed in as {email}
+      </Typography>
+      {notice && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {notice}
+        </Alert>
+      )}
+      {problem && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {problem}
+        </Alert>
+      )}
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
+        <Button variant="outlined" onClick={() => void engine.signOut()}>
           Sign out
         </Button>
+        <Button
+          onClick={() =>
+            void attempt(async () => {
+              await engine.resetPassword(email);
+              setNotice(`A link to set a new password is on its way to ${email}.`);
+            }).catch(() => undefined)
+          }
+        >
+          Change password
+        </Button>
+        <Button color="error" onClick={() => setDeleting(true)}>
+          Delete account
+        </Button>
       </Stack>
-      <Divider sx={{ mb: 3 }} />
-      <Box component="form" onSubmit={changePassword} noValidate sx={{ maxWidth: 420 }}>
-        <Stack spacing={2}>
-          <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
-            Change password
-          </Typography>
-          {error && <Alert severity="error">{error}</Alert>}
-          <TextField
-            label="Current password"
-            type="password"
-            autoComplete="current-password"
-            value={current}
-            onChange={event => setCurrent(event.target.value)}
-            required
-            fullWidth
-          />
-          <PasswordFields
-            password={password}
-            confirmation={confirmation}
-            onPassword={setPassword}
-            onConfirmation={setConfirmation}
-          />
-          <Box>
-            <Button type="submit" variant="contained" disabled={busy || !current}>
-              Change password
-            </Button>
-          </Box>
-        </Stack>
-      </Box>
+      <ConfirmDialog
+        open={deleting}
+        onClose={() => setDeleting(false)}
+        onConfirm={() => attempt(() => engine.deleteAccount())}
+        title="Delete your account?"
+        message="Your account and all your TaskMint data in the cloud are deleted, and your other devices stop syncing (each keeps its own copy). This can't be undone."
+        confirmLabel="Delete account"
+        severity="error"
+      />
     </SettingsSection>
   );
 }

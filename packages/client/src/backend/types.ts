@@ -24,8 +24,11 @@ export interface Capabilities {
    * tablet (Android, iOS), or a browser.
    */
   runtime: 'desktop' | 'mobile' | 'web';
-  /** Where tracked time lives: on this computer, or on a TaskMint server. */
-  dataLocation: 'local' | 'server';
+  /**
+   * Where tracked time lives: on this device (synced with the cloud once
+   * signed in), or only in the cloud (the web app, whose page holds a copy).
+   */
+  dataLocation: 'local' | 'cloud';
 }
 
 /**

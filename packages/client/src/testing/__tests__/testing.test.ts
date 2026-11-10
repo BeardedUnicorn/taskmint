@@ -37,11 +37,11 @@ describe('createFakeBackend', () => {
 
   it('takes other capabilities and leaves out platform features', () => {
     const backend = createFakeBackend({
-      capabilities: { runtime: 'web', dataLocation: 'server' },
+      capabilities: { runtime: 'web', dataLocation: 'cloud' },
       without: ['idle', 'folderBackups', 'tray', 'systemBars', 'reveal', 'captureStatus', 'googleSignIn', 'analytics'],
     });
 
-    expect(backend.capabilities).toEqual({ runtime: 'web', dataLocation: 'server' });
+    expect(backend.capabilities).toEqual({ runtime: 'web', dataLocation: 'cloud' });
     expect(Object.keys(backend.platform).sort()).toEqual(['files', 'notifications']);
   });
 

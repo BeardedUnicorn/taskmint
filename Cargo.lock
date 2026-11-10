@@ -4114,6 +4114,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "taskmint-wasm"
+version = "3.1.0"
+dependencies = [
+ "taskmint-core",
+ "uuid",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "tauri"
 version = "2.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

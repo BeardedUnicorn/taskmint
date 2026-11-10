@@ -7,6 +7,7 @@
 pub mod capture;
 pub mod command;
 pub mod contract;
+pub mod host;
 pub mod idle;
 pub mod load;
 pub mod model;

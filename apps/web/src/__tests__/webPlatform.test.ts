@@ -5,8 +5,8 @@ import { createWebPlatform, downloadName } from '../webPlatform';
 const platform = createWebPlatform();
 
 describe('the web platform', () => {
-  it('has no desktop-only features', () => {
-    expect(Object.keys(platform)).toEqual(['files', 'notifications']);
+  it('has no desktop-only features, and counts usage with Firebase Analytics', () => {
+    expect(Object.keys(platform)).toEqual(['files', 'notifications', 'analytics']);
   });
 
   describe('exports', () => {
