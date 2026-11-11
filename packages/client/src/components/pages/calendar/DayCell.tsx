@@ -17,6 +17,7 @@ import { formatDate, formatDurationCompact } from '../../../utils/formatters';
 import { formatClockTime } from '../../../utils/locale';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { CalendarDay } from './calendarMonth';
+import { focusColor } from '../../../theme/components';
 import { HOVER, PHONE } from '../../../theme/media';
 
 /** The grid is wide enough for cents, time and labelled badges. */
@@ -136,7 +137,7 @@ export function DayCell({ day, tabbable, onOpen, onFocusDay }: DayCellProps) {
           bgcolor: worked && day.inMonth ? alpha(theme.palette.primary.main, 0.07) : 'transparent',
           transition: theme.transitions.create(['background-color', 'border-color'], { duration: 120 }),
           [HOVER]: { '&:hover': { bgcolor: theme.palette.action.hover } },
-          '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+          '&:focus-visible': { outline: `2px solid ${focusColor(theme.palette.mode)}`, outlineOffset: 1 },
           [WIDE]: { minHeight: 112, p: 1 },
           // A phone's day is too narrow for its amount: a stronger tint marks
           // a worked day, and tapping it shows the details
