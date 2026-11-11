@@ -3,7 +3,8 @@
  *
  * The money view over the imported work-log ledger and tracked sessions:
  * the next withdrawal, what's available now, what's pending release
- * (workDay + fundsReleaseDays), the upcoming release schedule, the recorded
+ * (workDay + fundsReleaseDays), the upcoming release schedule (to schedule
+ * the next withdrawal from, with what's held until it opens), the recorded
  * withdrawals, and a per-day reconciliation of tracked vs imported time. Imported amounts (cents from the site) are authoritative;
  * days without imported data show rate-based estimates.
  */
@@ -44,8 +45,7 @@ export function PayoutsPage() {
   const { tasks, addTask } = useTaskManagementContext();
   const workLogs = useWorkLogContext();
   const { showSuccess } = useNotification();
-  const { fundsReleaseDays, today, schedule, summary, monthGroups, plan, lastImport, importIsStale, isEmpty } =
-    usePayoutData();
+  const { fundsReleaseDays, today, summary, monthGroups, plan, lastImport, importIsStale, isEmpty } = usePayoutData();
   const [importOpen, setImportOpen] = useState(false);
 
   // One-shot status of the localhost capture server (port conflicts etc.),
@@ -216,7 +216,7 @@ export function PayoutsPage() {
             />
           </Box>
 
-          <ReleaseScheduleTable schedule={schedule} />
+          <ReleaseScheduleTable />
           <WithdrawalsCard />
           <ReconciliationTable monthGroups={monthGroups} today={today} />
         </>

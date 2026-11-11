@@ -24,6 +24,8 @@ export interface UseWorkLogsReturn {
   entries: WorkLogEntry[];
   mappings: ProjectTaskMapping[];
   isLoading: boolean;
+  /** The first load has finished (or failed); until then the ledger is just empty. */
+  hasLoaded: boolean;
   loadWarning: string | null;
   applyImport: (payload: WorkLogImportPayload) => Promise<WorkLogImportSummary | null>;
   /**
@@ -47,6 +49,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
   const [entries, setEntries] = useState<WorkLogEntry[]>([]);
   const [mappings, setMappings] = useState<ProjectTaskMapping[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
 
   const { showError, showSuccess, showWarning } = useNotification();
@@ -63,6 +66,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
       showError(message);
     } finally {
       setIsLoading(false);
+      setHasLoaded(true);
     }
   }, [showError]);
 
@@ -127,7 +131,7 @@ export function useWorkLogs(): UseWorkLogsReturn {
   }, [loadWarning, showWarning]);
 
   return useMemo(
-    () => ({ entries, mappings, isLoading, loadWarning, applyImport, undoImport }),
-    [entries, mappings, isLoading, loadWarning, applyImport, undoImport]
+    () => ({ entries, mappings, isLoading, hasLoaded, loadWarning, applyImport, undoImport }),
+    [entries, mappings, isLoading, hasLoaded, loadWarning, applyImport, undoImport]
   );
 }

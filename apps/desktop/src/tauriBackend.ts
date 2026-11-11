@@ -9,14 +9,23 @@
  * On a phone or tablet (runtime 'mobile') the platform is the files and
  * notifications only: there's no system idle time, tray, folder to back up
  * to, file manager or browser extension, so the client leaves those features
- * out, as it does in a browser. On Android it also has the status bar, which
- * MainActivity.kt hands the webview directly, outside dispatch.
+ * out, as it does in a browser. Its notifications can also be set for later,
+ * as alarms the system shows with the app closed. On Android it also has the
+ * status bar, which MainActivity.kt hands the webview directly, outside
+ * dispatch.
  */
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { CORE_ERRORS, type CommandName, type CommandReply } from '@taskmint/contracts';
-import type { Backend, Capabilities, CommandArgsParam, Platform, SavedFile } from '@taskmint/client/backend';
+import type {
+  Backend,
+  Capabilities,
+  CommandArgsParam,
+  NotificationPlatform,
+  Platform,
+  SavedFile,
+} from '@taskmint/client/backend';
 
 /** What a dismissed save or open dialog rejects with. */
 const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
@@ -76,6 +85,14 @@ const everywhere: Platform = {
     show: (kind, title, body) => command<boolean>('show_desktop_notification', { kind, title, body }),
     setPreferences: prefs => command<void>('set_notification_preferences', { prefs }),
   },
+};
+
+/** A phone's notifications, which can also be set for later (alarms the system shows with the app closed). */
+const phoneNotifications: NotificationPlatform = {
+  ...everywhere.notifications,
+  schedule: ({ id, atMs, kind, title, body }) =>
+    command<boolean>('schedule_notification', { id, at: new Date(atMs).toISOString(), kind, title, body }),
+  cancel: id => command<void>('cancel_notification', { id }),
 };
 
 /** What only a desktop has. */
@@ -179,7 +196,9 @@ export function createTauriBackend(capabilities: Capabilities, google?: GoogleDe
     subscribe,
     platform: {
       ...everywhere,
-      ...(capabilities.runtime === 'mobile' ? { ...systemBars(), ...analytics() } : desktopOnly),
+      ...(capabilities.runtime === 'mobile'
+        ? { notifications: phoneNotifications, ...systemBars(), ...analytics() }
+        : desktopOnly),
       ...googleSignIn(capabilities.runtime, google),
     },
   };

@@ -2,8 +2,9 @@
  * A Backend for tests: every command and platform call is a vitest mock, and
  * `emit` delivers an event to whatever subscribed. Defaults match a desktop
  * with nothing in it: commands resolve to undefined, dialogs are cancelled,
- * no OS notification shows, and every optional platform feature is present
- * (pass `without` to leave some out).
+ * no OS notification shows (nor is any set for later), and every optional
+ * platform feature is present (pass `without` to leave some out;
+ * `laterNotifications` is notifications' schedule and cancel).
  */
 
 import { vi, type Mock } from 'vitest';
@@ -59,7 +60,15 @@ export interface FakeBackendOptions {
   capabilities?: Partial<Capabilities>;
   /** Optional platform features this backend lacks (as on the web). */
   without?: ReadonlyArray<
-    'idle' | 'folderBackups' | 'tray' | 'systemBars' | 'reveal' | 'captureStatus' | 'googleSignIn' | 'analytics'
+    | 'idle'
+    | 'folderBackups'
+    | 'tray'
+    | 'systemBars'
+    | 'reveal'
+    | 'captureStatus'
+    | 'googleSignIn'
+    | 'analytics'
+    | 'laterNotifications'
   >;
 }
 
@@ -74,6 +83,8 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     notifications: {
       show: vi.fn(async () => false),
       setPreferences: vi.fn(async () => undefined),
+      schedule: vi.fn(async () => false),
+      cancel: vi.fn(async () => undefined),
     },
     idle: {
       isSupported: vi.fn(async () => true),
@@ -103,7 +114,14 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
       screen: vi.fn(),
     },
   };
-  for (const feature of without) delete platform[feature];
+  for (const feature of without) {
+    if (feature === 'laterNotifications') {
+      delete (platform.notifications as Partial<FakePlatform['notifications']>).schedule;
+      delete (platform.notifications as Partial<FakePlatform['notifications']>).cancel;
+    } else {
+      delete platform[feature];
+    }
+  }
 
   return {
     capabilities: { runtime: 'desktop', dataLocation: 'local', ...capabilities },

@@ -1,6 +1,7 @@
 /**
  * When the next withdrawal opens and how much it will be, with what waiting
- * longer would add, and a button to record one. On the Calendar and Payouts.
+ * longer would add, a button to record one, and the withdrawal you scheduled
+ * from the upcoming releases (to remove it). On the Calendar and Payouts.
  */
 
 import { ReactNode, useState } from 'react';
@@ -18,13 +19,13 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { ExpandMore as ExpandMoreIcon, Savings as SavingsIcon } from '@mui/icons-material';
+import { AlarmOn as AlarmOnIcon, ExpandMore as ExpandMoreIcon, Savings as SavingsIcon } from '@mui/icons-material';
 import { usePayoutData } from '../../../../hooks/usePayoutData';
 import { useWithdrawals } from '../../../../hooks/useWithdrawals';
 import { formatCents } from '../../../../utils/payoutCalculator';
 import { formatCountdown } from '../../../../utils/formatters';
 import { formatWeekdayDateTime } from '../../../../utils/locale';
-import { WaitStep, WithdrawableAmount } from '../../../../utils/withdrawals';
+import { WaitStep, WithdrawableAmount, WithdrawalReminder } from '../../../../utils/withdrawals';
 import { MONO } from '../payoutStyles';
 import { RecordWithdrawalDialog } from './RecordWithdrawalDialog';
 import { PHONE } from '../../../../theme/media';
@@ -83,9 +84,35 @@ function IfYouWait({ steps }: { steps: WaitStep[] }) {
   );
 }
 
+/** "Reminder: Thu, Nov 12, 6:25 PM · ~$1,234.00", or that it's ready, with a button to remove it. */
+function ScheduledLine({
+  reminder,
+  nowMs,
+  onRemove,
+}: {
+  reminder: WithdrawalReminder;
+  nowMs: number;
+  onRemove: () => void;
+}) {
+  const { amount } = reminder;
+  const when = formatWeekdayDateTime(reminder.dueMs);
+  return (
+    <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+      <AlarmOnIcon fontSize="small" color="primary" />
+      <Typography variant="body2">
+        {reminder.dueMs > nowMs ? `Reminder: ${when}` : `Your scheduled withdrawal is ready (since ${when})`}
+        {amount && ` · ${amount.estimatedCents > 0 ? '~' : ''}${formatCents(amount.totalCents)}`}
+      </Typography>
+      <Button size="small" onClick={onRemove} aria-label="Remove the scheduled withdrawal">
+        Remove
+      </Button>
+    </Box>
+  );
+}
+
 export function NextWithdrawalPanel() {
-  const { plan, nowMs, withdrawalIntervalDays } = usePayoutData();
-  const { loadError } = useWithdrawals();
+  const { plan, reminder, nowMs, withdrawalIntervalDays } = usePayoutData();
+  const { loadError, cancelScheduledWithdrawal } = useWithdrawals();
   const [recording, setRecording] = useState(false);
 
   const recordButton = (primary: boolean) => (
@@ -173,6 +200,9 @@ export function NextWithdrawalPanel() {
   return (
     <Paper component="section" aria-label="Withdrawals" sx={{ p: 3, mb: 3, [PHONE]: { p: 2 } }}>
       {content}
+      {reminder && !loadError && (
+        <ScheduledLine reminder={reminder} nowMs={nowMs} onRemove={cancelScheduledWithdrawal} />
+      )}
       {recording && <RecordWithdrawalDialog onClose={() => setRecording(false)} />}
     </Paper>
   );

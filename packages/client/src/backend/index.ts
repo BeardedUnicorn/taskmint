@@ -4,6 +4,8 @@ export type {
   Capabilities,
   CommandArgsParam,
   FolderBackupPlatform,
+  LaterNotification,
+  NotificationPlatform,
   Platform,
   SavedFile,
 } from './types';

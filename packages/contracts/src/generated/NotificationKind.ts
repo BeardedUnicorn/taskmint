@@ -3,4 +3,4 @@
 /**
  * What a notification is about (camelCase, as the frontend sends it).
  */
-export type NotificationKind = "general" | "goalMilestone" | "longRun" | "idlePause" | "workLogCapture" | "backupFailure" | "backupSuccess" | "dailySummary" | "error" | "test";
+export type NotificationKind = "general" | "goalMilestone" | "longRun" | "idlePause" | "workLogCapture" | "backupFailure" | "backupSuccess" | "dailySummary" | "error" | "withdrawalReady" | "test";

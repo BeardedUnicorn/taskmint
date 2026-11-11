@@ -10,9 +10,9 @@ import { createMockWithdrawal } from '../../__tests__/setup/payout-test-utils';
 import { lastImportMs, usePayoutData } from '../usePayoutData';
 
 const contexts = vi.hoisted(() => ({
-  sessions: { sessions: [] as unknown[], isLoading: false },
+  sessions: { sessions: [] as unknown[], isLoading: false, hasLoaded: true },
   tasks: { tasks: [] as unknown[], isLoading: false },
-  workLogs: { entries: [] as unknown[], isLoading: false },
+  workLogs: { entries: [] as unknown[], isLoading: false, hasLoaded: true },
 }));
 vi.mock('../../contexts/SessionManagementContext', () => ({ useSessionManagementContext: () => contexts.sessions }));
 vi.mock('../../contexts/TaskManagementContext', () => ({ useTaskManagementContext: () => contexts.tasks }));
@@ -45,17 +45,28 @@ describe('usePayoutData', () => {
 
   it('is loading while sessions (the first time), tasks or work logs are', () => {
     const loading = (sessions: boolean, tasks: boolean, workLogs: boolean, hasSessions = false) => {
-      contexts.sessions = { sessions: hasSessions ? [{}] : [], isLoading: sessions };
+      contexts.sessions = { sessions: hasSessions ? [{}] : [], isLoading: sessions, hasLoaded: true };
       contexts.tasks = { tasks: [], isLoading: tasks };
-      contexts.workLogs = { entries: [], isLoading: workLogs };
+      contexts.workLogs = { entries: [], isLoading: workLogs, hasLoaded: true };
       return renderHook(() => usePayoutData(), { wrapper }).result.current.isLoading;
     };
     expect(loading(true, false, false)).toBe(true);
     expect(loading(false, true, false)).toBe(true);
     expect(loading(false, false, true)).toBe(true);
     expect(loading(false, false, false)).toBe(false);
-    contexts.sessions = { sessions: [], isLoading: false };
-    contexts.workLogs = { entries: [], isLoading: false };
+    contexts.sessions = { sessions: [], isLoading: false, hasLoaded: true };
+    contexts.workLogs = { entries: [], isLoading: false, hasLoaded: true };
+  });
+
+  it("is loading before the sessions' or the work logs' first load has started", () => {
+    const loading = (sessionsLoaded: boolean, workLogsLoaded: boolean) => {
+      contexts.sessions = { sessions: [], isLoading: false, hasLoaded: sessionsLoaded };
+      contexts.workLogs = { entries: [], isLoading: false, hasLoaded: workLogsLoaded };
+      return renderHook(() => usePayoutData(), { wrapper }).result.current.isLoading;
+    };
+    expect(loading(false, true)).toBe(true);
+    expect(loading(true, false)).toBe(true);
+    expect(loading(true, true)).toBe(false);
   });
 
   it('finds the last import, skipping unreadable times', () => {

@@ -65,8 +65,10 @@ describe('useWorkLogs', () => {
     });
 
     const { result } = renderHook(() => useWorkLogs());
+    expect(result.current.hasLoaded).toBe(false);
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.hasLoaded).toBe(true);
     expect(result.current.entries).toEqual([entry]);
     expect(result.current.mappings).toEqual([mapping]);
     expect(mockShowError).not.toHaveBeenCalled();
@@ -107,6 +109,8 @@ describe('useWorkLogs', () => {
 
     await waitFor(() => expect(mockShowError).toHaveBeenCalledWith('Failed to lock work logs: poisoned'));
     expect(result.current.isLoading).toBe(false);
+    // Done, if empty: the app doesn't wait on it forever
+    expect(result.current.hasLoaded).toBe(true);
   });
 
   it('shows a startup load warning once', async () => {

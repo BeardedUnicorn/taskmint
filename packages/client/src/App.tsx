@@ -27,6 +27,7 @@ import { WorkLogProvider } from './contexts/WorkLogContext';
 import { WithdrawalsProvider } from './contexts/WithdrawalsContext';
 import { PayoutDataProvider } from './contexts/PayoutDataContext';
 import { useTrayWithdrawalLabel } from './hooks/useTrayWithdrawalLabel';
+import { useWithdrawalReminder } from './hooks/useWithdrawalReminder';
 import { useSystemBarsTheme } from './hooks/useSystemBarsTheme';
 import { useAnalyticsScreens } from './utils/analytics';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
@@ -39,8 +40,8 @@ import { VIEW_LABELS } from './navigation/views';
 /**
  * Work that runs whatever page is open: the tray's "Choose Task…", saying
  * when a save lost to a change made on another device, pointing to what's
- * new after an update, a phone's status bar following the theme, and the
- * pages opened, for usage analytics.
+ * new after an update, a scheduled withdrawal's reminder, a phone's status
+ * bar following the theme, and the pages opened, for usage analytics.
  */
 function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }) {
   const { sessions, hasLoaded } = useSessionManagementContext();
@@ -48,6 +49,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
 
   useEnhancedSystemTray({ onShowStartDialog });
   useTrayWithdrawalLabel();
+  useWithdrawalReminder();
   useSystemBarsTheme();
   useRecordConflictNotice();
   useUpdatedNotice();

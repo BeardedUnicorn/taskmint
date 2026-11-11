@@ -55,6 +55,9 @@ tauri-plugin-updater = "2.14"
 # only the fs plugin can open (platform/os.rs). A desktop opens paths itself.
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-fs = "2.7"
+# Only a phone or tablet sets notifications for the system to show later:
+# the time one fires at, as the notification plugin takes it (platform/os.rs)
+time = "0.3"
 
 [features]
 failpoints = ["fail/failpoints"]

@@ -44,9 +44,28 @@ export interface FilePlatform {
   openJson(): Promise<string | null>;
 }
 
+/** An OS notification for the system to show later. */
+export interface LaterNotification {
+  /** Setting another with the same id replaces it. */
+  id: number;
+  atMs: number;
+  kind: DesktopKind;
+  title: string;
+  body: string;
+}
+
 export interface NotificationPlatform {
   /** Shows an OS notification; resolves to whether one was shown. */
   show(kind: DesktopKind, title: string, body: string): Promise<boolean>;
+  /**
+   * Sets a notification for the system to show at its time, even with the
+   * app closed (a phone's alarm). Resolves to whether it was set: not when
+   * the preferences turn it off or the time has passed. Absent where the
+   * app has to be running to notify (a desktop, a browser).
+   */
+  schedule?(notification: LaterNotification): Promise<boolean>;
+  /** Takes back the notification set with `id`; present along with `schedule`. */
+  cancel?(id: number): Promise<void>;
   /** The preferences for notifications the shell raises itself (the long-run reminder, idle pauses). */
   setPreferences?(preferences: NotificationPreferences): Promise<void>;
 }

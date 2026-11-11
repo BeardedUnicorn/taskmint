@@ -23,6 +23,9 @@ export const STORAGE_KEYS = {
   // FUNDS_RELEASE_DAYS and WITHDRAWAL_INTERVAL_DAYS are where each device
   // kept them before; services/localAccountSettings moves them in once.
   ACCOUNT_SETTINGS: 'accountSettings',
+  // The withdrawal scheduled from Payouts' upcoming releases: a record, so
+  // every device reminds you (types/withdrawal)
+  SCHEDULED_WITHDRAWAL: 'scheduledWithdrawal',
   // Device settings a backup carries a copy of (utils/deviceSettings);
   // ThemeContext reads THEME_MODE by its literal name
   THEME_MODE: 'theme-mode',

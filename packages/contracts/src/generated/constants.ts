@@ -89,6 +89,7 @@ export const APP_RECORD_KEYS = [
   "dailyGoalAchievements",
   "withdrawals",
   "accountSettings",
+  "scheduledWithdrawal",
 ] as const;
 
 /** `source` of sessions synthesized from imported work-log entries. */

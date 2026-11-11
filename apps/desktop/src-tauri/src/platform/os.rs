@@ -11,7 +11,9 @@
 //! The Save and Open dialogs pick a path on a desktop, and on Android a
 //! document (a content:// address) that the fs plugin opens for the app.
 
-use super::{AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog};
+use super::{
+    AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, ScheduledNotification,
+};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::fs::File;
@@ -94,6 +96,56 @@ fn open_picked_file(app: &AppHandle, file: &PickedFile, write: bool) -> std::io:
         false => options.read(true),
     };
     app.fs().open(path, options)
+}
+
+/// A phone's alarm: the system shows the notification at its time, with the
+/// app closed, and in Doze too.
+#[cfg(mobile)]
+fn schedule_os_notification(
+    app: &AppHandle,
+    scheduled: &ScheduledNotification,
+) -> Result<(), String> {
+    use tauri_plugin_notification::Schedule;
+    let nanos = i128::from(scheduled.at.timestamp_millis()) * 1_000_000;
+    let date = time::OffsetDateTime::from_unix_timestamp_nanos(nanos).map_err(text)?;
+    let mut builder = app
+        .notification()
+        .builder()
+        .id(scheduled.id)
+        .title(&scheduled.title)
+        .body(&scheduled.body)
+        // Shown expanded too (see notify)
+        .large_body(&scheduled.body)
+        .schedule(Schedule::At {
+            date,
+            repeating: false,
+            allow_while_idle: true,
+        });
+    if scheduled.sound {
+        builder = builder.sound(SOUND);
+    }
+    builder.show().map_err(text)
+}
+
+#[cfg(mobile)]
+fn cancel_os_notification(app: &AppHandle, id: i32) -> Result<(), String> {
+    app.notification().cancel(vec![id]).map_err(text)
+}
+
+/// A desktop's reminders are timed by the app while it runs, so the system
+/// is never asked to set one.
+#[cfg(desktop)]
+fn schedule_os_notification(
+    _app: &AppHandle,
+    _scheduled: &ScheduledNotification,
+) -> Result<(), String> {
+    Err("Scheduled notifications are only set on a phone or tablet.".to_string())
+}
+
+/// Nothing is ever set on a desktop, so there's nothing to take back.
+#[cfg(desktop)]
+fn cancel_os_notification(_app: &AppHandle, _id: i32) -> Result<(), String> {
+    Ok(())
 }
 
 /// The tray, the folder picker and the updater.
@@ -339,11 +391,28 @@ impl Platform for TauriPlatform {
     }
 
     fn notify(&self, title: &str, body: &str, sound: bool) -> Result<(), String> {
-        let mut builder = self.app.notification().builder().title(title).body(body);
+        // The large body is Android's: without it the plugin's empty inbox
+        // style hides the text whenever the notification is expanded
+        // (desktops ignore it)
+        let mut builder = self
+            .app
+            .notification()
+            .builder()
+            .title(title)
+            .body(body)
+            .large_body(body);
         if sound {
             builder = builder.sound(SOUND);
         }
         builder.show().map_err(text)
+    }
+
+    fn schedule_notification(&self, scheduled: &ScheduledNotification) -> Result<(), String> {
+        schedule_os_notification(&self.app, scheduled)
+    }
+
+    fn cancel_notification(&self, id: i32) -> Result<(), String> {
+        cancel_os_notification(&self.app, id)
     }
 
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile> {

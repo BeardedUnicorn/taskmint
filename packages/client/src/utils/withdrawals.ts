@@ -10,9 +10,13 @@
  * withdrawal carries the truth about it: Untransferred is still on the
  * balance, Paid is gone, and a pending one that was due before the
  * withdrawal wasn't released in time for it, so it's still to come.
+ *
+ * A release before the next withdrawal opens is held: it can't be taken out
+ * until the opening. A withdrawal scheduled for a release is due at the
+ * release, or at the opening when the release is held (planReminder).
  */
 
-import { Withdrawal } from '../types/withdrawal';
+import { ScheduledWithdrawal, Withdrawal } from '../types/withdrawal';
 import { ReleaseEvent, isPaid, isUntransferred } from './payoutCalculator';
 
 export const DAY_MS = 86_400_000;
@@ -108,6 +112,8 @@ export interface WaitStep {
 export interface WithdrawalPlan {
   /** The latest withdrawal. */
   last: Withdrawal;
+  /** When the wait after the latest withdrawal ends (it may have passed). */
+  allowedAtMs: number;
   /** When the next withdrawal is allowed (now, when it already is). */
   opensAtMs: number;
   isOpen: boolean;
@@ -158,10 +164,56 @@ export function planWithdrawals(
 
   return {
     last,
+    allowedAtMs,
     opensAtMs,
     isOpen: nowMs >= allowedAtMs,
     next,
     availableNow: withdrawableAt(events, cutoffMs, nowMs),
     ifYouWait,
   };
+}
+
+/** Until when releases are held (they can't be taken out before it); null while withdrawals are open. */
+export function heldUntilMs(plan: WithdrawalPlan | null): number | null {
+  return plan && !plan.isOpen ? plan.allowedAtMs : null;
+}
+
+/** A withdrawal scheduled for a release: when it's ready, and what it takes then. */
+export interface ScheduledFor {
+  /** The release it waits for. */
+  releaseMs: number;
+  /** When it's ready: the release, or the opening when the release is held. */
+  dueMs: number;
+  /** The release lands before withdrawals open, so it waits for the opening. */
+  isHeld: boolean;
+  /** What the withdrawal takes then; null with no withdrawal recorded (nothing to count from). */
+  amount: WithdrawableAmount | null;
+}
+
+/** A withdrawal scheduled for the release at `releaseMs`, against the plan. */
+export function scheduledFor(releaseMs: number, plan: WithdrawalPlan | null, events: ReleaseEvent[]): ScheduledFor {
+  if (plan === null) return { releaseMs, dueMs: releaseMs, isHeld: false, amount: null };
+  const isHeld = releaseMs < plan.allowedAtMs;
+  const dueMs = isHeld ? plan.allowedAtMs : releaseMs;
+  return { releaseMs, dueMs, isHeld, amount: withdrawableAt(events, takenAtMs(plan.last), dueMs) };
+}
+
+export interface WithdrawalReminder extends ScheduledFor {
+  /** The schedule's id. */
+  id: string;
+}
+
+/**
+ * The scheduled withdrawal, worked out against the plan. Null when none is
+ * scheduled, or when a withdrawal has been made since it was (that was the
+ * one it was for).
+ */
+export function planReminder(
+  scheduled: ScheduledWithdrawal | null,
+  plan: WithdrawalPlan | null,
+  events: ReleaseEvent[]
+): WithdrawalReminder | null {
+  if (scheduled === null) return null;
+  if (plan && takenAtMs(plan.last) >= Date.parse(scheduled.createdAt)) return null;
+  return { id: scheduled.id, ...scheduledFor(Date.parse(scheduled.releaseAt), plan, events) };
 }

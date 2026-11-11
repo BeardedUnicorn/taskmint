@@ -1,11 +1,12 @@
 /**
  * Everything the money views show, from the imported ledger, the tracked
  * sessions and the recorded withdrawals: per-day cells, every release, the
- * upcoming schedule, the Payouts cards, how fresh the last import is, and
- * the withdrawal plan. Computed once for the app (PayoutDataProvider), so
- * the Calendar, Payouts and the tray line always agree. Ticks every second
- * while a timer runs (estimates follow live time), every minute otherwise so
- * "today", releases and the withdrawal opening roll over.
+ * upcoming schedule, the Payouts cards, how fresh the last import is, the
+ * withdrawal plan, and the withdrawal the user scheduled. Computed once for
+ * the app (PayoutDataProvider), so the Calendar, Payouts and the tray line
+ * always agree. Ticks every second while a timer runs (estimates follow live
+ * time), every minute otherwise so "today", releases and the withdrawal
+ * opening roll over.
  */
 
 import { createContext, useContext, useMemo } from 'react';
@@ -30,7 +31,7 @@ import {
   groupCellsByMonth,
   summarizePayouts,
 } from '../utils/payoutCalculator';
-import { DAY_MS, WithdrawalPlan, planWithdrawals } from '../utils/withdrawals';
+import { DAY_MS, WithdrawalPlan, WithdrawalReminder, planReminder, planWithdrawals } from '../utils/withdrawals';
 
 /** After this long without an import, Payouts says its numbers may be out of date. */
 export const STALE_IMPORT_MS = 3 * 24 * 60 * 60 * 1000;
@@ -59,10 +60,15 @@ export interface PayoutData {
   monthGroups: PayoutMonthGroup[];
   /** The next withdrawal; null until one is recorded. */
   plan: WithdrawalPlan | null;
+  /** The withdrawal the user scheduled, against the plan; null for none. */
+  reminder: WithdrawalReminder | null;
   lastImport: number | null;
   importIsStale: boolean;
   isEmpty: boolean;
-  /** Sessions, tasks or work logs are still loading, so the numbers may jump. */
+  /**
+   * Sessions or work logs haven't loaded yet, or they or the tasks are still
+   * loading, so the numbers may jump.
+   */
   isLoading: boolean;
 }
 
@@ -79,10 +85,10 @@ export function usePayoutData(): PayoutData {
 
 /** The payout data itself. Use once, in PayoutDataProvider. */
 export function usePayoutDataState(): PayoutData {
-  const { sessions, isLoading: sessionsLoading } = useSessionManagementContext();
+  const { sessions, isLoading: sessionsLoading, hasLoaded: sessionsLoaded } = useSessionManagementContext();
   const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
-  const { entries, isLoading: workLogsLoading } = useWorkLogContext();
-  const { withdrawals } = useWithdrawals();
+  const { entries, isLoading: workLogsLoading, hasLoaded: workLogsLoaded } = useWorkLogContext();
+  const { withdrawals, scheduled } = useWithdrawals();
   const { days: fundsReleaseDays } = useFundsReleaseSettings();
   const { days: withdrawalIntervalDays } = useWithdrawalIntervalSetting();
 
@@ -104,6 +110,7 @@ export function usePayoutDataState(): PayoutData {
     () => planWithdrawals(events, withdrawals, withdrawalIntervalDays * DAY_MS, nowMs),
     [events, withdrawals, withdrawalIntervalDays, nowMs]
   );
+  const reminder = useMemo(() => planReminder(scheduled, plan, events), [scheduled, plan, events]);
 
   const lastImport = lastImportMs(entries);
   return {
@@ -117,9 +124,15 @@ export function usePayoutDataState(): PayoutData {
     summary,
     monthGroups,
     plan,
+    reminder,
     lastImport,
     importIsStale: lastImport !== null && nowMs - lastImport > STALE_IMPORT_MS,
     isEmpty: entries.length === 0 && cells.length === 0,
-    isLoading: Boolean(sessionsLoading && sessions.length === 0) || Boolean(tasksLoading) || workLogsLoading,
+    isLoading:
+      !sessionsLoaded ||
+      !workLogsLoaded ||
+      Boolean(sessionsLoading && sessions.length === 0) ||
+      Boolean(tasksLoading) ||
+      workLogsLoading,
   };
 }

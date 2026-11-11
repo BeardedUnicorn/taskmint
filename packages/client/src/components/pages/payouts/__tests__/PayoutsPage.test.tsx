@@ -31,7 +31,7 @@ vi.mock('../../../../contexts/WorkLogContext', () => ({
   useWorkLogContext: () => mockWorkLogsReturn,
 }));
 
-const mockSessionContext = { sessions: [] as TaskSession[] };
+const mockSessionContext = { sessions: [] as TaskSession[], hasLoaded: true };
 vi.mock('../../../../contexts/SessionManagementContext', () => ({
   useSessionManagementContext: () => mockSessionContext,
 }));
@@ -106,6 +106,7 @@ describe('PayoutsPage', () => {
       entries: [],
       mappings: [],
       isLoading: false,
+      hasLoaded: true,
       loadWarning: null,
       applyImport: vi.fn(),
       undoImport: vi.fn(),
