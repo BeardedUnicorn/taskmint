@@ -9,9 +9,8 @@ import type { Components, Theme } from '@mui/material/styles';
 import { PHONE, TOUCH } from './media';
 import { BRAND, BRAND_TEXT_LIGHT, ColorMode } from './palettes';
 
-const focusRing = (offset: string) => ({
-  '&:focus-visible': { outline: `2px solid ${BRAND}`, outlineOffset: offset },
-});
+/** The focus ring's color (and a focused field's edge): the brand green, darker on light surfaces where it would fade. */
+export const focusColor = (mode: ColorMode) => (mode === 'light' ? BRAND_TEXT_LIGHT : BRAND);
 
 const SHADOWS: Record<ColorMode, [string, string, string]> = {
   light: [
@@ -29,6 +28,10 @@ const SHADOWS: Record<ColorMode, [string, string, string]> = {
 export function components(mode: ColorMode): Components<Theme> {
   const light = mode === 'light';
   const [shadow1, shadow2, shadow3] = SHADOWS[mode];
+  const ring = focusColor(mode);
+  const focusRing = (offset: string) => ({
+    '&:focus-visible': { outline: `2px solid ${ring}`, outlineOffset: offset },
+  });
 
   return {
     MuiCard: {
@@ -81,7 +84,7 @@ export function components(mode: ColorMode): Components<Theme> {
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            '&:focus-within .MuiOutlinedInput-notchedOutline': { borderColor: BRAND, borderWidth: '2px' },
+            '&:focus-within .MuiOutlinedInput-notchedOutline': { borderColor: ring, borderWidth: '2px' },
             '&.MuiInputBase-multiline': {
               padding: '12px 14px',
               alignItems: 'flex-start',
