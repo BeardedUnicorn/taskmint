@@ -8,6 +8,13 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.2.1 – 2026-11-11
+
+### Fixed
+
+- In dark mode, the text on colored chips and buttons and the teal text are easier to read.
+- In light mode, the outline around the focused button or field is dark enough to see.
+
 ## 4.2.0 – 2026-11-10
 
 ### Added
