@@ -42,8 +42,9 @@ rules; the release signing keys.
 ## Checked and sound
 
 - **The Firestore rules** (`firebase/firestore.rules`):
-  - Everything is under `users/{uid}`, and only a user signed in as that
-    `uid` can read or write it. Nothing else in the database is reachable.
+  - Everything is under `users/{uid}` or `budgetmint/{uid}`, and only a user
+    signed in as that `uid` can read or write it. Nothing else in the
+    database is reachable.
   - The account document holds only `epoch`. It's created at 1, and moves
     only one up at a time.
   - A data document must have exactly the sync fields, one of the four
@@ -51,6 +52,17 @@ rules; the release signing keys.
     under 900 KB), `updatedAt` equal to the server's time, and the account's
     current epoch. A device can't backdate a write past others' cursors, and
     a device that missed a Delete cloud data can't write its old copy back.
+  - The published forecast (`users/{uid}/published/payoutForecast`, the
+    only name allowed) has exactly its fields, a JSON string under 200 KB,
+    the server's time, the account's current epoch, and a contract version
+    no older than the stored one's. It holds only amounts and times.
+  - BudgetMint's data (`budgetmint/{uid}`) is guarded the same way as
+    TaskMint's: its own epoch document, and data documents with exact
+    fields, one of three kinds, ids matching their kind's pattern, sizes per
+    kind, the server's time and the current epoch. TaskMint and BudgetMint
+    documents can't be written in each other's place. The rules can't tell
+    the apps apart (both are the same signed-in user): each app writing only
+    its own paths is a property of its code.
   - `firebase/firestore.rules.test.mjs` checks each of these on the emulator,
     including another user and no user at all, in `verify.sh` and CI.
 - **Reading what others wrote.** Even the owner's own documents are parsed

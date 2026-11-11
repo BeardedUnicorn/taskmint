@@ -10,6 +10,16 @@
       "collectionGroup": "data",
       "fieldPath": "hash",
       "indexes": []
+    },
+    {
+      "collectionGroup": "published",
+      "fieldPath": "json",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "published",
+      "fieldPath": "hash",
+      "indexes": []
     }
   ]
 }

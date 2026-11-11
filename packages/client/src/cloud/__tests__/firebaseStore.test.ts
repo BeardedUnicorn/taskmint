@@ -68,6 +68,7 @@ vi.mock('firebase/firestore', () => ({
   orderBy: vi.fn(field => ['orderBy', field]),
   limit: vi.fn(n => ['limit', n]),
   writeBatch: vi.fn(() => sdk.batch),
+  runTransaction: vi.fn(),
   serverTimestamp: vi.fn(() => 'SERVER_TIME'),
 }));
 
@@ -267,13 +268,70 @@ describe('the Firebase store', () => {
     expect(sdk.batch.set.mock.calls[1][1]).toMatchObject({ json: '{}', deleted: false });
   });
 
-  it('deletes everything on a new epoch', async () => {
+  it('deletes everything on a new epoch, the published documents too', async () => {
     const store = await createFirebaseStore(CONFIG);
-    const all = Array.from({ length: BATCH_SIZE + 2 }, (_, i) => ({ ref: `ref${i}` }));
-    vi.mocked(fs.getDocs).mockResolvedValueOnce({ docs: all } as never);
+    const all = Array.from({ length: BATCH_SIZE + 1 }, (_, i) => ({ ref: `ref${i}` }));
+    vi.mocked(fs.getDocs)
+      .mockResolvedValueOnce({ docs: all } as never)
+      .mockResolvedValueOnce({ docs: [{ ref: 'forecast' }] } as never);
     expect(await store.deleteAll('bea', 4)).toBe(5);
     expect(fs.updateDoc).toHaveBeenCalledWith({ path: 'users/bea' }, { epoch: 5 });
+    expect(fs.getDocs).toHaveBeenCalledWith({ path: 'users/bea/published' });
     expect(sdk.batch.delete).toHaveBeenCalledTimes(BATCH_SIZE + 2);
+    expect(sdk.batch.delete).toHaveBeenLastCalledWith('forecast');
     expect(sdk.batch.commit).toHaveBeenCalledTimes(2);
+  });
+
+  it('publishes a document unless the cloud has it already, or a newer one', async () => {
+    const store = await createFirebaseStore(CONFIG);
+    const transaction = { get: vi.fn(), set: vi.fn() };
+    vi.mocked(fs.runTransaction).mockImplementation(async (_db, update) => update(transaction as never));
+    const doc = { json: '{"schema":1}', hash: 'abc', schema: 1, appVersion: '4.2.0' };
+    const meta = { deviceId: 'desk', epoch: 2 };
+    const current = (fields: Record<string, unknown> | null) =>
+      transaction.get.mockResolvedValueOnce({ exists: () => fields !== null, get: (field: string) => fields?.[field] });
+
+    current(null);
+    expect(await store.publish('bea', 'payoutForecast', doc, meta)).toBe(true);
+    expect(transaction.get).toHaveBeenCalledWith({ path: 'users/bea/published/payoutForecast' });
+    expect(transaction.set).toHaveBeenCalledWith(
+      { path: 'users/bea/published/payoutForecast' },
+      {
+        schema: 1,
+        json: '{"schema":1}',
+        hash: 'abc',
+        deviceId: 'desk',
+        appVersion: '4.2.0',
+        epoch: 2,
+        updatedAt: 'SERVER_TIME',
+      }
+    );
+
+    current({ hash: 'abc', schema: 1 });
+    expect(await store.publish('bea', 'payoutForecast', doc, meta)).toBe(false);
+    current({ hash: 'old', schema: 2 });
+    expect(await store.publish('bea', 'payoutForecast', doc, meta)).toBe(false);
+    current({ hash: 'old', schema: 1 });
+    expect(await store.publish('bea', 'payoutForecast', doc, meta)).toBe(true);
+    expect(transaction.set).toHaveBeenCalledTimes(2);
+  });
+
+  it('deletes BudgetMint’s data on a new epoch of its own', async () => {
+    const store = await createFirebaseStore(CONFIG);
+    vi.mocked(fs.getDoc).mockResolvedValueOnce({ exists: () => true, get: () => 3 } as never);
+    vi.mocked(fs.getDocs).mockResolvedValueOnce({ docs: [{ ref: 'bill' }, { ref: 'settings' }] } as never);
+    await store.deleteCompanionData('bea');
+    expect(fs.getDoc).toHaveBeenCalledWith({ path: 'budgetmint/bea' });
+    expect(fs.updateDoc).toHaveBeenCalledWith({ path: 'budgetmint/bea' }, { epoch: 4 });
+    expect(fs.getDocs).toHaveBeenCalledWith({ path: 'budgetmint/bea/data' });
+    expect(sdk.batch.delete.mock.calls).toEqual([['bill'], ['settings']]);
+
+    // Never used BudgetMint: nothing to move on, nothing to delete
+    vi.clearAllMocks();
+    vi.mocked(fs.getDoc).mockResolvedValueOnce({ exists: () => false, get: () => undefined } as never);
+    vi.mocked(fs.getDocs).mockResolvedValueOnce({ docs: [] } as never);
+    await store.deleteCompanionData('bea');
+    expect(fs.updateDoc).not.toHaveBeenCalled();
+    expect(sdk.batch.commit).not.toHaveBeenCalled();
   });
 });

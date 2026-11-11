@@ -3,11 +3,14 @@ import { ScheduledWithdrawal, Withdrawal } from '../../types/withdrawal';
 import { ReleaseEvent } from '../payoutCalculator';
 import {
   DAY_MS,
+  classifyRelease,
+  curveAt,
   heldUntilMs,
   planReminder,
   planWithdrawals,
   scheduledFor,
   withdrawableAt,
+  withdrawableCurve,
   withdrawalBefore,
   withdrawalTooClose,
 } from '../withdrawals';
@@ -239,5 +242,101 @@ describe('scheduling the next withdrawal', () => {
     // One made before it was scheduled (recorded late) leaves it
     const recordedLate = planWithdrawals(events, [withdrawal('w', W)], INTERVAL, NOW);
     expect(planReminder(scheduled(OPENS + DAY_MS, NOW), recordedLate, events)).not.toBeNull();
+  });
+});
+
+/** withdrawableAt as it was before the curve: the curve must agree with it everywhere. */
+function referenceWithdrawableAt(events: ReleaseEvent[], cutoffMs: number | null, atMs: number) {
+  let actualCents = 0;
+  let estimatedCents = 0;
+  let pastDueCents = 0;
+  const afterCutoff = (ms: number) => cutoffMs === null || ms > cutoffMs;
+  for (const event of events) {
+    if (event.status === undefined) {
+      if (event.releaseMs <= atMs && afterCutoff(event.releaseMs)) estimatedCents += event.estimatedCents;
+      continue;
+    }
+    if (event.status.trim().toLowerCase() === 'paid') continue;
+    const reportedSince = event.reportedMs !== undefined && afterCutoff(event.reportedMs);
+    if (event.status.trim().toLowerCase() === 'untransferred') {
+      if (cutoffMs === null || reportedSince) actualCents += event.actualCents;
+      continue;
+    }
+    if (event.releaseMs > atMs || !(reportedSince || afterCutoff(event.releaseMs))) continue;
+    actualCents += event.actualCents;
+    if (event.reportedMs !== undefined && event.reportedMs > event.releaseMs) pastDueCents += event.actualCents;
+  }
+  return { actualCents, estimatedCents, pastDueCents, totalCents: actualCents + estimatedCents };
+}
+
+/** A small seeded PRNG (mulberry32), so a failure can be replayed. */
+function random(seed: number) {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+describe('withdrawableCurve', () => {
+  it('agrees with withdrawableAt at every release, either side of it, for any cutoff', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const next = random(seed);
+      const pick = <T>(items: T[]) => items[Math.floor(next() * items.length)];
+      // Times on a coarse grid, so releases, reports and the cutoff often coincide
+      const time = () => W + Math.round((next() - 0.5) * 10) * HOUR;
+      const events = Array.from({ length: 1 + Math.floor(next() * 12) }, () => {
+        const status = pick([undefined, 'Paid', ' untransferred ', 'Untransferred', 'Pending Approval']);
+        const releaseMs = next() < 0.05 ? Number.NaN : time();
+        const cents = 1 + Math.floor(next() * 1000);
+        return status === undefined
+          ? estimate(releaseMs, cents)
+          : event({ releaseMs, actualCents: cents, status, reportedMs: next() < 0.2 ? undefined : time() });
+      });
+      const cutoffMs = next() < 0.25 ? null : time();
+      const curve = withdrawableCurve(events, cutoffMs);
+      const times = events.flatMap(e => [e.releaseMs - 1, e.releaseMs, e.releaseMs + 1]).filter(Number.isFinite);
+      for (const atMs of [...times, W - 100 * HOUR, W + 100 * HOUR]) {
+        expect(curveAt(curve, atMs), `seed ${seed} at ${atMs}`).toEqual(
+          referenceWithdrawableAt(events, cutoffMs, atMs)
+        );
+        expect(withdrawableAt(events, cutoffMs, atMs)).toEqual(referenceWithdrawableAt(events, cutoffMs, atMs));
+      }
+    }
+  });
+
+  it('carries the balance, and steps up at each release time, once per time', () => {
+    const curve = withdrawableCurve(
+      [
+        imported(W - DAY_MS, 300, 'Untransferred', W + HOUR),
+        imported(W + HOUR, 200, 'Pending Approval', W + 2 * HOUR),
+        estimate(W + HOUR, 50),
+        imported(W + 2 * HOUR, 400, 'Pending Approval', W - DAY_MS),
+        imported(W + 3 * HOUR, 999, 'Paid', W + 4 * HOUR),
+      ],
+      W
+    );
+    expect(curve).toEqual({
+      carried: { actualCents: 300, estimatedCents: 0, pastDueCents: 0 },
+      steps: [
+        { atMs: W + HOUR, actualCents: 200, estimatedCents: 50, pastDueCents: 200 },
+        { atMs: W + 2 * HOUR, actualCents: 400, estimatedCents: 0, pastDueCents: 0 },
+      ],
+    });
+    expect(curveAt(curve, W).totalCents).toBe(300);
+    expect(curveAt(curve, W + HOUR).totalCents).toBe(550);
+    expect(curveAt(curve, W + DAY_MS).totalCents).toBe(950);
+  });
+
+  it('classifies a release whose time didn’t parse as the old math counted it', () => {
+    const lost = Number.NaN;
+    expect(classifyRelease(estimate(lost, 10), null)).toBe('never');
+    // A pending import with no release time counts in any withdrawal (it isn't "later" than one)
+    expect(classifyRelease(imported(lost, 10, 'Pending Approval', W + HOUR), W)).toBe('carried');
+    expect(classifyRelease(imported(lost, 10, 'Pending Approval', W - HOUR), W)).toBe('never');
+    expect(classifyRelease(imported(W - HOUR, 10, 'Pending Approval', W - 2 * HOUR), W)).toBe('never');
+    expect(classifyRelease(imported(W + HOUR, 10, 'Paid', W + 2 * HOUR), null)).toBe('never');
   });
 });

@@ -29,6 +29,7 @@ import { WithdrawalsProvider } from './contexts/WithdrawalsContext';
 import { PayoutDataProvider } from './contexts/PayoutDataContext';
 import { useTrayWithdrawalLabel } from './hooks/useTrayWithdrawalLabel';
 import { useWithdrawalReminder } from './hooks/useWithdrawalReminder';
+import { usePayoutForecastPublisher } from './hooks/usePayoutForecastPublisher';
 import { useSystemBarsTheme } from './hooks/useSystemBarsTheme';
 import { useAnalyticsScreens } from './utils/analytics';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
@@ -51,6 +52,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
   useEnhancedSystemTray({ onShowStartDialog });
   useTrayWithdrawalLabel();
   useWithdrawalReminder();
+  usePayoutForecastPublisher();
   useSystemBarsTheme();
   useRecordConflictNotice();
   useUpdatedNotice();

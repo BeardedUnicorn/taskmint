@@ -143,6 +143,13 @@ don't sync.
   (its data joins that account's).
 - **Newer data.** Data saved by a newer TaskMint is left alone and Settings
   says to update.
+- **BudgetMint.** A synced device also publishes your payout forecast (what
+  the coming withdrawals will take, as amounts and times only) for
+  BudgetMint, which signs in with the same account. It's written only when
+  your payout data changes. Delete cloud data deletes it; Delete account
+  deletes your BudgetMint data too. The contract is
+  [docs/contracts/payout-forecast.md](docs/contracts/payout-forecast.md),
+  the design [ADR 0003](docs/adr/0003-payout-forecast.md).
 
 The design is [ADR 0002](docs/adr/0002-firebase.md). How the Firebase
 project is set up, and how to develop against its emulators:
@@ -560,7 +567,7 @@ holds the shared copy ([ADR 0002](docs/adr/0002-firebase.md)).
 | Part | What it's for |
 |---|---|
 | **Authentication** | Accounts: email and password, and Google. Anyone can sign up |
-| **Firestore** (`(default)`, nam5) | Each account's data: `users/{uid}` holds its epoch, `users/{uid}/data/{kind~key}` one session, work-log entry, project mapping or record each |
+| **Firestore** (`(default)`, nam5) | Each account's data: `users/{uid}` holds its epoch, `users/{uid}/data/{kind~key}` one session, work-log entry, project mapping or record each, and `users/{uid}/published/payoutForecast` the forecast for BudgetMint. BudgetMint's own data is `budgetmint/{uid}` |
 | **Hosting** | The web app, at https://taskmint-f9a05.web.app |
 | **Analytics** | Page views from the web app and the Android app ([Error reporting and analytics](#error-reporting-and-analytics)) |
 
@@ -571,7 +578,7 @@ They're public by design: the API key only names the project, and the rules
 decide what a signed-in user can reach.
 
 **The rules** (`firebase/firestore.rules`) let a signed-in user read and
-write only under their own `users/{uid}`. A data document must have exactly
+write only under their own `users/{uid}` and `budgetmint/{uid}`. A data document must have exactly
 the sync fields, with a known kind, an `updatedAt` of the server's time, and
 the account's current epoch, so a device that missed a Delete cloud data
 can't write its old copy back. `firebase/firestore.rules.test.mjs` tests

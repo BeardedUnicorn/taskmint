@@ -382,6 +382,16 @@ export function buildReleaseEvents(
   return events.sort((a, b) => a.releaseMs - b.releaseMs);
 }
 
+/** When the ledger was last refreshed from the site (newest entry update). */
+export function lastImportMs(entries: { updatedAt: string }[]): number | null {
+  let latest: number | null = null;
+  for (const entry of entries) {
+    const ms = Date.parse(entry.updatedAt);
+    if (!Number.isNaN(ms) && (latest === null || ms > latest)) latest = ms;
+  }
+  return latest;
+}
+
 /** Imported money the site no longer holds back: Paid or Untransferred. */
 export function isSettledStatus(status?: string): boolean {
   return isPaid(status) || isUntransferred(status);

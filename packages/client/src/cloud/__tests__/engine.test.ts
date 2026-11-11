@@ -12,7 +12,7 @@ const doc = (id: string, hash = 'h1'): OutgoingDoc => ({
   hash,
 });
 
-const OPTIONS = { sendDelayMs: 5, retryMs: 20 };
+const OPTIONS = { sendDelayMs: 5, retryMs: 20, publishDelayMs: 50, publishRetryMs: 100 };
 
 let store: FakeCloudStore;
 
@@ -313,6 +313,11 @@ describe('cloud sync, linked', () => {
     const { engine, host } = await linked();
     await engine.deleteAccount();
     expect(store.deleteAll).toHaveBeenCalledWith('bea', 1);
+    // BudgetMint's data goes too, before the account it needs to reach it
+    expect(store.companionDeleted).toEqual(new Set(['bea']));
+    expect(vi.mocked(store.deleteCompanionData).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(store.deleteUser).mock.invocationCallOrder[0]
+    );
     expect(store.deleteUser).toHaveBeenCalled();
     expect(host.state.account).toBeNull();
 
@@ -324,8 +329,13 @@ describe('cloud sync, linked', () => {
 
   it('deletes the cloud data, stopping this device too', async () => {
     const { engine, host } = await linked();
+    const published = { json: '{}', hash: 'h', schema: 1, appVersion: '4.2.0', deviceId: 'desk', epoch: 1 };
+    store.published.set('bea/payoutForecast', published);
+    store.published.set('cal/payoutForecast', published);
     await engine.deleteCloudData();
     expect(store.deleteAll).toHaveBeenCalledWith('bea', 1);
+    // The published forecast goes with it (and only the account's)
+    expect([...store.published.keys()]).toEqual(['cal/payoutForecast']);
     expect(host.state.account).toBeNull();
     expect(phaseOf(engine)).toBe('cloudReset');
   });
@@ -348,5 +358,133 @@ describe('cloud sync, linked', () => {
     host.backend.emit(EVENTS.SYNC_PENDING);
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(host.backend.call).not.toHaveBeenCalled();
+  });
+});
+
+describe('cloud sync, publishing the payout forecast', () => {
+  const forecast = (hash: string) => ({ json: `{"h":"${hash}"}`, hash, schema: 1, appVersion: '4.2.0' });
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const META = { deviceId: 'desk', epoch: 1 };
+
+  /** Linked, with the cloud's data in. */
+  async function caughtUp(host = syncHost({ account: { uid: 'bea', epoch: 1 } })) {
+    store.setEpoch('bea', 1);
+    const engine = await started(host);
+    store.setUser(bea());
+    await vi.waitFor(() => expect(store.listens.filter(listen => listen.open)).toHaveLength(1));
+    store.emit({ docs: [], cursor: 'c1' });
+    await vi.waitFor(() => expect(host.state.applied.length).toBeGreaterThan(0));
+    return { engine, host };
+  }
+
+  it('publishes once linked and the cloud’s data is in, shortly after it changes', async () => {
+    const host = syncHost({ account: { uid: 'bea', epoch: 1 } });
+    store.setEpoch('bea', 1);
+    const engine = await started(host);
+    // Signed out: nowhere to publish
+    engine.publishForecast(forecast('a'));
+    store.setUser(bea());
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('synced'));
+    await sleep(80);
+    // Linked, but the forecast may be missing the cloud's data
+    expect(store.publish).not.toHaveBeenCalled();
+    store.emit({ docs: [], cursor: 'c1' });
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
+    expect(store.publish).toHaveBeenCalledWith('bea', 'payoutForecast', forecast('a'), META);
+    expect(store.published.get('bea/payoutForecast')).toMatchObject({ hash: 'a', ...META });
+
+    // More of the cloud's data: nothing new to publish
+    store.emit({ docs: [], cursor: 'c2' });
+    await sleep(80);
+    expect(store.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('publishes each change once, the last of a burst', async () => {
+    const { engine } = await caughtUp();
+    engine.publishForecast(forecast('a'));
+    // The cloud's changes coming in meanwhile don't put it off
+    store.emit({ docs: [], cursor: 'c2' });
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
+    engine.publishForecast(forecast('a'));
+    await sleep(80);
+    expect(store.publish).toHaveBeenCalledTimes(1);
+
+    engine.publishForecast(forecast('b'));
+    engine.publishForecast(forecast('c'));
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(2));
+    expect(store.published.get('bea/payoutForecast')).toMatchObject({ hash: 'c' });
+  });
+
+  it('doesn’t write what another device has published already', async () => {
+    const { engine } = await caughtUp();
+    store.published.set('bea/payoutForecast', { ...forecast('a'), deviceId: 'phone', epoch: 1 });
+    engine.publishForecast(forecast('a'));
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
+    expect(store.published.get('bea/payoutForecast')).toMatchObject({ deviceId: 'phone' });
+    // Settled: it isn't tried again
+    store.emit({ docs: [], cursor: 'c2' });
+    await sleep(80);
+    expect(store.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves it to a newer TaskMint while documents wait for one', async () => {
+    const { engine } = await caughtUp(syncHost({ account: { uid: 'bea', epoch: 1 }, held: 2 }));
+    engine.publishForecast(forecast('a'));
+    await sleep(120);
+    expect(store.publish).not.toHaveBeenCalled();
+  });
+
+  it('tries again later when publishing fails, without a sync error', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(store.publish).mockRejectedValueOnce(new Error('Missing or insufficient permissions'));
+    const { engine } = await caughtUp();
+    engine.publishForecast(forecast('a'));
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
+    expect(phaseOf(engine)).toBe('synced');
+    expect(warn).toHaveBeenCalledWith('Failed to publish the payout forecast:', expect.any(Error));
+    await vi.waitFor(() => expect(store.published.get('bea/payoutForecast')).toMatchObject({ hash: 'a' }));
+    expect(store.publish).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
+  it('drops a publish that ends after signing out, and publishes again on the next link', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { engine, host } = await caughtUp();
+    let finish: (written: boolean) => void = () => undefined;
+    vi.mocked(store.publish).mockImplementationOnce(() => new Promise(resolve => (finish = resolve)));
+    engine.publishForecast(forecast('a'));
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
+    store.setUser(null);
+    finish(true);
+    await sleep(20);
+
+    // A failure after signing out isn't tried again either
+    store.setUser(bea());
+    await vi.waitFor(() => expect(store.listens.filter(listen => listen.open)).toHaveLength(1));
+    let fail: (error: Error) => void = () => undefined;
+    vi.mocked(store.publish).mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)));
+    store.emit({ docs: [], cursor: 'c2' });
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(2));
+    store.setUser(null);
+    fail(new Error('offline'));
+    await sleep(150);
+    expect(store.publish).toHaveBeenCalledTimes(2);
+    expect(warn).not.toHaveBeenCalled();
+
+    // Linked again: published again (the cloud may have lost it meanwhile)
+    store.setUser(bea());
+    await vi.waitFor(() => expect(store.listens.filter(listen => listen.open)).toHaveLength(1));
+    store.emit({ docs: [], cursor: 'c3' });
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(3));
+    expect(host.state.account).toEqual({ uid: 'bea', epoch: 1 });
+    warn.mockRestore();
+  });
+
+  it('stops publishing when this device stops syncing', async () => {
+    const { engine } = await caughtUp();
+    await engine.stopSyncing();
+    engine.publishForecast(forecast('a'));
+    await sleep(80);
+    expect(store.publish).not.toHaveBeenCalled();
   });
 });

@@ -7,13 +7,17 @@
  */
 
 import type { OutgoingDoc } from '@taskmint/contracts';
-import type { CloudBatch, CloudConfig, CloudDoc, CloudStore, CloudUser, WriteMeta } from './types';
+import type { CloudBatch, CloudConfig, CloudDoc, CloudStore, CloudUser, PublishedDoc, WriteMeta } from './types';
 
 /** Firestore takes at most 500 writes in a batch. */
 export const BATCH_SIZE = 400;
 
+/** Where BudgetMint keeps its data: `budgetmint/{uid}` ({epoch}) and its `data` documents. */
+export const COMPANION_ROOT = 'budgetmint';
+
 type Firestore = typeof import('firebase/firestore');
 type Timestamp = InstanceType<Firestore['Timestamp']>;
+type DocumentReference = import('firebase/firestore').DocumentReference;
 
 /** A server timestamp as a cursor that sorts as text: "seconds.nanoseconds", zero-padded. */
 export function cursorOf(time: Timestamp): string {
@@ -43,6 +47,15 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
 
   const accountDoc = (uid: string) => fs.doc(db, 'users', uid);
   const data = (uid: string) => fs.collection(db, 'users', uid, 'data');
+  const published = (uid: string) => fs.collection(db, 'users', uid, 'published');
+  /** Deletes `refs`, a batch at a time. */
+  const deleteRefs = async (refs: DocumentReference[]) => {
+    for (let start = 0; start < refs.length; start += BATCH_SIZE) {
+      const batch = fs.writeBatch(db);
+      for (const ref of refs.slice(start, start + BATCH_SIZE)) batch.delete(ref);
+      await batch.commit();
+    }
+  };
   const epochOf = (snapshot: { exists(): boolean; get(field: string): unknown }) =>
     snapshot.exists() ? Number(snapshot.get('epoch')) : null;
   const decode = (cursor: string) => {
@@ -153,13 +166,37 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
       const next = epoch + 1;
       // Writes from devices still on the old epoch are refused from here on
       await fs.updateDoc(accountDoc(uid), { epoch: next });
-      const all = await fs.getDocs(data(uid));
-      for (let start = 0; start < all.docs.length; start += BATCH_SIZE) {
-        const batch = fs.writeBatch(db);
-        for (const doc of all.docs.slice(start, start + BATCH_SIZE)) batch.delete(doc.ref);
-        await batch.commit();
-      }
+      const [all, shared] = await Promise.all([fs.getDocs(data(uid)), fs.getDocs(published(uid))]);
+      await deleteRefs([...all.docs, ...shared.docs].map(doc => doc.ref));
       return next;
+    },
+    async publish(uid, name, doc: PublishedDoc, meta) {
+      const ref = fs.doc(published(uid), name);
+      // In a transaction, so devices (and tabs) publishing the same bytes write them once
+      return fs.runTransaction(db, async transaction => {
+        const current = await transaction.get(ref);
+        if (current.exists() && (current.get('hash') === doc.hash || Number(current.get('schema')) > doc.schema)) {
+          return false;
+        }
+        transaction.set(ref, {
+          schema: doc.schema,
+          json: doc.json,
+          hash: doc.hash,
+          deviceId: meta.deviceId,
+          appVersion: doc.appVersion,
+          epoch: meta.epoch,
+          updatedAt: fs.serverTimestamp(),
+        });
+        return true;
+      });
+    },
+    async deleteCompanionData(uid) {
+      const account = fs.doc(db, COMPANION_ROOT, uid);
+      const current = await fs.getDoc(account);
+      // Its devices still on the old epoch can't write their copy back
+      if (current.exists()) await fs.updateDoc(account, { epoch: Number(current.get('epoch')) + 1 });
+      const all = await fs.getDocs(fs.collection(db, COMPANION_ROOT, uid, 'data'));
+      await deleteRefs(all.docs.map(doc => doc.ref));
     },
   };
 }

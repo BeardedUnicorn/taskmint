@@ -29,22 +29,16 @@ import {
   buildReleaseEvents,
   buildReleaseSchedule,
   groupCellsByMonth,
+  lastImportMs,
   summarizePayouts,
 } from '../utils/payoutCalculator';
+import type { PayoutInputs } from '../utils/payoutForecast';
 import { DAY_MS, WithdrawalPlan, WithdrawalReminder, planReminder, planWithdrawals } from '../utils/withdrawals';
 
 /** After this long without an import, Payouts says its numbers may be out of date. */
 export const STALE_IMPORT_MS = 3 * 24 * 60 * 60 * 1000;
 
-/** When the ledger was last refreshed from the site (newest entry update). */
-export function lastImportMs(entries: { updatedAt: string }[]): number | null {
-  let latest: number | null = null;
-  for (const entry of entries) {
-    const ms = Date.parse(entry.updatedAt);
-    if (!Number.isNaN(ms) && (latest === null || ms > latest)) latest = ms;
-  }
-  return latest;
-}
+export { lastImportMs } from '../utils/payoutCalculator';
 
 export interface PayoutData {
   fundsReleaseDays: number;
@@ -83,14 +77,35 @@ export function usePayoutData(): PayoutData {
   return context;
 }
 
-/** The payout data itself. Use once, in PayoutDataProvider. */
-export function usePayoutDataState(): PayoutData {
+/** What the payout math works from, and whether it's still loading (so the numbers may jump). */
+export function usePayoutInputs(): PayoutInputs & { isLoading: boolean } {
   const { sessions, isLoading: sessionsLoading, hasLoaded: sessionsLoaded } = useSessionManagementContext();
   const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
   const { entries, isLoading: workLogsLoading, hasLoaded: workLogsLoaded } = useWorkLogContext();
   const { withdrawals, scheduled } = useWithdrawals();
   const { days: fundsReleaseDays } = useFundsReleaseSettings();
   const { days: withdrawalIntervalDays } = useWithdrawalIntervalSetting();
+  return {
+    entries,
+    sessions,
+    tasks,
+    withdrawals,
+    scheduled,
+    fundsReleaseDays,
+    withdrawalIntervalDays,
+    isLoading:
+      !sessionsLoaded ||
+      !workLogsLoaded ||
+      Boolean(sessionsLoading && sessions.length === 0) ||
+      Boolean(tasksLoading) ||
+      workLogsLoading,
+  };
+}
+
+/** The payout data itself. Use once, in PayoutDataProvider. */
+export function usePayoutDataState(): PayoutData {
+  const { entries, sessions, tasks, withdrawals, scheduled, fundsReleaseDays, withdrawalIntervalDays, isLoading } =
+    usePayoutInputs();
 
   const nowMs = useNowMs(true, hasRunningTimer(sessions) ? 1000 : 60_000);
   const today = formatDateString(new Date(nowMs));
@@ -128,11 +143,6 @@ export function usePayoutDataState(): PayoutData {
     lastImport,
     importIsStale: lastImport !== null && nowMs - lastImport > STALE_IMPORT_MS,
     isEmpty: entries.length === 0 && cells.length === 0,
-    isLoading:
-      !sessionsLoaded ||
-      !workLogsLoaded ||
-      Boolean(sessionsLoading && sessions.length === 0) ||
-      Boolean(tasksLoading) ||
-      workLogsLoading,
+    isLoading,
   };
 }

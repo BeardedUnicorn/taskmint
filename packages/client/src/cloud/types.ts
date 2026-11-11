@@ -5,7 +5,10 @@
  *
  * The cloud copy is laid out in crates/taskmint-core/src/sync and guarded by
  * firebase/firestore.rules: `users/{uid}` holds the account's epoch, and
- * `users/{uid}/data/{docId}` one document per synced entity.
+ * `users/{uid}/data/{docId}` one document per synced entity. What TaskMint
+ * publishes for other apps (the payout forecast) is in
+ * `users/{uid}/published/{name}`, and BudgetMint keeps its own data in
+ * `budgetmint/{uid}`.
  */
 
 import type { OutgoingDoc } from '@taskmint/contracts';
@@ -62,6 +65,17 @@ export interface WriteMeta {
   schema: number;
 }
 
+/** A document TaskMint publishes for other apps to read (users/{uid}/published/{name}). */
+export interface PublishedDoc {
+  json: string;
+  /** FNV-1a 64 of the JSON (utils/fnv). */
+  hash: string;
+  /** The contract's version. */
+  schema: number;
+  /** The TaskMint that wrote it. */
+  appVersion: string;
+}
+
 export type Unsubscribe = () => void;
 
 export interface CloudStore {
@@ -92,6 +106,20 @@ export interface CloudStore {
   ): Unsubscribe;
   /** Writes `docs` (null JSON deletes), resolving once the server has them. */
   write(uid: string, docs: OutgoingDoc[], meta: WriteMeta): Promise<void>;
-  /** Moves the account to the next epoch and deletes its documents; the new epoch. */
+  /**
+   * Moves the account to the next epoch and deletes its documents, the
+   * published ones too; the new epoch.
+   */
   deleteAll(uid: string, epoch: number): Promise<number>;
+  /**
+   * Publishes `doc` as users/{uid}/published/{name}, unless the cloud's copy
+   * already is it (the same hash) or is from a newer contract; whether it
+   * wrote. Needs the server: it fails offline.
+   */
+  publish(uid: string, name: string, doc: PublishedDoc, meta: Omit<WriteMeta, 'schema'>): Promise<boolean>;
+  /**
+   * Deletes what BudgetMint keeps for the account (it signs in with the same
+   * one), moving its data to a new epoch first, as deleteAll does TaskMint's.
+   */
+  deleteCompanionData(uid: string): Promise<void>;
 }
