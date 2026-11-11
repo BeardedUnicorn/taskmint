@@ -8,6 +8,13 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.2.2 – 2026-11-11
+
+### Fixed
+
+- In light mode, the outline around the focused day on the Calendar is dark enough to see.
+- In Safari and the Mac app, a field's border no longer runs through its label while it's selected, or leaves a gap above an empty field you've left.
+
 ## 4.2.1 – 2026-11-11
 
 ### Fixed
