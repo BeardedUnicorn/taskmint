@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { Withdrawal } from '../../types/withdrawal';
+import { ScheduledWithdrawal, Withdrawal } from '../../types/withdrawal';
 import { ReleaseEvent } from '../payoutCalculator';
-import { DAY_MS, planWithdrawals, withdrawableAt, withdrawalBefore, withdrawalTooClose } from '../withdrawals';
+import {
+  DAY_MS,
+  heldUntilMs,
+  planReminder,
+  planWithdrawals,
+  scheduledFor,
+  withdrawableAt,
+  withdrawalBefore,
+  withdrawalTooClose,
+} from '../withdrawals';
 
 const HOUR = 3_600_000;
 // A withdrawal on Nov 7 at noon (local), and "now" a day later
@@ -120,6 +129,7 @@ describe('planWithdrawals', () => {
     ];
     const plan = planWithdrawals(events, [withdrawal('old', W - 9 * DAY_MS), withdrawal('last', W)], INTERVAL, NOW);
     expect(plan?.last.id).toBe('last');
+    expect(plan?.allowedAtMs).toBe(W + INTERVAL);
     expect(plan?.opensAtMs).toBe(W + INTERVAL);
     expect(plan?.isOpen).toBe(false);
     expect(plan?.next.totalCents).toBe(3000);
@@ -137,6 +147,8 @@ describe('planWithdrawals', () => {
     expect(plan?.isOpen).toBe(true);
     const later = planWithdrawals([], [withdrawal('w', before)], INTERVAL, before + INTERVAL + DAY_MS);
     expect(later?.opensAtMs).toBe(before + INTERVAL + DAY_MS);
+    // The wait itself still ended when it did
+    expect(later?.allowedAtMs).toBe(before + INTERVAL);
   });
 
   it('lists what waiting adds, skipping releases that add nothing, at most six', () => {
@@ -157,5 +169,75 @@ describe('planWithdrawals', () => {
       hasEstimate: false,
     });
     expect(plan?.ifYouWait[5].totalCents).toBe(600);
+  });
+});
+
+describe('scheduling the next withdrawal', () => {
+  const INTERVAL = 3 * DAY_MS;
+  const OPENS = W + INTERVAL;
+  const events = [
+    imported(W + HOUR, 1000, 'Pending Approval', W - DAY_MS),
+    imported(OPENS + DAY_MS, 2000, 'Pending Approval', W - DAY_MS),
+    estimate(OPENS + 2 * DAY_MS, 500),
+  ];
+  const plan = planWithdrawals(events, [withdrawal('w', W)], INTERVAL, NOW);
+
+  function scheduled(releaseMs: number, createdAtMs = NOW): ScheduledWithdrawal {
+    return { id: 's1', releaseAt: new Date(releaseMs).toISOString(), createdAt: new Date(createdAtMs).toISOString() };
+  }
+
+  it('holds releases until withdrawals open, and none once they are', () => {
+    expect(heldUntilMs(plan)).toBe(OPENS);
+    expect(heldUntilMs(planWithdrawals(events, [withdrawal('w', W)], INTERVAL, OPENS))).toBeNull();
+    expect(heldUntilMs(null)).toBeNull();
+  });
+
+  it('is ready when withdrawals open for a held release, with what the opening takes', () => {
+    expect(scheduledFor(W + HOUR, plan, events)).toEqual({
+      releaseMs: W + HOUR,
+      dueMs: OPENS,
+      isHeld: true,
+      amount: { actualCents: 1000, estimatedCents: 0, pastDueCents: 0, totalCents: 1000 },
+    });
+  });
+
+  it('is ready at a later release, with everything released since the last withdrawal', () => {
+    expect(scheduledFor(OPENS + 2 * DAY_MS, plan, events)).toEqual({
+      releaseMs: OPENS + 2 * DAY_MS,
+      dueMs: OPENS + 2 * DAY_MS,
+      isHeld: false,
+      amount: { actualCents: 3000, estimatedCents: 500, pastDueCents: 0, totalCents: 3500 },
+    });
+  });
+
+  it('is ready at the release, with no amount, until a withdrawal is recorded', () => {
+    expect(scheduledFor(W + HOUR, null, events)).toEqual({
+      releaseMs: W + HOUR,
+      dueMs: W + HOUR,
+      isHeld: false,
+      amount: null,
+    });
+  });
+
+  it('works the schedule out against the plan', () => {
+    expect(planReminder(null, plan, events)).toBeNull();
+    expect(planReminder(scheduled(W + HOUR), plan, events)).toMatchObject({ id: 's1', dueMs: OPENS, isHeld: true });
+    expect(planReminder(scheduled(W + HOUR), null, events)).toMatchObject({ id: 's1', dueMs: W + HOUR });
+  });
+
+  it('follows a change to the wait between withdrawals', () => {
+    const longer = planWithdrawals(events, [withdrawal('w', W)], 5 * DAY_MS, NOW);
+    expect(planReminder(scheduled(OPENS + DAY_MS), longer, events)).toMatchObject({
+      dueMs: W + 5 * DAY_MS,
+      isHeld: true,
+    });
+  });
+
+  it('is done once a withdrawal is made after it was scheduled', () => {
+    const since = planWithdrawals(events, [withdrawal('w', W), withdrawal('next', NOW + HOUR)], INTERVAL, NOW + HOUR);
+    expect(planReminder(scheduled(OPENS + DAY_MS), since, events)).toBeNull();
+    // One made before it was scheduled (recorded late) leaves it
+    const recordedLate = planWithdrawals(events, [withdrawal('w', W)], INTERVAL, NOW);
+    expect(planReminder(scheduled(OPENS + DAY_MS, NOW), recordedLate, events)).not.toBeNull();
   });
 });

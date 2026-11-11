@@ -157,6 +157,9 @@ describe('createTauriBackend', () => {
       ['show_desktop_notification', { kind: 'longRun', title: 'Still working?', body: '4h' }],
       ['set_notification_preferences', { prefs }],
     ]);
+    // A desktop notifies while it runs, so it sets none for later
+    expect(platform.notifications.schedule).toBeUndefined();
+    expect(platform.notifications.cancel).toBeUndefined();
   });
 
   it('reaches the idle monitor', async () => {
@@ -229,10 +232,34 @@ describe('createTauriBackend', () => {
     expect(mobile.capabilities.runtime).toBe('mobile');
     expect(Object.keys(mobile.platform).sort()).toEqual(['files', 'notifications']);
     expect(mobile.platform.files).toBe(platform.files);
-    expect(mobile.platform.notifications).toBe(platform.notifications);
+    expect(mobile.platform.notifications.show).toBe(platform.notifications.show);
 
     await mobile.platform.files.openJson();
     expect(dispatched()).toEqual([['import_data_from_file']]);
+  });
+
+  it('on a phone or tablet, sets notifications for later and takes them back', async () => {
+    const { notifications } = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' }).platform;
+    mockInvoke.mockResolvedValue(true);
+    const atMs = Date.UTC(2026, 10, 12, 18, 25);
+    await expect(
+      notifications.schedule!({ id: 4100, atMs, kind: 'withdrawalReady', title: 'Withdrawal ready', body: '$80.00' })
+    ).resolves.toBe(true);
+    await notifications.cancel!(4100);
+
+    expect(dispatched()).toEqual([
+      [
+        'schedule_notification',
+        {
+          id: 4100,
+          at: '2026-11-12T18:25:00.000Z',
+          kind: 'withdrawalReady',
+          title: 'Withdrawal ready',
+          body: '$80.00',
+        },
+      ],
+      ['cancel_notification', { id: 4100 }],
+    ]);
   });
 
   it('on Android, sets the status bar through the bridge MainActivity adds', () => {

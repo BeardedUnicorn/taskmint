@@ -122,4 +122,48 @@ describe('useWithdrawals', () => {
   it('describes a withdrawal by amount and time', () => {
     expect(describeWithdrawal({ amountCents: 71250, takenAt: at(7, 18) })).toBe('$712.50 on Nov 7, 6:00 PM');
   });
+
+  describe('the scheduled withdrawal', () => {
+    it('is none until one is scheduled, and one at a time', () => {
+      const { result } = renderHook(() => useWithdrawalsState());
+      expect(result.current.scheduled).toBeNull();
+
+      const releaseMs = new Date(2026, 10, 12, 18, 25).getTime();
+      act(() => result.current.scheduleWithdrawal(releaseMs));
+      const first = result.current.scheduled;
+      expect(first).toEqual({
+        id: expect.any(String),
+        releaseAt: new Date(releaseMs).toISOString(),
+        createdAt: expect.any(String),
+      });
+      expect(readAppRecord('scheduledWithdrawal')).toEqual(first);
+
+      act(() => result.current.scheduleWithdrawal(releaseMs + 3_600_000));
+      expect(result.current.scheduled?.id).not.toBe(first?.id);
+      expect(result.current.scheduled?.releaseAt).toBe(new Date(releaseMs + 3_600_000).toISOString());
+
+      act(() => result.current.cancelScheduledWithdrawal());
+      expect(result.current.scheduled).toBeNull();
+      expect(readAppRecord('scheduledWithdrawal')).toBeUndefined();
+    });
+
+    it("follows one scheduled on another device, and reads one it can't use as none", () => {
+      const { result } = renderHook(() => useWithdrawalsState());
+      const elsewhere = { id: 's1', releaseAt: at(12, 18), createdAt: at(10) };
+      act(() => {
+        seedAppRecords({ scheduledWithdrawal: elsewhere });
+        announceAppRecordsChange({ keys: ['scheduledWithdrawal'], conflict: false });
+      });
+      expect(result.current.scheduled).toEqual(elsewhere);
+
+      act(() => {
+        seedAppRecords({ scheduledWithdrawal: { releaseAt: 'soon' } });
+        announceAppRecordsChange({ keys: ['scheduledWithdrawal'], conflict: false });
+      });
+      expect(result.current.scheduled).toBeNull();
+      // The next one replaces it
+      act(() => result.current.scheduleWithdrawal(Date.parse(at(13))));
+      expect(result.current.scheduled?.releaseAt).toBe(at(13));
+    });
+  });
 });

@@ -23,6 +23,7 @@ export type NotificationCategory =
   | 'dailySummary'
   | 'longRun'
   | 'idle'
+  | 'withdrawal'
   | 'test';
 
 /** A button on a toast: run something, or open a page. */

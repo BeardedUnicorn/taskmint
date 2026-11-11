@@ -4,10 +4,12 @@
  *
  * - `auto` categories (work-log captures, backups, errors) always show a
  *   toast; they also go to the OS when TaskMint isn't in front.
- * - `always` categories (goal milestones, the daily summary, the test
- *   notification) are reminders: they go to the OS, and also show a toast
- *   when you're looking at the app. Turning the category off silences it
- *   completely; with OS notifications switched off altogether it's a toast.
+ * - `always` categories (goal milestones, the daily summary, a scheduled
+ *   withdrawal, the test notification) are reminders: they go to the OS, and
+ *   also show a toast when you're looking at the app. Turning the category
+ *   off silences it completely; with OS notifications switched off
+ *   altogether it's a toast. A scheduled withdrawal has no switch: each one
+ *   was asked for.
  * - Everything else is a toast only.
  *
  * The OS part needs the master switch and the category's own setting.
@@ -43,6 +45,8 @@ function categoryRoute(category: NotificationCategory, severity: Severity): Cate
       return { route: 'always', kind: 'longRun', preference: 'longRunReminder' };
     case 'idle':
       return { route: 'always', kind: 'idlePause', preference: 'idlePause' };
+    case 'withdrawal':
+      return { route: 'always', kind: 'withdrawalReady' };
     default:
       return severity === 'error' ? { route: 'auto', kind: 'error', preference: 'errorsWhileAway' } : null;
   }

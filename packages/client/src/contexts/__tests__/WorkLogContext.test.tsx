@@ -14,6 +14,7 @@ const mockWorkLogs: UseWorkLogsReturn = {
   entries: [createMockWorkLogEntry()],
   mappings: [],
   isLoading: false,
+  hasLoaded: true,
   loadWarning: null,
   applyImport: vi.fn(),
   undoImport: vi.fn(),

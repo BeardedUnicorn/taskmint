@@ -15,6 +15,10 @@ describe('createFakeBackend', () => {
     await expect(backend.platform.files.openJson()).resolves.toBeNull();
     await expect(backend.platform.notifications.show('test', 't', 'b')).resolves.toBe(false);
     await expect(backend.platform.notifications.setPreferences!({} as never)).resolves.toBeUndefined();
+    await expect(
+      backend.platform.notifications.schedule({ id: 1, atMs: 0, kind: 'test', title: 't', body: 'b' })
+    ).resolves.toBe(false);
+    await expect(backend.platform.notifications.cancel(1)).resolves.toBeUndefined();
     await expect(backend.platform.idle.isSupported()).resolves.toBe(true);
     await expect(
       backend.platform.idle.setSettings({ enabled: false, thresholdMinutes: 15, longRunHours: 4 })
@@ -49,11 +53,13 @@ describe('createFakeBackend', () => {
         'captureStatus',
         'googleSignIn',
         'analytics',
+        'laterNotifications',
       ],
     });
 
     expect(backend.capabilities).toEqual({ runtime: 'web', dataLocation: 'cloud' });
     expect(Object.keys(backend.platform).sort()).toEqual(['files', 'notifications']);
+    expect(Object.keys(backend.platform.notifications).sort()).toEqual(['setPreferences', 'show']);
   });
 
   it('emits to subscribers until they unsubscribe', () => {

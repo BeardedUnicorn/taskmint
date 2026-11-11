@@ -45,6 +45,18 @@ describe('routeNotification', () => {
     expect(routeNotification({ category: 'idle', severity: 'warning' }, away).desktop).toBe('idlePause');
   });
 
+  it("sends a scheduled withdrawal to the OS always, with no switch but the OS's", () => {
+    expect(routeNotification({ category: 'withdrawal', severity: 'success' }, away)).toEqual({
+      toast: false,
+      desktop: 'withdrawalReady',
+    });
+    const off = { ...away, preferences: { ...defaults, desktopEnabled: false } };
+    expect(routeNotification({ category: 'withdrawal', severity: 'success' }, off)).toEqual({
+      toast: true,
+      desktop: null,
+    });
+  });
+
   it('silences a reminder whose category is off', () => {
     const off = { ...here, preferences: { ...defaults, dailySummary: false } };
     expect(routeNotification({ category: 'dailySummary', severity: 'info' }, off)).toEqual({

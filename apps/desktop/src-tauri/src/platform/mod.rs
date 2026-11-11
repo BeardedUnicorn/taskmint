@@ -4,6 +4,7 @@
 //! `fake::FakePlatform`.
 
 use crate::tray::model::{TrayMenu, TrayStatus};
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use std::fs::File;
@@ -33,6 +34,18 @@ pub enum PickedFile {
     Document(url::Url),
 }
 
+/// An OS notification set to show later, by the system itself, so it shows
+/// with the app closed (a phone's alarm).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScheduledNotification {
+    /// Setting another with the same id replaces it.
+    pub id: i32,
+    pub at: DateTime<Utc>,
+    pub title: String,
+    pub body: String,
+    pub sound: bool,
+}
+
 /// A newer release the update feed announced (GitHub's latest release).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,6 +73,11 @@ pub trait Platform: Send + Sync {
     fn emit(&self, event: &str, payload: &Value) -> Result<(), String>;
     /// Shows an OS notification, with the system sound when `sound`.
     fn notify(&self, title: &str, body: &str, sound: bool) -> Result<(), String>;
+    /// Sets a notification for the system to show at its time, in place of
+    /// any set before with the same id. Only a phone or tablet can.
+    fn schedule_notification(&self, scheduled: &ScheduledNotification) -> Result<(), String>;
+    /// Takes back the notification set with `id`, if it's still to come.
+    fn cancel_notification(&self, id: i32) -> Result<(), String>;
     /// Where to save; None when the dialog is dismissed.
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile>;
     /// A JSON file to open; None when the dialog is dismissed.

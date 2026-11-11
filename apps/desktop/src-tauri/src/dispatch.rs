@@ -12,6 +12,7 @@ use crate::google_sign_in::{self, GoogleClient};
 use crate::notifications::{self, Origin};
 use crate::state::AppState;
 use crate::updates;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use taskmint_core::idle::IdleSettings;
@@ -50,6 +51,21 @@ enum Shell {
         kind: NotificationKind,
         title: String,
         body: String,
+    },
+    /// Sets a notification for the system to show at `at` (RFC 3339) with
+    /// the app closed, replacing any set before with `id`. Resolves to
+    /// whether it was set. Only a phone or tablet can; the app asks only
+    /// there.
+    ScheduleNotification {
+        id: i32,
+        at: DateTime<Utc>,
+        kind: NotificationKind,
+        title: String,
+        body: String,
+    },
+    /// Takes back the notification set with `id`.
+    CancelNotification {
+        id: i32,
     },
     GetCaptureServerStatus {},
     ValidateBackupPath {
@@ -105,7 +121,7 @@ enum Shell {
     },
 }
 
-const SHELL_COMMANDS: [&str; 22] = [
+const SHELL_COMMANDS: [&str; 24] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -113,6 +129,8 @@ const SHELL_COMMANDS: [&str; 22] = [
     "set_notification_preferences",
     "set_tray_withdrawal",
     "show_desktop_notification",
+    "schedule_notification",
+    "cancel_notification",
     "get_capture_server_status",
     "validate_backup_path",
     "perform_automatic_backup",
@@ -174,6 +192,17 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         }
         Shell::ShowDesktopNotification { kind, title, body } => {
             reply(notifications::post(state, kind, &title, &body, Origin::App))
+        }
+        Shell::ScheduleNotification {
+            id,
+            at,
+            kind,
+            title,
+            body,
+        } => reply(notifications::schedule(state, kind, id, at, &title, &body)),
+        Shell::CancelNotification { id } => {
+            notifications::cancel(state, id);
+            Value::Null
         }
         Shell::GetCaptureServerStatus {} => {
             reply(state.with_capture_server_status(|status| status.clone()))
@@ -377,6 +406,38 @@ mod tests {
             f.platform.recorded().notifications,
             [("Saved".to_string(), "All good".to_string(), true)]
         );
+    }
+
+    #[test]
+    fn the_app_sets_a_notification_for_later_and_takes_it_back() {
+        let f = fixture();
+        let set = run(
+            &f,
+            "schedule_notification",
+            json!({
+                "id": 4100,
+                "at": "2026-03-02T18:25:00.000Z",
+                "kind": "withdrawalReady",
+                "title": "Withdrawal ready",
+                "body": "$80.00 is ready to withdraw."
+            }),
+        );
+        assert_eq!(set, Ok(json!(true)));
+        let scheduled = f.platform.recorded().scheduled[0].clone();
+        assert_eq!(
+            (scheduled.id, scheduled.at.to_rfc3339(), scheduled.title),
+            (
+                4100,
+                "2026-03-02T18:25:00+00:00".to_string(),
+                "Withdrawal ready".to_string()
+            )
+        );
+
+        assert_eq!(
+            run(&f, "cancel_notification", json!({ "id": 4100 })),
+            Ok(Value::Null)
+        );
+        assert_eq!(f.platform.recorded().cancelled, [4100]);
     }
 
     #[test]

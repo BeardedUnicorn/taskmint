@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, screen, within } from '../../../../../__tests__/setup/test-helpers';
 import { seedAppRecords } from '../../../../../testing';
+import { readAppRecord } from '../../../../../services/appRecords';
 import { UNREADABLE_WITHDRAWALS } from '../../../../../hooks/useWithdrawals';
 import { createMockAmount, createMockPlan, renderWithMoney } from '../../../../../__tests__/setup/payout-test-utils';
 import { NextWithdrawalPanel, amountNotes } from '../NextWithdrawalPanel';
@@ -85,5 +86,54 @@ describe('NextWithdrawalPanel', () => {
     seedAppRecords({ withdrawals: 'garbled' });
     renderWithMoney(<NextWithdrawalPanel />, { nowMs: NOW });
     expect(within(panel()).getByRole('alert')).toHaveTextContent(UNREADABLE_WITHDRAWALS);
+  });
+
+  describe('the scheduled withdrawal', () => {
+    const DUE = new Date(2026, 10, 12, 18, 25).getTime();
+    const reminder = (overrides = {}) => ({
+      id: 's1',
+      releaseMs: DUE,
+      dueMs: DUE,
+      isHeld: false,
+      amount: createMockAmount({ actualCents: 123450 }),
+      ...overrides,
+    });
+
+    it('says when it is and what it takes, and removes it', () => {
+      seedAppRecords({
+        scheduledWithdrawal: {
+          id: 's1',
+          releaseAt: new Date(DUE).toISOString(),
+          createdAt: new Date(NOW).toISOString(),
+        },
+      });
+      renderWithMoney(<NextWithdrawalPanel />, { nowMs: NOW, plan: createMockPlan(), reminder: reminder() });
+      expect(panel()).toHaveTextContent('Reminder: Thu, Nov 12, 6:25 PM · $1,234.50');
+
+      fireEvent.click(within(panel()).getByRole('button', { name: 'Remove the scheduled withdrawal' }));
+      expect(readAppRecord('scheduledWithdrawal')).toBeUndefined();
+    });
+
+    it("says it's ready once its time has come, an estimate as one", () => {
+      renderWithMoney(<NextWithdrawalPanel />, {
+        nowMs: DUE + 60_000,
+        plan: createMockPlan(),
+        reminder: reminder({ amount: createMockAmount({ actualCents: 100, estimatedCents: 50 }) }),
+      });
+      expect(panel()).toHaveTextContent('Your scheduled withdrawal is ready (since Thu, Nov 12, 6:25 PM) · ~$1.50');
+    });
+
+    it('shows one scheduled before any withdrawal is recorded, without an amount', () => {
+      renderWithMoney(<NextWithdrawalPanel />, { nowMs: NOW, reminder: reminder({ amount: null }) });
+      expect(panel()).toHaveTextContent('Track your withdrawals');
+      expect(panel()).toHaveTextContent('Reminder: Thu, Nov 12, 6:25 PM');
+      expect(panel()).not.toHaveTextContent('Reminder: Thu, Nov 12, 6:25 PM ·');
+    });
+
+    it("isn't shown while the withdrawals can't be read", () => {
+      seedAppRecords({ withdrawals: 'garbled' });
+      renderWithMoney(<NextWithdrawalPanel />, { nowMs: NOW, reminder: reminder() });
+      expect(panel()).not.toHaveTextContent('Reminder');
+    });
   });
 });

@@ -3,9 +3,14 @@
 //! the rules are in taskmint_core::notifications) and the sound setting. The
 //! ones the backend shows itself (the long-run reminder, an idle pause) are
 //! also announced to the frontend so they appear in its notification history.
+//!
+//! On a phone the app also sets notifications for later (`schedule`), which
+//! the system shows at their time with the app closed.
 
 use crate::events::{emit_quiet, NOTIFICATION_POSTED};
+use crate::platform::ScheduledNotification;
 use crate::state::Shell;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use taskmint_core::notifications::NotificationKind;
 
@@ -63,10 +68,51 @@ pub fn post(
     true
 }
 
+/// Sets a notification for the system to show at `at`, replacing any set
+/// before with `id`, if the preferences allow it and `at` is still to come.
+/// Otherwise the one set before is taken back, so a reminder that's off or
+/// past doesn't fire. Returns whether it was set.
+pub fn schedule(
+    shell: &Shell,
+    kind: NotificationKind,
+    id: i32,
+    at: DateTime<Utc>,
+    title: &str,
+    body: &str,
+) -> bool {
+    let prefs = shell.with_notification_prefs(|prefs| prefs.clone());
+    if !prefs.allows(kind) || at <= (shell.clock)() {
+        log::debug!("Notification {:?} for {} not set", kind, at);
+        cancel(shell, id);
+        return false;
+    }
+    let scheduled = ScheduledNotification {
+        id,
+        at,
+        title: title.to_string(),
+        body: body.to_string(),
+        sound: prefs.sound,
+    };
+    match shell.platform.schedule_notification(&scheduled) {
+        Ok(()) => true,
+        Err(e) => {
+            log::warn!("Failed to set a notification for later: {}", e);
+            false
+        }
+    }
+}
+
+/// Takes back the notification set with `id`, if it's still to come.
+pub fn cancel(shell: &Shell, id: i32) {
+    if let Err(e) = shell.platform.cancel_notification(id) {
+        log::warn!("Failed to take back a notification set for later: {}", e);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::fixture;
+    use crate::testing::{fixture, start};
     use serde_json::json;
     use taskmint_core::notifications::NotificationPrefs;
 
@@ -148,5 +194,84 @@ mod tests {
             "b",
             Origin::App
         ));
+    }
+
+    #[test]
+    fn a_notification_for_later_is_set_with_the_sound_setting() {
+        let f = fixture();
+        f.state
+            .with_notification_prefs_mut(|prefs| prefs.sound = true);
+        let at = start() + chrono::Duration::hours(3);
+
+        assert!(schedule(
+            &f.state,
+            NotificationKind::WithdrawalReady,
+            7,
+            at,
+            "Withdrawal ready",
+            "$80.00"
+        ));
+
+        assert_eq!(
+            f.platform.recorded().scheduled,
+            [ScheduledNotification {
+                id: 7,
+                at,
+                title: "Withdrawal ready".to_string(),
+                body: "$80.00".to_string(),
+                sound: true,
+            }]
+        );
+        assert!(f.platform.recorded().cancelled.is_empty());
+    }
+
+    #[test]
+    fn one_thats_off_or_past_is_taken_back_instead() {
+        let f = fixture();
+        assert!(!schedule(
+            &f.state,
+            NotificationKind::WithdrawalReady,
+            7,
+            start(),
+            "t",
+            "b"
+        ));
+        f.state
+            .with_notification_prefs_mut(|prefs| prefs.desktop_enabled = false);
+        assert!(!schedule(
+            &f.state,
+            NotificationKind::WithdrawalReady,
+            7,
+            start() + chrono::Duration::hours(1),
+            "t",
+            "b"
+        ));
+
+        assert!(f.platform.recorded().scheduled.is_empty());
+        assert_eq!(f.platform.recorded().cancelled, [7, 7]);
+    }
+
+    #[test]
+    fn one_the_system_refuses_isnt_set() {
+        let f = fixture();
+        f.platform.fail("schedule");
+        assert!(!schedule(
+            &f.state,
+            NotificationKind::WithdrawalReady,
+            7,
+            start() + chrono::Duration::hours(1),
+            "t",
+            "b"
+        ));
+    }
+
+    #[test]
+    fn taking_one_back_survives_the_system_refusing() {
+        let f = fixture();
+        cancel(&f.state, 7);
+        assert_eq!(f.platform.recorded().cancelled, [7]);
+        f.platform.fail("cancel");
+        cancel(&f.state, 8);
+        assert_eq!(f.platform.recorded().cancelled, [7]);
     }
 }

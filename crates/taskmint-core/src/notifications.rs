@@ -16,6 +16,9 @@ pub enum NotificationKind {
     BackupSuccess,
     DailySummary,
     Error,
+    /// A withdrawal the user scheduled is ready. They asked for each one, so
+    /// it has no switch of its own.
+    WithdrawalReady,
     /// Settings' "Send test notification": always shown.
     Test,
 }
@@ -66,7 +69,9 @@ impl NotificationPrefs {
             return false;
         }
         match kind {
-            NotificationKind::General | NotificationKind::Test => true,
+            NotificationKind::General
+            | NotificationKind::WithdrawalReady
+            | NotificationKind::Test => true,
             NotificationKind::GoalMilestone => self.goal_milestones,
             NotificationKind::LongRun => self.long_run_reminder,
             NotificationKind::IdlePause => self.idle_pause,
@@ -149,6 +154,7 @@ mod tests {
             NotificationKind::BackupSuccess,
             NotificationKind::DailySummary,
             NotificationKind::Error,
+            NotificationKind::WithdrawalReady,
             NotificationKind::Test,
         ] {
             assert!(prefs.allows(kind), "{:?}", kind);

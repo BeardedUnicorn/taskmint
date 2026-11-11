@@ -29,6 +29,7 @@ export const createMockAmount = (overrides: Partial<WithdrawableAmount> = {}): W
 
 export const createMockPlan = (overrides: Partial<WithdrawalPlan> = {}): WithdrawalPlan => ({
   last: createMockWithdrawal(),
+  allowedAtMs: new Date(2026, 10, 10, 18, 25).getTime(),
   opensAtMs: new Date(2026, 10, 10, 18, 25).getTime(),
   isOpen: false,
   next: createMockAmount({ actualCents: 110000 }),
@@ -71,6 +72,7 @@ export const createMockPayoutData = (overrides: Partial<PayoutData> = {}): Payou
     },
     monthGroups: [],
     plan: null,
+    reminder: null,
     lastImport: null,
     importIsStale: false,
     isEmpty: false,

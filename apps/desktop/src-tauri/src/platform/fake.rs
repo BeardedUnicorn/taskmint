@@ -2,7 +2,9 @@
 //! dialogs with what the test queued. A picked document (Android's) is a
 //! file the test names, or one it can't open.
 
-use super::{AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog};
+use super::{
+    AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, ScheduledNotification,
+};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
@@ -14,6 +16,9 @@ use std::sync::Mutex;
 pub struct Recorded {
     pub events: Vec<(String, Value)>,
     pub notifications: Vec<(String, String, bool)>,
+    /// Set for later, in order; a cancel doesn't remove one.
+    pub scheduled: Vec<ScheduledNotification>,
+    pub cancelled: Vec<i32>,
     pub save_dialogs: Vec<SaveDialog>,
     pub open_dialogs: Vec<String>,
     pub folder_dialogs: Vec<String>,
@@ -40,7 +45,8 @@ pub struct FakePlatform {
     update: Mutex<Option<AvailableUpdate>>,
     /// How an update's download goes, in order.
     download: Mutex<Vec<DownloadEvent>>,
-    /// Calls that fail from now on: "emit", "notify", "reveal", "open_dir",
+    /// Calls that fail from now on: "emit", "notify", "schedule", "cancel",
+    /// "reveal", "open_dir",
     /// "tray", "status", "check_update", "install_update" (after its
     /// download).
     failing: Mutex<Vec<&'static str>>,
@@ -145,6 +151,18 @@ impl Platform for FakePlatform {
         self.recorded()
             .notifications
             .push((title.to_string(), body.to_string(), sound));
+        Ok(())
+    }
+
+    fn schedule_notification(&self, scheduled: &ScheduledNotification) -> Result<(), String> {
+        self.check("schedule")?;
+        self.recorded().scheduled.push(scheduled.clone());
+        Ok(())
+    }
+
+    fn cancel_notification(&self, id: i32) -> Result<(), String> {
+        self.check("cancel")?;
+        self.recorded().cancelled.push(id);
         Ok(())
     }
 

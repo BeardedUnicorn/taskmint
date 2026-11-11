@@ -3,12 +3,23 @@
  * first, and the ways to change them. A record that doesn't read as a list of
  * withdrawals is left exactly as it is: it's reported, and every change is
  * refused rather than written over it.
+ *
+ * Also the next withdrawal the user scheduled (the `scheduledWithdrawal`
+ * record). It's only a reminder, so one that doesn't read is no schedule, and
+ * the next one scheduled replaces it.
  */
 
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import { STORAGE_KEYS } from '../constants';
 import { useNotification } from '../contexts/NotificationContext';
-import { Withdrawal, WithdrawalInput, WithdrawalListSchema, WithdrawalSchema } from '../types/withdrawal';
+import {
+  ScheduledWithdrawal,
+  ScheduledWithdrawalSchema,
+  Withdrawal,
+  WithdrawalInput,
+  WithdrawalListSchema,
+  WithdrawalSchema,
+} from '../types/withdrawal';
 import { centsToDollars } from '../utils/payoutCalculator';
 import { formatCurrency } from '../utils/formatters';
 import { formatShortDateTime } from '../utils/locale';
@@ -27,6 +38,11 @@ export interface UseWithdrawalsReturn {
   updateWithdrawal: (id: string, input: WithdrawalInput) => void;
   /** Deletes it, with an Undo on the toast. */
   deleteWithdrawal: (id: string) => void;
+  /** The next withdrawal the user scheduled, or null. */
+  scheduled: ScheduledWithdrawal | null;
+  /** Schedules the next withdrawal for the release at `releaseMs`, in place of any scheduled before. */
+  scheduleWithdrawal: (releaseMs: number) => void;
+  cancelScheduledWithdrawal: () => void;
 }
 
 export const WithdrawalsContext = createContext<UseWithdrawalsReturn | null>(null);
@@ -124,11 +140,35 @@ export function useWithdrawalsState(): UseWithdrawalsReturn {
     [withdrawals, save, showInfo]
   );
 
+  const [storedSchedule, setStoredSchedule] = useAppRecord<unknown>(STORAGE_KEYS.SCHEDULED_WITHDRAWAL, null);
+  const scheduled = useMemo(() => {
+    const parsedSchedule = ScheduledWithdrawalSchema.safeParse(storedSchedule);
+    return parsedSchedule.success ? parsedSchedule.data : null;
+  }, [storedSchedule]);
+
+  const scheduleWithdrawal = useCallback(
+    (releaseMs: number) => {
+      setStoredSchedule(
+        ScheduledWithdrawalSchema.parse({
+          id: crypto.randomUUID(),
+          releaseAt: new Date(releaseMs).toISOString(),
+          createdAt: new Date().toISOString(),
+        })
+      );
+    },
+    [setStoredSchedule]
+  );
+
+  const cancelScheduledWithdrawal = useCallback(() => setStoredSchedule(null), [setStoredSchedule]);
+
   return {
     withdrawals,
     loadError: readable ? null : UNREADABLE_WITHDRAWALS,
     recordWithdrawal,
     updateWithdrawal,
     deleteWithdrawal,
+    scheduled,
+    scheduleWithdrawal,
+    cancelScheduledWithdrawal,
   };
 }

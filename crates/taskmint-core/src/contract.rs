@@ -73,16 +73,18 @@ pub const IDLE_CHOICE_STAY_PAUSED: &str = "stayPaused";
 /// hourly rates, and names that follow a rename).
 pub const TASKS_RECORD_KEY: &str = "predefinedTasks";
 
-/// The frontend's records (its STORAGE_KEYS names; APP_RECORD_KEYS in
-/// packages/client/src/services/appRecords.ts). `accountSettings` holds the
-/// settings that change the numbers (funds-release days, the withdrawal
-/// interval), so every device computes the same dates.
 /// The cloud documents' schema (sync). A device skips documents from a newer
 /// one, so a field added to a synced entity raises it: an older TaskMint
 /// would drop the field, then write the entity back without it.
 pub const SYNC_SCHEMA: u32 = 1;
 
-pub const APP_RECORD_KEYS: [&str; 7] = [
+/// The frontend's records (its STORAGE_KEYS names; APP_RECORD_KEYS in
+/// packages/client/src/services/appRecords.ts). `accountSettings` holds the
+/// settings that change the numbers (funds-release days, the withdrawal
+/// interval), so every device computes the same dates. `scheduledWithdrawal`
+/// is the withdrawal the user asked to be reminded about, so every device
+/// (the phone's alarm too) reminds them.
+pub const APP_RECORD_KEYS: [&str; 8] = [
     TASKS_RECORD_KEY,
     "taskNotes",
     "noteTemplates",
@@ -90,6 +92,7 @@ pub const APP_RECORD_KEYS: [&str; 7] = [
     "dailyGoalAchievements",
     "withdrawals",
     "accountSettings",
+    "scheduledWithdrawal",
 ];
 
 // ============================================================================
@@ -253,7 +256,8 @@ mod tests {
                 "dailyGoal",
                 "dailyGoalAchievements",
                 "withdrawals",
-                "accountSettings"
+                "accountSettings",
+                "scheduledWithdrawal"
             ]
         );
         assert_eq!(DEEP_LINK_SCHEME, "taskmint");
