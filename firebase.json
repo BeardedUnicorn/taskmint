@@ -4,6 +4,7 @@
     "indexes": "firebase/firestore.indexes.json"
   },
   "hosting": {
+    "site": "taskmint-f9a05",
     "public": "apps/web/dist",
     "ignore": [
       "**/.*"

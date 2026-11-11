@@ -211,7 +211,7 @@ function Signedin({ engine, view }: { engine: SyncEngine; view: SyncView }) {
         onClose={() => setConfirming(null)}
         onConfirm={attempt(() => engine.deleteCloudData())}
         title="Delete your cloud data?"
-        message="Your sessions, tasks and work logs are deleted from the cloud, and every device stops syncing. Each device keeps its own copy. This can't be undone."
+        message="Your sessions, tasks and work logs are deleted from the cloud, and every device stops syncing. Each device keeps its own copy. BudgetMint keeps its own data but stops seeing your payouts. This can't be undone."
         confirmLabel="Delete cloud data"
         severity="error"
       />

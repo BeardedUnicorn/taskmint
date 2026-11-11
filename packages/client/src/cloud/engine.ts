@@ -11,11 +11,13 @@
  *   they're made. A document it sent counts as sent once it comes back.
  * - Deleting the cloud data (from any device) moves the account to a new
  *   epoch, and a device still on the old one stops syncing, keeping its data.
+ * - Linked and caught up, it publishes the payout forecast other apps read
+ *   (utils/payoutForecast) whenever this device's changes, after a pause.
  */
 
 import { EVENTS, SYNC_SCHEMA, type OutgoingDoc, type SyncStatus } from '@taskmint/contracts';
 import type { Backend } from '../backend';
-import type { CloudBatch, CloudStore, CloudUser, Unsubscribe } from './types';
+import type { CloudBatch, CloudStore, CloudUser, PublishedDoc, Unsubscribe } from './types';
 import { cloudErrorMessage } from './errors';
 
 export type SyncPhase =
@@ -49,9 +51,21 @@ export interface EngineOptions {
   sendDelayMs: number;
   /** How long after a failure it tries again. */
   retryMs: number;
+  /** How long after the forecast changes it's published, so a burst of changes is one write. */
+  publishDelayMs: number;
+  /** How long after a failed publish it tries again (an older ruleset refuses it until it's deployed). */
+  publishRetryMs: number;
 }
 
-export const ENGINE_OPTIONS: EngineOptions = { sendDelayMs: 1000, retryMs: 30_000 };
+export const ENGINE_OPTIONS: EngineOptions = {
+  sendDelayMs: 1000,
+  retryMs: 30_000,
+  publishDelayMs: 5000,
+  publishRetryMs: 5 * 60_000,
+};
+
+/** The published payout forecast's document (utils/payoutForecast PAYOUT_FORECAST_DOC). */
+export const FORECAST_DOC = 'payoutForecast';
 
 /** Phases where no data is on its way, so nothing waits for it (firstSync). */
 const WAITS_FOR_NOTHING = new Set<SyncPhase>(['signedOut', 'choose', 'otherAccount', 'error', 'cloudReset']);
@@ -76,6 +90,12 @@ export class SyncEngine {
   /** Waiting for the cloud's data to first come in (firstSync). */
   private caughtUp = false;
   private readonly waiting: (() => void)[] = [];
+  /** The payout forecast as this device has it, and the hash it last published while linked. */
+  private forecast: PublishedDoc | null = null;
+  /** The cloud's data has come in since linking, so the forecast counts it. */
+  private received = false;
+  private publishedHash: string | null = null;
+  private publishTimer: ReturnType<typeof setTimeout> | undefined;
 
   /**
    * `google` gets a Google ID token the shell's own way (null: Firebase's
@@ -180,8 +200,22 @@ export class SyncEngine {
    * data, already gone.
    */
   async deleteAccount(): Promise<void> {
+    const uid = this.view.user?.uid;
     if (this.linked) await this.deleteCloudData();
+    // BudgetMint signs in with the same account: its data goes with it
+    if (uid) await this.cloud.deleteCompanionData(uid);
     await this.cloud.deleteUser();
+  }
+
+  /**
+   * The payout forecast as this device now has it: published shortly, once
+   * this device is linked and has the cloud's data, unless the cloud already
+   * has it. Only a change here publishes: another device's forecast doesn't.
+   */
+  publishForecast(doc: PublishedDoc): void {
+    if (doc.hash === this.forecast?.hash) return;
+    this.forecast = doc;
+    this.schedulePublish(this.options.publishDelayMs);
   }
 
   /**
@@ -223,6 +257,10 @@ export class SyncEngine {
     this.linked = null;
     this.sent.clear();
     clearTimeout(this.timer);
+    clearTimeout(this.publishTimer);
+    this.publishTimer = undefined;
+    this.publishedHash = null;
+    this.received = false;
   }
 
   private fail(error: unknown, generation: number): void {
@@ -306,12 +344,47 @@ export class SyncEngine {
         if (generation !== this.generation) return;
         await this.backend.call('apply_sync_incoming', { docs: batch.docs, cursor: batch.cursor });
         for (const doc of batch.docs) this.sent.delete(doc.docId);
+        this.received = true;
       });
       this.catchUp();
       // A merge may have something to send back
       this.send(0);
+      // The forecast waits for the cloud's data (unless it's already on its way)
+      if (this.publishTimer === undefined) this.schedulePublish(this.options.publishDelayMs);
     } catch (error) {
       this.fail(error, generation);
+    }
+  }
+
+  private schedulePublish(delayMs: number): void {
+    clearTimeout(this.publishTimer);
+    this.publishTimer = undefined;
+    if (!this.linked || this.forecast === null || this.forecast.hash === this.publishedHash) return;
+    const generation = this.generation;
+    // (Unlinking clears the timer, so it fires only while linked)
+    this.publishTimer = setTimeout(() => void this.publishNow(generation), delayMs);
+  }
+
+  /**
+   * Publishes the forecast if this device has all the cloud's data: none held
+   * back for a newer TaskMint, which would publish its own. A failure isn't
+   * sync's: it's tried again later, quietly.
+   */
+  private async publishNow(generation: number): Promise<void> {
+    this.publishTimer = undefined;
+    const linked = this.linked!;
+    const forecast = this.forecast!;
+    if (!this.received || this.view.held > 0) return;
+    try {
+      await this.cloud.publish(linked.uid, FORECAST_DOC, forecast, {
+        deviceId: linked.deviceId,
+        epoch: linked.epoch,
+      });
+      if (generation === this.generation) this.publishedHash = forecast.hash;
+    } catch (error) {
+      if (generation !== this.generation) return;
+      console.warn('Failed to publish the payout forecast:', error);
+      this.schedulePublish(this.options.publishRetryMs);
     }
   }
 

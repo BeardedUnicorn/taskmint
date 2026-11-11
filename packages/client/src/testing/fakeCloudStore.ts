@@ -7,7 +7,7 @@
 
 import { vi } from 'vitest';
 import type { OutgoingDoc } from '@taskmint/contracts';
-import type { CloudBatch, CloudStore, CloudUser, WriteMeta } from '../cloud/types';
+import type { CloudBatch, CloudStore, CloudUser, PublishedDoc, WriteMeta } from '../cloud/types';
 
 export interface FakeCloudStore extends CloudStore {
   /** Signs `user` in (null: out), as Firebase reports it. */
@@ -24,6 +24,10 @@ export interface FakeCloudStore extends CloudStore {
   readonly writes: { uid: string; docs: OutgoingDoc[]; meta: WriteMeta }[];
   /** The listeners opened, with the cursor each started from. */
   readonly listens: { uid: string; cursor: string | null; open: boolean }[];
+  /** The published documents, by `uid/name`, as the cloud has them. */
+  readonly published: Map<string, PublishedDoc & { deviceId: string; epoch: number }>;
+  /** Whether BudgetMint's data was deleted, by uid. */
+  readonly companionDeleted: Set<string>;
 }
 
 export function bea(uid = 'bea'): CloudUser {
@@ -39,6 +43,8 @@ export function createFakeCloudStore(): FakeCloudStore {
   let open: { onBatch: (batch: CloudBatch) => void; onError: (error: unknown) => void } | null = null;
   const writes: FakeCloudStore['writes'] = [];
   const listens: FakeCloudStore['listens'] = [];
+  const published: FakeCloudStore['published'] = new Map();
+  const companionDeleted = new Set<string>();
 
   const store: FakeCloudStore = {
     onUser: vi.fn((listener: (user: CloudUser | null) => void) => {
@@ -79,7 +85,18 @@ export function createFakeCloudStore(): FakeCloudStore {
     deleteAll: vi.fn(async (uid: string, epoch: number) => {
       store.setEpoch(uid, epoch + 1);
       filled.set(uid, false);
+      for (const key of [...published.keys()]) if (key.startsWith(`${uid}/`)) published.delete(key);
       return epoch + 1;
+    }),
+    // As the store's transaction does: the same hash, or a newer contract, isn't written over
+    publish: vi.fn(async (uid: string, name: string, doc: PublishedDoc, meta: { deviceId: string; epoch: number }) => {
+      const current = published.get(`${uid}/${name}`);
+      if (current && (current.hash === doc.hash || current.schema > doc.schema)) return false;
+      published.set(`${uid}/${name}`, { ...doc, ...meta });
+      return true;
+    }),
+    deleteCompanionData: vi.fn(async (uid: string) => {
+      companionDeleted.add(uid);
     }),
 
     setUser(next) {
@@ -102,6 +119,8 @@ export function createFakeCloudStore(): FakeCloudStore {
     },
     writes,
     listens,
+    published,
+    companionDeleted,
   };
   return store;
 }

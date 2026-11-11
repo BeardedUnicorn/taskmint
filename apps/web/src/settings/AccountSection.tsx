@@ -66,7 +66,7 @@ export function AccountSection() {
         onClose={() => setDeleting(false)}
         onConfirm={() => attempt(() => engine.deleteAccount())}
         title="Delete your account?"
-        message="Your account and all your TaskMint data in the cloud are deleted, and your other devices stop syncing (each keeps its own copy). This can't be undone."
+        message="Your account and all your TaskMint and BudgetMint data in the cloud are deleted, and your other devices stop syncing (each keeps its own copy). This can't be undone."
         confirmLabel="Delete account"
         severity="error"
       />

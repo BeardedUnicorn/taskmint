@@ -39,37 +39,112 @@ export interface WithdrawableAmount {
   totalCents: number;
 }
 
+/** How a release counts toward the withdrawals after a cutoff. */
+export type ReleaseCount =
+  /** Never: Paid, taken by the cutoff's withdrawal, or (an estimate) released by it. */
+  | 'never'
+  /** In every withdrawal after the cutoff until one takes it: Untransferred money on the balance. */
+  | 'carried'
+  /** From its release time on. */
+  | 'atRelease';
+
+/** How `event` counts toward the withdrawals after the one at `cutoffMs` (null: none recorded). */
+export function classifyRelease(event: ReleaseEvent, cutoffMs: number | null): ReleaseCount {
+  const afterCutoff = (ms: number) => cutoffMs === null || ms > cutoffMs;
+  // A release whose time didn't parse: an estimate's never comes, an import's is no later than any withdrawal
+  const timed = !Number.isNaN(event.releaseMs);
+  if (event.status === undefined) {
+    // An estimate: tracked time released since the cutoff
+    return timed && afterCutoff(event.releaseMs) ? 'atRelease' : 'never';
+  }
+  if (isPaid(event.status)) return 'never';
+  // What the site said since the cutoff is the truth about it
+  const reportedSince = event.reportedMs !== undefined && afterCutoff(event.reportedMs);
+  if (isUntransferred(event.status)) {
+    // On the balance: the withdrawal at the cutoff took it, unless the site still showed it after
+    return cutoffMs === null || reportedSince ? 'carried' : 'never';
+  }
+  // Still pending: counts once released, unless the cutoff's withdrawal took it (and the site hasn't held it since)
+  if (!(reportedSince || afterCutoff(event.releaseMs))) return 'never';
+  return timed ? 'atRelease' : 'carried';
+}
+
+/** Money a withdrawal can take, by kind. */
+export interface CurveAmount {
+  actualCents: number;
+  estimatedCents: number;
+  /** Part of actualCents: imports the site still listed as pending after their release time. */
+  pastDueCents: number;
+}
+
+export interface CurveStep extends CurveAmount {
+  /** When it becomes withdrawable (its release). */
+  atMs: number;
+}
+
+/**
+ * What the withdrawals after a cutoff can take, as time goes on: `carried`
+ * from the start, then each step from its time. A withdrawal at `t` takes
+ * curveAt(curve, t); one after it at `t2` takes what the curve adds between
+ * them. Nothing in it depends on the clock, so it can be stored and shared.
+ */
+export interface WithdrawableCurve {
+  carried: CurveAmount;
+  /** Soonest first, one per release time. */
+  steps: CurveStep[];
+}
+
+const noMoney = (): CurveAmount => ({ actualCents: 0, estimatedCents: 0, pastDueCents: 0 });
+
+/** Adds `event`'s money to `amount`: a pending import the site reported after its release is past due. */
+export function addRelease(amount: CurveAmount, event: ReleaseEvent): void {
+  amount.actualCents += event.actualCents;
+  amount.estimatedCents += event.estimatedCents;
+  const pending = event.status !== undefined && !isUntransferred(event.status);
+  if (pending && event.reportedMs !== undefined && event.reportedMs > event.releaseMs) {
+    amount.pastDueCents += event.actualCents;
+  }
+}
+
+/** The curve of what the withdrawals after the one at `cutoffMs` take (null: none recorded). */
+export function withdrawableCurve(events: ReleaseEvent[], cutoffMs: number | null): WithdrawableCurve {
+  const carried = noMoney();
+  const byTime = new Map<number, CurveStep>();
+  for (const event of events) {
+    const count = classifyRelease(event, cutoffMs);
+    if (count === 'never') continue;
+    if (count === 'carried') {
+      addRelease(carried, event);
+      continue;
+    }
+    let step = byTime.get(event.releaseMs);
+    if (!step) {
+      step = { atMs: event.releaseMs, ...noMoney() };
+      byTime.set(event.releaseMs, step);
+    }
+    addRelease(step, event);
+  }
+  return { carried, steps: [...byTime.values()].sort((a, b) => a.atMs - b.atMs) };
+}
+
+/** What a withdrawal at `atMs` takes, on `curve`. */
+export function curveAt(curve: WithdrawableCurve, atMs: number): WithdrawableAmount {
+  const sum = { ...curve.carried };
+  for (const step of curve.steps) {
+    if (step.atMs > atMs) break;
+    sum.actualCents += step.actualCents;
+    sum.estimatedCents += step.estimatedCents;
+    sum.pastDueCents += step.pastDueCents;
+  }
+  return { ...sum, totalCents: sum.actualCents + sum.estimatedCents };
+}
+
 /**
  * What a withdrawal at `atMs` takes, after the withdrawal at `cutoffMs`
  * (null: none recorded, so everything not Paid that's released by then).
  */
 export function withdrawableAt(events: ReleaseEvent[], cutoffMs: number | null, atMs: number): WithdrawableAmount {
-  let actualCents = 0;
-  let estimatedCents = 0;
-  let pastDueCents = 0;
-  const afterCutoff = (ms: number) => cutoffMs === null || ms > cutoffMs;
-
-  for (const event of events) {
-    if (event.status === undefined) {
-      // An estimate: tracked time released since the cutoff
-      if (event.releaseMs <= atMs && afterCutoff(event.releaseMs)) estimatedCents += event.estimatedCents;
-      continue;
-    }
-    if (isPaid(event.status)) continue;
-    // What the site said since the cutoff is the truth about it
-    const reportedSince = event.reportedMs !== undefined && afterCutoff(event.reportedMs);
-    if (isUntransferred(event.status)) {
-      // On the balance: the withdrawal at the cutoff took it, unless the site still showed it after
-      if (cutoffMs === null || reportedSince) actualCents += event.actualCents;
-      continue;
-    }
-    // Still pending: released by then, and not by the cutoff (unless the site still held it after)
-    if (event.releaseMs > atMs || !(reportedSince || afterCutoff(event.releaseMs))) continue;
-    actualCents += event.actualCents;
-    if (event.reportedMs !== undefined && event.reportedMs > event.releaseMs) pastDueCents += event.actualCents;
-  }
-
-  return { actualCents, estimatedCents, pastDueCents, totalCents: actualCents + estimatedCents };
+  return curveAt(withdrawableCurve(events, cutoffMs), atMs);
 }
 
 const takenAtMs = (withdrawal: Withdrawal) => Date.parse(withdrawal.takenAt);

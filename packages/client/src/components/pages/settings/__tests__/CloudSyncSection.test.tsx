@@ -7,7 +7,7 @@ import { SyncEngine, setCloudSyncForTest } from '../../../../cloud';
 import { asBackend, bea, createFakeCloudStore, type FakeCloudStore } from '../../../../testing';
 import { syncHost } from '../../../../cloud/__tests__/syncHost';
 
-const OPTIONS = { sendDelayMs: 1, retryMs: 10_000 };
+const OPTIONS = { sendDelayMs: 1, retryMs: 10_000, publishDelayMs: 1, publishRetryMs: 10_000 };
 
 afterEach(() => setCloudSyncForTest(null));
 
