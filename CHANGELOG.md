@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.2.0 – 2026-11-10
+
+### Added
+
+- With cloud sync on, TaskMint shares your upcoming withdrawals with BudgetMint (signed in with the same account), so it can plan your bills around them. Only amounts and times are shared: no task names or notes. Deleting your account from TaskMint deletes your BudgetMint data too.
+
 ## 4.1.0 – 2026-11-10
 
 ### Added

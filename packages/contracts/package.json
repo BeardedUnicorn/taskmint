@@ -1,7 +1,7 @@
 {
   "name": "@taskmint/contracts",
   "private": true,
-  "version": "4.1.0",
+  "version": "4.2.0",
   "type": "module",
   "description": "The wire types and constants every TaskMint client shares, generated from crates/taskmint-core",
   "exports": {
