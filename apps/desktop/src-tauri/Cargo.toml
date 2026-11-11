@@ -1,6 +1,6 @@
 [package]
 name = "taskmint"
-version = "4.2.2"
+version = "4.2.3"
 description = "TaskMint desktop time tracker"
 authors = ["Mike Herold"]
 edition = "2021"

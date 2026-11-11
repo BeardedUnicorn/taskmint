@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.2.3 – 2026-11-11
+
+### Changed
+
+- The payout forecast BudgetMint reads now says which day each payout was earned on, so BudgetMint's calendar can show your earnings on the days you worked until a withdrawal takes them.
+
 ## 4.2.2 – 2026-11-11
 
 ### Fixed
