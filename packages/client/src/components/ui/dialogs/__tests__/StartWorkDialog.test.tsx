@@ -24,7 +24,6 @@ describe('StartWorkDialog', () => {
   const onAddTask = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
     onStart.mockResolvedValue({ outcome: 'started' });
   });
 

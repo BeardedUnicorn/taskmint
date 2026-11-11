@@ -31,7 +31,6 @@ const status = () => screen.getByText('Status').parentElement!.querySelector('.M
 
 beforeEach(() => {
   localStorage.clear();
-  vi.clearAllMocks();
   notifications.current = createNotificationMock();
   fakeBackend().call.mockImplementation(async (command: string) =>
     command === 'get_work_logs' ? { entries: [], mappings: [], loadWarning: null } : []

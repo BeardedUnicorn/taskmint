@@ -15,7 +15,6 @@ const left = () => [
 describe("moving this device's payout settings into their record", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    vi.clearAllMocks();
     // As in the installed app
     vi.stubEnv('DEV', false);
   });

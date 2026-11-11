@@ -24,7 +24,6 @@ describe('AddTimerDialog', () => {
   const onClose = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
     onAdd.mockResolvedValue(null);
   });
 

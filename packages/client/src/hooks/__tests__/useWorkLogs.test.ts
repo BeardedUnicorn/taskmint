@@ -47,7 +47,6 @@ const emptyPayload: WorkLogImportPayload = {
 
 describe('useWorkLogs', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === 'get_work_logs') return emptyResponse;
       return undefined;

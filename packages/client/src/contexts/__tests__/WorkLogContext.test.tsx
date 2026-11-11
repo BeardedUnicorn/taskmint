@@ -3,7 +3,7 @@
  * and the capture handler's wiring.
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { act, render, screen, fireEvent } from '@testing-library/react';
 import { WorkLogProvider, useWorkLogContext } from '../WorkLogContext';
@@ -50,10 +50,6 @@ function Probe() {
 }
 
 describe('WorkLogContext', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('shares the work-log instance and manages the staged capture', () => {
     render(
       <WorkLogProvider>

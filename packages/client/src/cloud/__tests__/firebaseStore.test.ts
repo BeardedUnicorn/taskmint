@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CloudConfig } from '../types';
 
 // The SDK, as far as the store uses it: each call recorded
@@ -88,10 +88,6 @@ const CONFIG: CloudConfig = {
   persistentCache: false,
   popupSignIn: false,
 };
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 /** A snapshot document as Firestore hands it over. */
 function snap(id: string, fields: Record<string, unknown>, pending = false) {

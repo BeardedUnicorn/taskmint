@@ -31,7 +31,6 @@ describe('StorageService with app records', () => {
   const storage = StorageService.getInstance();
 
   beforeEach(async () => {
-    vi.clearAllMocks();
     resetAppRecordsForTests();
     window.localStorage.clear();
     mockInvoke.mockImplementation(async (command: string) => {

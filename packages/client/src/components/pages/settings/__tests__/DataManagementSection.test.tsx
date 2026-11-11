@@ -57,7 +57,6 @@ describe('DataManagementSection', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockResetAllData.mockResolvedValue(undefined);
     setupHookMocks();
   });

@@ -140,8 +140,6 @@ describe('Session System Integration', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
-
     // Reset mock state
     Object.assign(mockSessionManagement, {
       sessions: [],

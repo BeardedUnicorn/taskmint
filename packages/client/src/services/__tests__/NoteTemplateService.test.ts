@@ -30,7 +30,6 @@ describe('NoteTemplateService', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockStorageService = {
       getNoteTemplates: vi.fn().mockResolvedValue([freeFormTemplate]),
       setNoteTemplates: vi.fn().mockResolvedValue(undefined),

@@ -54,7 +54,6 @@ describe('useDailyGoals', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.setSystemTime(new Date('2024-01-02T12:00:00.000Z')); // Control date for tests
 
     // Reset the mock implementation of useAppRecord for each test

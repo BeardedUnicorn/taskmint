@@ -25,7 +25,6 @@ describe('useResetAppData', () => {
   const onError = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockInvoke.mockResolvedValue({ backupsDeleted: 0, warning: null });
   });
 

@@ -7,7 +7,7 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { SessionTimerToolbar } from '../SessionTimerToolbar';
 import { TaskSession, TimerInstance, TimerState } from '../../../types/timer';
@@ -67,10 +67,6 @@ describe('SessionTimerToolbar', () => {
   const sessionWith = (overrides: Partial<TimerInstance>): TaskSession => ({
     ...mockActiveSession,
     timerInstances: [{ ...mockTimerInstance, ...overrides }],
-  });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
   });
 
   describe('No Active Session State', () => {

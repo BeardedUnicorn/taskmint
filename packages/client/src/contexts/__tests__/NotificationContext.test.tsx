@@ -34,7 +34,6 @@ describe('NotificationProvider', () => {
   beforeEach(() => {
     attended = true;
     localStorage.clear();
-    vi.clearAllMocks();
     mockDeliver.mockResolvedValue(true);
   });
 

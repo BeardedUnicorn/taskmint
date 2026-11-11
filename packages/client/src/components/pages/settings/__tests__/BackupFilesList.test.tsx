@@ -44,7 +44,6 @@ const list = () => screen.getByRole('list', { name: 'Backups in this folder' });
 const restoreCalls = () => fakeBackend().call.mock.calls.filter(([command]) => command === 'restore_backup_data');
 
 beforeEach(() => {
-  vi.clearAllMocks();
   notifications.current = createNotificationMock();
   fakeBackend().call.mockImplementation(async (command: string) =>
     command === 'restore_backup_data' ? SUMMARY : undefined

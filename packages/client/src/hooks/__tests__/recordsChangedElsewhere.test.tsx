@@ -4,7 +4,7 @@
  */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { useTaskManagement } from '../useTaskManagement';
 import { useTaskNotesState } from '../useTaskNotes';
 import { useNoteTemplatesState } from '../useNoteTemplates';
@@ -26,10 +26,6 @@ vi.mock('../../contexts/NotificationContext', () => ({
 }));
 
 const elsewhere = (key: string) => announceAppRecordsChange({ keys: [key as never], conflict: false });
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 describe('records changed elsewhere', () => {
   it('reload the tasks', async () => {

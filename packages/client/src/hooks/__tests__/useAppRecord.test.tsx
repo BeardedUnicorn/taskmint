@@ -18,7 +18,6 @@ async function loadWith(records: Record<string, unknown>) {
 
 describe('useAppRecord', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     resetAppRecordsForTests();
     window.localStorage.clear();
   });

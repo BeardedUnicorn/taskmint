@@ -25,7 +25,6 @@ function dispatched() {
 
 describe('createTauriBackend', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockInvoke.mockResolvedValue('result');
   });
 

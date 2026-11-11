@@ -9,7 +9,7 @@
 
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { EditTimeEntryDialog } from '../EditTimeEntryDialog';
 import { EditTimeEntryData } from '../../../../types/form';
@@ -34,10 +34,6 @@ const entry: EditTimeEntryData & { startTime: string } = {
 describe('EditTimeEntryDialog', () => {
   const onSave = vi.fn();
   const onClose = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   const renderDialog = (overrides: Partial<EditTimeEntryData> = {}) =>
     render(<EditTimeEntryDialog onClose={onClose} onSave={onSave} entry={{ ...entry, ...overrides }} tasks={tasks} />);

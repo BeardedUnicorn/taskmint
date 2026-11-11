@@ -16,7 +16,6 @@ const toggle = (name: string) => screen.getByRole('switch', { name });
 
 beforeEach(() => {
   localStorage.clear();
-  vi.clearAllMocks();
 });
 
 describe('NotificationSettingsSection', () => {

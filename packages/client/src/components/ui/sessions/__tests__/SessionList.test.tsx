@@ -89,7 +89,6 @@ describe('SessionList', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     // The fixtures are from Jan 15 2024; the list opens on the last 30 days.
     // Only Date is faked, so durations still use the nowMs prop.
     vi.useFakeTimers({ toFake: ['Date'] });

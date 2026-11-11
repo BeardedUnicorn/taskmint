@@ -17,7 +17,6 @@ describe('TaskFormDialog', () => {
   const onSubmit = vi.fn().mockResolvedValue({ id: '1', name: 'Test', createdAt: '', updatedAt: '' } as Task);
 
   beforeEach(() => {
-    vi.clearAllMocks();
     templates.active = [];
     templates.isLoading = false;
   });

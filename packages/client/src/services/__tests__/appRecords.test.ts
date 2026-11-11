@@ -61,7 +61,6 @@ describe('appRecords', () => {
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
     resetAppRecordsForTests();
   });
 

@@ -69,7 +69,6 @@ describe('useTaskManagement', () => {
   ];
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockTaskService.getAllTasks.mockResolvedValue(sampleTasks);
     mockExecuteAsync.mockImplementation(async (fn, options) => {
       try {

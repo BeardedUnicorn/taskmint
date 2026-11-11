@@ -82,7 +82,6 @@ describe('AddTimeDialog', () => {
   const onClose = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(NOW);
     onAdd.mockResolvedValue({});

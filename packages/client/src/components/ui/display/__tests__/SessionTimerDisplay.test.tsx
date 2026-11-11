@@ -7,7 +7,7 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { SessionTimerDisplay } from '../SessionTimerDisplay';
 import { TaskSession, TimerInstance, TimerState } from '../../../../types/timer';
@@ -68,10 +68,6 @@ describe('SessionTimerDisplay', () => {
   const sessionWith = (overrides: Partial<TimerInstance>): TaskSession => ({
     ...mockSession,
     timerInstances: [{ ...baseInstance, ...overrides }],
-  });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
   });
 
   describe('a session on several tasks', () => {

@@ -160,7 +160,6 @@ describe('useCommands', () => {
   const labels = (commands: Command[]) => commands.map(c => c.label);
 
   beforeEach(() => {
-    vi.clearAllMocks();
     taskList.value = [
       createMockTask({ id: 'a', name: 'Annotation' }),
       createMockTask({ id: 'r', name: 'Review', isFavorite: true }),

@@ -39,7 +39,6 @@ const backupCalls = () => fakeBackend().platform.folderBackups.write.mock.calls;
 describe('BackupSettingsProvider scheduling', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.clearAllMocks();
   });
 
   afterEach(() => {

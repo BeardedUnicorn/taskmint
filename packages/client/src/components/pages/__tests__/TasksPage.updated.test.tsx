@@ -7,7 +7,7 @@
  */
 
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { TasksPage } from '../TasksPage';
 import { Task } from '../../../types/task';
@@ -146,10 +146,6 @@ describe('TasksPage - Task List Layout', () => {
     newTaskRequested: false,
     onNewTaskRequestHandled: vi.fn(),
   };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   it('renders the tasks page with header, task list, and controls', () => {
     render(<TasksPage {...mockProps} />);
