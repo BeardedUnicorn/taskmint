@@ -90,6 +90,7 @@ describe('buildPayoutForecast', () => {
       nextAllowedAtMs: null,
       scheduled: null,
       carried: { actualCents: 0, estimatedCents: 0, pastDueCents: 0 },
+      carriedDays: [],
       steps: [],
       recentDays: [],
       zone: ZONE,
@@ -135,6 +136,38 @@ describe('buildPayoutForecast', () => {
         { atMs: releaseOf(created.later), actualCents: 2000, estimatedCents: 0, pastDueCents: 0 },
       ],
     });
+  });
+
+  it('says which work day each step’s and the carried money was earned on', () => {
+    const forecast = buildPayoutForecast(inputs({ entries: ledger, withdrawals: [withdrawal] }), ZONE);
+    const day = (ms: number) => formatDateString(new Date(ms));
+    expect(forecast.steps.map(step => step.day)).toEqual([day(created.soon), day(created.later)]);
+    // The carried money by its day, oldest first: it adds up to `carried`
+    expect(forecast.carriedDays).toEqual([
+      { day: day(created.kept), actualCents: 300, estimatedCents: 0, pastDueCents: 0 },
+      { day: day(created.late), actualCents: 500, estimatedCents: 0, pastDueCents: 500 },
+      { day: day(created.released), actualCents: 400, estimatedCents: 0, pastDueCents: 400 },
+    ]);
+  });
+
+  it('splits a release time’s money by the work day it was earned', () => {
+    // Two days' work the site reported together: released together, a step each
+    const createdMs = new Date(2026, 10, 2, 12, 0).getTime();
+    const entries = [
+      { ...entry('mon', createdMs, 1000, 'Pending Approval', reported), workDay: '2026-11-02' },
+      { ...entry('sun', createdMs, 600, 'Pending Approval', reported), workDay: '2026-11-01' },
+    ];
+    const forecast = buildPayoutForecast(inputs({ entries, withdrawals: [withdrawal] }), ZONE);
+    const step = (day: string, actualCents: number) => ({
+      atMs: releaseOf(createdMs),
+      day,
+      actualCents,
+      estimatedCents: 0,
+      pastDueCents: 0,
+    });
+    expect(forecast.steps).toEqual([step('2026-11-01', 600), step('2026-11-02', 1000)]);
+    // A reader summing by time sees the same curve
+    expect(forecastAt(forecast, releaseOf(createdMs)).totalCents).toBe(1600);
   });
 
   it('agrees with TaskMint’s withdrawableAt at any time from when it was written', () => {
@@ -193,17 +226,21 @@ describe('buildPayoutForecast', () => {
     const forecast = JSON.parse(first) as PayoutForecast;
     expect(forecast.asOfMs).toBe(sinceMs);
     // Open timers last changed at sinceMs: their days go out 7 days after it, until they stop
-    const open = (estimatedCents: number, centsPerHour: number) => ({
+    const open = (day: number, estimatedCents: number, centsPerHour: number) => ({
       atMs: releaseOf(sinceMs),
+      day: formatDateString(new Date(day)),
       actualCents: 0,
       estimatedCents,
       pastDueCents: 0,
       open: { sinceMs, centsPerHour },
     });
     // Ordered by task and day: the running one (task-1), then the paused one (task-2)
-    expect(forecast.steps).toEqual([open(3000, 6000), open(4000, 0)]);
+    expect(forecast.steps).toEqual([open(start, 3000, 6000), open(pausedStart, 4000, 0)]);
     // The stopped timer's day was released before the data was written: carried
     expect(forecast.carried).toEqual({ actualCents: 0, estimatedCents: 6000, pastDueCents: 0 });
+    expect(forecast.carriedDays).toEqual([
+      { day: formatDateString(new Date(doneStart)), actualCents: 0, estimatedCents: 6000, pastDueCents: 0 },
+    ]);
     expect(forecast.recentDays).toEqual([
       { day: formatDateString(new Date(doneStart)), actualCents: 0, estimatedCents: 6000 },
       { day: formatDateString(new Date(pausedStart)), actualCents: 0, estimatedCents: 4000 },
@@ -271,9 +308,17 @@ describe('payoutForecastJson', () => {
       zone: ZONE,
       recentDays: [{ estimatedCents: 2, actualCents: 1, day: '2026-11-07' }],
       steps: [
-        { pastDueCents: 0, estimatedCents: 0, actualCents: 5, atMs: 10 },
-        { open: { centsPerHour: 6000, sinceMs: 3 }, pastDueCents: 0, estimatedCents: 7, actualCents: 0, atMs: 11 },
+        { pastDueCents: 0, estimatedCents: 0, actualCents: 5, day: '2026-11-06', atMs: 10 },
+        {
+          open: { centsPerHour: 6000, sinceMs: 3 },
+          pastDueCents: 0,
+          estimatedCents: 7,
+          actualCents: 0,
+          day: '2026-11-07',
+          atMs: 11,
+        },
       ],
+      carriedDays: [{ pastDueCents: 1, estimatedCents: 0, actualCents: 2, day: '2026-11-05' }],
       carried: { pastDueCents: 1, estimatedCents: 0, actualCents: 2 },
       scheduled: { dueMs: 9, releaseMs: 8 },
       nextAllowedAtMs: 7,
@@ -290,8 +335,10 @@ describe('payoutForecastJson', () => {
         '"cutoff":{"takenAtMs":5,"amountCents":6},"recentWithdrawals":[{"takenAtMs":5,"amountCents":6}],' +
         '"nextAllowedAtMs":7,"scheduled":{"releaseMs":8,"dueMs":9},' +
         '"carried":{"actualCents":2,"estimatedCents":0,"pastDueCents":1},' +
-        '"steps":[{"atMs":10,"actualCents":5,"estimatedCents":0,"pastDueCents":0},' +
-        '{"atMs":11,"actualCents":0,"estimatedCents":7,"pastDueCents":0,"open":{"sinceMs":3,"centsPerHour":6000}}],' +
+        '"carriedDays":[{"day":"2026-11-05","actualCents":2,"estimatedCents":0,"pastDueCents":1}],' +
+        '"steps":[{"atMs":10,"day":"2026-11-06","actualCents":5,"estimatedCents":0,"pastDueCents":0},' +
+        '{"atMs":11,"day":"2026-11-07","actualCents":0,"estimatedCents":7,"pastDueCents":0,' +
+        '"open":{"sinceMs":3,"centsPerHour":6000}}],' +
         '"recentDays":[{"day":"2026-11-07","actualCents":1,"estimatedCents":2}],"zone":"America/Chicago"}'
     );
     expect(payoutForecastJson({ ...forecast, cutoff: null, scheduled: null })).toContain(
