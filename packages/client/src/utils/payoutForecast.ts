@@ -17,6 +17,8 @@
  *   and releases it the release days after it stops.
  * - Steps released by `asOfMs` (the latest moment the data was written, so
  *   never after now) are in `carried`: any withdrawal from now on takes them.
+ * - Each step is one work day's money, and `carriedDays` splits `carried` the
+ *   same way, so a reader can say which days' money a withdrawal takes.
  *
  * Only money and times go out: no task names, notes or anything typed.
  */
@@ -51,12 +53,20 @@ const RECENT_DAYS = 42;
 export interface ForecastStep extends CurveAmount {
   /** When it becomes withdrawable. */
   atMs: number;
+  /** The work day whose money it is (YYYY-MM-DD in the forecast's zone). */
+  day: string;
   /**
    * A timer on its day hasn't stopped: its money is as of `sinceMs`, and it's
    * released the release days after the timer stops. A running one earns
    * `centsPerHour` meanwhile (0 when paused).
    */
   open?: { sinceMs: number; centsPerHour: number };
+}
+
+/** Carried money from one work day. */
+export interface CarriedDay extends CurveAmount {
+  /** The work day (YYYY-MM-DD in the forecast's zone). */
+  day: string;
 }
 
 export interface PayoutForecast {
@@ -79,7 +89,9 @@ export interface PayoutForecast {
   scheduled: { releaseMs: number; dueMs: number } | null;
   /** In every withdrawal from asOfMs on (until one takes it). */
   carried: CurveAmount;
-  /** Released after asOfMs, soonest first. */
+  /** `carried` by the work day it was earned, oldest first: they add up to it. */
+  carriedDays: CarriedDay[];
+  /** Released after asOfMs, soonest first; each one work day's money. */
   steps: ForecastStep[];
   /** Earnings per work day for the 42 days up to the latest, oldest first (days with none left out). */
   recentDays: { day: string; actualCents: number; estimatedCents: number }[];
@@ -154,7 +166,8 @@ export function buildPayoutForecast(inputs: PayoutInputs, zone: string): PayoutF
   const cutoffMs = last ? parsed(last.takenAt) : null;
 
   const carried = noMoney();
-  const closed = new Map<number, ForecastStep>();
+  const carriedByDay = new Map<string, CarriedDay>();
+  const closed = new Map<string, ForecastStep>();
   const opened = new Map<string, ForecastStep>();
   for (const event of events) {
     const count = classifyRelease(event, cutoffMs);
@@ -163,22 +176,34 @@ export function buildPayoutForecast(inputs: PayoutInputs, zone: string): PayoutF
     const centsPerHour = event.status === undefined ? open.get(key) : undefined;
     if (centsPerHour !== undefined) {
       // A day's estimate is one event, so its open step is its own
-      const step: ForecastStep = { atMs: event.releaseMs, ...noMoney(), open: { sinceMs, centsPerHour } };
+      const step: ForecastStep = {
+        atMs: event.releaseMs,
+        day: event.workDay,
+        ...noMoney(),
+        open: { sinceMs, centsPerHour },
+      };
       addRelease(step, event);
       opened.set(key, step);
       continue;
     }
     if (count === 'carried' || event.releaseMs <= asOfMs) {
       addRelease(carried, event);
+      const day = carriedByDay.get(event.workDay) ?? { day: event.workDay, ...noMoney() };
+      carriedByDay.set(event.workDay, day);
+      addRelease(day, event);
       continue;
     }
-    const step = closed.get(event.releaseMs) ?? { atMs: event.releaseMs, ...noMoney() };
-    closed.set(event.releaseMs, step);
+    // One step per release time and work day: readers that sum by time see the same curve
+    const at = `${event.releaseMs} ${event.workDay}`;
+    const step = closed.get(at) ?? { atMs: event.releaseMs, day: event.workDay, ...noMoney() };
+    closed.set(at, step);
     addRelease(step, event);
   }
+  const closedSteps = [...closed.values()].sort((a, b) => a.atMs - b.atMs || a.day.localeCompare(b.day));
   const openSteps = [...opened.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, step]) => step);
   // Closed before open at the same time; the sort is stable
-  const steps = [...closed.values(), ...openSteps].sort((a, b) => a.atMs - b.atMs);
+  const steps = [...closedSteps, ...openSteps].sort((a, b) => a.atMs - b.atMs);
+  const carriedDays = [...carriedByDay.values()].sort((a, b) => a.day.localeCompare(b.day));
 
   const plan = planWithdrawals(events, withdrawals, intervalMs, sinceMs);
   const reminder = planReminder(scheduled, plan, events);
@@ -214,6 +239,7 @@ export function buildPayoutForecast(inputs: PayoutInputs, zone: string): PayoutF
     nextAllowedAtMs: cutoffMs === null ? null : cutoffMs + intervalMs,
     scheduled: reminder ? { releaseMs: reminder.releaseMs, dueMs: reminder.dueMs } : null,
     carried,
+    carriedDays,
     steps,
     recentDays: days.filter(day => day.day >= firstDay),
     zone,
@@ -242,8 +268,10 @@ export function payoutForecastJson(forecast: PayoutForecast): string {
     nextAllowedAtMs: forecast.nextAllowedAtMs,
     scheduled: forecast.scheduled && { releaseMs: forecast.scheduled.releaseMs, dueMs: forecast.scheduled.dueMs },
     carried: amountJson(forecast.carried),
+    carriedDays: forecast.carriedDays.map(day => ({ day: day.day, ...amountJson(day) })),
     steps: forecast.steps.map(step => ({
       atMs: step.atMs,
+      day: step.day,
       ...amountJson(step),
       ...(step.open ? { open: { sinceMs: step.open.sinceMs, centsPerHour: step.open.centsPerHour } } : {}),
     })),
