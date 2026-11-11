@@ -103,7 +103,6 @@ describe('useSessionManagement', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     commandQueues = {};
     installInvokeMock();
   });

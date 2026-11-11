@@ -70,7 +70,6 @@ describe('NoteEditor Copy Functionality', () => {
   const mockOnDeleteNote = vi.fn().mockResolvedValue({});
 
   beforeEach(() => {
-    vi.clearAllMocks();
     (navigator.clipboard.writeText as Mock).mockResolvedValue(undefined);
   });
 

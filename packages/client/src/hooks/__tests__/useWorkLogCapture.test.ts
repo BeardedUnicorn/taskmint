@@ -89,7 +89,6 @@ async function fireCaptureEvent() {
 
 describe('useWorkLogCapture', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     takeQueue = [];
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === 'take_pending_work_log_capture') {

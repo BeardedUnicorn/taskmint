@@ -30,5 +30,5 @@ required-features = ["ts"]
 
 [dev-dependencies]
 # Recomputing the extension ID from apps/extension/manifest.json
-base64 = "0.22"
-sha2 = "0.10"
+base64 = "0.23"
+sha2 = "0.11"

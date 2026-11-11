@@ -25,7 +25,6 @@ function container() {
 const page = () => ({ reload: vi.fn() });
 
 beforeEach(() => {
-  vi.clearAllMocks();
   document.body.innerHTML = '';
 });
 

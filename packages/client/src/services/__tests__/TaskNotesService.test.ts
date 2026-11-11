@@ -59,9 +59,6 @@ describe('TaskNotesService', () => {
   };
 
   beforeEach(() => {
-    // Reset mocks
-    vi.clearAllMocks();
-
     // Create mock instances with proper typings
     mockStorageService = {
       getTaskNotes: vi.fn().mockResolvedValue([mockNote]),

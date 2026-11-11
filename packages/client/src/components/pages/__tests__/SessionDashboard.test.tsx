@@ -215,9 +215,8 @@ vi.mock('../../../hooks/useTaskNotes', () => ({
 
 describe('SessionDashboard', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockActiveTimer = null;
-    // clearAllMocks keeps implementations; undo any per-test override
+    // vitest's clearMocks keeps implementations; undo any per-test override
     // Reset mock state
     Object.assign(mockSessionManagement, {
       sessions: [],

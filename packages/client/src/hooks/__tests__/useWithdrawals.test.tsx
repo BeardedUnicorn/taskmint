@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { WithdrawalsProvider } from '../../contexts/WithdrawalsContext';
@@ -21,8 +21,6 @@ function savedElsewhere(withdrawals: unknown) {
 }
 
 describe('useWithdrawals', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('needs its provider, and reads it', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => renderHook(() => useWithdrawals())).toThrow(

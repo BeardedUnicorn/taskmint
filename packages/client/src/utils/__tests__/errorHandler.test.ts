@@ -1,14 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppError, createServiceErrorHandler } from '../errorHandler';
 import { addBreadcrumb, captureException, setContext } from '../sentry';
 
 vi.mock('../sentry', () => ({ captureException: vi.fn(), addBreadcrumb: vi.fn(), setContext: vi.fn() }));
 
 const handler = createServiceErrorHandler('TaskService');
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 afterEach(() => {
   vi.unstubAllEnvs();

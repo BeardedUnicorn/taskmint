@@ -19,7 +19,6 @@ function storeSettings(data: Record<string, unknown>) {
 describe('InactivitySettingsSection', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    vi.clearAllMocks();
     idle().isSupported.mockResolvedValue(true);
   });
 

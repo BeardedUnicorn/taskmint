@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 import { IdleReturnDialog } from '../IdleReturnDialog';
 import { IdlePause } from '../../../../types/timer';
 
@@ -14,10 +14,6 @@ const away: IdlePause = {
 
 describe('IdleReturnDialog', () => {
   const onResolve = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   it('renders nothing without a pending question', () => {
     render(<IdleReturnDialog pending={null} onResolve={onResolve} />);

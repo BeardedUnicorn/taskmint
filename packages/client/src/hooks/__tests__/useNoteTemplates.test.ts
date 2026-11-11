@@ -17,7 +17,6 @@ const mockTemplateService = {
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(NoteTemplateService.getInstance).mockReturnValue(mockTemplateService as never);
   mockTemplateService.isTemplateNameUnique.mockResolvedValue(true);
 });

@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { useCsvExport } from '../useCsvExport';
 import { fakeBackend } from '../../testing';
 
@@ -13,10 +13,6 @@ vi.mock('../../contexts/NotificationContext', () => ({
 const save = () => fakeBackend().platform.files.save;
 
 describe('useCsvExport', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('saves where the user picks and says where', async () => {
     save().mockResolvedValue({ kind: 'path', path: '/Users/me/Downloads/entries.csv' });
     const { result } = renderHook(() => useCsvExport());

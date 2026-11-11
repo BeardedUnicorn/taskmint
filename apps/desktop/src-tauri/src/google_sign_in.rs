@@ -55,6 +55,12 @@ fn random_text() -> String {
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
+/// PKCE's S256 challenge for `verifier` (RFC 7636 §4.2): the URL-safe
+/// base64 of its SHA-256, unpadded.
+fn pkce_challenge(verifier: &str) -> String {
+    URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+}
+
 fn encode(value: &str) -> String {
     url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
 }
@@ -113,7 +119,7 @@ pub fn sign_in(
     let port = server.server_addr().to_ip().expect("a TCP listener").port();
     let redirect = format!("http://127.0.0.1:{}", port);
     let verifier = random_text();
-    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+    let challenge = pkce_challenge(&verifier);
     let state = random_text();
     let url = format!(
         "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={}&code_challenge_method=S256&state={}&prompt=select_account",
@@ -264,11 +270,13 @@ mod tests {
     fn a_google_sign_in_comes_back_with_an_id_token() {
         let (token, endpoint) =
             token_endpoint(200, r#"{"id_token":"eyJ.id.token","access_token":"x"}"#);
-        let result = signing_in(&token, TIMEOUT, |url| {
+        let (challenge_sent, challenge) = std::sync::mpsc::channel();
+        let result = signing_in(&token, TIMEOUT, move |url| {
             assert_eq!(url.path(), "/auth");
             assert_eq!(param(&url, "client_id"), CLIENT);
             assert_eq!(param(&url, "scope"), "openid email profile");
             assert_eq!(param(&url, "code_challenge_method"), "S256");
+            challenge_sent.send(param(&url, "code_challenge")).unwrap();
             assert!(param(&url, "redirect_uri").starts_with("http://127.0.0.1:"));
             // A favicon first, then a wrong state: neither is the answer
             assert!(come_back(&url, "x=1").starts_with("HTTP/1.1 404"));
@@ -282,7 +290,22 @@ mod tests {
         assert!(request.contains("code=the-code"));
         assert!(request.contains("client_secret=s3cret"));
         assert!(request.contains("grant_type=authorization_code"));
-        assert!(request.contains("code_verifier="));
+        // Google was given the challenge for the verifier the exchange sends
+        let verifier = request
+            .split("code_verifier=")
+            .nth(1)
+            .and_then(|rest| rest.split('&').next())
+            .unwrap();
+        assert_eq!(challenge.recv().unwrap(), pkce_challenge(verifier));
+    }
+
+    #[test]
+    fn the_challenge_is_rfc_7636s_s256() {
+        // RFC 7636 Appendix B's example
+        assert_eq!(
+            pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+            "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        );
     }
 
     #[test]

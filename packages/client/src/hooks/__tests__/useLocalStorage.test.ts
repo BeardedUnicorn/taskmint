@@ -12,7 +12,6 @@ describe('useLocalStorage', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    vi.clearAllMocks();
   });
 
   it('should return initial value when localStorage is empty', () => {

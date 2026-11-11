@@ -39,7 +39,11 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
     ? currentMonth
     : monthGroups[0]?.month;
   const [toggledMonths, setToggledMonths] = useState<Set<string>>(() => new Set());
-  const isMonthOpen = (month: string) => (month === defaultOpenMonth) !== toggledMonths.has(month);
+  // A toggle flips the month from how it starts
+  const isMonthOpen = (month: string) => {
+    const openByDefault = month === defaultOpenMonth;
+    return openByDefault !== toggledMonths.has(month);
+  };
   const toggleMonth = (month: string) =>
     setToggledMonths(prev => {
       const next = new Set(prev);

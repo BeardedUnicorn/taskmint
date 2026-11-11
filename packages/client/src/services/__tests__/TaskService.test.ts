@@ -21,8 +21,6 @@ describe('TaskService', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
-
     // Minimal mock storage service
     mockStorageService = {
       getTasks: vi.fn().mockResolvedValue([]),

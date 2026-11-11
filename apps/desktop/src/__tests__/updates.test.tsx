@@ -49,7 +49,6 @@ let backend: FakeBackend;
 let focused: boolean;
 
 beforeEach(() => {
-  vi.clearAllMocks();
   localStorage.clear();
   resetUpdatesForTest();
   backend = createFakeBackend();

@@ -3,7 +3,7 @@
  * the payload handed to onApply.
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, waitFor } from '../../../../__tests__/setup/test-helpers';
 import { ImportWorkLogsDialog } from '../ImportWorkLogsDialog';
@@ -66,10 +66,6 @@ function pasteText(value: string) {
 }
 
 describe('ImportWorkLogsDialog', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('disables Apply and shows an error for invalid JSON', () => {
     renderDialog();
     pasteText('{not json');

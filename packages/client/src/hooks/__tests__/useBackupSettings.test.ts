@@ -38,7 +38,6 @@ const config = (overrides: Partial<BackupConfig> = {}): BackupConfig => ({
 
 beforeEach(() => {
   window.localStorage.clear();
-  vi.clearAllMocks();
   folders().defaultFolder.mockResolvedValue(null);
   folders().validateFolder.mockResolvedValue({ isValid: true });
   folders().write.mockResolvedValue({ success: true, filePath: '/backups/one.json', timestamp: 'now' });

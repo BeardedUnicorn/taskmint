@@ -68,7 +68,6 @@ describe('useDataBackup', () => {
   let consoleError: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
     consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Mock StorageService.getInstance to return our mock

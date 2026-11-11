@@ -4,7 +4,7 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { useTimerEntryEdit } from '../useTimerEntryEdit';
 import { TimerState } from '../../types/timer';
 import { createMockTask, createMockTaskNote, createMockTaskSession } from '../../__tests__/setup/session-test-utils';
@@ -51,10 +51,6 @@ vi.mock('../useTaskNotes', () => ({
 }));
 
 describe('useTimerEntryEdit', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('saves a duration edit without moving anything', async () => {
     editTimerEntry.mockResolvedValue('session-1');
     const { result } = renderHook(() => useTimerEntryEdit());

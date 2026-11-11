@@ -62,6 +62,8 @@ export function useSessionFilters({
 
   const filtered = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    const wantsActive = statusFilter === 'active';
+    const wantsImported = sourceFilter === 'imported';
     return sessions.filter(session => {
       const names = sessionTaskNames(session);
       return (
@@ -69,9 +71,9 @@ export function useSessionFilters({
           names.some(name => name.toLowerCase().includes(query)) ||
           notesFor(session, sessionNotes).some(text => text.toLowerCase().includes(query)) ||
           session.date.includes(query)) &&
-        (statusFilter === 'all' || (statusFilter === 'active') === session.isActive) &&
+        (statusFilter === 'all' || session.isActive === wantsActive) &&
         (taskFilters.length === 0 || names.some(name => taskFilters.includes(name))) &&
-        (sourceFilter === 'all' || (sourceFilter === 'imported') === isImportedSession(session))
+        (sourceFilter === 'all' || isImportedSession(session) === wantsImported)
       );
     });
   }, [sessions, searchQuery, statusFilter, taskFilters, sourceFilter, sessionNotes]);

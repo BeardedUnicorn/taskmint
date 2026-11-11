@@ -41,7 +41,6 @@ describe('DailyGoalSettings', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     setupMocks({
       targetAmount: 100,
       currency: 'USD',

@@ -69,7 +69,6 @@ describe('scrubBreadcrumb', () => {
 describe('error reporting preference', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.clearAllMocks();
   });
 
   it('defaults to enabled', () => {
@@ -99,7 +98,6 @@ describe('initSentry', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    vi.clearAllMocks();
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });

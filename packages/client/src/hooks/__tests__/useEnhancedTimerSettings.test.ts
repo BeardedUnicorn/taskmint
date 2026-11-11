@@ -22,7 +22,6 @@ function storedSettings() {
 describe('useEnhancedTimerSettings', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    vi.clearAllMocks();
   });
 
   it('defaults to off with a 15-minute threshold', () => {

@@ -100,7 +100,6 @@ function stoppedSessionOn(offset: number, taskId: string, hours: number): TaskSe
 
 describe('PayoutsPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockInvoke.mockImplementation(async () => undefined);
     mockWorkLogsReturn = {
       entries: [],

@@ -13,26 +13,24 @@ import { setFormattingLocale } from './utils/locale';
 setFormattingLocale('en-US');
 
 // Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-
-  return {
-    getItem: vi.fn((key: string) => (key in store ? store[key] : null)),
-    setItem: vi.fn((key: string, value: string) => {
-      store[key] = String(value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: vi.fn(() => {
-      store = {};
-    }),
-    get length() {
-      return Object.keys(store).length;
-    },
-    key: vi.fn((index: number) => Object.keys(store)[index] || null),
-  };
-})();
+let store: Record<string, string> = {};
+const emptyStore = () => {
+  store = {};
+};
+const localStorageMock = {
+  getItem: vi.fn((key: string) => (key in store ? store[key] : null)),
+  setItem: vi.fn((key: string, value: string) => {
+    store[key] = String(value);
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete store[key];
+  }),
+  clear: vi.fn(emptyStore),
+  get length() {
+    return Object.keys(store).length;
+  },
+  key: vi.fn((index: number) => Object.keys(store)[index] || null),
+};
 
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
@@ -109,9 +107,7 @@ Object.defineProperty(navigator, 'clipboard', {
   configurable: true,
 });
 
-// Clear all mocks before each test
-beforeEach(() => {
-  vi.clearAllMocks();
-  localStorageMock.clear();
-  sessionStorageMock.clear();
-});
+// Fresh storage for each test. vitest's clearMocks has cleared the mocks'
+// calls already, so this empties the store without calling the mock: a test
+// sees only its own localStorage.clear() calls.
+beforeEach(emptyStore);

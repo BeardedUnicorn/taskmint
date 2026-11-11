@@ -1,14 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { deliverDesktop } from '../desktop';
 import { fakeBackend } from '../../testing';
 
 const show = () => fakeBackend().platform.notifications.show;
 
 describe('deliverDesktop', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('goes through the platform, which reports whether it showed', async () => {
     show().mockResolvedValue(true);
 

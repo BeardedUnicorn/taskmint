@@ -24,7 +24,6 @@ const mockNotesService = {
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
   (TaskNotesService.getInstance as any).mockReturnValue(mockNotesService);
 });
 

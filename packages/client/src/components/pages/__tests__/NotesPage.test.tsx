@@ -137,8 +137,6 @@ describe('NotesPage', () => {
   let mockUseNoteTemplates: any;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
-
     // Import the mocked functions
     const taskNotesModule = await import('../../../hooks/useTaskNotes');
     const noteTemplatesModule = await import('../../../hooks/useNoteTemplates');

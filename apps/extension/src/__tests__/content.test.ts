@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // @vitest-environment-options { "url": "https://app.dataannotation.tech/workers/payments" }
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { installChromeFake, type ChromeFake } from './chromeFake';
 import { navigate } from '../navigate';
 
@@ -17,10 +17,6 @@ function post(data: unknown, init: MessageEventInit = {}) {
 beforeAll(async () => {
   chrome = installChromeFake();
   await import('../content');
-});
-
-beforeEach(() => {
-  vi.clearAllMocks();
 });
 
 describe('the content script', () => {
