@@ -253,6 +253,23 @@ describe('createTauriBackend', () => {
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.systemBars).toBeUndefined();
   });
 
+  it("takes Android's launch screen down through the bridge MainActivity adds", () => {
+    const hide = vi.fn();
+    vi.stubGlobal('TaskMintSplash', { hide });
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
+    android.platform.splashScreen!.hide();
+
+    expect(Object.keys(android.platform).sort()).toEqual(['files', 'notifications', 'splashScreen']);
+    expect(hide).toHaveBeenCalledTimes(1);
+    expect(dispatched()).toEqual([]);
+    // The desktop has no launch screen, bridge or not
+    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.splashScreen).toBeUndefined();
+  });
+
   it("counts usage through Android's native analytics, and the desktop has none", () => {
     const bridge = { setEnabled: vi.fn(), screen: vi.fn() };
     vi.stubGlobal('TaskMintAnalytics', bridge);

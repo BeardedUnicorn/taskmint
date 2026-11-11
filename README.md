@@ -218,7 +218,8 @@ cd apps/desktop/src-tauri/icons && rm -rf android ios Square*Logo.png StoreLogo.
 
 The menu-bar icon (`src-tauri/icons/tray-template.png`, a black leaf on
 transparent that macOS tints) and the images in `packages/client/public/` and
-`apps/extension/icons/` are made from the same masters.
+`apps/extension/icons/` are made from the same masters, and so is Android's
+launch screen ([Android](#android)).
 
 Copy `.env.example` to `.env` to set a Sentry DSN (otherwise reporting stays
 off), the desktop's Google sign-in client ([Firebase](#firebase); without
@@ -268,11 +269,25 @@ was made by `pnpm tauri android init` from `tauri.conf.json` and
   the Firebase BoM with Analytics, Credential Manager and googleid as
   dependencies. Firebase and googleid need Kotlin 2.3, which the root
   `build.gradle.kts` and `buildSrc/build.gradle.kts` pin.
-- `MainActivity.kt` gives the webview three bridges: `TaskMintSystemBars`
-  (the status bar follows the app's theme), `TaskMintGoogleSignIn` (Credential
+- `MainActivity.kt` gives the webview four bridges: `TaskMintSplash` (the
+  launch screen stays until the app has drawn), `TaskMintSystemBars` (the
+  status bar follows the app's theme), `TaskMintGoogleSignIn` (Credential
   Manager's Google sign-in, for cloud sync) and `TaskMintAnalytics` (Firebase
   Analytics, and its off switch). `app/proguard-rules.pro` keeps them, and
   Credential Manager's Play services provider, through R8.
+- The launch screen is androidx `core-splashscreen`'s, themed by
+  `Theme.taskmint.Starting` (`values/themes.xml`, and `values-v31` for the
+  wordmark, which Android 12 and later show): the leaf on the app icon's
+  teal. `MainActivity` keeps it up until the page calls
+  `TaskMintSplash.hide()` (or 10 s pass), then fades it out. Its images,
+  `drawable-*/splash_icon.png` and `splash_branding.png`, come from
+  `assets/brand/mark.png` and `logo-dark.png`. After changing those, make
+  them again (macOS):
+
+```bash
+swift scripts/brand/android-splash.swift
+```
+
 - The launcher icons in `app/src/main/res` (`mipmap-*`, and the adaptive
   icon's background in `values/ic_launcher_background.xml`) come from
   `assets/brand/icon-macos.png`. Its padding keeps the clock and leaf

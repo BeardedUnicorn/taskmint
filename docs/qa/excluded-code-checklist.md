@@ -15,7 +15,7 @@ Tauri or plugin versions, or to the `Platform` trait they implement.
 | `apps/desktop/src-tauri/src/app.rs` | the Tauri builder: plugins, setup, window events, the run loop | [Startup and wiring](#startup-and-wiring-apprs) |
 | `apps/desktop/src-tauri/src/platform/os.rs` | `TauriPlatform`: events, notifications, dialogs, reveal and open, the window, the tray, the updater | [The platform](#the-platform-platformosrs), [Updates](#updates-platformosrs) |
 | `apps/desktop/src-tauri/src/main.rs` | calls `taskmint_lib::run`; no console window on Windows | [Windows and Linux](#windows-and-linux) |
-| `apps/desktop/src-tauri/gen/android/…/MainActivity.kt` | the webview's bridges: system bars, Google sign-in, analytics (Kotlin isn't measured) | [Android](#android) |
+| `apps/desktop/src-tauri/gen/android/…/MainActivity.kt` | the launch screen, and the webview's bridges: launch screen, system bars, Google sign-in, analytics (Kotlin isn't measured) | [Android](#android) |
 | cloud sync against the real Firebase project | the tested engine and rules, on Google's servers and in real webviews | [Cloud sync](#cloud-sync) |
 | desktop `cfg(target_os = "windows" \| "linux")` code | not compiled on the macOS coverage run | [Windows and Linux](#windows-and-linux) |
 
@@ -223,7 +223,12 @@ On a phone with Google Play services, with the release APK:
       page views reach Firebase (Analytics → DebugView, after
       `adb shell setprop debug.firebase.analytics.app com.taskmint.android`);
       off, they stop.
-- [ ] **Status bar** follows the app's theme, light and dark.
+- [ ] **Launch screen:** a cold start (swipe TaskMint out of Recents, then
+      open it from the launcher) shows the leaf on teal, with the TaskMint
+      wordmark at the bottom on Android 12 and later, until the app fades in.
+      No black or white screen between them.
+- [ ] **Status bar** follows the app's theme, light and dark, once the launch
+      screen has gone (its icons are light on the teal while it shows).
 
 ## Windows and Linux
 

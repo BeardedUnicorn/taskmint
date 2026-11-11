@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import { ErrorBoundary, MAX_RECOVERY_ATTEMPTS, RECOVERY_DELAY_MS, STABLE_RESET_MS } from '../ErrorBoundary';
 import { reloadApp } from '../../utils/appReload';
+import { fakeBackend } from '../../testing';
 
 vi.mock('../../utils/sentry', () => ({
   captureException: vi.fn(),
@@ -36,6 +37,18 @@ describe('ErrorBoundary', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("takes a phone's launch screen down, so the error shows", () => {
+    render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    );
+    expect(failed()).toBeInTheDocument();
+    // (after the error screen has painted: two frames)
+    wait(50);
+    expect(fakeBackend().platform.splashScreen.hide).toHaveBeenCalled();
   });
 
   it('stops retrying a persistent error after its retries', () => {

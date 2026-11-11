@@ -91,6 +91,15 @@ export interface SystemBarsPlatform {
   setTheme(theme: 'light' | 'dark'): void;
 }
 
+/**
+ * A phone's launch screen (Android), which stays over the app until the app
+ * has drawn, so a cold start shows TaskMint instead of a blank page.
+ */
+export interface SplashScreenPlatform {
+  /** The app is on screen: the launch screen fades out. Later calls do nothing. */
+  hide(): void;
+}
+
 /** Usage analytics (Firebase Analytics): the web app's, and Android's native SDK. */
 export interface AnalyticsPlatform {
   /** On or off, as Settings → Privacy says. */
@@ -106,6 +115,7 @@ export interface Platform {
   folderBackups?: FolderBackupPlatform;
   tray?: TrayPlatform;
   systemBars?: SystemBarsPlatform;
+  splashScreen?: SplashScreenPlatform;
   /** Shows a file the app just wrote in the file manager. */
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */

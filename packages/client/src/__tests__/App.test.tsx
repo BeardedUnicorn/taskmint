@@ -5,7 +5,7 @@
  */
 
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, onTestFinished } from 'vitest';
 import App from '../App';
 import { AppExtensionsProvider } from '../app/extensions';
 import { useNotification } from '../contexts/NotificationContext';
@@ -63,6 +63,32 @@ describe('App', () => {
     );
     fireEvent.click(await screen.findByRole('button', { name: 'Shell work' }));
     expect(await screen.findByText('From the shell')).toBeInTheDocument();
+  });
+
+  it("keeps a phone's launch screen up until the page and the session list are on screen", async () => {
+    let sessionsArrive!: (sessions: unknown[]) => void;
+    replies.get_sessions = new Promise(resolve => {
+      sessionsArrive = resolve;
+    });
+    const { hide } = fakeBackend().platform.splashScreen;
+    const pageShown: boolean[] = [];
+    hide.mockImplementation(() => {
+      pageShown.push(screen.queryByRole('heading', { name: VIEW_LABELS.sessions, level: 1 }) !== null);
+    });
+    onTestFinished(() => {
+      hide.mockReset();
+    });
+
+    render(<App />);
+    // The page's own skeleton, while the sessions load: still covered
+    expect(await screen.findByLabelText('Loading sessions')).toBeInTheDocument();
+    await act(() => new Promise(resolve => setTimeout(resolve, 100)));
+    expect(hide).not.toHaveBeenCalled();
+
+    await act(async () => sessionsArrive([]));
+    await heading('sessions');
+    await waitFor(() => expect(pageShown).toHaveLength(1));
+    expect(pageShown[0]).toBe(true);
   });
 
   it('opens every page from the sidebar', async () => {

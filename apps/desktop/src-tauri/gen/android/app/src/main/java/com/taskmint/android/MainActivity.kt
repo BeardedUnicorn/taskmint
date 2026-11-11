@@ -6,6 +6,8 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.splashscreen.SplashScreenViewProvider
 import androidx.core.view.WindowCompat
 import androidx.credentials.CredentialManager
 import androidx.credentials.CredentialManagerCallback
@@ -21,31 +23,90 @@ import org.json.JSONObject
 class MainActivity : TauriActivity() {
   private var webView: WebView? = null
 
+  /** The launch screen while it covers the app, and whether the page has drawn. */
+  private var splash: SplashScreenViewProvider? = null
+  private var pageDrawn = false
+
+  /** The theme the page last gave the status bar (SystemBars); light icons on the launch screen's teal until then. */
+  private var barsTheme = "dark"
+
   override fun onCreate(savedInstanceState: Bundle?) {
+    val splashScreen = installSplashScreen()
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    applyBarsTheme()
+
+    // The launch screen (Theme.taskmint.Starting) would go with the first
+    // frame, long before the webview has anything to show. It stays until the
+    // page says it has drawn (Splash), or 10 s have passed (the page may never
+    // load), and the app draws underneath meanwhile.
+    splashScreen.setOnExitAnimationListener { provider ->
+      splash = provider
+      // The hand-over applies the app theme's bars; light icons on the teal
+      setLightStatusBar(false)
+      if (pageDrawn) dismissSplash()
+    }
+    window.decorView.postDelayed({ onPageDrawn() }, SPLASH_TIMEOUT_MS)
+  }
+
+  private fun onPageDrawn() {
+    if (pageDrawn) return
+    pageDrawn = true
+    dismissSplash()
+  }
+
+  private fun dismissSplash() {
+    val provider = splash ?: return
+    provider.view.animate().alpha(0f).setDuration(SPLASH_FADE_MS).withEndAction {
+      // Removing it puts back the bars it found (Android 12 and later), so
+      // the page's theme goes on again after
+      provider.remove()
+      splash = null
+      applyBarsTheme()
+    }
+  }
+
+  private fun applyBarsTheme() = setLightStatusBar(barsTheme == "light")
+
+  /** Dark clock and icons (for a light background) or light ones. */
+  private fun setLightStatusBar(light: Boolean) {
+    WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = light
   }
 
   // Added before the page loads, so the webview has them from the start
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
+    webView.addJavascriptInterface(Splash(), "TaskMintSplash")
     webView.addJavascriptInterface(SystemBars(), "TaskMintSystemBars")
     webView.addJavascriptInterface(GoogleSignIn(), "TaskMintGoogleSignIn")
     webView.addJavascriptInterface(Analytics(), "TaskMintAnalytics")
   }
 
   /**
+   * The page has drawn (HideSplashScreen: the app's page and session list,
+   * not their loading skeletons, or an error is on screen), so the launch
+   * screen fades out to it.
+   */
+  private inner class Splash {
+    @JavascriptInterface
+    fun hide() {
+      runOnUiThread { onPageDrawn() }
+    }
+  }
+
+  /**
    * The app draws under the status bar (edge to edge), and its top bar
    * follows the theme chosen in Settings → Appearance, not the system's dark
    * mode. The webview says which theme shows (tauriBackend.ts), and the
-   * status bar's clock and icons follow it.
+   * status bar's clock and icons follow it, once the launch screen is gone.
    */
   private inner class SystemBars {
     @JavascriptInterface
     fun setTheme(theme: String) {
       // The bridge calls in on its own thread
       runOnUiThread {
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = theme == "light"
+        barsTheme = theme
+        if (splash == null) applyBarsTheme()
       }
     }
   }
@@ -120,5 +181,10 @@ class MainActivity : TauriActivity() {
         },
       )
     }
+  }
+
+  private companion object {
+    const val SPLASH_FADE_MS = 250L
+    const val SPLASH_TIMEOUT_MS = 10_000L
   }
 }
