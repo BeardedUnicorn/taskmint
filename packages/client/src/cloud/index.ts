@@ -29,7 +29,11 @@ export function startCloudSync(
   current?.stop();
   // Google sign-in: the shell's own (desktop, Android), else a browser's popup
   const { googleSignIn } = backend.platform;
-  const google = googleSignIn ? () => googleSignIn() : config.popupSignIn ? async () => null : null;
+  const google = googleSignIn
+    ? (theme: 'light' | 'dark') => googleSignIn(theme)
+    : config.popupSignIn
+      ? async () => null
+      : null;
   current = new SyncEngine(backend, load, ENGINE_OPTIONS, google);
   void current.start();
   return current;

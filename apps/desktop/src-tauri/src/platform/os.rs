@@ -475,7 +475,12 @@ impl Platform for TauriPlatform {
             log::error!("Main window not found");
             return;
         };
-        if let Err(e) = window.show().and_then(|()| window.set_focus()) {
+        // Focusing does nothing to a minimized window (tao), so restore it first
+        if let Err(e) = window
+            .unminimize()
+            .and_then(|()| window.show())
+            .and_then(|()| window.set_focus())
+        {
             log::error!("Failed to bring the window forward: {}", e);
         }
     }

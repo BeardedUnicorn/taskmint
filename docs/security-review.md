@@ -74,8 +74,13 @@ rules; the release signing keys.
     the project's `firebaseapp.com` and `web.app` domains.
   - The desktop's Google sign-in (`google_sign_in.rs`) uses PKCE (S256) and
     a random `state`, which the loopback listener on `127.0.0.1` checks
-    before taking a code. It gives up after 5 minutes. The code is exchanged
-    in Rust over TLS, and only Google's ID token reaches the webview.
+    before taking a code. It listens on port 43118 when that's free (so a
+    browser's "always allow" for the page's `taskmint://open` link holds),
+    else on any free port; a process already on 43118 only moves it to
+    another port. It gives up after 5 minutes. The code is exchanged in Rust
+    over TLS, and only Google's ID token reaches the webview. The page the
+    browser comes back to has fixed text only: nothing from the request or
+    Google's error reaches it.
   - Android's goes through Credential Manager, with the project's web client
     id. Neither the desktop nor Android loads a Google script in its webview.
   - The web app's popup runs on the project's own auth domain, which is the

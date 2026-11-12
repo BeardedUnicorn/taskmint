@@ -634,9 +634,11 @@ pnpm build:wasm && pnpm --filter @taskmint/web build && pnpm firebase emulators:
   the authorized domains (Authentication → Settings): the Hosting domains
   and `localhost`.
 - **Desktop:** the system browser, then back to a loopback address the app
-  listens on (`src-tauri/src/google_sign_in.rs`, with PKCE). It's Google's
-  "Desktop app" OAuth client in Google Cloud console → APIs & Services →
-  Credentials. Its id and secret go in `.env` as
+  listens on (`src-tauri/src/google_sign_in.rs`, with PKCE), which answers
+  with a page in TaskMint's look (`google_sign_in.html`) and brings the app
+  forward, with `taskmint://open` for when the browser keeps the focus.
+  It's Google's "Desktop app" OAuth client in Google Cloud console → APIs &
+  Services → Credentials. Its id and secret go in `.env` as
   `VITE_GOOGLE_DESKTOP_CLIENT_ID` and `VITE_GOOGLE_DESKTOP_CLIENT_SECRET`,
   and in the repository secrets of the same names. Google treats an
   installed app's secret as public, but keep it out of the repository
@@ -705,6 +707,7 @@ apps/desktop/                Desktop app (@taskmint/desktop): Vite entry + Tauri
   src-tauri/src/files.rs     Save/open dialogs, the backup folder, showing a file in Finder
   src-tauri/src/capture_server.rs  localhost capture server and taskmint:// deep links
   src-tauri/src/google_sign_in.rs  Google sign-in for cloud sync: the browser and a loopback address
+  src-tauri/src/google_sign_in.html  The page the browser comes back to, in TaskMint's look
   src-tauri/src/tray/        System tray
   src-tauri/src/legacy_identifier.rs  Moves the data left under the pre-2.1 identifier
   src-tauri/src/config.rs    Constants
