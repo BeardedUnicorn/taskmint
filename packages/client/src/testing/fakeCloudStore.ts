@@ -26,8 +26,6 @@ export interface FakeCloudStore extends CloudStore {
   readonly listens: { uid: string; cursor: string | null; open: boolean }[];
   /** The published documents, by `uid/name`, as the cloud has them. */
   readonly published: Map<string, PublishedDoc & { deviceId: string; epoch: number }>;
-  /** Whether BudgetMint's data was deleted, by uid. */
-  readonly companionDeleted: Set<string>;
 }
 
 export function bea(uid = 'bea'): CloudUser {
@@ -44,7 +42,6 @@ export function createFakeCloudStore(): FakeCloudStore {
   const writes: FakeCloudStore['writes'] = [];
   const listens: FakeCloudStore['listens'] = [];
   const published: FakeCloudStore['published'] = new Map();
-  const companionDeleted = new Set<string>();
 
   const store: FakeCloudStore = {
     onUser: vi.fn((listener: (user: CloudUser | null) => void) => {
@@ -95,9 +92,6 @@ export function createFakeCloudStore(): FakeCloudStore {
       published.set(`${uid}/${name}`, { ...doc, ...meta });
       return true;
     }),
-    deleteCompanionData: vi.fn(async (uid: string) => {
-      companionDeleted.add(uid);
-    }),
 
     setUser(next) {
       user = next;
@@ -120,7 +114,6 @@ export function createFakeCloudStore(): FakeCloudStore {
     writes,
     listens,
     published,
-    companionDeleted,
   };
   return store;
 }

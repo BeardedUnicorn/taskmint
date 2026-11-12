@@ -12,9 +12,6 @@ import type { CloudBatch, CloudConfig, CloudDoc, CloudStore, CloudUser, Publishe
 /** Firestore takes at most 500 writes in a batch. */
 export const BATCH_SIZE = 400;
 
-/** Where BudgetMint keeps its data: `budgetmint/{uid}` ({epoch}) and its `data` documents. */
-export const COMPANION_ROOT = 'budgetmint';
-
 type Firestore = typeof import('firebase/firestore');
 type Timestamp = InstanceType<Firestore['Timestamp']>;
 type DocumentReference = import('firebase/firestore').DocumentReference;
@@ -189,14 +186,6 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
         });
         return true;
       });
-    },
-    async deleteCompanionData(uid) {
-      const account = fs.doc(db, COMPANION_ROOT, uid);
-      const current = await fs.getDoc(account);
-      // Its devices still on the old epoch can't write their copy back
-      if (current.exists()) await fs.updateDoc(account, { epoch: Number(current.get('epoch')) + 1 });
-      const all = await fs.getDocs(fs.collection(db, COMPANION_ROOT, uid, 'data'));
-      await deleteRefs(all.docs.map(doc => doc.ref));
     },
   };
 }

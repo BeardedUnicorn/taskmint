@@ -311,23 +311,4 @@ describe('the Firebase store', () => {
     expect(await store.publish('bea', 'payoutForecast', doc, meta)).toBe(true);
     expect(transaction.set).toHaveBeenCalledTimes(2);
   });
-
-  it('deletes BudgetMint’s data on a new epoch of its own', async () => {
-    const store = await createFirebaseStore(CONFIG);
-    vi.mocked(fs.getDoc).mockResolvedValueOnce({ exists: () => true, get: () => 3 } as never);
-    vi.mocked(fs.getDocs).mockResolvedValueOnce({ docs: [{ ref: 'bill' }, { ref: 'settings' }] } as never);
-    await store.deleteCompanionData('bea');
-    expect(fs.getDoc).toHaveBeenCalledWith({ path: 'budgetmint/bea' });
-    expect(fs.updateDoc).toHaveBeenCalledWith({ path: 'budgetmint/bea' }, { epoch: 4 });
-    expect(fs.getDocs).toHaveBeenCalledWith({ path: 'budgetmint/bea/data' });
-    expect(sdk.batch.delete.mock.calls).toEqual([['bill'], ['settings']]);
-
-    // Never used BudgetMint: nothing to move on, nothing to delete
-    vi.clearAllMocks();
-    vi.mocked(fs.getDoc).mockResolvedValueOnce({ exists: () => false, get: () => undefined } as never);
-    vi.mocked(fs.getDocs).mockResolvedValueOnce({ docs: [] } as never);
-    await store.deleteCompanionData('bea');
-    expect(fs.updateDoc).not.toHaveBeenCalled();
-    expect(sdk.batch.commit).not.toHaveBeenCalled();
-  });
 });

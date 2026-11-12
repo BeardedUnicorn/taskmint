@@ -7,8 +7,7 @@
  * firebase/firestore.rules: `users/{uid}` holds the account's epoch, and
  * `users/{uid}/data/{docId}` one document per synced entity. What TaskMint
  * publishes for other apps (the payout forecast) is in
- * `users/{uid}/published/{name}`, and BudgetMint keeps its own data in
- * `budgetmint/{uid}`.
+ * `users/{uid}/published/{name}`.
  */
 
 import type { OutgoingDoc } from '@taskmint/contracts';
@@ -117,9 +116,4 @@ export interface CloudStore {
    * wrote. Needs the server: it fails offline.
    */
   publish(uid: string, name: string, doc: PublishedDoc, meta: Omit<WriteMeta, 'schema'>): Promise<boolean>;
-  /**
-   * Deletes what BudgetMint keeps for the account (it signs in with the same
-   * one), moving its data to a new epoch first, as deleteAll does TaskMint's.
-   */
-  deleteCompanionData(uid: string): Promise<void>;
 }

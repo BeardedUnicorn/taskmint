@@ -1,6 +1,12 @@
 # ADR 0003: The payout forecast, for BudgetMint
 
-- **Status:** accepted (2026-11-10)
+- **Status:** accepted (2026-11-10); decisions 5, 6 (for BudgetMint's
+  data) and 7 (for Delete account) superseded (2026-11-11) when BudgetMint
+  moved to its own Firebase project, `budgetmint` (ADR 0003 in BudgetMint's
+  repository). BudgetMint keeps its data there and signs in to
+  `taskmint-f9a05` only to read the forecast, so TaskMint's rules have no
+  `budgetmint/` paths and Delete account deletes only TaskMint's data and
+  the account. The forecast and its rules stand.
 - **Scope:** what TaskMint publishes for other apps, the rules for
   BudgetMint's data, and what deleting the account deletes
 
