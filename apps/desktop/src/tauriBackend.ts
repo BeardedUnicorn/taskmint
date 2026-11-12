@@ -26,6 +26,7 @@ import type {
   Platform,
   SavedFile,
 } from '@taskmint/client/backend';
+import type { AppInfo } from '@taskmint/contracts';
 
 /** What a dismissed save or open dialog rejects with. */
 const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
@@ -65,8 +66,10 @@ function subscribe<T>(event: string, handler: (payload: T) => void): () => void 
   };
 }
 
-/** What the app has everywhere it runs: dialogs for files, and OS notifications. */
+/** What the app has everywhere it runs: dialogs for files, OS notifications, and About's facts and links. */
 const everywhere: Platform = {
+  appInfo: () => command<AppInfo>('get_app_info'),
+  openLink: link => command<void>('open_link', { link }),
   files: {
     save({ contents, suggestedName, format }) {
       // The path it went to, or null for a document Android's picker chose
@@ -116,6 +119,7 @@ const desktopOnly: Omit<Platform, 'files' | 'notifications'> = {
     read: (folder, name) => command<string>('read_backup', { folder, name }),
   },
   reveal: path => command<void>('reveal_path', { path }),
+  openFolder: folder => command<void>('open_folder', { folder }),
   captureStatus: () => command('get_capture_server_status'),
 };
 

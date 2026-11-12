@@ -29,6 +29,12 @@ export interface AppExtensions {
    * open: the desktop's update check and the dialog it opens.
    */
   Background?: ComponentType;
+  /**
+   * In the About dialog: the shell's update status and its Check for updates
+   * (the desktop's). `checkRequest` goes up each time the user asks to check
+   * from outside it (the menu bar's Check for Updates…); it checks then.
+   */
+  AboutUpdates?: ComponentType<{ checkRequest: number }>;
 }
 
 const AppExtensionsContext = createContext<AppExtensions>({});

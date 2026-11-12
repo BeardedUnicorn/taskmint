@@ -45,6 +45,8 @@ pub struct FakePlatform {
     update: Mutex<Option<AvailableUpdate>>,
     /// How an update's download goes, in order.
     download: Mutex<Vec<DownloadEvent>>,
+    /// Where the logs go; None: the system has no place for them.
+    log_dir: Mutex<Option<PathBuf>>,
     /// Calls that fail from now on: "emit", "notify", "schedule", "cancel",
     /// "reveal", "open_dir",
     /// "tray", "status", "check_update", "install_update" (after its
@@ -82,6 +84,11 @@ impl FakePlatform {
             .lock()
             .unwrap()
             .push_back(Some(PickedFile::Document(url)));
+    }
+
+    /// The logs go in `folder` from now on.
+    pub fn set_log_dir(&self, folder: &Path) {
+        *self.log_dir.lock().unwrap() = Some(folder.to_path_buf());
     }
 
     /// The update feed announces `update` from now on.
@@ -238,6 +245,14 @@ impl Platform for FakePlatform {
 
     fn app_version(&self) -> String {
         "1.2.3".to_string()
+    }
+
+    fn log_dir(&self) -> Result<PathBuf, String> {
+        self.log_dir
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| "no log folder".to_string())
     }
 
     fn restart(&self) {

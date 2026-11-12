@@ -1,10 +1,11 @@
-import { Accordion, AccordionDetails, AccordionSummary, Box, Typography } from '@mui/material';
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Typography } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon, Info as InfoIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { APP_VERSION, compareVersions } from '../../../utils/appVersion';
 import { RELEASES, type ReleaseNotes as Release } from '../../../utils/changelog';
 import { ReleaseNotes } from '../../ui/display/ReleaseNotes';
 import { formatLocalDate } from '../../../utils/dateHelpers';
+import { useOptionalAbout } from '../../about/About';
 
 const releasedOn = (release: Release) => (release.date ? `Released ${formatLocalDate(release.date)}` : null);
 
@@ -12,9 +13,20 @@ const releasedOn = (release: Release) => (release.date ? `Released ${formatLocal
 export function AboutSettingsSection() {
   const current = RELEASES.find(release => release.version === APP_VERSION);
   const earlier = RELEASES.filter(release => compareVersions(release.version, APP_VERSION) < 0);
+  const about = useOptionalAbout();
 
   return (
-    <SettingsSection title="About" icon={<InfoIcon color="primary" />}>
+    <SettingsSection
+      title="About"
+      icon={<InfoIcon color="primary" />}
+      headerChildren={
+        about && (
+          <Button size="small" onClick={() => about.openAbout()} sx={{ ml: 'auto' }}>
+            About TaskMint…
+          </Button>
+        )
+      }
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <Box component="img" src="/taskmint-icon.png" alt="" sx={{ width: 48, height: 48 }} />
         <Box>

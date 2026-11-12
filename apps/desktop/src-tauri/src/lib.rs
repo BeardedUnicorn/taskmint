@@ -1,6 +1,7 @@
 // TaskMint's desktop shell: the Tauri app around taskmint-core.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+pub mod about;
 mod app;
 pub mod backend;
 pub mod backup;

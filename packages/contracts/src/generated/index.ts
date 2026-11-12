@@ -2,6 +2,9 @@
 // change the Rust, then run `cargo test -p taskmint-core --features ts --test contracts`.
 export type { AcceptCaptureArgs } from "./AcceptCaptureArgs";
 export type { AddManualTimeArgs } from "./AddManualTimeArgs";
+export type { AppFolder } from "./AppFolder";
+export type { AppInfo } from "./AppInfo";
+export type { AppLink } from "./AppLink";
 export type { AppRecords } from "./AppRecords";
 export type { AppliedGroup } from "./AppliedGroup";
 export type { ApplyIdleChoiceArgs } from "./ApplyIdleChoiceArgs";

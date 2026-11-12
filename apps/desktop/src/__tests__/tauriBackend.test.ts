@@ -226,10 +226,22 @@ describe('createTauriBackend', () => {
     expect(dispatched()).toEqual([['reveal_path', { path: '/Users/me/export.json' }], ['get_capture_server_status']]);
   });
 
-  it('on a phone or tablet, has only files and notifications', async () => {
+  it("tells About what this copy is, and opens TaskMint's pages and folders", async () => {
+    await platform.appInfo!();
+    await platform.openLink!('issues');
+    await platform.openFolder!('logs');
+
+    expect(dispatched()).toEqual([
+      ['get_app_info'],
+      ['open_link', { link: 'issues' }],
+      ['open_folder', { folder: 'logs' }],
+    ]);
+  });
+
+  it("on a phone or tablet, has only files, notifications and About's facts and links", async () => {
     const mobile = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
     expect(mobile.capabilities.runtime).toBe('mobile');
-    expect(Object.keys(mobile.platform).sort()).toEqual(['files', 'notifications']);
+    expect(Object.keys(mobile.platform).sort()).toEqual(['appInfo', 'files', 'notifications', 'openLink']);
     expect(mobile.platform.files).toBe(platform.files);
     expect(mobile.platform.notifications.show).toBe(platform.notifications.show);
 
@@ -272,7 +284,13 @@ describe('createTauriBackend', () => {
     android.platform.systemBars!.setTheme('light');
     android.platform.systemBars!.setTheme('dark');
 
-    expect(Object.keys(android.platform).sort()).toEqual(['files', 'notifications', 'systemBars']);
+    expect(Object.keys(android.platform).sort()).toEqual([
+      'appInfo',
+      'files',
+      'notifications',
+      'openLink',
+      'systemBars',
+    ]);
     expect(setTheme.mock.calls).toEqual([['light'], ['dark']]);
     expect(dispatched()).toEqual([]);
     // The desktop has no status bar, bridge or not
@@ -289,7 +307,13 @@ describe('createTauriBackend', () => {
     const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
     android.platform.splashScreen!.hide();
 
-    expect(Object.keys(android.platform).sort()).toEqual(['files', 'notifications', 'splashScreen']);
+    expect(Object.keys(android.platform).sort()).toEqual([
+      'appInfo',
+      'files',
+      'notifications',
+      'openLink',
+      'splashScreen',
+    ]);
     expect(hide).toHaveBeenCalledTimes(1);
     expect(dispatched()).toEqual([]);
     // The desktop has no launch screen, bridge or not

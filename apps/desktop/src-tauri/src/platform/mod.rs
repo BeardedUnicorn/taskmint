@@ -103,9 +103,10 @@ pub trait Platform: Send + Sync {
     fn set_tray_status(&self, status: &TrayStatus) -> Result<(), String>;
     /// Whether the tray icon exists (closing the window then hides it).
     fn has_tray(&self) -> bool;
-    /// The app's version, for the capture server's health check and the
-    /// server's version check.
+    /// The app's version, for the capture server's health check and About.
     fn app_version(&self) -> String;
+    /// Where the app's logs go.
+    fn log_dir(&self) -> Result<PathBuf, String>;
     /// Starts the app again: switching between local data and a server
     /// takes effect at launch, since the webview starts with one backend.
     fn restart(&self);

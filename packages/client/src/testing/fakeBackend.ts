@@ -21,7 +21,7 @@ import type {
   SystemBarsPlatform,
   TrayPlatform,
 } from '../backend/types';
-import type { CaptureServerStatus } from '@taskmint/contracts';
+import type { AppFolder, AppInfo, AppLink, CaptureServerStatus } from '@taskmint/contracts';
 
 type Mocked<T> = {
   [K in keyof T]-?: NonNullable<T[K]> extends (...args: infer A) => infer R ? Mock<(...args: A) => R> : never;
@@ -39,6 +39,9 @@ export interface FakePlatform extends Platform {
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
   googleSignIn: Mock<(theme: 'light' | 'dark') => Promise<string>>;
   analytics: Mocked<AnalyticsPlatform>;
+  appInfo: Mock<() => Promise<AppInfo>>;
+  openLink: Mock<(link: AppLink) => Promise<void>>;
+  openFolder: Mock<(folder: AppFolder) => Promise<void>>;
 }
 
 /**
@@ -71,6 +74,9 @@ export interface FakeBackendOptions {
     | 'captureStatus'
     | 'googleSignIn'
     | 'analytics'
+    | 'appInfo'
+    | 'openLink'
+    | 'openFolder'
     | 'laterNotifications'
   >;
 }
@@ -119,6 +125,15 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
       setEnabled: vi.fn(),
       screen: vi.fn(),
     },
+    appInfo: vi.fn(async () => ({
+      version: '1.2.3',
+      os: 'macos',
+      arch: 'aarch64',
+      dataDir: '/Users/me/Library/Application Support/com.taskmint.desktop',
+      logDir: '/Users/me/Library/Logs/com.taskmint.desktop',
+    })),
+    openLink: vi.fn(async () => undefined),
+    openFolder: vi.fn(async () => undefined),
   };
   for (const feature of without) {
     if (feature === 'laterNotifications') {

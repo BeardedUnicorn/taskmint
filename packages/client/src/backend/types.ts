@@ -16,7 +16,7 @@ import type { DesktopKind } from '../notifications/types';
 import type { NotificationPreferences } from '../notifications/preferences';
 import type { BackupFileInfo, BackupResult } from '../types/backup';
 import type { IdleChoice, IdlePause, InactivitySettings } from '../types/timer';
-import type { CaptureServerStatus } from '@taskmint/contracts';
+import type { AppFolder, AppInfo, AppLink, CaptureServerStatus } from '@taskmint/contracts';
 
 export interface Capabilities {
   /**
@@ -147,6 +147,12 @@ export interface Platform {
    */
   googleSignIn?(theme: 'light' | 'dark'): Promise<string>;
   analytics?: AnalyticsPlatform;
+  /** What this copy of TaskMint is and where its files are (About). Absent in a browser. */
+  appInfo?(): Promise<AppInfo>;
+  /** Opens one of TaskMint's pages (its repository, help, a new issue, the releases) in the browser. */
+  openLink?(link: AppLink): Promise<void>;
+  /** Shows the data or logs folder in the file manager (desktop). */
+  openFolder?(folder: AppFolder): Promise<void>;
 }
 
 /** A command's arguments, left out for a command that takes none. */

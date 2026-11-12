@@ -8,7 +8,7 @@ use super::DATA_FILES;
 use chrono::{DateTime, Utc};
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub type JsonMap = serde_json::Map<String, serde_json::Value>;
 
@@ -24,6 +24,11 @@ pub struct JsonFileStore {
 impl JsonFileStore {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
         Self { dir: dir.into() }
+    }
+
+    /// The folder the files are in.
+    pub fn dir(&self) -> &Path {
+        &self.dir
     }
 
     fn path(&self, file: &str) -> PathBuf {

@@ -5,6 +5,8 @@ import { act, render, renderHook, screen, fireEvent, waitFor, within } from '@te
 import { render as renderWithNotifications } from '../../../__tests__/setup/test-helpers';
 import { SyncEngine, setCloudSyncForTest } from '../../../cloud';
 import { syncHost } from '../../../cloud/__tests__/syncHost';
+import { AboutProvider } from '../../about/About';
+import { AppExtensionsProvider } from '../../../app/extensions';
 import { ReactNode } from 'react';
 import { CommandPalette } from '../CommandPalette';
 import { CommandCenter } from '../CommandCenter';
@@ -174,9 +176,12 @@ describe('useCommands', () => {
   });
 
   it('offers pages, settings sections, actions, and a start for each active task, favorites first', () => {
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
+      {
+        wrapper,
+      }
+    );
     const all = labels(result.current);
 
     expect(all).toEqual(
@@ -194,9 +199,12 @@ describe('useCommands', () => {
 
   it('in a browser, offers the settings it has and no shortcuts the browser keeps', () => {
     installFakeBackendForTest({ capabilities: { runtime: 'web' }, without: ['idle', 'folderBackups'] });
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
+      {
+        wrapper,
+      }
+    );
     const byId = (id: string) => result.current.find(command => command.id === id);
 
     expect(byId('settings-idle')).toBeUndefined();
@@ -210,7 +218,7 @@ describe('useCommands', () => {
     theme.isDark = false;
     const { result } = renderHook(
       () => ({
-        commands: useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }),
+        commands: useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
         navigation: useNavigation(),
       }),
       { wrapper }
@@ -227,9 +235,12 @@ describe('useCommands', () => {
   });
 
   it('starts a task the same way the start picker does', () => {
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
+      {
+        wrapper,
+      }
+    );
     result.current.find(c => c.label === 'Start "Annotation"')!.run();
     expect(session.value.startTask).toHaveBeenCalledWith('a', 'Annotation');
   });
@@ -243,9 +254,12 @@ describe('useCommands', () => {
       timerInstances: [running],
     });
 
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
+      {
+        wrapper,
+      }
+    );
     const all = labels(result.current);
     expect(all.slice(0, 2)).toEqual(['Pause "Review"', 'Stop "Review"']);
     expect(all).not.toContain('Start "Review"');
@@ -267,9 +281,12 @@ describe('useCommands', () => {
       timerInstances: [paused, running],
     });
 
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
+      {
+        wrapper,
+      }
+    );
     const all = labels(result.current);
 
     expect(all.slice(0, 2)).toEqual(['Pause "Writing"', 'Stop "Writing"']);
@@ -287,9 +304,12 @@ describe('useCommands', () => {
       timerInstances: [paused('earlier', '2024-01-15T10:00:00Z'), paused('latest', '2024-01-15T10:30:00Z')],
     });
 
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
+      {
+        wrapper,
+      }
+    );
     result.current[0].run();
 
     expect(session.value.resumeTimerInstance).toHaveBeenCalledWith('latest');
@@ -304,9 +324,12 @@ describe('useCommands', () => {
       timerInstances: [paused],
     });
 
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
+      {
+        wrapper,
+      }
+    );
     expect(result.current[0].label).toBe('Resume "Review"');
     result.current[0].run();
     expect(session.value.resumeTimerInstance).toHaveBeenCalledWith('p');
@@ -319,7 +342,9 @@ describe('CommandCenter', () => {
   it('opens the palette on the shortcut, and closes it on the shortcut or Escape', async () => {
     render(
       <NavigationProvider>
-        <CommandCenter onStartWork={vi.fn()} onAddTime={vi.fn()} />
+        <AboutProvider>
+          <CommandCenter onStartWork={vi.fn()} onAddTime={vi.fn()} />
+        </AboutProvider>
       </NavigationProvider>
     );
     const palette = () => screen.queryByRole('dialog', { name: 'Command palette' });
@@ -354,8 +379,10 @@ describe('signing out from the palette', () => {
 
   it('is offered only while signed in where this device syncs', async () => {
     const commands = () =>
-      renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), { wrapper })
-        .result.current;
+      renderHook(
+        () => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() }),
+        { wrapper }
+      ).result.current;
     expect(commands().some(c => c.id === 'sign-out')).toBe(false);
     await signedIn();
     expect(commands().find(c => c.id === 'sign-out')?.label).toBe('Sign out of cloud sync');
@@ -365,7 +392,9 @@ describe('signing out from the palette', () => {
     const host = await signedIn();
     renderWithNotifications(
       <NavigationProvider>
-        <CommandCenter onStartWork={vi.fn()} onAddTime={vi.fn()} />
+        <AboutProvider>
+          <CommandCenter onStartWork={vi.fn()} onAddTime={vi.fn()} />
+        </AboutProvider>
       </NavigationProvider>
     );
     fireEvent.keyDown(window, { key: 'k', ...(isMacPlatform() ? { metaKey: true } : { ctrlKey: true }) });
@@ -378,5 +407,44 @@ describe('signing out from the palette', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Sign out of cloud sync?' })).not.toBeInTheDocument()
     );
+  });
+});
+
+describe('About from the palette', () => {
+  const run = async (query: string) => {
+    fireEvent.keyDown(window, { key: 'k', ...(isMacPlatform() ? { metaKey: true } : { ctrlKey: true }) });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Command' }), { target: { value: query } });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Command' }), { key: 'Enter' });
+  };
+
+  function renderCenter(withUpdates: boolean) {
+    const AboutUpdates = ({ checkRequest }: { checkRequest: number }) => <p>Update check {checkRequest}</p>;
+    renderWithNotifications(
+      <AppExtensionsProvider value={withUpdates ? { AboutUpdates } : {}}>
+        <NavigationProvider>
+          <AboutProvider>
+            <CommandCenter onStartWork={vi.fn()} onAddTime={vi.fn()} />
+          </AboutProvider>
+        </NavigationProvider>
+      </AppExtensionsProvider>
+    );
+  }
+
+  it('opens About, and checks for updates where the shell can', async () => {
+    renderCenter(true);
+    await run('check for updates');
+    expect(await screen.findByText('Update check 1')).toBeInTheDocument();
+  });
+
+  it('offers no update check where the shell has none', async () => {
+    renderCenter(false);
+    await run('about taskmint');
+    expect(await screen.findByRole('dialog', { name: 'TaskMint' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'TaskMint' })).not.toBeInTheDocument());
+
+    fireEvent.keyDown(window, { key: 'k', ...(isMacPlatform() ? { metaKey: true } : { ctrlKey: true }) });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Command' }), { target: { value: 'check for updates' } });
+    expect(screen.queryByRole('option', { name: /Check for updates/ })).not.toBeInTheDocument();
   });
 });

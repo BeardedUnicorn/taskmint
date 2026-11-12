@@ -64,11 +64,17 @@ export function useCommands({
   onStartWork,
   onAddTime,
   onSignOut,
+  onAbout,
+  onCheckForUpdates,
 }: {
   onStartWork: () => void;
   onAddTime: () => void;
   /** Asks to sign out of cloud sync. */
   onSignOut: () => void;
+  /** Opens About TaskMint. */
+  onAbout: () => void;
+  /** Opens About TaskMint and checks for updates; absent where the shell can't update. */
+  onCheckForUpdates?: () => void;
 }): Command[] {
   const { navigate } = useNavigation();
   const signedIn = Boolean(useCloudSync()?.view.user) && syncsThisDevice();
@@ -136,6 +142,18 @@ export function useCommands({
             },
           ]
         : []),
+      { id: 'about', label: 'About TaskMint', group: 'Actions', keywords: 'version help', run: onAbout },
+      ...(onCheckForUpdates
+        ? [
+            {
+              id: 'check-updates',
+              label: 'Check for updates',
+              group: 'Actions' as const,
+              keywords: 'update upgrade new version',
+              run: onCheckForUpdates,
+            },
+          ]
+        : []),
       {
         id: 'toggle-theme',
         label: `Switch to ${isDark ? 'light' : 'dark'} theme`,
@@ -184,6 +202,8 @@ export function useCommands({
     onAddTime,
     onSignOut,
     signedIn,
+    onAbout,
+    onCheckForUpdates,
     toggleTheme,
     startTask,
     pauseTimerInstance,

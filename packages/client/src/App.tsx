@@ -18,6 +18,7 @@ import { NotificationBell } from './components/notifications/NotificationBell';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { DailyGoalProvider } from './contexts/DailyGoalContext';
 import { DailyGoalProgressProvider } from './contexts/DailyGoalProgressContext';
+import { AboutProvider } from './components/about/About';
 import { TaskNotesProvider } from './contexts/TaskNotesContext';
 import { NoteTemplatesProvider } from './contexts/NoteTemplatesContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -247,7 +248,9 @@ function App() {
                             <PayoutDataProvider>
                               <BackupSettingsProvider>
                                 <DailyGoalProgressProvider>
-                                  <AppContent />
+                                  <AboutProvider>
+                                    <AppContent />
+                                  </AboutProvider>
                                 </DailyGoalProgressProvider>
                               </BackupSettingsProvider>
                             </PayoutDataProvider>

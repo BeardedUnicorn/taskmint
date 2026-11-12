@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { AboutSettingsSection } from '../AboutSettingsSection';
+import { AboutProvider } from '../../../about/About';
+import { NavigationProvider } from '../../../../contexts/NavigationContext';
+import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import type { ReleaseNotes } from '../../../../utils/changelog';
 
 const state = vi.hoisted(() => ({ version: '2.1.0', releases: [] as ReleaseNotes[] }));
@@ -103,5 +106,24 @@ describe('AboutSettingsSection', () => {
 
     expect(screen.getByText('Something new in 2.1.0.')).toBeInTheDocument();
     expect(screen.queryByText(/^Released/)).not.toBeInTheDocument();
+  });
+
+  it('opens About TaskMint from its header, where the app has the dialog', () => {
+    state.releases = [release('2.1.0', '2026-11-08')];
+    const { unmount } = render(<AboutSettingsSection />);
+    expect(screen.queryByRole('button', { name: 'About TaskMint…' })).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <NavigationProvider>
+        <NotificationProvider>
+          <AboutProvider>
+            <AboutSettingsSection />
+          </AboutProvider>
+        </NotificationProvider>
+      </NavigationProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'About TaskMint…' }));
+    expect(screen.getByRole('dialog', { name: 'TaskMint' })).toHaveTextContent('Version 2.1.0 · Released Nov 08, 2026');
   });
 });

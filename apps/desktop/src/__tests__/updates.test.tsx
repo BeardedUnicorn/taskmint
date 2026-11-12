@@ -15,6 +15,7 @@ import {
 } from '../updates';
 import { DUE_CHECK_INTERVAL_MS, FIRST_CHECK_DELAY_MS, UpdatePrompt } from '../UpdatePrompt';
 import { UpdatesSection } from '../settings/UpdatesSection';
+import { AboutUpdates } from '../settings/AboutUpdates';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
@@ -440,6 +441,39 @@ describe('Settings → Updates', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Update…' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Download and install' }));
     expect(await screen.findByText('Updating to TaskMint 2.3.0…')).toBeInTheDocument();
+  });
+});
+
+describe('About', () => {
+  it('shows what the last check found, and checks now', async () => {
+    answer({ check_for_update: null });
+    render(<AboutUpdates checkRequest={0} />);
+    expect(sent('check_for_update')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
+    expect(await screen.findByText('TaskMint is up to date.')).toBeInTheDocument();
+    expect(sent('check_for_update')).toHaveLength(1);
+  });
+
+  it('checks each time the menu asks, and an update found opens the update dialog', async () => {
+    answer({ check_for_update: release });
+    const { rerender } = render(
+      <>
+        <AboutUpdates checkRequest={1} />
+        <UpdatePrompt />
+      </>
+    );
+    expect(await screen.findByRole('dialog')).toHaveTextContent('TaskMint 2.3.0 is available');
+    expect(sent('check_for_update')).toHaveLength(1);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Later' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    rerender(
+      <>
+        <AboutUpdates checkRequest={2} />
+        <UpdatePrompt />
+      </>
+    );
+    await waitFor(() => expect(sent('check_for_update')).toHaveLength(2));
   });
 });
 

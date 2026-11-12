@@ -10,6 +10,8 @@ import { useCommands } from './commands';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { SignOutDialog } from '../cloud/SignOutDialog';
 import { getCloudSync } from '../../cloud';
+import { useAbout } from '../about/About';
+import { useAppExtensions } from '../../app/extensions';
 
 export function CommandCenter({ onStartWork, onAddTime }: { onStartWork: () => void; onAddTime: () => void }) {
   const [open, setOpen] = useState(false);
@@ -18,8 +20,19 @@ export function CommandCenter({ onStartWork, onAddTime }: { onStartWork: () => v
   const [signingOut, setSigningOut] = useState(false);
   const askToSignOut = useCallback(() => setSigningOut(true), []);
 
+  const { openAbout } = useAbout();
+  const { AboutUpdates } = useAppExtensions();
+  const showAbout = useCallback(() => openAbout(), [openAbout]);
+  const checkForUpdates = useCallback(() => openAbout({ checkForUpdates: true }), [openAbout]);
+
   useKeyboardShortcuts({ paletteOpen: open, onTogglePalette: toggle });
-  const commands = useCommands({ onStartWork, onAddTime, onSignOut: askToSignOut });
+  const commands = useCommands({
+    onStartWork,
+    onAddTime,
+    onSignOut: askToSignOut,
+    onAbout: showAbout,
+    onCheckForUpdates: AboutUpdates ? checkForUpdates : undefined,
+  });
   // (The palette offers signing out only where sync runs)
   const sync = getCloudSync();
 

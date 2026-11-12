@@ -124,3 +124,11 @@ export const DEEP_LINK = {
   PAYLOAD_PARAM: "d",
   CAPTURE_PENDING: "capture-pending",
 } as const;
+
+/** TaskMint's pages: its repository, help, a new issue, and its releases. */
+export const LINKS = {
+  REPOSITORY: "https://github.com/BeardedUnicorn/taskmint",
+  HELP: "https://github.com/BeardedUnicorn/taskmint#readme",
+  ISSUES: "https://github.com/BeardedUnicorn/taskmint/issues/new",
+  RELEASES: "https://github.com/BeardedUnicorn/taskmint/releases",
+} as const;

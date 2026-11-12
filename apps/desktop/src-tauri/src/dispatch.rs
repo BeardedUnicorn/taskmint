@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use taskmint_core::idle::IdleSettings;
 use taskmint_core::notifications::{NotificationKind, NotificationPrefs};
+use taskmint_core::shell::{AppFolder, AppLink};
 use tauri::State;
 
 /// The shell's commands, by the names and camelCase arguments the webview
@@ -122,9 +123,19 @@ enum Shell {
         #[serde(default)]
         color_mode: Option<ColorMode>,
     },
+    /// Opens one of TaskMint's pages in the browser, by name (never a URL).
+    OpenLink {
+        link: AppLink,
+    },
+    /// Shows the data or logs folder in the file manager.
+    OpenFolder {
+        folder: AppFolder,
+    },
+    /// This copy of TaskMint, for About.
+    GetAppInfo {},
 }
 
-const SHELL_COMMANDS: [&str; 24] = [
+const SHELL_COMMANDS: [&str; 27] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -149,6 +160,9 @@ const SHELL_COMMANDS: [&str; 24] = [
     "check_for_update",
     "install_update",
     "google_sign_in",
+    "open_link",
+    "open_folder",
+    "get_app_info",
 ];
 
 /// The shell command `name` with `args`; None when it's a data command.
@@ -260,6 +274,15 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
                 color_mode,
             );
         }
+        Shell::OpenLink { link } => {
+            crate::about::open_link(state, link)?;
+            Value::Null
+        }
+        Shell::OpenFolder { folder } => {
+            crate::about::open_folder(state, folder)?;
+            Value::Null
+        }
+        Shell::GetAppInfo {} => reply(crate::about::app_info(state)),
     })
 }
 
@@ -610,6 +633,48 @@ mod tests {
         assert!(run(&f, "check_for_update", json!({})).is_err());
         assert!(run(&f, "install_update", json!({})).is_err());
         assert_eq!(f.platform.recorded().restarts, 1);
+    }
+
+    #[test]
+    fn links_folders_and_app_info_go_through_the_shell() {
+        let f = fixture();
+        assert_eq!(
+            run(&f, "open_link", json!({ "link": "issues" })),
+            Ok(Value::Null)
+        );
+        assert_eq!(
+            f.platform.recorded().opened_urls,
+            [taskmint_core::contract::ISSUES_URL]
+        );
+        // Only TaskMint's own pages, by name
+        for link in [json!("evil"), json!("https://example.com")] {
+            assert!(run(&f, "open_link", json!({ "link": link }))
+                .unwrap_err()
+                .contains("unknown variant"));
+        }
+
+        assert_eq!(
+            run(&f, "open_folder", json!({ "folder": "data" })),
+            Ok(Value::Null)
+        );
+        assert_eq!(f.platform.recorded().opened, [f.dir.0.clone()]);
+        assert_eq!(
+            run(&f, "open_folder", json!({ "folder": "logs" })),
+            Err("no log folder".to_string())
+        );
+        f.platform.fail("open_url");
+        assert!(run(&f, "open_link", json!({ "link": "help" })).is_err());
+
+        assert_eq!(
+            run(&f, "get_app_info", json!({})),
+            Ok(json!({
+                "version": "1.2.3",
+                "os": std::env::consts::OS,
+                "arch": std::env::consts::ARCH,
+                "dataDir": f.dir.0.display().to_string(),
+                "logDir": null
+            }))
+        );
     }
 
     /// The webview's view: an app on the mock runtime, managing `state`.

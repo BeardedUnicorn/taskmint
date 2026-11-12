@@ -502,6 +502,10 @@ impl Platform for TauriPlatform {
         self.app.package_info().version.to_string()
     }
 
+    fn log_dir(&self) -> Result<PathBuf, String> {
+        self.app.path().app_log_dir().map_err(text)
+    }
+
     fn restart(&self) {
         self.app.restart()
     }

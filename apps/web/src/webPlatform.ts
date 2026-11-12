@@ -4,14 +4,22 @@
  * Notification API's, and usage analytics are Firebase Analytics'. The
  * desktop-only features (idle detection, folder backups, reveal, the capture
  * server) are absent, so the client leaves out what needs them. Google
- * sign-in opens in a popup, Firebase's own way.
+ * sign-in opens in a popup, Firebase's own way. TaskMint's pages open in a
+ * new tab.
  */
 
-import { CORE_ERRORS } from '@taskmint/contracts';
+import { CORE_ERRORS, LINKS, type AppLink } from '@taskmint/contracts';
 import type { Platform } from '@taskmint/client/backend';
 import { createWebAnalytics } from './analytics';
 
 const MEDIA_TYPES = { json: 'application/json', csv: 'text/csv' } as const;
+
+const LINK_URLS: Record<AppLink, string> = {
+  repository: LINKS.REPOSITORY,
+  help: LINKS.HELP,
+  issues: LINKS.ISSUES,
+  releases: LINKS.RELEASES,
+};
 
 /** A download's name: no folders, and ending in `.<format>`. */
 export function downloadName(suggested: string, format: 'json' | 'csv'): string {
@@ -87,5 +95,8 @@ export function createWebPlatform(): Platform {
       show: (_kind, title, body) => notify(title, body),
     },
     analytics: createWebAnalytics(),
+    async openLink(link) {
+      window.open(LINK_URLS[link], '_blank', 'noopener');
+    },
   };
 }
