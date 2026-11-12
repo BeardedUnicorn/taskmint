@@ -37,7 +37,7 @@ export interface FakePlatform extends Platform {
   splashScreen: Mocked<SplashScreenPlatform>;
   reveal: Mock<(path: string) => Promise<void>>;
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
-  googleSignIn: Mock<() => Promise<string>>;
+  googleSignIn: Mock<(theme: 'light' | 'dark') => Promise<string>>;
   analytics: Mocked<AnalyticsPlatform>;
 }
 
@@ -114,7 +114,7 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     },
     reveal: vi.fn(async () => undefined),
     captureStatus: vi.fn(async () => ({ running: true, port: 43117, warning: null })),
-    googleSignIn: vi.fn(async () => 'google-id-token'),
+    googleSignIn: vi.fn<(theme: 'light' | 'dark') => Promise<string>>(async () => 'google-id-token'),
     analytics: {
       setEnabled: vi.fn(),
       screen: vi.fn(),

@@ -396,6 +396,8 @@ const RUST_ONLY: &[&str] = &[
     "HEALTH_PATH",
     "MAX_CAPTURE_BODY_BYTES",
     "MAX_ENCODED_LINK_BYTES",
+    // The link the desktop's Google sign-in page opens (a page Rust writes)
+    "DEEP_LINK_OPEN",
 ];
 
 fn contract_constant_names() -> BTreeSet<String> {

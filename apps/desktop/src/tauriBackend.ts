@@ -194,7 +194,8 @@ function googleSignIn(runtime: Capabilities['runtime'], client?: GoogleDesktopCl
   }
   if (!client) return {};
   return {
-    googleSignIn: () => command<{ idToken: string }>('google_sign_in', { ...client }).then(({ idToken }) => idToken),
+    googleSignIn: theme =>
+      command<{ idToken: string }>('google_sign_in', { ...client, colorMode: theme }).then(({ idToken }) => idToken),
   };
 }
 

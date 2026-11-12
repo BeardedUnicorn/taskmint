@@ -317,8 +317,11 @@ describe('createTauriBackend', () => {
         { runtime: 'desktop', dataLocation: 'local' },
         { clientId: 'client', clientSecret: 'secret' }
       );
-      expect(await desktop.platform.googleSignIn!()).toBe('id-token');
-      expect(dispatched()).toEqual([['google_sign_in', { clientId: 'client', clientSecret: 'secret' }]]);
+      expect(await desktop.platform.googleSignIn!('dark')).toBe('id-token');
+      // With the app's theme, for the page the browser comes back to
+      expect(dispatched()).toEqual([
+        ['google_sign_in', { clientId: 'client', clientSecret: 'secret', colorMode: 'dark' }],
+      ]);
       expect(platform.googleSignIn).toBeUndefined();
     });
 
@@ -332,12 +335,12 @@ describe('createTauriBackend', () => {
       });
       const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
 
-      const signedIn = android.platform.googleSignIn!();
+      const signedIn = android.platform.googleSignIn!('light');
       expect(start).toHaveBeenCalledTimes(1);
       window.__taskmintGoogleSignIn!({ idToken: 'android-token' });
       expect(await signedIn).toBe('android-token');
 
-      const cancelled = android.platform.googleSignIn!();
+      const cancelled = android.platform.googleSignIn!('light');
       window.__taskmintGoogleSignIn!({ error: 'Google sign-in was cancelled.' });
       await expect(cancelled).rejects.toBe('Google sign-in was cancelled.');
     });

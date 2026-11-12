@@ -99,13 +99,14 @@ export class SyncEngine {
 
   /**
    * `google` gets a Google ID token the shell's own way (null: Firebase's
-   * popup does it); none when this build can't sign in with Google.
+   * popup does it), given the app's theme; none when this build can't sign
+   * in with Google.
    */
   constructor(
     private readonly backend: Backend,
     private readonly loadStore: () => Promise<CloudStore>,
     private readonly options: EngineOptions = ENGINE_OPTIONS,
-    private readonly google: (() => Promise<string | null>) | null = null
+    private readonly google: ((theme: 'light' | 'dark') => Promise<string | null>) | null = null
   ) {}
 
   /** Whether "Continue with Google" can work here. */
@@ -146,7 +147,8 @@ export class SyncEngine {
   signIn = (email: string, password: string) => this.cloud.signIn(email, password);
   signUp = (email: string, password: string) => this.cloud.signUp(email, password);
   resetPassword = (email: string) => this.cloud.resetPassword(email);
-  signInWithGoogle = async () => this.cloud.signInWithGoogle(await this.google!());
+  /** Signs in with Google; `theme` is the app's, for the shell's sign-in page. */
+  signInWithGoogle = async (theme: 'light' | 'dark') => this.cloud.signInWithGoogle(await this.google!(theme));
   /** Signs out (nothing to do before the SDK has loaded: nobody can be signed in yet). */
   signOut = async () => {
     await this.store?.signOut();

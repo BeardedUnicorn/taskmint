@@ -43,15 +43,17 @@ describe('the page’s cloud sync', () => {
 
   it("signs in with Google the shell's way, else in a popup where the build has one", async () => {
     const store = createFakeCloudStore();
-    const native = startCloudSync(asBackend(createFakeBackend()), CONFIG, async () => store);
+    const shell = createFakeBackend();
+    const native = startCloudSync(asBackend(shell), CONFIG, async () => store);
     await vi.waitFor(() => expect(native.getView().phase).toBe('signedOut'));
-    await native.signInWithGoogle();
+    await native.signInWithGoogle('light');
+    expect(shell.platform.googleSignIn).toHaveBeenCalledWith('light');
     expect(store.signInWithGoogle).toHaveBeenLastCalledWith('google-id-token');
 
     const browser = createFakeBackend({ without: ['googleSignIn'] });
     const popup = startCloudSync(asBackend(browser), { ...CONFIG, popupSignIn: true }, async () => store);
     await vi.waitFor(() => expect(popup.getView().phase).not.toBe('loading'));
-    await popup.signInWithGoogle();
+    await popup.signInWithGoogle('dark');
     expect(store.signInWithGoogle).toHaveBeenLastCalledWith(null);
 
     expect(startCloudSync(asBackend(browser), CONFIG, async () => store).canUseGoogle).toBe(false);

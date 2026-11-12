@@ -135,6 +135,9 @@ pub const DEEP_LINK_PAYLOAD_PARAM: &str = "d";
 /// taskmint://capture-pending: launch or focus only; the extension delivers
 /// the payload over localhost once the app is up.
 pub const DEEP_LINK_CAPTURE_PENDING: &str = "capture-pending";
+/// taskmint://open: launch or focus only. The page the browser shows after
+/// Google sign-in opens it, so the browser hands the user back to the app.
+pub const DEEP_LINK_OPEN: &str = "open";
 
 // ============================================================================
 // EVENTS
@@ -261,6 +264,7 @@ mod tests {
             ]
         );
         assert_eq!(DEEP_LINK_SCHEME, "taskmint");
+        assert_eq!(DEEP_LINK_OPEN, "open");
         assert_eq!(TIME_ZONE_HEADER, "X-TaskMint-TZ");
         assert_eq!(events::APP_RECORDS_CHANGED, "app-records-changed");
         assert_eq!(events::RESYNC, "resync");

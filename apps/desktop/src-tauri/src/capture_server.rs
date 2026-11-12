@@ -25,7 +25,7 @@ use crate::state::AppState;
 use taskmint_core::capture::{is_extension_origin, origin_allowed};
 use taskmint_core::contract::{
     CAPTURE_HEADER, CAPTURE_PATH, CAPTURE_SERVER_PORT, DEEP_LINK_CAPTURE_PENDING,
-    DEEP_LINK_IMPORT_WORKLOGS, DEEP_LINK_PAYLOAD_PARAM, DEEP_LINK_SCHEME,
+    DEEP_LINK_IMPORT_WORKLOGS, DEEP_LINK_OPEN, DEEP_LINK_PAYLOAD_PARAM, DEEP_LINK_SCHEME,
     ERR_UNEXPECTED_PAYLOAD_SHAPE, HEALTH_PATH, MAX_CAPTURE_BODY_BYTES as MAX_BODY_BYTES,
     MAX_ENCODED_LINK_BYTES,
 };
@@ -71,6 +71,9 @@ pub enum DeepLinkAction {
     /// taskmint://capture-pending — launch/focus only; the extension delivers
     /// the payload over localhost once the app is up.
     CapturePending,
+    /// taskmint://open — launch/focus only (the Google sign-in page's way
+    /// back to the app).
+    Open,
 }
 
 pub fn parse_deep_link(url_str: &str) -> Option<DeepLinkAction> {
@@ -100,6 +103,7 @@ pub fn parse_deep_link(url_str: &str) -> Option<DeepLinkAction> {
             .find(|(key, _)| key == DEEP_LINK_PAYLOAD_PARAM)
             .map(|(_, value)| DeepLinkAction::ImportPayload(value.into_owned())),
         DEEP_LINK_CAPTURE_PENDING => Some(DeepLinkAction::CapturePending),
+        DEEP_LINK_OPEN => Some(DeepLinkAction::Open),
         _ => None,
     }
 }
@@ -139,7 +143,7 @@ pub fn handle_deep_link_urls(state: &AppState, urls: &[String]) {
                     log::warn!("Ignoring taskmint:// import link: {}", e);
                 }
             }
-            Some(DeepLinkAction::CapturePending) => recognized = true,
+            Some(DeepLinkAction::CapturePending | DeepLinkAction::Open) => recognized = true,
             None => {}
         }
     }
@@ -411,6 +415,10 @@ mod tests {
             parse_deep_link("taskmint://capture-pending"),
             Some(DeepLinkAction::CapturePending)
         );
+        assert_eq!(
+            parse_deep_link("taskmint://open"),
+            Some(DeepLinkAction::Open)
+        );
     }
 
     #[test]
@@ -458,6 +466,14 @@ mod tests {
         let unreadable = "taskmint://import-worklogs?d=!!!".to_string();
         let pending_only = "taskmint://capture-pending".to_string();
         handle_deep_link_urls(&f.state, &[unreadable, pending_only]);
+        assert!(pending(&f).is_none());
+        assert_eq!(f.platform.recorded().windows_shown, 1);
+    }
+
+    #[test]
+    fn an_open_link_only_brings_the_app_forward() {
+        let f = crate::testing::fixture();
+        handle_deep_link_urls(&f.state, &["taskmint://open".to_string()]);
         assert!(pending(&f).is_none());
         assert_eq!(f.platform.recorded().windows_shown, 1);
     }

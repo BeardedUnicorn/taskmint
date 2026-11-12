@@ -8,7 +8,7 @@
 //! waits for the browser) holds up no other.
 
 use crate::files;
-use crate::google_sign_in::{self, GoogleClient};
+use crate::google_sign_in::{self, ColorMode, GoogleClient};
 use crate::notifications::{self, Origin};
 use crate::state::AppState;
 use crate::updates;
@@ -113,11 +113,14 @@ enum Shell {
     /// update-progress events as it downloads.
     InstallUpdate {},
     /// Signs in with Google in the system browser, for cloud sync: the
-    /// Google ID token Firebase takes.
+    /// Google ID token Firebase takes. The page the browser comes back to
+    /// is in the app's `colorMode` (the browser's own without one).
     #[serde(rename_all = "camelCase")]
     GoogleSignIn {
         client_id: String,
         client_secret: String,
+        #[serde(default)]
+        color_mode: Option<ColorMode>,
     },
 }
 
@@ -245,12 +248,17 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         Shell::GoogleSignIn {
             client_id,
             client_secret,
+            color_mode,
         } => {
             let client = GoogleClient {
                 client_id,
                 client_secret,
             };
-            return google_sign_in::sign_in_with_google(state.platform.as_ref(), &client);
+            return google_sign_in::sign_in_with_google(
+                state.platform.as_ref(),
+                &client,
+                color_mode,
+            );
         }
     })
 }
@@ -565,7 +573,14 @@ mod tests {
         f.platform.fail("open_url");
         let args = json!({ "clientId": "c", "clientSecret": "s" });
         assert!(run(&f, "google_sign_in", args).is_err());
+        let args = json!({ "clientId": "c", "clientSecret": "s", "colorMode": "light" });
+        assert!(run(&f, "google_sign_in", args).is_err());
         assert!(run(&f, "google_sign_in", json!({})).is_err());
+        // A mode the page doesn't have is refused with the arguments
+        let args = json!({ "clientId": "c", "clientSecret": "s", "colorMode": "sepia" });
+        assert!(run(&f, "google_sign_in", args)
+            .unwrap_err()
+            .contains("unknown variant"));
     }
 
     #[test]

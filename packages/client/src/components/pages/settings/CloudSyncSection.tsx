@@ -6,7 +6,7 @@
  */
 
 import { FormEvent, useState } from 'react';
-import { Alert, Box, Button, Chip, CircularProgress, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, Stack, TextField, Typography, useTheme } from '@mui/material';
 import { CloudSync as CloudIcon, Google as GoogleIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
@@ -26,7 +26,8 @@ export interface SignInActions {
   signIn(email: string, password: string): Promise<void>;
   signUp(email: string, password: string): Promise<void>;
   resetPassword(email: string): Promise<void>;
-  signInWithGoogle(): Promise<void>;
+  /** `theme` is the app's (the desktop's browser page follows it). */
+  signInWithGoogle(theme: 'light' | 'dark'): Promise<void>;
   readonly canUseGoogle: boolean;
 }
 
@@ -41,12 +42,13 @@ export function SignInForm({ engine, intro = INTRO }: { engine: SignInActions; i
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const theme = useTheme().palette.mode;
 
   const google = async () => {
     setBusy(true);
     setProblem(null);
     try {
-      await engine.signInWithGoogle();
+      await engine.signInWithGoogle(theme);
     } catch (error) {
       setProblem(cloudErrorMessage(error));
     } finally {

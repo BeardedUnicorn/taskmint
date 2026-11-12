@@ -16,7 +16,7 @@ async function shown(
   host = syncHost(),
   store: FakeCloudStore = createFakeCloudStore(),
   load = async () => store,
-  google: (() => Promise<string | null>) | null = null
+  google: ((theme: 'light' | 'dark') => Promise<string | null>) | null = null
 ) {
   const engine = new SyncEngine(asBackend(host.backend), load, OPTIONS, google);
   setCloudSyncForTest(engine);
@@ -40,12 +40,15 @@ describe('Settings → Cloud sync, signed out', () => {
   });
 
   it('signs in with Google where the build can, and says why it was refused', async () => {
-    const { store, user } = await shown(syncHost(), createFakeCloudStore(), undefined, async () => 'token');
+    const google = vi.fn(async () => 'token');
+    const { store, user } = await shown(syncHost(), createFakeCloudStore(), undefined, google);
     vi.mocked(store.signInWithGoogle).mockRejectedValueOnce({ code: 'auth/popup-closed-by-user' });
     await user.click(screen.getByRole('button', { name: 'Continue with Google' }));
     expect(await screen.findByText('Google sign-in was closed before it finished.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Continue with Google' }));
     expect(store.signInWithGoogle).toHaveBeenLastCalledWith('token');
+    // With the app's theme (MUI's light default here), for the desktop's browser page
+    expect(google).toHaveBeenLastCalledWith('light');
     expect(await screen.findByText('Signed in as bea@example.com')).toBeInTheDocument();
   });
 

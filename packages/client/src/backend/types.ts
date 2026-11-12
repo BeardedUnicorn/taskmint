@@ -143,8 +143,9 @@ export interface Platform {
    * Google sign-in for cloud sync, the shell's own way (the desktop's
    * system browser, Android's account picker): the Google ID token. Absent
    * where the browser's popup does it, or the build has no client for it.
+   * `theme` is the app's: the desktop's browser comes back to a page in it.
    */
-  googleSignIn?(): Promise<string>;
+  googleSignIn?(theme: 'light' | 'dark'): Promise<string>;
   analytics?: AnalyticsPlatform;
 }
 

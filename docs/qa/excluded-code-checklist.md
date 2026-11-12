@@ -104,7 +104,7 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Reveal.** After a backup, its notification's "Show in Finder" button
       reveals the file, selected, in Finder.
 - [ ] **Bring the window forward.** Covered by "Second launch" and the deep
-      links.
+      links. A minimized window comes back too (Google sign-in, below).
 - [ ] **Open in the browser.** Settings → Cloud sync → Continue with Google
       (a build with the Google client in `.env`) opens Google's sign-in in
       the default browser.
@@ -194,9 +194,15 @@ one test account of your own on the real project:
 - [ ] **Sign in by email** on the desktop: Settings → Cloud sync shows
       "Signed in as …" and "Up to date".
 - [ ] **Google on the desktop:** Continue with Google opens the browser;
-      after choosing the account, the page says "You're signed in", and the
-      app is. Cancelling on Google's page says the sign-in was cancelled;
-      closing the tab instead times out after 5 minutes.
+      after choosing the account, the page says "You're signed in" in
+      TaskMint's look and the app's light or dark mode, TaskMint comes to the
+      front (or, where the browser keeps the focus, the browser asks to open
+      TaskMint, and accepting brings it forward), and the app is signed in.
+      The same with the window minimized, and with it closed to the tray.
+      Cancelling on Google's page says "Sign-in cancelled" there and the
+      sign-in was cancelled in the app; closing the tab instead times out
+      after 5 minutes. A second sign-in in Chrome, after ticking "Always
+      allow", opens TaskMint without asking.
 - [ ] **Both have data:** signing in on a device with data, to an account
       with data, asks Merge them / Use the cloud's data.
 - [ ] **A change travels:** a task made on the desktop shows on the phone
