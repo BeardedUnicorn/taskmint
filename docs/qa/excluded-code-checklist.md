@@ -120,6 +120,51 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Tray double-click** (Windows and Linux) shows the window.
 - [ ] **Version.** The capture server's `/api/health` reports the version in
       `apps/desktop/package.json`.
+- [ ] **Tray names.** A task named `R&D` reads `R&D` in the tray (running
+      line and Start submenu).
+
+## The menu bar (app.rs, platform/os.rs)
+
+- [ ] **macOS menus.** TaskMint, File, Edit, View, Timer, Window, Help, and
+      none of Tauri's default menu. The Window menu lists the window, and Help
+      has macOS's search field.
+- [ ] **Windows menus.** File, View, Timer, Help across the top of the window
+      from its first paint (no jump), dark in dark mode and following a mode
+      switch while the app runs; Alt+F opens File. Linux and Android show no
+      menu bar.
+- [ ] **Each item** does what it says, and brings forward a window that was
+      hidden to the tray first: About TaskMint and Check for Updates… open
+      About (the latter checking), Settings…, Cloud Sync…, New Task, Start
+      Work…, Add Time…, Import Work Logs…, each page, Command Palette…,
+      What's New, Keyboard Shortcuts.
+- [ ] **Shortcuts act once.** With the page focused, ⌘1–⌘7, ⌘N, ⇧⌘N, ⇧⌘P,
+      ⌘, and ⌘K each act exactly once, and do nothing with a dialog open (the
+      menu's title flashes). On Windows, Ctrl+… act once and the menus show
+      their keys.
+- [ ] **Edit.** ⌘C, ⌘V, ⌘X, ⌘A and ⌘Z work in a text field.
+- [ ] **Timer items** are disabled with no timer, read Pause “Task” / Resume
+      “Task” / Stop “Task” as the timer changes (from the app and from the
+      tray too), an open Timer menu stays open while they change, and
+      Resume on a timer idle detection paused opens the window to ask.
+- [ ] **System items.** ⌘W hides the window to the tray (the timer keeps
+      running; the Dock brings it back); ⌘Q, ⌘H, ⌥⌘H, Show All, ⌘M, Zoom and
+      ⌃⌘F work. Exit on Windows quits.
+- [ ] **Help.** TaskMint Help opens the README and Report a Problem… a new
+      issue on GitHub. Show Data Folder and Show Logs Folder open the data
+      folder (or `TASKMINT_DATA_DIR`) and the logs
+      (`~/Library/Logs/com.taskmint.desktop`, or
+      `%LOCALAPPDATA%\com.taskmint.desktop\logs`).
+- [ ] **No menu bar.** With rendering forced to fail, the log says "keeping
+      the default menu" and the app works with Tauri's default menu.
+
+## About (platform/os.rs)
+
+- [ ] **About TaskMint** shows the version and release date. Its Check for
+      updates reports what it found; TaskMint on GitHub, Report a problem,
+      Show data folder and Show logs folder open; Copy diagnostics puts the
+      version, system, folders and sync status (no email) on the clipboard.
+- [ ] **On a phone,** About's links open in the browser, and there are no
+      folder buttons.
 
 ## Updates (platform/os.rs)
 

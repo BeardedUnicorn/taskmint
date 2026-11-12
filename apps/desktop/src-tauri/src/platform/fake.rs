@@ -5,6 +5,7 @@
 use super::{
     AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, ScheduledNotification,
 };
+use crate::app_menu::model::{Action, AppMenu};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
@@ -28,6 +29,9 @@ pub struct Recorded {
     pub windows_shown: usize,
     pub menus: Vec<TrayMenu>,
     pub statuses: Vec<TrayStatus>,
+    /// The menu bars put up, and each in-place update to one.
+    pub app_menus: Vec<AppMenu>,
+    pub app_menu_updates: Vec<Vec<Action>>,
     pub restarts: usize,
     pub update_checks: usize,
     pub updates_installed: usize,
@@ -48,15 +52,23 @@ pub struct FakePlatform {
     /// Where the logs go; None: the system has no place for them.
     log_dir: Mutex<Option<PathBuf>>,
     /// Calls that fail from now on: "emit", "notify", "schedule", "cancel",
-    /// "reveal", "open_dir",
-    /// "tray", "status", "check_update", "install_update" (after its
-    /// download).
+    /// "reveal", "open_dir", "open_url",
+    /// "tray", "status", "app_menu", "app_menu_update", "check_update",
+    /// "install_update" (after its download).
     failing: Mutex<Vec<&'static str>>,
 }
 
 impl FakePlatform {
     pub fn fail(&self, call: &'static str) {
         self.failing.lock().unwrap().push(call);
+    }
+
+    /// `call` works again.
+    pub fn heal(&self, call: &'static str) {
+        self.failing
+            .lock()
+            .unwrap()
+            .retain(|failing| *failing != call);
     }
 
     pub fn set_documents(&self, folder: &str) {
@@ -241,6 +253,18 @@ impl Platform for FakePlatform {
 
     fn has_tray(&self) -> bool {
         !self.recorded().menus.is_empty()
+    }
+
+    fn render_app_menu(&self, menu: &AppMenu) -> Result<(), String> {
+        self.check("app_menu")?;
+        self.recorded().app_menus.push(menu.clone());
+        Ok(())
+    }
+
+    fn update_app_menu(&self, actions: &[Action]) -> Result<(), String> {
+        self.check("app_menu_update")?;
+        self.recorded().app_menu_updates.push(actions.to_vec());
+        Ok(())
     }
 
     fn app_version(&self) -> String {

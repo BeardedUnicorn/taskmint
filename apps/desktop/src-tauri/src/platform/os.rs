@@ -14,6 +14,7 @@
 use super::{
     AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, ScheduledNotification,
 };
+use crate::app_menu::model::{Action, AppMenu};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::fs::File;
@@ -152,16 +153,20 @@ fn cancel_os_notification(_app: &AppHandle, _id: i32) -> Result<(), String> {
 #[cfg(desktop)]
 mod desktop {
     use super::text;
+    use crate::app_menu::model::{Action, AppMenu, AppMenuItem, Predefined, SubmenuRole};
     use crate::config::{
         ICON_TRAY_FALLBACK, ICON_TRAY_PRIMARY, ICON_TRAY_TEMPLATE, TRAY_TOOLTIP_APP_NAME,
     };
     use crate::platform::{AvailableUpdate, DownloadEvent};
     use crate::tray::model::{TrayItem, TrayMenu, TrayStatus};
+    use std::collections::HashMap;
     use std::future::Future;
     use std::path::PathBuf;
     use std::sync::Mutex;
     use tauri::image::Image;
-    use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+    use tauri::menu::{
+        IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
+    };
     use tauri::tray::{TrayIcon, TrayIconBuilder, TrayIconEvent};
     use tauri::{AppHandle, Manager, Wry};
     use tauri_plugin_dialog::DialogExt;
@@ -170,6 +175,8 @@ mod desktop {
     #[derive(Default)]
     pub struct DesktopParts {
         tray: Mutex<Option<TrayIcon>>,
+        /// The menu bar's items the app answers, to relabel in place.
+        app_menu: Mutex<AppMenuItems>,
         /// The update the last check found, for install_update.
         update: Mutex<Option<Update>>,
     }
@@ -202,6 +209,73 @@ mod desktop {
             }
             TrayItem::Quit => Box::new(PredefinedMenuItem::quit(app, Some("Quit"))?),
         })
+    }
+
+    fn predefined(
+        app: &AppHandle,
+        kind: Predefined,
+        label: Option<&str>,
+    ) -> tauri::Result<PredefinedMenuItem<Wry>> {
+        match kind {
+            Predefined::Services => PredefinedMenuItem::services(app, label),
+            Predefined::Hide => PredefinedMenuItem::hide(app, label),
+            Predefined::HideOthers => PredefinedMenuItem::hide_others(app, label),
+            Predefined::ShowAll => PredefinedMenuItem::show_all(app, label),
+            Predefined::Quit => PredefinedMenuItem::quit(app, label),
+            Predefined::CloseWindow => PredefinedMenuItem::close_window(app, label),
+            Predefined::Undo => PredefinedMenuItem::undo(app, label),
+            Predefined::Redo => PredefinedMenuItem::redo(app, label),
+            Predefined::Cut => PredefinedMenuItem::cut(app, label),
+            Predefined::Copy => PredefinedMenuItem::copy(app, label),
+            Predefined::Paste => PredefinedMenuItem::paste(app, label),
+            Predefined::SelectAll => PredefinedMenuItem::select_all(app, label),
+            Predefined::Fullscreen => PredefinedMenuItem::fullscreen(app, label),
+            Predefined::Minimize => PredefinedMenuItem::minimize(app, label),
+            Predefined::Zoom => PredefinedMenuItem::maximize(app, label),
+            Predefined::BringAllToFront => PredefinedMenuItem::bring_all_to_front(app, label),
+        }
+    }
+
+    /// The menu bar's items the app answers, by id.
+    type AppMenuItems = HashMap<&'static str, MenuItem<Wry>>;
+
+    /// The menu bar, and its items the app answers by id.
+    fn build_app_menu(app: &AppHandle, menu: &AppMenu) -> tauri::Result<(Menu<Wry>, AppMenuItems)> {
+        let bar = Menu::new(app)?;
+        let mut actions = HashMap::new();
+        for submenu in &menu.submenus {
+            // macOS fills these in: the window list, Help's search field
+            let built = match submenu.role {
+                Some(SubmenuRole::Window) => {
+                    Submenu::with_id(app, WINDOW_SUBMENU_ID, submenu.label, true)?
+                }
+                Some(SubmenuRole::Help) => {
+                    Submenu::with_id(app, HELP_SUBMENU_ID, submenu.label, true)?
+                }
+                None => Submenu::new(app, submenu.label, true)?,
+            };
+            for item in &submenu.items {
+                match item {
+                    AppMenuItem::Action(action) => {
+                        let item = MenuItem::with_id(
+                            app,
+                            action.id,
+                            &action.label,
+                            action.enabled,
+                            action.accelerator.as_deref(),
+                        )?;
+                        built.append(&item)?;
+                        actions.insert(action.id, item);
+                    }
+                    AppMenuItem::Predefined { kind, label } => {
+                        built.append(&predefined(app, *kind, *label)?)?
+                    }
+                    AppMenuItem::Separator => built.append(&PredefinedMenuItem::separator(app)?)?,
+                }
+            }
+            bar.append(&built)?;
+        }
+        Ok((bar, actions))
     }
 
     fn build_menu(app: &AppHandle, menu: &TrayMenu) -> tauri::Result<Menu<Wry>> {
@@ -292,6 +366,29 @@ mod desktop {
             self.tray().is_some()
         }
 
+        pub fn render_app_menu(&self, app: &AppHandle, menu: &AppMenu) -> Result<(), String> {
+            let (bar, actions) = build_app_menu(app, menu).map_err(text)?;
+            app.set_menu(bar).map_err(text)?;
+            *self.app_menu.lock().unwrap_or_else(|e| e.into_inner()) = actions;
+            Ok(())
+        }
+
+        pub fn update_app_menu(&self, actions: &[Action]) -> Result<(), String> {
+            for action in actions {
+                // Out of the lock: menu calls run on the main thread and wait
+                let item = self
+                    .app_menu
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .get(action.id)
+                    .cloned()
+                    .ok_or_else(|| format!("the menu bar has no {}", action.id))?;
+                item.set_text(&action.label).map_err(text)?;
+                item.set_enabled(action.enabled).map_err(text)?;
+            }
+            Ok(())
+        }
+
         pub fn check_update(&self, app: &AppHandle) -> Result<Option<AvailableUpdate>, String> {
             let updater = app.updater().map_err(text)?;
             let found = finish(updater.check()).map_err(text)?;
@@ -344,6 +441,7 @@ mod desktop {
 /// there.
 #[cfg(mobile)]
 mod mobile {
+    use crate::app_menu::model::{Action, AppMenu};
     use crate::platform::{AvailableUpdate, DownloadEvent};
     use crate::tray::model::{TrayMenu, TrayStatus};
     use std::path::PathBuf;
@@ -370,6 +468,14 @@ mod mobile {
 
         pub fn has_tray(&self) -> bool {
             false
+        }
+
+        pub fn render_app_menu(&self, _app: &AppHandle, _menu: &AppMenu) -> Result<(), String> {
+            Err(missing("The menu bar"))
+        }
+
+        pub fn update_app_menu(&self, _actions: &[Action]) -> Result<(), String> {
+            Err(missing("The menu bar"))
         }
 
         pub fn check_update(&self, _app: &AppHandle) -> Result<Option<AvailableUpdate>, String> {
@@ -496,6 +602,14 @@ impl Platform for TauriPlatform {
 
     fn has_tray(&self) -> bool {
         self.desktop.has_tray()
+    }
+
+    fn render_app_menu(&self, menu: &AppMenu) -> Result<(), String> {
+        self.desktop.render_app_menu(&self.app, menu)
+    }
+
+    fn update_app_menu(&self, actions: &[Action]) -> Result<(), String> {
+        self.desktop.update_app_menu(actions)
     }
 
     fn app_version(&self) -> String {

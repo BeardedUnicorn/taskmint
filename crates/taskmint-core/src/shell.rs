@@ -1,7 +1,8 @@
 //! What the desktop and phone shells offer the app beyond its data: the
-//! pages and folders About opens, and what About says about this copy of
-//! TaskMint. The shells implement them; the types are here so the app's
-//! TypeScript is generated from them (packages/contracts).
+//! pages and folders About opens, what About says about this copy of
+//! TaskMint, and what the desktop's menu bar asks the app to do. The shells
+//! implement them; the types are here so the app's TypeScript is generated
+//! from them (packages/contracts).
 
 use crate::contract::{HELP_URL, ISSUES_URL, RELEASES_URL, REPOSITORY_URL};
 use serde::{Deserialize, Serialize};
@@ -56,10 +57,63 @@ pub struct AppInfo {
     pub log_dir: Option<String>,
 }
 
+/// A page the menu bar's View menu opens (the app's pages but Settings,
+/// which has its own item).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub enum MenuView {
+    Home,
+    Sessions,
+    Tasks,
+    Notes,
+    History,
+    Calendar,
+    Payouts,
+}
+
+/// What a menu bar item asks the app to do (the `menu-command` event's
+/// payload). The menu's own items (Edit, Window, Quit), its links and
+/// folders, and the timer's pause and stop are the shell's to do itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum MenuCommand {
+    ShowView { view: MenuView },
+    NewTask,
+    StartWork,
+    AddTime,
+    ImportWorkLogs,
+    CommandPalette,
+    Settings,
+    CloudSync,
+    About,
+    CheckForUpdates,
+    WhatsNew,
+    KeyboardShortcuts,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn menu_commands_say_what_they_are_and_which_page() {
+        assert_eq!(
+            json!(MenuCommand::ShowView {
+                view: MenuView::Payouts
+            }),
+            json!({ "type": "showView", "view": "payouts" })
+        );
+        assert_eq!(
+            json!(MenuCommand::CheckForUpdates),
+            json!({ "type": "checkForUpdates" })
+        );
+        let parsed: MenuCommand =
+            serde_json::from_value(json!({ "type": "importWorkLogs" })).unwrap();
+        assert_eq!(parsed, MenuCommand::ImportWorkLogs);
+    }
 
     #[test]
     fn links_are_named_on_the_wire_and_open_taskmints_pages() {

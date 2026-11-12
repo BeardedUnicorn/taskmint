@@ -2,6 +2,12 @@
 
 use chrono::{Datelike, NaiveDateTime};
 
+/// Text for a menu item, shown as it is: the menu reads one "&" as a
+/// keyboard mnemonic (and macOS drops it), so each is doubled.
+pub fn menu_text(text: &str) -> String {
+    text.replace('&', "&&")
+}
+
 pub fn format_duration_hm(ms: u64) -> String {
     let total_minutes = ms / 60_000;
     format!("{:02}:{:02}", total_minutes / 60, total_minutes % 60)
@@ -18,6 +24,12 @@ pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn menu_text_keeps_ampersands() {
+        assert_eq!(menu_text("R&D && QA"), "R&&D &&&& QA");
+        assert_eq!(menu_text("Plain"), "Plain");
+    }
 
     #[test]
     fn formats_hours_and_minutes() {

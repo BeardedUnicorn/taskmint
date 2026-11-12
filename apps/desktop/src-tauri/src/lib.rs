@@ -3,6 +3,7 @@
 
 pub mod about;
 mod app;
+pub mod app_menu;
 pub mod backend;
 pub mod backup;
 pub mod capabilities;

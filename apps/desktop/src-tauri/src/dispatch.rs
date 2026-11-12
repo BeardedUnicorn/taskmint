@@ -657,7 +657,7 @@ mod tests {
             run(&f, "open_folder", json!({ "folder": "data" })),
             Ok(Value::Null)
         );
-        assert_eq!(f.platform.recorded().opened, [f.dir.0.clone()]);
+        assert_eq!(f.platform.recorded().opened, std::slice::from_ref(&f.dir.0));
         assert_eq!(
             run(&f, "open_folder", json!({ "folder": "logs" })),
             Err("no log folder".to_string())

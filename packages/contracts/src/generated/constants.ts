@@ -35,6 +35,7 @@ export const EVENTS = {
   NOTIFICATION_POSTED: "notification-posted",
   UPDATE_PROGRESS: "update-progress",
   SYNC_PENDING: "sync-pending",
+  MENU_COMMAND: "menu-command",
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
 

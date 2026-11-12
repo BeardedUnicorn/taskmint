@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { asBackend, bea, createFakeCloudStore, installFakeBackendForTest } from '../../../testing';
+import { asBackend, bea, createFakeCloudStore, fakeBackend, installFakeBackendForTest } from '../../../testing';
 import '@testing-library/jest-dom/vitest';
 import { act, render, renderHook, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { render as renderWithNotifications } from '../../../__tests__/setup/test-helpers';
@@ -446,5 +446,135 @@ describe('About from the palette', () => {
     fireEvent.keyDown(window, { key: 'k', ...(isMacPlatform() ? { metaKey: true } : { ctrlKey: true }) });
     fireEvent.change(screen.getByRole('combobox', { name: 'Command' }), { target: { value: 'check for updates' } });
     expect(screen.queryByRole('option', { name: /Check for updates/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('the menu bar', () => {
+  function Where() {
+    const { view, params } = useNavigation();
+    return <output aria-label="where">{`${view} ${JSON.stringify(params)}`}</output>;
+  }
+
+  function renderCenter() {
+    const onStartWork = vi.fn();
+    const onAddTime = vi.fn();
+    const AboutUpdates = ({ checkRequest }: { checkRequest: number }) => <p>Update check {checkRequest}</p>;
+    renderWithNotifications(
+      <AppExtensionsProvider value={{ AboutUpdates }}>
+        <NavigationProvider>
+          <AboutProvider>
+            <CommandCenter onStartWork={onStartWork} onAddTime={onAddTime} />
+            <Where />
+          </AboutProvider>
+        </NavigationProvider>
+      </AppExtensionsProvider>
+    );
+    return { onStartWork, onAddTime };
+  }
+
+  const menu = (command: Record<string, unknown>) => act(() => fakeBackend().emit('menu-command', command));
+  // (A dialog hides the rest of the page from screen readers)
+  const where = () => screen.getByRole('status', { name: 'where', hidden: true }).textContent;
+
+  it('opens the pages and settings it names', () => {
+    renderCenter();
+    const expected: Array<[Record<string, unknown>, string]> = [
+      [{ type: 'showView', view: 'calendar' }, 'calendar {}'],
+      [{ type: 'newTask' }, 'tasks {"intent":"new-task"}'],
+      [{ type: 'importWorkLogs' }, 'payouts {"intent":"import-work-logs"}'],
+      [{ type: 'settings' }, 'settings {}'],
+      [{ type: 'cloudSync' }, 'settings {"section":"sync"}'],
+      [{ type: 'whatsNew' }, 'settings {"section":"about"}'],
+      [{ type: 'keyboardShortcuts' }, 'settings {"section":"appearance"}'],
+    ];
+    for (const [command, place] of expected) {
+      menu(command);
+      expect(where()).toBe(place);
+    }
+  });
+
+  it('starts work, adds time, and opens the palette', async () => {
+    const { onStartWork, onAddTime } = renderCenter();
+    menu({ type: 'startWork' });
+    menu({ type: 'addTime' });
+    expect(onStartWork).toHaveBeenCalledTimes(1);
+    expect(onAddTime).toHaveBeenCalledTimes(1);
+    menu({ type: 'commandPalette' });
+    expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeInTheDocument();
+  });
+
+  it('waits while a dialog or the palette is open, but opens About over them', async () => {
+    renderCenter();
+    menu({ type: 'commandPalette' });
+    await screen.findByRole('dialog', { name: 'Command palette' });
+    menu({ type: 'showView', view: 'payouts' });
+    expect(where()).toBe('home {}');
+
+    menu({ type: 'checkForUpdates' });
+    expect(await screen.findByText('Update check 1')).toBeInTheDocument();
+    menu({ type: 'about' });
+    menu({ type: 'settings' });
+    expect(where()).toBe('home {}');
+  });
+});
+
+describe('pausing and resuming from the keyboard', () => {
+  const ctrlShift = (key: string) =>
+    fireEvent.keyDown(window, { key, shiftKey: true, ...(isMacPlatform() ? { metaKey: true } : { ctrlKey: true }) });
+
+  function renderCenter() {
+    render(
+      <NavigationProvider>
+        <AboutProvider>
+          <CommandCenter onStartWork={vi.fn()} onAddTime={vi.fn()} />
+        </AboutProvider>
+      </NavigationProvider>
+    );
+  }
+
+  beforeEach(() => {
+    session.value.pauseTimerInstance.mockClear();
+    session.value.resumeTimerInstance.mockClear();
+    session.value.activeSession = null;
+  });
+
+  it('does nothing without an active session', () => {
+    renderCenter();
+    ctrlShift('P');
+    expect(session.value.pauseTimerInstance).not.toHaveBeenCalled();
+    expect(session.value.resumeTimerInstance).not.toHaveBeenCalled();
+  });
+
+  it('pauses a running timer', () => {
+    session.value.activeSession = createMockTaskSession({
+      isActive: true,
+      timerInstances: [createMockTimerInstance({ id: 'run', isRunning: true })],
+    });
+    renderCenter();
+    ctrlShift('P');
+    expect(session.value.pauseTimerInstance).toHaveBeenCalledWith('run');
+  });
+
+  it('resumes the timer paused last', () => {
+    session.value.activeSession = createMockTaskSession({
+      isActive: true,
+      timerInstances: [
+        createMockTimerInstance({ id: 'old', isPaused: true, pausedAt: '2024-01-15T10:00:00Z' }),
+        createMockTimerInstance({ id: 'new', isPaused: true, pausedAt: '2024-01-15T11:00:00Z' }),
+      ],
+    });
+    renderCenter();
+    ctrlShift('P');
+    expect(session.value.resumeTimerInstance).toHaveBeenCalledWith('new');
+  });
+
+  it('leaves a session with neither alone', () => {
+    session.value.activeSession = createMockTaskSession({
+      isActive: true,
+      timerInstances: [createMockTimerInstance({ id: 'idle' })],
+    });
+    renderCenter();
+    ctrlShift('P');
+    expect(session.value.resumeTimerInstance).not.toHaveBeenCalled();
   });
 });

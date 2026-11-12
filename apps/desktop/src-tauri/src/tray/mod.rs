@@ -13,7 +13,7 @@ use model::{TrayAction, TraySnapshot};
 use serde_json::{json, Value};
 
 /// The tray as the data stands now.
-fn snapshot(state: &AppState) -> TraySnapshot {
+pub(crate) fn snapshot(state: &AppState) -> TraySnapshot {
     let idle_paused = state.with_idle(|idle| idle.pause.as_ref().map(|p| p.instance_id.clone()));
     let now = (state.clock)();
     let mut snapshot = state
@@ -92,10 +92,14 @@ fn start_task(state: &AppState, task_id: String, task_name: String) {
 
 pub fn handle_menu_event(state: &AppState, id: &str) {
     log::debug!("Tray menu item clicked: '{}'", id);
-    let Some(action) = TrayAction::from_id(id) else {
-        log::debug!("Unhandled menu item: '{}'", id);
-        return;
-    };
+    match TrayAction::from_id(id) {
+        Some(action) => run(state, action),
+        None => log::debug!("Unhandled menu item: '{}'", id),
+    }
+}
+
+/// Runs a tray action (the menu bar's Timer items run theirs here too).
+pub(crate) fn run(state: &AppState, action: TrayAction) {
     match action {
         TrayAction::StopTimer => act(state, "stop the timer", "stop_live_timer", json!({})),
         TrayAction::PauseTimer => act(state, "pause the timer", "pause_live_timer", json!({})),

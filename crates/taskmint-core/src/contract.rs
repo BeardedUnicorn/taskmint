@@ -190,6 +190,8 @@ pub mod events {
     /// Data that syncs changed on this device (in the app, the tray or the
     /// idle monitor): cloud sync sends what's new.
     pub const SYNC_PENDING: &str = "sync-pending";
+    /// A menu bar item for the app (a page, a dialog): its `MenuCommand`.
+    pub const MENU_COMMAND: &str = "menu-command";
 }
 
 #[cfg(test)]

@@ -21,6 +21,8 @@ export type { IncomingDoc } from "./IncomingDoc";
 export type { InstanceArgs } from "./InstanceArgs";
 export type { LinkMode } from "./LinkMode";
 export type { LinkSyncAccountArgs } from "./LinkSyncAccountArgs";
+export type { MenuCommand } from "./MenuCommand";
+export type { MenuView } from "./MenuView";
 export type { MoveTimerInstanceArgs } from "./MoveTimerInstanceArgs";
 export type { NotificationKind } from "./NotificationKind";
 export type { NotificationPrefs } from "./NotificationPrefs";

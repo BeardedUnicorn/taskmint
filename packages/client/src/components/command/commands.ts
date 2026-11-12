@@ -14,7 +14,12 @@ import { SETTINGS_SECTION_LABELS, VIEWS, VIEW_LABELS, availableSettingsSections 
 import { TimerState } from '../../types/timer';
 import { orderTasksForStart } from '../../utils/taskOrdering';
 import { instanceTaskId, instanceTaskName, mostRecentlyPaused } from '../../utils/timerHelpers';
-import { browserTakesShortcuts, modifierLabel, viewShortcut } from '../../hooks/useKeyboardShortcuts';
+import {
+  browserTakesShortcuts,
+  modifierLabel,
+  shiftModifierLabel,
+  viewShortcut,
+} from '../../hooks/useKeyboardShortcuts';
 import { getBackend } from '../../backend';
 
 export type CommandGroup = 'Timer' | 'Actions' | 'Pages' | 'Settings' | 'Start';
@@ -121,7 +126,14 @@ export function useCommands({
         : [];
 
     const actions: Command[] = [
-      { id: 'start-work', label: 'Start work…', group: 'Actions', keywords: 'timer task begin', run: onStartWork },
+      {
+        id: 'start-work',
+        label: 'Start work…',
+        group: 'Actions',
+        hint: inBrowser ? undefined : `${shiftModifierLabel()}N`,
+        keywords: 'timer task begin',
+        run: onStartWork,
+      },
       { id: 'add-time', label: 'Add time', group: 'Actions', keywords: 'manual entry hours', run: onAddTime },
       {
         id: 'new-task',

@@ -19,7 +19,7 @@ use taskmint_core::notifications::{NotificationKind, NotificationPrefs};
 use taskmint_core::restore::{RestoreMode, RestorePayload, RestoreSummary};
 use taskmint_core::sessions::instances::TimerInstanceUpdates;
 use taskmint_core::sessions::start::StartTaskResult;
-use taskmint_core::shell::{AppFolder, AppInfo, AppLink};
+use taskmint_core::shell::{AppFolder, AppInfo, AppLink, MenuCommand, MenuView};
 use taskmint_core::sync::{IncomingDoc, OutgoingDoc, SyncAccount, SyncApplied, SyncStatus};
 use taskmint_core::worklogs::{
     AppliedGroup, RewriteGroup, SkippedGroup, WorkLogImportPayload, WorkLogImportSummary,
@@ -108,6 +108,8 @@ fn export_types(cfg: &Config) {
         AppLink,
         AppFolder,
         AppInfo,
+        MenuCommand,
+        MenuView,
     );
 }
 
@@ -283,6 +285,7 @@ fn constants() -> Constants {
                 json!(events::UPDATE_PROGRESS),
             ),
             ("SYNC_PENDING", "SYNC_PENDING", json!(events::SYNC_PENDING)),
+            ("MENU_COMMAND", "MENU_COMMAND", json!(events::MENU_COMMAND)),
         ],
     );
     out.line("export type EventName = (typeof EVENTS)[keyof typeof EVENTS];\n");
