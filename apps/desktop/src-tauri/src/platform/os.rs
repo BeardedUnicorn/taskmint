@@ -475,12 +475,13 @@ impl Platform for TauriPlatform {
             log::error!("Main window not found");
             return;
         };
-        // Focusing does nothing to a minimized window (tao), so restore it first
-        if let Err(e) = window
-            .unminimize()
-            .and_then(|()| window.show())
-            .and_then(|()| window.set_focus())
-        {
+        // Focusing does nothing to a minimized window (tao), so restore it
+        // first. A phone has no minimizing (nor Tauri's unminimize).
+        #[cfg(desktop)]
+        if let Err(e) = window.unminimize() {
+            log::error!("Failed to restore the window: {}", e);
+        }
+        if let Err(e) = window.show().and_then(|()| window.set_focus()) {
             log::error!("Failed to bring the window forward: {}", e);
         }
     }
