@@ -102,24 +102,30 @@ describe('App', () => {
     }
   }, 30_000);
 
-  it('on a phone, swaps the sidebar for a top bar whose menu opens each page', async () => {
+  it('on a phone, swaps the sidebar for a top bar whose menu opens each page, and tabs for the main ones', async () => {
     setPhoneViewport();
     render(<App />);
 
     // No sidebar to collapse; the bell sits in the top bar with the page's name
     expect(await screen.findByRole('button', { name: 'Open navigation' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Collapse sidebar' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Payouts' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tasks' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Notifications/ })).toBeInTheDocument();
     expect(screen.getByText('Home', { selector: '.MuiToolbar-root *' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Payouts' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Tasks' }));
 
     // The menu closes on the way, and the bar names the new page
+    expect(await heading('tasks')).toBeInTheDocument();
+    expect(screen.getByText('Tasks', { selector: '.MuiToolbar-root *' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Notes' })).not.toBeInTheDocument());
+
+    // The tabs along the bottom open the main pages without the menu
+    const tabs = within(screen.getByRole('navigation', { name: 'Pages' }));
+    fireEvent.click(tabs.getByRole('button', { name: 'Payouts' }));
     expect(await screen.findByRole('heading', { name: 'Payouts', level: 1 }, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByText('Payouts', { selector: '.MuiToolbar-root *' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Tasks' })).not.toBeInTheDocument());
+    expect(tabs.getByRole('button', { name: 'Payouts' })).toHaveAttribute('aria-current', 'page');
   }, 15_000);
 
   it('opens on Home, and starts each page opened at the top', async () => {

@@ -9,6 +9,7 @@ import { IdleReturnDialog } from './components/ui/dialogs/IdleReturnDialog';
 import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar } from './components/layout';
 import { CompactTopBar } from './components/layout/CompactTopBar';
+import { BottomNavBar } from './components/layout/BottomNavBar';
 import { GoalFooter } from './components/layout/GoalFooter';
 import { PageSkeleton } from './components/layout/PageLayout';
 import { CommandCenter } from './components/command/CommandCenter';
@@ -121,8 +122,8 @@ function AppDrawn() {
 
 /**
  * The window: sidebar, the current page, and the app-wide dialogs. On a
- * phone a top bar takes the sidebar's place, and the sidebar slides in as
- * a menu.
+ * phone a top bar takes the sidebar's place, the sidebar slides in as a
+ * menu, and the main pages have tabs along the bottom.
  */
 function AppContent() {
   const { view: activeView, visit, navigate } = useNavigation();
@@ -202,10 +203,16 @@ function AppContent() {
             stretching the content past the window */}
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {compact && <CompactTopBar title={VIEW_LABELS[activeView]} onOpenNavigation={openNavigation} />}
-          {/* Clear of the gesture bar on an edge-to-edge phone screen */}
-          <Box component="main" ref={scrollerRef} sx={{ flex: 1, overflow: 'auto', pb: 'env(safe-area-inset-bottom)' }}>
+          {/* Clear of the gesture bar on an edge-to-edge phone screen (a
+              phone's bottom bar keeps clear of it itself) */}
+          <Box
+            component="main"
+            ref={scrollerRef}
+            sx={{ flex: 1, overflow: 'auto', pb: compact ? 0 : 'env(safe-area-inset-bottom)' }}
+          >
             {page}
           </Box>
+          {compact && <BottomNavBar activeView={activeView} onViewChange={navigate} />}
         </Box>
         <GlobalDialogs
           startOpen={startDialogOpen}
