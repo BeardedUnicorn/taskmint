@@ -1,6 +1,6 @@
 [package]
 name = "taskmint-wasm"
-version = "4.2.3"
+version = "4.2.4"
 description = "TaskMint's business rules for the web app: taskmint-core in WebAssembly"
 authors = ["Mike Herold"]
 edition = "2021"

@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.2.4 – 2026-11-11
+
+### Changed
+
+- Google sign-in for cloud sync uses newer versions of the libraries that hash and encode its sign-in challenge. Signing in works as before.
+
 ## 4.2.3 – 2026-11-11
 
 ### Changed
