@@ -125,13 +125,48 @@ const ACTIONS: [(&str, AppMenuAction); 24] = [
         "app.import_work_logs",
         AppMenuAction::Command(MenuCommand::ImportWorkLogs),
     ),
-    ("app.view.home", view(MenuView::Home)),
-    ("app.view.sessions", view(MenuView::Sessions)),
-    ("app.view.tasks", view(MenuView::Tasks)),
-    ("app.view.notes", view(MenuView::Notes)),
-    ("app.view.history", view(MenuView::History)),
-    ("app.view.calendar", view(MenuView::Calendar)),
-    ("app.view.payouts", view(MenuView::Payouts)),
+    (
+        "app.view.home",
+        AppMenuAction::Command(MenuCommand::ShowView {
+            view: MenuView::Home,
+        }),
+    ),
+    (
+        "app.view.sessions",
+        AppMenuAction::Command(MenuCommand::ShowView {
+            view: MenuView::Sessions,
+        }),
+    ),
+    (
+        "app.view.tasks",
+        AppMenuAction::Command(MenuCommand::ShowView {
+            view: MenuView::Tasks,
+        }),
+    ),
+    (
+        "app.view.notes",
+        AppMenuAction::Command(MenuCommand::ShowView {
+            view: MenuView::Notes,
+        }),
+    ),
+    (
+        "app.view.history",
+        AppMenuAction::Command(MenuCommand::ShowView {
+            view: MenuView::History,
+        }),
+    ),
+    (
+        "app.view.calendar",
+        AppMenuAction::Command(MenuCommand::ShowView {
+            view: MenuView::Calendar,
+        }),
+    ),
+    (
+        "app.view.payouts",
+        AppMenuAction::Command(MenuCommand::ShowView {
+            view: MenuView::Payouts,
+        }),
+    ),
     (
         "app.command_palette",
         AppMenuAction::Command(MenuCommand::CommandPalette),
@@ -151,10 +186,6 @@ const ACTIONS: [(&str, AppMenuAction); 24] = [
     (PAUSE_RESUME, AppMenuAction::PauseResume),
     (STOP, AppMenuAction::StopTimer),
 ];
-
-const fn view(view: MenuView) -> AppMenuAction {
-    AppMenuAction::Command(MenuCommand::ShowView { view })
-}
 
 impl AppMenuAction {
     pub fn from_id(id: &str) -> Option<AppMenuAction> {
