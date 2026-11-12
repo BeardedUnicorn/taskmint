@@ -73,7 +73,7 @@ describe('App', () => {
     const { hide } = fakeBackend().platform.splashScreen;
     const pageShown: boolean[] = [];
     hide.mockImplementation(() => {
-      pageShown.push(screen.queryByRole('heading', { name: VIEW_LABELS.sessions, level: 1 }) !== null);
+      pageShown.push(screen.queryByRole('heading', { name: VIEW_LABELS.home, level: 1 }) !== null);
     });
     onTestFinished(() => {
       hide.mockReset();
@@ -81,12 +81,12 @@ describe('App', () => {
 
     render(<App />);
     // The page's own skeleton, while the sessions load: still covered
-    expect(await screen.findByLabelText('Loading sessions')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Loading')).toBeInTheDocument();
     await act(() => new Promise(resolve => setTimeout(resolve, 100)));
     expect(hide).not.toHaveBeenCalled();
 
     await act(async () => sessionsArrive([]));
-    await heading('sessions');
+    await heading('home');
     await waitFor(() => expect(pageShown).toHaveLength(1));
     expect(pageShown[0]).toBe(true);
   });
@@ -111,7 +111,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Collapse sidebar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Payouts' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Notifications/ })).toBeInTheDocument();
-    expect(screen.getByText('Sessions', { selector: '.MuiToolbar-root *' })).toBeInTheDocument();
+    expect(screen.getByText('Home', { selector: '.MuiToolbar-root *' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Payouts' }));
@@ -122,8 +122,27 @@ describe('App', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Tasks' })).not.toBeInTheDocument());
   }, 15_000);
 
+  it('opens on Home, and starts each page opened at the top', async () => {
+    render(<App />);
+    expect(await heading('home')).toBeInTheDocument();
+    const scroller = screen.getByRole('main');
+
+    nav('history');
+    await heading('history');
+    scroller.scrollTop = 400;
+    nav('payouts');
+    expect(await heading('payouts')).toBeInTheDocument();
+    expect(scroller.scrollTop).toBe(0);
+
+    // Opening the page already showing goes back to its top too
+    scroller.scrollTop = 250;
+    nav('payouts');
+    await waitFor(() => expect(scroller.scrollTop).toBe(0));
+  });
+
   it('starts work from the dialog the Sessions page opens', async () => {
     render(<App />);
+    nav('sessions');
     fireEvent.click(await screen.findByRole('button', { name: 'Start a session' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Start Work' });
@@ -139,6 +158,7 @@ describe('App', () => {
 
   it('sends work to the Tasks page when no task can be started, even mid-choice', async () => {
     render(<App />);
+    nav('sessions');
     fireEvent.click(await screen.findByRole('button', { name: 'Start a session' }));
     await screen.findByRole('dialog', { name: 'Start Work' });
 
@@ -155,6 +175,7 @@ describe('App', () => {
 
   it('adds time from the dialog the Sessions page opens', async () => {
     render(<App />);
+    nav('sessions');
     fireEvent.click(await screen.findByRole('button', { name: 'Add time' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add Time' });
 

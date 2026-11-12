@@ -1,7 +1,7 @@
 /**
  * App-wide keyboard shortcuts (⌘ on macOS, Ctrl elsewhere):
  *
- * - ⌘1–⌘7: the pages, in sidebar order
+ * - ⌘1–⌘8: the pages, in sidebar order
  * - ⌘N: a new task
  * - ⌘,: Settings
  * - ⌘K: the command palette (open or close)

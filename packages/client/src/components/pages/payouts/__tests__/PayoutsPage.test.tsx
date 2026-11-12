@@ -377,6 +377,20 @@ describe('PayoutsPage', () => {
     expect(screen.getByLabelText(/paste the site's json payload/i)).toHaveValue(payloadText);
   });
 
+  it('opens the import when another page asks for it, and says so once', async () => {
+    const handled = vi.fn();
+    render(
+      <WithdrawalsProvider>
+        <PayoutDataProvider>
+          <PayoutsPage importRequested onImportRequestHandled={handled} />
+        </PayoutDataProvider>
+      </WithdrawalsProvider>
+    );
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(handled).toHaveBeenCalledTimes(1);
+  });
+
   it('dismisses a staged browser capture from the banner', () => {
     mockWorkLogsReturn.stagedCapture = {
       payloadText: '{"workLogs":[]}',

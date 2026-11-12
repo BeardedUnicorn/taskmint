@@ -13,6 +13,7 @@ import {
   Tooltip,
 } from '@mui/material';
 import {
+  HomeOutlined as HomeIcon,
   Task as TaskIcon,
   Notes as NotesIcon,
   History as HistoryIcon,
@@ -50,7 +51,9 @@ interface SidebarProps {
 const SIDEBAR_WIDTH = 240;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
 
-const VIEW_ICONS: Record<SidebarView, typeof TaskIcon> = {
+/** Each page's icon (the sidebar, the phone's bottom bar). */
+export const VIEW_ICONS: Record<SidebarView, typeof TaskIcon> = {
+  home: HomeIcon,
   sessions: SessionsIcon,
   tasks: TaskIcon,
   notes: NotesIcon,

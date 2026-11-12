@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { GoalFooter } from '../GoalFooter';
 import { DailyGoalProvider } from '../../../contexts/DailyGoalContext';
+import { DailyGoalProgressProvider } from '../../../contexts/DailyGoalProgressContext';
 import { STORAGE_KEYS } from '../../../constants';
 import { formatDateString } from '../../../utils/dateHelpers';
 import { seedAppRecords } from '../../../testing';
@@ -24,7 +25,9 @@ describe('GoalFooter', () => {
   it('renders nothing without a goal', () => {
     const { container } = render(
       <DailyGoalProvider>
-        <GoalFooter collapsed={false} />
+        <DailyGoalProgressProvider>
+          <GoalFooter collapsed={false} />
+        </DailyGoalProgressProvider>
       </DailyGoalProvider>
     );
     expect(container).toBeEmptyDOMElement();
@@ -46,10 +49,17 @@ describe('GoalFooter', () => {
 
     render(
       <DailyGoalProvider>
-        <GoalFooter collapsed={false} />
+        <DailyGoalProgressProvider>
+          <GoalFooter collapsed={false} />
+        </DailyGoalProgressProvider>
       </DailyGoalProvider>
     );
 
     expect(screen.getByText(/€0\.00 of €200\.00/)).toBeInTheDocument();
+  });
+
+  it('needs the progress provider', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => render(<GoalFooter collapsed={false} />)).toThrow(/DailyGoalProgressProvider/);
   });
 });

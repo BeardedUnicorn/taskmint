@@ -1,18 +1,15 @@
 import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
-import { NavigationParams, SidebarView, VIEWS } from '../navigation/views';
-import { readLocal, writeLocal } from '../utils/localStore';
-
-/** The page showing when the app was last closed (with `persist`). */
-export const ACTIVE_VIEW_KEY = 'activeView';
-
-function storedView(fallback: SidebarView): SidebarView {
-  const stored = readLocal<unknown>(ACTIVE_VIEW_KEY, null);
-  return VIEWS.includes(stored as SidebarView) ? (stored as SidebarView) : fallback;
-}
+import { NavigationParams, SidebarView } from '../navigation/views';
 
 interface NavigationValue {
   view: SidebarView;
   params: NavigationParams;
+  /**
+   * Counts the times a page was opened, including opening the page already
+   * showing (a tab tapped again): the shell starts the page at the top on
+   * each one.
+   */
+  visit: number;
   /** Open a page, optionally with context for it (a settings section, a task to focus). */
   navigate: (view: SidebarView, params?: NavigationParams) => void;
   /** Called by a page once it has acted on its params. */
@@ -23,41 +20,29 @@ const NavigationContext = createContext<NavigationValue | null>(null);
 
 const NO_PARAMS: NavigationParams = {};
 
-/**
- * Which page is showing. Mounted above the other providers so anything —
- * a toast's "Review in Payouts", the command palette — can switch pages.
- */
-export function NavigationProvider({
-  children,
-  initialView = 'sessions',
-  persist = false,
-}: {
-  children: ReactNode;
-  initialView?: SidebarView;
-  /** Reopen on the page that was showing last time. */
-  persist?: boolean;
-}) {
-  const [state, setState] = useState<{ view: SidebarView; params: NavigationParams }>(() => ({
-    view: persist ? storedView(initialView) : initialView,
-    params: NO_PARAMS,
-  }));
+interface NavigationState {
+  view: SidebarView;
+  params: NavigationParams;
+  visit: number;
+}
 
-  const navigate = useCallback(
-    (view: SidebarView, params?: NavigationParams) => {
-      setState({ view, params: params ?? NO_PARAMS });
-      if (persist) writeLocal<SidebarView | null>(ACTIVE_VIEW_KEY, view, null);
-    },
-    [persist]
-  );
+/**
+ * Which page is showing. The app always opens on Home. Mounted above the
+ * other providers so anything — a toast's "Review in Payouts", the command
+ * palette — can switch pages.
+ */
+export function NavigationProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<NavigationState>({ view: 'home', params: NO_PARAMS, visit: 0 });
+
+  const navigate = useCallback((view: SidebarView, params?: NavigationParams) => {
+    setState(prev => ({ view, params: params ?? NO_PARAMS, visit: prev.visit + 1 }));
+  }, []);
 
   const clearParams = useCallback(() => {
     setState(prev => (prev.params === NO_PARAMS ? prev : { ...prev, params: NO_PARAMS }));
   }, []);
 
-  const value = useMemo(
-    () => ({ view: state.view, params: state.params, navigate, clearParams }),
-    [state, navigate, clearParams]
-  );
+  const value = useMemo(() => ({ ...state, navigate, clearParams }), [state, navigate, clearParams]);
 
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
 }

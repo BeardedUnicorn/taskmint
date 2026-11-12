@@ -1,12 +1,14 @@
 /**
  * The pages, keyed by sidebar view. Each route reads what its page needs
  * from the shared contexts, so only the page on screen re-renders when that
- * data changes. Everything but Sessions (the start page) loads on first visit.
+ * data changes. Everything but Home (the start page) and Sessions loads on
+ * first visit.
  */
 
 import { ComponentType, lazy, useCallback, useMemo } from 'react';
 import { SidebarView } from '../navigation/views';
 import { SessionDashboard } from '../components/pages/SessionDashboard';
+import { HomePage } from '../components/pages/home/HomePage';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useSessionManagementContext } from '../contexts/SessionManagementContext';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
@@ -46,6 +48,10 @@ function useEntryActions() {
     [saveTimerEdit]
   );
   return { onUpdateEntry, onDeleteEntry: deleteTimerInstance };
+}
+
+function HomeRoute({ onStartWork, onAddTime }: PageProps) {
+  return <HomePage onStartWork={onStartWork} onAddTime={onAddTime} />;
 }
 
 function SessionsRoute({ onStartWork, onAddTime }: PageProps) {
@@ -122,12 +128,18 @@ function HistoryRoute({ onAddTime }: PageProps) {
   );
 }
 
+function PayoutsRoute() {
+  const { params, clearParams } = useNavigation();
+  return <PayoutsPage importRequested={params.intent === 'import-work-logs'} onImportRequestHandled={clearParams} />;
+}
+
 export const PAGES: Record<SidebarView, ComponentType<PageProps>> = {
+  home: HomeRoute,
   sessions: SessionsRoute,
   tasks: TasksRoute,
   notes: NotesRoute,
   history: HistoryRoute,
   calendar: CalendarPage,
-  payouts: PayoutsPage,
+  payouts: PayoutsRoute,
   settings: SettingsPage,
 };

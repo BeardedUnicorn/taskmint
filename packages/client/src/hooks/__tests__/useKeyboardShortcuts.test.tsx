@@ -18,16 +18,16 @@ const press = (key: string, mods: Partial<KeyboardEvent> = {}) => ({
 
 describe('shortcutFor', () => {
   it('uses ⌘ on macOS and Ctrl elsewhere', () => {
-    expect(shortcutFor(press('1', { metaKey: true }), true)).toEqual({ type: 'view', view: 'sessions' });
+    expect(shortcutFor(press('1', { metaKey: true }), true)).toEqual({ type: 'view', view: 'home' });
     expect(shortcutFor(press('1', { ctrlKey: true }), true)).toBeNull();
-    expect(shortcutFor(press('1', { ctrlKey: true }), false)).toEqual({ type: 'view', view: 'sessions' });
+    expect(shortcutFor(press('1', { ctrlKey: true }), false)).toEqual({ type: 'view', view: 'home' });
     expect(shortcutFor(press('1', { metaKey: true }), false)).toBeNull();
   });
 
-  it('maps 1–7 to the pages in sidebar order, and nothing past them', () => {
-    expect(shortcutFor(press('7', { metaKey: true }), true)).toEqual({ type: 'view', view: 'settings' });
-    expect(shortcutFor(press('4', { metaKey: true }), true)).toEqual({ type: 'view', view: 'history' });
-    expect(shortcutFor(press('8', { metaKey: true }), true)).toBeNull();
+  it('maps 1–8 to the pages in sidebar order, and nothing past them', () => {
+    expect(shortcutFor(press('8', { metaKey: true }), true)).toEqual({ type: 'view', view: 'settings' });
+    expect(shortcutFor(press('5', { metaKey: true }), true)).toEqual({ type: 'view', view: 'history' });
+    expect(shortcutFor(press('9', { metaKey: true }), true)).toBeNull();
     expect(shortcutFor(press('0', { metaKey: true }), true)).toBeNull();
   });
 
@@ -41,7 +41,7 @@ describe('shortcutFor', () => {
     expect(shortcutFor(press('n', { metaKey: true }), true, true)).toBeNull();
     expect(shortcutFor(press(',', { metaKey: true }), true, true)).toBeNull();
     expect(shortcutFor(press('k', { metaKey: true }), true, true)).toEqual({ type: 'palette' });
-    expect(shortcutFor(press('2', { metaKey: true }), true, true)).toEqual({ type: 'view', view: 'tasks' });
+    expect(shortcutFor(press('3', { metaKey: true }), true, true)).toEqual({ type: 'view', view: 'tasks' });
   });
 
   it('ignores repeats, typing in an input method, and other modifiers', () => {
@@ -57,7 +57,7 @@ describe('shortcut labels', () => {
   it('reads ⌘ on macOS and Ctrl+ elsewhere', () => {
     expect(modifierLabel(true)).toBe('⌘');
     expect(modifierLabel(false)).toBe('Ctrl+');
-    expect(viewShortcut('payouts', true)).toBe('⌘6');
+    expect(viewShortcut('payouts', true)).toBe('⌘7');
   });
 });
 
@@ -82,7 +82,7 @@ describe('useKeyboardShortcuts', () => {
   it('switches pages, opens Settings and asks for a new task', () => {
     const { result } = setup();
 
-    ctrl('3');
+    ctrl('4');
     expect(result.current.view).toBe('notes');
     ctrl(',');
     expect(result.current.view).toBe('settings');
@@ -95,7 +95,7 @@ describe('useKeyboardShortcuts', () => {
     const { result } = setup();
     ctrl('x');
     fireEvent.keyDown(window, { key: '2' });
-    expect(result.current.view).toBe('sessions');
+    expect(result.current.view).toBe('home');
     ctrl('k');
     expect(onTogglePalette).toHaveBeenCalledTimes(1);
   });
@@ -103,7 +103,7 @@ describe('useKeyboardShortcuts', () => {
   it('only closes the palette while it is open', () => {
     const { result } = setup(true);
     ctrl('2');
-    expect(result.current.view).toBe('sessions');
+    expect(result.current.view).toBe('home');
     ctrl('k');
     expect(onTogglePalette).toHaveBeenCalledTimes(1);
   });
@@ -118,7 +118,7 @@ describe('useKeyboardShortcuts', () => {
 
     ctrl('2');
     ctrl('k');
-    expect(result.current.view).toBe('sessions');
+    expect(result.current.view).toBe('home');
     expect(onTogglePalette).not.toHaveBeenCalled();
   });
 });

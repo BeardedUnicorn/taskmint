@@ -24,7 +24,7 @@ describe('usage analytics', () => {
     const { analytics } = fakeBackend().platform;
     const { result } = renderHook(useScreens, { wrapper: NavigationProvider });
     expect(analytics.setEnabled).toHaveBeenCalledWith(true);
-    expect(analytics.screen).toHaveBeenLastCalledWith('sessions');
+    expect(analytics.screen).toHaveBeenLastCalledWith('home');
     act(() => result.current.navigate('tasks'));
     expect(analytics.screen).toHaveBeenLastCalledWith('tasks');
 
