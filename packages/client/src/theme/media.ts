@@ -12,3 +12,6 @@ export const TOUCH = '@media (pointer: coarse)';
 
 /** A pointer that can hover. A tap would leave a hover tint stuck on. */
 export const HOVER = '@media (hover: hover)';
+
+/** The phone's bottom bar of tabs (MUI's BottomNavigation height), above the gesture bar's inset. */
+export const BOTTOM_BAR_HEIGHT = 56;

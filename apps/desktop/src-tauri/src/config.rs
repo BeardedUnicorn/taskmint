@@ -10,6 +10,8 @@ pub const TRAY_STATUS_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 pub const TRAY_TOOLTIP_APP_NAME: &str = "TaskMint";
 /// Most tasks listed in the tray's Start submenu.
 pub const TRAY_MAX_RECENT_TASKS: usize = 5;
+/// Longest task name the menu bar's Timer items show before cutting it short.
+pub const APP_MENU_MAX_TASK_NAME: usize = 32;
 
 /// Backup file names: `<prefix><YYYYMMDD_HHMMSS><extension>`. The prefix
 /// predates the TaskMint name; existing backups are found (and pruned) by it,

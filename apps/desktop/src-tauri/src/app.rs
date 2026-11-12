@@ -18,6 +18,7 @@ use tauri::{Manager, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 #[cfg(desktop)]
 use {
+    crate::app_menu::{self, model::MenuOs},
     crate::capture_server::{self, CaptureServer},
     crate::legacy_identifier::{self, Dirs, Os},
     crate::ticker::Ticker,
@@ -36,6 +37,18 @@ struct Background {
 fn show_window(app: &tauri::AppHandle) {
     if let Some(state) = app.try_state::<AppState>() {
         state.platform.show_main_window();
+    }
+}
+
+/// The menu bar's layout here: macOS's or Windows'. Linux has none.
+#[cfg(desktop)]
+fn menu_os() -> Option<MenuOs> {
+    if cfg!(target_os = "macos") {
+        Some(MenuOs::MacOs)
+    } else if cfg!(windows) {
+        Some(MenuOs::Windows)
+    } else {
+        None
     }
 }
 
@@ -139,6 +152,13 @@ pub fn run() {
             );
             app.manage(state.clone());
 
+            // The menu bar, before the window: a window takes the app's menu
+            // as it's made (and Windows' then follows dark mode)
+            #[cfg(desktop)]
+            if let Some(os) = menu_os() {
+                app_menu::start(&state, os);
+            }
+
             // The main window ("create": false in tauri.conf.json, so it
             // comes after the move above)
             let window = app.config().app.windows[0].clone();
@@ -204,7 +224,10 @@ fn ask_to_notify(app: &tauri::AppHandle) {
 #[cfg(desktop)]
 fn start_desktop(app: &tauri::App, handle: &tauri::AppHandle, state: &AppState) {
     let menu_state = state.clone();
-    app.on_menu_event(move |_app, event| tray::handle_menu_event(&menu_state, event.id().as_ref()));
+    // The menu bar's clicks and the tray's
+    app.on_menu_event(move |_app, event| {
+        app_menu::handle_menu_event(&menu_state, event.id().as_ref())
+    });
     let mut tickers = Vec::new();
     if tray::start(state) {
         tickers.push(tray::start_ticker(state));

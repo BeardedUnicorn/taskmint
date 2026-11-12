@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CORE_ERRORS } from '@taskmint/contracts';
+import { CORE_ERRORS, LINKS } from '@taskmint/contracts';
 import { createWebPlatform, downloadName } from '../webPlatform';
 
 const platform = createWebPlatform();
 
 describe('the web platform', () => {
   it('has no desktop-only features, and counts usage with Firebase Analytics', () => {
-    expect(Object.keys(platform)).toEqual(['files', 'notifications', 'analytics']);
+    expect(Object.keys(platform)).toEqual(['files', 'notifications', 'analytics', 'openLink']);
+  });
+
+  it("opens TaskMint's pages in a new tab", async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await platform.openLink!('issues');
+    expect(open).toHaveBeenCalledWith(LINKS.ISSUES, '_blank', 'noopener');
+    open.mockRestore();
   });
 
   describe('exports', () => {

@@ -1,15 +1,19 @@
 /**
  * App-wide keyboard shortcuts (⌘ on macOS, Ctrl elsewhere):
  *
- * - ⌘1–⌘7: the pages, in sidebar order
+ * - ⌘1–⌘8: the pages, in sidebar order
  * - ⌘N: a new task
+ * - ⇧⌘N: start work (the start dialog)
+ * - ⇧⌘P: pause the live timer, or resume it
  * - ⌘,: Settings
  * - ⌘K: the command palette (open or close)
  *
  * They wait while a dialog or menu is open, so they never act behind one;
- * ⌘K still closes the palette itself. In a browser, ⌘N and ⌘, are the
- * browser's own (a new window, its settings), so the web app leaves them
- * out; the palette still offers both.
+ * ⌘K still closes the palette itself. In a browser, ⌘N, ⇧⌘N, ⇧⌘P and ⌘,
+ * are the browser's own (new windows, printing, its settings), so the web
+ * app leaves them out; the palette still offers them. The desktop's menu
+ * bar shows the same shortcuts: the app takes each key first, so the menu
+ * acts only when the app didn't (see app_menu/model.rs).
  */
 
 import { useEffect, useRef } from 'react';
@@ -20,6 +24,8 @@ import { getBackend } from '../backend';
 export type ShortcutAction =
   | { type: 'view'; view: SidebarView }
   | { type: 'new-task' }
+  | { type: 'start-work' }
+  | { type: 'pause-resume' }
   | { type: 'settings' }
   | { type: 'palette' };
 
@@ -30,6 +36,11 @@ export function isMacPlatform(): boolean {
 /** "⌘" on macOS, "Ctrl+" elsewhere: shortcut hints read "⌘1" / "Ctrl+1". */
 export function modifierLabel(mac = isMacPlatform()): string {
   return mac ? '⌘' : 'Ctrl+';
+}
+
+/** The same with Shift: "⇧⌘N" / "Ctrl+Shift+N". */
+export function shiftModifierLabel(mac = isMacPlatform()): string {
+  return mac ? '⇧⌘' : 'Ctrl+Shift+';
 }
 
 /** The shortcut hint for a page ("⌘1"). */
@@ -46,11 +57,17 @@ type KeyPress = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | '
 
 /** What a key press asks for, if it's one of the shortcuts. */
 export function shortcutFor(event: KeyPress, mac: boolean, inBrowser = false): ShortcutAction | null {
-  if (event.repeat || event.isComposing || event.altKey || event.shiftKey) return null;
+  if (event.repeat || event.isComposing || event.altKey) return null;
   const modifier = mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
   if (!modifier) return null;
 
   const key = event.key.toLowerCase();
+  if (event.shiftKey) {
+    if (inBrowser) return null;
+    if (key === 'n') return { type: 'start-work' };
+    if (key === 'p') return { type: 'pause-resume' };
+    return null;
+  }
   const page = Number(key);
   if (Number.isInteger(page) && page >= 1 && page <= VIEWS.length) return { type: 'view', view: VIEWS[page - 1] };
   if (key === 'n' && !inBrowser) return { type: 'new-task' };
@@ -63,21 +80,26 @@ export function shortcutFor(event: KeyPress, mac: boolean, inBrowser = false): S
 export const PALETTE_ATTRIBUTE = 'data-command-palette';
 
 /** A dialog, menu or popover (other than the palette) is open. */
-function otherModalOpen(): boolean {
+export function otherModalOpen(): boolean {
   return document.querySelector(`.MuiModal-root:not([${PALETTE_ATTRIBUTE}])`) !== null;
 }
 
 export function useKeyboardShortcuts({
   paletteOpen,
   onTogglePalette,
+  onStartWork,
+  onPauseResume,
 }: {
   paletteOpen: boolean;
   onTogglePalette: () => void;
+  onStartWork: () => void;
+  /** Pauses the live timer, or resumes it. */
+  onPauseResume: () => void;
 }): void {
   const { navigate } = useNavigation();
-  const latestRef = useRef({ paletteOpen, onTogglePalette, navigate });
+  const latestRef = useRef({ paletteOpen, onTogglePalette, onStartWork, onPauseResume, navigate });
   useEffect(() => {
-    latestRef.current = { paletteOpen, onTogglePalette, navigate };
+    latestRef.current = { paletteOpen, onTogglePalette, onStartWork, onPauseResume, navigate };
   });
 
   useEffect(() => {
@@ -86,7 +108,7 @@ export function useKeyboardShortcuts({
     const onKeyDown = (event: KeyboardEvent) => {
       const action = shortcutFor(event, mac, inBrowser);
       if (!action) return;
-      const { paletteOpen, onTogglePalette, navigate } = latestRef.current;
+      const { paletteOpen, onTogglePalette, onStartWork, onPauseResume, navigate } = latestRef.current;
 
       if (action.type === 'palette' && paletteOpen) {
         event.preventDefault();
@@ -105,6 +127,12 @@ export function useKeyboardShortcuts({
           break;
         case 'new-task':
           navigate('tasks', { intent: 'new-task' });
+          break;
+        case 'start-work':
+          onStartWork();
+          break;
+        case 'pause-resume':
+          onPauseResume();
           break;
         case 'settings':
           navigate('settings');

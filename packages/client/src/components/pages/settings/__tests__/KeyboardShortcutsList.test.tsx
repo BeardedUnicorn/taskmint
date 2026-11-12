@@ -8,6 +8,8 @@ describe('KeyboardShortcutsList', () => {
   it('lists every shortcut in the desktop app', () => {
     render(<KeyboardShortcutsList />);
     expect(screen.getByText('New task')).toBeInTheDocument();
+    expect(screen.getByText('Start work')).toBeInTheDocument();
+    expect(screen.getByText('Pause or resume the timer')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
@@ -15,6 +17,7 @@ describe('KeyboardShortcutsList', () => {
     installFakeBackendForTest({ capabilities: { runtime: 'web' } });
     render(<KeyboardShortcutsList />);
     expect(screen.queryByText('New task')).not.toBeInTheDocument();
+    expect(screen.queryByText('Start work')).not.toBeInTheDocument();
     expect(screen.queryByText('Settings')).not.toBeInTheDocument();
     expect(screen.getByText(/Command palette/)).toBeInTheDocument();
   });

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, Suspense } from 'react';
+import { useState, useMemo, useCallback, useLayoutEffect, useRef, Suspense } from 'react';
 import { CssBaseline, Box } from '@mui/material';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -9,12 +9,16 @@ import { IdleReturnDialog } from './components/ui/dialogs/IdleReturnDialog';
 import { useIdleReturn } from './hooks/useIdleReturn';
 import { Sidebar } from './components/layout';
 import { CompactTopBar } from './components/layout/CompactTopBar';
+import { BottomNavBar } from './components/layout/BottomNavBar';
 import { GoalFooter } from './components/layout/GoalFooter';
+import { SyncStatusLine } from './components/layout/SyncStatusLine';
 import { PageSkeleton } from './components/layout/PageLayout';
 import { CommandCenter } from './components/command/CommandCenter';
 import { NotificationBell } from './components/notifications/NotificationBell';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { DailyGoalProvider } from './contexts/DailyGoalContext';
+import { DailyGoalProgressProvider } from './contexts/DailyGoalProgressContext';
+import { AboutProvider } from './components/about/About';
 import { TaskNotesProvider } from './contexts/TaskNotesContext';
 import { NoteTemplatesProvider } from './contexts/NoteTemplatesContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -120,11 +124,11 @@ function AppDrawn() {
 
 /**
  * The window: sidebar, the current page, and the app-wide dialogs. On a
- * phone a top bar takes the sidebar's place, and the sidebar slides in as
- * a menu.
+ * phone a top bar takes the sidebar's place, the sidebar slides in as a
+ * menu, and the main pages have tabs along the bottom.
  */
 function AppContent() {
-  const { view: activeView, navigate } = useNavigation();
+  const { view: activeView, visit, navigate } = useNavigation();
   const { activeTasks } = useTaskManagementContext();
   const compact = useCompactLayout();
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -146,8 +150,24 @@ function AppContent() {
   const showAddTime = useCallback(() => setAddTimeDialogOpen(true), []);
   const closeStartDialog = useCallback(() => setStartDialogOpen(false), []);
   const closeAddTime = useCallback(() => setAddTimeDialogOpen(false), []);
-  const renderGoalFooter = useCallback((collapsed: boolean) => <GoalFooter collapsed={collapsed} />, []);
+  const renderFooter = useCallback(
+    (collapsed: boolean) => (
+      <>
+        <SyncStatusLine collapsed={collapsed} />
+        <GoalFooter collapsed={collapsed} />
+      </>
+    ),
+    []
+  );
   const renderBell = useCallback((collapsed: boolean) => <NotificationBell collapsed={collapsed} />, []);
+
+  // Each page opened (the one showing too, as a tab tapped again) starts at
+  // the top. A layout effect: it runs before the page's own effects, so a
+  // page that scrolls to a part of itself (a Settings section) still does.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    scrollerRef.current!.scrollTop = 0;
+  }, [visit]);
 
   // The same element until the page or its actions change, so re-rendering
   // the shell (a dialog opening) doesn't re-render the page.
@@ -179,22 +199,25 @@ function AppContent() {
             onClose={closeNavigation}
             activeView={activeView}
             onViewChange={navigate}
-            footer={renderGoalFooter}
+            footer={renderFooter}
           />
         ) : (
-          <Sidebar
-            activeView={activeView}
-            onViewChange={navigate}
-            footer={renderGoalFooter}
-            headerAction={renderBell}
-          />
+          <Sidebar activeView={activeView} onViewChange={navigate} footer={renderFooter} headerAction={renderBell} />
         )}
         {/* minWidth 0: a wide table scrolls inside its page instead of
             stretching the content past the window */}
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {compact && <CompactTopBar title={VIEW_LABELS[activeView]} onOpenNavigation={openNavigation} />}
-          {/* Clear of the gesture bar on an edge-to-edge phone screen */}
-          <Box sx={{ flex: 1, overflow: 'auto', pb: 'env(safe-area-inset-bottom)' }}>{page}</Box>
+          {/* Clear of the gesture bar on an edge-to-edge phone screen (a
+              phone's bottom bar keeps clear of it itself) */}
+          <Box
+            component="main"
+            ref={scrollerRef}
+            sx={{ flex: 1, overflow: 'auto', pb: compact ? 0 : 'env(safe-area-inset-bottom)' }}
+          >
+            {page}
+          </Box>
+          {compact && <BottomNavBar activeView={activeView} onViewChange={navigate} />}
         </Box>
         <GlobalDialogs
           startOpen={startDialogOpen}
@@ -212,7 +235,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <NavigationProvider persist>
+        <NavigationProvider>
           <NotificationProvider>
             <TaskManagementProvider>
               <DailyGoalProvider>
@@ -224,7 +247,11 @@ function App() {
                           <WithdrawalsProvider>
                             <PayoutDataProvider>
                               <BackupSettingsProvider>
-                                <AppContent />
+                                <DailyGoalProgressProvider>
+                                  <AboutProvider>
+                                    <AppContent />
+                                  </AboutProvider>
+                                </DailyGoalProgressProvider>
                               </BackupSettingsProvider>
                             </PayoutDataProvider>
                           </WithdrawalsProvider>

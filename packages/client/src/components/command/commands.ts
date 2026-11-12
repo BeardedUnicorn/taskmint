@@ -9,12 +9,17 @@ import { useNavigation } from '../../contexts/NavigationContext';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useSessionManagementContext } from '../../contexts/SessionManagementContext';
 import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
-import { syncsThisDevice } from '../../cloud';
+import { syncsThisDevice, useCloudSync } from '../../cloud';
 import { SETTINGS_SECTION_LABELS, VIEWS, VIEW_LABELS, availableSettingsSections } from '../../navigation/views';
 import { TimerState } from '../../types/timer';
 import { orderTasksForStart } from '../../utils/taskOrdering';
 import { instanceTaskId, instanceTaskName, mostRecentlyPaused } from '../../utils/timerHelpers';
-import { browserTakesShortcuts, modifierLabel, viewShortcut } from '../../hooks/useKeyboardShortcuts';
+import {
+  browserTakesShortcuts,
+  modifierLabel,
+  shiftModifierLabel,
+  viewShortcut,
+} from '../../hooks/useKeyboardShortcuts';
 import { getBackend } from '../../backend';
 
 export type CommandGroup = 'Timer' | 'Actions' | 'Pages' | 'Settings' | 'Start';
@@ -60,8 +65,24 @@ export function rankCommands(commands: Command[], query: string): Command[] {
   return scored.sort((a, b) => a.score - b.score).map(entry => entry.command);
 }
 
-export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => void; onAddTime: () => void }): Command[] {
+export function useCommands({
+  onStartWork,
+  onAddTime,
+  onSignOut,
+  onAbout,
+  onCheckForUpdates,
+}: {
+  onStartWork: () => void;
+  onAddTime: () => void;
+  /** Asks to sign out of cloud sync. */
+  onSignOut: () => void;
+  /** Opens About TaskMint. */
+  onAbout: () => void;
+  /** Opens About TaskMint and checks for updates; absent where the shell can't update. */
+  onCheckForUpdates?: () => void;
+}): Command[] {
   const { navigate } = useNavigation();
+  const signedIn = Boolean(useCloudSync()?.view.user) && syncsThisDevice();
   const { tasks } = useTaskManagementContext();
   const { sessions, activeSession, startTask, pauseTimerInstance, resumeTimerInstance, stopTimerInstance } =
     useSessionManagementContext();
@@ -105,7 +126,14 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
         : [];
 
     const actions: Command[] = [
-      { id: 'start-work', label: 'Start work…', group: 'Actions', keywords: 'timer task begin', run: onStartWork },
+      {
+        id: 'start-work',
+        label: 'Start work…',
+        group: 'Actions',
+        hint: inBrowser ? undefined : `${shiftModifierLabel()}N`,
+        keywords: 'timer task begin',
+        run: onStartWork,
+      },
       { id: 'add-time', label: 'Add time', group: 'Actions', keywords: 'manual entry hours', run: onAddTime },
       {
         id: 'new-task',
@@ -115,6 +143,29 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
         keywords: 'create add',
         run: () => navigate('tasks', { intent: 'new-task' }),
       },
+      ...(signedIn
+        ? [
+            {
+              id: 'sign-out',
+              label: 'Sign out of cloud sync',
+              group: 'Actions' as const,
+              keywords: 'log out logout account cloud',
+              run: onSignOut,
+            },
+          ]
+        : []),
+      { id: 'about', label: 'About TaskMint', group: 'Actions', keywords: 'version help', run: onAbout },
+      ...(onCheckForUpdates
+        ? [
+            {
+              id: 'check-updates',
+              label: 'Check for updates',
+              group: 'Actions' as const,
+              keywords: 'update upgrade new version',
+              run: onCheckForUpdates,
+            },
+          ]
+        : []),
       {
         id: 'toggle-theme',
         label: `Switch to ${isDark ? 'light' : 'dark'} theme`,
@@ -161,6 +212,10 @@ export function useCommands({ onStartWork, onAddTime }: { onStartWork: () => voi
     navigate,
     onStartWork,
     onAddTime,
+    onSignOut,
+    signedIn,
+    onAbout,
+    onCheckForUpdates,
     toggleTheme,
     startTask,
     pauseTimerInstance,

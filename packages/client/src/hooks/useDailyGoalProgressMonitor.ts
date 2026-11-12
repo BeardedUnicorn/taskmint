@@ -6,7 +6,7 @@
  * timer runs. Sends the 50% / 75% / 100% / exceeded notifications as they're
  * crossed (reminders: they reach the OS even while TaskMint is in front), and
  * saves today's target so the day keeps it if the goal changes later. Used
- * once, in the sidebar's GoalFooter, which shows the progress it returns.
+ * once, in DailyGoalProgressProvider, which shares the progress it returns.
  */
 
 import { useEffect, useMemo, useRef } from 'react';

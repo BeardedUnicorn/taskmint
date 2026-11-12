@@ -140,6 +140,19 @@ pub const DEEP_LINK_CAPTURE_PENDING: &str = "capture-pending";
 pub const DEEP_LINK_OPEN: &str = "open";
 
 // ============================================================================
+// TASKMINT'S PAGES
+// ============================================================================
+
+/// TaskMint's public repository: About's link, and the start of the others.
+pub const REPOSITORY_URL: &str = "https://github.com/BeardedUnicorn/taskmint";
+/// Help: the README.
+pub const HELP_URL: &str = "https://github.com/BeardedUnicorn/taskmint#readme";
+/// Report a problem: a new issue.
+pub const ISSUES_URL: &str = "https://github.com/BeardedUnicorn/taskmint/issues/new";
+/// Every release, with its notes and downloads.
+pub const RELEASES_URL: &str = "https://github.com/BeardedUnicorn/taskmint/releases";
+
+// ============================================================================
 // EVENTS
 // ============================================================================
 
@@ -177,6 +190,8 @@ pub mod events {
     /// Data that syncs changed on this device (in the app, the tray or the
     /// idle monitor): cloud sync sends what's new.
     pub const SYNC_PENDING: &str = "sync-pending";
+    /// A menu bar item for the app (a page, a dialog): its `MenuCommand`.
+    pub const MENU_COMMAND: &str = "menu-command";
 }
 
 #[cfg(test)]
@@ -268,5 +283,13 @@ mod tests {
         assert_eq!(TIME_ZONE_HEADER, "X-TaskMint-TZ");
         assert_eq!(events::APP_RECORDS_CHANGED, "app-records-changed");
         assert_eq!(events::RESYNC, "resync");
+    }
+
+    #[test]
+    fn taskmints_pages_are_on_its_repository() {
+        for url in [HELP_URL, ISSUES_URL, RELEASES_URL] {
+            assert!(url.starts_with(REPOSITORY_URL), "{}", url);
+        }
+        assert!(REPOSITORY_URL.starts_with("https://"));
     }
 }

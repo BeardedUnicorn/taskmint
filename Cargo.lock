@@ -4132,6 +4132,7 @@ dependencies = [
  "fail",
  "flate2",
  "log",
+ "muda",
  "serde",
  "serde_json",
  "sha2 0.11.1",

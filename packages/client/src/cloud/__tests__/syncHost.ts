@@ -3,10 +3,17 @@ import { createFakeBackend } from '../../testing';
 
 /** The backend's sync commands, scripted: what core would answer. */
 export function syncHost(
-  start: { account?: SyncAccount; hasData?: boolean; outgoing?: OutgoingDoc[]; held?: number } = {}
+  start: {
+    account?: SyncAccount;
+    hasData?: boolean;
+    outgoing?: OutgoingDoc[];
+    held?: number;
+    previousUid?: string;
+  } = {}
 ) {
   const state = {
     account: start.account ?? null,
+    previousUid: start.previousUid ?? null,
     cursor: null as string | null,
     hasData: start.hasData ?? false,
     outgoing: start.outgoing ?? [],
@@ -23,15 +30,18 @@ export function syncHost(
       pending: state.outgoing.length,
       held: state.held,
       hasData: state.hasData,
+      previousUid: state.previousUid,
     });
     switch (command) {
       case 'get_sync_status':
         return status();
       case 'link_sync_account':
         state.account = { uid: args!.uid as string, epoch: args!.epoch as number };
+        state.previousUid = null;
         state.linkedWith = args!.mode as string;
         return status();
       case 'unlink_sync_account':
+        state.previousUid = state.account?.uid ?? state.previousUid;
         state.account = null;
         state.cursor = null;
         return null;

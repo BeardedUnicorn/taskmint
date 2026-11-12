@@ -40,13 +40,25 @@ import { WithdrawalsCard } from './withdrawals/WithdrawalsCard';
 import { formatShortDateTime } from '../../../utils/locale';
 import { PHONE } from '../../../theme/media';
 
-export function PayoutsPage() {
+interface PayoutsPageProps {
+  /** Open the import as the page opens (Home's nudge, the menu bar's Import Work Logs…). */
+  importRequested?: boolean;
+  /** Called once the import has opened for the request. */
+  onImportRequestHandled?: () => void;
+}
+
+export function PayoutsPage({ importRequested = false, onImportRequestHandled }: PayoutsPageProps = {}) {
   const { sessions } = useSessionManagementContext();
   const { tasks, addTask } = useTaskManagementContext();
   const workLogs = useWorkLogContext();
   const { showSuccess } = useNotification();
   const { fundsReleaseDays, today, summary, monthGroups, plan, lastImport, importIsStale, isEmpty } = usePayoutData();
   const [importOpen, setImportOpen] = useState(false);
+  useEffect(() => {
+    if (!importRequested) return;
+    setImportOpen(true);
+    onImportRequestHandled?.();
+  }, [importRequested, onImportRequestHandled]);
 
   // One-shot status of the localhost capture server (port conflicts etc.),
   // where the platform runs one.

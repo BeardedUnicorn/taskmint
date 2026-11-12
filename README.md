@@ -16,13 +16,33 @@ data through Firebase.
 
 | Page | What it's for |
 |---|---|
+| **Home** | Where TaskMint always opens: what's running (or one-click starts for your favorite and most recent tasks), today's and this week's earnings and time as the Calendar counts them, the daily goal, the next withdrawal, your last few sessions, and a reminder to import work logs when the last import is a few days old. |
 | **Sessions** | Pick a task and its timer starts; pause, resume and stop timers inside the session, and add timers for other tasks to it (each day's work gets its own session). Each timer's row shows its task, and live totals cover the active session. The list shows which tasks each session ran and their totals; it covers the last 30 days (older ones a click away) and filters by source. **Add time** logs a finished timer after the fact (a "Manual" session). |
 | **Tasks** | Tasks with hourly rates and default note templates; start one, star favorites, archive tasks you're done with. Each task lists its newest entries and opens History for the rest. Time keeps the rate it was tracked at, so changing a rate only affects new time. |
 | **Notes** | Free-form or template-based notes on a task (pick it on the Notes page), a session or a timer. A session's notes open from its row, which previews the newest one. Note templates have their own tab. |
 | **History** | Every tracked, added and imported entry: quick ranges (remembered), search and task filters, totals and charts, the sortable entries table (edit, move an entry to another task, delete, CSV export; imported days are read-only, since each import rebuilds them), and the daily goal's results over the range. |
 | **Calendar** | Earnings, hours and released amounts per day, and the month's totals; click a day for its tasks and releases. |
 | **Payouts** | Import DataAnnotation work logs and see available, pending and upcoming releases, when the last import was, and a daily reconciliation grouped by month. An import's notice has **Undo**, which puts the ledger and the days it rewrote back as they were (refused once one of those days has changed). **Project mappings** lists which task each project goes to; moving a project moves its past imported days too. |
-| **Settings** | Cloud sync, appearance, payouts (funds-release delay, days between withdrawals), idle detection and the long-run reminder, daily goal, backups (and restoring one), data export/import/exact restore/reset, privacy. |
+| **Settings** | Cloud sync, appearance, payouts (funds-release delay, days between withdrawals), idle detection and the long-run reminder, daily goal, backups (and restoring one), data export/import/exact restore/reset, privacy, and About (release notes, and **About TaskMint…**). |
+
+Each page you open starts at its top. **Keyboard shortcuts** (⌘ on macOS,
+Ctrl elsewhere): ⌘1–⌘8 open the pages in sidebar order (Home first), ⌘N a
+new task, ⇧⌘N starts work, ⇧⌘P pauses or resumes the timer, ⌘, opens
+Settings, and ⌘K the command palette, which also has About TaskMint, Check
+for updates (desktop) and Sign out of cloud sync. On a phone, tabs along the
+bottom open Home, Sessions, Calendar and Payouts, and the top bar's menu
+opens every page.
+
+The **menu bar** (macOS; on Windows, menus across the top of the window)
+has TaskMint's own menus: About TaskMint and Check for Updates…, Settings
+and Cloud Sync…; File (New Task, Start Work…, Add Time…, Import Work
+Logs…); View (each page, the command palette); Timer (pause or resume, and
+stop, the running timer, by name); and Help (TaskMint's help and a new
+problem report on GitHub, What's New, the keyboard shortcuts, and the data
+and logs folders). **About TaskMint** shows the version and release date,
+checks for updates on the desktop, opens those pages and folders, and
+copies diagnostics (version, system, folders, sync status, never your
+account) for a problem report.
 
 The **system tray** (menu-bar item on macOS) shows the running or paused
 timer and can pause, resume or stop it, start a task's timer, or open the app.
@@ -134,13 +154,18 @@ don't sync.
   Each timer runs on the device that started it: idle detection and the
   long-run reminder on the desktop act only on timers running there, not on
   the phone's.
-- **Stop syncing** signs this device out and keeps its data; the cloud and
-  the other devices keep theirs. **Delete cloud data** deletes the account's
-  data from the cloud and stops every device syncing, each keeping its own
-  copy.
+- **Sign out** (in Settings → Cloud sync, or "Sign out of cloud sync" in the
+  ⌘K palette) asks first, then signs this device out and keeps its data; the
+  cloud and the other devices keep theirs. **Delete cloud data** deletes the
+  account's data from the cloud and stops every device syncing, each keeping
+  its own copy. The foot of the sidebar shows where sync stands (Synced,
+  Syncing…, Not signed in, Sync needs attention) and opens these settings.
 - **Another account.** A device that syncs with one account and is signed in
   with another says so, and offers to sync with the new one from then on
-  (its data joins that account's).
+  (its data joins that account's). After signing out, signing in to a
+  different account asks before this device's data goes there, even when
+  that account is empty: **Add it to this account**, or **Start empty**
+  (this device's data is cleared, after a copy is kept in the data folder).
 - **Newer data.** Data saved by a newer TaskMint is left alone and Settings
   says to update.
 - **BudgetMint.** A synced device also publishes your payout forecast (what

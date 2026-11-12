@@ -148,6 +148,10 @@ pub struct SyncState {
     /// updated, and read again then.
     #[serde(default)]
     pub held: BTreeSet<String>,
+    /// While not syncing: the account this device last synced with, so
+    /// signing in to another one asks before its data goes there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_uid: Option<String>,
 }
 
 /// A document from the cloud.
@@ -194,6 +198,8 @@ pub struct SyncStatus {
     /// This device has sessions, work logs or records of its own (a first
     /// link then asks whether to merge them).
     pub has_data: bool,
+    /// Not syncing: the account this device last synced with, if any.
+    pub previous_uid: Option<String>,
 }
 
 /// apply_sync_incoming's reply.
@@ -523,6 +529,7 @@ pub fn status(workspace: &Workspace) -> SyncStatus {
         pending: outgoing(workspace).len(),
         held: state.held.len(),
         has_data: has_data(workspace),
+        previous_uid: state.previous_uid.clone(),
     }
 }
 
@@ -554,10 +561,17 @@ pub fn link(workspace: &mut Workspace, account: SyncAccount) -> bool {
     stamped
 }
 
-/// Stops syncing. This device keeps its data and its id.
+/// Stops syncing. This device keeps its data and its id, and remembers the
+/// account it synced with (or, already stopped, the one before).
 pub fn unlink(workspace: &mut Workspace) {
+    let state = &mut workspace.sync;
+    let previous_uid = match state.account.take() {
+        Some(account) => Some(account.uid),
+        None => state.previous_uid.take(),
+    };
     workspace.sync = SyncState {
         device_id: std::mem::take(&mut workspace.sync.device_id),
+        previous_uid,
         ..SyncState::default()
     };
 }

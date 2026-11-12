@@ -3,8 +3,8 @@ import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import { SettingsSection } from '@taskmint/client/ui';
 import { updates, useUpdates, type UpdateState } from '../updates';
 
-/** What the last check found, under the button. */
-function Status({ update }: { update: UpdateState }) {
+/** What the last check found, under the button (here and in About). */
+export function Status({ update }: { update: UpdateState }) {
   switch (update.status) {
     case 'checking':
       return <Typography color="text.secondary">Checking for updates…</Typography>;

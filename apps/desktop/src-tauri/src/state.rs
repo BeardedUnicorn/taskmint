@@ -2,6 +2,7 @@
 // state (the tray, idle detection, notification preferences, the capture
 // server).
 
+use crate::app_menu::model::AppMenu;
 use crate::backend::{Clock, LocalBackend, Published};
 use crate::platform::Platform;
 use crate::store::JsonFileStore;
@@ -52,6 +53,8 @@ pub struct Shell {
     pub clock: Clock,
     capture_server_status: Mutex<CaptureServerStatus>,
     tray: Mutex<TrayShown>,
+    /// What the menu bar shows (None: there's none, or none yet).
+    app_menu: Mutex<Option<AppMenu>>,
     // Idle-detection settings (mirrored from the app) and the pending
     // "you were away" question. In memory only.
     idle: Mutex<IdleState>,
@@ -99,6 +102,7 @@ impl AppState {
                     warning: None,
                 }),
                 tray: Mutex::new(TrayShown::default()),
+                app_menu: Mutex::new(None),
                 idle: Mutex::new(IdleState::default()),
                 notification_prefs: Mutex::new(NotificationPrefs::default()),
                 tray_withdrawal: Mutex::new(None),
@@ -124,6 +128,7 @@ impl AppState {
             .intersects(Parts::SESSIONS | Parts::RECORDS)
         {
             crate::tray::sync(self);
+            crate::app_menu::sync(self);
         }
     }
 }
@@ -137,6 +142,7 @@ impl Shell {
         NotificationPrefs
     );
     accessors!(with_tray, with_tray_mut, tray, TrayShown);
+    accessors!(with_app_menu, with_app_menu_mut, app_menu, Option<AppMenu>);
     accessors!(
         with_tray_withdrawal,
         with_tray_withdrawal_mut,

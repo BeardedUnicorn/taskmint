@@ -69,3 +69,5 @@ tauri = { version = "2.12", features = ["test"] }
 tauri-plugin-store = "2.5"
 # Installs the test logger before any test runs (src/testing.rs)
 ctor = "=0.8.0"
+# Reads the menu bar's shortcuts as Tauri does (app_menu/model.rs tests)
+muda = { version = "0.20", default-features = false }

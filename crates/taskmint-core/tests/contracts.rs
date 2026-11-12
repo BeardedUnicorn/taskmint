@@ -19,6 +19,7 @@ use taskmint_core::notifications::{NotificationKind, NotificationPrefs};
 use taskmint_core::restore::{RestoreMode, RestorePayload, RestoreSummary};
 use taskmint_core::sessions::instances::TimerInstanceUpdates;
 use taskmint_core::sessions::start::StartTaskResult;
+use taskmint_core::shell::{AppFolder, AppInfo, AppLink, MenuCommand, MenuView};
 use taskmint_core::sync::{IncomingDoc, OutgoingDoc, SyncAccount, SyncApplied, SyncStatus};
 use taskmint_core::worklogs::{
     AppliedGroup, RewriteGroup, SkippedGroup, WorkLogImportPayload, WorkLogImportSummary,
@@ -104,6 +105,11 @@ fn export_types(cfg: &Config) {
         IdlePausePayload,
         NotificationKind,
         NotificationPrefs,
+        AppLink,
+        AppFolder,
+        AppInfo,
+        MenuCommand,
+        MenuView,
     );
 }
 
@@ -279,6 +285,7 @@ fn constants() -> Constants {
                 json!(events::UPDATE_PROGRESS),
             ),
             ("SYNC_PENDING", "SYNC_PENDING", json!(events::SYNC_PENDING)),
+            ("MENU_COMMAND", "MENU_COMMAND", json!(events::MENU_COMMAND)),
         ],
     );
     out.line("export type EventName = (typeof EVENTS)[keyof typeof EVENTS];\n");
@@ -366,6 +373,16 @@ fn constants() -> Constants {
                 "CAPTURE_PENDING",
                 json!(DEEP_LINK_CAPTURE_PENDING),
             ),
+        ],
+    );
+    out.group(
+        "TaskMint's pages: its repository, help, a new issue, and its releases.",
+        "LINKS",
+        &[
+            ("REPOSITORY_URL", "REPOSITORY", json!(REPOSITORY_URL)),
+            ("HELP_URL", "HELP", json!(HELP_URL)),
+            ("ISSUES_URL", "ISSUES", json!(ISSUES_URL)),
+            ("RELEASES_URL", "RELEASES", json!(RELEASES_URL)),
         ],
     );
     out

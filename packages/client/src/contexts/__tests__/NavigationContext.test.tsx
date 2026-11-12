@@ -1,21 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { ReactNode } from 'react';
-import { NavigationProvider, useNavigation, ACTIVE_VIEW_KEY } from '../NavigationContext';
-import { readLocal, writeLocal } from '../../utils/localStore';
-
-const persisted = ({ children }: { children: ReactNode }) => (
-  <NavigationProvider persist>{children}</NavigationProvider>
-);
+import { NavigationProvider, useNavigation } from '../NavigationContext';
 
 describe('NavigationProvider', () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  it('opens on Sessions, with params for the page and a way to clear them', () => {
+  it('opens on Home, with params for the page and a way to clear them', () => {
     const { result } = renderHook(() => useNavigation(), { wrapper: NavigationProvider });
-    expect(result.current.view).toBe('sessions');
+    expect(result.current.view).toBe('home');
 
     act(() => result.current.navigate('settings', { section: 'backups' }));
     expect(result.current.view).toBe('settings');
@@ -25,26 +19,29 @@ describe('NavigationProvider', () => {
     expect(result.current.params).toEqual({});
   });
 
-  it('remembers the page across launches when asked to', () => {
-    const first = renderHook(() => useNavigation(), { wrapper: persisted });
-    act(() => first.result.current.navigate('payouts'));
-    expect(readLocal(ACTIVE_VIEW_KEY, null)).toBe('payouts');
+  it('opens on Home every time, whatever page was showing before', () => {
+    // What versions before 4.4 kept to reopen the last page
+    window.localStorage.setItem('activeView', JSON.stringify({ version: 1, data: 'payouts' }));
+    const first = renderHook(() => useNavigation(), { wrapper: NavigationProvider });
+    act(() => first.result.current.navigate('notes'));
     first.unmount();
 
-    const second = renderHook(() => useNavigation(), { wrapper: persisted });
-    expect(second.result.current.view).toBe('payouts');
+    const second = renderHook(() => useNavigation(), { wrapper: NavigationProvider });
+    expect(second.result.current.view).toBe('home');
   });
 
-  it('ignores a stored page that no longer exists', () => {
-    writeLocal(ACTIVE_VIEW_KEY, 'reports', null);
-    const { result } = renderHook(() => useNavigation(), { wrapper: persisted });
-    expect(result.current.view).toBe('sessions');
-  });
-
-  it("doesn't remember anything unless asked", () => {
+  it('counts each page opened, the one showing included', () => {
     const { result } = renderHook(() => useNavigation(), { wrapper: NavigationProvider });
-    act(() => result.current.navigate('notes'));
-    expect(readLocal(ACTIVE_VIEW_KEY, null)).toBeNull();
+    expect(result.current.visit).toBe(0);
+
+    act(() => result.current.navigate('payouts'));
+    act(() => result.current.navigate('payouts'));
+    expect(result.current.visit).toBe(2);
+
+    // Clearing a page's params isn't a new visit
+    act(() => result.current.navigate('settings', { section: 'sync' }));
+    act(() => result.current.clearParams());
+    expect(result.current.visit).toBe(3);
   });
 
   it('keeps the same value when there are no params to clear', () => {

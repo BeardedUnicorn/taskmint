@@ -3,6 +3,7 @@
 //! coverage policy leaves it to the manual QA checklist); tests use
 //! `fake::FakePlatform`.
 
+use crate::app_menu::model::{Action, AppMenu};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -103,9 +104,16 @@ pub trait Platform: Send + Sync {
     fn set_tray_status(&self, status: &TrayStatus) -> Result<(), String>;
     /// Whether the tray icon exists (closing the window then hides it).
     fn has_tray(&self) -> bool;
-    /// The app's version, for the capture server's health check and the
-    /// server's version check.
+    /// Puts `menu` in the menu bar (macOS) or across the window (Windows),
+    /// once. An error leaves the menu that was there.
+    fn render_app_menu(&self, menu: &AppMenu) -> Result<(), String>;
+    /// Relabels, and enables or disables, items render_app_menu put up, in
+    /// place.
+    fn update_app_menu(&self, actions: &[Action]) -> Result<(), String>;
+    /// The app's version, for the capture server's health check and About.
     fn app_version(&self) -> String;
+    /// Where the app's logs go.
+    fn log_dir(&self) -> Result<PathBuf, String>;
     /// Starts the app again: switching between local data and a server
     /// takes effect at launch, since the webview starts with one backend.
     fn restart(&self);

@@ -3,7 +3,7 @@
 //! (platform/os.rs); nothing here touches Tauri.
 
 use crate::config::{TRAY_MAX_RECENT_TASKS, TRAY_TOOLTIP_APP_NAME};
-use crate::utils::format_duration_hm;
+use crate::utils::{format_duration_hm, menu_text};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use taskmint_core::contract::{IDLE_CHOICE_DISCARD_RESUME, IDLE_CHOICE_KEEP_RESUME};
@@ -126,7 +126,7 @@ impl TraySnapshot {
                 // resume choices decide whether that away time counts.
                 items.push(TrayItem::Label(format!(
                     "⏸️ Paused while away: {} ({})",
-                    live.task_name,
+                    menu_text(&live.task_name),
                     format_duration_hm(live.elapsed_ms)
                 )));
                 items.push(action(
@@ -141,13 +141,15 @@ impl TraySnapshot {
                 if live.is_paused {
                     items.push(TrayItem::Label(format!(
                         "⏸️ Paused: {} ({})",
-                        live.task_name, elapsed
+                        menu_text(&live.task_name),
+                        elapsed
                     )));
                     items.push(action(RESUME_TIMER, "▶️ Resume Timer"));
                 } else {
                     items.push(TrayItem::Label(format!(
                         "⏱️ Running: {} ({})",
-                        live.task_name, elapsed
+                        menu_text(&live.task_name),
+                        elapsed
                     )));
                     items.push(action(PAUSE_TIMER, "⏸️ Pause Timer"));
                 }
@@ -172,9 +174,9 @@ impl TraySnapshot {
                 .map(|task| TrayItem::Action {
                     id: format!("{}{}", START_TASK_PREFIX, task.id),
                     label: if task.is_favorite {
-                        format!("★ {}", task.name)
+                        format!("★ {}", menu_text(&task.name))
                     } else {
-                        task.name.clone()
+                        menu_text(&task.name)
                     },
                 })
                 .collect();
@@ -647,5 +649,31 @@ mod tests {
 
         assert_eq!(last_used.get("a"), Some(&at(10)));
         assert_eq!(last_used.get("b"), Some(&at(40)));
+    }
+
+    #[test]
+    fn task_names_keep_their_ampersands() {
+        let named = |name: &str| Task {
+            name: name.to_string(),
+            ..favorite("a")
+        };
+        let running = LiveTimer {
+            task_name: "R&D".to_string(),
+            ..live(false)
+        };
+        let menu = snapshot(Some(running), false, vec![named("Q&A")]).menu();
+        assert_eq!(
+            menu.0[0],
+            TrayItem::Label("⏱️ Running: R&&D (01:30)".to_string())
+        );
+        let start = menu
+            .0
+            .iter()
+            .find_map(|item| match item {
+                TrayItem::Submenu { items, .. } => Some(items.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(start[0], action("start_task_a", "★ Q&&A"));
     }
 }
