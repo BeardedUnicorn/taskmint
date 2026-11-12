@@ -8,6 +8,17 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.3.0 – 2026-11-11
+
+### Changed
+
+- Delete account deletes only your TaskMint data and account. BudgetMint keeps its data on its own now, so deleting your TaskMint account leaves it alone; BudgetMint just stops seeing your payouts.
+- After you choose your account in Google sign-in on the desktop, TaskMint comes back to the front by itself, even when its window was minimized or closed to the tray. Where the browser keeps the focus, it offers to open TaskMint instead. The browser page you land on now looks like TaskMint, in the app's light or dark mode, with an Open TaskMint button.
+
+### Fixed
+
+- Cancelling Google sign-in on the desktop, or a sign-in that fails, no longer shows "You're signed in" in the browser.
+
 ## 4.2.4 – 2026-11-11
 
 ### Changed
