@@ -8,6 +8,29 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.4.0 – 2026-11-12
+
+### Added
+
+- About TaskMint (in the ⌘K palette, and from Settings → About) shows the version and when it was released, with What's new and links to TaskMint on GitHub and to report a problem. On the desktop it also checks for updates and shows the data and logs folders, and on a phone it opens the links. Copy diagnostics puts the version, system, folders and sync status (never your account) on the clipboard to paste into a report. The palette also has Check for updates on the desktop.
+- The desktop app has its own menus: on a Mac in the menu bar, on Windows across the top of the window. TaskMint (or Help on Windows) has About TaskMint and Check for Updates…, then Settings and Cloud Sync…; File has New Task, Start Work…, Add Time… and Import Work Logs…; View opens each page and the command palette; Timer pauses, resumes and stops the timer that's running, naming its task; Help opens TaskMint's help and a new problem report on GitHub, What's New, the keyboard shortcuts, and the data and logs folders. The menus show each item's shortcut.
+- New shortcuts on the desktop: ⇧⌘N (Ctrl+Shift+N) starts work, and ⇧⌘P (Ctrl+Shift+P) pauses the timer or resumes it.
+- A Home page: what's running (with one-click starts for your favorite and most recent tasks when nothing is), what you've earned today and this week (the Calendar's figures, `~` on estimates), your daily goal, the next withdrawal, your last few sessions, and a reminder with an Import button when your work logs haven't been imported for a few days.
+- On a phone, tabs along the bottom of the screen open Home, Sessions, Calendar and Payouts with one tap; tapping the tab you're on goes back to the top of its page. The menu in the top bar still opens every page, and notices now appear above the tabs.
+
+### Changed
+
+- Cloud sync's **Stop syncing** is now **Sign out**, also in the ⌘K palette ("Sign out of cloud sync"). It asks first, then signs this device out and keeps its data, and says when it's done or why it couldn't. Settings → Cloud sync says how you sign in (Google, or email and password).
+- The foot of the sidebar shows where cloud sync stands (Synced, Syncing…, Not signed in, Sync needs attention); clicking it opens Settings → Cloud sync.
+- After signing out of one account, signing in to a different one asks before this device's data goes there, even when that account is empty: add it to the new account, or start this device empty (a copy of its data is kept first).
+- TaskMint always opens on Home instead of the page you had open last. The page shortcuts move up one to make room: ⌘1 (Ctrl+1 on Windows) opens Home, ⌘2 Sessions, and so on to ⌘8 Settings.
+
+### Fixed
+
+- On a phone, the daily goal's milestone notifications arrive while the menu is closed too, and each day keeps the goal it had.
+- A page you open starts at its top, instead of scrolled as far down as the page before it was.
+- A task with "&" in its name (R&D) shows it in the tray's menu, instead of losing it.
+
 ## 4.3.0 – 2026-11-11
 
 ### Changed
