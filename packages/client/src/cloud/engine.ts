@@ -200,10 +200,7 @@ export class SyncEngine {
    * data, already gone.
    */
   async deleteAccount(): Promise<void> {
-    const uid = this.view.user?.uid;
     if (this.linked) await this.deleteCloudData();
-    // BudgetMint signs in with the same account: its data goes with it
-    if (uid) await this.cloud.deleteCompanionData(uid);
     await this.cloud.deleteUser();
   }
 

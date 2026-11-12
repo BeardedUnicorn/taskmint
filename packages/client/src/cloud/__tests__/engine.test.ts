@@ -313,11 +313,6 @@ describe('cloud sync, linked', () => {
     const { engine, host } = await linked();
     await engine.deleteAccount();
     expect(store.deleteAll).toHaveBeenCalledWith('bea', 1);
-    // BudgetMint's data goes too, before the account it needs to reach it
-    expect(store.companionDeleted).toEqual(new Set(['bea']));
-    expect(vi.mocked(store.deleteCompanionData).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(store.deleteUser).mock.invocationCallOrder[0]
-    );
     expect(store.deleteUser).toHaveBeenCalled();
     expect(host.state.account).toBeNull();
 
