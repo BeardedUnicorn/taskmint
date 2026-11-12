@@ -53,6 +53,9 @@ describe('createFakeBackend', () => {
         'captureStatus',
         'googleSignIn',
         'analytics',
+        'appInfo',
+        'openLink',
+        'openFolder',
         'laterNotifications',
       ],
     });
