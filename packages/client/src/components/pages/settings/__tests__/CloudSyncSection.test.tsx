@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
+import { render } from '../../../../__tests__/setup/test-helpers';
 import userEvent from '@testing-library/user-event';
 import { CloudSyncSection } from '../CloudSyncSection';
 import { SyncEngine, setCloudSyncForTest } from '../../../../cloud';
@@ -132,14 +133,65 @@ describe('Settings → Cloud sync, signed in', () => {
     expect(await screen.findByText('Up to date')).toBeInTheDocument();
   });
 
-  it('stops syncing this device once confirmed', async () => {
+  it('names how the account signs in', async () => {
+    const store = createFakeCloudStore();
+    store.setEpoch('bea', 1);
+    await shown(syncHost({ account: { uid: 'bea', epoch: 1 } }), store);
+    act(() => store.setUser(bea()));
+    expect(await screen.findByText('with email and password')).toBeInTheDocument();
+    act(() => store.setUser({ ...bea(), providers: ['google.com', 'password'] }));
+    expect(await screen.findByText('with Google')).toBeInTheDocument();
+    act(() => store.setUser({ ...bea(), providers: ['apple.com'] }));
+    await screen.findByText('Signed in as bea@example.com');
+    expect(screen.queryByText(/^with /)).not.toBeInTheDocument();
+  });
+
+  it('signs out once confirmed, keeping this device’s data', async () => {
     const { host, user } = await signedIn();
-    await user.click(screen.getByRole('button', { name: 'Stop syncing' }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(/This device keeps its data and signs out/)).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Stop syncing' }));
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Sign out of cloud sync?' });
+    expect(within(dialog).getByText(/This device keeps its data and stops syncing/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Sign out' }));
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(host.state.account).toBeNull();
+    expect(screen.getByText('Signed out of cloud sync. Your data is still on this device.')).toBeInTheDocument();
+  });
+
+  it('says why signing out failed, and keeps syncing', async () => {
+    const { host, store, user } = await signedIn();
+    vi.mocked(store.signOut).mockRejectedValueOnce({ code: 'unavailable' });
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Sign out' }));
+    expect(
+      await screen.findByText("Couldn't sign out: Can’t reach the cloud. Changes will sync once it’s back.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(host.state.account).toEqual({ uid: 'bea', epoch: 1 });
+    expect(await screen.findByText('Up to date')).toBeInTheDocument();
+  });
+
+  it("asks before this device's data goes to an account other than the one it synced with", async () => {
+    for (const choice of ['Add it to this account', 'Clear and start'] as const) {
+      const store = createFakeCloudStore();
+      const host = syncHost({ hasData: true, previousUid: 'cal' });
+      const { user } = await shown(host, store);
+      act(() => store.setUser(bea()));
+      expect(
+        await screen.findByText(/This device's data was synced with a different account\. Add it to bea@example\.com's/)
+      ).toBeInTheDocument();
+      if (choice === 'Clear and start') {
+        await user.click(screen.getByRole('button', { name: 'Start empty' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Clear this device?' });
+        await user.click(within(dialog).getByRole('button', { name: 'Clear and start' }));
+      } else {
+        await user.click(screen.getByRole('button', { name: choice }));
+      }
+      expect(await screen.findByText('Up to date')).toBeInTheDocument();
+      expect(host.state.linkedWith).toBe(choice === 'Clear and start' ? 'replace' : 'merge');
+      setCloudSyncForTest(null);
+      document.body.innerHTML = '';
+    }
   });
 
   it('deletes the cloud data once confirmed, says so, and syncs again', async () => {
@@ -202,8 +254,8 @@ describe('Settings → Cloud sync, signed in', () => {
     await next.user.click(screen.getByRole('button', { name: 'Sync with bea@example.com' }));
     expect(await screen.findByText('Up to date')).toBeInTheDocument();
     expect(other.state.account).toEqual({ uid: 'bea', epoch: 1 });
-    await next.user.click(screen.getByRole('button', { name: 'Stop syncing' }));
-    await next.user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Stop syncing' }));
+    await next.user.click(screen.getByRole('button', { name: 'Sign out' }));
+    await next.user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Sign out' }));
     await screen.findByRole('button', { name: 'Sign in' });
   });
 

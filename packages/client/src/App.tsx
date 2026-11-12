@@ -11,6 +11,7 @@ import { Sidebar } from './components/layout';
 import { CompactTopBar } from './components/layout/CompactTopBar';
 import { BottomNavBar } from './components/layout/BottomNavBar';
 import { GoalFooter } from './components/layout/GoalFooter';
+import { SyncStatusLine } from './components/layout/SyncStatusLine';
 import { PageSkeleton } from './components/layout/PageLayout';
 import { CommandCenter } from './components/command/CommandCenter';
 import { NotificationBell } from './components/notifications/NotificationBell';
@@ -148,7 +149,15 @@ function AppContent() {
   const showAddTime = useCallback(() => setAddTimeDialogOpen(true), []);
   const closeStartDialog = useCallback(() => setStartDialogOpen(false), []);
   const closeAddTime = useCallback(() => setAddTimeDialogOpen(false), []);
-  const renderGoalFooter = useCallback((collapsed: boolean) => <GoalFooter collapsed={collapsed} />, []);
+  const renderFooter = useCallback(
+    (collapsed: boolean) => (
+      <>
+        <SyncStatusLine collapsed={collapsed} />
+        <GoalFooter collapsed={collapsed} />
+      </>
+    ),
+    []
+  );
   const renderBell = useCallback((collapsed: boolean) => <NotificationBell collapsed={collapsed} />, []);
 
   // Each page opened (the one showing too, as a tab tapped again) starts at
@@ -189,15 +198,10 @@ function AppContent() {
             onClose={closeNavigation}
             activeView={activeView}
             onViewChange={navigate}
-            footer={renderGoalFooter}
+            footer={renderFooter}
           />
         ) : (
-          <Sidebar
-            activeView={activeView}
-            onViewChange={navigate}
-            footer={renderGoalFooter}
-            headerAction={renderBell}
-          />
+          <Sidebar activeView={activeView} onViewChange={navigate} footer={renderFooter} headerAction={renderBell} />
         )}
         {/* minWidth 0: a wide table scrolls inside its page instead of
             stretching the content past the window */}

@@ -25,4 +25,8 @@ held: number,
  * This device has sessions, work logs or records of its own (a first
  * link then asks whether to merge them).
  */
-hasData: boolean, };
+hasData: boolean, 
+/**
+ * Not syncing: the account this device last synced with, if any.
+ */
+previousUid: string | null, };

@@ -134,13 +134,18 @@ don't sync.
   Each timer runs on the device that started it: idle detection and the
   long-run reminder on the desktop act only on timers running there, not on
   the phone's.
-- **Stop syncing** signs this device out and keeps its data; the cloud and
-  the other devices keep theirs. **Delete cloud data** deletes the account's
-  data from the cloud and stops every device syncing, each keeping its own
-  copy.
+- **Sign out** (in Settings → Cloud sync, or "Sign out of cloud sync" in the
+  ⌘K palette) asks first, then signs this device out and keeps its data; the
+  cloud and the other devices keep theirs. **Delete cloud data** deletes the
+  account's data from the cloud and stops every device syncing, each keeping
+  its own copy. The foot of the sidebar shows where sync stands (Synced,
+  Syncing…, Not signed in, Sync needs attention) and opens these settings.
 - **Another account.** A device that syncs with one account and is signed in
   with another says so, and offers to sync with the new one from then on
-  (its data joins that account's).
+  (its data joins that account's). After signing out, signing in to a
+  different account asks before this device's data goes there, even when
+  that account is empty: **Add it to this account**, or **Start empty**
+  (this device's data is cleared, after a copy is kept in the data folder).
 - **Newer data.** Data saved by a newer TaskMint is left alone and Settings
   says to update.
 - **BudgetMint.** A synced device also publishes your payout forecast (what

@@ -597,6 +597,7 @@ fn linking_makes_an_id_once_and_claims_the_running_timers() {
         uid: "u".into(),
         epoch: 3,
     };
+    let account_uid = account.uid.clone();
     assert!(link(&mut workspace, account.clone()));
     let device = workspace.sync.device_id.clone();
     assert_eq!(device.len(), 36);
@@ -611,13 +612,27 @@ fn linking_makes_an_id_once_and_claims_the_running_timers() {
     assert_eq!(workspace.sync.device_id, device);
 
     unlink(&mut workspace);
-    assert_eq!(
-        workspace.sync,
-        SyncState {
-            device_id: device,
-            ..SyncState::default()
-        }
+    let unlinked = SyncState {
+        device_id: device,
+        previous_uid: Some(account_uid.clone()),
+        ..SyncState::default()
+    };
+    assert_eq!(workspace.sync, unlinked);
+    assert_eq!(status(&workspace).previous_uid, Some(account_uid));
+
+    // Stopping again keeps the account it last synced with
+    unlink(&mut workspace);
+    assert_eq!(workspace.sync, unlinked);
+
+    // Linking (again, or elsewhere) forgets it
+    link(
+        &mut workspace,
+        SyncAccount {
+            uid: "other".into(),
+            epoch: 1,
+        },
     );
+    assert_eq!(workspace.sync.previous_uid, None);
 }
 
 #[test]

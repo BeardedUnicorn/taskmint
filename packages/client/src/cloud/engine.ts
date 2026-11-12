@@ -6,6 +6,8 @@
  *
  * - Signed in, an unlinked device links to the account. When both it and
  *   the cloud have data, the user chooses: join them, or take the cloud's.
+ *   So too when the device's data came from another account (it last
+ *   synced with one), even with the cloud empty: it doesn't go there unasked.
  * - Linked, it reads the cloud's changes as they're written and applies
  *   them, and sends this device's changes (`sync-pending`) shortly after
  *   they're made. A document it sent counts as sent once it comes back.
@@ -25,7 +27,10 @@ export type SyncPhase =
   | 'loading'
   | 'signedOut'
   | 'connecting'
-  /** Both this device and the cloud have data: merge, or replace this device's? */
+  /**
+   * Both this device and the cloud have data, or this device's came from
+   * another account: merge, or replace this device's?
+   */
   | 'choose'
   /** This device syncs with an account other than the one signed in. */
   | 'otherAccount'
@@ -44,6 +49,8 @@ export interface SyncView {
   /** Documents from a newer TaskMint, left alone until this one is updated. */
   held: number;
   error: string | null;
+  /** In `choose`: this device's data came from another account, and the cloud has none. */
+  fromOtherAccount: boolean;
 }
 
 export interface EngineOptions {
@@ -72,7 +79,7 @@ const WAITS_FOR_NOTHING = new Set<SyncPhase>(['signedOut', 'choose', 'otherAccou
 
 export class SyncEngine {
   private store: CloudStore | null = null;
-  private view: SyncView = { phase: 'loading', user: null, pending: 0, held: 0, error: null };
+  private view: SyncView = { phase: 'loading', user: null, pending: 0, held: 0, error: null, fromOtherAccount: false };
   private readonly listeners = new Set<() => void>();
   private readonly unsubscribe: Unsubscribe[] = [];
   /** While linked: the cloud's changes, and the account's epoch. */
@@ -170,17 +177,29 @@ export class SyncEngine {
     }
   }
 
-  /** Stops syncing this device (its data stays) and signs out. */
+  /**
+   * Signs out and stops syncing this device; its data stays. Signing out
+   * comes first: if it fails, nothing has changed, and syncing carries on.
+   */
   async stopSyncing(): Promise<void> {
     this.detach();
+    try {
+      await this.signOut();
+    } catch (error) {
+      // Still signed in and linked: pick up where it left off
+      void this.connect(this.view.user!, this.generation);
+      throw error;
+    }
     await this.run(() => this.backend.call('unlink_sync_account'));
-    await this.signOut();
   }
 
-  /** `otherAccount` or `cloudReset`: syncs this device with the signed-in account from now on. */
+  /**
+   * `otherAccount` or `cloudReset`: syncs this device with the signed-in
+   * account from now on (the user said its data may go there).
+   */
   async syncThisAccount(): Promise<void> {
     await this.run(() => this.backend.call('unlink_sync_account'));
-    await this.connect(this.view.user!, this.generation);
+    await this.connect(this.view.user!, this.generation, true);
   }
 
   /**
@@ -280,8 +299,11 @@ export class SyncEngine {
     await this.connect(user, generation);
   }
 
-  /** Links if this device isn't yet, then follows the account. */
-  private async connect(user: CloudUser, generation: number): Promise<void> {
+  /**
+   * Links if this device isn't yet, then follows the account. `agreed`: the
+   * user already said this device's data may join the account's.
+   */
+  private async connect(user: CloudUser, generation: number, agreed = false): Promise<void> {
     try {
       const status = await this.run(() => this.backend.call('get_sync_status'));
       if (generation !== this.generation) return;
@@ -292,11 +314,13 @@ export class SyncEngine {
       if (!status.account) {
         const epoch = (await this.cloud.account(user.uid)) ?? (await this.cloud.createAccount(user.uid));
         const both = status.hasData && (await this.cloud.hasData(user.uid));
+        const fromOtherAccount =
+          !both && !agreed && status.hasData && status.previousUid !== null && status.previousUid !== user.uid;
         // Signed out (or in as someone else) meanwhile: link nobody
         if (generation !== this.generation) return;
-        if (both) {
+        if (both || fromOtherAccount) {
           this.choosing = epoch;
-          this.set({ phase: 'choose' });
+          this.set({ phase: 'choose', fromOtherAccount });
           return;
         }
         const linked = await this.run(() =>

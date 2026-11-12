@@ -1,7 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { installFakeBackendForTest } from '../../../testing';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { asBackend, bea, createFakeCloudStore, installFakeBackendForTest } from '../../../testing';
 import '@testing-library/jest-dom/vitest';
-import { act, render, renderHook, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render as renderWithNotifications } from '../../../__tests__/setup/test-helpers';
+import { SyncEngine, setCloudSyncForTest } from '../../../cloud';
+import { syncHost } from '../../../cloud/__tests__/syncHost';
 import { ReactNode } from 'react';
 import { CommandPalette } from '../CommandPalette';
 import { CommandCenter } from '../CommandCenter';
@@ -171,7 +174,9 @@ describe('useCommands', () => {
   });
 
   it('offers pages, settings sections, actions, and a start for each active task, favorites first', () => {
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
+      wrapper,
+    });
     const all = labels(result.current);
 
     expect(all).toEqual(
@@ -189,7 +194,9 @@ describe('useCommands', () => {
 
   it('in a browser, offers the settings it has and no shortcuts the browser keeps', () => {
     installFakeBackendForTest({ capabilities: { runtime: 'web' }, without: ['idle', 'folderBackups'] });
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
+      wrapper,
+    });
     const byId = (id: string) => result.current.find(command => command.id === id);
 
     expect(byId('settings-idle')).toBeUndefined();
@@ -202,7 +209,10 @@ describe('useCommands', () => {
   it('opens pages, settings sections and a new task, and offers the dark theme in the light one', () => {
     theme.isDark = false;
     const { result } = renderHook(
-      () => ({ commands: useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), navigation: useNavigation() }),
+      () => ({
+        commands: useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }),
+        navigation: useNavigation(),
+      }),
       { wrapper }
     );
     const run = (id: string) => act(() => result.current.commands.find(command => command.id === id)!.run());
@@ -217,7 +227,9 @@ describe('useCommands', () => {
   });
 
   it('starts a task the same way the start picker does', () => {
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
+      wrapper,
+    });
     result.current.find(c => c.label === 'Start "Annotation"')!.run();
     expect(session.value.startTask).toHaveBeenCalledWith('a', 'Annotation');
   });
@@ -231,7 +243,9 @@ describe('useCommands', () => {
       timerInstances: [running],
     });
 
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
+      wrapper,
+    });
     const all = labels(result.current);
     expect(all.slice(0, 2)).toEqual(['Pause "Review"', 'Stop "Review"']);
     expect(all).not.toContain('Start "Review"');
@@ -253,7 +267,9 @@ describe('useCommands', () => {
       timerInstances: [paused, running],
     });
 
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
+      wrapper,
+    });
     const all = labels(result.current);
 
     expect(all.slice(0, 2)).toEqual(['Pause "Writing"', 'Stop "Writing"']);
@@ -271,7 +287,9 @@ describe('useCommands', () => {
       timerInstances: [paused('earlier', '2024-01-15T10:00:00Z'), paused('latest', '2024-01-15T10:30:00Z')],
     });
 
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
+      wrapper,
+    });
     result.current[0].run();
 
     expect(session.value.resumeTimerInstance).toHaveBeenCalledWith('latest');
@@ -286,7 +304,9 @@ describe('useCommands', () => {
       timerInstances: [paused],
     });
 
-    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn() }), { wrapper });
+    const { result } = renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), {
+      wrapper,
+    });
     expect(result.current[0].label).toBe('Resume "Review"');
     result.current[0].run();
     expect(session.value.resumeTimerInstance).toHaveBeenCalledWith('p');
@@ -312,5 +332,51 @@ describe('CommandCenter', () => {
     fireEvent.keyDown(window, { key: 'k', ...modifier() });
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Command' }), { key: 'Escape' });
     await waitFor(() => expect(palette()).not.toBeInTheDocument());
+  });
+});
+
+describe('signing out from the palette', () => {
+  const wrapper = ({ children }: { children: ReactNode }) => <NavigationProvider>{children}</NavigationProvider>;
+  const OPTIONS = { sendDelayMs: 1, retryMs: 10_000, publishDelayMs: 1, publishRetryMs: 10_000 };
+  afterEach(() => setCloudSyncForTest(null));
+
+  async function signedIn() {
+    const store = createFakeCloudStore();
+    store.setEpoch('bea', 1);
+    const host = syncHost({ account: { uid: 'bea', epoch: 1 } });
+    const engine = new SyncEngine(asBackend(host.backend), async () => store, OPTIONS);
+    setCloudSyncForTest(engine);
+    await engine.start();
+    store.setUser(bea());
+    await vi.waitFor(() => expect(engine.getView().phase).toBe('synced'));
+    return host;
+  }
+
+  it('is offered only while signed in where this device syncs', async () => {
+    const commands = () =>
+      renderHook(() => useCommands({ onStartWork: vi.fn(), onAddTime: vi.fn(), onSignOut: vi.fn() }), { wrapper })
+        .result.current;
+    expect(commands().some(c => c.id === 'sign-out')).toBe(false);
+    await signedIn();
+    expect(commands().find(c => c.id === 'sign-out')?.label).toBe('Sign out of cloud sync');
+  });
+
+  it('asks first, then signs out', async () => {
+    const host = await signedIn();
+    renderWithNotifications(
+      <NavigationProvider>
+        <CommandCenter onStartWork={vi.fn()} onAddTime={vi.fn()} />
+      </NavigationProvider>
+    );
+    fireEvent.keyDown(window, { key: 'k', ...(isMacPlatform() ? { metaKey: true } : { ctrlKey: true }) });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Command' }), { target: { value: 'log out' } });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Command' }), { key: 'Enter' });
+
+    const dialog = await screen.findByRole('dialog', { name: 'Sign out of cloud sync?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(host.state.account).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Sign out of cloud sync?' })).not.toBeInTheDocument()
+    );
   });
 });

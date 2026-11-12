@@ -211,7 +211,11 @@ one test account of your own on the real project:
       detection doesn't pause it.
 - [ ] **Offline:** with a device offline, start a timer and edit a task;
       back online, both arrive, and only one timer is left running.
-- [ ] **Stop syncing** keeps the device's data and signs it out.
+- [ ] **Sign out** (Settings → Cloud sync, or the ⌘K palette) asks first,
+      keeps the device's data and signs it out; the sidebar's sync line
+      says Not signed in.
+- [ ] **Another account:** signed out of one test account, signing in to
+      a second, empty one asks Add it to this account / Start empty.
 - [ ] **Delete cloud data** (on a test account): every device says the
       cloud data was deleted and keeps its data; **Sync again** uploads it.
 - [ ] **The web app on Hosting** (after a deploy): https://taskmint-f9a05.web.app

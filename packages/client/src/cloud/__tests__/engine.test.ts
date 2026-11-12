@@ -31,7 +31,14 @@ const phaseOf = (engine: SyncEngine) => engine.getView().phase;
 describe('cloud sync, signing in', () => {
   it('waits signed out, and passes signing in, up and out to Firebase', async () => {
     const engine = await started(syncHost());
-    expect(engine.getView()).toEqual({ phase: 'signedOut', user: null, pending: 0, held: 0, error: null });
+    expect(engine.getView()).toEqual({
+      phase: 'signedOut',
+      user: null,
+      pending: 0,
+      held: 0,
+      error: null,
+      fromOtherAccount: false,
+    });
     await engine.resetPassword('bea@example.com');
     expect(store.resetPassword).toHaveBeenCalledWith('bea@example.com');
     await engine.signUp('cal@example.com', 'pw');
@@ -121,6 +128,33 @@ describe('cloud sync, signing in', () => {
     await vi.waitFor(() => expect(phaseOf(engine)).toBe('synced'));
     expect(store.hasData).toHaveBeenCalledWith('bea');
     expect(host.state.linkedWith).toBe('merge');
+  });
+
+  it("asks before sending a device's data to an account other than the one it last synced with", async () => {
+    store.setEpoch('bea', 2);
+    const host = syncHost({ hasData: true, previousUid: 'cal' });
+    const engine = await started(host);
+    store.setUser(bea());
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('choose'));
+    expect(engine.getView().fromOtherAccount).toBe(true);
+    expect(host.state.account).toBeNull();
+    await engine.choose('merge');
+    expect(host.state.account).toEqual({ uid: 'bea', epoch: 2 });
+  });
+
+  it('joins without asking on the account it last synced with, or with nothing of its own', async () => {
+    for (const start of [
+      { hasData: true, previousUid: 'bea' },
+      { hasData: false, previousUid: 'cal' },
+    ]) {
+      store = createFakeCloudStore();
+      store.setEpoch('bea', 2);
+      const host = syncHost(start);
+      const engine = await started(host);
+      store.setUser(bea());
+      await vi.waitFor(() => expect(phaseOf(engine)).toBe('synced'));
+      expect(host.state.linkedWith).toBe('merge');
+    }
   });
 
   it('carries on from where it read up to, on the account it linked', async () => {
@@ -339,9 +373,20 @@ describe('cloud sync, linked', () => {
     await engine.stopSyncing();
     unsubscribe();
     expect(host.state.account).toBeNull();
+    expect(host.state.previousUid).toBe('bea');
     expect(phaseOf(engine)).toBe('signedOut');
     expect(seen).toHaveBeenCalled();
     expect(host.backend.call).not.toHaveBeenCalledWith('reset_all_app_data');
+  });
+
+  it('carries on syncing when signing out fails', async () => {
+    const { engine, host } = await linked();
+    vi.mocked(store.signOut).mockRejectedValueOnce({ code: 'unavailable' });
+    await expect(engine.stopSyncing()).rejects.toEqual({ code: 'unavailable' });
+    expect(host.state.account).toEqual({ uid: 'bea', epoch: 1 });
+    expect(host.backend.call).not.toHaveBeenCalledWith('unlink_sync_account');
+    await vi.waitFor(() => expect(store.listens.filter(listen => listen.open)).toHaveLength(1));
+    expect(phaseOf(engine)).toBe('synced');
   });
 
   it('sends nothing for a change while not linked', async () => {

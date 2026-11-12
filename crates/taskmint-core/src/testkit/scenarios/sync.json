@@ -3,7 +3,15 @@
   "steps": [
     {
       "call": "get_sync_status",
-      "reply": { "account": null, "deviceId": "", "cursor": null, "pending": 0, "held": 0, "hasData": false }
+      "reply": {
+        "account": null,
+        "deviceId": "",
+        "cursor": null,
+        "pending": 0,
+        "held": 0,
+        "hasData": false,
+        "previousUid": null
+      }
     },
     { "call": "get_sync_outgoing", "reply": [] },
     {
@@ -121,7 +129,15 @@
     { "call": "unlink_sync_account", "reply": null },
     {
       "call": "get_sync_status",
-      "reply": { "account": null, "deviceId": "$any", "cursor": null, "pending": 0, "held": 0, "hasData": true }
+      "reply": {
+        "account": null,
+        "deviceId": "$any",
+        "cursor": null,
+        "pending": 0,
+        "held": 0,
+        "hasData": true,
+        "previousUid": "u1"
+      }
     },
     {
       "call": "link_sync_account",
@@ -135,7 +151,7 @@
     { "call": "reset_all_app_data" },
     {
       "call": "get_sync_status",
-      "reply": { "account": null, "deviceId": "", "hasData": false }
+      "reply": { "account": null, "deviceId": "", "hasData": false, "previousUid": null }
     }
   ]
 }

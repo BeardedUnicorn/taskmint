@@ -10,6 +10,7 @@ import { Alert, Box, Button, Chip, CircularProgress, Stack, TextField, Typograph
 import { CloudSync as CloudIcon, Google as GoogleIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
+import { SignOutDialog } from '../../cloud/SignOutDialog';
 import { useCloudSync, type SyncEngine, type SyncView } from '../../../cloud';
 import { cloudErrorMessage } from '../../../cloud/errors';
 
@@ -151,8 +152,14 @@ function statusLabel(view: SyncView): string {
   return view.pending === 1 ? '1 change to send' : `${view.pending} changes to send`;
 }
 
+/** How the account signs in, for the line that names it. */
+function providerName(providers: string[]): string | null {
+  if (providers.includes('google.com')) return 'Google';
+  return providers.includes('password') ? 'email and password' : null;
+}
+
 function Signedin({ engine, view }: { engine: SyncEngine; view: SyncView }) {
-  const [confirming, setConfirming] = useState<'stop' | 'delete' | null>(null);
+  const [confirming, setConfirming] = useState<'signOut' | 'delete' | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const attempt = (action: () => Promise<void>) => async () => {
     setProblem(null);
@@ -168,6 +175,11 @@ function Signedin({ engine, view }: { engine: SyncEngine; view: SyncView }) {
     <Box>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2, flexWrap: 'wrap', rowGap: 1 }}>
         <Typography variant="body1">Signed in as {view.user!.email}</Typography>
+        {providerName(view.user!.providers) && (
+          <Typography variant="body2" color="text.secondary">
+            with {providerName(view.user!.providers)}
+          </Typography>
+        )}
         {view.phase !== 'error' && (
           <Chip size="small" label={statusLabel(view)} color={view.phase === 'synced' ? 'success' : 'default'} />
         )}
@@ -195,19 +207,19 @@ function Signedin({ engine, view }: { engine: SyncEngine; view: SyncView }) {
         <Button variant="outlined" onClick={engine.syncNow}>
           Sync now
         </Button>
-        <Button onClick={() => setConfirming('stop')}>Stop syncing</Button>
+        <Button variant="outlined" onClick={() => setConfirming('signOut')}>
+          Sign out
+        </Button>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        Signing out keeps this device's data here; it stops syncing until you sign in again.
+      </Typography>
+      <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
         <Button color="error" onClick={() => setConfirming('delete')}>
           Delete cloud data
         </Button>
-      </Stack>
-      <ConfirmDialog
-        open={confirming === 'stop'}
-        onClose={() => setConfirming(null)}
-        onConfirm={attempt(() => engine.stopSyncing())}
-        title="Stop syncing this device?"
-        message="This device keeps its data and signs out. Your other devices and the cloud keep theirs. Sign in again to sync."
-        confirmLabel="Stop syncing"
-      />
+      </Box>
+      <SignOutDialog open={confirming === 'signOut'} onClose={() => setConfirming(null)} engine={engine} />
       <ConfirmDialog
         open={confirming === 'delete'}
         onClose={() => setConfirming(null)}
@@ -221,29 +233,40 @@ function Signedin({ engine, view }: { engine: SyncEngine; view: SyncView }) {
   );
 }
 
-/** Both sides have data: join them, or take the cloud's. */
-function Choose({ engine }: { engine: SyncEngine }) {
+/**
+ * Both sides have data, or this device's came from another account: join
+ * them, or take the cloud's.
+ */
+function Choose({ engine, view }: { engine: SyncEngine; view: SyncView }) {
   const [replacing, setReplacing] = useState(false);
+  const email = view.user!.email;
   return (
     <Box>
       <Alert severity="info" sx={{ mb: 2 }}>
-        This device and your cloud account both have data. Merging keeps both; where the same item changed on both, this
-        device's version wins.
+        {view.fromOtherAccount
+          ? `This device's data was synced with a different account. Add it to ${email}'s data, or start this device from ${email}'s, which is empty?`
+          : "This device and your cloud account both have data. Merging keeps both; where the same item changed on both, this device's version wins."}
       </Alert>
       <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
         <Button variant="contained" onClick={() => void engine.choose('merge')}>
-          Merge them
+          {view.fromOtherAccount ? 'Add it to this account' : 'Merge them'}
         </Button>
-        <Button onClick={() => setReplacing(true)}>Use the cloud's data</Button>
+        <Button onClick={() => setReplacing(true)}>
+          {view.fromOtherAccount ? 'Start empty' : "Use the cloud's data"}
+        </Button>
         <Button onClick={() => void engine.signOut()}>Sign out</Button>
       </Stack>
       <ConfirmDialog
         open={replacing}
         onClose={() => setReplacing(false)}
         onConfirm={() => engine.choose('replace')}
-        title="Replace this device's data?"
-        message="This device's sessions, work logs, tasks and notes are replaced by the cloud's. A copy of them is kept in the app's data folder first."
-        confirmLabel="Replace"
+        title={view.fromOtherAccount ? 'Clear this device?' : "Replace this device's data?"}
+        message={
+          view.fromOtherAccount
+            ? `This device's sessions, work logs, tasks and notes are removed, to start from ${email}'s, which has none yet. A copy of them is kept in the app's data folder first.`
+            : "This device's sessions, work logs, tasks and notes are replaced by the cloud's. A copy of them is kept in the app's data folder first."
+        }
+        confirmLabel={view.fromOtherAccount ? 'Clear and start' : 'Replace'}
       />
     </Box>
   );
@@ -291,7 +314,7 @@ function Body({ engine, view }: { engine: SyncEngine; view: SyncView }) {
     case 'signedOut':
       return <SignInForm engine={engine} />;
     case 'choose':
-      return <Choose engine={engine} />;
+      return <Choose engine={engine} view={view} />;
     case 'otherAccount':
       return (
         <Notice
