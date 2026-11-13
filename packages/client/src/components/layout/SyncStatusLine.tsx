@@ -14,7 +14,7 @@ import {
 import type { SvgIconComponent } from '@mui/icons-material';
 import { syncsThisDevice, useCloudSync, type SyncView } from '../../cloud';
 import { useNavigation } from '../../contexts/NavigationContext';
-import { HOVER } from '../../theme/media';
+import { HOVER, TOUCH } from '../../theme/media';
 
 type Tone = 'success.main' | 'text.secondary' | 'warning.main';
 
@@ -60,6 +60,8 @@ export function SyncStatusLine({ collapsed }: { collapsed: boolean }) {
           borderRadius: 1,
           color: tone,
           [HOVER]: { '&:hover': { bgcolor: 'action.hover' } },
+          // Room for a finger
+          [TOUCH]: { minHeight: 44 },
         }}
       >
         <Icon fontSize="small" />
