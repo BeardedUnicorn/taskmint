@@ -75,7 +75,8 @@ enum Shell {
     /// What the notification the user last tapped opens (a MenuCommand), or
     /// null, once. The app asks as soon as it's up (a tap can start it) and
     /// on each `notification-opened`. Being up, it's also when the phone's
-    /// notifications can be set up (Platform::prepare_notifications).
+    /// notifications can be set up (Platform::prepare_notifications) and its
+    /// running-timer notification shown (timer_notice::start).
     TakeOpenedNotification {},
     GetCaptureServerStatus {},
     ValidateBackupPath {
@@ -211,6 +212,8 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         Shell::ResolveIdlePause { choice } => reply(crate::idle::resolve(state, &choice)?),
         Shell::SetNotificationPreferences { prefs } => {
             state.with_notification_prefs_mut(|current| *current = prefs);
+            // (System notifications off takes the timer's down)
+            crate::timer_notice::sync(state);
             Value::Null
         }
         Shell::SetTrayWithdrawal { label } => {
@@ -233,11 +236,16 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
             Value::Null
         }
         Shell::AskToNotify {} => {
-            state.platform.ask_to_notify();
+            // Once allowed, the running timer's notification can show
+            let allowed = state.clone();
+            state
+                .platform
+                .ask_to_notify(Box::new(move || crate::timer_notice::refresh(&allowed)));
             Value::Null
         }
         Shell::TakeOpenedNotification {} => {
             state.platform.prepare_notifications();
+            crate::timer_notice::start(state);
             reply(notifications::take_opened(state))
         }
         Shell::GetCaptureServerStatus {} => {
@@ -498,8 +506,52 @@ mod tests {
     #[test]
     fn the_app_asks_to_notify_when_it_needs_to() {
         let f = fixture();
+        // A phone, its page up
+        crate::timer_notice::enable(&f.state);
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(Value::Null)
+        );
+        assert_eq!(f.platform.recorded().timer_notices.len(), 1);
+
         assert_eq!(run(&f, "ask_to_notify", json!({})), Ok(Value::Null));
         assert_eq!(f.platform.recorded().asked_to_notify, 1);
+        // Allowed: the timer's notification is shown again, now that it can be
+        assert_eq!(f.platform.recorded().timer_notices.len(), 2);
+    }
+
+    #[test]
+    fn turning_system_notifications_off_takes_the_timers_down() {
+        let f = fixture();
+        crate::timer_notice::enable(&f.state);
+        run(&f, "take_opened_notification", json!({})).unwrap();
+        f.state
+            .backend
+            .call_named(
+                "set_app_record",
+                json!({ "key": "predefinedTasks", "value": [
+                    { "id": "t1", "name": "Writing", "createdAt": "x", "updatedAt": "x" }
+                ] }),
+            )
+            .unwrap();
+        f.state
+            .backend
+            .call_named(
+                "start_task",
+                json!({ "taskId": "t1", "taskName": "Writing" }),
+            )
+            .unwrap();
+        assert!(f
+            .platform
+            .recorded()
+            .timer_notices
+            .last()
+            .unwrap()
+            .is_some());
+
+        let prefs = json!({ "prefs": { "desktopEnabled": false } });
+        run(&f, "set_notification_preferences", prefs).unwrap();
+        assert_eq!(f.platform.recorded().timer_notices.last(), Some(&None));
     }
 
     #[test]
@@ -514,6 +566,7 @@ mod tests {
         notifications::performed(
             &f.state,
             notifications::TAPPED,
+            Some(1),
             Some(taskmint_core::shell::MenuCommand::Settings),
         );
         assert_eq!(

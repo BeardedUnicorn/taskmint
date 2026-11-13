@@ -6,6 +6,7 @@ use crate::app_menu::model::AppMenu;
 use crate::backend::{Clock, LocalBackend, Published};
 use crate::platform::Platform;
 use crate::store::JsonFileStore;
+use crate::timer_notice::TimerNoticeState;
 use crate::tray::model::{TrayMenu, TrayStatus};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex, PoisonError, Weak};
@@ -67,6 +68,8 @@ pub struct Shell {
     // What the notification the user last tapped opens, until the app takes
     // it (notifications::take_opened). In memory only.
     opened_notification: Mutex<Option<MenuCommand>>,
+    // A phone's running-timer notification. In memory only.
+    timer_notice: Mutex<TimerNoticeState>,
 }
 
 /// The shell, shared by the IPC command, the tray, the idle monitor and
@@ -111,6 +114,7 @@ impl AppState {
                 notification_prefs: Mutex::new(NotificationPrefs::default()),
                 tray_withdrawal: Mutex::new(None),
                 opened_notification: Mutex::new(None),
+                timer_notice: Mutex::new(TimerNoticeState::default()),
             }
         }))
     }
@@ -134,6 +138,7 @@ impl AppState {
         {
             crate::tray::sync(self);
             crate::app_menu::sync(self);
+            crate::timer_notice::sync(self);
         }
     }
 }
@@ -153,6 +158,12 @@ impl Shell {
         with_tray_withdrawal_mut,
         tray_withdrawal,
         Option<String>
+    );
+    accessors!(
+        with_timer_notice,
+        with_timer_notice_mut,
+        timer_notice,
+        TimerNoticeState
     );
     accessors!(
         with_opened_notification,

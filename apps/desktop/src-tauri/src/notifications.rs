@@ -14,7 +14,8 @@
 
 use crate::events::{emit_quiet, NOTIFICATION_OPENED, NOTIFICATION_POSTED};
 use crate::platform::{Channel, ScheduledNotification, ShownNotification};
-use crate::state::Shell;
+use crate::state::{AppState, Shell};
+use crate::timer_notice::{self, TIMER_NOTICE_ID};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use taskmint_core::notifications::NotificationKind;
@@ -154,19 +155,27 @@ pub fn cancel(shell: &Shell, id: i32) {
     }
 }
 
-/// The system reported `action` on a notification (a tap, a swipe away);
-/// `opens` is what the notification said tapping it opens. A tap brings the
-/// app forward, and keeps the page it's about for the app to open
-/// (`take_opened`), telling it so.
-pub fn performed(shell: &Shell, action: &str, opens: Option<MenuCommand>) {
+/// The system reported `action` (a tap, a button, a swipe away) on the
+/// notification `id`; `opens` is what the notification said tapping it
+/// opens. A tap brings the app forward, on the page it's about. The running
+/// timer's notification has buttons of its own (timer_notice).
+pub fn performed(state: &AppState, action: &str, id: Option<i32>, opens: Option<MenuCommand>) {
+    if id == Some(TIMER_NOTICE_ID) {
+        return timer_notice::performed(state, action);
+    }
     if action != TAPPED {
         return;
     }
-    shell.platform.show_main_window();
+    state.platform.show_main_window();
     if let Some(command) = opens {
-        shell.with_opened_notification_mut(|opened| *opened = Some(command));
-        emit_quiet(shell, NOTIFICATION_OPENED, ());
+        open(state, command);
     }
+}
+
+/// Keeps `command` for the app to run (`take_opened`), and tells it so.
+pub fn open(shell: &Shell, command: MenuCommand) {
+    shell.with_opened_notification_mut(|opened| *opened = Some(command));
+    emit_quiet(shell, NOTIFICATION_OPENED, ());
 }
 
 /// What the last tapped notification opens, once. The page asks as soon as
@@ -391,7 +400,7 @@ mod tests {
         let payouts = MenuCommand::ShowView {
             view: MenuView::Payouts,
         };
-        performed(&f.state, TAPPED, Some(payouts));
+        performed(&f.state, TAPPED, Some(7), Some(payouts));
 
         assert_eq!(f.platform.recorded().windows_shown, 1);
         assert_eq!(f.platform.event_names(), ["notification-opened"]);
@@ -403,16 +412,29 @@ mod tests {
     #[test]
     fn a_tap_on_one_about_no_page_only_brings_the_app_forward() {
         let f = fixture();
-        performed(&f.state, TAPPED, None);
+        performed(&f.state, TAPPED, Some(7), None);
         assert_eq!(f.platform.recorded().windows_shown, 1);
         assert!(f.platform.event_names().is_empty());
         assert_eq!(take_opened(&f.state), None);
     }
 
     #[test]
+    fn the_running_timers_notification_answers_its_own_taps() {
+        let f = fixture();
+        // Whatever it says, a tap on it opens Sessions
+        performed(&f.state, TAPPED, Some(TIMER_NOTICE_ID), None);
+        assert_eq!(
+            take_opened(&f.state),
+            Some(MenuCommand::ShowView {
+                view: MenuView::Sessions
+            })
+        );
+    }
+
+    #[test]
     fn swiping_one_away_does_nothing() {
         let f = fixture();
-        performed(&f.state, "dismiss", Some(MenuCommand::Settings));
+        performed(&f.state, "dismiss", None, Some(MenuCommand::Settings));
         assert_eq!(f.platform.recorded().windows_shown, 0);
         assert_eq!(take_opened(&f.state), None);
     }

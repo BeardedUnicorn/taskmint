@@ -180,12 +180,22 @@ pub fn run() {
             // exists report nothing.
             let notified_state = state.clone();
             app.notification().on_action(move |action| {
-                let opens = action
-                    .notification()
+                let shown = action.notification();
+                let opens = shown
                     .and_then(|shown| shown.extra().get(crate::platform::os::OPENS))
                     .and_then(|command| serde_json::from_value(command.clone()).ok());
-                crate::notifications::performed(&notified_state, action.action_id(), opens);
+                crate::notifications::performed(
+                    &notified_state,
+                    action.action_id(),
+                    shown.map(|shown| shown.id()),
+                    opens,
+                );
             })?;
+
+            // A phone shows the running timer in a notification (once the
+            // page is up: timer_notice::start)
+            #[cfg(mobile)]
+            crate::timer_notice::enable(&state);
 
             #[cfg(desktop)]
             start_desktop(app, &handle, &state);

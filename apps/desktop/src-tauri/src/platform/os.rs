@@ -16,6 +16,7 @@ use super::{
     ScheduledNotification, ShownNotification,
 };
 use crate::app_menu::model::{Action, AppMenu};
+use crate::timer_notice::TimerNotice;
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::fs::File;
@@ -106,6 +107,7 @@ fn open_picked_file(app: &AppHandle, file: &PickedFile, write: bool) -> std::io:
 #[cfg(target_os = "android")]
 fn channel_id(channel: Channel) -> &'static str {
     match channel {
+        Channel::Timer => "timer",
         Channel::Reminders => "reminders",
         Channel::Activity => "activity",
     }
@@ -138,6 +140,11 @@ pub const OPENS: &str = "opens";
 fn create_channels(app: &AppHandle) {
     use tauri_plugin_notification::{Channel as Group, Importance};
     let groups = [
+        // Quiet: no sound, no pop-up, only in the shade and the status bar
+        Group::builder(channel_id(Channel::Timer), "Running timer")
+            .description("The timer while it runs, with buttons to pause or stop it")
+            .importance(Importance::Low)
+            .build(),
         Group::builder(channel_id(Channel::Reminders), "Reminders")
             .description("Withdrawals, your daily goal and summary, and a timer left running")
             .importance(Importance::High)
@@ -156,6 +163,80 @@ fn create_channels(app: &AppHandle) {
     if let Err(e) = app.notification().delete_channel("default") {
         log::error!("Failed to delete the default notification channel: {}", e);
     }
+}
+
+/// The running timer's notification (a phone's): its task, the system's
+/// clock counting up while it runs, and its buttons. Showing it again
+/// replaces it in place.
+#[cfg(mobile)]
+fn set_os_timer_notice(app: &AppHandle, notice: Option<&TimerNotice>) -> Result<(), String> {
+    use crate::timer_notice::TIMER_NOTICE_ID;
+    let Some(notice) = notice else {
+        return app
+            .notification()
+            .remove_active(vec![TIMER_NOTICE_ID])
+            .map_err(text);
+    };
+    add_timer_buttons(app);
+    let buttons = match notice.is_paused() {
+        true => PAUSED_BUTTONS,
+        false => RUNNING_BUTTONS,
+    };
+    let builder = app
+        .notification()
+        .builder()
+        .id(TIMER_NOTICE_ID)
+        .title(&notice.task_name)
+        .body(&notice.text)
+        // Shown expanded too (see notify)
+        .large_body(&notice.text)
+        .ongoing()
+        .action_type_id(buttons);
+    let mut builder = routed(builder, Channel::Timer, None);
+    if let Some(from) = notice.counting_from {
+        builder = builder.when(from.timestamp_millis()).uses_chronometer();
+    }
+    builder.show().map_err(text)
+}
+
+/// A desktop has the tray instead.
+#[cfg(desktop)]
+fn set_os_timer_notice(_app: &AppHandle, _notice: Option<&TimerNotice>) -> Result<(), String> {
+    Ok(())
+}
+
+/// The running timer's buttons (and a paused one's), by the id the
+/// notification names them with.
+#[cfg(mobile)]
+const RUNNING_BUTTONS: &str = "timer-running";
+#[cfg(mobile)]
+const PAUSED_BUTTONS: &str = "timer-paused";
+
+/// Tells the system the timer notification's buttons, the first time it's
+/// shown (the plugin keeps them for the app's run).
+#[cfg(mobile)]
+fn add_timer_buttons(app: &AppHandle) {
+    use crate::timer_notice::{PAUSE, RESUME, STOP, SWITCH};
+    use tauri_plugin_notification::{Action as Button, ActionType as Buttons};
+    static ADDED: std::sync::Once = std::sync::Once::new();
+    ADDED.call_once(|| {
+        let buttons = |id: &str, first: Button| {
+            Buttons::builder(id)
+                .actions(vec![
+                    first,
+                    Button::builder(SWITCH, "Switch task").build(),
+                    Button::builder(STOP, "Stop").build(),
+                ])
+                .build()
+        };
+        let types = vec![
+            buttons(RUNNING_BUTTONS, Button::builder(PAUSE, "Pause").build()),
+            buttons(PAUSED_BUTTONS, Button::builder(RESUME, "Resume").build()),
+        ];
+        if let Err(e) = app.notification().register_action_types(types) {
+            log::error!("Failed to add the timer notification's buttons: {}", e);
+        }
+    });
 }
 
 /// A phone's alarm: the system shows the notification at its time, with the
@@ -558,18 +639,19 @@ mod mobile {
     }
 }
 
-/// Asks for permission to notify, unless the user already answered.
+/// Asks for permission to notify, unless the user already answered, and
+/// runs `allowed` if they allow it.
 #[cfg(mobile)]
-fn ask_to_notify(app: &AppHandle) {
+fn ask_to_notify(app: &AppHandle, allowed: Box<dyn FnOnce() + Send>) {
     use tauri_plugin_notification::PermissionState;
     let notification = app.notification();
     match notification.permission_state() {
         Ok(PermissionState::Granted | PermissionState::Denied) => {}
-        Ok(_) => {
-            if let Err(e) = notification.request_permission() {
-                log::error!("Failed to ask for permission to notify: {}", e);
-            }
-        }
+        Ok(_) => match notification.request_permission() {
+            Ok(PermissionState::Granted) => allowed(),
+            Ok(_) => {}
+            Err(e) => log::error!("Failed to ask for permission to notify: {}", e),
+        },
         Err(e) => log::error!("Failed to read the permission to notify: {}", e),
     }
 }
@@ -613,14 +695,18 @@ impl Platform for TauriPlatform {
         }
     }
 
-    fn ask_to_notify(&self) {
+    fn ask_to_notify(&self, _allowed: Box<dyn FnOnce() + Send>) {
         // The plugin answers on the main thread, so the question waits on a
         // thread of its own
         #[cfg(mobile)]
         {
             let app = self.app.clone();
-            std::thread::spawn(move || ask_to_notify(&app));
+            std::thread::spawn(move || ask_to_notify(&app, _allowed));
         }
+    }
+
+    fn set_timer_notice(&self, notice: Option<&TimerNotice>) -> Result<(), String> {
+        set_os_timer_notice(&self.app, notice)
     }
 
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile> {

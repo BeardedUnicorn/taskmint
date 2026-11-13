@@ -4,6 +4,7 @@
 //! `fake::FakePlatform`.
 
 use crate::app_menu::model::{Action, AppMenu};
+use crate::timer_notice::TimerNotice;
 use crate::tray::model::{TrayMenu, TrayStatus};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -41,6 +42,8 @@ pub enum PickedFile {
 /// allow on its own. A desktop has no such thing and ignores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Channel {
+    /// The running timer's notification (a phone's).
+    Timer,
     /// What the user asked to hear about: the withdrawal, the daily goal and
     /// summary, a long run (Settings → Notifications → Reminders).
     Reminders,
@@ -112,9 +115,14 @@ pub trait Platform: Send + Sync {
     /// plugin is ready only once the webview has loaded.
     fn prepare_notifications(&self);
     /// Asks the user to let the app notify (Android 13 and later), unless
-    /// they already answered. Returns at once: the system asks on its own. A
-    /// desktop has nothing to ask.
-    fn ask_to_notify(&self);
+    /// they already answered. Returns at once: the system asks on its own,
+    /// and `allowed` runs if the user lets it then. A desktop has nothing to
+    /// ask.
+    fn ask_to_notify(&self, allowed: Box<dyn FnOnce() + Send>);
+    /// Shows the running timer's notification in place of the one shown
+    /// before, or takes it down (None). Only a phone has one; a desktop has
+    /// the tray.
+    fn set_timer_notice(&self, notice: Option<&TimerNotice>) -> Result<(), String>;
     /// Where to save; None when the dialog is dismissed.
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile>;
     /// A JSON file to open; None when the dialog is dismissed.

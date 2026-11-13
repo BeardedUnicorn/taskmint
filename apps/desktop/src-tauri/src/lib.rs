@@ -21,6 +21,7 @@ pub mod platform;
 pub mod state;
 pub mod store;
 pub mod ticker;
+pub mod timer_notice;
 pub mod tray;
 pub mod updates;
 pub mod utils;
