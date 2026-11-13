@@ -21,8 +21,13 @@
         <meta-data
             android:name="firebase_analytics_collection_deactivated"
             android:value="${analyticsDeactivated}" />
+        <!-- TaskMint: portrait only. A phone turned sideways is wider than the
+             phone layout (600px) and too short for the desktop one. Android
+             16 and later still rotate it on a tablet-sized screen, which gets
+             the desktop layout. -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:screenOrientation="portrait"
             android:launchMode="singleTask"
             android:label="@string/main_activity_title"
             android:name=".MainActivity"

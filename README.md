@@ -310,12 +310,22 @@ was made by `pnpm tauri android init` from `tauri.conf.json` and
   the Firebase BoM with Analytics, Credential Manager and googleid as
   dependencies. Firebase and googleid need Kotlin 2.3, which the root
   `build.gradle.kts` and `buildSrc/build.gradle.kts` pin.
-- `MainActivity.kt` gives the webview four bridges: `TaskMintSplash` (the
-  launch screen stays until the app has drawn), `TaskMintSystemBars` (the
-  status bar follows the app's theme), `TaskMintGoogleSignIn` (Credential
-  Manager's Google sign-in, for cloud sync) and `TaskMintAnalytics` (Firebase
-  Analytics, and its off switch). `app/proguard-rules.pro` keeps them, and
-  Credential Manager's Play services provider, through R8.
+- `MainActivity.kt` gives the webview five bridges:
+  - `TaskMintSplash`: the launch screen stays until the app has drawn.
+  - `TaskMintSystemBars`: the status bar follows the app's theme. It also
+    reports the navigation bar's and the keyboard's heights, which the
+    webview doesn't pass to CSS, and calls `window.__taskmintInsets` when
+    they change.
+  - `TaskMintGoogleSignIn`: Credential Manager's Google sign-in, for cloud
+    sync.
+  - `TaskMintAnalytics`: Firebase Analytics, and its off switch.
+  - `TaskMintApp`: back on Home sends the app to the background. The page
+    takes over Android's back through Tauri's `onBackButtonPress`.
+
+  `app/proguard-rules.pro` keeps the bridges, and Credential Manager's Play
+  services provider, through R8.
+- `AndroidManifest.xml` keeps the app in portrait
+  (`android:screenOrientation`).
 - The launch screen is androidx `core-splashscreen`'s, themed by
   `Theme.taskmint.Starting` (`values/themes.xml`, and `values-v31` for the
   wordmark, which Android 12 and later show): the leaf on the app icon's
