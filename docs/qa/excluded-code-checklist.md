@@ -16,6 +16,7 @@ Tauri or plugin versions, or to the `Platform` trait they implement.
 | `apps/desktop/src-tauri/src/platform/os.rs` | `TauriPlatform`: events, notifications, dialogs, reveal and open, the window, the tray, the updater | [The platform](#the-platform-platformosrs), [Updates](#updates-platformosrs) |
 | `apps/desktop/src-tauri/src/main.rs` | calls `taskmint_lib::run`; no console window on Windows | [Windows and Linux](#windows-and-linux) |
 | `apps/desktop/src-tauri/gen/android/…/MainActivity.kt` | the launch screen, and the webview's bridges: launch screen, system bars, Google sign-in, analytics (Kotlin isn't measured) | [Android](#android) |
+| `apps/desktop/src-tauri/gen/android/…/Reminders.kt` | the withdrawal reminder's alarm, kept to set again after a restart or a force stop (Kotlin isn't measured) | [Android](#android) |
 | cloud sync against the real Firebase project | the tested engine and rules, on Google's servers and in real webviews | [Cloud sync](#cloud-sync) |
 | desktop `cfg(target_os = "windows" \| "linux")` code | not compiled on the macOS coverage run | [Windows and Linux](#windows-and-linux) |
 
@@ -311,6 +312,13 @@ On a phone with Google Play services, with the release APK:
 - [ ] **A tap opens its page:** a withdrawal reminder (set one a minute out,
       then leave the app) opens Payouts when tapped, with the app in the
       background and after `adb shell am kill` (a cold start).
+- [ ] **A reminder survives a restart:** set a withdrawal reminder a few
+      minutes out, `adb reboot`, unlock and don't open TaskMint. After the
+      unlock, `adb shell dumpsys alarm | grep -A4 ReminderAlarm` lists its
+      alarm, and it arrives on time and opens Payouts. Remove the schedule
+      before a restart and nothing arrives after it. With the phone off past
+      the reminder's time, it shows once the phone is unlocked. After
+      `adb shell am force-stop`, opening TaskMint sets it again.
 - [ ] **Running-timer notification:** starting work shows the task with its
       time counting up; Pause turns it to "Paused at …" with Resume, Stop
       takes it down, and Switch task opens the Switch task dialog. Tapping it

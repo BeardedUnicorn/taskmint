@@ -245,9 +245,74 @@ fn add_timer_buttons(app: &AppHandle) {
     });
 }
 
+/// The shell's way to TaskMint's own Android reminders (gen/android:
+/// Reminders.kt), which keep what they set, to set it again after the phone
+/// restarts. The notification plugin's alarms are lost then.
+#[cfg(target_os = "android")]
+struct Reminders(tauri::plugin::PluginHandle<tauri::Wry>);
+
+/// Registers the reminders' Kotlin side (RemindersPlugin) with the webview.
+#[cfg(target_os = "android")]
+pub fn reminders_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::new("taskmint-reminders")
+        .setup(|app, api| {
+            let handle = api.register_android_plugin("com.taskmint.android", "RemindersPlugin")?;
+            app.manage(Reminders(handle));
+            Ok(())
+        })
+        .build()
+}
+
+/// What RemindersPlugin.setReminder takes.
+#[cfg(target_os = "android")]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Reminder<'a> {
+    id: i32,
+    at_ms: i64,
+    title: &'a str,
+    body: &'a str,
+    channel: &'a str,
+}
+
+/// A phone's alarm: the system shows the notification at its time, with the
+/// app closed, in Doze too, and after a restart. It looks as `routed` makes
+/// the plugin's, and a tap opens what its id says.
+#[cfg(target_os = "android")]
+fn schedule_os_notification(
+    app: &AppHandle,
+    scheduled: &ScheduledNotification,
+) -> Result<(), String> {
+    // The one an older TaskMint set through the notification plugin
+    app.notification()
+        .cancel(vec![scheduled.id])
+        .map_err(text)?;
+    let reminder = Reminder {
+        id: scheduled.id,
+        at_ms: scheduled.at.timestamp_millis(),
+        title: &scheduled.title,
+        body: &scheduled.body,
+        channel: channel_id(scheduled.channel),
+    };
+    app.state::<Reminders>()
+        .0
+        .run_mobile_plugin::<()>("setReminder", reminder)
+        .map_err(text)
+}
+
+#[cfg(target_os = "android")]
+fn cancel_os_notification(app: &AppHandle, id: i32) -> Result<(), String> {
+    app.state::<Reminders>()
+        .0
+        .run_mobile_plugin::<()>("cancelReminder", serde_json::json!({ "id": id }))
+        .map_err(text)?;
+    // And one an older TaskMint set through the notification plugin
+    app.notification().cancel(vec![id]).map_err(text)
+}
+
 /// A phone's alarm: the system shows the notification at its time, with the
 /// app closed, and in Doze too.
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
 fn schedule_os_notification(
     app: &AppHandle,
     scheduled: &ScheduledNotification,
@@ -275,7 +340,7 @@ fn schedule_os_notification(
     builder.show().map_err(text)
 }
 
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
 fn cancel_os_notification(app: &AppHandle, id: i32) -> Result<(), String> {
     app.notification().cancel(vec![id]).map_err(text)
 }

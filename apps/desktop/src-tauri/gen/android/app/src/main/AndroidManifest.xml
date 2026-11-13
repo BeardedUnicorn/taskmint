@@ -7,6 +7,8 @@
          needs SCHEDULE_EXACT_ALARM. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <!-- and is set again after the phone restarts (RemindersRestore) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -40,6 +42,19 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- TaskMint: its reminders' alarms (Reminders.kt), and setting
+             them again once the phone has started and been unlocked, or
+             TaskMint was updated. Not LOCKED_BOOT_COMPLETED: the reminders
+             are kept in storage that opens at the unlock, and one that came
+             due before then shows at the unlock. -->
+        <receiver android:name=".ReminderAlarm" android:exported="false" />
+        <receiver android:name=".RemindersRestore" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <provider
           android:name="androidx.core.content.FileProvider"
