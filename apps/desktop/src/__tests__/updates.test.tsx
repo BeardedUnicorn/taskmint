@@ -392,6 +392,58 @@ describe('the update dialog', () => {
   });
 });
 
+describe('on a phone', () => {
+  beforeEach(() => {
+    backend = createFakeBackend({ capabilities: { runtime: 'mobile' } });
+    setBackend(asBackend(backend));
+  });
+
+  it('downloads the release in the browser instead of installing it, and closes the dialog', async () => {
+    answer({ check_for_update: release, download_update: undefined });
+    render(<UpdatePrompt />);
+    await act(() => updates.check({ manual: true }));
+    const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+    expect(dialog).toHaveTextContent('Download opens the new version in your browser');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(sent('download_update')).toHaveLength(1);
+    expect(sent('install_update')).toHaveLength(0);
+    expect(updates.get().update).toMatchObject({ status: 'available', open: false });
+  });
+
+  it("says why the download couldn't open, and can try again", async () => {
+    answer({ check_for_update: release, download_update: rejects('no browser to open it in') });
+    render(<UpdatePrompt />);
+    await act(() => updates.check({ manual: true }));
+    const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      "The download couldn't be opened. No browser to open it in."
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(sent('download_update')).toHaveLength(2));
+  });
+
+  it('only downloads an update a check found', async () => {
+    await updates.download();
+    expect(sent('download_update')).toHaveLength(0);
+  });
+
+  it('says it asks before downloading, and so does its notification', async () => {
+    render(<UpdatesSection />);
+    expect(screen.getByText(/asks before downloading it/)).toBeInTheDocument();
+
+    focused = false;
+    answer({ check_for_update: release, show_desktop_notification: true });
+    await updates.check({ manual: false });
+    expect(sent('show_desktop_notification')).toEqual([
+      { kind: 'general', title: 'TaskMint 2.3.0 is available', body: 'Open TaskMint to download it.' },
+    ]);
+  });
+});
+
 describe('Settings → Updates', () => {
   it('turns automatic checks off and on', () => {
     render(<UpdatesSection />);

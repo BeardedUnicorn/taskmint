@@ -5,12 +5,11 @@ import { AboutUpdates } from './settings/AboutUpdates';
 import { UpdatePrompt } from './UpdatePrompt';
 
 /**
- * The desktop's own parts of the client: the Updates section, the update
- * check, and the update status in About. A phone or tablet has none: its
- * build has no updater.
+ * The Tauri app's own parts of the client: the Updates section, the update
+ * check, and the update status in About. A phone has them too: it downloads
+ * the new version's APK instead of installing it (updates.ts).
  */
-export function desktopExtensions({ runtime }: Capabilities): AppExtensions {
-  if (runtime === 'mobile') return {};
+export function desktopExtensions(_capabilities: Capabilities): AppExtensions {
   return {
     settingsSections: [{ id: 'updates', label: 'Updates', Section: UpdatesSection }],
     Background: UpdatePrompt,

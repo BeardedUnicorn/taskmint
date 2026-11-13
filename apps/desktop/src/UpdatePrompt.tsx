@@ -12,7 +12,14 @@ import {
   Typography,
 } from '@mui/material';
 import { ReleaseNotes, parseReleaseSection } from '@taskmint/client/ui';
-import { automaticCheckDue, updates, useUpdates, type AvailableUpdate, type DownloadProgress } from './updates';
+import {
+  automaticCheckDue,
+  downloadsUpdates,
+  updates,
+  useUpdates,
+  type AvailableUpdate,
+  type DownloadProgress,
+} from './updates';
 
 /** The launch check waits this long, so it doesn't compete with startup. */
 export const FIRST_CHECK_DELAY_MS = 10_000;
@@ -91,8 +98,9 @@ function Notes({ update }: { update: AvailableUpdate }) {
 }
 
 /**
- * The desktop's update check (the client's Background extension): it runs
- * on its own at launch and daily, and asks before installing what it finds.
+ * The update check (the client's Background extension): it runs on its own
+ * at launch and daily, and asks before installing what it finds, or on a
+ * phone, before downloading it.
  */
 export function UpdatePrompt() {
   useAutomaticChecks();
@@ -104,6 +112,7 @@ export function UpdatePrompt() {
 
   const { update } = state;
   const installing = state.status === 'installing';
+  const phone = downloadsUpdates();
   return (
     <Dialog
       open
@@ -116,8 +125,9 @@ export function UpdatePrompt() {
       <DialogTitle id="update-dialog-title">TaskMint {update.version} is available</DialogTitle>
       <DialogContent>
         <DialogContentText>
-          You have {update.currentVersion}. TaskMint downloads the update, installs it and restarts. Running timers keep
-          counting.
+          {phone
+            ? `You have ${update.currentVersion}. Download opens the new version in your browser; open it once it's downloaded, and Android updates TaskMint with your data kept.`
+            : `You have ${update.currentVersion}. TaskMint downloads the update, installs it and restarts. Running timers keep counting.`}
         </DialogContentText>
         <Notes update={update} />
         {installing && (
@@ -127,7 +137,7 @@ export function UpdatePrompt() {
         )}
         {state.status === 'installFailed' && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            The update couldn't be installed. {state.error}
+            {phone ? "The download couldn't be opened." : "The update couldn't be installed."} {state.error}
           </Alert>
         )}
       </DialogContent>
@@ -135,8 +145,12 @@ export function UpdatePrompt() {
         <Button onClick={updates.later} disabled={installing}>
           {state.status === 'installFailed' ? 'Close' : 'Later'}
         </Button>
-        <Button variant="contained" onClick={() => void updates.install()} disabled={installing}>
-          {state.status === 'installFailed' ? 'Try again' : 'Download and install'}
+        <Button
+          variant="contained"
+          onClick={() => void (phone ? updates.download() : updates.install())}
+          disabled={installing}
+        >
+          {state.status === 'installFailed' ? 'Try again' : phone ? 'Download' : 'Download and install'}
         </Button>
       </DialogActions>
     </Dialog>

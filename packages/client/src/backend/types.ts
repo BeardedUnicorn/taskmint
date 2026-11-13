@@ -156,6 +156,75 @@ export interface BackButtonPlatform {
   leaveApp(): void;
 }
 
+/**
+ * A launcher shortcut (Android: long-press the app's icon). It opens the app
+ * for `action` (LAUNCH_ACTIONS).
+ */
+export interface AppShortcut {
+  /** Stays the same for the same shortcut, so the launcher keeps a pinned one. */
+  id: string;
+  /** Short, for where there's little room. */
+  label: string;
+  longLabel: string;
+  icon: 'task' | 'addTime' | 'payouts';
+  action: string;
+}
+
+/** The launcher's shortcuts to the app (Android). */
+export interface AppShortcutsPlatform {
+  /** In the order shown, the first nearest the icon. Replaces those set before. */
+  set(shortcuts: AppShortcut[]): void;
+}
+
+/**
+ * What the home-screen widgets show (Android), as the app works it out:
+ * text ready to show, and the times the widget counts from or checks.
+ */
+export interface WidgetSnapshot {
+  updatedAtMs: number;
+  today: { money: string; time: string; goalPercent: number | null };
+  /** The live timer; null when nothing runs or waits paused. */
+  timer: {
+    task: string;
+    /** While it runs: when it would have started had it never paused (the widget's clock counts from it). */
+    countingFromMs: number | null;
+    /** While paused: "Paused at 1h 23m". */
+    status: string | null;
+  } | null;
+  payouts: {
+    amount: string;
+    status: string;
+    /** When the next withdrawal opens: the widget says "Withdrawal open" once it has. */
+    opensAtMs: number | null;
+    nextRelease: string | null;
+  } | null;
+}
+
+/** The home-screen widgets (Android): they show the latest snapshot sent. */
+export interface WidgetsPlatform {
+  update(snapshot: WidgetSnapshot): void;
+}
+
+/** Touch feedback as the timer starts or resumes, pauses, or stops. */
+export type HapticKind = 'start' | 'pause' | 'stop';
+
+/** A band of the screen, in CSS px. */
+export interface ScreenArea {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where a swipe in from the screen's left edge opens the menu (Android): the
+ * system's back gesture leaves that band to the app.
+ */
+export interface EdgeSwipePlatform {
+  /** The band, or null for none. */
+  setArea(area: ScreenArea | null): void;
+}
+
 /** Usage analytics (Firebase Analytics): the web app's, and Android's native SDK. */
 export interface AnalyticsPlatform {
   /** On or off, as Settings → Privacy says. */
@@ -173,6 +242,11 @@ export interface Platform {
   systemBars?: SystemBarsPlatform;
   splashScreen?: SplashScreenPlatform;
   backButton?: BackButtonPlatform;
+  appShortcuts?: AppShortcutsPlatform;
+  widgets?: WidgetsPlatform;
+  /** A short buzz (Android), as the phone's touch feedback setting allows. */
+  haptics?(kind: HapticKind): void;
+  edgeSwipe?: EdgeSwipePlatform;
   /** Shows a file the app just wrote in the file manager. */
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */

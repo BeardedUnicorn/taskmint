@@ -94,27 +94,37 @@ const everywhere: Platform = {
 
 declare global {
   interface Window {
-    /** MainActivity calls it when the user taps a notification while the app runs. */
-    __taskmintNotificationTapped?: () => void;
+    /** MainActivity calls it when a notification, shortcut or widget opens the app while it runs. */
+    __taskmintLaunched?: () => void;
   }
 }
 
+/** What MainActivity keeps when a notification, launcher shortcut or widget button opens the app. */
+type AndroidLaunch = { notification: number; action: string } | { action: string };
+
 /**
  * A phone's notifications, which can also be set for later (alarms the
- * system shows with the app closed). Android's notification plugin reports a
- * tap without the notification it was on, so MainActivity.kt keeps the
- * tapped notification's id and button (window.TaskMintApp) and the page
- * hands them to Rust (notification_action), which knows the page from the
- * id: before it asks what a tap opens (the tap may have started the app),
- * and as soon as MainActivity says one came.
+ * system shows with the app closed). What opened the app (a notification's
+ * tap or button, a launcher shortcut, a widget's button) reaches it through
+ * MainActivity.kt (window.TaskMintApp), since Android's notification plugin
+ * reports a tap without the notification it was on. The page hands it to
+ * Rust (notification_action, which knows the page from the notification's
+ * id, or launch_action): before it asks what a tap opens (it may be what
+ * started the app), and as soon as MainActivity says one came.
  */
 function phoneNotifications(): NotificationPlatform {
   const android = (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp;
-  const actOnTap = async () => {
-    const tap = android?.takeNotificationTap();
-    if (tap) await command<void>('notification_action', JSON.parse(tap));
+  const actOnLaunch = async () => {
+    const taken = android?.takeLaunch();
+    if (!taken) return;
+    const launch = JSON.parse(taken) as AndroidLaunch;
+    if ('notification' in launch) {
+      await command<void>('notification_action', { id: launch.notification, action: launch.action });
+    } else {
+      await command<void>('launch_action', { action: launch.action });
+    }
   };
-  window.__taskmintNotificationTapped = () => void actOnTap();
+  window.__taskmintLaunched = () => void actOnLaunch();
   return {
     ...everywhere.notifications,
     schedule: ({ id, atMs, kind, title, body }) =>
@@ -122,7 +132,7 @@ function phoneNotifications(): NotificationPlatform {
     cancel: id => command<void>('cancel_notification', { id }),
     askPermission: () => void command<void>('ask_to_notify'),
     takeOpened: async () => {
-      await actOnTap();
+      await actOnLaunch();
       return command<MenuCommand | null>('take_opened_notification');
     },
   };
@@ -227,12 +237,41 @@ function splashScreen(): Pick<Platform, 'splashScreen'> {
   return android ? { splashScreen: { hide: () => android.hide() } } : {};
 }
 
-/** What Android's MainActivity.kt adds for leaving the app from its first screen, and notification taps. */
+/** What Android's MainActivity.kt adds for the app's place on the phone (its AppTask). */
 interface AndroidAppTask {
   /** Puts the app in the background (Activity.moveTaskToBack). */
   moveToBack(): void;
-  /** The notification tap the app hasn't acted on, as JSON `{ id, action }`, once; null when none. */
-  takeNotificationTap(): string | null;
+  /** What opened the app and it hasn't acted on (AndroidLaunch, as JSON), once; null when nothing. */
+  takeLaunch(): string | null;
+  /** The launcher's shortcuts, as JSON (AppShortcut[]). */
+  setShortcuts(json: string): void;
+  /** What the home-screen widgets show, as JSON (WidgetSnapshot). */
+  updateWidgets(json: string): void;
+  haptic(kind: string): void;
+  /** In CSS px; a zero size for none. */
+  setEdgeSwipeArea(left: number, top: number, width: number, height: number): void;
+}
+
+/**
+ * The app on the phone, outside its page (MainActivity.kt's AppTask): the
+ * launcher's shortcuts, the home-screen widgets, touch feedback, and the
+ * band where a swipe opens the menu. Called on the bridge itself: Android
+ * refuses a method taken off it.
+ */
+function phoneApp(): Pick<Platform, 'appShortcuts' | 'widgets' | 'haptics' | 'edgeSwipe'> {
+  const android = (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp;
+  if (!android) return {};
+  return {
+    appShortcuts: { set: shortcuts => android.setShortcuts(JSON.stringify(shortcuts)) },
+    widgets: { update: snapshot => android.updateWidgets(JSON.stringify(snapshot)) },
+    haptics: kind => android.haptic(kind),
+    edgeSwipe: {
+      setArea: area => {
+        const { left, top, width, height } = area ?? { left: 0, top: 0, width: 0, height: 0 };
+        android.setEdgeSwipeArea(left, top, width, height);
+      },
+    },
+  };
 }
 
 /**
@@ -305,7 +344,14 @@ export function createTauriBackend(capabilities: Capabilities, google?: GoogleDe
     platform: {
       ...everywhere,
       ...(capabilities.runtime === 'mobile'
-        ? { notifications: phoneNotifications(), ...systemBars(), ...splashScreen(), ...backButton(), ...analytics() }
+        ? {
+            notifications: phoneNotifications(),
+            ...systemBars(),
+            ...splashScreen(),
+            ...backButton(),
+            ...phoneApp(),
+            ...analytics(),
+          }
         : desktopOnly),
       ...googleSignIn(capabilities.runtime, google),
     },

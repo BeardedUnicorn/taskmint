@@ -60,6 +60,10 @@ describe('createFakeBackend', () => {
         'openFolder',
         'laterNotifications',
         'notificationTaps',
+        'appShortcuts',
+        'widgets',
+        'haptics',
+        'edgeSwipe',
       ],
     });
 

@@ -85,6 +85,26 @@ export const TASKS_RECORD_KEY = "predefinedTasks";
 /** The id of the phone's withdrawal-reminder alarm. */
 export const WITHDRAWAL_REMINDER_ID = 4100;
 
+/** The id of the phone's long-run reminder alarm. */
+export const LONG_RUN_REMINDER_ID = 4110;
+
+/** The id of the phone's end-of-day summary alarm. */
+export const DAILY_SUMMARY_ID = 4120;
+
+/** The id of the phone's 50% goal milestone alarm; the next three are 75%, 100% and well past it. */
+export const GOAL_MILESTONE_ID = 4130;
+
+/** What a launcher shortcut or a home-screen widget's button asks the app to do. */
+export const LAUNCH_ACTIONS = {
+  START_WORK: "start-work",
+  ADD_TIME: "add-time",
+  HOME: "home",
+  PAYOUTS: "payouts",
+  PAUSE: "pause",
+  RESUME: "resume",
+  START_TASK: "start-task:",
+} as const;
+
 /** The frontend's records, as the backend stores them. */
 export const APP_RECORD_KEYS = [
   "predefinedTasks",

@@ -1,12 +1,18 @@
 package com.taskmint.android
 
 import android.content.Intent
+import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import android.os.CancellationSignal
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.splashscreen.SplashScreenViewProvider
 import androidx.core.view.ViewCompat
@@ -24,6 +30,7 @@ import app.tauri.notification.NOTIFICATION_INTENT_KEY
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.analytics.FirebaseAnalytics
+import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : TauriActivity() {
@@ -49,21 +56,26 @@ class MainActivity : TauriActivity() {
   @Volatile private var keyboardInsetDp = 0f
 
   /**
-   * The notification the user last tapped, or the button they pressed on it,
-   * until the page takes it (AppTask.takeNotificationTap):
-   * `{"id": …, "action": …}`. The notification plugin opens the app with
-   * both in the intent but reports neither to the app (it loses the
-   * notification), and the id is what says which page to open.
+   * What the app was last opened for, until the page takes it
+   * (AppTask.takeLaunch):
+   * - a notification tapped, or one of its buttons:
+   *   `{"notification": id, "action": …}`. The notification plugin opens the
+   *   app with both in the intent but reports neither to the app (it loses
+   *   the notification), and the id is what says which page to open;
+   * - a launcher shortcut or a home-screen widget's button:
+   *   `{"action": …}` (Launch.ACTION).
    */
-  @Volatile private var notificationTap: String? = null
+  @Volatile private var launch: String? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val splashScreen = installSplashScreen()
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     applyBarsTheme()
-    // A tap that started the app (not a restart after a config change)
-    if (savedInstanceState == null) keepNotificationTap(intent)
+    // What started the app (not a restart after a config change, nor a
+    // return from Recents, which replays the intent it was first opened with)
+    val fromHistory = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
+    if (savedInstanceState == null && !fromHistory) keepLaunch(intent)
     // A force stop loses the reminders' alarms, and nothing else sets them
     // again until the phone restarts
     Reminders.restore(this)
@@ -117,27 +129,34 @@ class MainActivity : TauriActivity() {
     WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = light
   }
 
-  // Added before the page loads, so the webview has them from the start
-  /** A tap while the app runs: kept, and the page told. */
+  /** Opened again while it runs (a notification, shortcut or widget): kept, and the page told. */
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
-    if (keepNotificationTap(intent)) {
-      webView?.evaluateJavascript(
-        "window.__taskmintNotificationTapped && window.__taskmintNotificationTapped()",
-        null
-      )
+    if (keepLaunch(intent)) {
+      webView?.evaluateJavascript("window.__taskmintLaunched && window.__taskmintLaunched()", null)
     }
   }
 
-  /** Keeps the notification tap `intent` carries (the plugin's extras, which Reminders gives its own too), if any. */
-  private fun keepNotificationTap(intent: Intent?): Boolean {
-    val id = intent?.getIntExtra(NOTIFICATION_INTENT_KEY, Int.MIN_VALUE) ?: return false
+  /**
+   * Keeps what `intent` opens the app for, if anything: a shortcut's or a
+   * widget button's action, or a notification's tap or button (the
+   * notification plugin's extras, which Reminders gives its own too).
+   */
+  private fun keepLaunch(intent: Intent?): Boolean {
+    if (intent == null) return false
+    val action = intent.getStringExtra(Launch.ACTION)
+    if (action != null) {
+      launch = JSONObject().put("action", action).toString()
+      return true
+    }
+    val id = intent.getIntExtra(NOTIFICATION_INTENT_KEY, Int.MIN_VALUE)
     if (id == Int.MIN_VALUE) return false
-    val action = intent.getStringExtra(ACTION_INTENT_KEY) ?: DEFAULT_PRESS_ACTION
-    notificationTap = JSONObject().put("id", id).put("action", action).toString()
+    val button = intent.getStringExtra(ACTION_INTENT_KEY) ?: DEFAULT_PRESS_ACTION
+    launch = JSONObject().put("notification", id).put("action", button).toString()
     return true
   }
 
+  // Added before the page loads, so the webview has them from the start
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
     webView.addJavascriptInterface(Splash(), "TaskMintSplash")
@@ -185,23 +204,98 @@ class MainActivity : TauriActivity() {
   }
 
   /**
-   * Back on the app's first screen. The page takes over Android's back
-   * (Tauri's onBackButtonPress) to close dialogs and step back to Home, so
-   * from Home it asks for what back does there by default: the app goes to
-   * the background, still running, as on any first screen.
+   * The app's place on the phone, outside its page: leaving it, what it was
+   * opened for, its launcher shortcuts, its home-screen widgets, touch
+   * feedback, and the band at the left edge where a swipe opens its menu.
    */
   private inner class AppTask {
+    /**
+     * Back on the app's first screen. The page takes over Android's back
+     * (Tauri's onBackButtonPress) to close dialogs and step back to Home,
+     * so from Home it asks for what back does there by default: the app goes
+     * to the background, still running, as on any first screen.
+     */
     @JavascriptInterface
     fun moveToBack() {
       runOnUiThread { moveTaskToBack(true) }
     }
 
-    /** The notification tap the app hasn't acted on (`{"id", "action"}`), once; null when none. */
+    /** What the app was opened for and hasn't acted on (see `launch`), once; null when nothing. */
     @JavascriptInterface
-    fun takeNotificationTap(): String? {
-      val tap = notificationTap
-      notificationTap = null
-      return tap
+    fun takeLaunch(): String? {
+      val taken = launch
+      launch = null
+      return taken
+    }
+
+    /**
+     * The launcher's shortcuts (long-press the icon), in the page's order:
+     * `[{"id", "label", "longLabel", "icon", "action"}]`, `icon` one of
+     * task, addTime and payouts. Each opens the app for its action.
+     */
+    @JavascriptInterface
+    fun setShortcuts(json: String) {
+      val context = this@MainActivity
+      val items = JSONArray(json)
+      val shortcuts = (0 until items.length()).map { index ->
+        val item = items.getJSONObject(index)
+        val icon = when (item.getString("icon")) {
+          "addTime" -> R.drawable.ic_shortcut_add_time
+          "payouts" -> R.drawable.ic_shortcut_payouts
+          else -> R.drawable.ic_shortcut_start
+        }
+        ShortcutInfoCompat.Builder(context, item.getString("id"))
+          .setShortLabel(item.getString("label"))
+          .setLongLabel(item.getString("longLabel"))
+          .setIcon(IconCompat.createWithResource(context, icon))
+          .setIntent(Launch.intent(context, item.getString("action")))
+          .setRank(index)
+          .build()
+      }
+      ShortcutManagerCompat.setDynamicShortcuts(context, shortcuts)
+    }
+
+    /** The numbers the home-screen widgets show, as the page worked them out (Widgets). */
+    @JavascriptInterface
+    fun updateWidgets(json: String) {
+      Widgets.save(this@MainActivity, json)
+    }
+
+    /**
+     * A short buzz as the timer starts or resumes ("start"), pauses
+     * ("pause") or stops ("stop"), as the phone's touch feedback setting
+     * allows.
+     */
+    @JavascriptInterface
+    fun haptic(kind: String) {
+      val feedback = when (kind) {
+        "start" ->
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM
+          else HapticFeedbackConstants.VIRTUAL_KEY
+        "stop" -> HapticFeedbackConstants.LONG_PRESS
+        else -> HapticFeedbackConstants.CLOCK_TICK
+      }
+      runOnUiThread { webView?.performHapticFeedback(feedback) }
+    }
+
+    /**
+     * Where a swipe in from the left edge opens the page's menu, in CSS px
+     * (dp); a zero size for nowhere. Android's back gesture leaves the band
+     * to the page (at most 200dp of an edge).
+     */
+    @JavascriptInterface
+    fun setEdgeSwipeArea(left: Float, top: Float, width: Float, height: Float) {
+      runOnUiThread {
+        val view = webView ?: return@runOnUiThread
+        val density = resources.displayMetrics.density
+        val band = Rect(
+          (left * density).toInt(),
+          (top * density).toInt(),
+          ((left + width) * density).toInt(),
+          ((top + height) * density).toInt()
+        )
+        ViewCompat.setSystemGestureExclusionRects(view, if (band.isEmpty) emptyList() else listOf(band))
+      }
     }
   }
 

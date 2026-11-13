@@ -24,7 +24,7 @@ import app.tauri.plugin.Plugin
 import org.json.JSONException
 import org.json.JSONObject
 
-/** A notification for the system to show at [atMs] (the withdrawal reminder), in its [channel]. */
+/** A notification for the system to show at [atMs] (a reminder: the withdrawal, a long run, the summary, a goal milestone), in its [channel]. */
 data class Reminder(
   val id: Int,
   val atMs: Long,

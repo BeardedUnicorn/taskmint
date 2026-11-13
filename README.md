@@ -72,7 +72,9 @@ and Windows.
 
 The **long-run reminder** (on by default, after 4 hours) sends a notification
 when a timer has run that long without a pause, for the timer you forgot to
-stop. It works with inactivity detection off.
+stop. It works with inactivity detection off. On a phone it's an alarm set
+when the timer starts, so it arrives with TaskMint closed, and its hours are
+under Settings → Notifications.
 
 ## Where data lives
 
@@ -154,7 +156,7 @@ don't sync.
   started or resumed last keeps running and the others stop at its start.
   Each timer runs on the device that started it: idle detection and the
   long-run reminder on the desktop act only on timers running there, not on
-  the phone's.
+  the phone's (the phone sets its own long-run alarm).
 - **Sign out** (in Settings → Cloud sync, or "Sign out of cloud sync" in the
   ⌘K palette) asks first, then signs this device out and keeps its data; the
   cloud and the other devices keep theirs. **Delete cloud data** deletes the
@@ -273,7 +275,24 @@ the last eight years.
 Opening it asks you to let the browser (or Files) install unknown apps;
 allow it, go back and install. A later release's APK installs the same way,
 over the app, and keeps its data: they're all signed with the same key (see
-[Android signing](#android-signing)). The app doesn't update itself.
+[Android signing](#android-signing)). The app checks for a new release at
+launch and daily, as the desktop does (Settings → Updates). Its Download
+opens the new APK in the browser, which installs the same way.
+
+**What the phone adds**, around the same app:
+- the running timer in a notification, with its clock and Pause, Switch task
+  and Stop;
+- the long-run reminder, end-of-day summary and goal milestones as alarms
+  that arrive with the app closed;
+- launcher shortcuts (long-press the icon) for the likeliest tasks, Add time
+  and Payouts;
+- Today and Payouts home-screen widgets;
+- touch feedback on the timer;
+- a swipe in from the left edge, just above the bottom tabs, to open the
+  menu.
+
+Most of the Android-only code is `gen/android/.../MainActivity.kt` (its
+`TaskMintApp` bridge), `Widgets.kt` and `Launch.kt`.
 
 **Prerequisites**, besides the ones above:
 
@@ -379,10 +398,11 @@ projects. A new key needs its own in each, and both `google-services.*.json`
 downloaded again. The parts only a
 desktop has are left out, in the Rust (`#[cfg(desktop)]`, and those crates
 are desktop-only dependencies) and in the webview (`tauriBackend.ts`,
-`extensions.tsx`): the tray, idle detection and the long-run reminder, folder
-backups, showing a file in the file manager, the capture server and
-`taskmint://` links for the browser extension, updates, and the move from the
-old identifier. Export and Import go through Android's file picker,
+`extensions.tsx`): the tray, idle detection (a phone sets the long-run
+reminder as an alarm instead), folder backups, showing a file in the file
+manager, the capture server and `taskmint://` links for the browser
+extension, installing updates (a phone downloads the new APK instead), and
+the move from the old identifier. Export and Import go through Android's file picker,
 which returns a document (a `content://` address) rather than a path:
 `tauri-plugin-fs`, a mobile-only dependency, opens it (`platform/os.rs`), and
 the export's message names no location.

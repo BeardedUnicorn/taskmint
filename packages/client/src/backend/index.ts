@@ -1,5 +1,6 @@
 export type {
   AnalyticsPlatform,
+  AppShortcut,
   Backend,
   Capabilities,
   CommandArgsParam,
@@ -8,6 +9,7 @@ export type {
   NotificationPlatform,
   Platform,
   SavedFile,
+  WidgetSnapshot,
 } from './types';
 export { getBackend, setBackend } from './registry';
 export { useBackendEvent } from './useBackendEvent';

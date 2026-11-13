@@ -85,6 +85,11 @@ enum Shell {
         id: i32,
         action: String,
     },
+    /// What a launcher shortcut or a home-screen widget's button asks for
+    /// (contract::launch), which MainActivity hands the page.
+    LaunchAction {
+        action: String,
+    },
     GetCaptureServerStatus {},
     ValidateBackupPath {
         path: String,
@@ -130,6 +135,9 @@ enum Shell {
     /// Installs what the last check found and restarts into it, sending
     /// update-progress events as it downloads.
     InstallUpdate {},
+    /// A phone's update: opens the APK of what the last check found in the
+    /// browser, for the user to install.
+    DownloadUpdate {},
     /// Signs in with Google in the system browser, for cloud sync: the
     /// Google ID token Firebase takes. The page the browser comes back to
     /// is in the app's `colorMode` (the browser's own without one).
@@ -152,7 +160,7 @@ enum Shell {
     GetAppInfo {},
 }
 
-const SHELL_COMMANDS: [&str; 30] = [
+const SHELL_COMMANDS: [&str; 32] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -165,6 +173,7 @@ const SHELL_COMMANDS: [&str; 30] = [
     "ask_to_notify",
     "take_opened_notification",
     "notification_action",
+    "launch_action",
     "get_capture_server_status",
     "validate_backup_path",
     "perform_automatic_backup",
@@ -179,6 +188,7 @@ const SHELL_COMMANDS: [&str; 30] = [
     "get_capabilities",
     "check_for_update",
     "install_update",
+    "download_update",
     "google_sign_in",
     "open_link",
     "open_folder",
@@ -256,6 +266,10 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
             crate::timer_notice::start(state);
             reply(notifications::take_opened(state))
         }
+        Shell::LaunchAction { action } => {
+            crate::launch::run(state, &action);
+            Value::Null
+        }
         Shell::NotificationAction { id, action } => {
             let opens = notifications::kind_of(id).and_then(notifications::opens);
             notifications::performed(state, &action, Some(id), opens);
@@ -297,6 +311,10 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         Shell::CheckForUpdate {} => reply(state.platform.check_update()?),
         Shell::InstallUpdate {} => {
             updates::install(state)?;
+            Value::Null
+        }
+        Shell::DownloadUpdate {} => {
+            state.platform.download_update()?;
             Value::Null
         }
         Shell::GoogleSignIn {
@@ -589,6 +607,29 @@ mod tests {
         assert_eq!(
             run(&f, "take_opened_notification", json!({})),
             Ok(Value::Null)
+        );
+    }
+
+    #[test]
+    fn a_shortcut_or_widget_action_reaches_the_launch_actions() {
+        let f = fixture();
+        let action = json!({ "action": "payouts" });
+        assert_eq!(run(&f, "launch_action", action), Ok(Value::Null));
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(json!({ "type": "showView", "view": "payouts" }))
+        );
+    }
+
+    #[test]
+    fn a_phone_downloads_the_update_it_found() {
+        let f = fixture();
+        assert_eq!(run(&f, "download_update", json!({})), Ok(Value::Null));
+        assert_eq!(f.platform.recorded().updates_downloaded, 1);
+        f.platform.fail("download_update");
+        assert_eq!(
+            run(&f, "download_update", json!({})),
+            Err("download_update failed".to_string())
         );
     }
 

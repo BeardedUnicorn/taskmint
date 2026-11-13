@@ -43,6 +43,30 @@
             </intent-filter>
         </activity>
 
+        <!-- TaskMint: the home-screen widgets (Widgets.kt) -->
+        <receiver
+            android:name=".TodayWidget"
+            android:exported="false"
+            android:label="@string/widget_today_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
+        <receiver
+            android:name=".PayoutsWidget"
+            android:exported="false"
+            android:label="@string/widget_payouts_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_payouts_info" />
+        </receiver>
+
         <!-- TaskMint: its reminders' alarms (Reminders.kt), and setting
              them again once the phone has started and been unlocked, or
              TaskMint was updated. Not LOCKED_BOOT_COMPLETED: the reminders

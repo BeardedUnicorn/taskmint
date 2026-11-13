@@ -1,4 +1,18 @@
 <resources>
     <!-- app_name and main_activity_title come from app/build.gradle.kts:
          "TaskMint", or "TaskMint Dev" for a dev build -->
+
+    <!-- TaskMint: the home-screen widgets (Widgets.kt) -->
+    <string name="widget_today_label">Today</string>
+    <string name="widget_today_description">Today\'s time and money, your daily goal, and the running timer</string>
+    <string name="widget_payouts_label">Payouts</string>
+    <string name="widget_payouts_description">What you can withdraw, when the next withdrawal opens, and the next release</string>
+    <string name="widget_as_of">as of %1$s</string>
+    <string name="widget_open_app">Open TaskMint to show your figures here.</string>
+    <string name="widget_goal_percent">%1$d%% of goal</string>
+    <string name="widget_not_working">Not working</string>
+    <string name="widget_start">Start</string>
+    <string name="widget_pause">Pause</string>
+    <string name="widget_resume">Resume</string>
+    <string name="widget_withdrawal_open">Withdrawal open</string>
 </resources>

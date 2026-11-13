@@ -16,7 +16,7 @@ Tauri or plugin versions, or to the `Platform` trait they implement.
 | `apps/desktop/src-tauri/src/platform/os.rs` | `TauriPlatform`: events, notifications, dialogs, reveal and open, the window, the tray, the updater | [The platform](#the-platform-platformosrs), [Updates](#updates-platformosrs) |
 | `apps/desktop/src-tauri/src/main.rs` | calls `taskmint_lib::run`; no console window on Windows | [Windows and Linux](#windows-and-linux) |
 | `apps/desktop/src-tauri/gen/android/…/MainActivity.kt` | the launch screen, and the webview's bridges: launch screen, system bars, Google sign-in, analytics (Kotlin isn't measured) | [Android](#android) |
-| `apps/desktop/src-tauri/gen/android/…/Reminders.kt` | the withdrawal reminder's alarm, kept to set again after a restart or a force stop (Kotlin isn't measured) | [Android](#android) |
+| `apps/desktop/src-tauri/gen/android/…/Reminders.kt` | the reminders' alarms (the withdrawal, a long run, the summary, the goal's milestones), kept to set again after a restart or a force stop (Kotlin isn't measured) | [Android](#android) |
 | cloud sync against the real Firebase project | the tested engine and rules, on Google's servers and in real webviews | [Cloud sync](#cloud-sync) |
 | desktop `cfg(target_os = "windows" \| "linux")` code | not compiled on the macOS coverage run | [Windows and Linux](#windows-and-linux) |
 
@@ -327,6 +327,27 @@ On a phone with Google Play services, with the release APK:
 - [ ] **Asked once, then shown:** on a fresh install, the first Start work
       asks to allow notifications; allowing shows the running timer's
       notification at once.
+- [ ] **Reminder alarms:** with a goal and a running timer, `adb shell
+      dumpsys alarm | grep taskmint` lists the summary, long-run and
+      milestone alarms; pausing takes the long-run and milestone ones away.
+      With TaskMint killed (`am kill`), or after `adb reboot` and an unlock,
+      each still arrives at its time, and tapping the summary opens History.
+- [ ] **Shortcuts:** long-pressing the icon offers Start for the top tasks,
+      Add time and Payouts. Each opens TaskMint for it, the app killed or
+      not. Start begins the task and shows Home.
+- [ ] **Widgets:** both are in the widget picker with a preview. Today shows
+      the running timer counting; its Pause and Resume act and open the app.
+      Payouts says "Withdrawal open" once its time passes (within 30
+      minutes). Both follow the phone's light and dark mode. A release build
+      (R8, resource shrinking) draws them too.
+- [ ] **Haptics:** starting, pausing and stopping a timer buzz (Settings →
+      Sound & vibration → touch feedback on).
+- [ ] **Edge swipe:** with gesture navigation, a swipe in from the left edge
+      just above the bottom tabs opens the menu; higher up, the same swipe is
+      Back. The open menu swipes shut.
+- [ ] **Update check:** a release older than the latest finds it (About →
+      Check for updates). Download opens the APK's download in the browser,
+      and installing it keeps the data. A dev build says it doesn't update.
 
 ## Windows and Linux
 

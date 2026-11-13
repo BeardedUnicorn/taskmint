@@ -7,7 +7,7 @@ import { AboutUpdates } from '../settings/AboutUpdates';
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 
-describe("the desktop's extensions", () => {
+describe("the Tauri app's extensions", () => {
   it('add the Updates section, the update check and the update status in About', () => {
     const desktop = desktopExtensions({ runtime: 'desktop', dataLocation: 'local' });
     expect(desktop.settingsSections).toEqual([{ id: 'updates', label: 'Updates', Section: UpdatesSection }]);
@@ -15,7 +15,9 @@ describe("the desktop's extensions", () => {
     expect(desktop.AboutUpdates).toBe(AboutUpdates);
   });
 
-  it('add nothing on a phone or tablet, which has no updater', () => {
-    expect(desktopExtensions({ runtime: 'mobile', dataLocation: 'local' })).toEqual({});
+  it('add the same on a phone, which downloads its updates', () => {
+    expect(desktopExtensions({ runtime: 'mobile', dataLocation: 'local' })).toEqual(
+      desktopExtensions({ runtime: 'desktop', dataLocation: 'local' })
+    );
   });
 });

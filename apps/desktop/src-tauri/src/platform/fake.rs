@@ -44,6 +44,8 @@ pub struct Recorded {
     pub restarts: usize,
     pub update_checks: usize,
     pub updates_installed: usize,
+    /// Releases whose APK was opened for download (a phone's update).
+    pub updates_downloaded: usize,
 }
 
 #[derive(Default)]
@@ -61,7 +63,7 @@ pub struct FakePlatform {
     /// Where the logs go; None: the system has no place for them.
     log_dir: Mutex<Option<PathBuf>>,
     /// Calls that fail from now on: "emit", "notify", "schedule", "cancel",
-    /// "timer_notice",
+    /// "timer_notice", "download_update",
     /// "reveal", "open_dir", "open_url",
     /// "tray", "status", "app_menu", "app_menu_update", "check_update",
     /// "install_update" (after its download).
@@ -321,6 +323,12 @@ impl Platform for FakePlatform {
         events.into_iter().for_each(&mut *progress);
         self.check("install_update")?;
         self.recorded().updates_installed += 1;
+        Ok(())
+    }
+
+    fn download_update(&self) -> Result<(), String> {
+        self.check("download_update")?;
+        self.recorded().updates_downloaded += 1;
         Ok(())
     }
 }

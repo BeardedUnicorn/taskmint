@@ -1,11 +1,14 @@
 import { ReactNode } from 'react';
-import { Box, Button, Divider, Stack, Switch, TextField, Typography } from '@mui/material';
+import { Box, Button, Divider, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
 import { NotificationsActive as NotificationsIcon, Send as SendIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { useNotificationPreferences, NotificationPreferences } from '../../../notifications/preferences';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { getBackend } from '../../../backend';
 import { askToNotify } from '../../../hooks/useAskToNotify';
+import { useEnhancedTimerSettings } from '../../../hooks/useEnhancedTimerSettings';
+import { LONG_RUN_HOUR_OPTIONS } from './InactivitySettingsSection';
+import { DEFAULT_INACTIVITY_SETTINGS } from '../../../types/timer';
 import type { Platform } from '../../../backend/types';
 
 type CategoryKey = Exclude<keyof NotificationPreferences, 'desktopEnabled' | 'sound' | 'dailySummaryTime'>;
@@ -49,27 +52,30 @@ function SettingRow({ label, description, checked, disabled, onChange, children 
   );
 }
 
-/** A kind of notification, and the platform feature it needs to ever be sent (none: every device). */
+/** A kind of notification, and whether a device can ever send it (absent: every device). */
 interface Kind {
   key: CategoryKey;
   label: string;
   description: string;
-  needs?: keyof Platform;
+  sendable?: (platform: Platform) => boolean;
 }
+
+/** The desktop's idle monitor keeps the time, or a phone sets an alarm (usePhoneReminders). */
+const longRunSendable = (platform: Platform) =>
+  platform.idle !== undefined || platform.notifications.schedule !== undefined;
 
 const REMINDERS: Kind[] = [
   {
     key: 'longRunReminder',
     label: 'Long-run reminder',
     description: 'When a timer has run for the hours set under Idle & Reminders.',
-    // The desktop's idle monitor keeps the time
-    needs: 'idle',
+    sendable: longRunSendable,
   },
   {
     key: 'idlePause',
     label: 'Timer paused while you were away',
     description: 'When idle detection pauses the running timer.',
-    needs: 'idle',
+    sendable: platform => platform.idle !== undefined,
   },
   {
     key: 'goalMilestones',
@@ -84,19 +90,19 @@ const ACTIVITY: Kind[] = [
     label: 'Work logs from the browser',
     description: 'Captured, imported, or waiting for you to review.',
     // The browser extension delivers captures to the desktop app
-    needs: 'captureStatus',
+    sendable: platform => platform.captureStatus !== undefined,
   },
   {
     key: 'backupFailure',
     label: 'Automatic backup failed',
     description: 'Retried every hour until it works.',
-    needs: 'folderBackups',
+    sendable: platform => platform.folderBackups !== undefined,
   },
   {
     key: 'backupSuccess',
     label: 'Automatic backup saved',
     description: 'Off by default: backups run weekly on their own.',
-    needs: 'folderBackups',
+    sendable: platform => platform.folderBackups !== undefined,
   },
   {
     key: 'errorsWhileAway',
@@ -147,7 +153,28 @@ export function NotificationSettingsSection() {
   const { capabilities, platform } = getBackend();
   const words = WORDS[capabilities.runtime];
   // Only the kinds this device can ever send
-  const sendable = (kinds: Kind[]) => kinds.filter(kind => !kind.needs || platform[kind.needs] !== undefined);
+  const sendable = (kinds: Kind[]) => kinds.filter(kind => !kind.sendable || kind.sendable(platform));
+  // A phone has no Idle & Reminders section: the long-run hours are set here
+  // (its switch is the on and off, so there's no 0 hours)
+  const { inactivitySettings, updateInactivitySettings } = useEnhancedTimerSettings();
+  const hoursHere = platform.idle === undefined;
+  const longRunHours = (
+    <TextField
+      select
+      size="small"
+      label="After"
+      value={inactivitySettings.longRunHours || DEFAULT_INACTIVITY_SETTINGS.longRunHours}
+      disabled={off || !preferences.longRunReminder}
+      onChange={event => updateInactivitySettings({ longRunHours: Number(event.target.value) })}
+      sx={{ mt: 1.5, width: 140 }}
+    >
+      {LONG_RUN_HOUR_OPTIONS.filter(hours => hours > 0).map(hours => (
+        <MenuItem key={hours} value={hours}>
+          {hours} hours
+        </MenuItem>
+      ))}
+    </TextField>
+  );
 
   const sendTest = () => {
     askToNotify();
@@ -185,16 +212,21 @@ export function NotificationSettingsSection() {
       <Typography variant="overline" color="text.secondary">
         Reminders
       </Typography>
-      {sendable(REMINDERS).map(({ key, label, description }) => (
-        <SettingRow
-          key={key}
-          label={label}
-          description={description}
-          checked={preferences[key]}
-          disabled={off}
-          onChange={checked => updatePreferences({ [key]: checked })}
-        />
-      ))}
+      {sendable(REMINDERS).map(({ key, label, description }) => {
+        const longRun = key === 'longRunReminder' && hoursHere;
+        return (
+          <SettingRow
+            key={key}
+            label={label}
+            description={longRun ? 'When a timer has run this long straight, in case it was forgotten.' : description}
+            checked={preferences[key]}
+            disabled={off}
+            onChange={checked => updatePreferences({ [key]: checked })}
+          >
+            {longRun && longRunHours}
+          </SettingRow>
+        );
+      })}
       <SettingRow
         label="End-of-day summary"
         description="Time tracked and earned today. Skipped on days with nothing tracked."

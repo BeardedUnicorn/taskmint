@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: the Payouts widget (Widgets.payouts). Its own texts are the
+     widget picker's preview (previewLayout); Widgets.payouts replaces them. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_stat_taskmint"
+            android:tint="@color/widget_accent" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:text="@string/widget_payouts_label"
+            android:textColor="@color/widget_text"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_as_of"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="as of 3:42 PM"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/payouts_amount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="~$1,100"
+        android:textColor="@color/widget_accent"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/payouts_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:text="Opens Mon, Nov 10, 6:25 PM"
+        android:textColor="@color/widget_text"
+        android:textSize="14sp" />
+
+    <!-- Takes up whatever height the widget has to spare, so the next
+         release sits at the bottom at any size -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/payouts_release"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:text="Next release Fri, Nov 14 · $230"
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="13sp" />
+</LinearLayout>

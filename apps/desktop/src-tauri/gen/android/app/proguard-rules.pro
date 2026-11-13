@@ -21,7 +21,8 @@
 -keepclassmembers class com.taskmint.android.MainActivity$Analytics {
    @android.webkit.JavascriptInterface public <methods>;
 }
-# and leaving the app from Home on back (window.TaskMintApp)
+# and the app's place on the phone (window.TaskMintApp): leaving it from Home,
+# what it was opened for, its shortcuts, widgets, haptics and swipe band
 -keepclassmembers class com.taskmint.android.MainActivity$AppTask {
    @android.webkit.JavascriptInterface public <methods>;
 }

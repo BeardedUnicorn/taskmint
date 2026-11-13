@@ -51,10 +51,7 @@ impl TauriPlatform {
     pub fn new(app: AppHandle) -> Self {
         Self {
             app,
-            #[cfg(desktop)]
             desktop: DesktopParts::default(),
-            #[cfg(mobile)]
-            desktop: DesktopParts,
         }
     }
 }
@@ -657,16 +654,26 @@ mod desktop {
 }
 
 /// A phone's or tablet's stand-in for the desktop parts: none of them is
-/// there.
+/// there, except updates, which a phone checks in the release feed and
+/// downloads as an APK in the browser (apk_update).
 #[cfg(mobile)]
 mod mobile {
+    use super::text;
     use crate::app_menu::model::{Action, AppMenu};
+    use crate::environment::Environment;
     use crate::platform::{AvailableUpdate, DownloadEvent};
     use crate::tray::model::{TrayMenu, TrayStatus};
     use std::path::PathBuf;
+    use std::sync::Mutex;
+    use std::time::Duration;
     use tauri::AppHandle;
+    use tauri_plugin_opener::OpenerExt;
 
-    pub struct DesktopParts;
+    #[derive(Default)]
+    pub struct DesktopParts {
+        /// The version the last update check found, for download_update.
+        update: Mutex<Option<String>>,
+    }
 
     fn missing(what: &str) -> String {
         format!("{} isn't available on a phone or tablet.", what)
@@ -697,15 +704,40 @@ mod mobile {
             Err(missing("The menu bar"))
         }
 
-        pub fn check_update(&self, _app: &AppHandle) -> Result<Option<AvailableUpdate>, String> {
-            Err(missing("Updating from TaskMint's releases"))
+        pub fn check_update(&self, app: &AppHandle) -> Result<Option<AvailableUpdate>, String> {
+            // A dev build has no update feed: it never updates into the real app
+            let feed = Environment::current()
+                .update_feed()
+                .ok_or("Dev builds don't update: install a release to try updates.")?;
+            let body = ureq::get(feed)
+                .timeout(Duration::from_secs(30))
+                .call()
+                .map_err(text)?
+                .into_string()
+                .map_err(text)?;
+            let current = app.package_info().version.to_string();
+            let found = crate::apk_update::newer(&body, &current)?;
+            *self.update.lock().unwrap_or_else(|e| e.into_inner()) =
+                found.as_ref().map(|update| update.version.clone());
+            Ok(found)
         }
 
         pub fn install_update(
             &self,
             _progress: &mut (dyn FnMut(DownloadEvent) + Send),
         ) -> Result<(), String> {
-            Err(missing("Updating from TaskMint's releases"))
+            Err("A phone downloads its update instead.".to_string())
+        }
+
+        pub fn download_update(&self, app: &AppHandle) -> Result<(), String> {
+            let version = self
+                .update
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone()
+                .ok_or("Check for updates first.")?;
+            let url = crate::apk_update::download_url(&version);
+            app.opener().open_url(url, None::<&str>).map_err(text)
         }
     }
 }
@@ -893,5 +925,16 @@ impl Platform for TauriPlatform {
         progress: &mut (dyn FnMut(DownloadEvent) + Send),
     ) -> Result<(), String> {
         self.desktop.install_update(progress)
+    }
+
+    #[cfg(mobile)]
+    fn download_update(&self) -> Result<(), String> {
+        self.desktop.download_update(&self.app)
+    }
+
+    /// A desktop installs its updates (install_update).
+    #[cfg(desktop)]
+    fn download_update(&self) -> Result<(), String> {
+        Err("A desktop installs its updates.".to_string())
     }
 }
