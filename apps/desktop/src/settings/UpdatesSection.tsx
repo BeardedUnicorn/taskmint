@@ -1,7 +1,7 @@
 import { Alert, Box, Button, FormControlLabel, Stack, Switch, Typography } from '@mui/material';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import { SettingsSection } from '@taskmint/client/ui';
-import { updates, useUpdates, type UpdateState } from '../updates';
+import { downloadsUpdates, updates, useUpdates, type UpdateState } from '../updates';
 
 /** What the last check found, under the button (here and in About). */
 export function Status({ update }: { update: UpdateState }) {
@@ -43,7 +43,8 @@ export function UpdatesSection() {
             label="Check for updates automatically"
           />
           <Typography variant="body2" color="text.secondary">
-            TaskMint looks for a new release on GitHub when it starts and once a day, and asks before installing it.
+            TaskMint looks for a new release on GitHub when it starts and once a day, and asks before{' '}
+            {downloadsUpdates() ? 'downloading' : 'installing'} it.
           </Typography>
         </Box>
         <Box>

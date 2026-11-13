@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 pub mod about;
+pub mod apk_update;
 mod app;
 pub mod app_menu;
 pub mod backend;
@@ -15,6 +16,7 @@ pub mod events;
 pub mod files;
 pub mod google_sign_in;
 pub mod idle;
+pub mod launch;
 pub mod legacy_identifier;
 pub mod notifications;
 pub mod platform;

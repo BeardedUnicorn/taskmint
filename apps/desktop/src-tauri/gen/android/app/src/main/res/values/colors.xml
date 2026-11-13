@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
     <!-- TaskMint: the launch screen's background, the app icon's teal -->
     <color name="taskmint_splash">#FF0A3A3E</color>
+
+    <!-- The widgets and shortcut icons, in light mode (values-night: dark),
+         as the app's own palettes have them (packages/client theme) -->
+    <color name="widget_background">#FFFFFFFF</color>
+    <color name="widget_text">#FF3F4E4F</color>
+    <color name="widget_text_secondary">#FF616161</color>
+    <color name="widget_accent">#FF1F6F4A</color>
+    <color name="widget_track">#FFE0E0E0</color>
+    <!-- The brand green button, with the teal's text on it (both modes) -->
+    <color name="widget_button">#FF65D6A1</color>
+    <color name="widget_button_text">#FF0A3A3E</color>
 </resources>

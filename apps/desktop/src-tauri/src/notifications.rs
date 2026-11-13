@@ -24,7 +24,9 @@ use crate::state::{AppState, Shell};
 use crate::timer_notice::{self, TIMER_NOTICE_ID};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use taskmint_core::contract::WITHDRAWAL_REMINDER_ID;
+use taskmint_core::contract::{
+    DAILY_SUMMARY_ID, GOAL_MILESTONE_ID, LONG_RUN_REMINDER_ID, WITHDRAWAL_REMINDER_ID,
+};
 use taskmint_core::notifications::NotificationKind;
 use taskmint_core::shell::{MenuCommand, MenuView};
 
@@ -88,11 +90,15 @@ pub fn id_of(kind: NotificationKind) -> i32 {
     5000 + index.expect("every kind is in KINDS") as i32
 }
 
-/// The kind of notification an id was given to (`id_of`, or the
-/// withdrawal reminder's alarm the app sets).
+/// The kind of notification an id was given to (`id_of`, or one of the
+/// reminder alarms a phone sets).
 pub fn kind_of(id: i32) -> Option<NotificationKind> {
+    use NotificationKind::*;
     match id {
-        WITHDRAWAL_REMINDER_ID => Some(NotificationKind::WithdrawalReady),
+        WITHDRAWAL_REMINDER_ID => Some(WithdrawalReady),
+        LONG_RUN_REMINDER_ID => Some(LongRun),
+        DAILY_SUMMARY_ID => Some(DailySummary),
+        _ if (GOAL_MILESTONE_ID..GOAL_MILESTONE_ID + 4).contains(&id) => Some(GoalMilestone),
         _ => KINDS.into_iter().find(|kind| id_of(*kind) == id),
     }
 }
@@ -103,7 +109,9 @@ pub fn opens(kind: NotificationKind) -> Option<MenuCommand> {
     use NotificationKind::*;
     let page = |view| Some(MenuCommand::ShowView { view });
     match kind {
-        GoalMilestone | DailySummary => page(MenuView::Home),
+        GoalMilestone => page(MenuView::Home),
+        // As the summary's own Open History does
+        DailySummary => page(MenuView::History),
         LongRun | IdlePause => page(MenuView::Sessions),
         WithdrawalReady | WorkLogCapture => page(MenuView::Payouts),
         BackupFailure => Some(MenuCommand::Settings),
@@ -412,7 +420,7 @@ mod tests {
         let page = |view| Some(MenuCommand::ShowView { view });
         let cases = [
             (GoalMilestone, Channel::Reminders, page(MenuView::Home)),
-            (DailySummary, Channel::Reminders, page(MenuView::Home)),
+            (DailySummary, Channel::Reminders, page(MenuView::History)),
             (LongRun, Channel::Reminders, page(MenuView::Sessions)),
             (IdlePause, Channel::Reminders, page(MenuView::Sessions)),
             (WithdrawalReady, Channel::Reminders, page(MenuView::Payouts)),
@@ -444,11 +452,23 @@ mod tests {
         }
         assert_eq!(id_of(NotificationKind::General), 5000);
         assert_eq!(id_of(NotificationKind::Test), 5010);
-        // The app's withdrawal alarm, and ids that aren't a kind's
+        // The alarms a phone sets, and ids that aren't a kind's
         assert_eq!(
             kind_of(WITHDRAWAL_REMINDER_ID),
             Some(NotificationKind::WithdrawalReady)
         );
+        assert_eq!(
+            kind_of(LONG_RUN_REMINDER_ID),
+            Some(NotificationKind::LongRun)
+        );
+        assert_eq!(
+            kind_of(DAILY_SUMMARY_ID),
+            Some(NotificationKind::DailySummary)
+        );
+        for milestone in GOAL_MILESTONE_ID..GOAL_MILESTONE_ID + 4 {
+            assert_eq!(kind_of(milestone), Some(NotificationKind::GoalMilestone));
+        }
+        assert_eq!(kind_of(GOAL_MILESTONE_ID + 4), None);
         assert_eq!(kind_of(4999), None);
         assert_eq!(kind_of(TIMER_NOTICE_ID), None);
     }

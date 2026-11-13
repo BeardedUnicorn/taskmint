@@ -37,6 +37,10 @@ import { usePayoutForecastPublisher } from './hooks/usePayoutForecastPublisher';
 import { useSystemBarsTheme } from './hooks/useSystemBarsTheme';
 import { useSystemBottomInset } from './hooks/useSystemBottomInset';
 import { useAskToNotifyAtFirstWork } from './hooks/useAskToNotify';
+import { useAppShortcuts } from './hooks/useAppShortcuts';
+import { useHomeWidgets } from './hooks/useHomeWidgets';
+import { usePhoneReminders } from './hooks/usePhoneReminders';
+import { useTimerHaptics } from './hooks/useTimerHaptics';
 import { SAFE_BOTTOM } from './theme/media';
 import { useAnalyticsScreens } from './utils/analytics';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
@@ -52,11 +56,14 @@ import { useKeyboardInset } from './hooks/useKeyboardInset';
  * Work that runs whatever page is open: the tray's "Choose Task…", saying
  * when a save lost to a change made on another device, pointing to what's
  * new after an update, a scheduled withdrawal's reminder, a phone's status
- * bar following the theme, and the pages opened, for usage analytics.
+ * bar following the theme, its reminder alarms, launcher shortcuts,
+ * home-screen widgets and touch feedback, and the pages opened, for usage
+ * analytics.
  */
 function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }) {
   const { sessions, hasLoaded } = useSessionManagementContext();
   const { tasks, isLoading: tasksLoading } = useTaskManagementContext();
+  const ready = hasLoaded && !tasksLoading;
 
   useEnhancedSystemTray({ onShowStartDialog });
   useTrayWithdrawalLabel();
@@ -67,7 +74,11 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
   useAskToNotifyAtFirstWork();
   useRecordConflictNotice();
   useUpdatedNotice();
-  useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });
+  useDailySummary({ sessions, tasks, ready });
+  usePhoneReminders({ sessions, tasks, ready });
+  useAppShortcuts(ready);
+  useHomeWidgets();
+  useTimerHaptics();
   useAnalyticsScreens();
   return null;
 }
@@ -208,6 +219,7 @@ function AppContent() {
           <Sidebar
             variant="temporary"
             open={navigationOpen}
+            onOpen={openNavigation}
             onClose={closeNavigation}
             activeView={activeView}
             onViewChange={navigate}

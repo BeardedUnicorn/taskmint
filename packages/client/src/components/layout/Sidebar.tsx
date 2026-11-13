@@ -1,8 +1,10 @@
-import { ReactNode } from 'react';
+import { type ComponentType, ReactNode, useEffect } from 'react';
+import { getBackend } from '../../backend';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { viewShortcut } from '../../hooks/useKeyboardShortcuts';
 import {
   Drawer,
+  SwipeableDrawer,
   List,
   ListItemButton,
   ListItemIcon,
@@ -11,6 +13,8 @@ import {
   Divider,
   IconButton,
   Tooltip,
+  type DrawerProps,
+  type SwipeableDrawerProps,
 } from '@mui/material';
 import {
   HomeOutlined as HomeIcon,
@@ -26,7 +30,7 @@ import {
 } from '@mui/icons-material';
 
 import { VIEWS, VIEW_LABELS, type SidebarView } from '../../navigation/views';
-import { HOVER, SAFE_BOTTOM } from '../../theme/media';
+import { BOTTOM_BAR_HEIGHT, HOVER, SAFE_BOTTOM } from '../../theme/media';
 import { Wordmark } from '../ui/display/Wordmark';
 
 export type { SidebarView };
@@ -41,11 +45,46 @@ interface SidebarProps {
   /**
    * `temporary` is the phone's menu: it slides in over the page while
    * `open`, always expanded (no collapse toggle, no shortcut hints), and
-   * picking a page or tapping outside it calls `onClose`.
+   * picking a page, tapping outside it or swiping it shut calls `onClose`.
+   * A swipe in from the left edge, just above the bottom tabs, calls
+   * `onOpen` (EDGE_SWIPE).
    */
   variant?: 'permanent' | 'temporary';
   open?: boolean;
+  onOpen?: () => void;
   onClose?: () => void;
+}
+
+/**
+ * Where a swipe in from the screen's left edge opens the phone's menu: a
+ * band just above the bottom tabs, within thumb reach. Android's back
+ * gesture owns the screen's edges and leaves an app at most 200px of one,
+ * so the band is no taller, and the rest of the edge stays Back.
+ */
+export const EDGE_SWIPE = { width: 24, height: 200 } as const;
+/** The swipe area's class, to find where it is. */
+export const EDGE_SWIPE_CLASS = 'taskmint-edge-swipe';
+
+/** Tells the platform where the swipe band is, as it moves with the screen's insets (Android). */
+function useEdgeSwipeArea(active: boolean): void {
+  useEffect(() => {
+    const { edgeSwipe, systemBars } = getBackend().platform;
+    if (!active || !edgeSwipe) return;
+    const report = () => {
+      const band = document.querySelector(`.${EDGE_SWIPE_CLASS}`)?.getBoundingClientRect();
+      edgeSwipe.setArea(band ? { left: band.left, top: band.top, width: band.width, height: band.height } : null);
+    };
+    // The drawer adds its swipe area once it has mounted: a frame later
+    const first = requestAnimationFrame(report);
+    window.addEventListener('resize', report);
+    const stopInsets = systemBars?.onInsetsChange(report);
+    return () => {
+      cancelAnimationFrame(first);
+      window.removeEventListener('resize', report);
+      stopInsets?.();
+      edgeSwipe.setArea(null);
+    };
+  }, [active]);
 }
 
 const SIDEBAR_WIDTH = 240;
@@ -72,22 +111,36 @@ export function Sidebar({
   headerAction,
   variant = 'permanent',
   open = false,
+  onOpen,
   onClose,
 }: SidebarProps) {
   // Remembered across launches
   const [collapsedSetting, setIsCollapsed] = useLocalStorage('sidebarCollapsed', false);
   const temporary = variant === 'temporary';
   const isCollapsed = !temporary && collapsedSetting;
+  useEdgeSwipeArea(temporary);
+  // The phone's menu opens and closes with a swipe too
+  const Panel = (temporary ? SwipeableDrawer : Drawer) as ComponentType<DrawerProps & Partial<SwipeableDrawerProps>>;
 
   return (
-    <Drawer
+    <Panel
       variant={variant}
       {...(temporary
         ? {
             open,
+            onOpen,
             onClose,
-            // Clear of the status and navigation bars on an edge-to-edge screen
+            swipeAreaWidth: EDGE_SWIPE.width,
             slotProps: {
+              swipeArea: {
+                className: EDGE_SWIPE_CLASS,
+                style: {
+                  top: 'auto',
+                  bottom: `calc(${BOTTOM_BAR_HEIGHT}px + ${SAFE_BOTTOM})`,
+                  height: EDGE_SWIPE.height,
+                },
+              },
+              // Clear of the status and navigation bars on an edge-to-edge screen
               paper: {
                 sx: {
                   width: SIDEBAR_WIDTH,
@@ -235,6 +288,6 @@ export function Sidebar({
           {footer(isCollapsed)}
         </Box>
       )}
-    </Drawer>
+    </Panel>
   );
 }

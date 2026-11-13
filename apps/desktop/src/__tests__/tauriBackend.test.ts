@@ -285,9 +285,9 @@ describe('createTauriBackend', () => {
     expect(platform.notifications.askPermission).toBeUndefined();
   });
 
-  it('on Android, hands Rust the notification tap MainActivity kept, before taking what it opens', async () => {
-    const taps: Array<string | null> = [JSON.stringify({ id: 4100, action: 'tap' })];
-    vi.stubGlobal('TaskMintApp', { moveToBack: vi.fn(), takeNotificationTap: () => taps.shift() ?? null });
+  it('on Android, hands Rust what MainActivity says opened the app, before taking what it opens', async () => {
+    const taps: Array<string | null> = [JSON.stringify({ notification: 4100, action: 'tap' })];
+    vi.stubGlobal('TaskMintApp', { moveToBack: vi.fn(), takeLaunch: () => taps.shift() ?? null });
     onTestFinished(() => {
       vi.unstubAllGlobals();
     });
@@ -296,17 +296,22 @@ describe('createTauriBackend', () => {
     // The tap that started the app
     mockInvoke.mockResolvedValueOnce(null).mockResolvedValueOnce({ type: 'showView', view: 'payouts' });
     await expect(notifications.takeOpened!()).resolves.toEqual({ type: 'showView', view: 'payouts' });
-    // One while the app runs: MainActivity says so, and Rust hears of it at once
-    taps.push(JSON.stringify({ id: 4200, action: 'pause' }));
-    window.__taskmintNotificationTapped!();
-    // None left: only what a tap opens is asked
+    // A notification's button while the app runs: MainActivity says so, and
+    // Rust hears of it at once; then a widget's button, the same way
+    taps.push(JSON.stringify({ notification: 4200, action: 'pause' }));
+    window.__taskmintLaunched!();
     await vi.waitFor(() => expect(dispatched()).toHaveLength(3));
+    taps.push(JSON.stringify({ action: 'resume' }));
+    window.__taskmintLaunched!();
+    await vi.waitFor(() => expect(dispatched()).toHaveLength(4));
+    // None left: only what a tap opens is asked
     await notifications.takeOpened!();
 
     expect(dispatched()).toEqual([
       ['notification_action', { id: 4100, action: 'tap' }],
       ['take_opened_notification'],
       ['notification_action', { id: 4200, action: 'pause' }],
+      ['launch_action', { action: 'resume' }],
       ['take_opened_notification'],
     ]);
   });
@@ -400,14 +405,68 @@ describe('createTauriBackend', () => {
     expect(moveToBack).toHaveBeenCalledTimes(1);
     expect(Object.keys(android.platform).sort()).toEqual([
       'appInfo',
+      'appShortcuts',
       'backButton',
+      'edgeSwipe',
       'files',
+      'haptics',
       'notifications',
       'openLink',
+      'widgets',
     ]);
     expect(dispatched()).toEqual([]);
     // The desktop has no back button, bridge or not
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.backButton).toBeUndefined();
+  });
+
+  it("sets shortcuts, widgets, touch feedback and the swipe band through MainActivity's app bridge", () => {
+    const bridge = {
+      moveToBack: vi.fn(),
+      takeLaunch: vi.fn(),
+      setShortcuts: vi.fn(),
+      updateWidgets: vi.fn(),
+      haptic: vi.fn(),
+      setEdgeSwipeArea: vi.fn(),
+    };
+    vi.stubGlobal('TaskMintApp', bridge);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const { platform: android } = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
+
+    const shortcut = {
+      id: 'payouts',
+      label: 'Payouts',
+      longLabel: 'Payouts',
+      icon: 'payouts',
+      action: 'payouts',
+    } as const;
+    android.appShortcuts!.set([shortcut]);
+    expect(bridge.setShortcuts).toHaveBeenCalledWith(JSON.stringify([shortcut]));
+    const snapshot = {
+      updatedAtMs: 1,
+      today: { money: '$0', time: '0m', goalPercent: null },
+      timer: null,
+      payouts: null,
+    };
+    android.widgets!.update(snapshot);
+    expect(bridge.updateWidgets).toHaveBeenCalledWith(JSON.stringify(snapshot));
+    android.haptics!('start');
+    expect(bridge.haptic).toHaveBeenCalledWith('start');
+    android.edgeSwipe!.setArea({ left: 0, top: 500, width: 24, height: 200 });
+    android.edgeSwipe!.setArea(null);
+    expect(bridge.setEdgeSwipeArea.mock.calls).toEqual([
+      [0, 500, 24, 200],
+      [0, 0, 0, 0],
+    ]);
+    // A desktop has none of them
+    const { platform: desktop } = createTauriBackend({ runtime: 'desktop', dataLocation: 'local' });
+    expect([desktop.appShortcuts, desktop.widgets, desktop.haptics, desktop.edgeSwipe]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
 
   it("counts usage through Android's native analytics in a release, and the desktop has none", () => {

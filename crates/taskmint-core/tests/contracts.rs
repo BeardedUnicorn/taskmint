@@ -310,6 +310,34 @@ fn constants() -> Constants {
         "WITHDRAWAL_REMINDER_ID",
         json!(WITHDRAWAL_REMINDER_ID),
     );
+    out.value(
+        "The id of the phone's long-run reminder alarm.",
+        "LONG_RUN_REMINDER_ID",
+        json!(LONG_RUN_REMINDER_ID),
+    );
+    out.value(
+        "The id of the phone's end-of-day summary alarm.",
+        "DAILY_SUMMARY_ID",
+        json!(DAILY_SUMMARY_ID),
+    );
+    out.value(
+        "The id of the phone's 50% goal milestone alarm; the next three are 75%, 100% and well past it.",
+        "GOAL_MILESTONE_ID",
+        json!(GOAL_MILESTONE_ID),
+    );
+    out.group(
+        "What a launcher shortcut or a home-screen widget's button asks the app to do.",
+        "LAUNCH_ACTIONS",
+        &[
+            ("START_WORK", "START_WORK", json!(launch::START_WORK)),
+            ("ADD_TIME", "ADD_TIME", json!(launch::ADD_TIME)),
+            ("HOME", "HOME", json!(launch::HOME)),
+            ("PAYOUTS", "PAYOUTS", json!(launch::PAYOUTS)),
+            ("PAUSE", "PAUSE", json!(launch::PAUSE)),
+            ("RESUME", "RESUME", json!(launch::RESUME)),
+            ("START_TASK", "START_TASK", json!(launch::START_TASK)),
+        ],
+    );
     out.list(
         "The frontend's records, as the backend stores them.",
         "APP_RECORD_KEYS",
@@ -425,6 +453,8 @@ const RUST_ONLY: &[&str] = &[
     "MAX_ENCODED_LINK_BYTES",
     // The link the desktop's Google sign-in page opens (a page Rust writes)
     "DEEP_LINK_OPEN",
+    // The release feed a phone's shell checks
+    "UPDATE_FEED_URL",
 ];
 
 fn contract_constant_names() -> BTreeSet<String> {

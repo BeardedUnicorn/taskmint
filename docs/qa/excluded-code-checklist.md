@@ -319,6 +319,27 @@ On a phone with Google Play services, with the release APK:
 - [ ] **Asked once, then shown:** on a fresh install, the first Start work
       asks to allow notifications; allowing shows the running timer's
       notification at once.
+- [ ] **Reminder alarms:** with a goal and a running timer, `adb shell
+      dumpsys alarm | grep taskmint` lists the summary, long-run and
+      milestone alarms; pausing takes the long-run and milestone ones away.
+      With TaskMint killed (`am kill`), each still arrives at its time, and
+      tapping the summary opens History.
+- [ ] **Shortcuts:** long-pressing the icon offers Start for the top tasks,
+      Add time and Payouts. Each opens TaskMint for it, the app killed or
+      not. Start begins the task and shows Home.
+- [ ] **Widgets:** both are in the widget picker with a preview. Today shows
+      the running timer counting; its Pause and Resume act and open the app.
+      Payouts says "Withdrawal open" once its time passes (within 30
+      minutes). Both follow the phone's light and dark mode. A release build
+      (R8, resource shrinking) draws them too.
+- [ ] **Haptics:** starting, pausing and stopping a timer buzz (Settings →
+      Sound & vibration → touch feedback on).
+- [ ] **Edge swipe:** with gesture navigation, a swipe in from the left edge
+      just above the bottom tabs opens the menu; higher up, the same swipe is
+      Back. The open menu swipes shut.
+- [ ] **Update check:** a release older than the latest finds it (About →
+      Check for updates). Download opens the APK's download in the browser,
+      and installing it keeps the data. A dev build says it doesn't update.
 
 ## Windows and Linux
 

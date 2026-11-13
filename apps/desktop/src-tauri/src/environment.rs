@@ -10,7 +10,7 @@
 //! tauri.production.conf.json turns a build back into the real app, and
 //! scripts/release.mjs is what applies it.
 
-use taskmint_core::contract::{CAPTURE_SERVER_PORT, DEEP_LINK_SCHEME};
+use taskmint_core::contract::{CAPTURE_SERVER_PORT, DEEP_LINK_SCHEME, UPDATE_FEED_URL};
 
 /// The installed app's identifier (tauri.production.conf.json).
 pub const PRODUCTION_IDENTIFIER: &str = "com.taskmint.desktop";
@@ -84,6 +84,15 @@ impl Environment {
     pub fn moves_legacy_folders(self) -> bool {
         self == Environment::Production
     }
+
+    /// Where a phone looks for a newer release: only the real app does (a
+    /// desktop's updater reads the same feed from tauri.production.conf.json).
+    pub fn update_feed(self) -> Option<&'static str> {
+        match self {
+            Environment::Production => Some(UPDATE_FEED_URL),
+            Environment::Dev => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -134,6 +143,12 @@ mod tests {
     }
 
     #[test]
+    fn only_the_real_app_checks_for_updates() {
+        assert_eq!(Environment::Production.update_feed(), Some(UPDATE_FEED_URL));
+        assert_eq!(Environment::Dev.update_feed(), None);
+    }
+
+    #[test]
     fn only_the_real_app_takes_the_old_folders() {
         assert!(Environment::Production.moves_legacy_folders());
         assert!(!Environment::Dev.moves_legacy_folders());
@@ -157,9 +172,10 @@ mod tests {
         assert_eq!(production["identifier"], PRODUCTION_IDENTIFIER);
         assert_eq!(production["productName"], "TaskMint");
         assert_eq!(scheme(&production), serde_json::json!([DEEP_LINK_SCHEME]));
+        // The phone's feed is the desktop's
         assert_eq!(
-            production["plugins"]["updater"]["endpoints"][0],
-            "https://github.com/BeardedUnicorn/taskmint/releases/latest/download/latest.json"
+            production["plugins"]["updater"]["endpoints"],
+            serde_json::json!([UPDATE_FEED_URL])
         );
     }
 }

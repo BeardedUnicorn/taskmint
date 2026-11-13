@@ -6,7 +6,9 @@
  *
  * Checked every minute and whenever the window comes back, so a Mac that was
  * asleep at the summary time sends it on waking (the same evening; a missed
- * day isn't sent later). A day with nothing tracked by then is skipped.
+ * day isn't sent later). A day with nothing tracked by then is skipped. A
+ * phone sets it as an alarm instead, which goes off with the app closed
+ * (usePhoneReminders).
  */
 
 import { useEffect, useRef } from 'react';
@@ -18,6 +20,7 @@ import { earningsOnDate } from '../utils/earnings';
 import { formatDateString } from '../utils/dateHelpers';
 import { formatCurrency, formatDurationCompact } from '../utils/formatters';
 import { readLocal, writeLocal } from '../utils/localStore';
+import { getBackend } from '../backend';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNotificationPreferences } from '../notifications/preferences';
 import { useDailyGoals } from './useDailyGoals';
@@ -110,7 +113,8 @@ export function useDailySummary({
   const { dailySummary: enabled, dailySummaryTime: time } = preferences;
 
   useEffect(() => {
-    if (!enabled || !ready) return;
+    // (A phone's alarm sends it: usePhoneReminders)
+    if (!enabled || !ready || getBackend().platform.notifications.schedule) return;
 
     const check = () => {
       const now = new Date();

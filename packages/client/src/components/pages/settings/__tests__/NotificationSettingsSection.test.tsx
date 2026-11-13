@@ -84,10 +84,10 @@ describe('NotificationSettingsSection', () => {
       capabilities: { runtime: 'mobile' },
       without: ['idle', 'folderBackups', 'tray', 'reveal', 'captureStatus', 'openFolder'],
     });
+    localStorage.setItem('inactivitySettings', JSON.stringify({ version: 1, data: { longRunHours: 0 } }));
     render(<NotificationSettingsSection />);
 
     for (const name of [
-      'Long-run reminder',
       'Timer paused while you were away',
       'Work logs from the browser',
       'Automatic backup failed',
@@ -95,9 +95,21 @@ describe('NotificationSettingsSection', () => {
     ]) {
       expect(screen.queryByRole('switch', { name })).not.toBeInTheDocument();
     }
-    for (const name of ['Daily goal milestones', 'End-of-day summary', 'Errors while TaskMint is in the background']) {
+    for (const name of [
+      'Long-run reminder',
+      'Daily goal milestones',
+      'End-of-day summary',
+      'Errors while TaskMint is in the background',
+    ]) {
       expect(toggle(name)).toBeInTheDocument();
     }
+    // A phone sets its alarm itself: the hours are here, with no Idle section
+    expect(screen.getByText('When a timer has run this long straight, in case it was forgotten.')).toBeInTheDocument();
+    // Its switch is the on and off: no hours shows the default
+    expect(screen.getByRole('combobox', { name: 'After' })).toHaveTextContent('4 hours');
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'After' }));
+    fireEvent.click(screen.getByRole('option', { name: '6 hours' }));
+    expect(JSON.parse(localStorage.getItem('inactivitySettings')!).data).toMatchObject({ longRunHours: 6 });
     expect(screen.queryByText(/tray|window/)).not.toBeInTheDocument();
     expect(screen.getByText(/messages appear at the bottom of the screen/)).toBeInTheDocument();
     // Android sets each group's sound itself

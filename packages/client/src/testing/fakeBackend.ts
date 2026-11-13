@@ -13,9 +13,11 @@
 import { vi, type Mock } from 'vitest';
 import type {
   AnalyticsPlatform,
+  AppShortcutsPlatform,
   BackButtonPlatform,
   Backend,
   Capabilities,
+  EdgeSwipePlatform,
   FilePlatform,
   FolderBackupPlatform,
   IdlePlatform,
@@ -24,6 +26,8 @@ import type {
   SplashScreenPlatform,
   SystemBarsPlatform,
   TrayPlatform,
+  WidgetsPlatform,
+  HapticKind,
 } from '../backend/types';
 import type { AppFolder, AppInfo, AppLink, CaptureServerStatus } from '@taskmint/contracts';
 
@@ -40,6 +44,10 @@ export interface FakePlatform extends Platform {
   systemBars: Mocked<SystemBarsPlatform>;
   splashScreen: Mocked<SplashScreenPlatform>;
   backButton: Mocked<BackButtonPlatform>;
+  appShortcuts: Mocked<AppShortcutsPlatform>;
+  widgets: Mocked<WidgetsPlatform>;
+  haptics: Mock<(kind: HapticKind) => void>;
+  edgeSwipe: Mocked<EdgeSwipePlatform>;
   reveal: Mock<(path: string) => Promise<void>>;
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
   googleSignIn: Mock<(theme: 'light' | 'dark') => Promise<string>>;
@@ -80,6 +88,10 @@ export interface FakeBackendOptions {
     | 'systemBars'
     | 'splashScreen'
     | 'backButton'
+    | 'appShortcuts'
+    | 'widgets'
+    | 'haptics'
+    | 'edgeSwipe'
     | 'reveal'
     | 'captureStatus'
     | 'googleSignIn'
@@ -149,6 +161,16 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
         };
       }),
       leaveApp: vi.fn(),
+    },
+    appShortcuts: {
+      set: vi.fn(),
+    },
+    widgets: {
+      update: vi.fn(),
+    },
+    haptics: vi.fn(),
+    edgeSwipe: {
+      setArea: vi.fn(),
     },
     reveal: vi.fn(async () => undefined),
     captureStatus: vi.fn(async () => ({ running: true, port: 43117, warning: null })),

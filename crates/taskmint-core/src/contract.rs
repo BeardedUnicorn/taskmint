@@ -73,10 +73,34 @@ pub const IDLE_CHOICE_STAY_PAUSED: &str = "stayPaused";
 /// hourly rates, and names that follow a rename).
 pub const TASKS_RECORD_KEY: &str = "predefinedTasks";
 
-/// The id of the phone's withdrawal-reminder alarm (the app sets it; setting
-/// it again replaces it). A tap on an Android notification reports only its
-/// id, which is how the shell knows this one is about Payouts.
+/// The ids of the alarms a phone sets for its reminders (the app sets them;
+/// setting one again replaces it). A tap on an Android notification reports
+/// only its id, which is how the shell knows which page it's about.
 pub const WITHDRAWAL_REMINDER_ID: i32 = 4100;
+pub const LONG_RUN_REMINDER_ID: i32 = 4110;
+pub const DAILY_SUMMARY_ID: i32 = 4120;
+/// The daily goal's milestones: this id for 50%, then the next three for
+/// 75%, 100% and well past it.
+pub const GOAL_MILESTONE_ID: i32 = 4130;
+
+/// What a launcher shortcut or a home-screen widget's button asks the app to
+/// do (Android opens the app with it; MainActivity keeps it for the page,
+/// which sends launch_action).
+pub mod launch {
+    pub const START_WORK: &str = "start-work";
+    pub const ADD_TIME: &str = "add-time";
+    pub const HOME: &str = "home";
+    pub const PAYOUTS: &str = "payouts";
+    pub const PAUSE: &str = "pause";
+    pub const RESUME: &str = "resume";
+    /// Starts the task whose id follows (a favourite task's shortcut).
+    pub const START_TASK: &str = "start-task:";
+}
+
+/// The release feed a phone checks for updates (a desktop's updater has it
+/// in tauri.production.conf.json; the Android build doesn't use that file).
+pub const UPDATE_FEED_URL: &str =
+    "https://github.com/BeardedUnicorn/taskmint/releases/latest/download/latest.json";
 
 /// The cloud documents' schema (sync). A device skips documents from a newer
 /// one, so a field added to a synced entity raises it: an older TaskMint
@@ -273,7 +297,35 @@ mod tests {
         assert_eq!(CAPTURE_HEADER, "X-TaskMint-Capture");
         assert_eq!(ERR_UNEXPECTED_PAYLOAD_SHAPE, "unexpected payload shape");
         assert_eq!(TASKS_RECORD_KEY, "predefinedTasks");
-        assert_eq!(WITHDRAWAL_REMINDER_ID, 4100);
+        assert_eq!(
+            [
+                WITHDRAWAL_REMINDER_ID,
+                LONG_RUN_REMINDER_ID,
+                DAILY_SUMMARY_ID,
+                GOAL_MILESTONE_ID
+            ],
+            [4100, 4110, 4120, 4130]
+        );
+        assert_eq!(
+            [
+                launch::START_WORK,
+                launch::ADD_TIME,
+                launch::HOME,
+                launch::PAYOUTS,
+                launch::PAUSE,
+                launch::RESUME,
+                launch::START_TASK
+            ],
+            [
+                "start-work",
+                "add-time",
+                "home",
+                "payouts",
+                "pause",
+                "resume",
+                "start-task:"
+            ]
+        );
         assert_eq!(
             APP_RECORD_KEYS,
             [

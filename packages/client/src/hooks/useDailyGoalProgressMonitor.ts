@@ -7,6 +7,9 @@
  * crossed (reminders: they reach the OS even while TaskMint is in front), and
  * saves today's target so the day keeps it if the goal changes later. Used
  * once, in DailyGoalProgressProvider, which shares the progress it returns.
+ *
+ * A phone also sets each milestone a running timer is heading for as an
+ * alarm (usePhoneReminders); one its alarm announced is only recorded here.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -19,6 +22,7 @@ import { earningsOnDate } from '../utils/earnings';
 import { formatDateString } from '../utils/dateHelpers';
 import { useNotification } from '../contexts/NotificationContext';
 import { formatCurrency } from '../utils/formatters';
+import { goalAlarmAnnounced } from '../utils/goalAlarms';
 
 /** How often today's total refreshes while a timer runs. */
 const LIVE_TICK_MS = 10_000;
@@ -136,15 +140,17 @@ export function useDailyGoalProgressMonitor({
     if (sendingRef.current === key) return;
     sendingRef.current = key;
 
-    notify({
-      category: 'goal',
-      severity: 'success',
-      title: milestone.title,
-      message: milestone.body,
-    });
+    if (!goalAlarmAnnounced(milestone.tier, nowMs)) {
+      notify({
+        category: 'goal',
+        severity: 'success',
+        title: milestone.title,
+        message: milestone.body,
+      });
+    }
     // The record's own save reports a failure (useAppRecord)
     void updateNotificationState(milestone.tier, today);
-  }, [progress, currentGoal, today, updateNotificationState, notify]);
+  }, [progress, currentGoal, today, nowMs, updateNotificationState, notify]);
 
   // Save today's target (again if it changes today), so later goal changes
   // don't rewrite what this day was measured against.

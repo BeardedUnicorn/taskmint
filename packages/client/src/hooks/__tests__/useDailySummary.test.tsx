@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useDailySummary, buildDailySummary, isDailySummaryDue, DAILY_SUMMARY_LAST_SENT_KEY } from '../useDailySummary';
 import { NOTIFICATION_PREFERENCES_KEY } from '../../notifications/preferences';
 import { readLocal, writeLocal } from '../../utils/localStore';
+import { installFakeBackendForTest } from '../../testing';
 import { DailyGoal } from '../../types/goal';
 import { TaskSession, TimerState } from '../../types/timer';
 import {
@@ -176,10 +177,20 @@ describe('useDailySummary', () => {
     mockNotify.mockClear();
     mockGoal = null;
     vi.useFakeTimers();
+    // A desktop: nothing can be set for later, so the app sends it
+    installFakeBackendForTest({ without: ['laterNotifications'] });
   });
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("leaves a phone's summary to its alarm", () => {
+    installFakeBackendForTest({});
+    vi.setSystemTime(at(19, 30));
+    renderHook(() => useDailySummary({ sessions: today, tasks, ready: true }));
+    expect(mockNotify).not.toHaveBeenCalled();
+    expect(readLocal(DAILY_SUMMARY_LAST_SENT_KEY, null)).toBeNull();
   });
 
   it('sends the summary once when the time comes', () => {

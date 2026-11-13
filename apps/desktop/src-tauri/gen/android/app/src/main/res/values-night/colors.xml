@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TaskMint: the widgets in dark mode (values/colors.xml: light) -->
+    <color name="widget_background">#FF1F1F1F</color>
+    <color name="widget_text">#FFFAFAFA</color>
+    <color name="widget_text_secondary">#FFB0B0B0</color>
+    <color name="widget_accent">#FF65D6A1</color>
+    <color name="widget_track">#FF424242</color>
+</resources>

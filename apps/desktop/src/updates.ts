@@ -3,6 +3,9 @@
  * feed and installs (apps/desktop/src-tauri/src/updates.rs); this holds what
  * the update dialog and Settings → Updates show, and whether checks run on
  * their own. One store for the window, read with useUpdates().
+ *
+ * A phone isn't updated in place: it downloads the release's APK in the
+ * browser (apk_update.rs), and Android installs it over the app.
  */
 
 import { useSyncExternalStore } from 'react';
@@ -107,6 +110,11 @@ export function automaticCheckDue(now: number): boolean {
   return current.autoCheck && (last === null || now - last >= CHECK_INTERVAL_MS);
 }
 
+/** A phone downloads its update instead of installing it. */
+export function downloadsUpdates(): boolean {
+  return getBackend().capabilities.runtime === 'mobile';
+}
+
 /** Says, outside the window, that a version is out (once per version). */
 function notifyAvailable(update: AvailableUpdate): void {
   if (document.hasFocus() || notifiedVersion === update.version) return;
@@ -114,7 +122,7 @@ function notifyAvailable(update: AvailableUpdate): void {
   command('show_desktop_notification', {
     kind: 'general',
     title: `TaskMint ${update.version} is available`,
-    body: 'Open TaskMint to install it.',
+    body: downloadsUpdates() ? 'Open TaskMint to download it.' : 'Open TaskMint to install it.',
   }).catch(error => console.warn('Failed to announce the update:', error));
 }
 
@@ -186,6 +194,21 @@ export const updates = {
       setUpdate({ status: 'installFailed', update: found, error: sentence(error) });
     } finally {
       stop();
+    }
+  },
+
+  /**
+   * A phone's update: opens the release's APK in the browser, for Android
+   * to install once it's downloaded, and closes the dialog.
+   */
+  async download(): Promise<void> {
+    const { update } = current;
+    if (update.status !== 'available' && update.status !== 'installFailed') return;
+    try {
+      await command<void>('download_update');
+      setUpdate({ status: 'available', update: update.update, open: false });
+    } catch (error) {
+      setUpdate({ status: 'installFailed', update: update.update, error: sentence(error) });
     }
   },
 

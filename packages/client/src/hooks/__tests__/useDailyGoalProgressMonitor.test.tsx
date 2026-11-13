@@ -10,6 +10,7 @@ import { TaskSession, TimerState } from '../../types/timer';
 import { formatDateString } from '../../utils/dateHelpers';
 import { announceAppRecordsChange, fakeBackend, seedAppRecords } from '../../testing';
 import { readAppRecord } from '../../services/appRecords';
+import { noteGoalAlarm } from '../../utils/goalAlarms';
 
 const mockNotify = vi.hoisted(() => vi.fn(() => 'toast-1'));
 vi.mock('../../contexts/NotificationContext', () => ({
@@ -110,6 +111,21 @@ describe('useDailyGoalProgressMonitor', () => {
     );
 
     await waitFor(() => expect(result.current.goals.currentGoal?.lastNotifiedPercent).toBe(50));
+  });
+
+  it("records a milestone a phone's alarm announced without announcing it again", async () => {
+    storeGoal(100);
+    noteGoalAlarm(50, Date.now() - HOUR / 6, Date.now() - HOUR);
+    const { result } = renderHook(
+      () => ({
+        progress: useDailyGoalProgressMonitor({ sessions: runningFor(1), tasks }),
+        goals: useDailyGoals(),
+      }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.goals.currentGoal?.lastNotifiedPercent).toBe(50));
+    expect(mockNotify).not.toHaveBeenCalled();
   });
 
   it("saves today's target, and saves it again if it changes today", async () => {
