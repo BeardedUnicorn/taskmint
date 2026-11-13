@@ -8,6 +8,45 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.5.0 – 2026-11-13
+
+### Added
+
+- On Android, long-pressing TaskMint's icon offers shortcuts: Start for your three likeliest tasks (favourites first, then the ones you used last), Add time, and Payouts.
+- On Android, a short buzz as a timer starts or resumes, pauses or stops, as your phone's touch feedback setting allows. On a phone, the menu also opens with a swipe in from the left edge just above the bottom tabs (the rest of that edge stays Android's Back), and swipes shut.
+- On Android, the long-run reminder, the end-of-day summary and the daily goal's milestones arrive with TaskMint closed. The phone sets each as an alarm ahead of time, from a running timer: the summary already holds the day's figures, and each milestone goes off when the timer will have earned it. Pausing or stopping moves or takes them back. The long-run reminder now works on a phone too, with its hours set under Settings → Notifications.
+- On Android, a running timer shows in a notification: its task, its time counting up, and Pause (or Resume), Switch task and Stop buttons, which bring TaskMint forward as they act. Tapping it opens Sessions. It goes when the timer stops, and comes back after the phone restarts once you open TaskMint. Settings' "System notifications" switch turns it off, as does the phone's own setting for TaskMint's "Running timer" notifications.
+- The Android app checks for new releases at launch and once a day, as the desktop app does, with Settings → Updates and About to check now. Download opens the new version in your browser; open it once it's downloaded and Android updates TaskMint, keeping your data.
+- On Android, two home-screen widgets. Today shows today's money and time, your daily goal, and the running timer counting, with Pause, Resume or Start. Payouts shows the next withdrawal's amount, when it opens (or that it's open) and the next release. Each says when its figures were worked out: the timer counts on its own, and the figures refresh whenever TaskMint is open.
+- On a phone, a search button in the top bar opens the command palette, to jump to a page or setting or start a task by typing. Before, only ⌘K or Ctrl+K opened it, which a phone doesn't have.
+
+### Changed
+
+- On Android, TaskMint asks to send notifications when you first start work on the phone, set a withdrawal reminder or send a test notification, instead of over the launch screen before you've seen the app.
+- The Android app stays in portrait. Turned sideways, a phone used to get the desktop layout, with the clock drawn over the logo and details cut off.
+- History's charts show time or earnings, one at a time, with a Time | Earnings switch above them, instead of both on two scales in two similar greens. On a phone the bars run across with the task names beside them. The task pie uses colours that colour-blind readers can tell apart, keeps each task's colour as shares change, and puts tasks past the fifth into Other.
+- Tapping a notification opens the page it's about: Payouts for a withdrawal reminder or captured work logs, Home for the daily goal, History for the end-of-day summary, Sessions for a long run or an idle pause. On Android, notifications show the TaskMint leaf instead of a generic "i", and come in two groups, Reminders and Activity, which your phone's notification settings can silence or let pop up separately (Reminders pop up by default). That's also where Android now sets their sound, in place of Settings' "Play a sound" switch, which did nothing there.
+- On a phone, the Calendar lists the month week by week instead of squeezing the desktop's grid: each week shows its time and earnings, and each day with work, a release, a withdrawal or the next withdrawal's opening gets a row with its time, goal bar, amount and badges. Tapping a day opens its breakdown in place, with each task, release and withdrawal on its own line and Record withdrawal at hand. The month now comes before the next-withdrawal panel, and a day's screen-reader label says how it did against the daily goal.
+- On a phone, Settings opens as a list of its sections, and each opens on its own screen with a way back (Android's back too), instead of one very long page. In About, this version's notes fold away like the earlier ones, and open by themselves when you come from What's new.
+- On a phone, Payouts' upcoming releases, withdrawals and daily reconciliation, History's time entries and daily goal, and a task's own entries are lists of rows instead of tables that scrolled sideways and cut their last columns off. Each row shows what it is, its amount, and the rest underneath; tap a release to schedule a withdrawal, and Edit or Delete an entry or withdrawal from its ⋮ menu. History's entries sort from a Sort by menu. Dates read "Fri, Nov 13" rather than "2026-11-13".
+- On a phone, each task in the list has one ⋮ button for Edit, Archive (or Unarchive) and Delete, in place of three icons on every row.
+
+### Fixed
+
+- On Android, the back gesture no longer closes TaskMint from wherever you are. It closes the open dialog, menu, date picker or navigation menu first, then goes from a task back to the task list, then back to Home; from Home it leaves the app as before.
+- On Android, the tabs along the bottom, notices and full-screen dialogs keep clear of the gesture bar, instead of their labels running under its handle.
+- On Android, a dialog moves up above the on-screen keyboard, so its fields and its Save, Add or Cancel buttons stay in reach while you type. Before, the keyboard covered them in Add task, Import work logs, notes and the withdrawal note.
+- On Android, a scheduled withdrawal's reminder still arrives after the phone restarts, without opening TaskMint first. If it came due while the phone was off, it shows once the phone has started and been unlocked.
+- Times and dates read the same everywhere. A task's time entries and History's entries show clock times as the rest of the app does ("7:12 PM" rather than "19:12"), dates drop the leading zero ("Nov 7, 2026" rather than "Nov 07, 2026"), and a task's created time no longer reads "08:42 PM".
+- In light mode, mint-green text is now a darker green that reads on white: the figures on summary cards (Session time, This week), outlined task chips on Home, and the selected tab along the bottom of a phone's screen. They were too pale to read comfortably.
+- Settings → Notifications lists only what the device can send. On a phone and on the web, it no longer shows the long-run reminder, idle pauses, work logs from the browser or automatic backups, which only the desktop app sends. Its wording now fits the device, including where Android keeps TaskMint's notification settings.
+- On a phone, Payouts' third summary card (Estimated) takes the whole row instead of sitting alone beside an empty half.
+- On a phone, a session's buttons on Home and Sessions line up: Resume (or Pause) and Switch task share a row with the menu, and End Session runs across the card below them, instead of wrapping unevenly.
+- On a phone, the task list no longer paints the last task you opened in a bright green bar: the list and the task are separate screens there, so there's nothing beside it to mark.
+- Release notes in Settings → About show bold text in bold, instead of with the asterisks around it ("**Stop syncing**").
+- Switch task opens a dialog called "Switch task" instead of "Start Work".
+- The cloud sync line at the foot of a phone's menu is tall enough to tap comfortably.
+
 ## 4.4.1 – 2026-11-12
 
 No user-facing changes.
