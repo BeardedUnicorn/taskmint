@@ -39,7 +39,7 @@ describe('AboutSettingsSection', () => {
       release('2.1.0', '2026-11-08', {
         intro: ['A release with `code` in it.'],
         groups: [
-          { type: 'Added', items: ['Settings → About.', 'Another thing.'] },
+          { type: 'Added', items: ['Settings → About.', '**Stop syncing** is now **Sign out**.'] },
           { type: 'Fixed', items: ['A fix for `taskmint://` links.'] },
         ],
       }),
@@ -56,6 +56,10 @@ describe('AboutSettingsSection', () => {
     expect(screen.getByText('taskmint://').tagName).toBe('CODE');
     expect(screen.getByText('code').tagName).toBe('CODE');
     expect(screen.getByText(/A release with/)).toBeInTheDocument();
+    // The changelog's Markdown bold, without its asterisks
+    expect(screen.getByText('Stop syncing').tagName).toBe('STRONG');
+    expect(screen.getByText('Sign out').tagName).toBe('STRONG');
+    expect(screen.getByText(/is now/).textContent).toBe('Stop syncing is now Sign out.');
   });
 
   it('lists the earlier releases, collapsed until opened', () => {

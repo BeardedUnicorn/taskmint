@@ -2,7 +2,20 @@ import { Fragment } from 'react';
 import { Box, Typography } from '@mui/material';
 import type { ReleaseNotes as Release } from '../../../utils/changelog';
 
-/** A bullet's text, with `code` spans set in monospace. */
+/** Text with its **bold** spans in bold (the changelog's Markdown). */
+function Strong({ text }: { text: string }) {
+  return (
+    <>
+      {text
+        .split('**')
+        .map((part, index) =>
+          index % 2 === 1 ? <strong key={index}>{part}</strong> : <Fragment key={index}>{part}</Fragment>
+        )}
+    </>
+  );
+}
+
+/** A bullet's text, with `code` spans set in monospace and **bold** in bold. */
 function NoteText({ text }: { text: string }) {
   return (
     <>
@@ -12,7 +25,7 @@ function NoteText({ text }: { text: string }) {
             {part}
           </Box>
         ) : (
-          <Fragment key={index}>{part}</Fragment>
+          <Strong key={index} text={part} />
         )
       )}
     </>
