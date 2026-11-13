@@ -136,7 +136,8 @@ describe('ReleaseScheduleTable', () => {
       });
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
       const [held, line, both, estimate] = rows();
-      expect(held).toHaveTextContent('Mon, Nov 9, 12:00 PM$10.00$10.00 imported');
+      // All imported: the total, with no breakdown under it (the lock's title reads "Held")
+      expect(held).toHaveTextContent(/^HeldMon, Nov 9, 12:00 PM\$10\.00$/);
       expect(within(held).getByRole('img', { name: 'Held' })).toBeInTheDocument();
       expect(line).toHaveTextContent(`Withdrawals open ${OPENING}`);
       expect(both).toHaveTextContent('Wed, Nov 11, 9:00 AM$40.00$35.00 imported · ~$5.00 estimated');

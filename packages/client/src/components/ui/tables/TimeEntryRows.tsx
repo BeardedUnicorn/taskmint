@@ -2,7 +2,7 @@
  * Time entries as a phone's rows (History's and a task's own): the task or
  * the day, when it ran and for how long, what it earned, and Edit and Delete
  * behind ⋮. An imported entry is read-only (each import rebuilds it), so it
- * has a lock and a note instead.
+ * has a lock and its "Imported" mark instead.
  */
 
 import { Chip } from '@mui/material';
@@ -72,7 +72,6 @@ export function TimeEntryRows({
                 {source !== 'Tracked' && (
                   <Chip label={source} size="small" variant="outlined" color={isImported ? 'secondary' : 'default'} />
                 )}
-                {isImported && <span>Set by the work-log import; re-import to change it.</span>}
               </>
             }
             actions={

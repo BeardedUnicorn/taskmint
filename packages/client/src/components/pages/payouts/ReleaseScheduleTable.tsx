@@ -43,8 +43,12 @@ const LOCK_WIDTH = 20;
 const rowKey = (row: ReleaseScheduleRow, idx: number) =>
   row.releaseIso ?? `${row.releaseDay}-${row.releaseTime ?? ''}-${idx}`;
 
-/** "$633.34 imported · ~$80.00 estimated", leaving out what's none. */
+/**
+ * "$633.34 imported · ~$80.00 estimated" when part of a release is an
+ * estimate; nothing when it's all imported (the total says it).
+ */
 function releaseParts(row: ReleaseScheduleRow): string {
+  if (row.estimatedCents === 0) return '';
   return [
     row.actualCents > 0 && `${formatCurrency(centsToDollars(row.actualCents))} imported`,
     row.estimatedCents > 0 && `~${formatCurrency(centsToDollars(row.estimatedCents))} estimated`,
