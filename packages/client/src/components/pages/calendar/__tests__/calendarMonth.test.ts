@@ -5,7 +5,14 @@ import {
   createMockReleaseEvent,
   createMockWithdrawal,
 } from '../../../../__tests__/setup/payout-test-utils';
-import { buildCalendarMonth, CalendarMonthInput, cellTimeMs } from '../calendarMonth';
+import {
+  buildCalendarMonth,
+  buildDayBreakdown,
+  CalendarMonthInput,
+  cellTimeMs,
+  dayGoalPercent,
+  dayHasActivity,
+} from '../calendarMonth';
 
 const NOW = new Date(2026, 10, 7, 12, 0).getTime();
 
@@ -145,5 +152,71 @@ describe('buildCalendarMonth', () => {
     const view = buildCalendarMonth('2026-11', input({ cells: [cell({ actualCents: 0, trackedMs: 60_000 })] }));
     expect(view.summary.daysWorked).toBe(1);
     expect(buildCalendarMonth('2026-11', input()).isEmpty).toBe(true);
+  });
+});
+
+describe('buildDayBreakdown', () => {
+  it("collects the day's work, releases, withdrawals and the opening", () => {
+    const morning = createMockWithdrawal({ id: 'morning', takenAt: new Date(2026, 10, 10, 9).toISOString() });
+    const plan = createMockPlan({ opensAtMs: new Date(2026, 10, 10, 18, 25).getTime() });
+    const breakdown = buildDayBreakdown('2026-11-10', {
+      cells: [
+        cell({ workDay: '2026-11-10', taskId: 'worked' }),
+        cell({ workDay: '2026-11-10', taskId: 'time-only', actualCents: 0, importedMinutes: 0, trackedMs: 60_000 }),
+        cell({ workDay: '2026-11-10', taskId: 'estimate', actualCents: 0, importedMinutes: 0, estimatedCents: 500 }),
+        cell({ workDay: '2026-11-10', taskId: 'empty', actualCents: 0, importedMinutes: 0 }),
+        cell({ workDay: '2026-11-09', taskId: 'other-day' }),
+      ],
+      events: [createMockReleaseEvent(), createMockReleaseEvent({ releaseMs: new Date(2026, 10, 11, 1).getTime() })],
+      withdrawals: [morning, createMockWithdrawal({ id: 'other', takenAt: new Date(2026, 10, 9).toISOString() })],
+      plan,
+    });
+    expect(breakdown.worked.map(c => c.taskId)).toEqual(['worked', 'time-only', 'estimate']);
+    expect(breakdown.released).toHaveLength(1);
+    expect(breakdown.withdrawn).toEqual([morning]);
+    expect(breakdown.opening).toBe(plan);
+  });
+
+  it('has no opening on another day, or once withdrawals are open', () => {
+    const empty = { cells: [], events: [], withdrawals: [] };
+    const opensAtMs = new Date(2026, 10, 10, 18, 25).getTime();
+    expect(buildDayBreakdown('2026-11-09', { ...empty, plan: createMockPlan({ opensAtMs }) }).opening).toBeNull();
+    expect(
+      buildDayBreakdown('2026-11-10', { ...empty, plan: createMockPlan({ opensAtMs, isOpen: true }) }).opening
+    ).toBeNull();
+    expect(buildDayBreakdown('2026-11-10', { ...empty, plan: null }).opening).toBeNull();
+  });
+});
+
+describe('a day at a glance', () => {
+  const view = buildCalendarMonth(
+    '2026-11',
+    input({
+      cells: [cell({ workDay: '2026-11-05' }), cell({ workDay: '2026-11-06', actualCents: 0, trackedMs: 60_000 })],
+      events: [createMockReleaseEvent()],
+      withdrawals: [createMockWithdrawal({ takenAt: new Date(2026, 10, 12).toISOString() })],
+      plan: createMockPlan({ opensAtMs: new Date(2026, 10, 14, 18).getTime() }),
+      goalFor: date => (date === '2026-11-05' || date === '2026-11-08' ? 400 : null),
+    })
+  );
+
+  it('knows which days have anything on them', () => {
+    const active = view.weeks
+      .flatMap(week => week.days)
+      .filter(dayHasActivity)
+      .map(d => d.date);
+    expect(active).toEqual(['2026-11-05', '2026-11-06', '2026-11-10', '2026-11-12', '2026-11-14']);
+  });
+
+  it("gives a worked day's share of its goal, uncapped", () => {
+    expect(dayGoalPercent(day(view, '2026-11-05'))).toBeCloseTo(158.335);
+    // A goal but no work, and work but no goal
+    expect(dayGoalPercent(day(view, '2026-11-08'))).toBeNull();
+    expect(dayGoalPercent(day(view, '2026-11-06'))).toBeNull();
+  });
+
+  it('marks today as open when withdrawals are open', () => {
+    const open = buildCalendarMonth('2026-11', input({ plan: createMockPlan({ opensAtMs: NOW, isOpen: true }) }));
+    expect(dayHasActivity(day(open, '2026-11-07'))).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import { BottomNavigation, BottomNavigationAction, Paper } from '@mui/material';
 import { VIEW_LABELS, type SidebarView } from '../../navigation/views';
-import { BOTTOM_BAR_HEIGHT } from '../../theme/media';
+import { BOTTOM_BAR_HEIGHT, SAFE_BOTTOM } from '../../theme/media';
 import { VIEW_ICONS } from './Sidebar';
 
 /** The pages a phone keeps a thumb's reach away; the top bar's menu has the rest. */
@@ -28,7 +28,7 @@ export function BottomNavBar({ activeView, onViewChange }: BottomNavBarProps) {
         borderTop: 1,
         borderColor: 'divider',
         // Clear of the gesture bar on an edge-to-edge screen
-        pb: 'env(safe-area-inset-bottom)',
+        pb: SAFE_BOTTOM,
       }}
     >
       <BottomNavigation

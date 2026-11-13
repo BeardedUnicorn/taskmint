@@ -108,6 +108,20 @@ export interface TrayPlatform {
 export interface SystemBarsPlatform {
   /** Draws the clock and icons to read on this theme. */
   setTheme(theme: 'light' | 'dark'): void;
+  /**
+   * How much of the screen's bottom (CSS px) the navigation bar or gesture
+   * area covers. The app draws under it too, and the webview doesn't report
+   * it to CSS (env(safe-area-inset-bottom) is 0).
+   */
+  bottomInset(): number;
+  /**
+   * How much of the screen's bottom (CSS px) the on-screen keyboard covers,
+   * 0 while it's down. Older webviews don't shrink the visual viewport for
+   * it.
+   */
+  keyboardInset(): number;
+  /** Calls `listener` when either inset changes. Returns a function that stops it. */
+  onInsetsChange(listener: () => void): () => void;
 }
 
 /**
@@ -117,6 +131,18 @@ export interface SystemBarsPlatform {
 export interface SplashScreenPlatform {
   /** The app is on screen: the launch screen fades out. Later calls do nothing. */
   hide(): void;
+}
+
+/**
+ * A phone's back gesture and button (Android). Left to itself, Android's
+ * back leaves the app from any page, even with a dialog open; the app takes
+ * it over to close what's open and step back first.
+ */
+export interface BackButtonPlatform {
+  /** Calls `handler` on each press, in place of Android's own back. Resolves to a function that stops it. */
+  listen(handler: () => void): Promise<() => void>;
+  /** Sends the app to the background, as back does from an app's first screen. */
+  leaveApp(): void;
 }
 
 /** Usage analytics (Firebase Analytics): the web app's, and Android's native SDK. */
@@ -135,6 +161,7 @@ export interface Platform {
   tray?: TrayPlatform;
   systemBars?: SystemBarsPlatform;
   splashScreen?: SplashScreenPlatform;
+  backButton?: BackButtonPlatform;
   /** Shows a file the app just wrote in the file manager. */
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */

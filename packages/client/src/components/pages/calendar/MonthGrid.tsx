@@ -9,13 +9,11 @@
 import { KeyboardEvent, useEffect, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import dayjs from 'dayjs';
-import { formatCents } from '../../../utils/payoutCalculator';
 import { formatDurationCompact } from '../../../utils/formatters';
-import { formatShortDate, formattingLocale } from '../../../utils/locale';
-import { parseDateStringLocal } from '../../../utils/dateHelpers';
+import { formattingLocale } from '../../../utils/locale';
 import { CalendarMonth, CalendarWeek } from './calendarMonth';
+import { describeWeek, earnedText } from './calendarText';
 import { DayCell } from './DayCell';
-import { PHONE } from '../../../theme/media';
 
 /** The grid is wide enough for a column of week totals. */
 export const WITH_WEEKS = '@container calendar (min-width: 820px)';
@@ -50,14 +48,10 @@ export function keyTarget(key: string, date: string): string | null {
 
 function WeekTotal({ week }: { week: CalendarWeek }) {
   const worked = week.earnedCents > 0 || week.timeMs > 0;
-  const amount = `${week.estimatedCents > 0 ? '~' : ''}${formatCents(week.earnedCents)}`;
-  const label = `Week of ${formatShortDate(parseDateStringLocal(week.days[0].date))}: ${
-    worked ? `${formatDurationCompact(week.timeMs)}, ${amount}` : 'nothing tracked'
-  }`;
   return (
     <Box
       role="gridcell"
-      aria-label={label}
+      aria-label={describeWeek(week)}
       sx={{
         display: 'none',
         [WITH_WEEKS]: { display: 'flex' },
@@ -72,7 +66,7 @@ function WeekTotal({ week }: { week: CalendarWeek }) {
       {worked && (
         <>
           <Typography sx={{ fontFamily: '"Roboto Mono", monospace', fontWeight: 700, fontSize: '0.9rem' }}>
-            {amount}
+            {earnedText(week)}
           </Typography>
           <Typography variant="caption" color="text.secondary">
             {formatDurationCompact(week.timeMs)}
@@ -135,7 +129,6 @@ export function MonthGrid({ view, focusedDate, onFocusDate, onMonthChange, onOpe
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.06em',
-                [PHONE]: { px: 0, letterSpacing: 0, textAlign: 'center', fontSize: '0.65rem' },
               }}
             >
               {weekdayName(index)}

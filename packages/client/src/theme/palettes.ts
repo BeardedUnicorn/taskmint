@@ -13,6 +13,9 @@ export const BRAND = '#65D6A1';
 /** Brand-green text that reads on a light surface. */
 export const BRAND_TEXT_LIGHT = '#1F6F4A';
 
+/** Brand-green text (a figure, a selected tab's label) that reads on the mode's surfaces. */
+export const brandText = (mode: ColorMode) => (mode === 'light' ? BRAND_TEXT_LIGHT : BRAND);
+
 const brand = {
   primary: { main: BRAND, dark: '#4CAF50', light: '#B2DFDB' },
   secondary: { main: '#0D7377', dark: '#004D40', light: '#4DB6AC' },

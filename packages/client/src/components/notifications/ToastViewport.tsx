@@ -17,7 +17,7 @@ import {
 } from '@mui/icons-material';
 import type { Toast as ToastModel, HoldReason } from '../../notifications/store';
 import type { NotificationAction, Severity } from '../../notifications/types';
-import { BOTTOM_BAR_HEIGHT, PHONE } from '../../theme/media';
+import { BOTTOM_BAR_HEIGHT, PHONE, SAFE_BOTTOM } from '../../theme/media';
 
 const ICONS: Record<Severity, typeof InfoOutlined> = {
   success: CheckCircleOutlined,
@@ -151,8 +151,8 @@ export function ToastViewport({ toasts, ...handlers }: ToastViewportProps) {
         right: 16,
         // Above the gesture bar on an edge-to-edge phone screen, and above
         // a phone's bottom bar
-        bottom: 'calc(16px + env(safe-area-inset-bottom))',
-        [PHONE]: { bottom: `calc(16px + ${BOTTOM_BAR_HEIGHT}px + env(safe-area-inset-bottom))` },
+        bottom: `calc(16px + ${SAFE_BOTTOM})`,
+        [PHONE]: { bottom: `calc(16px + ${BOTTOM_BAR_HEIGHT}px + ${SAFE_BOTTOM})` },
         zIndex: theme => theme.zIndex.snackbar,
         alignItems: 'flex-end',
         // The empty area between toasts mustn't swallow clicks

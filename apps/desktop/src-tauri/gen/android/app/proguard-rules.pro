@@ -21,6 +21,10 @@
 -keepclassmembers class com.taskmint.android.MainActivity$Analytics {
    @android.webkit.JavascriptInterface public <methods>;
 }
+# and leaving the app from Home on back (window.TaskMintApp)
+-keepclassmembers class com.taskmint.android.MainActivity$AppTask {
+   @android.webkit.JavascriptInterface public <methods>;
+}
 # Credential Manager finds its Play services provider by reflection
 -if class androidx.credentials.CredentialManager
 -keep class androidx.credentials.playservices.** {

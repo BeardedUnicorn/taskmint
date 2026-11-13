@@ -15,3 +15,11 @@ export const HOVER = '@media (hover: hover)';
 
 /** The phone's bottom bar of tabs (MUI's BottomNavigation height), above the gesture bar's inset. */
 export const BOTTOM_BAR_HEIGHT = 56;
+
+/**
+ * The room to leave along the bottom for a phone's navigation bar or gesture
+ * area, which the app draws under. Android's webview reports none for it in
+ * env(safe-area-inset-bottom), so the app also sets --system-bottom-inset
+ * from what Android says (useSystemBottomInset).
+ */
+export const SAFE_BOTTOM = 'max(env(safe-area-inset-bottom, 0px), var(--system-bottom-inset, 0px))';

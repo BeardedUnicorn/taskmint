@@ -12,9 +12,10 @@
  * out, as it does in a browser. Its notifications can also be set for later,
  * as alarms the system shows with the app closed. On Android it also has the
  * status bar, which MainActivity.kt hands the webview directly, outside
- * dispatch.
+ * dispatch, and the back button (Tauri's app plugin).
  */
 
+import { onBackButtonPress } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { CORE_ERRORS, type CommandName, type CommandReply } from '@taskmint/contracts';
@@ -127,7 +128,21 @@ const desktopOnly: Omit<Platform, 'files' | 'notifications'> = {
 interface AndroidSystemBars {
   /** 'light' or 'dark': the status bar's icons then read on that theme. */
   setTheme(theme: string): void;
+  /** The navigation bar or gesture area's height along the bottom, in dp (CSS px). */
+  bottomInset(): number;
+  /** The keyboard's height from the screen's bottom, in dp (0 while it's down). */
+  keyboardInset(): number;
 }
+
+declare global {
+  interface Window {
+    /** MainActivity calls it when the bottom insets change. */
+    __taskmintInsets?: () => void;
+  }
+}
+
+/** What listens for MainActivity's inset changes. */
+const insetListeners = new Set<() => void>();
 
 /** What Android's MainActivity.kt adds for its launch screen. */
 interface AndroidSplash {
@@ -153,13 +168,53 @@ function analytics(): Pick<Platform, 'analytics'> {
 function systemBars(): Pick<Platform, 'systemBars'> {
   const android = (window as { TaskMintSystemBars?: AndroidSystemBars }).TaskMintSystemBars;
   // Called on the bridge itself: Android refuses a method taken off it
-  return android ? { systemBars: { setTheme: theme => android.setTheme(theme) } } : {};
+  if (!android) return {};
+  return {
+    systemBars: {
+      setTheme: theme => android.setTheme(theme),
+      bottomInset: () => android.bottomInset(),
+      keyboardInset: () => android.keyboardInset(),
+      onInsetsChange: listener => {
+        insetListeners.add(listener);
+        window.__taskmintInsets = () => {
+          for (const each of [...insetListeners]) each();
+        };
+        return () => {
+          insetListeners.delete(listener);
+        };
+      },
+    },
+  };
 }
 
 /** The launch screen on Android; the desktop has none. */
 function splashScreen(): Pick<Platform, 'splashScreen'> {
   const android = (window as { TaskMintSplash?: AndroidSplash }).TaskMintSplash;
   return android ? { splashScreen: { hide: () => android.hide() } } : {};
+}
+
+/** What Android's MainActivity.kt adds for leaving the app from its first screen. */
+interface AndroidAppTask {
+  /** Puts the app in the background (Activity.moveTaskToBack). */
+  moveToBack(): void;
+}
+
+/**
+ * Android's back button: Tauri's app plugin hands each press to the page
+ * while it listens, and MainActivity.kt sends the app to the background.
+ */
+function backButton(): Pick<Platform, 'backButton'> {
+  const android = (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp;
+  if (!android) return {};
+  return {
+    backButton: {
+      listen: async handler => {
+        const listener = await onBackButtonPress(() => handler());
+        return () => void listener.unregister();
+      },
+      leaveApp: () => android.moveToBack(),
+    },
+  };
 }
 
 /** The "Desktop app" OAuth client Google sign-in uses (the build's VITE_GOOGLE_DESKTOP_CLIENT_*). */
@@ -214,7 +269,7 @@ export function createTauriBackend(capabilities: Capabilities, google?: GoogleDe
     platform: {
       ...everywhere,
       ...(capabilities.runtime === 'mobile'
-        ? { notifications: phoneNotifications, ...systemBars(), ...splashScreen(), ...analytics() }
+        ? { notifications: phoneNotifications, ...systemBars(), ...splashScreen(), ...backButton(), ...analytics() }
         : desktopOnly),
       ...googleSignIn(capabilities.runtime, google),
     },

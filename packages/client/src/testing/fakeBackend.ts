@@ -4,12 +4,15 @@
  * with nothing in it: commands resolve to undefined, dialogs are cancelled,
  * no OS notification shows (nor is any set for later), and every optional
  * platform feature is present (pass `without` to leave some out;
- * `laterNotifications` is notifications' schedule and cancel).
+ * `laterNotifications` is notifications' schedule and cancel). `pressBack`
+ * is Android's back gesture, and `changeInsets` its keyboard or navigation
+ * bar changing.
  */
 
 import { vi, type Mock } from 'vitest';
 import type {
   AnalyticsPlatform,
+  BackButtonPlatform,
   Backend,
   Capabilities,
   FilePlatform,
@@ -35,6 +38,7 @@ export interface FakePlatform extends Platform {
   tray: Mocked<TrayPlatform>;
   systemBars: Mocked<SystemBarsPlatform>;
   splashScreen: Mocked<SplashScreenPlatform>;
+  backButton: Mocked<BackButtonPlatform>;
   reveal: Mock<(path: string) => Promise<void>>;
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
   googleSignIn: Mock<(theme: 'light' | 'dark') => Promise<string>>;
@@ -59,6 +63,10 @@ export interface FakeBackend extends Omit<Backend, 'call' | 'subscribe'> {
   emit(event: string, payload?: unknown): void;
   /** How many handlers listen to `event` now. */
   listenerCount(event: string): number;
+  /** Presses Android's back: calls what listens to the back button now. */
+  pressBack(): void;
+  /** The system bars' insets changed (the keyboard came up, say): tells what listens. */
+  changeInsets(): void;
 }
 
 export interface FakeBackendOptions {
@@ -70,6 +78,7 @@ export interface FakeBackendOptions {
     | 'tray'
     | 'systemBars'
     | 'splashScreen'
+    | 'backButton'
     | 'reveal'
     | 'captureStatus'
     | 'googleSignIn'
@@ -83,6 +92,8 @@ export interface FakeBackendOptions {
 
 export function createFakeBackend({ capabilities, without = [] }: FakeBackendOptions = {}): FakeBackend {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
+  const backHandlers = new Set<() => void>();
+  const insetListeners = new Set<() => void>();
 
   const platform: FakePlatform = {
     files: {
@@ -114,9 +125,26 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     },
     systemBars: {
       setTheme: vi.fn(),
+      bottomInset: vi.fn(() => 0),
+      keyboardInset: vi.fn(() => 0),
+      onInsetsChange: vi.fn((listener: () => void) => {
+        insetListeners.add(listener);
+        return () => {
+          insetListeners.delete(listener);
+        };
+      }),
     },
     splashScreen: {
       hide: vi.fn(),
+    },
+    backButton: {
+      listen: vi.fn(async (handler: () => void) => {
+        backHandlers.add(handler);
+        return () => {
+          backHandlers.delete(handler);
+        };
+      }),
+      leaveApp: vi.fn(),
     },
     reveal: vi.fn(async () => undefined),
     captureStatus: vi.fn(async () => ({ running: true, port: 43117, warning: null })),
@@ -161,6 +189,12 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     },
     listenerCount(event) {
       return listeners.get(event)?.size ?? 0;
+    },
+    pressBack() {
+      for (const handler of [...backHandlers]) handler();
+    },
+    changeInsets() {
+      for (const listener of [...insetListeners]) listener();
     },
   };
 }

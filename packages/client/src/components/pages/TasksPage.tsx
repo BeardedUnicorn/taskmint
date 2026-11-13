@@ -14,6 +14,7 @@ import { EditTimeEntryData } from '../../types/form';
 import { getEntryElapsedMs } from '../../utils/timerHelpers';
 import { findTaskFor } from '../../utils/earnings';
 import { useCompactLayout } from '../../hooks/useCompactLayout';
+import { useBackStep } from '../../navigation/backButton';
 import { PHONE } from '../../theme/media';
 
 interface TasksPageProps {
@@ -74,6 +75,8 @@ export function TasksPage({
   const compact = useCompactLayout();
   const [phoneDetailOpen, setPhoneDetailOpen] = useState(false);
   const phoneShowsDetail = phoneDetailOpen && selectedTask !== null;
+  // Android's back from a task goes back to the list
+  useBackStep(compact && phoneShowsDetail, () => setPhoneDetailOpen(false));
 
   useEffect(() => {
     if (!newTaskRequested) return;
@@ -194,7 +197,8 @@ export function TasksPage({
           >
             <TaskListPane
               tasks={tasks}
-              selectedTask={selectedTask}
+              // On a phone the list and the task are separate screens, so the list marks none
+              selectedTask={compact ? null : selectedTask}
               onSelectTask={handleSelectTask}
               onAddClick={handleAddTaskClick}
               onEditTask={setEditingTask}

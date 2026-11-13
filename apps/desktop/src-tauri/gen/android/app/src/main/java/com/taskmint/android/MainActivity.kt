@@ -8,7 +8,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.splashscreen.SplashScreenViewProvider
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.credentials.CredentialManager
 import androidx.credentials.CredentialManagerCallback
 import androidx.credentials.GetCredentialRequest
@@ -30,11 +32,35 @@ class MainActivity : TauriActivity() {
   /** The theme the page last gave the status bar (SystemBars); light icons on the launch screen's teal until then. */
   private var barsTheme = "dark"
 
+  /**
+   * What covers the bottom of the app, in dp (the page's CSS px): the
+   * navigation bar or gesture area, and the on-screen keyboard while it's up
+   * (from the screen's bottom edge, so over the navigation bar). The app
+   * draws under both (edge to edge), and the webview doesn't say so to the
+   * page (env(safe-area-inset-bottom) is 0, and older webviews don't shrink
+   * the visual viewport for the keyboard), so the page asks (SystemBars) and
+   * hears of each change (window.__taskmintInsets).
+   */
+  @Volatile private var bottomInsetDp = 0f
+  @Volatile private var keyboardInsetDp = 0f
+
   override fun onCreate(savedInstanceState: Bundle?) {
     val splashScreen = installSplashScreen()
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     applyBarsTheme()
+    ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
+      val density = resources.displayMetrics.density
+      val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / density
+      val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom / density
+      if (bottom != bottomInsetDp || keyboard != keyboardInsetDp) {
+        bottomInsetDp = bottom
+        keyboardInsetDp = keyboard
+        webView?.evaluateJavascript("window.__taskmintInsets && window.__taskmintInsets()", null)
+      }
+      // The decor view still lays itself and the webview out as before
+      ViewCompat.onApplyWindowInsets(view, insets)
+    }
 
     // The launch screen (Theme.taskmint.Starting) would go with the first
     // frame, long before the webview has anything to show. It stays until the
@@ -80,6 +106,7 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(SystemBars(), "TaskMintSystemBars")
     webView.addJavascriptInterface(GoogleSignIn(), "TaskMintGoogleSignIn")
     webView.addJavascriptInterface(Analytics(), "TaskMintAnalytics")
+    webView.addJavascriptInterface(AppTask(), "TaskMintApp")
   }
 
   /**
@@ -108,6 +135,27 @@ class MainActivity : TauriActivity() {
         barsTheme = theme
         if (splash == null) applyBarsTheme()
       }
+    }
+
+    /** The navigation bar's inset, in CSS px, for the page to keep its tabs and dialogs clear of. */
+    @JavascriptInterface
+    fun bottomInset(): Float = bottomInsetDp
+
+    /** The keyboard's height from the screen's bottom, in CSS px (0 while it's down), for dialogs to sit above. */
+    @JavascriptInterface
+    fun keyboardInset(): Float = keyboardInsetDp
+  }
+
+  /**
+   * Back on the app's first screen. The page takes over Android's back
+   * (Tauri's onBackButtonPress) to close dialogs and step back to Home, so
+   * from Home it asks for what back does there by default: the app goes to
+   * the background, still running, as on any first screen.
+   */
+  private inner class AppTask {
+    @JavascriptInterface
+    fun moveToBack() {
+      runOnUiThread { moveTaskToBack(true) }
     }
   }
 

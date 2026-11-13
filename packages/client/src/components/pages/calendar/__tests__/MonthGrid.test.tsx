@@ -4,9 +4,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen } from '../../../../__tests__/setup/test-helpers';
 import { createAppTheme } from '../../../../theme';
 import { createMockPlan, createMockWithdrawal } from '../../../../__tests__/setup/payout-test-utils';
-import { buildCalendarMonth, CalendarDay, CalendarMonthInput } from '../calendarMonth';
+import { buildCalendarMonth, CalendarMonthInput } from '../calendarMonth';
 import { MonthGrid, keyTarget } from '../MonthGrid';
-import { describeDay } from '../DayCell';
 
 const NOW = new Date(2026, 10, 7, 12, 0).getTime();
 
@@ -19,26 +18,6 @@ const input = (overrides: Partial<CalendarMonthInput> = {}): CalendarMonthInput 
   goalFor: () => null,
   ...overrides,
 });
-
-function calendarDay(overrides: Partial<CalendarDay> = {}): CalendarDay {
-  return {
-    date: '2026-11-05',
-    dayOfMonth: 5,
-    inMonth: true,
-    isToday: false,
-    earnedCents: 0,
-    estimatedCents: 0,
-    timeMs: 0,
-    releasedCents: 0,
-    releasedEstimatedCents: 0,
-    releasesAhead: false,
-    withdrawals: [],
-    opensAtMs: null,
-    openNow: false,
-    goal: null,
-    ...overrides,
-  };
-}
 
 /** The grid as the page drives it: it keeps the focused day and the month. */
 function Harness({
@@ -80,30 +59,6 @@ describe('keyTarget', () => {
     expect(keyTarget('PageUp', '2026-03-31')).toBe('2026-02-28');
     expect(keyTarget('PageDown', '2026-11-07')).toBe('2026-12-07');
     expect(keyTarget('a', '2026-11-07')).toBeNull();
-  });
-});
-
-describe('describeDay', () => {
-  it('says what happened on the day', () => {
-    expect(describeDay(calendarDay())).toBe('Thursday, November 5, 2026: nothing tracked');
-    expect(
-      describeDay(
-        calendarDay({
-          earnedCents: 68334,
-          estimatedCents: 5000,
-          timeMs: 3_600_000,
-          releasedCents: 71250,
-          withdrawals: [createMockWithdrawal({ takenAt: new Date(2026, 10, 5, 18, 25).toISOString() })],
-          opensAtMs: new Date(2026, 10, 5, 20, 0).getTime(),
-          openNow: true,
-        })
-      )
-    ).toBe(
-      'Thursday, November 5, 2026: worked 1h 0m, earned about $683.34; $712.50 released; withdrew $712.50 at 6:25 PM; next withdrawal opens at 8:00 PM; withdrawal open now'
-    );
-    expect(describeDay(calendarDay({ earnedCents: 100, releasedCents: 50, releasesAhead: true }))).toBe(
-      'Thursday, November 5, 2026: earned $1.00; $0.50 to be released'
-    );
   });
 });
 

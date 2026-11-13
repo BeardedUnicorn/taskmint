@@ -1,10 +1,13 @@
 import { Card, CardContent, Typography, Box } from '@mui/material';
+import { Theme } from '@mui/material/styles';
 import { StatsCardProps } from '../../../types/ui';
 import { PHONE } from '../../../theme/media';
+import { brandText } from '../../../theme/palettes';
 
 /** A headline figure (already formatted) with its title, a note under it, and an icon. */
 export function StatsCard({ title, value, subtitle, icon, color }: StatsCardProps) {
-  const tint = `${color}.main`;
+  // The brand green is too light for a figure on white: its darker text shade there
+  const tint = (theme: Theme) => (color === 'primary' ? brandText(theme.palette.mode) : theme.palette[color].main);
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Two to a row on a phone: tighter, without the icon */}
@@ -16,13 +19,13 @@ export function StatsCard({ title, value, subtitle, icon, color }: StatsCardProp
             <Typography
               variant="h4"
               component="div"
-              sx={{
-                color: tint,
+              sx={theme => ({
+                color: tint(theme),
                 fontWeight: 700,
                 mb: 0.5,
                 fontFamily: '"Roboto Mono", monospace',
                 [PHONE]: { fontSize: '1.25rem' },
-              }}
+              })}
             >
               {value}
             </Typography>
@@ -33,7 +36,7 @@ export function StatsCard({ title, value, subtitle, icon, color }: StatsCardProp
               {subtitle}
             </Typography>
           </Box>
-          <Box sx={{ color: tint, opacity: 0.7, ml: 2, [PHONE]: { display: 'none' } }}>{icon}</Box>
+          <Box sx={theme => ({ color: tint(theme), opacity: 0.7, ml: 2, [PHONE]: { display: 'none' } })}>{icon}</Box>
         </Box>
       </CardContent>
     </Card>

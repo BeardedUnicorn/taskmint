@@ -26,7 +26,7 @@ import {
 } from '@mui/icons-material';
 
 import { VIEWS, VIEW_LABELS, type SidebarView } from '../../navigation/views';
-import { HOVER } from '../../theme/media';
+import { HOVER, SAFE_BOTTOM } from '../../theme/media';
 import { Wordmark } from '../ui/display/Wordmark';
 
 export type { SidebarView };
@@ -93,7 +93,7 @@ export function Sidebar({
                   width: SIDEBAR_WIDTH,
                   maxWidth: 'calc(100vw - 56px)',
                   pt: 'env(safe-area-inset-top)',
-                  pb: 'env(safe-area-inset-bottom)',
+                  pb: SAFE_BOTTOM,
                   backgroundColor: 'background.paper',
                 },
               },

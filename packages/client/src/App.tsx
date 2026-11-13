@@ -35,6 +35,8 @@ import { useTrayWithdrawalLabel } from './hooks/useTrayWithdrawalLabel';
 import { useWithdrawalReminder } from './hooks/useWithdrawalReminder';
 import { usePayoutForecastPublisher } from './hooks/usePayoutForecastPublisher';
 import { useSystemBarsTheme } from './hooks/useSystemBarsTheme';
+import { useSystemBottomInset } from './hooks/useSystemBottomInset';
+import { SAFE_BOTTOM } from './theme/media';
 import { useAnalyticsScreens } from './utils/analytics';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
@@ -42,6 +44,8 @@ import { PAGES } from './app/routes';
 import { useAppExtensions } from './app/extensions';
 import { useCompactLayout } from './hooks/useCompactLayout';
 import { VIEW_LABELS } from './navigation/views';
+import { useBackButton } from './navigation/backButton';
+import { useKeyboardInset } from './hooks/useKeyboardInset';
 
 /**
  * Work that runs whatever page is open: the tray's "Choose Task…", saying
@@ -58,6 +62,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
   useWithdrawalReminder();
   usePayoutForecastPublisher();
   useSystemBarsTheme();
+  useSystemBottomInset();
   useRecordConflictNotice();
   useUpdatedNotice();
   useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });
@@ -78,7 +83,7 @@ function GlobalDialogs({
   onCloseAddTime: () => void;
 }) {
   const { navigate } = useNavigation();
-  const { sessions, startTask, addManualTime } = useSessionManagementContext();
+  const { sessions, activeSession, startTask, addManualTime } = useSessionManagementContext();
   const { tasks } = useTaskManagementContext();
   const { Background } = useAppExtensions();
   // Idle detection runs in the backend; this sends it the saved settings and
@@ -94,6 +99,7 @@ function GlobalDialogs({
           sessions={sessions}
           onStart={startTask}
           onAddTask={() => navigate('tasks')}
+          switching={Boolean(activeSession)}
         />
       )}
       <IdleReturnDialog
@@ -131,6 +137,10 @@ function AppContent() {
   const { view: activeView, visit, navigate } = useNavigation();
   const { activeTasks } = useTaskManagementContext();
   const compact = useCompactLayout();
+  // Android's back closes what's open, then steps back toward Home
+  useBackButton();
+  // Dialogs sit above the on-screen keyboard
+  useKeyboardInset();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const openNavigation = useCallback(() => setNavigationOpen(true), []);
   const closeNavigation = useCallback(() => setNavigationOpen(false), []);
@@ -210,11 +220,7 @@ function AppContent() {
           {compact && <CompactTopBar title={VIEW_LABELS[activeView]} onOpenNavigation={openNavigation} />}
           {/* Clear of the gesture bar on an edge-to-edge phone screen (a
               phone's bottom bar keeps clear of it itself) */}
-          <Box
-            component="main"
-            ref={scrollerRef}
-            sx={{ flex: 1, overflow: 'auto', pb: compact ? 0 : 'env(safe-area-inset-bottom)' }}
-          >
+          <Box component="main" ref={scrollerRef} sx={{ flex: 1, overflow: 'auto', pb: compact ? 0 : SAFE_BOTTOM }}>
             {page}
           </Box>
           {compact && <BottomNavBar activeView={activeView} onViewChange={navigate} />}

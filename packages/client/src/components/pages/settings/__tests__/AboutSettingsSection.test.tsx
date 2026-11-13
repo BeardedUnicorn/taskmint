@@ -39,7 +39,7 @@ describe('AboutSettingsSection', () => {
       release('2.1.0', '2026-11-08', {
         intro: ['A release with `code` in it.'],
         groups: [
-          { type: 'Added', items: ['Settings → About.', 'Another thing.'] },
+          { type: 'Added', items: ['Settings → About.', '**Stop syncing** is now **Sign out**.'] },
           { type: 'Fixed', items: ['A fix for `taskmint://` links.'] },
         ],
       }),
@@ -48,7 +48,7 @@ describe('AboutSettingsSection', () => {
     render(<AboutSettingsSection />);
 
     expect(screen.getByText('TaskMint 2.1.0')).toBeInTheDocument();
-    expect(screen.getByText('Released Nov 08, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Released Nov 8, 2026')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: "What's new in 2.1.0" })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Added' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Fixed' })).toBeInTheDocument();
@@ -56,6 +56,10 @@ describe('AboutSettingsSection', () => {
     expect(screen.getByText('taskmint://').tagName).toBe('CODE');
     expect(screen.getByText('code').tagName).toBe('CODE');
     expect(screen.getByText(/A release with/)).toBeInTheDocument();
+    // The changelog's Markdown bold, without its asterisks
+    expect(screen.getByText('Stop syncing').tagName).toBe('STRONG');
+    expect(screen.getByText('Sign out').tagName).toBe('STRONG');
+    expect(screen.getByText(/is now/).textContent).toBe('Stop syncing is now Sign out.');
   });
 
   it('lists the earlier releases, collapsed until opened', () => {
@@ -68,7 +72,7 @@ describe('AboutSettingsSection', () => {
 
     expect(screen.getByRole('heading', { name: 'Earlier releases' })).toBeInTheDocument();
     const older = screen.getByRole('button', { name: /^2\.0\.0/ });
-    expect(older).toHaveTextContent('Nov 07, 2026');
+    expect(older).toHaveTextContent('Nov 7, 2026');
     expect(older).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(older);
     expect(older).toHaveAttribute('aria-expanded', 'true');
@@ -124,6 +128,6 @@ describe('AboutSettingsSection', () => {
       </NavigationProvider>
     );
     fireEvent.click(screen.getByRole('button', { name: 'About TaskMint…' }));
-    expect(screen.getByRole('dialog', { name: 'TaskMint' })).toHaveTextContent('Version 2.1.0 · Released Nov 08, 2026');
+    expect(screen.getByRole('dialog', { name: 'TaskMint' })).toHaveTextContent('Version 2.1.0 · Released Nov 8, 2026');
   });
 });

@@ -23,9 +23,18 @@ interface StartWorkDialogProps {
   onStart: (taskId: string, taskName: string) => Promise<unknown>;
   /** Opens the Tasks page, for when there's nothing to start yet. */
   onAddTask: () => void;
+  /** A session is open, so starting switches its task (the toolbar's "Switch task"). */
+  switching?: boolean;
 }
 
-export function StartWorkDialog({ onClose, tasks, sessions, onStart, onAddTask }: StartWorkDialogProps) {
+export function StartWorkDialog({
+  onClose,
+  tasks,
+  sessions,
+  onStart,
+  onAddTask,
+  switching = false,
+}: StartWorkDialogProps) {
   const [selectedId, setSelectedId] = useState('');
   const [isStarting, setIsStarting] = useState(false);
 
@@ -58,7 +67,7 @@ export function StartWorkDialog({ onClose, tasks, sessions, onStart, onAddTask }
 
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Start Work</DialogTitle>
+      <DialogTitle>{switching ? 'Switch task' : 'Start Work'}</DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent>
           {options.length === 0 ? (

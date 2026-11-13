@@ -11,6 +11,7 @@ import {
   createMockPlan,
   createMockWithdrawal,
 } from '../../../../__tests__/setup/payout-test-utils';
+import { setPhoneViewport } from '../../../../__tests__/setup/viewport';
 import CalendarPage from '../CalendarPage';
 
 const NOW = new Date(2026, 10, 7, 12, 0).getTime();
@@ -129,5 +130,32 @@ describe('CalendarPage', () => {
   it('draws no goal bar when the goal is off', () => {
     renderPage({}, { currentGoal: { isEnabled: false, targetAmount: 400 } });
     expect(screen.queryAllByRole('progressbar', { hidden: true })).toHaveLength(0);
+  });
+
+  it('lists the month as an agenda on a phone, the month first, and opens a day in place', () => {
+    setPhoneViewport();
+    renderPage({ plan: createMockPlan() });
+
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    const agenda = screen.getByRole('list', { name: 'November 2026' });
+    // The month comes before the withdrawal panel
+    const panel = screen.getByRole('region', { name: 'Withdrawals' });
+    expect(agenda.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The agenda doesn't tint worked days, so the legend has no "Worked"
+    expect(screen.queryByText('Worked')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveClass('MuiButton-text');
+
+    fireEvent.click(dayButton('2026-11-05'));
+    expect(dayButton('2026-11-05')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(agenda).getByRole('list', { name: 'Worked' })).toHaveTextContent('Armadillo$633.34');
+    fireEvent.click(dayButton('2026-11-05'));
+    expect(dayButton('2026-11-05')).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(dayButton('2026-11-05'));
+
+    // Another month closes it
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }));
+    expect(dayButton('2026-11-05')).toHaveAttribute('aria-expanded', 'false');
   });
 });

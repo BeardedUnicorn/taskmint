@@ -18,6 +18,44 @@ export function cellTimeMs(cell: PayoutDayCell): number {
   return cell.trackedMs > 0 ? cell.trackedMs : cell.importedMinutes * 60_000;
 }
 
+/** Everything behind one day: each task's work, the releases, the withdrawals and the next withdrawal's opening. */
+export interface DayBreakdown {
+  /** The tasks worked that day (time or money). */
+  worked: PayoutDayCell[];
+  /** The money released that day, from earlier work days. */
+  released: ReleaseEvent[];
+  withdrawn: Withdrawal[];
+  /** The next withdrawal, when it opens that day (and isn't open yet). */
+  opening: WithdrawalPlan | null;
+}
+
+/** `date` is YYYY-MM-DD. */
+export function buildDayBreakdown(
+  date: string,
+  { cells, events, withdrawals, plan }: Pick<CalendarMonthInput, 'cells' | 'events' | 'withdrawals' | 'plan'>
+): DayBreakdown {
+  return {
+    worked: cells.filter(
+      cell => cell.workDay === date && (cellTimeMs(cell) > 0 || cell.actualCents + cell.estimatedCents > 0)
+    ),
+    released: events.filter(event => formatDateString(new Date(event.releaseMs)) === date),
+    withdrawn: withdrawals.filter(withdrawal => formatDateString(withdrawal.takenAt) === date),
+    opening: plan && !plan.isOpen && formatDateString(new Date(plan.opensAtMs)) === date ? plan : null,
+  };
+}
+
+/** Time or money was tracked or imported for the day. */
+export const dayWorked = (day: CalendarDay) => day.earnedCents > 0 || day.timeMs > 0;
+
+/** Anything on the day: work, a release, a withdrawal, or the next withdrawal opening. */
+export const dayHasActivity = (day: CalendarDay) =>
+  dayWorked(day) || day.releasedCents > 0 || day.withdrawals.length > 0 || day.opensAtMs !== null || day.openNow;
+
+/** How much of the daily goal a worked day earned (100 = met, can go past), or null without a goal or work. */
+export function dayGoalPercent(day: CalendarDay): number | null {
+  return day.goal && dayWorked(day) ? (day.earnedCents / 100 / day.goal) * 100 : null;
+}
+
 export interface CalendarDay {
   /** YYYY-MM-DD */
   date: string;
