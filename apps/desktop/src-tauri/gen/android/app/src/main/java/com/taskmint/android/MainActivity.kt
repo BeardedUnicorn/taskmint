@@ -24,6 +24,9 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import app.tauri.notification.ACTION_INTENT_KEY
+import app.tauri.notification.DEFAULT_PRESS_ACTION
+import app.tauri.notification.NOTIFICATION_INTENT_KEY
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -73,6 +76,9 @@ class MainActivity : TauriActivity() {
     // return from Recents, which replays the intent it was first opened with)
     val fromHistory = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
     if (savedInstanceState == null && !fromHistory) keepLaunch(intent)
+    // A force stop loses the reminders' alarms, and nothing else sets them
+    // again until the phone restarts
+    Reminders.restore(this)
     ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
       val density = resources.displayMetrics.density
       val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / density
@@ -131,7 +137,11 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  /** Keeps what `intent` opens the app for, if anything. */
+  /**
+   * Keeps what `intent` opens the app for, if anything: a shortcut's or a
+   * widget button's action, or a notification's tap or button (the
+   * notification plugin's extras, which Reminders gives its own too).
+   */
   private fun keepLaunch(intent: Intent?): Boolean {
     if (intent == null) return false
     val action = intent.getStringExtra(Launch.ACTION)
@@ -139,9 +149,9 @@ class MainActivity : TauriActivity() {
       launch = JSONObject().put("action", action).toString()
       return true
     }
-    val id = intent.getIntExtra("NotificationId", Int.MIN_VALUE)
+    val id = intent.getIntExtra(NOTIFICATION_INTENT_KEY, Int.MIN_VALUE)
     if (id == Int.MIN_VALUE) return false
-    val button = intent.getStringExtra("NotificationUserAction") ?: "tap"
+    val button = intent.getStringExtra(ACTION_INTENT_KEY) ?: DEFAULT_PRESS_ACTION
     launch = JSONObject().put("notification", id).put("action", button).toString()
     return true
   }

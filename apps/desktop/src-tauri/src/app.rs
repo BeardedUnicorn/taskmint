@@ -108,6 +108,10 @@ pub fn run() {
     // Opens the documents Android's Save and Open dialogs pick
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_fs::init());
+    // The reminders' alarms (usePhoneReminders, the withdrawal), which a
+    // restart doesn't lose
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(crate::platform::os::reminders_plugin());
     #[cfg(desktop)]
     let builder = builder
         // Updates from GitHub's latest release (plugins.updater: the feed is

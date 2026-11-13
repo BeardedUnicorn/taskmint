@@ -16,6 +16,7 @@ Tauri or plugin versions, or to the `Platform` trait they implement.
 | `apps/desktop/src-tauri/src/platform/os.rs` | `TauriPlatform`: events, notifications, dialogs, reveal and open, the window, the tray, the updater | [The platform](#the-platform-platformosrs), [Updates](#updates-platformosrs) |
 | `apps/desktop/src-tauri/src/main.rs` | calls `taskmint_lib::run`; no console window on Windows | [Windows and Linux](#windows-and-linux) |
 | `apps/desktop/src-tauri/gen/android/…/MainActivity.kt` | the launch screen, and the webview's bridges: launch screen, system bars, Google sign-in, analytics (Kotlin isn't measured) | [Android](#android) |
+| `apps/desktop/src-tauri/gen/android/…/Reminders.kt` | the reminders' alarms (the withdrawal, a long run, the summary, the goal's milestones), kept to set again after a restart or a force stop (Kotlin isn't measured) | [Android](#android) |
 | cloud sync against the real Firebase project | the tested engine and rules, on Google's servers and in real webviews | [Cloud sync](#cloud-sync) |
 | desktop `cfg(target_os = "windows" \| "linux")` code | not compiled on the macOS coverage run | [Windows and Linux](#windows-and-linux) |
 
@@ -311,6 +312,13 @@ On a phone with Google Play services, with the release APK:
 - [ ] **A tap opens its page:** a withdrawal reminder (set one a minute out,
       then leave the app) opens Payouts when tapped, with the app in the
       background and after `adb shell am kill` (a cold start).
+- [ ] **A reminder survives a restart:** set a withdrawal reminder a few
+      minutes out, `adb reboot`, unlock and don't open TaskMint. After the
+      unlock, `adb shell dumpsys alarm | grep -A4 ReminderAlarm` lists its
+      alarm, and it arrives on time and opens Payouts. Remove the schedule
+      before a restart and nothing arrives after it. With the phone off past
+      the reminder's time, it shows once the phone is unlocked. After
+      `adb shell am force-stop`, opening TaskMint sets it again.
 - [ ] **Running-timer notification:** starting work shows the task with its
       time counting up; Pause turns it to "Paused at …" with Resume, Stop
       takes it down, and Switch task opens the Switch task dialog. Tapping it
@@ -322,8 +330,8 @@ On a phone with Google Play services, with the release APK:
 - [ ] **Reminder alarms:** with a goal and a running timer, `adb shell
       dumpsys alarm | grep taskmint` lists the summary, long-run and
       milestone alarms; pausing takes the long-run and milestone ones away.
-      With TaskMint killed (`am kill`), each still arrives at its time, and
-      tapping the summary opens History.
+      With TaskMint killed (`am kill`), or after `adb reboot` and an unlock,
+      each still arrives at its time, and tapping the summary opens History.
 - [ ] **Shortcuts:** long-pressing the icon offers Start for the top tasks,
       Add time and Payouts. Each opens TaskMint for it, the app killed or
       not. Start begins the task and shows Home.
