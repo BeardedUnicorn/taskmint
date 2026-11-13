@@ -40,6 +40,8 @@ import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 import { entryEnd, exportableEntries } from '../../../utils/csvExport';
 import { PHONE } from '../../../theme/media';
 import { STACK_WRAP } from '../../ui/phoneLayout';
+import { TimeEntryRows } from '../../ui/tables/TimeEntryRows';
+import { useCompactLayout } from '../../../hooks/useCompactLayout';
 import { PHONE_TABLE } from '../../ui/tables/tableStyles';
 
 /** The pane lists this many of the newest entries; History has them all. */
@@ -74,6 +76,8 @@ export function TaskDetailPane({
   onBack,
 }: TaskDetailPaneProps) {
   // This task's finished entries (by id, or by name for older ones), newest first
+  // A phone lists the entries as rows: a table would scroll sideways
+  const compact = useCompactLayout();
   const taskEntries = useMemo(
     () =>
       exportableEntries(timeEntries)
@@ -202,6 +206,16 @@ export function TaskDetailPane({
             icon={<TimerIcon />}
             title="No time entries recorded for this task yet"
             description="Start it to begin tracking time."
+          />
+        ) : compact ? (
+          <TimeEntryRows
+            entries={taskEntries.slice(0, RECENT_ENTRY_COUNT)}
+            tasks={allTasks}
+            onEdit={onEditEntry}
+            onDelete={onDeleteEntry}
+            showTask={false}
+            showEarnings={taskStats.hasRates}
+            label="Time entries"
           />
         ) : (
           <TableContainer component={Paper} sx={{ mt: 2 }}>

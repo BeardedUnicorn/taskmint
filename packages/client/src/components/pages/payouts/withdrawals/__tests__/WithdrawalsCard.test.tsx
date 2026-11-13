@@ -4,6 +4,7 @@ import { seedAppRecords } from '../../../../../testing';
 import { readAppRecord } from '../../../../../services/appRecords';
 import { createMockWithdrawal, renderWithMoney } from '../../../../../__tests__/setup/payout-test-utils';
 import { WithdrawalsCard } from '../WithdrawalsCard';
+import { setPhoneViewport } from '../../../../../__tests__/setup/viewport';
 
 describe('WithdrawalsCard', () => {
   it('says none are recorded yet', () => {
@@ -41,5 +42,29 @@ describe('WithdrawalsCard', () => {
     seedAppRecords({ withdrawals: [{ broken: true }] });
     renderWithMoney(<WithdrawalsCard />);
     expect(screen.queryByText('Withdrawals')).not.toBeInTheDocument();
+  });
+
+  it('on a phone, lists them as rows with their notes, Edit and Delete behind ⋮', () => {
+    setPhoneViewport();
+    seedAppRecords({
+      withdrawals: [
+        createMockWithdrawal({ id: 'old', takenAt: new Date(2026, 10, 4, 9, 0).toISOString(), amountCents: 30000 }),
+        createMockWithdrawal({ id: 'new', note: 'PayPal' }),
+      ],
+    });
+    renderWithMoney(<WithdrawalsCard />);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    const [newest, oldest] = within(screen.getByRole('list', { name: 'Withdrawals' })).getAllByRole('listitem');
+    expect(newest).toHaveTextContent('$712.50PayPal');
+    expect(oldest).toHaveTextContent('Wed, Nov 4, 9:00 AM$300.00');
+
+    fireEvent.click(within(newest).getByRole('button', { name: /^Actions for the withdrawal on/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    expect(screen.getByRole('dialog', { name: 'Edit withdrawal' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(within(oldest).getByRole('button', { name: /^Actions for the withdrawal on/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(readAppRecord('withdrawals')).toEqual([expect.objectContaining({ id: 'new' })]);
   });
 });

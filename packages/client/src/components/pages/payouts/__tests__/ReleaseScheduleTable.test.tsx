@@ -8,6 +8,7 @@ import {
 } from '../../../../__tests__/setup/payout-test-utils';
 import { ReleaseScheduleRow } from '../../../../utils/payoutCalculator';
 import { ReleaseScheduleTable } from '../ReleaseScheduleTable';
+import { setPhoneViewport } from '../../../../__tests__/setup/viewport';
 
 const NOW = new Date(2026, 10, 8, 12, 0).getTime();
 // The mock plan's withdrawals open Tue, Nov 10, 6:25 PM
@@ -119,5 +120,52 @@ describe('ReleaseScheduleTable', () => {
     const button = screen.getByRole('button', { name: 'Scheduled withdrawal for the release on Wed, Nov 11, 9:00 AM' });
     expect(button.closest('tr')).toHaveClass('Mui-selected');
     expect(bodyRows()[0]).not.toHaveClass('Mui-selected');
+  });
+
+  describe('on a phone', () => {
+    const rows = () => within(screen.getByRole('list', { name: 'Upcoming releases' })).getAllByRole('listitem');
+
+    it('lists each release as a row, held ones first with a lock, then where withdrawals open', () => {
+      setPhoneViewport();
+      const estimated = { ...row(12, 8, 0), releaseTime: undefined, releaseIso: undefined, estimatedCents: 4000 };
+      const mixed = { ...row(11, 9, 3500), estimatedCents: 500 };
+      renderWithMoney(<ReleaseScheduleTable />, {
+        nowMs: NOW,
+        schedule: [row(9, 12), mixed, estimated],
+        plan: createMockPlan(),
+      });
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      const [held, line, both, estimate] = rows();
+      expect(held).toHaveTextContent('Mon, Nov 9, 12:00 PM$10.00$10.00 imported');
+      expect(within(held).getByRole('img', { name: 'Held' })).toBeInTheDocument();
+      expect(line).toHaveTextContent(`Withdrawals open ${OPENING}`);
+      expect(both).toHaveTextContent('Wed, Nov 11, 9:00 AM$40.00$35.00 imported · ~$5.00 estimated');
+      expect(within(both).queryByRole('img', { name: 'Held' })).not.toBeInTheDocument();
+      // A day's release, with no time of its own
+      expect(estimate).toHaveTextContent('Thu, Nov 12$40.00~$40.00 estimated');
+    });
+
+    it('schedules a withdrawal from a tapped row, and marks the one scheduled', () => {
+      setPhoneViewport();
+      renderWithMoney(<ReleaseScheduleTable />, {
+        nowMs: NOW,
+        schedule,
+        reminder: {
+          id: 's1',
+          releaseMs: schedule[2].releaseMs,
+          dueMs: schedule[2].releaseMs,
+          isHeld: false,
+          amount: createMockAmount(),
+        },
+      });
+      const scheduled = screen.getByRole('button', {
+        name: 'Scheduled withdrawal for the release on Wed, Nov 11, 9:00 AM',
+      });
+      expect(scheduled.closest('[role="listitem"]')).toHaveStyle({ backgroundColor: expect.anything() });
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Schedule a withdrawal for the release on Mon, Nov 9, 12:00 PM' })
+      );
+      expect(screen.getByRole('dialog', { name: 'Schedule withdrawal' })).toBeInTheDocument();
+    });
   });
 });
