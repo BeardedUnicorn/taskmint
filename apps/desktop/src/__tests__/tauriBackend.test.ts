@@ -285,6 +285,38 @@ describe('createTauriBackend', () => {
     expect(platform.notifications.askPermission).toBeUndefined();
   });
 
+  it('on Android, hands Rust the notification tap MainActivity kept, before taking what it opens', async () => {
+    const taps: Array<string | null> = [JSON.stringify({ id: 4100, action: 'tap' })];
+    vi.stubGlobal('TaskMintApp', { moveToBack: vi.fn(), takeNotificationTap: () => taps.shift() ?? null });
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const { notifications } = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' }).platform;
+
+    // The tap that started the app
+    mockInvoke.mockResolvedValueOnce(null).mockResolvedValueOnce({ type: 'showView', view: 'payouts' });
+    await expect(notifications.takeOpened!()).resolves.toEqual({ type: 'showView', view: 'payouts' });
+    // One while the app runs: MainActivity says so, and Rust hears of it at once
+    taps.push(JSON.stringify({ id: 4200, action: 'pause' }));
+    window.__taskmintNotificationTapped!();
+    // None left: only what a tap opens is asked
+    await vi.waitFor(() => expect(dispatched()).toHaveLength(3));
+    await notifications.takeOpened!();
+
+    expect(dispatched()).toEqual([
+      ['notification_action', { id: 4100, action: 'tap' }],
+      ['take_opened_notification'],
+      ['notification_action', { id: 4200, action: 'pause' }],
+      ['take_opened_notification'],
+    ]);
+  });
+
+  it('on Android without the bridge, only takes what a tap opens', async () => {
+    const { notifications } = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' }).platform;
+    await notifications.takeOpened!();
+    expect(dispatched()).toEqual([['take_opened_notification']]);
+  });
+
   it('on Android, sets the status bar and reads the bottom inset through the bridge MainActivity adds', () => {
     const setTheme = vi.fn();
     vi.stubGlobal('TaskMintSystemBars', { setTheme, bottomInset: () => 24, keyboardInset: () => 320 });

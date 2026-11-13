@@ -114,14 +114,20 @@ fn channel_id(channel: Channel) -> &'static str {
 }
 
 /// Puts a notification in its channel (Android's; a desktop has none) and
-/// says what tapping it opens, which the tap reports back (app.rs).
+/// says what tapping it opens, which the tap reports back (app.rs). On
+/// Android it also gets the leaf for its icon, tinted the brand green, in
+/// place of the system's "i" (the plugin's config can't name one: its Rust
+/// side takes no config, and fails the app's start on any).
 fn routed<R: tauri::Runtime>(
     builder: NotificationBuilder<R>,
     _channel: Channel,
     opens: Option<MenuCommand>,
 ) -> NotificationBuilder<R> {
     #[cfg(target_os = "android")]
-    let builder = builder.channel_id(channel_id(_channel));
+    let builder = builder
+        .channel_id(channel_id(_channel))
+        .icon("ic_stat_taskmint")
+        .icon_color("#65D6A1");
     match opens {
         Some(command) => builder.extra(OPENS, command),
         None => builder,
@@ -665,10 +671,11 @@ impl Platform for TauriPlatform {
         // The large body is Android's: without it the plugin's empty inbox
         // style hides the text whenever the notification is expanded
         // (desktops ignore it)
-        let builder = self
-            .app
-            .notification()
-            .builder()
+        let builder = self.app.notification().builder();
+        // Android's id says which page a tap opens (notifications::id_of)
+        #[cfg(target_os = "android")]
+        let builder = builder.id(notification.id);
+        let builder = builder
             .title(&notification.title)
             .body(&notification.body)
             .large_body(&notification.body);

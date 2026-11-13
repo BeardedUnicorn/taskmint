@@ -55,6 +55,10 @@ pub enum Channel {
 /// An OS notification to show now.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShownNotification {
+    /// Its id on Android, which a tap reports back: one per kind, so a new
+    /// one replaces the one before it (notifications::id_of). A desktop
+    /// gives each its own.
+    pub id: i32,
     pub title: String,
     pub body: String,
     /// With the system sound (where the system lets the app choose).

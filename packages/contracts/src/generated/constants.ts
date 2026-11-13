@@ -82,6 +82,9 @@ export const COMMAND_NAMES = [
 /** The record holding the task list. */
 export const TASKS_RECORD_KEY = "predefinedTasks";
 
+/** The id of the phone's withdrawal-reminder alarm. */
+export const WITHDRAWAL_REMINDER_ID = 4100;
+
 /** The frontend's records, as the backend stores them. */
 export const APP_RECORD_KEYS = [
   "predefinedTasks",

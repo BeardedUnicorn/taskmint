@@ -8,11 +8,5 @@
         "connect-src": "'self' ipc: http://ipc.localhost ws://localhost:1420 ws://*:1420 https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com http://10.0.2.2:9099 http://10.0.2.2:8085"
       }
     }
-  },
-  "plugins": {
-    "notification": {
-      "icon": "ic_stat_taskmint",
-      "iconColor": "#65D6A1"
-    }
   }
 }

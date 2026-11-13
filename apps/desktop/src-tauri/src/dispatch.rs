@@ -78,6 +78,13 @@ enum Shell {
     /// notifications can be set up (Platform::prepare_notifications) and its
     /// running-timer notification shown (timer_notice::start).
     TakeOpenedNotification {},
+    /// The user tapped Android's notification `id`, or one of its buttons
+    /// (`action`; "tap" for the notification itself). MainActivity hands the
+    /// page these, the only part of a tap Android's plugin keeps.
+    NotificationAction {
+        id: i32,
+        action: String,
+    },
     GetCaptureServerStatus {},
     ValidateBackupPath {
         path: String,
@@ -145,7 +152,7 @@ enum Shell {
     GetAppInfo {},
 }
 
-const SHELL_COMMANDS: [&str; 29] = [
+const SHELL_COMMANDS: [&str; 30] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -157,6 +164,7 @@ const SHELL_COMMANDS: [&str; 29] = [
     "cancel_notification",
     "ask_to_notify",
     "take_opened_notification",
+    "notification_action",
     "get_capture_server_status",
     "validate_backup_path",
     "perform_automatic_backup",
@@ -247,6 +255,11 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
             state.platform.prepare_notifications();
             crate::timer_notice::start(state);
             reply(notifications::take_opened(state))
+        }
+        Shell::NotificationAction { id, action } => {
+            let opens = notifications::kind_of(id).and_then(notifications::opens);
+            notifications::performed(state, &action, Some(id), opens);
+            Value::Null
         }
         Shell::GetCaptureServerStatus {} => {
             reply(state.with_capture_server_status(|status| status.clone()))
@@ -577,6 +590,25 @@ mod tests {
             run(&f, "take_opened_notification", json!({})),
             Ok(Value::Null)
         );
+    }
+
+    #[test]
+    fn an_android_tap_opens_the_page_its_id_says() {
+        let f = fixture();
+        let tap = |id: i32| json!({ "id": id, "action": "tap" });
+        run(&f, "notification_action", tap(4100)).unwrap();
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(json!({ "type": "showView", "view": "payouts" }))
+        );
+        // One about no page, or no kind, only brings the app forward
+        run(&f, "notification_action", tap(5000)).unwrap();
+        run(&f, "notification_action", tap(1)).unwrap();
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(Value::Null)
+        );
+        assert_eq!(f.platform.recorded().windows_shown, 3);
     }
 
     #[test]

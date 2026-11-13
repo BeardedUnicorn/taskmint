@@ -305,6 +305,11 @@ fn constants() -> Constants {
         "TASKS_RECORD_KEY",
         json!(TASKS_RECORD_KEY),
     );
+    out.value(
+        "The id of the phone's withdrawal-reminder alarm.",
+        "WITHDRAWAL_REMINDER_ID",
+        json!(WITHDRAWAL_REMINDER_ID),
+    );
     out.list(
         "The frontend's records, as the backend stores them.",
         "APP_RECORD_KEYS",

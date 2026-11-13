@@ -1,5 +1,6 @@
 package com.taskmint.android
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.webkit.JavascriptInterface
@@ -44,11 +45,22 @@ class MainActivity : TauriActivity() {
   @Volatile private var bottomInsetDp = 0f
   @Volatile private var keyboardInsetDp = 0f
 
+  /**
+   * The notification the user last tapped, or the button they pressed on it,
+   * until the page takes it (AppTask.takeNotificationTap):
+   * `{"id": …, "action": …}`. The notification plugin opens the app with
+   * both in the intent but reports neither to the app (it loses the
+   * notification), and the id is what says which page to open.
+   */
+  @Volatile private var notificationTap: String? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     val splashScreen = installSplashScreen()
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     applyBarsTheme()
+    // A tap that started the app (not a restart after a config change)
+    if (savedInstanceState == null) keepNotificationTap(intent)
     ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
       val density = resources.displayMetrics.density
       val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / density
@@ -100,6 +112,26 @@ class MainActivity : TauriActivity() {
   }
 
   // Added before the page loads, so the webview has them from the start
+  /** A tap while the app runs: kept, and the page told. */
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    if (keepNotificationTap(intent)) {
+      webView?.evaluateJavascript(
+        "window.__taskmintNotificationTapped && window.__taskmintNotificationTapped()",
+        null
+      )
+    }
+  }
+
+  /** Keeps the notification tap `intent` carries (the plugin's extras), if any. */
+  private fun keepNotificationTap(intent: Intent?): Boolean {
+    val id = intent?.getIntExtra("NotificationId", Int.MIN_VALUE) ?: return false
+    if (id == Int.MIN_VALUE) return false
+    val action = intent.getStringExtra("NotificationUserAction") ?: "tap"
+    notificationTap = JSONObject().put("id", id).put("action", action).toString()
+    return true
+  }
+
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
     webView.addJavascriptInterface(Splash(), "TaskMintSplash")
@@ -156,6 +188,14 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface
     fun moveToBack() {
       runOnUiThread { moveTaskToBack(true) }
+    }
+
+    /** The notification tap the app hasn't acted on (`{"id", "action"}`), once; null when none. */
+    @JavascriptInterface
+    fun takeNotificationTap(): String? {
+      val tap = notificationTap
+      notificationTap = null
+      return tap
     }
   }
 

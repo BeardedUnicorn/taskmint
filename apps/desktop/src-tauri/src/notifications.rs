@@ -11,6 +11,12 @@
 //! silence one or let it pop up) and says which page tapping it opens. A tap
 //! is kept until the page takes it (`take_opened`): the tap may be what
 //! started the app, before the page could hear of it.
+//!
+//! A desktop reports a tap with the notification, page and all (app.rs). An
+//! Android tap reaches the shell only as the notification's id and the
+//! button (MainActivity hands them to the page, which sends
+//! notification_action), so on Android each kind has an id of its own
+//! (`id_of`) that says which page it opens (`kind_of`).
 
 use crate::events::{emit_quiet, NOTIFICATION_OPENED, NOTIFICATION_POSTED};
 use crate::platform::{Channel, ScheduledNotification, ShownNotification};
@@ -18,6 +24,7 @@ use crate::state::{AppState, Shell};
 use crate::timer_notice::{self, TIMER_NOTICE_ID};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use taskmint_core::contract::WITHDRAWAL_REMINDER_ID;
 use taskmint_core::notifications::NotificationKind;
 use taskmint_core::shell::{MenuCommand, MenuView};
 
@@ -56,6 +63,40 @@ pub fn channel_of(kind: NotificationKind) -> Channel {
     }
 }
 
+/// Every kind, for `kind_of`.
+const KINDS: [NotificationKind; 11] = {
+    use NotificationKind::*;
+    [
+        General,
+        GoalMilestone,
+        LongRun,
+        IdlePause,
+        WorkLogCapture,
+        BackupFailure,
+        BackupSuccess,
+        DailySummary,
+        Error,
+        WithdrawalReady,
+        Test,
+    ]
+};
+
+/// The id a kind of notification has on Android: one each, so a new one
+/// replaces the one before it (the 75% goal milestone the 50% one).
+pub fn id_of(kind: NotificationKind) -> i32 {
+    let index = KINDS.iter().position(|each| *each == kind);
+    5000 + index.expect("every kind is in KINDS") as i32
+}
+
+/// The kind of notification an id was given to (`id_of`, or the
+/// withdrawal reminder's alarm the app sets).
+pub fn kind_of(id: i32) -> Option<NotificationKind> {
+    match id {
+        WITHDRAWAL_REMINDER_ID => Some(NotificationKind::WithdrawalReady),
+        _ => KINDS.into_iter().find(|kind| id_of(*kind) == id),
+    }
+}
+
 /// What tapping a kind of notification opens: the page it's about (None:
 /// the app as it was).
 pub fn opens(kind: NotificationKind) -> Option<MenuCommand> {
@@ -85,6 +126,7 @@ pub fn post(
         return false;
     }
     let notification = ShownNotification {
+        id: id_of(kind),
         title: title.to_string(),
         body: body.to_string(),
         sound: prefs.sound,
@@ -209,6 +251,7 @@ mod tests {
         assert_eq!(
             platform.recorded().notifications,
             [ShownNotification {
+                id: id_of(NotificationKind::LongRun),
                 title: "Still working?".to_string(),
                 body: "4h".to_string(),
                 sound: true,
@@ -392,6 +435,22 @@ mod tests {
                 kind
             );
         }
+    }
+
+    #[test]
+    fn each_kind_has_an_id_that_says_which_kind_it_is() {
+        for kind in KINDS {
+            assert_eq!(kind_of(id_of(kind)), Some(kind));
+        }
+        assert_eq!(id_of(NotificationKind::General), 5000);
+        assert_eq!(id_of(NotificationKind::Test), 5010);
+        // The app's withdrawal alarm, and ids that aren't a kind's
+        assert_eq!(
+            kind_of(WITHDRAWAL_REMINDER_ID),
+            Some(NotificationKind::WithdrawalReady)
+        );
+        assert_eq!(kind_of(4999), None);
+        assert_eq!(kind_of(TIMER_NOTICE_ID), None);
     }
 
     #[test]
