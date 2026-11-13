@@ -31,9 +31,17 @@ export function useBackStep(active: boolean, step: () => void): void {
   }, [active]);
 }
 
+/**
+ * Open, not just still on screen: a modal that's closing stays in the page
+ * until its animation ends, and a quick second back should go past it. MUI's
+ * focus trap is on (its sentinels tabbable) only while the modal is open.
+ */
+const isOpen = (modal: Element) =>
+  modal.querySelector(':scope > [data-testid="sentinelStart"]')?.getAttribute('tabindex') === '0';
+
 /** Closes the modal opened last, as Escape does. False when none is open. */
 function closeTopModal(): boolean {
-  const open = document.querySelectorAll<HTMLElement>('.MuiModal-root:not(.MuiModal-hidden)');
+  const open = [...document.querySelectorAll<HTMLElement>('.MuiModal-root')].filter(isOpen);
   const top = open[open.length - 1];
   if (!top) return false;
   top.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

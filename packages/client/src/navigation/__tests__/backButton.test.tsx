@@ -63,10 +63,10 @@ describe('Android back', () => {
     act(() => screen.getByRole('button', { name: 'Open menu' }).click());
     expect(screen.getByRole('menu')).toBeInTheDocument();
     pressBack();
-    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-
+    // A second back while the menu is still animating closed goes past it
     pressBack();
     expect(screen.getByText('The list')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     expect(screen.getByText('Page: tasks')).toBeInTheDocument();
 
     pressBack();
