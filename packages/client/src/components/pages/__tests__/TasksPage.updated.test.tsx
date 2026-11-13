@@ -223,6 +223,16 @@ describe('TasksPage - Task List Layout', () => {
     expect(backButton.leaveApp).toHaveBeenCalledTimes(1);
   });
 
+  it("marks the task beside the list on a desktop, but none in a phone's list, where the task is a screen of its own", () => {
+    const { unmount } = render(<TasksPage {...mockProps} />);
+    expect(document.querySelectorAll('.Mui-selected')).toHaveLength(1);
+    unmount();
+
+    setPhoneViewport();
+    render(<TasksPage {...mockProps} />);
+    expect(document.querySelector('.Mui-selected')).toBeNull();
+  });
+
   it('has no way back on a desktop, where the list stays beside the task', () => {
     render(<TasksPage {...mockProps} />);
     expect(screen.queryByRole('button', { name: 'All tasks' })).not.toBeInTheDocument();

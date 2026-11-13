@@ -197,7 +197,8 @@ export function TasksPage({
           >
             <TaskListPane
               tasks={tasks}
-              selectedTask={selectedTask}
+              // On a phone the list and the task are separate screens, so the list marks none
+              selectedTask={compact ? null : selectedTask}
               onSelectTask={handleSelectTask}
               onAddClick={handleAddTaskClick}
               onEditTask={setEditingTask}
