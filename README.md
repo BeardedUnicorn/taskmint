@@ -88,7 +88,8 @@ devices and the web app.
 | Cloud sync: the account this device syncs with, this device's id, and what the cloud last said | `sync.json` in the app data dir, owned by the Rust backend |
 | Other settings and UI preferences (appearance, notifications, idle and reminders, backups, analytics) | The webview's `localStorage` (each device has its own) |
 
-App data dir on macOS: `~/Library/Application Support/com.taskmint.desktop/`.
+App data dir on macOS: `~/Library/Application Support/com.taskmint.desktop/`
+(a [dev build](#dev-environment)'s is `com.taskmint.desktop.dev/`).
 Before 2.1 the app identifier was `com.taskmint.app`: the first launch of a
 newer version moves that data folder and the webview's storage (the
 settings) to the new identifier, and logs what it moved. Nothing moves if the
@@ -225,9 +226,9 @@ pnpm dev            # Vite only, for tauri dev; a plain browser has no backend a
 
 TaskMint in a browser is the web app: see [Web app](#web-app).
 
-**Quit the installed TaskMint before running `pnpm tauri dev`.** Dev and
-release builds share the app identifier, so they share the data dir. The
-single-instance lock and the capture server port also collide.
+**Every build you make here is a dev build:** "TaskMint Dev", which installs
+and runs beside the real TaskMint with its own data, on the dev Firebase
+project. Only releases are the real app ([Dev environment](#dev-environment)).
 
 **App icons.** The masters are in `assets/brand/`: `icon.png` (the app icon),
 `icon-macos.png` (the same on Apple's icon grid), the wordmark `logo.png` and
@@ -262,7 +263,9 @@ it the desktop signs in by email only), or the Firebase emulators' host.
 
 The desktop crate also builds as a Tauri Android app (`apps/desktop`, the same
 Rust and webview), package `com.taskmint.android` (`tauri.android.conf.json`
-sets it; the desktop app stays `com.taskmint.desktop`). Each release has
+sets it; the desktop app stays `com.taskmint.desktop`). A
+[dev build](#dev-environment) is `com.taskmint.android.dev`, "TaskMint Dev",
+and installs beside it. Each release has
 `TaskMint-X.Y.Z-android-arm64.apk` for arm64 phones, every phone from roughly
 the last eight years.
 
@@ -295,9 +298,14 @@ was made by `pnpm tauri android init` from `tauri.conf.json` and
 - `app/build.gradle.kts` signs release builds with the release key when
   `TASKMINT_ANDROID_KEYSTORE` and `TASKMINT_ANDROID_KEYSTORE_PASSWORD` are set
   ([Android signing](#android-signing)). Without them a release build is
-  unsigned.
-- Firebase: `app/google-services.json` (the Android app's public config,
-  downloaded from the Firebase console), the `google-services` Gradle plugin
+  unsigned. It also reads `TASKMINT_ENV` ([Dev environment](#dev-environment)):
+  unless it's `production`, the app is `com.taskmint.android.dev` ("TaskMint
+  Dev", `applicationIdSuffix`; the code's package stays the same) with
+  Analytics off (`firebase_analytics_collection_deactivated` in the manifest).
+- Firebase: `app/firebase/google-services.production.json` and
+  `google-services.dev.json` (each project's Android app's public config,
+  downloaded from the Firebase console; `app/build.gradle.kts` copies the
+  build's to the gitignored `app/google-services.json`), the `google-services` Gradle plugin
   (in the root `build.gradle.kts`, applied in `app/build.gradle.kts`), and
   the Firebase BoM with Analytics, Credential Manager and googleid as
   dependencies. Firebase and googleid need Kotlin 2.3, which the root
@@ -356,8 +364,9 @@ The app has its timers, data, dialogs and notifications (it asks for
 permission to notify at the first launch), and cloud sync. Google sign-in
 there needs Google Play services, and the build's signing certificate
 registered on the Firebase Android app (Firebase console → Project settings
-→ Your apps): the debug key's and the release key's SHA-1 are. A new key
-needs its own, and `google-services.json` downloaded again. The parts only a
+→ Your apps): the debug key's and the release key's SHA-1 are, in both
+projects. A new key needs its own in each, and both `google-services.*.json`
+downloaded again. The parts only a
 desktop has are left out, in the Rust (`#[cfg(desktop)]`, and those crates
 are desktop-only dependencies) and in the webview (`tauriBackend.ts`,
 `extensions.tsx`): the tray, idle detection and the long-run reminder, folder
@@ -452,6 +461,11 @@ CHANGELOG section (`gh run list --workflow release.yml` follows it):
 | `TaskMint-X.Y.Z-android-arm64.apk` | Linux, for arm64 Android phones ([Android](#android) says how to install it) |
 | `TaskMint-X.Y.Z-chrome-extension.zip` | Linux ([apps/extension/README.md](apps/extension/README.md) says how to install it) |
 
+Each is the real app: `release.mjs --rebuild` builds with
+`TASKMINT_ENV=production` and `tauri.production.conf.json`, then checks the
+webview's `dist/environment.json`, the Mac app's identifier and the APK's
+package ([Dev environment](#dev-environment)).
+
 Next to them are the desktop updates (see [Desktop updates](#desktop-updates)):
 `TaskMint-X.Y.Z-macos-{arm64,x64}.app.tar.gz` and their `.sig` files,
 `TaskMint-X.Y.Z-windows-x64-setup.exe.sig`, and `latest.json`.
@@ -488,8 +502,8 @@ System Settings → Privacy & Security and click **Open Anyway**. On Windows,
 SmartScreen says it protected the PC: click **More info**, then **Run
 anyway**.
 
-A plain `pnpm tauri build` still works for a build that isn't a release; its
-installer stays in `target/release/bundle/`.
+A plain `pnpm tauri build` makes a dev build ("TaskMint Dev"); its installer
+stays in `target/release/bundle/`.
 
 #### Desktop updates
 
@@ -585,10 +599,11 @@ above, dev builds include `debug`.
 
 ## Firebase
 
-Cloud sync and the web app run on the Firebase project `taskmint-f9a05`
-(`.firebaserc`), on the free Spark plan with billing off. There's no server
-of TaskMint's own: every client runs TaskMint's rules itself, and Firestore
-holds the shared copy ([ADR 0002](docs/adr/0002-firebase.md)).
+Cloud sync and the web app run on the Firebase project `taskmint-f9a05`,
+on the free Spark plan with billing off. Every build that isn't a release
+uses its twin, `taskmint-dev` ([Dev environment](#dev-environment)). There's
+no server of TaskMint's own: every client runs TaskMint's rules itself, and
+Firestore holds the shared copy ([ADR 0002](docs/adr/0002-firebase.md)).
 
 | Part | What it's for |
 |---|---|
@@ -597,9 +612,10 @@ holds the shared copy ([ADR 0002](docs/adr/0002-firebase.md)).
 | **Hosting** | The web app, at https://taskmint-f9a05.web.app |
 | **Analytics** | Page views from the web app and the Android app ([Error reporting and analytics](#error-reporting-and-analytics)) |
 
-Each client has its own Firebase app registration and config: the desktop's
-web config in `apps/desktop/src/firebaseConfig.ts`, the web app's in
-`apps/web/src/firebaseConfig.ts`, and Android's `google-services.json`.
+Each client has its own Firebase app registration and config, in each
+project: the desktop's web config in `apps/desktop/src/firebaseConfig.ts`,
+the web app's in `apps/web/src/firebaseConfig.ts`, and Android's
+`google-services.*.json`.
 They're public by design: the API key only names the project, and the rules
 decide what a signed-in user can reach.
 
@@ -616,21 +632,74 @@ policy (`script-src 'self' 'wasm-unsafe-eval'`, plus Google's sign-in and
 Analytics hosts), nosniff, a referrer policy, COOP (`same-origin-allow-popups`,
 for Google's popup), CORP, `X-Frame-Options` and a permissions policy. Every
 path the app doesn't have serves `index.html`. The hashed files in `/assets`
-are cached for a year; everything else is revalidated.
+are cached for a year; everything else is revalidated. Before a deploy,
+`scripts/check-web-environment.mjs` checks `apps/web/dist` was built for the
+project it's going to.
 
 `pnpm firebase` runs firebase-tools at the version `package.json` pins
 (through npx, outside the workspace). Deploys normally come from the
 release workflow ([Releasing](#releasing)); [docs/runbook.md](docs/runbook.md)
 has deploying by hand and rolling back.
 
+### Dev environment
+
+`TASKMINT_ENV` says which TaskMint a build is: `production` for a release,
+`dev` (also when it's unset) for every other build. Vite, Cargo and Gradle
+all read it ([scripts/environment.mjs](scripts/environment.mjs)), so
+`pnpm tauri dev`, a plain `pnpm tauri build`, an Android build and the web
+dev server are all dev builds. Only the release workflow
+([Releasing](#releasing)) sets `production`. Any other value stops the
+build.
+
+| | Production (releases) | Dev (every other build) |
+|---|---|---|
+| Firebase project | `taskmint-f9a05` | `taskmint-dev` |
+| Web app | https://taskmint-f9a05.web.app | https://taskmint-dev.web.app |
+| Desktop app | TaskMint, `com.taskmint.desktop` | TaskMint Dev, `com.taskmint.desktop.dev` |
+| Desktop links and capture port | `taskmint://`, 43117 | `taskmint-dev://`, 43127 |
+| Desktop updates | from the latest GitHub release | none |
+| Android app | TaskMint, `com.taskmint.android` | TaskMint Dev, `com.taskmint.android.dev` |
+| Analytics | on, with the off switch | none |
+| Sentry `environment` | `production` | `dev` |
+
+A dev build is a separate app: its own data folder, webview storage (the
+settings and the Firebase sign-in), single-instance lock and link scheme, so
+it runs beside the installed TaskMint and never touches its data. Its
+capture server listens on its own port, so the browser extension's captures
+always go to the real app. It doesn't take over a pre-2.1 `com.taskmint.app`
+folder. `tauri.conf.json` is the dev build, and `tauri.production.conf.json`
+makes a build the real app. A build whose identifier and environment don't
+match refuses to start (`src-tauri/src/environment.rs`).
+
+**Building production yourself:** both halves, or it won't start.
+
+```bash
+cd apps/desktop && TASKMINT_ENV=production pnpm tauri build --config src-tauri/tauri.production.conf.json
+```
+
+**The dev project** mirrors production: email and Google sign-in (the dev
+project safelists the desktop's Google client, so the same `.env` works),
+email enumeration protection, Firestore in nam5 with the same rules and
+indexes, and Hosting. It has no Analytics. Sign up there with any account.
+`.firebaserc` makes it the default project, so a bare `pnpm firebase` command
+works on dev; production needs `--project taskmint-f9a05` (or `production`).
+
+Deploy the web app, rules and indexes to dev (it runs the rules' tests
+first):
+
+```bash
+pnpm deploy:dev
+```
+
 ### Develop against the emulators
 
 The Auth and Firestore emulators (`firebase.json`: 9099 and 8085) need Java
 21 or later. A development build talks to them when
-`VITE_FIREBASE_EMULATOR_HOST` is set; installed builds ignore it.
+`VITE_FIREBASE_EMULATOR_HOST` is set; installed builds ignore it. They run as
+the dev project, the default in `.firebaserc`.
 
 ```bash
-pnpm firebase emulators:start --project taskmint-f9a05 --only auth,firestore
+pnpm firebase emulators:start --only auth,firestore
 ```
 
 ```bash
@@ -645,11 +714,10 @@ From the Android emulator the host is `10.0.2.2`. Accounts made there exist
 only in the emulator, and its data is gone when it stops.
 
 To check the production headers, build the web app and serve it from the
-Hosting emulator (port 5002). That build talks to the real project, so sign
-in only with your own account:
+Hosting emulator (port 5002). That build talks to the dev project:
 
 ```bash
-pnpm build:wasm && pnpm --filter @taskmint/web build && pnpm firebase emulators:start --project taskmint-f9a05 --only hosting
+pnpm build:wasm && pnpm --filter @taskmint/web build && pnpm firebase emulators:start --only hosting
 ```
 
 ### Google sign-in
@@ -661,16 +729,18 @@ pnpm build:wasm && pnpm --filter @taskmint/web build && pnpm firebase emulators:
 - **Desktop:** the system browser, then back to a loopback address the app
   listens on (`src-tauri/src/google_sign_in.rs`, with PKCE), which answers
   with a page in TaskMint's look (`google_sign_in.html`) and brings the app
-  forward, with `taskmint://open` for when the browser keeps the focus.
-  It's Google's "Desktop app" OAuth client in Google Cloud console → APIs &
-  Services → Credentials. Its id and secret go in `.env` as
+  forward, with `taskmint://open` (`taskmint-dev://open` from a dev build)
+  for when the browser keeps the focus. It's Google's "Desktop app" OAuth
+  client in Google Cloud console → APIs & Services → Credentials, in
+  `taskmint-f9a05`; the dev project accepts it too (Authentication → Google
+  → Safelist client IDs from external projects). Its id and secret go in `.env` as
   `VITE_GOOGLE_DESKTOP_CLIENT_ID` and `VITE_GOOGLE_DESKTOP_CLIENT_SECRET`,
   and in the repository secrets of the same names. Google treats an
   installed app's secret as public, but keep it out of the repository
   anyway. Without them the button is hidden.
-- **Android:** Credential Manager, with the web client's id from
-  `google-services.json` ([Android](#android) says which certificates must
-  be registered).
+- **Android:** Credential Manager, with the web client's id from the
+  build's `google-services.*.json` ([Android](#android) says which
+  certificates must be registered).
 
 ## Web app
 
@@ -697,7 +767,8 @@ https://taskmint-f9a05.web.app: the same app as the desktop's
   downloads, and imports use the browser's file picker. ⌘N and ⌘, belong to
   the browser, so the command palette (⌘K) offers both instead.
 
-Develop it against the emulators ([Firebase](#develop-against-the-emulators)).
+Develop it against the dev project (`pnpm --filter @taskmint/web dev`) or
+the emulators ([Firebase](#develop-against-the-emulators)).
 `pnpm build:wasm` must run first, and again after a change to
 `crates/taskmint-core`.
 

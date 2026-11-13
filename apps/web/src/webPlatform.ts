@@ -1,7 +1,8 @@
 /**
  * The browser as the client's platform: exports are downloads, an import is
  * a file picked in the browser's dialog, and notifications are the Web
- * Notification API's, and usage analytics are Firebase Analytics'. The
+ * Notification API's, and usage analytics are Firebase Analytics' (when the
+ * build's Firebase app has Analytics: production's has, dev's hasn't). The
  * desktop-only features (idle detection, folder backups, reveal, the capture
  * server) are absent, so the client leaves out what needs them. Google
  * sign-in opens in a popup, Firebase's own way. TaskMint's pages open in a
@@ -81,7 +82,7 @@ async function notify(title: string, body: string): Promise<boolean> {
   return true;
 }
 
-export function createWebPlatform(): Platform {
+export function createWebPlatform({ analytics }: { analytics: boolean }): Platform {
   return {
     files: {
       async save({ contents, suggestedName, format }) {
@@ -94,7 +95,8 @@ export function createWebPlatform(): Platform {
     notifications: {
       show: (_kind, title, body) => notify(title, body),
     },
-    analytics: createWebAnalytics(),
+    // Without it, the page loads no Google tag and Settings has no Privacy toggle
+    ...(analytics ? { analytics: createWebAnalytics() } : {}),
     async openLink(link) {
       window.open(LINK_URLS[link], '_blank', 'noopener');
     },

@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-  "productName": "TaskMint",
+  "productName": "TaskMint Dev",
   "version": "../package.json",
-  "identifier": "com.taskmint.desktop",
+  "identifier": "com.taskmint.desktop.dev",
   "build": {
     "beforeBuildCommand": "pnpm build",
     "beforeDevCommand": "pnpm dev",
@@ -52,12 +52,12 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["taskmint"]
+        "schemes": ["taskmint-dev"]
       }
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU5NjAzMzVBN0QxRjFBNjAKUldSZ0doOTlXak5nNlk1R1M2SjNhK0hLS21iVVl4NVNGMmlEemsyUCt3ZG9wUXhoNkEzeGF0bnoK",
-      "endpoints": ["https://github.com/BeardedUnicorn/taskmint/releases/latest/download/latest.json"],
+      "endpoints": [],
       "requireSignedVersion": true,
       "windows": {
         "installMode": "passive"

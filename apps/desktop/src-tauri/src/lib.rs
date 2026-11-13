@@ -10,6 +10,7 @@ pub mod capabilities;
 pub mod capture_server;
 pub mod config;
 mod dispatch;
+pub mod environment;
 pub mod events;
 pub mod files;
 pub mod google_sign_in;

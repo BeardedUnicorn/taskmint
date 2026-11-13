@@ -182,6 +182,14 @@ describe('initSentry', () => {
     await sentry.setErrorReportingEnabled(true);
     expect(Sentry.setUser).toHaveBeenCalledWith({ id: 'unknown' });
   });
+
+  it("files a build's reports under its Firebase project", async () => {
+    vi.stubEnv('VITE_SENTRY_DSN', DSN);
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('TASKMINT_ENV', 'dev');
+    (await load()).initSentry();
+    expect(vi.mocked(Sentry.init).mock.calls[0][0]).toMatchObject({ environment: 'dev' });
+  });
 });
 
 it('passes context on to Sentry', async () => {

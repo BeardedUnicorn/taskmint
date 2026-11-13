@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { taskmintEnvironmentPlugin } from '../../scripts/environment.mjs';
 
 // `tauri android dev --host` (for a phone on the network) sets TAURI_DEV_HOST
 // to this computer's address there: the dev server then listens on it, and
@@ -8,9 +9,12 @@ import react from '@vitejs/plugin-react';
 // localhost.
 const host = process.env.TAURI_DEV_HOST;
 
+// TASKMINT_ENV picks the Firebase project, dev unless it's production
+// (scripts/environment.mjs); the Tauri CLI passes it on from its own
+// environment, as it does to Cargo and Gradle.
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), taskmintEnvironmentPlugin()],
   // Favicon and logos live with the shared client.
   publicDir: '../../packages/client/public',
   // .env (VITE_SENTRY_DSN) stays at the repo root.

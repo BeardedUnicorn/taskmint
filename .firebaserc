@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "taskmint-f9a05"
+    "default": "taskmint-dev",
+    "dev": "taskmint-dev",
+    "production": "taskmint-f9a05"
   }
 }

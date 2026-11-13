@@ -8,6 +8,7 @@
 //! from the old identifier.
 
 use crate::dispatch;
+use crate::environment::Environment;
 use crate::platform::os::TauriPlatform;
 use crate::state::AppState;
 use crate::store::JsonFileStore;
@@ -109,8 +110,9 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_fs::init());
     #[cfg(desktop)]
     let builder = builder
-        // Updates from GitHub's latest release (plugins.updater in
-        // tauri.conf.json); the webview asks before installing one
+        // Updates from GitHub's latest release (plugins.updater: the feed is
+        // in tauri.production.conf.json, so a dev build has none); the
+        // webview asks before installing one
         .plugin(tauri_plugin_updater::Builder::new().build())
         // Closing the window hides it to the tray: timers keep running and
         // the tray stays usable; quit from the tray menu. Without a tray icon
@@ -132,11 +134,16 @@ pub fn run() {
             let handle = app.handle().clone();
             #[cfg(desktop)]
             let identifier = app.config().identifier.clone();
+            // A production build runs only as the installed app, and a dev
+            // build never as it (environment.rs)
+            #[cfg(desktop)]
+            Environment::current().check_identifier(&identifier)?;
             // Before 2.1 the identifier was com.taskmint.app: move what it
             // left behind. This runs before the window exists, since the
-            // webview opens its storage when it's created.
+            // webview opens its storage when it's created. Only the real
+            // app takes it: a dev build's folders stay its own.
             #[cfg(desktop)]
-            if dev_data.is_none() {
+            if dev_data.is_none() && Environment::current().moves_legacy_folders() {
                 let path = app.path();
                 let dirs = Dirs {
                     home: path.home_dir()?,
@@ -160,9 +167,12 @@ pub fn run() {
             }
 
             // The main window ("create": false in tauri.conf.json, so it
-            // comes after the move above)
+            // comes after the move above), titled as the build is named
+            // ("TaskMint Dev" for a dev build)
             let window = app.config().app.windows[0].clone();
-            WebviewWindowBuilder::from_config(&handle, &window)?.build()?;
+            WebviewWindowBuilder::from_config(&handle, &window)?
+                .title(&handle.package_info().name)
+                .build()?;
 
             // Clicking a notification brings the window forward (it may be
             // hidden to the tray). Registered before anything can notify:
@@ -236,7 +246,8 @@ fn start_desktop(app: &tauri::App, handle: &tauri::AppHandle, state: &AppState) 
     // settings), and the long-run reminder
     tickers.push(idle::start_monitor(state));
 
-    // taskmint:// deep links (browser-extension captures). macOS
+    // taskmint:// deep links (taskmint-dev:// in a dev build: browser-
+    // extension captures, and the way back from Google sign-in). macOS
     // registers them at bundle time (Info.plist via tauri.conf.json)
     // and Windows releases in the installer; this covers Linux and
     // Windows dev builds.

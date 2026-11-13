@@ -21,13 +21,13 @@ use base64::Engine;
 use serde_json::json;
 use tiny_http::{Header, Method, Request, Response, Server};
 
+use crate::environment::Environment;
 use crate::state::AppState;
 use taskmint_core::capture::{is_extension_origin, origin_allowed};
 use taskmint_core::contract::{
-    CAPTURE_HEADER, CAPTURE_PATH, CAPTURE_SERVER_PORT, DEEP_LINK_CAPTURE_PENDING,
-    DEEP_LINK_IMPORT_WORKLOGS, DEEP_LINK_OPEN, DEEP_LINK_PAYLOAD_PARAM, DEEP_LINK_SCHEME,
-    ERR_UNEXPECTED_PAYLOAD_SHAPE, HEALTH_PATH, MAX_CAPTURE_BODY_BYTES as MAX_BODY_BYTES,
-    MAX_ENCODED_LINK_BYTES,
+    CAPTURE_HEADER, CAPTURE_PATH, DEEP_LINK_CAPTURE_PENDING, DEEP_LINK_IMPORT_WORKLOGS,
+    DEEP_LINK_OPEN, DEEP_LINK_PAYLOAD_PARAM, ERR_UNEXPECTED_PAYLOAD_SHAPE, HEALTH_PATH,
+    MAX_CAPTURE_BODY_BYTES as MAX_BODY_BYTES, MAX_ENCODED_LINK_BYTES,
 };
 use taskmint_core::model::CaptureSource;
 
@@ -76,9 +76,11 @@ pub enum DeepLinkAction {
     Open,
 }
 
-pub fn parse_deep_link(url_str: &str) -> Option<DeepLinkAction> {
+/// `url_str`'s action, when it's a link with this build's `scheme`
+/// (Environment::deep_link_scheme).
+pub fn parse_deep_link(url_str: &str, scheme: &str) -> Option<DeepLinkAction> {
     let url = url::Url::parse(url_str).ok()?;
-    if url.scheme() != DEEP_LINK_SCHEME {
+    if url.scheme() != scheme {
         return None;
     }
     // The action may surface as the host (taskmint://import-worklogs) or the
@@ -129,12 +131,13 @@ pub fn accept_capture_payload(
         .map(|_| ())
 }
 
-/// Process taskmint:// URLs from a cold start (get_current) or a runtime open
-/// (on_open_url / forwarded argv).
+/// Process taskmint:// URLs (taskmint-dev:// in a dev build) from a cold
+/// start (get_current) or a runtime open (on_open_url / forwarded argv).
 pub fn handle_deep_link_urls(state: &AppState, urls: &[String]) {
+    let scheme = Environment::current().deep_link_scheme();
     let mut recognized = false;
     for url in urls {
-        match parse_deep_link(url) {
+        match parse_deep_link(url, scheme) {
             Some(DeepLinkAction::ImportPayload(encoded)) => {
                 recognized = true;
                 let result = decode_protocol_payload(&encoded)
@@ -163,7 +166,7 @@ pub struct CaptureServer {
 }
 
 impl CaptureServer {
-    /// Starts it on `address` (127.0.0.1:CAPTURE_SERVER_PORT in the app). On
+    /// Starts it on `address` (default_address() in the app). On
     /// failure the status says why, for the Payouts page; the app runs on
     /// without it.
     pub fn start(state: &AppState, address: SocketAddr) -> Option<CaptureServer> {
@@ -217,9 +220,10 @@ impl Drop for CaptureServer {
     }
 }
 
-/// The address the app's capture server listens on.
+/// The address the app's capture server listens on: the extension's port,
+/// or a port of its own in a dev build (Environment::capture_port).
 pub fn default_address() -> SocketAddr {
-    SocketAddr::from(([127, 0, 0, 1], CAPTURE_SERVER_PORT))
+    SocketAddr::from(([127, 0, 0, 1], Environment::current().capture_port()))
 }
 
 fn header(field: &str, value: &str) -> Header {
@@ -401,34 +405,48 @@ mod tests {
 
     // ---- deep-link parsing -------------------------------------------------
 
+    /// A link for this build (taskmint-dev:// in tests, which are dev).
+    fn link(rest: &str) -> String {
+        format!("{}://{}", Environment::current().deep_link_scheme(), rest)
+    }
+
     #[test]
     fn parse_deep_link_recognizes_import_and_pending_forms() {
+        let parse = |url| parse_deep_link(url, "taskmint");
         assert_eq!(
-            parse_deep_link("taskmint://import-worklogs?v=1&d=abc123"),
+            parse("taskmint://import-worklogs?v=1&d=abc123"),
             Some(DeepLinkAction::ImportPayload("abc123".to_string()))
         );
         assert_eq!(
-            parse_deep_link("taskmint:///import-worklogs?d=xyz"),
+            parse("taskmint:///import-worklogs?d=xyz"),
             Some(DeepLinkAction::ImportPayload("xyz".to_string()))
         );
         assert_eq!(
-            parse_deep_link("taskmint://capture-pending"),
+            parse("taskmint://capture-pending"),
             Some(DeepLinkAction::CapturePending)
         );
-        assert_eq!(
-            parse_deep_link("taskmint://open"),
-            Some(DeepLinkAction::Open)
-        );
+        assert_eq!(parse("taskmint://open"), Some(DeepLinkAction::Open));
     }
 
     #[test]
     fn parse_deep_link_rejects_foreign_and_malformed_urls() {
-        assert_eq!(parse_deep_link("https://import-worklogs?d=abc"), None);
-        assert_eq!(parse_deep_link("taskmint://unknown-action"), None);
-        assert_eq!(parse_deep_link("taskmint://import-worklogs"), None); // no d param
-        assert_eq!(parse_deep_link("not a url"), None);
+        let parse = |url| parse_deep_link(url, "taskmint");
+        assert_eq!(parse("https://import-worklogs?d=abc"), None);
+        assert_eq!(parse("taskmint://unknown-action"), None);
+        assert_eq!(parse("taskmint://import-worklogs"), None); // no d param
+        assert_eq!(parse("not a url"), None);
         // Neither a host nor a path names an action
-        assert_eq!(parse_deep_link("taskmint:"), None);
+        assert_eq!(parse("taskmint:"), None);
+    }
+
+    #[test]
+    fn a_build_answers_only_its_own_scheme() {
+        assert_eq!(parse_deep_link("taskmint://open", "taskmint-dev"), None);
+        assert_eq!(
+            parse_deep_link("taskmint-dev://open", "taskmint-dev"),
+            Some(DeepLinkAction::Open)
+        );
+        assert_eq!(parse_deep_link("taskmint-dev://open", "taskmint"), None);
     }
 
     // ---- deep links --------------------------------------------------------
@@ -445,11 +463,11 @@ mod tests {
     #[test]
     fn an_import_link_is_kept_for_the_app_and_brings_it_forward() {
         let f = crate::testing::fixture();
-        let link = format!(
-            "taskmint://import-worklogs?v=1&d={}",
+        let import = link(&format!(
+            "import-worklogs?v=1&d={}",
             gzip_base64url(r#"{"workLogs":[]}"#)
-        );
-        handle_deep_link_urls(&f.state, &[link]);
+        ));
+        handle_deep_link_urls(&f.state, &[import]);
 
         let capture = pending(&f).unwrap();
         assert_eq!(capture["source"], "link");
@@ -463,8 +481,8 @@ mod tests {
         handle_deep_link_urls(&f.state, &["https://example.com".to_string()]);
         assert_eq!(f.platform.recorded().windows_shown, 0);
 
-        let unreadable = "taskmint://import-worklogs?d=!!!".to_string();
-        let pending_only = "taskmint://capture-pending".to_string();
+        let unreadable = link("import-worklogs?d=!!!");
+        let pending_only = link("capture-pending");
         handle_deep_link_urls(&f.state, &[unreadable, pending_only]);
         assert!(pending(&f).is_none());
         assert_eq!(f.platform.recorded().windows_shown, 1);
@@ -473,6 +491,8 @@ mod tests {
     #[test]
     fn an_open_link_only_brings_the_app_forward() {
         let f = crate::testing::fixture();
+        handle_deep_link_urls(&f.state, &[link("open")]);
+        // The real app's links aren't a dev build's
         handle_deep_link_urls(&f.state, &["taskmint://open".to_string()]);
         assert!(pending(&f).is_none());
         assert_eq!(f.platform.recorded().windows_shown, 1);
@@ -653,6 +673,6 @@ mod tests {
             .warning
             .unwrap()
             .contains("Another TaskMint instance may already be running"));
-        assert_eq!(default_address().port(), CAPTURE_SERVER_PORT);
+        assert_eq!(default_address().port(), Environment::Dev.capture_port());
     }
 }

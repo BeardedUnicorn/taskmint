@@ -98,7 +98,7 @@ impl AppState {
                 clock,
                 capture_server_status: Mutex::new(CaptureServerStatus {
                     running: false,
-                    port: taskmint_core::contract::CAPTURE_SERVER_PORT,
+                    port: crate::environment::Environment::current().capture_port(),
                     warning: None,
                 }),
                 tray: Mutex::new(TrayShown::default()),

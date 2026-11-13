@@ -1,9 +1,11 @@
 # Runbook: TaskMint on Firebase
 
 How to deploy, watch, recover and lock down cloud sync and the web app, on
-the Firebase project `taskmint-f9a05`. The design is
-[ADR 0002](adr/0002-firebase.md); the README's "Firebase" section has the
-setup. Commands run from the repository root. `pnpm firebase` is
+the Firebase project `taskmint-f9a05`, and its twin for every build that
+isn't a release, `taskmint-dev` ([The dev project](#the-dev-project)). The
+design is [ADR 0002](adr/0002-firebase.md) and
+[ADR 0004](adr/0004-dev-environment.md); the README's "Firebase" section has
+the setup. Commands run from the repository root. `pnpm firebase` is
 firebase-tools at the pinned version, and needs `pnpm firebase login` once
 (or gcloud's application default credentials). The self-hosted server this
 runbook used to cover was retired on 2026-11-09.
@@ -35,15 +37,53 @@ pnpm firebase deploy --only firestore:rules,firestore:indexes --project taskmint
 ```
 
 The web app, from a clean checkout of the release's tag (Hosting serves
-whatever `apps/web/dist` holds, so never deploy a working tree's build):
+whatever `apps/web/dist` holds, so never deploy a working tree's build). It
+has to be a production build: Hosting's predeploy step
+(`scripts/check-web-environment.mjs`) refuses one made for dev.
 
 ```bash
-pnpm install --frozen-lockfile && pnpm build:wasm && pnpm --filter @taskmint/web build
+pnpm install --frozen-lockfile && pnpm build:wasm && TASKMINT_ENV=production pnpm --filter @taskmint/web build
 pnpm firebase deploy --only hosting --project taskmint-f9a05
 ```
 
 Re-running the tag's `Deploy the web app` job (`gh run rerun <run id>
 --job <job id>`, or the Actions page) does the same with no local login.
+
+## The dev project
+
+`taskmint-dev` is where every build that isn't a release syncs: `pnpm tauri
+dev`, a plain `pnpm tauri build` ("TaskMint Dev"), Android builds
+(`com.taskmint.android.dev`), and the web app at
+https://taskmint-dev.web.app (the README's "Dev environment"). It's on Spark
+with billing off, with quotas of its own, and nothing in it matters: sign up
+with any account.
+
+It mirrors production's setup: email and password and Google sign-in, email
+enumeration protection, Firestore `(default)` in nam5, and Hosting. Google
+sign-in on the desktop uses production's "TaskMint desktop" client, which
+the dev project safelists (Authentication → Sign-in method → Google →
+Safelist client IDs from external projects). Its Android app,
+`com.taskmint.android.dev`, has the debug and release keys' SHA-1s. It has
+no Analytics. A setting changed in production's Authentication is worth
+changing here too.
+
+Nothing deploys to it automatically. From your Mac, the web app, rules and
+indexes (after the rules' tests):
+
+```bash
+pnpm deploy:dev
+```
+
+To start it over, delete its data (Authentication → Users can delete the
+accounts):
+
+```bash
+pnpm firebase firestore:delete --all-collections --project taskmint-dev
+```
+
+`.firebaserc` makes it the default project, so a `pnpm firebase` command
+without `--project` works on dev. Every production command here names
+`--project taskmint-f9a05`.
 
 ## Rolling back
 
@@ -144,7 +184,8 @@ signing", including registering the new key's SHA-1 with Firebase.
   browser and Android keys are limited to Firebase's APIs. They're public by
   design; the rules protect the data.
 - **Authorized domains** (Authentication → Settings) should list only
-  `localhost` and the project's own `firebaseapp.com` and `web.app` domains.
+  `localhost` and the project's own `firebaseapp.com` and `web.app` domains
+  (production's also lists BudgetMint's).
 - **The deploy service account** holds Firebase Hosting Admin, Firebase
   Rules Admin, Cloud Datastore Index Admin and Service Usage Consumer, which
   between them cover every call firebase-tools makes to deploy (Hosting

@@ -1,0 +1,15 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "TaskMint",
+  "identifier": "com.taskmint.desktop",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["taskmint"]
+      }
+    },
+    "updater": {
+      "endpoints": ["https://github.com/BeardedUnicorn/taskmint/releases/latest/download/latest.json"]
+    }
+  }
+}
