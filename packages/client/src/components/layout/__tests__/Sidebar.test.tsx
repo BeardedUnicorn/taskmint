@@ -69,6 +69,10 @@ describe('Sidebar', () => {
     act(() => window.dispatchEvent(new Event('resize')));
     act(() => fakeBackend().changeInsets());
     expect(setArea).toHaveBeenCalledTimes(3);
+    // No band on screen: nowhere
+    band.classList.remove(EDGE_SWIPE_CLASS);
+    act(() => window.dispatchEvent(new Event('resize')));
+    expect(setArea).toHaveBeenLastCalledWith(null);
 
     unmount();
     expect(setArea).toHaveBeenLastCalledWith(null);
