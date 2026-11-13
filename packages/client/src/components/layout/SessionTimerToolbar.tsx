@@ -166,9 +166,19 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
           variant="outlined"
         />
 
-        {/* On a phone the session's buttons go on their own line(s) */}
-        <PhoneOwnLine sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <Box sx={{ flex: 1, display: 'flex', gap: 1, alignItems: 'center' }}>
+        {/* On a phone the session's buttons go on lines of their own: the
+            pause or resume and Switch task side by side with the menu, then
+            End Session across the card */}
+        <PhoneOwnLine sx={{ flexWrap: 'wrap' }}>
+          <Box
+            sx={{
+              flex: 1,
+              display: 'flex',
+              gap: 1,
+              alignItems: 'center',
+              [PHONE]: { '&:empty': { display: 'none' }, '& > .MuiButton-root': { flex: 1 } },
+            }}
+          >
             {sessionStatus.running > 0 && (
               <Button variant="outlined" color="warning" size="small" onClick={onPauseAll} startIcon={<PauseIcon />}>
                 Pause All
@@ -183,7 +193,7 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
           </Box>
 
           {onSwitchTask && (
-            <Button variant="outlined" startIcon={<SwitchIcon />} onClick={onSwitchTask}>
+            <Button variant="outlined" startIcon={<SwitchIcon />} onClick={onSwitchTask} sx={{ [PHONE]: { flex: 1 } }}>
               Switch task
             </Button>
           )}
@@ -192,7 +202,13 @@ export const SessionTimerToolbar = memo(function SessionTimerToolbar({
             <MoreIcon />
           </IconButton>
 
-          <Button variant="outlined" color="error" startIcon={<StopIcon />} onClick={onEndSession}>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<StopIcon />}
+            onClick={onEndSession}
+            sx={{ [PHONE]: { flexBasis: '100%' } }}
+          >
             End Session
           </Button>
         </PhoneOwnLine>
