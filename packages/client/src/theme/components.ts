@@ -113,6 +113,8 @@ export function components(mode: ColorMode): Components<Theme> {
       },
     },
     MuiTab: { styleOverrides: { root: { minHeight: 48, ...focusRing('2px') } } },
+    // A phone's selected tab: the brand green, dark enough to read on white
+    MuiBottomNavigationAction: { styleOverrides: { root: { '&.Mui-selected': { color: brandText(mode) } } } },
     MuiMenuItem: { styleOverrides: { root: { minHeight: 44, ...focusRing('-2px') } } },
     MuiListItem: { styleOverrides: { root: { minHeight: 44, ...focusRing('-2px') } } },
     MuiTableCell: {
@@ -187,6 +189,8 @@ export function components(mode: ColorMode): Components<Theme> {
                 '&.MuiChip-clickable:hover': { backgroundColor: 'rgba(101, 214, 161, 0.2)' },
               },
             },
+            // The brand green is too light for an outlined chip's label on white
+            { props: { color: 'primary', variant: 'outlined' }, style: { color: BRAND_TEXT_LIGHT } },
           ]
         : [],
     },
