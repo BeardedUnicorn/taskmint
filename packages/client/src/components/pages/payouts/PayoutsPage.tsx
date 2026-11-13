@@ -187,8 +187,14 @@ export function PayoutsPage({ importRequested = false, onImportRequestHandled }:
               gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
               gap: 3,
               mb: 4,
-              // Two narrower columns on a phone
-              [PHONE]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2, mb: 3 },
+              // Two narrower columns on a phone, and a last card left alone on
+              // its row takes the whole row
+              [PHONE]: {
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: 2,
+                mb: 3,
+                '& > :last-child:nth-of-type(odd)': { gridColumn: '1 / -1' },
+              },
             }}
           >
             {plan ? (
