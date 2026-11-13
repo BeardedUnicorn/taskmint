@@ -12,6 +12,10 @@ import {
   Typography,
   Box,
   Chip,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, Lock as LockIcon } from '@mui/icons-material';
@@ -26,6 +30,8 @@ import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 import dayjs from 'dayjs';
 import { PHONE } from '../../../theme/media';
 import { PHONE_TABLE } from './tableStyles';
+import { TimeEntryRows } from './TimeEntryRows';
+import { useCompactLayout } from '../../../hooks/useCompactLayout';
 
 export type SortField = 'taskName' | 'startTime' | 'endTime' | 'duration' | 'date' | 'earnings' | 'source';
 export type SortDirection = 'asc' | 'desc';
@@ -72,6 +78,15 @@ const COLUMNS: { field: SortField; label: string }[] = [
   { field: 'earnings', label: 'Earnings' },
 ];
 
+/** A phone's sort orders, in place of the column headers: `field:direction`. */
+const PHONE_SORTS: { value: `${SortField}:${SortDirection}`; label: string }[] = [
+  { value: 'startTime:desc', label: 'Newest first' },
+  { value: 'startTime:asc', label: 'Oldest first' },
+  { value: 'duration:desc', label: 'Longest first' },
+  { value: 'earnings:desc', label: 'Most earned first' },
+  { value: 'taskName:asc', label: 'Task, A to Z' },
+];
+
 export interface TimeEntriesTableProps {
   /** One page of entries, already sorted (sortTimeEntries) */
   entries: TimeEntry[];
@@ -95,6 +110,42 @@ export function TimeEntriesTable({
 }: TimeEntriesTableProps) {
   const handleSort = (field: SortField) =>
     onSort(field, sortField === field && sortDirection === 'asc' ? 'desc' : 'asc');
+  const compact = useCompactLayout();
+
+  if (compact) {
+    const current = `${sortField}:${sortDirection}`;
+    return (
+      <Box>
+        <FormControl size="small" sx={{ mb: 1, minWidth: 200 }}>
+          <InputLabel id="time-entries-sort">Sort by</InputLabel>
+          <Select
+            labelId="time-entries-sort"
+            label="Sort by"
+            // A desktop's column sort a phone doesn't offer shows as none picked
+            value={PHONE_SORTS.some(sort => sort.value === current) ? current : ''}
+            onChange={event => {
+              const [field, direction] = event.target.value.split(':') as [SortField, SortDirection];
+              onSort(field, direction);
+            }}
+          >
+            {PHONE_SORTS.map(sort => (
+              <MenuItem key={sort.value} value={sort.value}>
+                {sort.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <TimeEntryRows
+          entries={entries}
+          tasks={tasks}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          showTask
+          label="Time entries"
+        />
+      </Box>
+    );
+  }
 
   return (
     <Paper variant="outlined">

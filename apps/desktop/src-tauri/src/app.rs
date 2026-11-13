@@ -184,15 +184,6 @@ pub fn run() {
                 }
             })?;
 
-            // Android 13 and later ask the user before an app can notify. The
-            // plugin answers on the main thread, so the question waits on a
-            // thread of its own.
-            #[cfg(mobile)]
-            {
-                let handle = handle.clone();
-                std::thread::spawn(move || ask_to_notify(&handle));
-            }
-
             #[cfg(desktop)]
             start_desktop(app, &handle, &state);
             Ok(())
@@ -212,22 +203,6 @@ pub fn run() {
                 show_window(_app);
             }
         });
-}
-
-/// Asks for permission to notify, unless the user already answered.
-#[cfg(mobile)]
-fn ask_to_notify(app: &tauri::AppHandle) {
-    use tauri_plugin_notification::PermissionState;
-    let notification = app.notification();
-    match notification.permission_state() {
-        Ok(PermissionState::Granted | PermissionState::Denied) => {}
-        Ok(_) => {
-            if let Err(e) = notification.request_permission() {
-                log::error!("Failed to ask for permission to notify: {}", e);
-            }
-        }
-        Err(e) => log::error!("Failed to read the permission to notify: {}", e),
-    }
 }
 
 /// The tray, the idle monitor, taskmint:// links and the capture server.

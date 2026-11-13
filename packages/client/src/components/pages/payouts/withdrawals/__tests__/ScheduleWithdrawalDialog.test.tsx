@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '../../../../../__tests__/setup/test-helpers';
-import { seedAppRecords } from '../../../../../testing';
+import { fakeBackend, seedAppRecords } from '../../../../../testing';
 import { readAppRecord } from '../../../../../services/appRecords';
 import {
   createMockAmount,
@@ -59,6 +59,8 @@ describe('ScheduleWithdrawalDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Schedule' }));
     expect(readAppRecord('scheduledWithdrawal')).toMatchObject({ releaseAt: new Date(FREE).toISOString() });
     expect(onClose).toHaveBeenCalled();
+    // The reminder is a notification: a phone asks to send it
+    expect(fakeBackend().platform.notifications.askPermission).toHaveBeenCalled();
   });
 
   it('reminds you when withdrawals open for a held release', () => {

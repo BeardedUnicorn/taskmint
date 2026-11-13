@@ -29,8 +29,12 @@ vi.mock('../../../../hooks/useDailyGoals', () => ({
 }));
 
 // Charts are lazy-loaded and irrelevant here
-vi.mock('../../../ui/charts/TaskTimeBarChart', () => ({ TaskTimeBarChart: () => <div>bar chart</div> }));
-vi.mock('../../../ui/charts/TimelineChart', () => ({ TimelineChart: () => null }));
+vi.mock('../../../ui/charts/TaskTimeBarChart', () => ({
+  TaskTimeBarChart: ({ measure }: { measure: string }) => <div>bar chart of {measure}</div>,
+}));
+vi.mock('../../../ui/charts/TimelineChart', () => ({
+  TimelineChart: ({ measure }: { measure: string }) => <div>timeline of {measure}</div>,
+}));
 vi.mock('../../../ui/charts/TaskDistributionPieChart', () => ({ TaskDistributionPieChart: () => null }));
 
 const ENTRY_COUNT = 30;
@@ -204,14 +208,14 @@ describe('HistoryPage summary and charts', () => {
 
   it('remembers whether the charts are shown', async () => {
     const { unmount } = renderPage([entryDaysAgo(1, 'Yesterday')]);
-    expect(await screen.findByText('bar chart')).toBeInTheDocument();
+    expect(await screen.findByText(/^bar chart/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide charts' }));
     unmount();
 
     renderPage([entryDaysAgo(1, 'Yesterday')]);
     expect(screen.getByRole('button', { name: 'Show charts' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByText('bar chart')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^bar chart/)).not.toBeInTheDocument();
   });
 });
 
@@ -405,6 +409,25 @@ describe('HistoryPage actions', () => {
       fireEvent.click(await screen.findByRole('option', { name: view }));
       expect(screen.getByRole('combobox', { name: 'Timeline View' })).toHaveTextContent(view);
     }
+  });
+
+  it('switches the charts between time and earnings, one measure at a time', async () => {
+    renderPage(makeEntries());
+    // (The entries table has an Earnings column header too)
+    const measure = within(await screen.findByRole('group', { name: 'Chart' }));
+    const time = measure.getByRole('button', { name: 'Time' });
+    const earnings = measure.getByRole('button', { name: 'Earnings' });
+    expect(time).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByText('bar chart of time')).toBeInTheDocument();
+
+    fireEvent.click(earnings);
+    expect(earnings).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByText('bar chart of earnings')).toBeInTheDocument();
+    expect(screen.getByText('timeline of earnings')).toBeInTheDocument();
+
+    // Tapping the chosen one again keeps it
+    fireEvent.click(earnings);
+    expect(earnings).toHaveAttribute('aria-pressed', 'true');
   });
 
   it("shows the goal's past results even with the goal off now", () => {

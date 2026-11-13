@@ -4,6 +4,7 @@ import { vi, describe, it, expect } from 'vitest';
 import { TaskDetailPane } from '../TaskDetailPane';
 import { Task } from '../../../../types/task';
 import { TimeEntry } from '../../../../types/timer';
+import { setPhoneViewport } from '../../../../__tests__/setup/viewport';
 
 const task: Task = {
   id: 'task-1',
@@ -227,5 +228,24 @@ describe('TaskDetailPane on a phone', () => {
   it('has no way back beside the list', () => {
     renderPane(task, vi.fn());
     expect(screen.queryByRole('button', { name: 'All tasks' })).not.toBeInTheDocument();
+  });
+
+  it('lists its entries as rows by day, the newest 10', () => {
+    setPhoneViewport();
+    const entry = (index: number): TimeEntry => ({
+      id: `e${index}`,
+      taskId: 'task-1',
+      taskName: 'Annotation',
+      startTime: new Date(2026, 9, 20 - index, 9, 0),
+      endTime: new Date(2026, 9, 20 - index, 10, 0),
+      duration: 3_600_000,
+      isRunning: false,
+      date: '2026-10-10',
+    });
+    render(<TaskDetailPane {...base} task={task} timeEntries={Array.from({ length: 12 }, (_, i) => entry(i))} />);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    const rows = screen.getAllByRole('listitem');
+    expect(rows).toHaveLength(10);
+    expect(rows[0]).toHaveTextContent('Oct 20, 2026$40.009:00 AM – 10:00 AM1h 0m');
   });
 });

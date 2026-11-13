@@ -14,6 +14,7 @@ import { formatWeekdayDateTime } from '../../../../utils/locale';
 import { scheduledFor } from '../../../../utils/withdrawals';
 import { MONO } from '../payoutStyles';
 import { amountNotes } from './NextWithdrawalPanel';
+import { askToNotify } from '../../../../hooks/useAskToNotify';
 
 export interface ScheduleWithdrawalDialogProps {
   /** The release to schedule the withdrawal for. */
@@ -31,6 +32,8 @@ export function ScheduleWithdrawalDialog({ row, onClose }: ScheduleWithdrawalDia
   const every = `${withdrawalIntervalDays} day${withdrawalIntervalDays === 1 ? '' : 's'}`;
 
   const schedule = () => {
+    // The reminder is a notification: a phone asks to send it now
+    askToNotify();
     scheduleWithdrawal(row.releaseMs);
     onClose();
   };

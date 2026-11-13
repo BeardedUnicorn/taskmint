@@ -7,7 +7,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotificationSettingsSection } from '../NotificationSettingsSection';
 import { NOTIFICATION_PREFERENCES_KEY } from '../../../../notifications/preferences';
-import { installFakeBackendForTest } from '../../../../testing';
+import { fakeBackend, installFakeBackendForTest } from '../../../../testing';
 
 const mockNotify = vi.fn();
 vi.mock('../../../../contexts/NotificationContext', () => ({ useNotification: () => ({ notify: mockNotify }) }));
@@ -60,6 +60,8 @@ describe('NotificationSettingsSection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /test notification/i }));
     expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ category: 'test', history: false }));
+    // A phone asks to be let notify first
+    expect(fakeBackend().platform.notifications.askPermission).toHaveBeenCalled();
   });
 
   it("lists every kind on a desktop, in the desktop's words", () => {

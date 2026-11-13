@@ -11,6 +11,7 @@ import { vi, describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { TaskListPane } from '../TaskListPane';
 import { Task } from '../../../../types/task';
+import { setPhoneViewport } from '../../../../__tests__/setup/viewport';
 
 describe('TaskListPane', () => {
   const activeAlpha: Task = {
@@ -154,5 +155,45 @@ describe('TaskListPane', () => {
     fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz' } });
 
     expect(screen.getByText(/No tasks match your search criteria/)).toBeInTheDocument();
+  });
+
+  it("keeps a phone's row actions behind one menu per row", async () => {
+    setPhoneViewport();
+    const props = {
+      ...defaultProps,
+      onSelectTask: vi.fn(),
+      onEditTask: vi.fn(),
+      onArchiveTask: vi.fn(),
+      onUnarchiveTask: vi.fn(),
+      onDeleteTask: vi.fn(),
+    };
+    render(<TaskListPane {...props} />);
+    expect(screen.queryByRole('button', { name: 'Delete task' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit task' })).not.toBeInTheDocument();
+
+    const open = (name: string) => fireEvent.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+    open('Alpha Work');
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Edit', 'Archive', 'Delete']);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    expect(props.onEditTask).toHaveBeenCalledWith(activeAlpha);
+    // Opening the menu doesn't open the task
+    expect(props.onSelectTask).not.toHaveBeenCalled();
+
+    open('Beta Work');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+    expect(props.onArchiveTask).toHaveBeenCalledWith(activeBeta);
+
+    open('Gamma Archived');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unarchive' }));
+    expect(props.onUnarchiveTask).toHaveBeenCalledWith(archivedGamma);
+
+    open('Alpha Work');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(props.onDeleteTask).toHaveBeenCalledWith('task-alpha');
+
+    // Dismissed without a choice
+    open('Beta Work');
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    expect(props.onEditTask).toHaveBeenCalledTimes(1);
   });
 });

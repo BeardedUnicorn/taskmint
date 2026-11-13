@@ -36,6 +36,7 @@ import { useWithdrawalReminder } from './hooks/useWithdrawalReminder';
 import { usePayoutForecastPublisher } from './hooks/usePayoutForecastPublisher';
 import { useSystemBarsTheme } from './hooks/useSystemBarsTheme';
 import { useSystemBottomInset } from './hooks/useSystemBottomInset';
+import { useAskToNotifyAtFirstWork } from './hooks/useAskToNotify';
 import { SAFE_BOTTOM } from './theme/media';
 import { useAnalyticsScreens } from './utils/analytics';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
@@ -63,6 +64,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
   usePayoutForecastPublisher();
   useSystemBarsTheme();
   useSystemBottomInset();
+  useAskToNotifyAtFirstWork();
   useRecordConflictNotice();
   useUpdatedNotice();
   useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });

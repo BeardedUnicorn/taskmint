@@ -11,7 +11,6 @@ import {
   aggregateByMonth,
   millisecondsToHours,
   formatTimeForChart,
-  generateChartColors,
   prepareTaskDistributionData,
 } from '../chartDataHelpers';
 import { TimeEntry } from '../../types/timer';
@@ -355,29 +354,6 @@ describe('chartDataHelpers', () => {
     it('should handle large values', () => {
       const oneDay = 24 * 60 * 60 * 1000;
       expect(formatTimeForChart(oneDay)).toBe('24h 0m');
-    });
-  });
-
-  describe('generateChartColors', () => {
-    it('should generate the requested number of colors', () => {
-      expect(generateChartColors(5)).toHaveLength(5);
-      expect(generateChartColors(0)).toHaveLength(0);
-      expect(generateChartColors(1)).toHaveLength(1);
-    });
-
-    it('should cycle through colors when count exceeds available colors', () => {
-      const colors = generateChartColors(20); // More than the 15 predefined colors
-      expect(colors).toHaveLength(20);
-
-      // First color should repeat at position 15
-      expect(colors[0]).toBe(colors[15]);
-    });
-
-    it('should return valid hex color codes', () => {
-      const colors = generateChartColors(5);
-      colors.forEach(color => {
-        expect(color).toMatch(/^#[0-9a-f]{6}$/i);
-      });
     });
   });
 

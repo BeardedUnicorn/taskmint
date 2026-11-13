@@ -68,6 +68,11 @@ export interface NotificationPlatform {
   cancel?(id: number): Promise<void>;
   /** The preferences for notifications the shell raises itself (the long-run reminder, idle pauses). */
   setPreferences?(preferences: NotificationPreferences): Promise<void>;
+  /**
+   * Asks the user to let the app notify (Android 13 and later), unless they
+   * already answered. Absent where the system doesn't need asking first.
+   */
+  askPermission?(): void;
 }
 
 /** System idle time: pausing a timer while you're away, and the long-run reminder. */

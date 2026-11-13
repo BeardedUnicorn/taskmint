@@ -251,7 +251,7 @@ describe('createTauriBackend', () => {
     expect(dispatched()).toEqual([['import_data_from_file']]);
   });
 
-  it('on a phone or tablet, sets notifications for later and takes them back', async () => {
+  it('on a phone or tablet, sets notifications for later, takes them back, and asks to notify', async () => {
     const { notifications } = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' }).platform;
     mockInvoke.mockResolvedValue(true);
     const atMs = Date.UTC(2026, 10, 12, 18, 25);
@@ -259,6 +259,7 @@ describe('createTauriBackend', () => {
       notifications.schedule!({ id: 4100, atMs, kind: 'withdrawalReady', title: 'Withdrawal ready', body: '$80.00' })
     ).resolves.toBe(true);
     await notifications.cancel!(4100);
+    notifications.askPermission!();
 
     expect(dispatched()).toEqual([
       [
@@ -272,7 +273,10 @@ describe('createTauriBackend', () => {
         },
       ],
       ['cancel_notification', { id: 4100 }],
+      ['ask_to_notify'],
     ]);
+    // A desktop has nothing to ask
+    expect(platform.notifications.askPermission).toBeUndefined();
   });
 
   it('on Android, sets the status bar and reads the bottom inset through the bridge MainActivity adds', () => {

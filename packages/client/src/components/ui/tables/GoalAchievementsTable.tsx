@@ -2,7 +2,8 @@
  * Goal Achievements Table
  *
  * Displays daily goal achievements with status, progress, and earnings data
- * Shows historical performance against daily earnings goals
+ * Shows historical performance against daily earnings goals. A phone lists
+ * the days as rows instead of a six-column table.
  */
 
 import { ReactElement, useMemo } from 'react';
@@ -26,6 +27,10 @@ import { formatCurrency } from '../../../utils/formatters';
 import { isToday, formatLocalDate, formatLocalDateWithDay } from '../../../utils/dateHelpers';
 import { HOVER } from '../../../theme/media';
 import { PHONE_TABLE } from './tableStyles';
+import { StackedList, StackedRow } from './StackedRows';
+import { useCompactLayout } from '../../../hooks/useCompactLayout';
+import { formatWeekdayDate } from '../../../utils/locale';
+import { parseDateStringLocal } from '../../../utils/dateHelpers';
 
 export interface GoalAchievementsTableProps {
   achievements: DailyGoalAchievement[];
@@ -80,7 +85,42 @@ function Difference({ achievement, kind }: { achievement: DailyGoalAchievement; 
   );
 }
 
+/** A phone's day: what it earned, a bar toward its goal, its status and the difference. */
+function PhoneDay({ achievement }: { achievement: DailyGoalAchievement }) {
+  const kind = kindOf(achievement);
+  const look = KINDS[kind];
+  return (
+    <StackedRow
+      title={formatWeekdayDate(parseDateStringLocal(achievement.date))}
+      figure={formatCurrency(achievement.earnedAmount)}
+      details={
+        <>
+          <LinearProgress
+            variant="determinate"
+            value={Math.min(100, achievement.percentageAchieved)}
+            color={look.color}
+            aria-hidden
+            sx={{ flexBasis: '100%', height: 6, borderRadius: 3, my: 0.5 }}
+          />
+          <span>
+            {Math.round(achievement.percentageAchieved)}% of {formatCurrency(achievement.goalAmount)}
+          </span>
+          <Chip
+            icon={look.icon}
+            label={look.label}
+            color={look.color}
+            size="small"
+            variant={look.filled ? 'filled' : 'outlined'}
+          />
+          <Difference achievement={achievement} kind={kind} />
+        </>
+      }
+    />
+  );
+}
+
 export function GoalAchievementsTable({ achievements }: GoalAchievementsTableProps) {
+  const compact = useCompactLayout();
   // Most recent first
   const sortedAchievements = useMemo(
     () => [...achievements].sort((a, b) => b.date.localeCompare(a.date)),
@@ -97,6 +137,16 @@ export function GoalAchievementsTable({ achievements }: GoalAchievementsTablePro
           Set up a daily earnings goal and start tracking to see your progress here.
         </Typography>
       </Box>
+    );
+  }
+
+  if (compact) {
+    return (
+      <StackedList label="Daily goal">
+        {sortedAchievements.map(achievement => (
+          <PhoneDay key={achievement.id} achievement={achievement} />
+        ))}
+      </StackedList>
     );
   }
 

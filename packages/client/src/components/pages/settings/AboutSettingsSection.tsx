@@ -6,14 +6,29 @@ import { RELEASES, type ReleaseNotes as Release } from '../../../utils/changelog
 import { ReleaseNotes } from '../../ui/display/ReleaseNotes';
 import { formatLocalDate } from '../../../utils/dateHelpers';
 import { useOptionalAbout } from '../../about/About';
+import { useCompactLayout } from '../../../hooks/useCompactLayout';
+import { useOpenedFromLink } from './settingsLink';
 
 const releasedOn = (release: Release) => (release.date ? `Released ${formatLocalDate(release.date)}` : null);
 
-/** The app's version, and the release notes for it and the versions before it. */
+/**
+ * The app's version, and the release notes for it and the versions before
+ * it. On a phone, where About is a screen of its own, this version's notes
+ * fold away like the earlier ones, unless a "What's new" link opened it.
+ */
 export function AboutSettingsSection() {
   const current = RELEASES.find(release => release.version === APP_VERSION);
   const earlier = RELEASES.filter(release => compareVersions(release.version, APP_VERSION) < 0);
   const about = useOptionalAbout();
+  const compact = useCompactLayout();
+  const fromLink = useOpenedFromLink();
+  const notes = current ? (
+    <ReleaseNotes release={current} />
+  ) : (
+    <Typography variant="body2" color="text.secondary">
+      There are no release notes for this version.
+    </Typography>
+  );
 
   return (
     <SettingsSection
@@ -41,15 +56,22 @@ export function AboutSettingsSection() {
         </Box>
       </Box>
 
-      <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600, mt: 3, mb: 1 }}>
-        What's new in {APP_VERSION}
-      </Typography>
-      {current ? (
-        <ReleaseNotes release={current} />
+      {compact ? (
+        <Accordion disableGutters variant="outlined" defaultExpanded={fromLink} sx={{ mt: 3 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />} id="release-current" aria-controls="release-current-notes">
+            <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
+              What's new in {APP_VERSION}
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails id="release-current-notes">{notes}</AccordionDetails>
+        </Accordion>
       ) : (
-        <Typography variant="body2" color="text.secondary">
-          There are no release notes for this version.
-        </Typography>
+        <>
+          <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600, mt: 3, mb: 1 }}>
+            What's new in {APP_VERSION}
+          </Typography>
+          {notes}
+        </>
       )}
 
       {earlier.length > 0 && (

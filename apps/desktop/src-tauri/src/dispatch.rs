@@ -68,6 +68,10 @@ enum Shell {
     CancelNotification {
         id: i32,
     },
+    /// Asks the user to let the app notify (a phone), when they set up
+    /// something that notifies: their first work, a withdrawal reminder, a
+    /// test notification. Not at launch, before they've seen the app.
+    AskToNotify {},
     GetCaptureServerStatus {},
     ValidateBackupPath {
         path: String,
@@ -135,7 +139,7 @@ enum Shell {
     GetAppInfo {},
 }
 
-const SHELL_COMMANDS: [&str; 27] = [
+const SHELL_COMMANDS: [&str; 28] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -145,6 +149,7 @@ const SHELL_COMMANDS: [&str; 27] = [
     "show_desktop_notification",
     "schedule_notification",
     "cancel_notification",
+    "ask_to_notify",
     "get_capture_server_status",
     "validate_backup_path",
     "perform_automatic_backup",
@@ -219,6 +224,10 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         } => reply(notifications::schedule(state, kind, id, at, &title, &body)),
         Shell::CancelNotification { id } => {
             notifications::cancel(state, id);
+            Value::Null
+        }
+        Shell::AskToNotify {} => {
+            state.platform.ask_to_notify();
             Value::Null
         }
         Shell::GetCaptureServerStatus {} => {
@@ -469,6 +478,13 @@ mod tests {
             Ok(Value::Null)
         );
         assert_eq!(f.platform.recorded().cancelled, [4100]);
+    }
+
+    #[test]
+    fn the_app_asks_to_notify_when_it_needs_to() {
+        let f = fixture();
+        assert_eq!(run(&f, "ask_to_notify", json!({})), Ok(Value::Null));
+        assert_eq!(f.platform.recorded().asked_to_notify, 1);
     }
 
     #[test]

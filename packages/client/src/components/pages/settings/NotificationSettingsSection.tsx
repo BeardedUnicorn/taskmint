@@ -5,6 +5,7 @@ import { SettingsSection } from './SettingsSection';
 import { useNotificationPreferences, NotificationPreferences } from '../../../notifications/preferences';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { getBackend } from '../../../backend';
+import { askToNotify } from '../../../hooks/useAskToNotify';
 import type { Platform } from '../../../backend/types';
 
 type CategoryKey = Exclude<keyof NotificationPreferences, 'desktopEnabled' | 'sound' | 'dailySummaryTime'>;
@@ -141,7 +142,8 @@ export function NotificationSettingsSection() {
   // Only the kinds this device can ever send
   const sendable = (kinds: Kind[]) => kinds.filter(kind => !kind.needs || platform[kind.needs] !== undefined);
 
-  const sendTest = () =>
+  const sendTest = () => {
+    askToNotify();
     notify({
       category: 'test',
       severity: 'info',
@@ -149,6 +151,7 @@ export function NotificationSettingsSection() {
       message: 'Notifications are working.',
       history: false,
     });
+  };
 
   return (
     <SettingsSection title="Notifications" icon={<NotificationsIcon color="primary" />}>

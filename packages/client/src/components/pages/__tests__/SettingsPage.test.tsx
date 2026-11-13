@@ -5,7 +5,10 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import { SettingsPage, SETTINGS_SECTIONS, currentSection } from '../SettingsPage';
 import { NavigationProvider, useNavigation } from '../../../contexts/NavigationContext';
 import { AppExtensionsProvider } from '../../../app/extensions';
-import { installFakeBackendForTest } from '../../../testing';
+import { fakeBackend, installFakeBackendForTest } from '../../../testing';
+import { setPhoneViewport } from '../../../__tests__/setup/viewport';
+import { useBackButton } from '../../../navigation/backButton';
+import { useOpenedFromLink } from '../settings/settingsLink';
 
 // The sections have their own tests; here they're placeholders
 vi.mock('../settings', () => ({
@@ -20,7 +23,9 @@ vi.mock('../settings/NotificationSettingsSection', () => ({
   NotificationSettingsSection: () => <div>Notifications section</div>,
 }));
 vi.mock('../settings/PayoutSettingsSection', () => ({ PayoutSettingsSection: () => <div>Payouts section</div> }));
-vi.mock('../settings/AboutSettingsSection', () => ({ AboutSettingsSection: () => <div>About section</div> }));
+vi.mock('../settings/AboutSettingsSection', () => ({
+  AboutSettingsSection: () => <div>About section{useOpenedFromLink() ? ', opened from a link' : ''}</div>,
+}));
 vi.mock('../settings/CloudSyncSection', () => ({ CloudSyncSection: () => <div>Sync section</div> }));
 
 // A build that syncs, unless a test says otherwise
@@ -179,6 +184,65 @@ describe('SettingsPage', () => {
       fireEvent.scroll(container.parentElement!);
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(current()).toBe('Backups');
+    });
+  });
+
+  describe('on a phone', () => {
+    /** The shell's part in Android's back, beside the page. */
+    function WithBack({ children }: { children: React.ReactNode }) {
+      useBackButton();
+      return <>{children}</>;
+    }
+
+    it('lists the sections, and opens each on its own screen with a way back', async () => {
+      setPhoneViewport();
+      render(
+        <NavigationProvider>
+          <WithBack>
+            <SettingsPage />
+          </WithBack>
+        </NavigationProvider>
+      );
+      const list = screen.getByRole('navigation', { name: 'Settings sections' });
+      expect(
+        within(list)
+          .getAllByRole('button')
+          .map(button => button.textContent)
+      ).toEqual(SETTINGS_SECTIONS.map(section => section.label));
+      expect(screen.queryByText('Appearance section')).not.toBeInTheDocument();
+
+      fireEvent.click(within(list).getByRole('button', { name: 'Payouts' }));
+      expect(screen.getByText('Payouts section')).toBeInTheDocument();
+      expect(screen.queryByRole('navigation', { name: 'Settings sections' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Appearance section')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+      expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument();
+
+      // Android's back goes from a section to the list
+      fireEvent.click(screen.getByRole('button', { name: 'About' }));
+      expect(screen.getByText('About section')).toBeInTheDocument();
+      await waitFor(() => expect(fakeBackend().platform.backButton.listen).toHaveBeenCalled());
+      act(() => fakeBackend().pressBack());
+      expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument();
+    });
+
+    it('opens at the section a link asks for, telling it a link opened it', async () => {
+      setPhoneViewport();
+      function OpenAt({ section }: { section: 'about' | 'backups' }) {
+        const navigation = useNavigation();
+        useEffect(() => navigation.navigate('settings', { section }), []); // eslint-disable-line react-hooks/exhaustive-deps
+        return <SettingsPage />;
+      }
+      const { unmount } = render(<OpenAt section="about" />, { wrapper: NavigationProvider });
+      expect(await screen.findByText('About section, opened from a link')).toBeInTheDocument();
+      unmount();
+
+      // A section this platform doesn't have stays on the list
+      installFakeBackendForTest({ capabilities: { runtime: 'mobile' }, without: ['idle', 'folderBackups'] });
+      render(<OpenAt section="backups" />, { wrapper: NavigationProvider });
+      await waitFor(() => expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument());
+      expect(screen.queryByText('Backups section')).not.toBeInTheDocument();
     });
   });
 });

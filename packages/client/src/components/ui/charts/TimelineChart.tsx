@@ -1,6 +1,6 @@
-/** Time and earnings over days, weeks or months, as lines. */
+/** Time or earnings over days, weeks or months, as a line. */
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 import {
@@ -14,22 +14,24 @@ import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { formatCurrency } from '../../../utils/formatters';
 import { formatShortDate } from '../../../utils/locale';
 import {
-  ChartLegend,
-  useChartLayout,
+  ChartMeasure,
   ChartTitle,
   ChartTooltipCard,
   ChartTooltipProps,
+  MEASURES,
   hoveredPoint,
+  useChartLayout,
+  useSeriesColor,
 } from './ChartParts';
 
 type TimelineData = DailyData | WeeklyData | MonthlyData;
 export type TimelineType = 'daily' | 'weekly' | 'monthly';
 
-const TITLES: Record<TimelineType, string> = {
-  daily: 'Daily Time Tracking Trends',
-  weekly: 'Weekly Time Tracking Trends',
-  monthly: 'Monthly Time Tracking Trends',
-};
+const PERIODS: Record<TimelineType, string> = { daily: 'day', weekly: 'week', monthly: 'month' };
+
+/** "Time per day", "Earnings per week"… */
+const titleOf = (measure: ChartMeasure, dataType: TimelineType) =>
+  `${MEASURES[measure].label} per ${PERIODS[dataType]}`;
 
 /** The period a point covers: its day, week or month key. */
 function periodOf(item: TimelineData): string {
@@ -61,13 +63,21 @@ export function TimelineTooltip(props: ChartTooltipProps<PeriodPoint>) {
   );
 }
 
-export function TimelineChart({ data, dataType }: { data: TimelineData[]; dataType: TimelineType }) {
+export function TimelineChart({
+  data,
+  dataType,
+  measure,
+}: {
+  data: TimelineData[];
+  dataType: TimelineType;
+  measure: ChartMeasure;
+}) {
   const theme = useTheme();
   const layout = useChartLayout();
+  const color = useSeriesColor();
+  const { dataKey, tick, axisTitle } = MEASURES[measure];
 
   const text = theme.palette.text.primary;
-  const time = theme.palette.primary.main;
-  const earnings = theme.palette.secondary.main;
   const points: PeriodPoint[] = data.map(item => ({
     period: periodOf(item),
     timeHours: millisecondsToHours(item.totalTime),
@@ -82,69 +92,30 @@ export function TimelineChart({ data, dataType }: { data: TimelineData[]; dataTy
 
   return (
     <Box>
-      <ChartTitle>{TITLES[dataType]}</ChartTitle>
+      <ChartTitle>{titleOf(measure, dataType)}</ChartTitle>
       <ResponsiveContainer width="100%" height={layout.height}>
         <LineChart data={points} margin={{ top: 20, ...layout.sideMargin, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} vertical={false} />
           <XAxis dataKey="period" tick={{ fill: text, fontSize: layout.tickFontSize }} tickFormatter={formatPeriod} />
           <YAxis
-            yAxisId="time"
-            orientation="left"
             width={layout.axisWidth}
             tick={{ fill: text, fontSize: layout.tickFontSize }}
+            tickFormatter={tick}
             label={
               layout.axisTitles
-                ? { value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: text } }
-                : undefined
-            }
-          />
-          <YAxis
-            yAxisId="earnings"
-            orientation="right"
-            width={layout.axisWidth}
-            tick={{ fill: text, fontSize: layout.tickFontSize }}
-            label={
-              layout.axisTitles
-                ? {
-                    value: 'Earnings ($)',
-                    angle: 90,
-                    position: 'insideRight',
-                    style: { textAnchor: 'middle', fill: text },
-                  }
+                ? { value: axisTitle, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: text } }
                 : undefined
             }
           />
           <Tooltip content={<TimelineTooltip />} />
-          <Legend
-            content={
-              <ChartLegend
-                shape="line"
-                items={[
-                  { label: 'Time (hours)', color: time },
-                  { label: 'Earnings ($)', color: earnings },
-                ]}
-              />
-            }
-          />
           <Line
-            yAxisId="time"
             type="monotone"
-            dataKey="timeHours"
-            stroke={time}
-            strokeWidth={3}
-            dot={{ fill: time, strokeWidth: 2, r: 4 }}
-            activeDot={{ r: 6, stroke: time, strokeWidth: 2 }}
-            name="Time (hours)"
-          />
-          <Line
-            yAxisId="earnings"
-            type="monotone"
-            dataKey="earnings"
-            stroke={earnings}
-            strokeWidth={3}
-            dot={{ fill: earnings, strokeWidth: 2, r: 4 }}
-            activeDot={{ r: 6, stroke: earnings, strokeWidth: 2 }}
-            name="Earnings ($)"
+            dataKey={dataKey}
+            stroke={color}
+            strokeWidth={2}
+            dot={{ fill: color, stroke: theme.palette.background.paper, strokeWidth: 2, r: 4 }}
+            activeDot={{ r: 6, fill: color, stroke: theme.palette.background.paper, strokeWidth: 2 }}
+            name={axisTitle}
           />
         </LineChart>
       </ResponsiveContainer>
