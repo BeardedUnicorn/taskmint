@@ -43,6 +43,7 @@ import { useAppExtensions } from './app/extensions';
 import { useCompactLayout } from './hooks/useCompactLayout';
 import { VIEW_LABELS } from './navigation/views';
 import { useBackButton } from './navigation/backButton';
+import { useKeyboardInset } from './hooks/useKeyboardInset';
 
 /**
  * Work that runs whatever page is open: the tray's "Choose Task…", saying
@@ -134,6 +135,8 @@ function AppContent() {
   const compact = useCompactLayout();
   // Android's back closes what's open, then steps back toward Home
   useBackButton();
+  // Dialogs sit above the on-screen keyboard
+  useKeyboardInset();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const openNavigation = useCallback(() => setNavigationOpen(true), []);
   const closeNavigation = useCallback(() => setNavigationOpen(false), []);

@@ -123,6 +123,9 @@ export function components(mode: ColorMode): Components<Theme> {
     },
     MuiDialog: {
       styleOverrides: {
+        // Clear of the on-screen keyboard (useKeyboardInset), so a dialog's
+        // fields and buttons stay above it
+        root: { top: 'var(--keyboard-top, 0px)', bottom: 'var(--keyboard-bottom, 0px)' },
         paper: {
           ...focusRing('2px'),
           // On a phone a dialog takes the screen's width; a wide one (md and
