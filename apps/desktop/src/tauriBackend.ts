@@ -156,10 +156,15 @@ interface AndroidAnalytics {
   screen(name: string): void;
 }
 
-/** Usage analytics on Android (its native SDK); the desktop has none. */
+/**
+ * Usage analytics on Android (its native SDK); the desktop has none. A dev
+ * build has none either: its Gradle build switches Analytics off
+ * (firebase_analytics_collection_deactivated), so there's nothing for
+ * Settings → Privacy to turn on, as on the dev web app.
+ */
 function analytics(): Pick<Platform, 'analytics'> {
   const android = (window as { TaskMintAnalytics?: AndroidAnalytics }).TaskMintAnalytics;
-  return android
+  return android && import.meta.env.TASKMINT_ENV === 'production'
     ? { analytics: { setEnabled: enabled => android.setEnabled(enabled), screen: name => android.screen(name) } }
     : {};
 }

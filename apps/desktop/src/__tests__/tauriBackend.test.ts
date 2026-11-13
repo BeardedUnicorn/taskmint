@@ -368,11 +368,13 @@ describe('createTauriBackend', () => {
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.backButton).toBeUndefined();
   });
 
-  it("counts usage through Android's native analytics, and the desktop has none", () => {
+  it("counts usage through Android's native analytics in a release, and the desktop has none", () => {
     const bridge = { setEnabled: vi.fn(), screen: vi.fn() };
     vi.stubGlobal('TaskMintAnalytics', bridge);
+    vi.stubEnv('TASKMINT_ENV', 'production');
     onTestFinished(() => {
       vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
     });
     const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
     android.platform.analytics!.setEnabled(false);
@@ -380,6 +382,15 @@ describe('createTauriBackend', () => {
     expect(bridge.setEnabled).toHaveBeenCalledWith(false);
     expect(bridge.screen).toHaveBeenCalledWith('tasks');
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.analytics).toBeUndefined();
+  });
+
+  it('offers no analytics on an Android dev build, whose Gradle build switches them off', () => {
+    vi.stubGlobal('TaskMintAnalytics', { setEnabled: vi.fn(), screen: vi.fn() });
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    expect(import.meta.env.TASKMINT_ENV).toBe('dev');
+    expect(createTauriBackend({ runtime: 'mobile', dataLocation: 'local' }).platform.analytics).toBeUndefined();
   });
 
   describe('Google sign-in', () => {
