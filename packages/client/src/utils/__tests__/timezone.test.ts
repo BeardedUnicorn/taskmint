@@ -34,7 +34,7 @@ describe('Timezone Handling', () => {
       const localTime = formatLocalTime(utcDate);
 
       // Compute expected value based on the current environment timezone
-      const expected = dayjs.utc(utcDate).tz(currentTimezone).format('HH:mm');
+      const expected = dayjs.utc(utcDate).tz(currentTimezone).format('h:mm A');
       expect(localTime).toBe(expected);
     });
 
@@ -56,7 +56,7 @@ describe('Timezone Handling', () => {
       const localTime = formatLocalTime(utcDate);
       const localDate = formatDateString(utcDate);
 
-      const expectedTime = dayjs.utc(utcDate).tz(currentTimezone).format('HH:mm');
+      const expectedTime = dayjs.utc(utcDate).tz(currentTimezone).format('h:mm A');
       const expectedDate = dayjs.utc(utcDate).tz(currentTimezone).format('YYYY-MM-DD');
 
       expect(localTime).toBe(expectedTime);
@@ -92,8 +92,8 @@ describe('Timezone Handling', () => {
       expect(deserializedEntry.endTime?.toISOString()).toBe('2024-01-15T16:45:00.000Z');
 
       // Verify local display matches current timezone
-      const expectedStart = dayjs.utc(deserializedEntry.startTime).tz(currentTimezone).format('HH:mm');
-      const expectedEnd = dayjs.utc(deserializedEntry.endTime!).tz(currentTimezone).format('HH:mm');
+      const expectedStart = dayjs.utc(deserializedEntry.startTime).tz(currentTimezone).format('h:mm A');
+      const expectedEnd = dayjs.utc(deserializedEntry.endTime!).tz(currentTimezone).format('h:mm A');
       expect(formatLocalTime(deserializedEntry.startTime)).toBe(expectedStart);
       expect(formatLocalTime(deserializedEntry.endTime!)).toBe(expectedEnd);
     });
@@ -118,7 +118,7 @@ describe('Timezone Handling', () => {
 
       expect(deserializedEntry.isRunning).toBe(true);
       expect(deserializedEntry.endTime).toBeUndefined();
-      const expected = dayjs.utc(deserializedEntry.startTime).tz(currentTimezone).format('HH:mm');
+      const expected = dayjs.utc(deserializedEntry.startTime).tz(currentTimezone).format('h:mm A');
       expect(formatLocalTime(deserializedEntry.startTime)).toBe(expected);
     });
   });
@@ -186,12 +186,12 @@ describe('Timezone Handling', () => {
 
       // System tray should show local time
       const displayTime = formatLocalTime(entry.startTime);
-      const expectedTime = dayjs.utc(entry.startTime).tz(currentTimezone).format('HH:mm');
+      const expectedTime = dayjs.utc(entry.startTime).tz(currentTimezone).format('h:mm A');
       expect(displayTime).toBe(expectedTime);
 
       // Date should also be in local timezone
       const displayDate = formatLocalDate(entry.startTime);
-      const expectedDate = dayjs.utc(entry.startTime).tz(currentTimezone).format('MMM DD, YYYY');
+      const expectedDate = dayjs.utc(entry.startTime).tz(currentTimezone).format('MMM D, YYYY');
       expect(displayDate).toBe(expectedDate);
     });
   });

@@ -48,7 +48,7 @@ describe('AboutSettingsSection', () => {
     render(<AboutSettingsSection />);
 
     expect(screen.getByText('TaskMint 2.1.0')).toBeInTheDocument();
-    expect(screen.getByText('Released Nov 08, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Released Nov 8, 2026')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: "What's new in 2.1.0" })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Added' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Fixed' })).toBeInTheDocument();
@@ -72,7 +72,7 @@ describe('AboutSettingsSection', () => {
 
     expect(screen.getByRole('heading', { name: 'Earlier releases' })).toBeInTheDocument();
     const older = screen.getByRole('button', { name: /^2\.0\.0/ });
-    expect(older).toHaveTextContent('Nov 07, 2026');
+    expect(older).toHaveTextContent('Nov 7, 2026');
     expect(older).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(older);
     expect(older).toHaveAttribute('aria-expanded', 'true');
@@ -128,6 +128,6 @@ describe('AboutSettingsSection', () => {
       </NavigationProvider>
     );
     fireEvent.click(screen.getByRole('button', { name: 'About TaskMint…' }));
-    expect(screen.getByRole('dialog', { name: 'TaskMint' })).toHaveTextContent('Version 2.1.0 · Released Nov 08, 2026');
+    expect(screen.getByRole('dialog', { name: 'TaskMint' })).toHaveTextContent('Version 2.1.0 · Released Nov 8, 2026');
   });
 });

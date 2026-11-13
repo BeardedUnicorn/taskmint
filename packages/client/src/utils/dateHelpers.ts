@@ -9,7 +9,7 @@ import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import utc from 'dayjs/plugin/utc';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { formattingLocale } from './locale';
+import { formatClockTime, formattingLocale } from './locale';
 
 // Extend dayjs with required plugins. Never `timezone`: nothing here needs
 // named zones, and loading it app-wide has broken local calendar-day math
@@ -20,10 +20,11 @@ dayjs.extend(utc);
 dayjs.extend(relativeTime);
 
 /**
- * Format a date/time to local time string (HH:mm format)
+ * A date/time's local clock time, as the rest of the app shows it ("7:12 PM"
+ * in English).
  */
 export function formatLocalTime(date: Date | string): string {
-  return dayjs(date).local().format('HH:mm');
+  return formatClockTime(date);
 }
 
 /**
@@ -43,10 +44,10 @@ export function parseDateStringLocal(dateStr: string): Date {
 }
 
 /**
- * Format a date to local date string (MMM DD, YYYY format)
+ * Format a date to local date string ("Nov 7, 2026")
  */
 export function formatLocalDate(date: Date | string): string {
-  return dayjs(date).local().format('MMM DD, YYYY');
+  return dayjs(date).local().format('MMM D, YYYY');
 }
 
 /**
@@ -71,7 +72,7 @@ export function formatRelativeDate(date: Date | string): string {
   } else if (diffDays < 7) {
     return `${diffDays} days ago`;
   } else {
-    return dateObj.format('MMM DD, YYYY');
+    return dateObj.format('MMM D, YYYY');
   }
 }
 
@@ -83,7 +84,7 @@ export function formatLocalDateTimeForDisplay(date: Date | string): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
   });
 }

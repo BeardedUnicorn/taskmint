@@ -217,8 +217,8 @@ describe('HomePage', () => {
 
     const recent = within(screen.getByRole('region', { name: 'Recent sessions' }));
     expect(recent.getAllByRole('listitem').map(item => item.textContent)).toEqual([
-      expect.stringMatching(/^Task s4Nov 04, 2026 · 1h 0m\$30\.00$/),
-      expect.stringMatching(/^Task s3Nov 03, 2026 · 2h 0m\$60\.00$/),
+      expect.stringMatching(/^Task s4Nov 4, 2026 · 1h 0m\$30\.00$/),
+      expect.stringMatching(/^Task s3Nov 3, 2026 · 2h 0m\$60\.00$/),
       expect.stringMatching(/^Task s2/),
     ]);
     fireEvent.click(recent.getByRole('button', { name: 'See all in History' }));

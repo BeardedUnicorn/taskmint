@@ -401,7 +401,7 @@ describe('chartDataHelpers', () => {
       expect(aggregateByWeek(entries, mockTasks).map(week => week.week)).toEqual([
         'Nov 12 - Nov 18',
         'Dec 17 - Dec 23',
-        'Dec 31 - Jan 06',
+        'Dec 31 - Jan 6',
       ]);
     });
 

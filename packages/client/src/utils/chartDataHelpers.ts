@@ -126,7 +126,7 @@ export function aggregateByWeek(entries: TimeEntry[], tasks: Task[]): WeeklyData
 
     const weekStart = dayjs(entry.startTime).startOf('week');
     const weekKey = weekStart.format('YYYY-MM-DD');
-    const weekLabel = `${weekStart.format('MMM DD')} - ${weekStart.add(6, 'day').format('MMM DD')}`;
+    const weekLabel = `${weekStart.format('MMM D')} - ${weekStart.add(6, 'day').format('MMM D')}`;
     const earnings = calculateEarnings(entry, tasks);
 
     if (weekMap.has(weekKey)) {

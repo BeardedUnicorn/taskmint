@@ -19,7 +19,7 @@ import { TimeEntry } from '../../../types/timer';
 import { Task } from '../../../types/task';
 import { EarningsDisplay } from '../display/EarningsDisplay';
 import { formatDuration } from '../../../utils/formatters';
-import { formatLocalTime } from '../../../utils/dateHelpers';
+import { formatLocalDate, formatLocalTime } from '../../../utils/dateHelpers';
 import { entryEarnings } from '../../../utils/earnings';
 import { sourceLabel } from '../../../utils/csvExport';
 import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
@@ -138,7 +138,7 @@ export function TimeEntriesTable({
                   </TableCell>
 
                   <TableCell>
-                    <Typography variant="body2">{dayjs(entry.startTime).format('MMM DD, YYYY')}</Typography>
+                    <Typography variant="body2">{formatLocalDate(entry.startTime)}</Typography>
                   </TableCell>
 
                   <TableCell>

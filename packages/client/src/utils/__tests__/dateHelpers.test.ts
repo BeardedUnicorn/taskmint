@@ -15,7 +15,7 @@ describe('relative dates', () => {
     expect(formatRelativeDate(new Date(2026, 9, 27, 9, 30))).toBe('Today at 9:30 AM');
     expect(formatRelativeDate(new Date(2026, 9, 26, 14, 5))).toBe('Yesterday at 2:05 PM');
     expect(formatRelativeDate(new Date(2026, 9, 23, 12, 0))).toBe('4 days ago');
-    expect(formatRelativeDate(new Date(2026, 8, 1, 12, 0))).toBe('Sep 01, 2026');
+    expect(formatRelativeDate(new Date(2026, 8, 1, 12, 0))).toBe('Sep 1, 2026');
   });
 
   it('knows today, and the day of the week', () => {
