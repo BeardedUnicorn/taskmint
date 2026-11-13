@@ -34,6 +34,24 @@ describe('StartWorkDialog', () => {
 
   const taskField = () => screen.getByRole('combobox', { name: /^Task/ });
 
+  it("is called Switch task when a session is open, as the toolbar's button is", () => {
+    const { unmount } = renderDialog();
+    expect(screen.getByRole('dialog', { name: 'Start Work' })).toBeInTheDocument();
+    unmount();
+
+    render(
+      <StartWorkDialog
+        onClose={onClose}
+        tasks={tasks}
+        sessions={[]}
+        onStart={onStart}
+        onAddTask={onAddTask}
+        switching
+      />
+    );
+    expect(screen.getByRole('dialog', { name: 'Switch task' })).toBeInTheDocument();
+  });
+
   // A plain dropdown, focused on open
   it('lists active tasks only, favorites first, with their rates', () => {
     renderDialog();

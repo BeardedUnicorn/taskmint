@@ -80,7 +80,7 @@ function GlobalDialogs({
   onCloseAddTime: () => void;
 }) {
   const { navigate } = useNavigation();
-  const { sessions, startTask, addManualTime } = useSessionManagementContext();
+  const { sessions, activeSession, startTask, addManualTime } = useSessionManagementContext();
   const { tasks } = useTaskManagementContext();
   const { Background } = useAppExtensions();
   // Idle detection runs in the backend; this sends it the saved settings and
@@ -96,6 +96,7 @@ function GlobalDialogs({
           sessions={sessions}
           onStart={startTask}
           onAddTask={() => navigate('tasks')}
+          switching={Boolean(activeSession)}
         />
       )}
       <IdleReturnDialog
