@@ -18,6 +18,14 @@ import { useAppExtensions } from '../../app/extensions';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { getBackend, useBackendEvent } from '../../backend';
 
+/** The mounted command center's palette, for openCommandPalette. */
+let showPalette: (() => void) | undefined;
+
+/** Opens the command palette: the phone's top bar button, where there's no ⌘K. */
+export function openCommandPalette(): void {
+  showPalette?.();
+}
+
 export function CommandCenter({ onStartWork, onAddTime }: { onStartWork: () => void; onAddTime: () => void }) {
   const [open, setOpen] = useState(false);
   const toggle = useCallback(() => setOpen(previous => !previous), []);
@@ -33,6 +41,12 @@ export function CommandCenter({ onStartWork, onAddTime }: { onStartWork: () => v
   const checkForUpdates = useCallback(() => openAbout({ checkForUpdates: true }), [openAbout]);
 
   useKeyboardShortcuts({ paletteOpen: open, onTogglePalette: toggle, onStartWork, onPauseResume: pauseResume });
+  useEffect(() => {
+    showPalette = () => setOpen(true);
+    return () => {
+      showPalette = undefined;
+    };
+  }, []);
 
   // The menu bar's items, and what a tapped notification opens. About and
   // Check for Updates open over anything; the rest wait while a dialog or

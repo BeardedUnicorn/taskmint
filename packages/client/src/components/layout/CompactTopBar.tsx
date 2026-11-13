@@ -1,6 +1,7 @@
 import { AppBar, IconButton, Toolbar, Typography } from '@mui/material';
-import { Menu as MenuIcon } from '@mui/icons-material';
+import { Menu as MenuIcon, Search as SearchIcon } from '@mui/icons-material';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { openCommandPalette } from '../command/CommandCenter';
 
 interface CompactTopBarProps {
   /** The page on screen. */
@@ -10,7 +11,8 @@ interface CompactTopBarProps {
 
 /**
  * The phone's stand-in for the sidebar: a menu button that slides the
- * sidebar in, the page's name, and the notifications bell.
+ * sidebar in, the page's name, the command palette (a phone has no ⌘K), and
+ * the notifications bell.
  */
 export function CompactTopBar({ title, onOpenNavigation }: CompactTopBarProps) {
   return (
@@ -33,6 +35,9 @@ export function CompactTopBar({ title, onOpenNavigation }: CompactTopBarProps) {
         <Typography component="div" variant="h6" noWrap sx={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
           {title}
         </Typography>
+        <IconButton aria-label="Search commands" onClick={openCommandPalette}>
+          <SearchIcon />
+        </IconButton>
         <NotificationBell />
       </Toolbar>
     </AppBar>
