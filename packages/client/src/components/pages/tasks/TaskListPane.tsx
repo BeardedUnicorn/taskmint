@@ -4,12 +4,15 @@ import {
   Typography,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   ListSubheader,
   IconButton,
   Button,
   Divider,
   Chip,
+  Menu,
+  MenuItem,
   Tooltip,
 } from '@mui/material';
 import {
@@ -19,11 +22,70 @@ import {
   Archive as ArchiveIcon,
   Unarchive as UnarchiveIcon,
   Assignment as TaskIcon,
+  MoreVert as MoreIcon,
 } from '@mui/icons-material';
 import { Task } from '../../../types/task';
 import { EmptyState } from '../../ui/display/EmptyState';
 import { formatCurrency } from '../../../utils/formatters';
 import { SearchListHeader } from '../../ui';
+import { useCompactLayout } from '../../../hooks/useCompactLayout';
+
+/** A phone's menu of one task's actions: Edit, Archive or Unarchive, and Delete. */
+function TaskActionsMenu({
+  task,
+  anchor,
+  onClose,
+  onEdit,
+  onArchive,
+  onUnarchive,
+  onDelete,
+}: {
+  task: Task;
+  anchor: HTMLElement | null;
+  onClose: () => void;
+  onEdit: (task: Task) => void;
+  onArchive: (task: Task) => void;
+  onUnarchive: (task: Task) => void;
+  onDelete: (task: Task) => void;
+}) {
+  /** Closes the menu, then acts on its task. */
+  const run = (action: (task: Task) => void) => () => {
+    onClose();
+    action(task);
+  };
+  return (
+    <Menu anchorEl={anchor} open={anchor !== null} onClose={onClose}>
+      <MenuItem onClick={run(onEdit)}>
+        <ListItemIcon>
+          <EditIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Edit</ListItemText>
+      </MenuItem>
+      {task.isArchived ? (
+        <MenuItem onClick={run(onUnarchive)}>
+          <ListItemIcon>
+            <UnarchiveIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Unarchive</ListItemText>
+        </MenuItem>
+      ) : (
+        <MenuItem onClick={run(onArchive)}>
+          <ListItemIcon>
+            <ArchiveIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Archive</ListItemText>
+        </MenuItem>
+      )}
+      <Divider />
+      <MenuItem onClick={run(onDelete)} sx={{ color: 'error.main' }}>
+        <ListItemIcon sx={{ color: 'inherit' }}>
+          <DeleteIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Delete</ListItemText>
+      </MenuItem>
+    </Menu>
+  );
+}
 
 interface TaskListPaneProps {
   tasks: Task[];
@@ -47,6 +109,13 @@ export function TaskListPane({
   onUnarchiveTask,
 }: TaskListPaneProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  // A phone keeps each row's actions behind one button: three icons a row,
+  // a red Delete on every one, crowded the list and put Delete a slip away
+  const compact = useCompactLayout();
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  // Kept after the menu closes, so it fades out with its own items
+  const [menuTask, setMenuTask] = useState<Task | null>(null);
+  const closeMenu = () => setMenuAnchor(null);
 
   // Filter by search first so it spans both sections, then partition
   const filteredTasks = tasks.filter(task => task.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -114,56 +183,70 @@ export function TaskListPane({
                   <Chip label="No rate set" size="small" color="default" variant="outlined" />
                 )}
               </Box>
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
+              {compact ? (
                 <IconButton
-                  size="small"
-                  aria-label="Edit task"
-                  onClick={e => {
-                    e.stopPropagation();
-                    onEditTask(task);
+                  aria-label={`Actions for ${task.name}`}
+                  aria-haspopup="menu"
+                  onClick={event => {
+                    event.stopPropagation();
+                    setMenuAnchor(event.currentTarget);
+                    setMenuTask(task);
                   }}
                 >
-                  <EditIcon fontSize="small" />
+                  <MoreIcon />
                 </IconButton>
-                {task.isArchived ? (
-                  <Tooltip title="Unarchive task">
-                    <IconButton
-                      size="small"
-                      aria-label="Unarchive task"
-                      onClick={e => {
-                        e.stopPropagation();
-                        onUnarchiveTask(task);
-                      }}
-                    >
-                      <UnarchiveIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                ) : (
-                  <Tooltip title="Archive task">
-                    <IconButton
-                      size="small"
-                      aria-label="Archive task"
-                      onClick={e => {
-                        e.stopPropagation();
-                        onArchiveTask(task);
-                      }}
-                    >
-                      <ArchiveIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                <IconButton
-                  size="small"
-                  color="error"
-                  aria-label="Delete task"
-                  onClick={e => {
-                    e.stopPropagation();
-                    onDeleteTask(task.id);
-                  }}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Box>
+              ) : (
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="Edit task"
+                    onClick={e => {
+                      e.stopPropagation();
+                      onEditTask(task);
+                    }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  {task.isArchived ? (
+                    <Tooltip title="Unarchive task">
+                      <IconButton
+                        size="small"
+                        aria-label="Unarchive task"
+                        onClick={e => {
+                          e.stopPropagation();
+                          onUnarchiveTask(task);
+                        }}
+                      >
+                        <UnarchiveIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip title="Archive task">
+                      <IconButton
+                        size="small"
+                        aria-label="Archive task"
+                        onClick={e => {
+                          e.stopPropagation();
+                          onArchiveTask(task);
+                        }}
+                      >
+                        <ArchiveIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  <IconButton
+                    size="small"
+                    color="error"
+                    aria-label="Delete task"
+                    onClick={e => {
+                      e.stopPropagation();
+                      onDeleteTask(task.id);
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              )}
             </Box>
           }
         />
@@ -217,6 +300,18 @@ export function TaskListPane({
           </List>
         )}
       </Box>
+
+      {menuTask && (
+        <TaskActionsMenu
+          task={menuTask}
+          anchor={menuAnchor}
+          onClose={closeMenu}
+          onEdit={onEditTask}
+          onArchive={onArchiveTask}
+          onUnarchive={onUnarchiveTask}
+          onDelete={task => onDeleteTask(task.id)}
+        />
+      )}
     </Box>
   );
 }
