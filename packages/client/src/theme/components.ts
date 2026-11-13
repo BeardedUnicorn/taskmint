@@ -8,10 +8,10 @@
 import type { Components, Theme } from '@mui/material/styles';
 import type {} from '@mui/x-date-pickers/themeAugmentation';
 import { PHONE, TOUCH } from './media';
-import { BRAND, BRAND_TEXT_LIGHT, ColorMode } from './palettes';
+import { BRAND_TEXT_LIGHT, brandText, ColorMode } from './palettes';
 
 /** The focus ring's color (and a focused field's edge): the brand green, darker on light surfaces where it would fade. */
-export const focusColor = (mode: ColorMode) => (mode === 'light' ? BRAND_TEXT_LIGHT : BRAND);
+export const focusColor = brandText;
 
 // WebKit (Safari, the Mac app's webview) doesn't repaint an outline while the
 // gap for its label animates: the border crosses a selected field's label and

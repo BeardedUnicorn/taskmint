@@ -4,6 +4,10 @@
  * The month at a glance: what each day earned and how long it was worked,
  * the money released each day, the withdrawals taken, and when the next
  * withdrawal opens and how much it will be. A day opens its breakdown.
+ *
+ * A desktop shows the month as a grid, and a day's breakdown in a dialog. A
+ * phone lists the month's weeks and days instead (MonthAgenda), the month
+ * first and the withdrawal panel under it, and a day opens in place.
  */
 
 import { ReactNode, useCallback, useId, useMemo, useState } from 'react';
@@ -26,9 +30,11 @@ import { useDailyGoals } from '../../../hooks/useDailyGoals';
 import { formatCents } from '../../../utils/payoutCalculator';
 import { formatDurationCompact } from '../../../utils/formatters';
 import { formatMonthYear } from '../../../utils/locale';
+import { useCompactLayout } from '../../../hooks/useCompactLayout';
 import { NextWithdrawalPanel } from '../payouts/withdrawals/NextWithdrawalPanel';
 import { buildCalendarMonth } from './calendarMonth';
 import { MonthGrid } from './MonthGrid';
+import { MonthAgenda } from './MonthAgenda';
 import { CalendarDayDialog } from './CalendarDayDialog';
 import { PHONE } from '../../../theme/media';
 
@@ -83,6 +89,7 @@ const CalendarPage = () => {
   const { cells, events, plan, nowMs, today, isLoading, isEmpty } = usePayoutData();
   const { withdrawals } = useWithdrawals();
   const { currentGoal, achievements } = useDailyGoals();
+  const compact = useCompactLayout();
   const titleId = useId();
 
   const thisMonth = today.slice(0, 7);
@@ -109,6 +116,7 @@ const CalendarPage = () => {
   const goToMonth = (next: string) => {
     setMonth(next);
     setFocusedDate(next === thisMonth ? today : `${next}-01`);
+    setOpenDay(null);
   };
   const shiftMonth = (by: number) => goToMonth(dayjs(`${month}-01`).add(by, 'month').format('YYYY-MM'));
 
@@ -141,7 +149,7 @@ const CalendarPage = () => {
   return (
     <PageContainer>
       {header}
-      <NextWithdrawalPanel />
+      {!compact && <NextWithdrawalPanel />}
 
       <Paper sx={{ p: { xs: 1.5, sm: 2.5 } }}>
         <Box
@@ -177,7 +185,8 @@ const CalendarPage = () => {
             </IconButton>
             <Button
               size="small"
-              variant="outlined"
+              // An outlined button that's disabled reads as an empty box on a phone
+              variant={compact ? 'text' : 'outlined'}
               disabled={month === thisMonth}
               onClick={() => goToMonth(thisMonth)}
               sx={{ ml: 1 }}
@@ -185,7 +194,15 @@ const CalendarPage = () => {
               Today
             </Button>
           </Box>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 2, sm: 3 } }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: { xs: 2, sm: 3 },
+              // Three and two on a phone, lined up, instead of however they wrap
+              [PHONE]: { width: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1.5 },
+            }}
+          >
             <Stat label="Tracked" value={formatDurationCompact(summary.timeMs)} />
             <Stat label="Earned" value={earned} />
             <Stat label="Days worked" value={String(summary.daysWorked)} />
@@ -194,17 +211,27 @@ const CalendarPage = () => {
           </Box>
         </Box>
 
-        <MonthGrid
-          view={view}
-          focusedDate={focusedDate}
-          onFocusDate={setFocusedDate}
-          onMonthChange={setMonth}
-          onOpenDay={setOpenDay}
-          labelledBy={titleId}
-        />
+        {compact ? (
+          <MonthAgenda
+            view={view}
+            openDay={openDay}
+            onToggleDay={date => setOpenDay(openDay === date ? null : date)}
+            labelledBy={titleId}
+          />
+        ) : (
+          <MonthGrid
+            view={view}
+            focusedDate={focusedDate}
+            onFocusDate={setFocusedDate}
+            onMonthChange={setMonth}
+            onOpenDay={setOpenDay}
+            labelledBy={titleId}
+          />
+        )}
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 2 }}>
-          <LegendItem tone="primary">Worked</LegendItem>
+          {/* The agenda doesn't tint worked days */}
+          {!compact && <LegendItem tone="primary">Worked</LegendItem>}
           <LegendItem tone="info" icon={<ReleaseIcon />}>
             Released
           </LegendItem>
@@ -223,7 +250,11 @@ const CalendarPage = () => {
         </Box>
       </Paper>
 
-      <CalendarDayDialog date={openDay} onChangeDate={setOpenDay} onClose={() => setOpenDay(null)} />
+      {compact ? (
+        <NextWithdrawalPanel />
+      ) : (
+        <CalendarDayDialog date={openDay} onChangeDate={setOpenDay} onClose={() => setOpenDay(null)} />
+      )}
     </PageContainer>
   );
 };

@@ -5,12 +5,10 @@
  * on the day. The arrows step to the day before or after.
  */
 
-import { ReactNode, useState } from 'react';
+import { useState } from 'react';
 import {
-  Alert,
   Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -37,14 +35,13 @@ import { usePayoutData } from '../../../hooks/usePayoutData';
 import { useWithdrawals } from '../../../hooks/useWithdrawals';
 import { Withdrawal } from '../../../types/withdrawal';
 import { formatCents, formatPayoutAmount } from '../../../utils/payoutCalculator';
-import { formatDate, formatDurationCompact } from '../../../utils/formatters';
+import { formatDate } from '../../../utils/formatters';
 import { formatClockTime, formatWeekdayDate } from '../../../utils/locale';
-import { formatDateString, parseDateStringLocal } from '../../../utils/dateHelpers';
+import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { MONO } from '../payouts/payoutStyles';
 import { RecordWithdrawalDialog } from '../payouts/withdrawals/RecordWithdrawalDialog';
-import { cellTimeMs } from './calendarMonth';
-import { PHONE } from '../../../theme/media';
-import { PHONE_TABLE } from '../../ui/tables/tableStyles';
+import { buildDayBreakdown } from './calendarMonth';
+import { minutes, NOTHING_ON_DAY, OpeningAlert, Section, StatusChips, sumBy } from './dayBreakdownParts';
 
 interface CalendarDayDialogProps {
   /** YYYY-MM-DD, or null when closed */
@@ -53,42 +50,13 @@ interface CalendarDayDialogProps {
   onClose: () => void;
 }
 
-const minutes = (ms: number) => (ms > 0 ? formatDurationCompact(ms) : '—');
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <Box component="section" aria-label={title} sx={{ '& + &': { mt: 3 } }}>
-      <Typography variant="subtitle2" component="h3" sx={{ fontWeight: 600, mb: 1 }}>
-        {title}
-      </Typography>
-      {children}
-    </Box>
-  );
-}
-
-function StatusChips({ statuses }: { statuses: string[] }) {
-  return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-      {statuses.map(status => (
-        <Chip key={status} label={status} size="small" variant="outlined" />
-      ))}
-    </Box>
-  );
-}
-
 export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDialogProps) {
   const { cells, events, plan, nowMs, today } = usePayoutData();
   const { withdrawals, deleteWithdrawal } = useWithdrawals();
   const [editing, setEditing] = useState<Withdrawal | 'new' | null>(null);
   if (!date) return null;
 
-  const worked = cells.filter(
-    cell => cell.workDay === date && (cellTimeMs(cell) > 0 || cell.actualCents + cell.estimatedCents > 0)
-  );
-  const released = events.filter(event => formatDateString(new Date(event.releaseMs)) === date);
-  const withdrawn = withdrawals.filter(withdrawal => formatDateString(withdrawal.takenAt) === date);
-  const opening = plan && !plan.isOpen && formatDateString(new Date(plan.opensAtMs)) === date ? plan : null;
-  const sum = <T,>(list: T[], pick: (item: T) => number) => list.reduce((total, item) => total + pick(item), 0);
+  const { worked, released, withdrawn, opening } = buildDayBreakdown(date, { cells, events, withdrawals, plan });
   const step = (days: number) => onChangeDate(dayjs(date).add(days, 'day').format('YYYY-MM-DD'));
 
   return (
@@ -99,12 +67,11 @@ export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDi
       fullWidth
       aria-labelledby="calendar-day-title"
       // Pinned to the top: centred, it moves with each day's height, and the
-      // day arrows would slide out from under the pointer
-      // (On a phone it fills the screen, so from the very top)
+      // day arrows would slide out from under the pointer. (A phone shows
+      // days in the Calendar's agenda instead.)
       sx={{
         '& .MuiDialog-container': { alignItems: 'flex-start' },
         '& .MuiDialog-paper': { mt: '8vh' },
-        [PHONE]: { '& .MuiDialog-paper': { mt: 0 } },
       }}
     >
       <DialogTitle id="calendar-day-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -119,22 +86,16 @@ export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDi
         </IconButton>
       </DialogTitle>
       <DialogContent>
-        {opening && (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            Your next withdrawal opens at {formatClockTime(opening.opensAtMs)}:{' '}
-            {opening.next.estimatedCents > 0 ? '~' : ''}
-            {formatCents(opening.next.totalCents)}.
-          </Alert>
-        )}
+        {opening && <OpeningAlert opening={opening} />}
 
         {worked.length === 0 && released.length === 0 && withdrawn.length === 0 && (
-          <Typography color="text.secondary">Nothing tracked, released or withdrawn on this day.</Typography>
+          <Typography color="text.secondary">{NOTHING_ON_DAY}</Typography>
         )}
 
         {worked.length > 0 && (
           <Section title="Worked">
             <TableContainer>
-              <Table size="small" aria-label="Worked" sx={PHONE_TABLE}>
+              <Table size="small" aria-label="Worked">
                 <TableHead>
                   <TableRow>
                     <TableCell>Task</TableCell>
@@ -166,15 +127,15 @@ export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDi
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
                       <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                        {minutes(sum(worked, cell => cell.trackedMs))}
+                        {minutes(sumBy(worked, cell => cell.trackedMs))}
                       </TableCell>
                       <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
-                        {minutes(sum(worked, cell => cell.importedMinutes * 60_000))}
+                        {minutes(sumBy(worked, cell => cell.importedMinutes * 60_000))}
                       </TableCell>
                       <TableCell align="right" sx={{ ...MONO, fontWeight: 600 }}>
                         {formatPayoutAmount(
-                          sum(worked, cell => cell.actualCents),
-                          sum(worked, cell => cell.estimatedCents)
+                          sumBy(worked, cell => cell.actualCents),
+                          sumBy(worked, cell => cell.estimatedCents)
                         )}
                       </TableCell>
                       <TableCell />
@@ -189,7 +150,7 @@ export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDi
         {released.length > 0 && (
           <Section title="Released">
             <TableContainer>
-              <Table size="small" aria-label="Released" sx={PHONE_TABLE}>
+              <Table size="small" aria-label="Released">
                 <TableHead>
                   <TableRow>
                     <TableCell>Time</TableCell>
@@ -231,7 +192,7 @@ export function CalendarDayDialog({ date, onChangeDate, onClose }: CalendarDayDi
         {withdrawn.length > 0 && (
           <Section title="Withdrawals">
             <TableContainer>
-              <Table size="small" aria-label="Withdrawals" sx={PHONE_TABLE}>
+              <Table size="small" aria-label="Withdrawals">
                 <TableBody>
                   {withdrawn.map(withdrawal => {
                     const at = formatClockTime(withdrawal.takenAt);
