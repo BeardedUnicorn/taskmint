@@ -130,7 +130,19 @@ interface AndroidSystemBars {
   setTheme(theme: string): void;
   /** The navigation bar or gesture area's height along the bottom, in dp (CSS px). */
   bottomInset(): number;
+  /** The keyboard's height from the screen's bottom, in dp (0 while it's down). */
+  keyboardInset(): number;
 }
+
+declare global {
+  interface Window {
+    /** MainActivity calls it when the bottom insets change. */
+    __taskmintInsets?: () => void;
+  }
+}
+
+/** What listens for MainActivity's inset changes. */
+const insetListeners = new Set<() => void>();
 
 /** What Android's MainActivity.kt adds for its launch screen. */
 interface AndroidSplash {
@@ -156,9 +168,23 @@ function analytics(): Pick<Platform, 'analytics'> {
 function systemBars(): Pick<Platform, 'systemBars'> {
   const android = (window as { TaskMintSystemBars?: AndroidSystemBars }).TaskMintSystemBars;
   // Called on the bridge itself: Android refuses a method taken off it
-  return android
-    ? { systemBars: { setTheme: theme => android.setTheme(theme), bottomInset: () => android.bottomInset() } }
-    : {};
+  if (!android) return {};
+  return {
+    systemBars: {
+      setTheme: theme => android.setTheme(theme),
+      bottomInset: () => android.bottomInset(),
+      keyboardInset: () => android.keyboardInset(),
+      onInsetsChange: listener => {
+        insetListeners.add(listener);
+        window.__taskmintInsets = () => {
+          for (const each of [...insetListeners]) each();
+        };
+        return () => {
+          insetListeners.delete(listener);
+        };
+      },
+    },
+  };
 }
 
 /** The launch screen on Android; the desktop has none. */

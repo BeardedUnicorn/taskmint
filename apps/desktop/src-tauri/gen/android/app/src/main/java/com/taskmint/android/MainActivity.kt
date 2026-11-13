@@ -33,11 +33,16 @@ class MainActivity : TauriActivity() {
   private var barsTheme = "dark"
 
   /**
-   * The navigation bar or gesture area's height along the bottom, in dp (the
-   * page's CSS px). The app draws under it, and the webview doesn't report it
-   * in env(safe-area-inset-bottom), so the page asks (SystemBars).
+   * What covers the bottom of the app, in dp (the page's CSS px): the
+   * navigation bar or gesture area, and the on-screen keyboard while it's up
+   * (from the screen's bottom edge, so over the navigation bar). The app
+   * draws under both (edge to edge), and the webview doesn't say so to the
+   * page (env(safe-area-inset-bottom) is 0, and older webviews don't shrink
+   * the visual viewport for the keyboard), so the page asks (SystemBars) and
+   * hears of each change (window.__taskmintInsets).
    */
   @Volatile private var bottomInsetDp = 0f
+  @Volatile private var keyboardInsetDp = 0f
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val splashScreen = installSplashScreen()
@@ -45,7 +50,14 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
     applyBarsTheme()
     ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
-      bottomInsetDp = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / resources.displayMetrics.density
+      val density = resources.displayMetrics.density
+      val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / density
+      val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom / density
+      if (bottom != bottomInsetDp || keyboard != keyboardInsetDp) {
+        bottomInsetDp = bottom
+        keyboardInsetDp = keyboard
+        webView?.evaluateJavascript("window.__taskmintInsets && window.__taskmintInsets()", null)
+      }
       // The decor view still lays itself and the webview out as before
       ViewCompat.onApplyWindowInsets(view, insets)
     }
@@ -125,9 +137,13 @@ class MainActivity : TauriActivity() {
       }
     }
 
-    /** The bottom inset, in CSS px, for the page to keep its tabs and dialogs clear of. */
+    /** The navigation bar's inset, in CSS px, for the page to keep its tabs and dialogs clear of. */
     @JavascriptInterface
     fun bottomInset(): Float = bottomInsetDp
+
+    /** The keyboard's height from the screen's bottom, in CSS px (0 while it's down), for dialogs to sit above. */
+    @JavascriptInterface
+    fun keyboardInset(): Float = keyboardInsetDp
   }
 
   /**

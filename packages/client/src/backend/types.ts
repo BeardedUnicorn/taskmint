@@ -114,6 +114,14 @@ export interface SystemBarsPlatform {
    * it to CSS (env(safe-area-inset-bottom) is 0).
    */
   bottomInset(): number;
+  /**
+   * How much of the screen's bottom (CSS px) the on-screen keyboard covers,
+   * 0 while it's down. Older webviews don't shrink the visual viewport for
+   * it.
+   */
+  keyboardInset(): number;
+  /** Calls `listener` when either inset changes. Returns a function that stops it. */
+  onInsetsChange(listener: () => void): () => void;
 }
 
 /**

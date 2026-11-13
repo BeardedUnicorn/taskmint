@@ -1,5 +1,6 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
+import { fakeBackend, installFakeBackendForTest } from '../../testing';
 import { useKeyboardInset } from '../useKeyboardInset';
 
 /** A visual viewport the test moves, as a keyboard or a pinch would. */
@@ -50,12 +51,52 @@ describe('useKeyboardInset', () => {
     expect(inset('--keyboard-bottom')).toBe('');
   });
 
-  it('does nothing without a visual viewport', () => {
+  it("takes Android's own word for the keyboard where the webview doesn't shrink its viewport", () => {
+    stubViewport({ height: 914 });
+    const { keyboardInset } = fakeBackend().platform.systemBars;
+    const { unmount } = renderHook(() => useKeyboardInset());
+    expect(inset('--keyboard-bottom')).toBe('0px');
+
+    keyboardInset.mockReturnValue(320.4);
+    act(() => fakeBackend().changeInsets());
+    expect(inset('--keyboard-bottom')).toBe('320px');
+
+    keyboardInset.mockReturnValue(0);
+    act(() => fakeBackend().changeInsets());
+    expect(inset('--keyboard-bottom')).toBe('0px');
+    unmount();
+  });
+
+  it('goes by the system alone without a visual viewport', () => {
+    vi.stubGlobal('visualViewport', undefined);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const { keyboardInset } = fakeBackend().platform.systemBars;
+    keyboardInset.mockReturnValue(300);
+    onTestFinished(() => {
+      keyboardInset.mockReturnValue(0);
+    });
+    renderHook(() => useKeyboardInset());
+    expect(inset('--keyboard-top')).toBe('0px');
+    expect(inset('--keyboard-bottom')).toBe('300px');
+  });
+
+  it('does nothing with neither a visual viewport nor system bars', () => {
+    installFakeBackendForTest({ without: ['systemBars'] });
     vi.stubGlobal('visualViewport', undefined);
     onTestFinished(() => {
       vi.unstubAllGlobals();
     });
     renderHook(() => useKeyboardInset());
     expect(inset('--keyboard-bottom')).toBe('');
+  });
+
+  it('reads the viewport alone without system bars', () => {
+    installFakeBackendForTest({ without: ['systemBars'] });
+    const viewport = stubViewport({ height: 914 });
+    renderHook(() => useKeyboardInset());
+    viewport.move({ height: 600 });
+    expect(inset('--keyboard-bottom')).toBe('314px');
   });
 });

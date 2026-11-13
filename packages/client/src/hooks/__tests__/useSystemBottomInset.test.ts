@@ -19,6 +19,11 @@ describe('useSystemBottomInset', () => {
     });
     expect(inset()).toBe('16px');
 
+    // Switched to three-button navigation: no resize, but the system says so
+    bottomInset.mockReturnValue(48);
+    act(() => fakeBackend().changeInsets());
+    expect(inset()).toBe('48px');
+
     unmount();
     expect(inset()).toBe('');
     bottomInset.mockReturnValue(0);

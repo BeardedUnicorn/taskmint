@@ -4,8 +4,8 @@
  * env(safe-area-inset-bottom). This puts the system's answer in the root's
  * --system-bottom-inset, which SAFE_BOTTOM (theme/media) keeps clear of:
  * the bottom tabs, toasts and full-screen dialogs. Read again when the
- * window resizes (a turn of the phone). Nothing where there are no system
- * bars.
+ * system says it changed, or the window resizes (a turn of the phone).
+ * Nothing where there are no system bars.
  */
 
 import { useEffect } from 'react';
@@ -19,8 +19,10 @@ export function useSystemBottomInset(): void {
     const update = () => root.style.setProperty('--system-bottom-inset', `${systemBars.bottomInset()}px`);
     update();
     window.addEventListener('resize', update);
+    const stop = systemBars.onInsetsChange(update);
     return () => {
       window.removeEventListener('resize', update);
+      stop();
       root.style.removeProperty('--system-bottom-inset');
     };
   }, []);
