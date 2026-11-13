@@ -18,6 +18,9 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import app.tauri.notification.ACTION_INTENT_KEY
+import app.tauri.notification.DEFAULT_PRESS_ACTION
+import app.tauri.notification.NOTIFICATION_INTENT_KEY
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -61,6 +64,9 @@ class MainActivity : TauriActivity() {
     applyBarsTheme()
     // A tap that started the app (not a restart after a config change)
     if (savedInstanceState == null) keepNotificationTap(intent)
+    // A force stop loses the reminders' alarms, and nothing else sets them
+    // again until the phone restarts
+    Reminders.restore(this)
     ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
       val density = resources.displayMetrics.density
       val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / density
@@ -123,11 +129,11 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  /** Keeps the notification tap `intent` carries (the plugin's extras), if any. */
+  /** Keeps the notification tap `intent` carries (the plugin's extras, which Reminders gives its own too), if any. */
   private fun keepNotificationTap(intent: Intent?): Boolean {
-    val id = intent?.getIntExtra("NotificationId", Int.MIN_VALUE) ?: return false
+    val id = intent?.getIntExtra(NOTIFICATION_INTENT_KEY, Int.MIN_VALUE) ?: return false
     if (id == Int.MIN_VALUE) return false
-    val action = intent.getStringExtra("NotificationUserAction") ?: "tap"
+    val action = intent.getStringExtra(ACTION_INTENT_KEY) ?: DEFAULT_PRESS_ACTION
     notificationTap = JSONObject().put("id", id).put("action", action).toString()
     return true
   }
