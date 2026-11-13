@@ -29,7 +29,7 @@ const CLOUD = webCloud(import.meta.env);
 
 const DEFAULTS: WebStart = {
   loadStore: loadFirebase(CLOUD),
-  createBackend: () => createWasmBackend(createWebPlatform()),
+  createBackend: () => createWasmBackend(createWebPlatform({ analytics: Boolean(CLOUD.firebase.measurementId) })),
 };
 
 export function SignInPage({ store }: { store: CloudStore }) {

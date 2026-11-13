@@ -16,6 +16,11 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.taskmint"
         android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <!-- TaskMint: a dev build (TASKMINT_ENV, app/build.gradle.kts) never
+             collects Analytics -->
+        <meta-data
+            android:name="firebase_analytics_collection_deactivated"
+            android:value="${analyticsDeactivated}" />
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:launchMode="singleTask"

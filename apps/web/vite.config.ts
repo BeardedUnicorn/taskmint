@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { taskmintEnvironmentPlugin } from '../../scripts/environment.mjs';
 
 // The web app: built into dist/, which Firebase Hosting serves
-// (firebase.json). In development it syncs with the real project, or with
-// the emulators when VITE_FIREBASE_EMULATOR_HOST is set (.env).
+// (firebase.json). It syncs with the dev project unless TASKMINT_ENV is
+// production (scripts/environment.mjs), or with the emulators when a
+// development build sets VITE_FIREBASE_EMULATOR_HOST (.env).
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), taskmintEnvironmentPlugin()],
   // Favicon and logos live with the shared client.
   publicDir: '../../packages/client/public',
   // .env (VITE_SENTRY_DSN) stays at the repo root.

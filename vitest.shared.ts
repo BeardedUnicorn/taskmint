@@ -29,6 +29,8 @@ export function defineTaskmintConfig({ packageDir, environment, plugins, setupFi
       globals: true,
       setupFiles,
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
+      // Tests run as a dev build (scripts/environment.mjs)
+      env: { TASKMINT_ENV: 'dev' },
       testTimeout: 10000,
       hookTimeout: 10000,
       reporters: ['verbose'],

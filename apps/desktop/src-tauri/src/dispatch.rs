@@ -476,7 +476,8 @@ mod tests {
         let f = fixture();
         assert_eq!(
             run(&f, "get_capture_server_status", json!({})),
-            Ok(json!({ "running": false, "port": 43117, "warning": null }))
+            // A dev build's own port (tests are dev)
+            Ok(json!({ "running": false, "port": 43127, "warning": null }))
         );
     }
 

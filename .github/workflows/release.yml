@@ -14,6 +14,10 @@ name: Release
 # The web app is built too, and a tag deploys it to Firebase Hosting
 # (taskmint-f9a05.web.app) with the Firestore rules and indexes, once every
 # build has passed (the README's "Web app").
+#
+# Everything here is built for production (TASKMINT_ENV=production: release.mjs
+# sets it for its builds, and the web job below): any other build is a dev
+# build, on the taskmint-dev Firebase project (the README's "Dev environment").
 on:
   push:
     tags: ['v*']
@@ -23,12 +27,15 @@ on:
       - scripts/release.mjs
       - scripts/release/**
       - apps/desktop/src-tauri/tauri.conf.json
+      - apps/desktop/src-tauri/tauri.production.conf.json
       - apps/desktop/src-tauri/tauri.updater.conf.json
       - apps/desktop/src-tauri/tauri.android.conf.json
       - apps/desktop/src-tauri/gen/android/**
       - apps/extension/build.mjs
       - firebase.json
       - scripts/build-wasm.mjs
+      - scripts/environment.mjs
+      - scripts/check-web-environment.mjs
   workflow_dispatch:
 
 permissions:
@@ -191,6 +198,7 @@ jobs:
 
       - run: pnpm --filter @taskmint/web build
         env:
+          TASKMINT_ENV: production
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
 
       - uses: actions/upload-artifact@v7
@@ -232,7 +240,9 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
-      # firebase-tools at the version package.json's "firebase" script pins
+      # firebase-tools at the version package.json's "firebase" script pins.
+      # Hosting's predeploy (scripts/check-web-environment.mjs) refuses a
+      # dist that wasn't built for this project.
       - run: pnpm firebase deploy --only hosting,firestore:rules,firestore:indexes --project taskmint-f9a05 --non-interactive
 
   github-release:

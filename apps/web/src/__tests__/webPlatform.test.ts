@@ -2,11 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CORE_ERRORS, LINKS } from '@taskmint/contracts';
 import { createWebPlatform, downloadName } from '../webPlatform';
 
-const platform = createWebPlatform();
+const platform = createWebPlatform({ analytics: true });
 
 describe('the web platform', () => {
   it('has no desktop-only features, and counts usage with Firebase Analytics', () => {
     expect(Object.keys(platform)).toEqual(['files', 'notifications', 'analytics', 'openLink']);
+  });
+
+  it("counts nothing when the build's Firebase app has no Analytics (dev)", () => {
+    expect(Object.keys(createWebPlatform({ analytics: false }))).toEqual(['files', 'notifications', 'openLink']);
   });
 
   it("opens TaskMint's pages in a new tab", async () => {

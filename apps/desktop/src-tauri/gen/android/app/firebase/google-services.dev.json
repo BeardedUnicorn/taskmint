@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "888820927672",
+    "project_id": "taskmint-dev",
+    "storage_bucket": "taskmint-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:888820927672:android:9115bc262e6d92bca9b84d",
+        "android_client_info": {
+          "package_name": "com.taskmint.android.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "888820927672-40mc2otjk78jhpsnk2qo4pt0fivlojkv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.taskmint.android.dev",
+            "certificate_hash": "e4305d1f99521801bbef8b4c10e6c92695074da1"
+          }
+        },
+        {
+          "client_id": "888820927672-j8saj9cudnei5rgjmkklfb7fglrphhjq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.taskmint.android.dev",
+            "certificate_hash": "081dc4d95d3cbeeb83473b62b0c9080010a080f7"
+          }
+        },
+        {
+          "client_id": "888820927672-83g355iaan9vac8cmpiodgq6vrtc6u5i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGMlRmFoTBS8k0UOscoxZaVaAB7SWfYt0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "888820927672-83g355iaan9vac8cmpiodgq6vrtc6u5i.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

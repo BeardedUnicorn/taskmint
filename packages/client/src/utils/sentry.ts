@@ -128,7 +128,9 @@ export function initSentry() {
 
   Sentry.init({
     dsn: sentryDsn,
-    environment: import.meta.env.MODE,
+    // A build files under its Firebase project ("production" or "dev"); the
+    // dev server and tests under their mode
+    environment: import.meta.env.DEV ? import.meta.env.MODE : import.meta.env.TASKMINT_ENV,
     release: `${packageJson.name}@${packageJson.version}`,
     sendDefaultPii: false,
     beforeSend(event) {

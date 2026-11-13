@@ -14,6 +14,7 @@
     "test:failed": "pnpm -r test --last-failed --passWithNoTests",
     "test:scripts": "node --test 'scripts/**/*.test.mjs'",
     "test:rules": "scripts/test-rules.sh",
+    "deploy:dev": "pnpm test:rules && pnpm build:wasm && pnpm --filter @taskmint/web build && pnpm firebase deploy --project dev --only hosting,firestore:rules,firestore:indexes --non-interactive",
     "build:wasm": "node scripts/build-wasm.mjs",
     "firebase": "npx --yes firebase-tools@15.35.0",
     "dev": "pnpm --filter @taskmint/desktop dev",

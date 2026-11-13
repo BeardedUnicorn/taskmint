@@ -21,15 +21,22 @@ Tauri or plugin versions, or to the `Platform` trait they implement.
 
 ## Before you start
 
-- **Quit the installed TaskMint.** A development build shares its data
-  folder, its single-instance lock and port 43117.
-- **Back up the data folder:** `~/Library/Application Support/com.taskmint.desktop/`
+- **Most of this runs beside the installed TaskMint.** A build you make is a
+  dev build, "TaskMint Dev" (`com.taskmint.desktop.dev`), with its own data
+  folder, single-instance lock, `taskmint-dev://` links and capture port
+  43127, on the dev Firebase project (the README's "Dev environment"). The
+  items about the real app's identity (the pre-2.1 move, `taskmint://`,
+  port 43117, updates from GitHub) need a production build: quit the
+  installed TaskMint, then
+  `cd apps/desktop && TASKMINT_ENV=production pnpm tauri build --config src-tauri/tauri.production.conf.json`.
+- **Back up the data folder** before trying a production build: `~/Library/Application Support/com.taskmint.desktop/`
   (`com.taskmint.app/` before 2.1).
 - **Use a dev build with its own data for most of this:**
   `TASKMINT_DATA_DIR=$HOME/tmp/taskmint-qa pnpm tauri dev`. That build uses
   the folder you give it, so the installed app's data is left alone.
 - **Use the bundled app (`pnpm tauri build`, then open the `.dmg`) for deep
-  links.** On macOS, `taskmint://` is registered only by an installed bundle.
+  links.** On macOS, a scheme is registered only by an installed bundle (a
+  dev bundle's is `taskmint-dev://`).
 
 Note anything that fails with the build, the OS version and what you saw.
 
@@ -46,11 +53,13 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Tray menu.** Start a task from the tray's menu, then pause and stop it.
       The window shows each change at once (menu events reach
       `tray::handle_menu_event`, and the change is emitted to the webview).
-- [ ] **Logs.** `~/Library/Logs/com.taskmint.desktop/` has today's log at
-      `info` and above; a dev build adds `debug`.
-- [ ] **Capture server.** `curl -s http://127.0.0.1:43117/api/health` answers
-      `{"app":"TaskMint","version":…}` with the app's version.
-- [ ] **Capture server in use.** Quit the app, run `nc -l 43117` in a terminal,
+- [ ] **Logs.** `~/Library/Logs/com.taskmint.desktop/` (a dev build's:
+      `com.taskmint.desktop.dev/`) has today's log at `info` and above; a
+      debug build adds `debug`.
+- [ ] **Capture server.** `curl -s http://127.0.0.1:43117/api/health` (43127
+      for a dev build) answers `{"app":"TaskMint","version":…}` with the
+      app's version.
+- [ ] **Capture server in use.** Quit the app, run `nc -l 43117` (43127) in a terminal,
       and launch. Payouts warns that the browser capture server couldn't
       start; the rest of the app works. Stop `nc` and relaunch.
 - [ ] **Idle monitor.** Turn on idle detection with a 1-minute threshold, then
@@ -60,6 +69,15 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Dev data folder.** With `TASKMINT_DATA_DIR` set, the dev build's data
       is in that folder and its log in `logs/` there. A release build ignores
       the variable.
+- [ ] **Dev beside production.** With the installed TaskMint running,
+      `pnpm tauri dev` opens a second app titled "TaskMint Dev", with its
+      data in `~/Library/Application Support/com.taskmint.desktop.dev/`.
+      Each has its own window, tray icon and capture port, and quitting one
+      leaves the other running.
+- [ ] **Mixed builds refuse to start.** `TASKMINT_ENV=production pnpm tauri
+      dev` (production's Firebase in the dev app), and, with the installed
+      TaskMint quit, `pnpm tauri dev --config src-tauri/tauri.production.conf.json`
+      (the real app on dev's), each stop at launch and log why.
 - [ ] **Notification click.** With the window hidden to the tray, clicking a
       TaskMint notification (Settings → Notifications → Send test
       notification) brings the window forward. Check it in the bundled app:
@@ -225,8 +243,9 @@ real key never leaves CI). Every file goes in one scratch folder, `$S`:
 - [ ] **In the tray.** With the window closed to the tray when the launch
       check finds the update, an OS notification says it's available.
       Clicking it opens the window on the dialog.
-- [ ] **Development build.** In `pnpm tauri dev`, Download and install says a
-      development build can't install updates.
+- [ ] **Dev build.** In `pnpm tauri dev`, or a dev bundle, Settings →
+      Updates → Check for updates says dev builds don't update, and no
+      automatic check offers one.
 - [ ] **A real release.** After a release, an install of the version before
       it finds and installs it from GitHub.
 
@@ -234,7 +253,9 @@ real key never leaves CI). Every file goes in one scratch folder, `$S`:
 
 With the bundled desktop app on a scratch data folder
 (`TASKMINT_DATA_DIR`), the Android APK, and the web app, all signed in to
-one test account of your own on the real project:
+one test account of your own. Dev builds use the dev project, and its web
+app at https://taskmint-dev.web.app (after `pnpm deploy:dev`); releases use
+the real one:
 
 - [ ] **Sign in by email** on the desktop: Settings → Cloud sync shows
       "Signed in as …" and "Up to date".

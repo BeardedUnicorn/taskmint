@@ -8,17 +8,19 @@
 //!
 //! Once the browser is back, the app comes forward and the browser gets a
 //! page in TaskMint's look saying how it went, which opens taskmint://open
+//! (taskmint-dev://open from a dev build)
 //! when the browser kept the focus (macOS lets the app in front refuse
 //! another app's request to come forward; a link the browser opens is
 //! handed over).
 
+use crate::environment::Environment;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::time::{Duration, Instant};
-use taskmint_core::contract::{DEEP_LINK_OPEN, DEEP_LINK_SCHEME};
+use taskmint_core::contract::DEEP_LINK_OPEN;
 
 use crate::platform::Platform;
 
@@ -130,7 +132,11 @@ fn page(outcome: Outcome, mode: Option<ColorMode>) -> String {
         .replace("{{icon}}", icon)
         .replace(
             "{{open}}",
-            &format!("{}://{}", DEEP_LINK_SCHEME, DEEP_LINK_OPEN),
+            &format!(
+                "{}://{}",
+                Environment::current().deep_link_scheme(),
+                DEEP_LINK_OPEN
+            ),
         )
         .replace("{{logo}}", &STANDARD.encode(LOGO))
         .replace("{{logo_dark}}", &STANDARD.encode(LOGO_DARK))
@@ -423,7 +429,8 @@ mod tests {
             assert!(page.contains(r#"<body class="done">"#));
             // In the app's mode, with its way back to the app
             assert!(page.contains(r#"<html lang="en" data-theme="dark">"#));
-            assert!(page.contains(r#"href="taskmint://open""#));
+            // (taskmint-dev:// here: tests are a dev build)
+            assert!(page.contains(r#"href="taskmint-dev://open""#));
         });
         assert_eq!(result, Ok(serde_json::json!({ "idToken": "eyJ.id.token" })));
         assert_eq!(platform.recorded().windows_shown, 1);

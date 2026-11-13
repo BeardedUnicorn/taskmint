@@ -1,5 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "TaskMint",
   "identifier": "com.taskmint.android",
   "app": {
     "security": {

@@ -31,6 +31,8 @@ import {
   updateAssetNames,
   updateBundlePaths,
   updateManifest,
+  macAppInfoPlist,
+  verifyApkPackage,
   verifyApkSigner,
   verifyUpdateSignature,
 } from './lib.mjs';
@@ -552,5 +554,38 @@ describe('verifyApkSigner', () => {
       () => verifyApkSigner({ output: `${signer(1, digest)}\n${signer(2, other)}`, digest }),
       /The APK has 2 signers; a release has one/
     );
+  });
+});
+
+describe('verifyApkPackage', () => {
+  const badging = name => `package: name='${name}' versionCode='4004000' versionName='4.4.0'\nsdkVersion:'24'\n`;
+
+  it('passes the real app', () => {
+    verifyApkPackage({ output: badging('com.taskmint.android'), name: 'com.taskmint.android' });
+  });
+
+  it('refuses a dev build, or output with no package', () => {
+    assert.throws(
+      () => verifyApkPackage({ output: badging('com.taskmint.android.dev'), name: 'com.taskmint.android' }),
+      /is com\.taskmint\.android\.dev, but a release is com\.taskmint\.android: build it with TASKMINT_ENV=production/
+    );
+    assert.throws(() => verifyApkPackage({ output: 'ERROR', name: 'com.taskmint.android' }), /no package name/);
+  });
+});
+
+describe('macAppInfoPlist', () => {
+  it('finds the app beside a macOS installer, cross-compiled or not', () => {
+    assert.equal(
+      macAppInfoPlist('TaskMint', '4.4.0', 'macos-arm64', { kind: 'tauri', triple: null }),
+      'target/release/bundle/macos/TaskMint.app/Contents/Info.plist'
+    );
+    assert.equal(
+      macAppInfoPlist('TaskMint', '4.4.0', 'macos-x64', { kind: 'tauri', triple: 'x86_64-apple-darwin' }),
+      'target/x86_64-apple-darwin/release/bundle/macos/TaskMint.app/Contents/Info.plist'
+    );
+  });
+
+  it('has none for another platform', () => {
+    assert.throws(() => macAppInfoPlist('TaskMint', '4.4.0', 'windows-x64', { kind: 'xwin' }), /isn't a macOS build/);
   });
 });
