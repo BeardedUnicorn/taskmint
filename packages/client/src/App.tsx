@@ -35,6 +35,8 @@ import { useTrayWithdrawalLabel } from './hooks/useTrayWithdrawalLabel';
 import { useWithdrawalReminder } from './hooks/useWithdrawalReminder';
 import { usePayoutForecastPublisher } from './hooks/usePayoutForecastPublisher';
 import { useSystemBarsTheme } from './hooks/useSystemBarsTheme';
+import { useSystemBottomInset } from './hooks/useSystemBottomInset';
+import { SAFE_BOTTOM } from './theme/media';
 import { useAnalyticsScreens } from './utils/analytics';
 import { BackupSettingsProvider } from './contexts/BackupSettingsContext';
 import { TaskManagementProvider, useTaskManagementContext } from './contexts/TaskManagementContext';
@@ -60,6 +62,7 @@ function BackgroundJobs({ onShowStartDialog }: { onShowStartDialog: () => void }
   useWithdrawalReminder();
   usePayoutForecastPublisher();
   useSystemBarsTheme();
+  useSystemBottomInset();
   useRecordConflictNotice();
   useUpdatedNotice();
   useDailySummary({ sessions, tasks, ready: hasLoaded && !tasksLoading });
@@ -217,11 +220,7 @@ function AppContent() {
           {compact && <CompactTopBar title={VIEW_LABELS[activeView]} onOpenNavigation={openNavigation} />}
           {/* Clear of the gesture bar on an edge-to-edge phone screen (a
               phone's bottom bar keeps clear of it itself) */}
-          <Box
-            component="main"
-            ref={scrollerRef}
-            sx={{ flex: 1, overflow: 'auto', pb: compact ? 0 : 'env(safe-area-inset-bottom)' }}
-          >
+          <Box component="main" ref={scrollerRef} sx={{ flex: 1, overflow: 'auto', pb: compact ? 0 : SAFE_BOTTOM }}>
             {page}
           </Box>
           {compact && <BottomNavBar activeView={activeView} onViewChange={navigate} />}

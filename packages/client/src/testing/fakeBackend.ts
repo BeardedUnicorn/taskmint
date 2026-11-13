@@ -121,6 +121,7 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     },
     systemBars: {
       setTheme: vi.fn(),
+      bottomInset: vi.fn(() => 0),
     },
     splashScreen: {
       hide: vi.fn(),

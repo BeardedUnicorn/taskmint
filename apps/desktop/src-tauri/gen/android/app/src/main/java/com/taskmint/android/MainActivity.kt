@@ -8,7 +8,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.splashscreen.SplashScreenViewProvider
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.credentials.CredentialManager
 import androidx.credentials.CredentialManagerCallback
 import androidx.credentials.GetCredentialRequest
@@ -30,11 +32,23 @@ class MainActivity : TauriActivity() {
   /** The theme the page last gave the status bar (SystemBars); light icons on the launch screen's teal until then. */
   private var barsTheme = "dark"
 
+  /**
+   * The navigation bar or gesture area's height along the bottom, in dp (the
+   * page's CSS px). The app draws under it, and the webview doesn't report it
+   * in env(safe-area-inset-bottom), so the page asks (SystemBars).
+   */
+  @Volatile private var bottomInsetDp = 0f
+
   override fun onCreate(savedInstanceState: Bundle?) {
     val splashScreen = installSplashScreen()
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     applyBarsTheme()
+    ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
+      bottomInsetDp = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / resources.displayMetrics.density
+      // The decor view still lays itself and the webview out as before
+      ViewCompat.onApplyWindowInsets(view, insets)
+    }
 
     // The launch screen (Theme.taskmint.Starting) would go with the first
     // frame, long before the webview has anything to show. It stays until the
@@ -110,6 +124,10 @@ class MainActivity : TauriActivity() {
         if (splash == null) applyBarsTheme()
       }
     }
+
+    /** The bottom inset, in CSS px, for the page to keep its tabs and dialogs clear of. */
+    @JavascriptInterface
+    fun bottomInset(): Float = bottomInsetDp
   }
 
   /**

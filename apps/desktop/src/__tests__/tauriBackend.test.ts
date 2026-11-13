@@ -275,9 +275,9 @@ describe('createTauriBackend', () => {
     ]);
   });
 
-  it('on Android, sets the status bar through the bridge MainActivity adds', () => {
+  it('on Android, sets the status bar and reads the bottom inset through the bridge MainActivity adds', () => {
     const setTheme = vi.fn();
-    vi.stubGlobal('TaskMintSystemBars', { setTheme });
+    vi.stubGlobal('TaskMintSystemBars', { setTheme, bottomInset: () => 24 });
     onTestFinished(() => {
       vi.unstubAllGlobals();
     });
@@ -294,6 +294,7 @@ describe('createTauriBackend', () => {
       'systemBars',
     ]);
     expect(setTheme.mock.calls).toEqual([['light'], ['dark']]);
+    expect(android.platform.systemBars!.bottomInset()).toBe(24);
     expect(dispatched()).toEqual([]);
     // The desktop has no status bar, bridge or not
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.systemBars).toBeUndefined();

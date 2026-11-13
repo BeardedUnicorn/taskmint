@@ -108,6 +108,12 @@ export interface TrayPlatform {
 export interface SystemBarsPlatform {
   /** Draws the clock and icons to read on this theme. */
   setTheme(theme: 'light' | 'dark'): void;
+  /**
+   * How much of the screen's bottom (CSS px) the navigation bar or gesture
+   * area covers. The app draws under it too, and the webview doesn't report
+   * it to CSS (env(safe-area-inset-bottom) is 0).
+   */
+  bottomInset(): number;
 }
 
 /**

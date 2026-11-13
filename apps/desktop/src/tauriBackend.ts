@@ -128,6 +128,8 @@ const desktopOnly: Omit<Platform, 'files' | 'notifications'> = {
 interface AndroidSystemBars {
   /** 'light' or 'dark': the status bar's icons then read on that theme. */
   setTheme(theme: string): void;
+  /** The navigation bar or gesture area's height along the bottom, in dp (CSS px). */
+  bottomInset(): number;
 }
 
 /** What Android's MainActivity.kt adds for its launch screen. */
@@ -154,7 +156,9 @@ function analytics(): Pick<Platform, 'analytics'> {
 function systemBars(): Pick<Platform, 'systemBars'> {
   const android = (window as { TaskMintSystemBars?: AndroidSystemBars }).TaskMintSystemBars;
   // Called on the bridge itself: Android refuses a method taken off it
-  return android ? { systemBars: { setTheme: theme => android.setTheme(theme) } } : {};
+  return android
+    ? { systemBars: { setTheme: theme => android.setTheme(theme), bottomInset: () => android.bottomInset() } }
+    : {};
 }
 
 /** The launch screen on Android; the desktop has none. */

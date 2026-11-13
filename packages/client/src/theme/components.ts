@@ -7,7 +7,7 @@
 
 import type { Components, Theme } from '@mui/material/styles';
 import type {} from '@mui/x-date-pickers/themeAugmentation';
-import { PHONE, TOUCH } from './media';
+import { PHONE, SAFE_BOTTOM, TOUCH } from './media';
 import { BRAND_TEXT_LIGHT, brandText, ColorMode } from './palettes';
 
 /** The focus ring's color (and a focused field's edge): the brand green, darker on light surfaces where it would fade. */
@@ -146,7 +146,7 @@ export function components(mode: ColorMode): Components<Theme> {
               maxHeight: '100%',
               borderRadius: 0,
               paddingTop: 'env(safe-area-inset-top)',
-              paddingBottom: 'env(safe-area-inset-bottom)',
+              paddingBottom: SAFE_BOTTOM,
             },
           },
         },
