@@ -195,36 +195,6 @@ export function formatTimeForChart(ms: number): string {
 }
 
 /**
- * Generate colors for chart data
- */
-export function generateChartColors(count: number): string[] {
-  const colors = [
-    '#8884d8',
-    '#82ca9d',
-    '#ffc658',
-    '#ff7c7c',
-    '#8dd1e1',
-    '#d084d0',
-    '#ffb347',
-    '#87ceeb',
-    '#dda0dd',
-    '#98fb98',
-    '#f0e68c',
-    '#ff6347',
-    '#40e0d0',
-    '#ee82ee',
-    '#90ee90',
-  ];
-
-  const result: string[] = [];
-  for (let i = 0; i < count; i++) {
-    result.push(colors[i % colors.length]);
-  }
-
-  return result;
-}
-
-/**
  * Prepare data for pie chart showing task distribution
  */
 export function prepareTaskDistributionData(

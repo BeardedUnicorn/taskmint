@@ -1,7 +1,7 @@
 /**
  * The History charts, drawn at a fixed size (jsdom measures nothing, so the
- * responsive container is stood in for): titles, axes, legends, labels and
- * the hover cards.
+ * responsive container is stood in for): titles, axes, the measure each
+ * draws, legends, labels and the hover cards.
  */
 
 import { cloneElement, ReactElement } from 'react';
@@ -9,7 +9,8 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskTimeBarChart, TaskTimeTooltip } from '../TaskTimeBarChart';
 import { TimelineChart, TimelineTooltip } from '../TimelineChart';
-import { TaskDistributionPieChart, TaskShareTooltip } from '../TaskDistributionPieChart';
+import { TaskDistributionPieChart, TaskShareTooltip, foldShares } from '../TaskDistributionPieChart';
+import { CATEGORICAL, MEASURES, OTHER_COLOR } from '../ChartParts';
 import { setPhoneViewport } from '../../../../__tests__/setup/viewport';
 
 vi.mock('recharts', async importOriginal => ({
@@ -33,22 +34,35 @@ beforeEach(() => {
   );
 });
 
-describe('TaskTimeBarChart', () => {
-  it('draws each task, cutting long names on the axis, with its legend', async () => {
-    render(
-      <TaskTimeBarChart
-        data={[
-          { taskName: 'Annotation', totalTime: 2 * HOUR, totalEarnings: 80, entryCount: 3 },
-          { taskName: 'A very long task name indeed', totalTime: HOUR, totalEarnings: 40, entryCount: 1 },
-        ]}
-      />
-    );
+describe('MEASURES', () => {
+  it('marks ticks in hours or dollars', () => {
+    expect(MEASURES.time.tick(8)).toBe('8h');
+    expect(MEASURES.earnings.tick(450)).toBe('$450');
+  });
+});
 
-    expect(screen.getByText('Time Spent by Task')).toBeInTheDocument();
+describe('TaskTimeBarChart', () => {
+  const data = [
+    { taskName: 'Annotation', totalTime: 2 * HOUR, totalEarnings: 80, entryCount: 3 },
+    { taskName: 'A very long task name indeed', totalTime: HOUR, totalEarnings: 40, entryCount: 1 },
+  ];
+
+  it('draws the time of each task on one axis, cutting long names', async () => {
+    render(<TaskTimeBarChart data={data} measure="time" />);
+
+    expect(screen.getByText('Time by Task')).toBeInTheDocument();
     expect(await screen.findByText('Annotation')).toBeInTheDocument();
     expect(screen.getByText('A very long tas...')).toBeInTheDocument();
-    expect(screen.getByText('Time (hours)')).toBeInTheDocument();
-    expect(screen.getAllByText('Earnings ($)').length).toBeGreaterThan(0);
+    expect(screen.getByText('Hours')).toBeInTheDocument();
+    // One measure: no second axis, no legend to tell them apart
+    expect(screen.queryByText('Earnings ($)')).not.toBeInTheDocument();
+  });
+
+  it('draws the earnings instead when asked', async () => {
+    render(<TaskTimeBarChart data={data} measure="earnings" />);
+    expect(screen.getByText('Earnings by Task')).toBeInTheDocument();
+    expect(await screen.findByText('Earnings ($)')).toBeInTheDocument();
+    expect(screen.queryByText('Hours')).not.toBeInTheDocument();
   });
 
   it('shows the whole task, its time, earnings and entries on hover', () => {
@@ -73,11 +87,13 @@ describe('TaskTimeBarChart', () => {
 describe('TimelineChart', () => {
   const totals = { totalTime: HOUR, totalEarnings: 40, entryCount: 1 };
 
-  it('draws days as dates', async () => {
-    render(<TimelineChart dataType="daily" data={[{ date: '2026-03-02', ...totals }]} />);
+  it('draws days as dates, one measure on one axis', async () => {
+    render(<TimelineChart dataType="daily" measure="time" data={[{ date: '2026-03-02', ...totals }]} />);
 
-    expect(screen.getByText('Daily Time Tracking Trends')).toBeInTheDocument();
+    expect(screen.getByText('Time per day')).toBeInTheDocument();
     expect((await screen.findAllByText('Mar 2')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Hours')).toBeInTheDocument();
+    expect(screen.queryByText('Earnings ($)')).not.toBeInTheDocument();
   });
 
   describe('west of UTC', () => {
@@ -90,20 +106,23 @@ describe('TimelineChart', () => {
     });
 
     it('labels a day as that day, not the one before', async () => {
-      render(<TimelineChart dataType="daily" data={[{ date: '2026-11-06', ...totals }]} />);
+      render(<TimelineChart dataType="daily" measure="time" data={[{ date: '2026-11-06', ...totals }]} />);
 
       expect((await screen.findAllByText('Nov 6')).length).toBeGreaterThan(0);
       expect(screen.queryByText('Nov 5')).not.toBeInTheDocument();
     });
   });
 
-  it('draws weeks and months by their keys', async () => {
-    const { rerender } = render(<TimelineChart dataType="weekly" data={[{ week: '2026-W10', ...totals }]} />);
-    expect(screen.getByText('Weekly Time Tracking Trends')).toBeInTheDocument();
+  it('draws weeks and months by their keys, and earnings when asked', async () => {
+    const { rerender } = render(
+      <TimelineChart dataType="weekly" measure="earnings" data={[{ week: '2026-W10', ...totals }]} />
+    );
+    expect(screen.getByText('Earnings per week')).toBeInTheDocument();
     expect((await screen.findAllByText('2026-W10')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Earnings ($)')).toBeInTheDocument();
 
-    rerender(<TimelineChart dataType="monthly" data={[{ month: '2026-03', ...totals }]} />);
-    expect(screen.getByText('Monthly Time Tracking Trends')).toBeInTheDocument();
+    rerender(<TimelineChart dataType="monthly" measure="time" data={[{ month: '2026-03', ...totals }]} />);
+    expect(screen.getByText('Time per month')).toBeInTheDocument();
     expect((await screen.findAllByText('2026-03')).length).toBeGreaterThan(0);
   });
 
@@ -119,6 +138,9 @@ describe('TimelineChart', () => {
 });
 
 describe('TaskDistributionPieChart', () => {
+  /** The legend's swatch beside a name. */
+  const swatchOf = (name: string) => screen.getByText(name).previousElementSibling;
+
   it('labels each slice big enough with its share, and lists every task', async () => {
     render(
       <TaskDistributionPieChart
@@ -137,6 +159,42 @@ describe('TaskDistributionPieChart', () => {
     expect(screen.getByText('Review')).toBeInTheDocument();
   });
 
+  it('colours a task by its name, not its size, so it keeps its colour when shares change places', () => {
+    const { unmount } = render(
+      <TaskDistributionPieChart
+        data={[
+          { name: 'Calls', value: 6, percentage: 60 },
+          { name: 'Annotation', value: 4, percentage: 40 },
+        ]}
+      />
+    );
+    expect(swatchOf('Annotation')).toHaveStyle({ backgroundColor: CATEGORICAL.light[0] });
+    expect(swatchOf('Calls')).toHaveStyle({ backgroundColor: CATEGORICAL.light[1] });
+    unmount();
+
+    render(
+      <TaskDistributionPieChart
+        data={[
+          { name: 'Annotation', value: 6, percentage: 60 },
+          { name: 'Calls', value: 4, percentage: 40 },
+        ]}
+      />
+    );
+    expect(swatchOf('Annotation')).toHaveStyle({ backgroundColor: CATEGORICAL.light[0] });
+  });
+
+  it('gives the five biggest tasks a slice each and folds the rest into a grey Other', () => {
+    const tasks = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((name, index) => ({
+      name,
+      value: 7 - index,
+      percentage: ((7 - index) / 28) * 100,
+    }));
+    render(<TaskDistributionPieChart data={tasks} />);
+    for (const name of ['A', 'B', 'C', 'D']) expect(screen.getByText(name)).toBeInTheDocument();
+    for (const name of ['E', 'F', 'G']) expect(screen.queryByText(name)).not.toBeInTheDocument();
+    expect(swatchOf('Other')).toHaveStyle({ backgroundColor: OTHER_COLOR.light });
+  });
+
   it("shows a task's time and share on hover", () => {
     const { container, rerender } = render(<TaskShareTooltip />);
     expect(container).toBeEmptyDOMElement();
@@ -147,18 +205,33 @@ describe('TaskDistributionPieChart', () => {
   });
 });
 
+describe('foldShares', () => {
+  it('keeps every share when they fit, and sums the smallest into Other when not', () => {
+    const shares = [
+      { name: 'Small', value: 1, percentage: 10 },
+      { name: 'Big', value: 6, percentage: 60 },
+      { name: 'Mid', value: 3, percentage: 30 },
+    ];
+    expect(foldShares(shares, 3)).toBe(shares);
+    expect(foldShares(shares, 2)).toEqual([
+      { name: 'Big', value: 6, percentage: 60 },
+      { name: 'Other', value: 4, percentage: 40 },
+    ]);
+  });
+});
+
 describe('the charts on a phone', () => {
   const totals = { totalTime: 2 * HOUR, totalEarnings: 80, entryCount: 3 };
 
-  it('give the plot the width: no axis titles, the legend names the series', async () => {
+  it('run the bars across with the names level, and give the plot the width', async () => {
     setPhoneViewport(['prefers-reduced-motion']);
-    const { unmount } = render(<TaskTimeBarChart data={[{ taskName: 'Annotation', ...totals }]} />);
+    const { unmount } = render(<TaskTimeBarChart data={[{ taskName: 'Annotation', ...totals }]} measure="time" />);
     expect(await screen.findByText('Annotation')).toBeInTheDocument();
+    expect(screen.getByText('2h')).toBeInTheDocument();
     expect(screen.queryByText('Hours')).not.toBeInTheDocument();
-    expect(screen.getByText('Earnings ($)')).toBeInTheDocument();
     unmount();
 
-    render(<TimelineChart dataType="weekly" data={[{ week: '2026-W10', ...totals }]} />);
+    render(<TimelineChart dataType="weekly" measure="time" data={[{ week: '2026-W10', ...totals }]} />);
     expect(await screen.findByText('2026-W10')).toBeInTheDocument();
     expect(screen.queryByText('Hours')).not.toBeInTheDocument();
   });

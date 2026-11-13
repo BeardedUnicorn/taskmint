@@ -1,24 +1,30 @@
 /**
- * What the History charts share: their size, the card shown for the point
- * under the pointer, and a legend of swatches. Colors come from the theme, so
- * a chart reads in light and dark alike. (Charts only get finished entries,
+ * What the History charts share: their size, the measure they draw, their
+ * colours, the card shown for the point under the pointer, and a legend of
+ * swatches. A chart draws one measure on one axis (time and earnings have
+ * scales of their own; on two y-axes the lines tracked each other), and its
+ * colours suit the light or dark theme. (Charts only get finished entries,
  * each with time in it, so there's always something to draw.)
  */
 
 import { Box, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { brandText, type ColorMode } from '../../../theme/palettes';
 import { useCompactLayout } from '../../../hooks/useCompactLayout';
 
 /** How a chart fits its space: the plot's height and the room its axes take. */
 export interface ChartLayout {
   height: number;
-  /** Space beside the plot (the value axes have their own width too). */
+  /** Space beside the plot (the value axis has its own width too). */
   sideMargin: { left: number; right: number };
-  /** Each value axis's width. */
+  /** The value axis's width. */
   axisWidth: number;
   tickFontSize: number;
-  /** The value axes' titles; the legend names the series anyway. */
+  /** The value axis's title; the chart's title names the measure anyway. */
   axisTitles: boolean;
   pieRadius: number;
+  /** Bars run across with the names down the side (a phone: names stay level). */
+  barsAcross: boolean;
 }
 
 const DESKTOP_CHART: ChartLayout = {
@@ -29,6 +35,7 @@ const DESKTOP_CHART: ChartLayout = {
   tickFontSize: 12,
   axisTitles: true,
   pieRadius: 120,
+  barsAcross: false,
 };
 
 // A phone's width goes to the plot
@@ -39,11 +46,44 @@ const PHONE_CHART: ChartLayout = {
   tickFontSize: 11,
   axisTitles: false,
   pieRadius: 100,
+  barsAcross: true,
 };
 
 export function useChartLayout(): ChartLayout {
   return useCompactLayout() ? PHONE_CHART : DESKTOP_CHART;
 }
+
+/** What a chart draws: the time tracked, or the money earned. */
+export type ChartMeasure = 'time' | 'earnings';
+
+interface Measure {
+  label: string;
+  axisTitle: string;
+  /** The point's field that holds it. */
+  dataKey: 'timeHours' | 'earnings';
+  tick: (value: number) => string;
+}
+
+export const MEASURES: Record<ChartMeasure, Measure> = {
+  time: { label: 'Time', axisTitle: 'Hours', dataKey: 'timeHours', tick: value => `${value}h` },
+  earnings: { label: 'Earnings', axisTitle: 'Earnings ($)', dataKey: 'earnings', tick: value => `$${value}` },
+};
+
+/** A chart's one series: the brand green, in its shade that reads on the mode's surface. */
+export function useSeriesColor(): string {
+  return brandText(useTheme().palette.mode);
+}
+
+/**
+ * Tasks' colours: a categorical order checked for colour-blind readers, its
+ * steps chosen for each mode's surface. Five at most; the rest fold into
+ * Other, in a neutral grey.
+ */
+export const CATEGORICAL: Record<ColorMode, readonly string[]> = {
+  light: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'],
+  dark: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'],
+};
+export const OTHER_COLOR: Record<ColorMode, string> = { light: '#9e9e9e', dark: '#757575' };
 
 /** What recharts hands a tooltip's content: the hovered point(s), when there are any. */
 export interface ChartTooltipProps<Point> {

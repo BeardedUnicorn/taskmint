@@ -1,7 +1,8 @@
 /**
- * History charts: time and earnings by task, the task distribution, and a
- * daily / weekly / monthly timeline, over the filtered finished entries. A
- * collapsible card whose open state is remembered.
+ * History charts: time or earnings by task (a switch picks which; each
+ * chart draws one), the task distribution, and a daily / weekly / monthly
+ * timeline, over the filtered finished entries. A collapsible card whose
+ * open state is remembered.
  */
 
 import { Suspense, lazy, useId, useMemo, useState } from 'react';
@@ -16,8 +17,11 @@ import {
   Paper,
   Select,
   Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
+import type { ChartMeasure } from '../../ui/charts/ChartParts';
 import { ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import type { FinishedTimeEntry } from '../../../utils/csvExport';
 import { Task } from '../../../types/task';
@@ -59,6 +63,7 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
   const [open, setOpen] = useLocalStorage<boolean>('historyChartsOpen', true);
   const timelineLabelId = useId();
   const [timelineView, setTimelineView] = useState<TimelineView>('daily');
+  const [measure, setMeasure] = useLocalStorage<ChartMeasure>('historyChartsMeasure', 'time');
 
   const chartData = useMemo(() => {
     if (!open) return null;
@@ -74,8 +79,8 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
   if (entries.length === 0) return null;
 
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+    <Paper sx={{ p: 3, mb: 3, [PHONE]: { p: 2 } }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <IconButton
             size="small"
@@ -90,21 +95,35 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
           </Typography>
         </Stack>
         {open && (
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel id={timelineLabelId}>Timeline View</InputLabel>
-            <Select
-              labelId={timelineLabelId}
-              value={timelineView}
-              label="Timeline View"
-              onChange={event => setTimelineView(event.target.value as TimelineView)}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, [PHONE]: { flexBasis: '100%' } }}>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={measure}
+              aria-label="Chart"
+              // A second tap on the chosen one keeps it
+              onChange={(_event, next: ChartMeasure | null) => next && setMeasure(next)}
+              sx={{ [PHONE]: { flex: 1, '& > *': { flex: 1 } } }}
             >
-              <MenuItem value="daily">Daily</MenuItem>
-              <MenuItem value="weekly">Weekly</MenuItem>
-              <MenuItem value="monthly">Monthly</MenuItem>
-            </Select>
-          </FormControl>
+              <ToggleButton value="time">Time</ToggleButton>
+              <ToggleButton value="earnings">Earnings</ToggleButton>
+            </ToggleButtonGroup>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel id={timelineLabelId}>Timeline View</InputLabel>
+              <Select
+                labelId={timelineLabelId}
+                value={timelineView}
+                label="Timeline View"
+                onChange={event => setTimelineView(event.target.value as TimelineView)}
+              >
+                <MenuItem value="daily">Daily</MenuItem>
+                <MenuItem value="weekly">Weekly</MenuItem>
+                <MenuItem value="monthly">Monthly</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
         )}
-      </Stack>
+      </Box>
 
       <Collapse in={open} unmountOnExit>
         {chartData && (
@@ -119,7 +138,7 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
               <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>
                 <Box sx={{ flex: { lg: 2 }, minWidth: 0 }}>
                   <Paper variant="outlined" sx={CHART_CARD}>
-                    <TaskTimeBarChart data={chartData.taskTimeData} />
+                    <TaskTimeBarChart data={chartData.taskTimeData} measure={measure} />
                   </Paper>
                 </Box>
                 <Box sx={{ flex: { lg: 1 }, minWidth: 0 }}>
@@ -129,7 +148,7 @@ export function HistoryCharts({ entries, tasks }: HistoryChartsProps) {
                 </Box>
               </Box>
               <Paper variant="outlined" sx={CHART_CARD}>
-                <TimelineChart data={chartData.timelineData} dataType={timelineView} />
+                <TimelineChart data={chartData.timelineData} dataType={timelineView} measure={measure} />
               </Paper>
             </Stack>
           </Suspense>
