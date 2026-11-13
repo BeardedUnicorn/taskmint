@@ -27,7 +27,7 @@ import type {
   Platform,
   SavedFile,
 } from '@taskmint/client/backend';
-import type { AppInfo } from '@taskmint/contracts';
+import type { AppInfo, MenuCommand } from '@taskmint/contracts';
 
 /** What a dismissed save or open dialog rejects with. */
 const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
@@ -88,17 +88,45 @@ const everywhere: Platform = {
   notifications: {
     show: (kind, title, body) => command<boolean>('show_desktop_notification', { kind, title, body }),
     setPreferences: prefs => command<void>('set_notification_preferences', { prefs }),
+    takeOpened: () => command<MenuCommand | null>('take_opened_notification'),
   },
 };
 
-/** A phone's notifications, which can also be set for later (alarms the system shows with the app closed). */
-const phoneNotifications: NotificationPlatform = {
-  ...everywhere.notifications,
-  schedule: ({ id, atMs, kind, title, body }) =>
-    command<boolean>('schedule_notification', { id, at: new Date(atMs).toISOString(), kind, title, body }),
-  cancel: id => command<void>('cancel_notification', { id }),
-  askPermission: () => void command<void>('ask_to_notify'),
-};
+declare global {
+  interface Window {
+    /** MainActivity calls it when the user taps a notification while the app runs. */
+    __taskmintNotificationTapped?: () => void;
+  }
+}
+
+/**
+ * A phone's notifications, which can also be set for later (alarms the
+ * system shows with the app closed). Android's notification plugin reports a
+ * tap without the notification it was on, so MainActivity.kt keeps the
+ * tapped notification's id and button (window.TaskMintApp) and the page
+ * hands them to Rust (notification_action), which knows the page from the
+ * id: before it asks what a tap opens (the tap may have started the app),
+ * and as soon as MainActivity says one came.
+ */
+function phoneNotifications(): NotificationPlatform {
+  const android = (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp;
+  const actOnTap = async () => {
+    const tap = android?.takeNotificationTap();
+    if (tap) await command<void>('notification_action', JSON.parse(tap));
+  };
+  window.__taskmintNotificationTapped = () => void actOnTap();
+  return {
+    ...everywhere.notifications,
+    schedule: ({ id, atMs, kind, title, body }) =>
+      command<boolean>('schedule_notification', { id, at: new Date(atMs).toISOString(), kind, title, body }),
+    cancel: id => command<void>('cancel_notification', { id }),
+    askPermission: () => void command<void>('ask_to_notify'),
+    takeOpened: async () => {
+      await actOnTap();
+      return command<MenuCommand | null>('take_opened_notification');
+    },
+  };
+}
 
 /** What only a desktop has. */
 const desktopOnly: Omit<Platform, 'files' | 'notifications'> = {
@@ -199,10 +227,12 @@ function splashScreen(): Pick<Platform, 'splashScreen'> {
   return android ? { splashScreen: { hide: () => android.hide() } } : {};
 }
 
-/** What Android's MainActivity.kt adds for leaving the app from its first screen. */
+/** What Android's MainActivity.kt adds for leaving the app from its first screen, and notification taps. */
 interface AndroidAppTask {
   /** Puts the app in the background (Activity.moveTaskToBack). */
   moveToBack(): void;
+  /** The notification tap the app hasn't acted on, as JSON `{ id, action }`, once; null when none. */
+  takeNotificationTap(): string | null;
 }
 
 /**
@@ -275,7 +305,7 @@ export function createTauriBackend(capabilities: Capabilities, google?: GoogleDe
     platform: {
       ...everywhere,
       ...(capabilities.runtime === 'mobile'
-        ? { notifications: phoneNotifications, ...systemBars(), ...splashScreen(), ...backButton(), ...analytics() }
+        ? { notifications: phoneNotifications(), ...systemBars(), ...splashScreen(), ...backButton(), ...analytics() }
         : desktopOnly),
       ...googleSignIn(capabilities.runtime, google),
     },

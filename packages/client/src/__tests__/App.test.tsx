@@ -113,6 +113,11 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /^Notifications/ })).toBeInTheDocument();
     expect(screen.getByText('Home', { selector: '.MuiToolbar-root *' })).toBeInTheDocument();
 
+    // A phone has no ⌘K: the bar's search opens the command palette
+    fireEvent.click(screen.getByRole('button', { name: 'Search commands' }));
+    fireEvent.keyDown(await screen.findByRole('combobox', { name: 'Command' }), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Command' })).not.toBeInTheDocument());
+
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Tasks' }));
 

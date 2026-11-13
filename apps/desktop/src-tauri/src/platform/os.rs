@@ -12,16 +12,19 @@
 //! document (a content:// address) that the fs plugin opens for the app.
 
 use super::{
-    AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, ScheduledNotification,
+    AvailableUpdate, Channel, DownloadEvent, PickedFile, Platform, SaveDialog,
+    ScheduledNotification, ShownNotification,
 };
 use crate::app_menu::model::{Action, AppMenu};
+use crate::timer_notice::TimerNotice;
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use taskmint_core::shell::MenuCommand;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
-use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_notification::{NotificationBuilder, NotificationExt};
 use tauri_plugin_opener::OpenerExt;
 
 #[cfg(desktop)]
@@ -99,6 +102,149 @@ fn open_picked_file(app: &AppHandle, file: &PickedFile, write: bool) -> std::io:
     app.fs().open(path, options)
 }
 
+/// Android's id for each channel (its name and description are in
+/// create_channels).
+#[cfg(target_os = "android")]
+fn channel_id(channel: Channel) -> &'static str {
+    match channel {
+        Channel::Timer => "timer",
+        Channel::Reminders => "reminders",
+        Channel::Activity => "activity",
+    }
+}
+
+/// Puts a notification in its channel (Android's; a desktop has none) and
+/// says what tapping it opens, which the tap reports back (app.rs). On
+/// Android it also gets the leaf for its icon, tinted the brand green, in
+/// place of the system's "i" (the plugin's config can't name one: its Rust
+/// side takes no config, and fails the app's start on any).
+fn routed<R: tauri::Runtime>(
+    builder: NotificationBuilder<R>,
+    _channel: Channel,
+    opens: Option<MenuCommand>,
+) -> NotificationBuilder<R> {
+    #[cfg(target_os = "android")]
+    let builder = builder
+        .channel_id(channel_id(_channel))
+        .icon("ic_stat_taskmint")
+        .icon_color("#65D6A1");
+    match opens {
+        Some(command) => builder.extra(OPENS, command),
+        None => builder,
+    }
+}
+
+/// The key of the notification's extra data that says what tapping it opens.
+pub const OPENS: &str = "opens";
+
+/// Creates TaskMint's channels, which the phone's settings list under the
+/// app: the system drops a notification for a channel that doesn't exist.
+/// Also deletes the notification plugin's own "Default" channel, which
+/// nothing uses; the plugin makes it again each time the app starts, so this
+/// runs once per start, after the plugin has (prepare_notifications).
+#[cfg(target_os = "android")]
+fn create_channels(app: &AppHandle) {
+    use tauri_plugin_notification::{Channel as Group, Importance};
+    let groups = [
+        // Quiet: no sound, no pop-up, only in the shade and the status bar
+        Group::builder(channel_id(Channel::Timer), "Running timer")
+            .description("The timer while it runs, with buttons to pause or stop it")
+            .importance(Importance::Low)
+            .build(),
+        Group::builder(channel_id(Channel::Reminders), "Reminders")
+            .description("Withdrawals, your daily goal and summary, and a timer left running")
+            .importance(Importance::High)
+            .vibration(true)
+            .build(),
+        Group::builder(channel_id(Channel::Activity), "Activity")
+            .description("Work logs captured, backups and errors")
+            .importance(Importance::Default)
+            .build(),
+    ];
+    for group in groups {
+        if let Err(e) = app.notification().create_channel(group) {
+            log::error!("Failed to create a notification channel: {}", e);
+        }
+    }
+    if let Err(e) = app.notification().delete_channel("default") {
+        log::error!("Failed to delete the default notification channel: {}", e);
+    }
+}
+
+/// The running timer's notification (a phone's): its task, the system's
+/// clock counting up while it runs, and its buttons. Showing it again
+/// replaces it in place.
+#[cfg(mobile)]
+fn set_os_timer_notice(app: &AppHandle, notice: Option<&TimerNotice>) -> Result<(), String> {
+    use crate::timer_notice::TIMER_NOTICE_ID;
+    let Some(notice) = notice else {
+        return app
+            .notification()
+            .remove_active(vec![TIMER_NOTICE_ID])
+            .map_err(text);
+    };
+    add_timer_buttons(app);
+    let buttons = match notice.is_paused() {
+        true => PAUSED_BUTTONS,
+        false => RUNNING_BUTTONS,
+    };
+    let builder = app
+        .notification()
+        .builder()
+        .id(TIMER_NOTICE_ID)
+        .title(&notice.task_name)
+        .body(&notice.text)
+        // Shown expanded too (see notify)
+        .large_body(&notice.text)
+        .ongoing()
+        .action_type_id(buttons);
+    let mut builder = routed(builder, Channel::Timer, None);
+    if let Some(from) = notice.counting_from {
+        builder = builder.when(from.timestamp_millis()).uses_chronometer();
+    }
+    builder.show().map_err(text)
+}
+
+/// A desktop has the tray instead.
+#[cfg(desktop)]
+fn set_os_timer_notice(_app: &AppHandle, _notice: Option<&TimerNotice>) -> Result<(), String> {
+    Ok(())
+}
+
+/// The running timer's buttons (and a paused one's), by the id the
+/// notification names them with.
+#[cfg(mobile)]
+const RUNNING_BUTTONS: &str = "timer-running";
+#[cfg(mobile)]
+const PAUSED_BUTTONS: &str = "timer-paused";
+
+/// Tells the system the timer notification's buttons, the first time it's
+/// shown (the plugin keeps them for the app's run).
+#[cfg(mobile)]
+fn add_timer_buttons(app: &AppHandle) {
+    use crate::timer_notice::{PAUSE, RESUME, STOP, SWITCH};
+    use tauri_plugin_notification::{Action as Button, ActionType as Buttons};
+    static ADDED: std::sync::Once = std::sync::Once::new();
+    ADDED.call_once(|| {
+        let buttons = |id: &str, first: Button| {
+            Buttons::builder(id)
+                .actions(vec![
+                    first,
+                    Button::builder(SWITCH, "Switch task").build(),
+                    Button::builder(STOP, "Stop").build(),
+                ])
+                .build()
+        };
+        let types = vec![
+            buttons(RUNNING_BUTTONS, Button::builder(PAUSE, "Pause").build()),
+            buttons(PAUSED_BUTTONS, Button::builder(RESUME, "Resume").build()),
+        ];
+        if let Err(e) = app.notification().register_action_types(types) {
+            log::error!("Failed to add the timer notification's buttons: {}", e);
+        }
+    });
+}
+
 /// A phone's alarm: the system shows the notification at its time, with the
 /// app closed, and in Doze too.
 #[cfg(mobile)]
@@ -109,7 +255,7 @@ fn schedule_os_notification(
     use tauri_plugin_notification::Schedule;
     let nanos = i128::from(scheduled.at.timestamp_millis()) * 1_000_000;
     let date = time::OffsetDateTime::from_unix_timestamp_nanos(nanos).map_err(text)?;
-    let mut builder = app
+    let builder = app
         .notification()
         .builder()
         .id(scheduled.id)
@@ -122,6 +268,7 @@ fn schedule_os_notification(
             repeating: false,
             allow_while_idle: true,
         });
+    let mut builder = routed(builder, scheduled.channel, scheduled.opens);
     if scheduled.sound {
         builder = builder.sound(SOUND);
     }
@@ -498,18 +645,19 @@ mod mobile {
     }
 }
 
-/// Asks for permission to notify, unless the user already answered.
+/// Asks for permission to notify, unless the user already answered, and
+/// runs `allowed` if they allow it.
 #[cfg(mobile)]
-fn ask_to_notify(app: &AppHandle) {
+fn ask_to_notify(app: &AppHandle, allowed: Box<dyn FnOnce() + Send>) {
     use tauri_plugin_notification::PermissionState;
     let notification = app.notification();
     match notification.permission_state() {
         Ok(PermissionState::Granted | PermissionState::Denied) => {}
-        Ok(_) => {
-            if let Err(e) = notification.request_permission() {
-                log::error!("Failed to ask for permission to notify: {}", e);
-            }
-        }
+        Ok(_) => match notification.request_permission() {
+            Ok(PermissionState::Granted) => allowed(),
+            Ok(_) => {}
+            Err(e) => log::error!("Failed to ask for permission to notify: {}", e),
+        },
         Err(e) => log::error!("Failed to read the permission to notify: {}", e),
     }
 }
@@ -519,18 +667,20 @@ impl Platform for TauriPlatform {
         self.app.emit(event, payload).map_err(text)
     }
 
-    fn notify(&self, title: &str, body: &str, sound: bool) -> Result<(), String> {
+    fn notify(&self, notification: &ShownNotification) -> Result<(), String> {
         // The large body is Android's: without it the plugin's empty inbox
         // style hides the text whenever the notification is expanded
         // (desktops ignore it)
-        let mut builder = self
-            .app
-            .notification()
-            .builder()
-            .title(title)
-            .body(body)
-            .large_body(body);
-        if sound {
+        let builder = self.app.notification().builder();
+        // Android's id says which page a tap opens (notifications::id_of)
+        #[cfg(target_os = "android")]
+        let builder = builder.id(notification.id);
+        let builder = builder
+            .title(&notification.title)
+            .body(&notification.body)
+            .large_body(&notification.body);
+        let mut builder = routed(builder, notification.channel, notification.opens);
+        if notification.sound {
             builder = builder.sound(SOUND);
         }
         builder.show().map_err(text)
@@ -544,14 +694,26 @@ impl Platform for TauriPlatform {
         cancel_os_notification(&self.app, id)
     }
 
-    fn ask_to_notify(&self) {
+    fn prepare_notifications(&self) {
+        #[cfg(target_os = "android")]
+        {
+            static PREPARED: std::sync::Once = std::sync::Once::new();
+            PREPARED.call_once(|| create_channels(&self.app));
+        }
+    }
+
+    fn ask_to_notify(&self, _allowed: Box<dyn FnOnce() + Send>) {
         // The plugin answers on the main thread, so the question waits on a
         // thread of its own
         #[cfg(mobile)]
         {
             let app = self.app.clone();
-            std::thread::spawn(move || ask_to_notify(&app));
+            std::thread::spawn(move || ask_to_notify(&app, _allowed));
         }
+    }
+
+    fn set_timer_notice(&self, notice: Option<&TimerNotice>) -> Result<(), String> {
+        set_os_timer_notice(&self.app, notice)
     }
 
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile> {

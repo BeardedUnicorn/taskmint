@@ -4,8 +4,10 @@
 
 use super::{
     AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, ScheduledNotification,
+    ShownNotification,
 };
 use crate::app_menu::model::{Action, AppMenu};
+use crate::timer_notice::TimerNotice;
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
@@ -16,12 +18,17 @@ use std::sync::Mutex;
 #[derive(Debug, Default)]
 pub struct Recorded {
     pub events: Vec<(String, Value)>,
-    pub notifications: Vec<(String, String, bool)>,
+    pub notifications: Vec<ShownNotification>,
     /// Set for later, in order; a cancel doesn't remove one.
     pub scheduled: Vec<ScheduledNotification>,
     pub cancelled: Vec<i32>,
     /// Times the app asked to be let notify.
     pub asked_to_notify: usize,
+    /// Times notifications were set up (prepare_notifications).
+    pub notifications_prepared: usize,
+    /// The running timer's notification each time it changed (None: taken
+    /// down).
+    pub timer_notices: Vec<Option<TimerNotice>>,
     pub save_dialogs: Vec<SaveDialog>,
     pub open_dialogs: Vec<String>,
     pub folder_dialogs: Vec<String>,
@@ -54,6 +61,7 @@ pub struct FakePlatform {
     /// Where the logs go; None: the system has no place for them.
     log_dir: Mutex<Option<PathBuf>>,
     /// Calls that fail from now on: "emit", "notify", "schedule", "cancel",
+    /// "timer_notice",
     /// "reveal", "open_dir", "open_url",
     /// "tray", "status", "app_menu", "app_menu_update", "check_update",
     /// "install_update" (after its download).
@@ -167,11 +175,9 @@ impl Platform for FakePlatform {
         Ok(())
     }
 
-    fn notify(&self, title: &str, body: &str, sound: bool) -> Result<(), String> {
+    fn notify(&self, notification: &ShownNotification) -> Result<(), String> {
         self.check("notify")?;
-        self.recorded()
-            .notifications
-            .push((title.to_string(), body.to_string(), sound));
+        self.recorded().notifications.push(notification.clone());
         Ok(())
     }
 
@@ -187,8 +193,20 @@ impl Platform for FakePlatform {
         Ok(())
     }
 
-    fn ask_to_notify(&self) {
+    fn prepare_notifications(&self) {
+        self.recorded().notifications_prepared += 1;
+    }
+
+    /// The user lets the app notify.
+    fn ask_to_notify(&self, allowed: Box<dyn FnOnce() + Send>) {
         self.recorded().asked_to_notify += 1;
+        allowed();
+    }
+
+    fn set_timer_notice(&self, notice: Option<&TimerNotice>) -> Result<(), String> {
+        self.check("timer_notice")?;
+        self.recorded().timer_notices.push(notice.cloned());
+        Ok(())
     }
 
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile> {

@@ -305,6 +305,20 @@ On a phone with Google Play services, with the release APK:
       No black or white screen between them.
 - [ ] **Status bar** follows the app's theme, light and dark, once the launch
       screen has gone (its icons are light on the teal while it shows).
+- [ ] **Notification channels:** App info → Notifications lists Running
+      timer, Reminders and Activity, and no "Default". A test notification
+      (Settings → Notifications) shows the leaf, not an "i".
+- [ ] **A tap opens its page:** a withdrawal reminder (set one a minute out,
+      then leave the app) opens Payouts when tapped, with the app in the
+      background and after `adb shell am kill` (a cold start).
+- [ ] **Running-timer notification:** starting work shows the task with its
+      time counting up; Pause turns it to "Paused at …" with Resume, Stop
+      takes it down, and Switch task opens the Switch task dialog. Tapping it
+      opens Sessions and it stays. After `am kill` and opening TaskMint again
+      it's back. Swiped away, it returns at the next pause or resume.
+- [ ] **Asked once, then shown:** on a fresh install, the first Start work
+      asks to allow notifications; allowing shows the running timer's
+      notification at once.
 
 ## Windows and Linux
 

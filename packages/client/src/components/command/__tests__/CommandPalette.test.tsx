@@ -9,7 +9,7 @@ import { AboutProvider } from '../../about/About';
 import { AppExtensionsProvider } from '../../../app/extensions';
 import { ReactNode } from 'react';
 import { CommandPalette } from '../CommandPalette';
-import { CommandCenter } from '../CommandCenter';
+import { CommandCenter, openCommandPalette } from '../CommandCenter';
 import { Command, rankCommands, useCommands } from '../commands';
 import { NavigationProvider, useNavigation } from '../../../contexts/NavigationContext';
 import { isMacPlatform } from '../../../hooks/useKeyboardShortcuts';
@@ -501,6 +501,30 @@ describe('the menu bar', () => {
     expect(onAddTime).toHaveBeenCalledTimes(1);
     menu({ type: 'commandPalette' });
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeInTheDocument();
+  });
+
+  it('opens the palette when asked from outside, and does nothing with none on screen', async () => {
+    openCommandPalette();
+    renderCenter();
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument();
+    act(() => openCommandPalette());
+    expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeInTheDocument();
+  });
+
+  it('opens the page a tapped notification is about, when it starts and on each tap', async () => {
+    const { takeOpened } = fakeBackend().platform.notifications;
+    // The tap that started the app
+    takeOpened.mockResolvedValueOnce({ type: 'showView', view: 'payouts' });
+    renderCenter();
+    await waitFor(() => expect(where()).toBe('payouts {}'));
+
+    takeOpened.mockResolvedValueOnce({ type: 'settings' });
+    await act(async () => fakeBackend().emit('notification-opened', null));
+    expect(where()).toBe('settings {}');
+    // Another app already took it: nothing to open
+    await act(async () => fakeBackend().emit('notification-opened', null));
+    expect(where()).toBe('settings {}');
+    expect(takeOpened).toHaveBeenCalledTimes(3);
   });
 
   it('waits while a dialog or the palette is open, but opens About over them', async () => {

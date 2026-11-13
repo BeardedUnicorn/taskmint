@@ -73,6 +73,11 @@ pub const IDLE_CHOICE_STAY_PAUSED: &str = "stayPaused";
 /// hourly rates, and names that follow a rename).
 pub const TASKS_RECORD_KEY: &str = "predefinedTasks";
 
+/// The id of the phone's withdrawal-reminder alarm (the app sets it; setting
+/// it again replaces it). A tap on an Android notification reports only its
+/// id, which is how the shell knows this one is about Payouts.
+pub const WITHDRAWAL_REMINDER_ID: i32 = 4100;
+
 /// The cloud documents' schema (sync). A device skips documents from a newer
 /// one, so a field added to a synced entity raises it: an older TaskMint
 /// would drop the field, then write the entity back without it.
@@ -192,6 +197,9 @@ pub mod events {
     pub const SYNC_PENDING: &str = "sync-pending";
     /// A menu bar item for the app (a page, a dialog): its `MenuCommand`.
     pub const MENU_COMMAND: &str = "menu-command";
+    /// The user tapped a notification about a page: the app takes what it
+    /// opens (the shell's take_opened_notification).
+    pub const NOTIFICATION_OPENED: &str = "notification-opened";
 }
 
 #[cfg(test)]
@@ -265,6 +273,7 @@ mod tests {
         assert_eq!(CAPTURE_HEADER, "X-TaskMint-Capture");
         assert_eq!(ERR_UNEXPECTED_PAYLOAD_SHAPE, "unexpected payload shape");
         assert_eq!(TASKS_RECORD_KEY, "predefinedTasks");
+        assert_eq!(WITHDRAWAL_REMINDER_ID, 4100);
         assert_eq!(
             APP_RECORD_KEYS,
             [

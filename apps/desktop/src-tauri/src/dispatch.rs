@@ -72,6 +72,19 @@ enum Shell {
     /// something that notifies: their first work, a withdrawal reminder, a
     /// test notification. Not at launch, before they've seen the app.
     AskToNotify {},
+    /// What the notification the user last tapped opens (a MenuCommand), or
+    /// null, once. The app asks as soon as it's up (a tap can start it) and
+    /// on each `notification-opened`. Being up, it's also when the phone's
+    /// notifications can be set up (Platform::prepare_notifications) and its
+    /// running-timer notification shown (timer_notice::start).
+    TakeOpenedNotification {},
+    /// The user tapped Android's notification `id`, or one of its buttons
+    /// (`action`; "tap" for the notification itself). MainActivity hands the
+    /// page these, the only part of a tap Android's plugin keeps.
+    NotificationAction {
+        id: i32,
+        action: String,
+    },
     GetCaptureServerStatus {},
     ValidateBackupPath {
         path: String,
@@ -139,7 +152,7 @@ enum Shell {
     GetAppInfo {},
 }
 
-const SHELL_COMMANDS: [&str; 28] = [
+const SHELL_COMMANDS: [&str; 30] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -150,6 +163,8 @@ const SHELL_COMMANDS: [&str; 28] = [
     "schedule_notification",
     "cancel_notification",
     "ask_to_notify",
+    "take_opened_notification",
+    "notification_action",
     "get_capture_server_status",
     "validate_backup_path",
     "perform_automatic_backup",
@@ -205,6 +220,8 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         Shell::ResolveIdlePause { choice } => reply(crate::idle::resolve(state, &choice)?),
         Shell::SetNotificationPreferences { prefs } => {
             state.with_notification_prefs_mut(|current| *current = prefs);
+            // (System notifications off takes the timer's down)
+            crate::timer_notice::sync(state);
             Value::Null
         }
         Shell::SetTrayWithdrawal { label } => {
@@ -227,7 +244,21 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
             Value::Null
         }
         Shell::AskToNotify {} => {
-            state.platform.ask_to_notify();
+            // Once allowed, the running timer's notification can show
+            let allowed = state.clone();
+            state
+                .platform
+                .ask_to_notify(Box::new(move || crate::timer_notice::refresh(&allowed)));
+            Value::Null
+        }
+        Shell::TakeOpenedNotification {} => {
+            state.platform.prepare_notifications();
+            crate::timer_notice::start(state);
+            reply(notifications::take_opened(state))
+        }
+        Shell::NotificationAction { id, action } => {
+            let opens = notifications::kind_of(id).and_then(notifications::opens);
+            notifications::performed(state, &action, Some(id), opens);
             Value::Null
         }
         Shell::GetCaptureServerStatus {} => {
@@ -442,9 +473,14 @@ mod tests {
             json!({ "kind": "general", "title": "Saved", "body": "All good" }),
         );
         assert_eq!(shown, Ok(json!(true)));
+        let shown = &f.platform.recorded().notifications;
         assert_eq!(
-            f.platform.recorded().notifications,
-            [("Saved".to_string(), "All good".to_string(), true)]
+            (
+                shown[0].title.as_str(),
+                shown[0].body.as_str(),
+                shown[0].sound
+            ),
+            ("Saved", "All good", true)
         );
     }
 
@@ -483,8 +519,96 @@ mod tests {
     #[test]
     fn the_app_asks_to_notify_when_it_needs_to() {
         let f = fixture();
+        // A phone, its page up
+        crate::timer_notice::enable(&f.state);
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(Value::Null)
+        );
+        assert_eq!(f.platform.recorded().timer_notices.len(), 1);
+
         assert_eq!(run(&f, "ask_to_notify", json!({})), Ok(Value::Null));
         assert_eq!(f.platform.recorded().asked_to_notify, 1);
+        // Allowed: the timer's notification is shown again, now that it can be
+        assert_eq!(f.platform.recorded().timer_notices.len(), 2);
+    }
+
+    #[test]
+    fn turning_system_notifications_off_takes_the_timers_down() {
+        let f = fixture();
+        crate::timer_notice::enable(&f.state);
+        run(&f, "take_opened_notification", json!({})).unwrap();
+        f.state
+            .backend
+            .call_named(
+                "set_app_record",
+                json!({ "key": "predefinedTasks", "value": [
+                    { "id": "t1", "name": "Writing", "createdAt": "x", "updatedAt": "x" }
+                ] }),
+            )
+            .unwrap();
+        f.state
+            .backend
+            .call_named(
+                "start_task",
+                json!({ "taskId": "t1", "taskName": "Writing" }),
+            )
+            .unwrap();
+        assert!(f
+            .platform
+            .recorded()
+            .timer_notices
+            .last()
+            .unwrap()
+            .is_some());
+
+        let prefs = json!({ "prefs": { "desktopEnabled": false } });
+        run(&f, "set_notification_preferences", prefs).unwrap();
+        assert_eq!(f.platform.recorded().timer_notices.last(), Some(&None));
+    }
+
+    #[test]
+    fn the_app_takes_what_a_tapped_notification_opens_once() {
+        let f = fixture();
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(Value::Null)
+        );
+        // The page is up: the phone's channels can be made
+        assert_eq!(f.platform.recorded().notifications_prepared, 1);
+        notifications::performed(
+            &f.state,
+            notifications::TAPPED,
+            Some(1),
+            Some(taskmint_core::shell::MenuCommand::Settings),
+        );
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(json!({ "type": "settings" }))
+        );
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(Value::Null)
+        );
+    }
+
+    #[test]
+    fn an_android_tap_opens_the_page_its_id_says() {
+        let f = fixture();
+        let tap = |id: i32| json!({ "id": id, "action": "tap" });
+        run(&f, "notification_action", tap(4100)).unwrap();
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(json!({ "type": "showView", "view": "payouts" }))
+        );
+        // One about no page, or no kind, only brings the app forward
+        run(&f, "notification_action", tap(5000)).unwrap();
+        run(&f, "notification_action", tap(1)).unwrap();
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(Value::Null)
+        );
+        assert_eq!(f.platform.recorded().windows_shown, 3);
     }
 
     #[test]

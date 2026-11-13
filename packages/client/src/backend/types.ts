@@ -16,7 +16,7 @@ import type { DesktopKind } from '../notifications/types';
 import type { NotificationPreferences } from '../notifications/preferences';
 import type { BackupFileInfo, BackupResult } from '../types/backup';
 import type { IdleChoice, IdlePause, InactivitySettings } from '../types/timer';
-import type { AppFolder, AppInfo, AppLink, CaptureServerStatus } from '@taskmint/contracts';
+import type { AppFolder, AppInfo, AppLink, CaptureServerStatus, MenuCommand } from '@taskmint/contracts';
 
 export interface Capabilities {
   /**
@@ -73,6 +73,12 @@ export interface NotificationPlatform {
    * already answered. Absent where the system doesn't need asking first.
    */
   askPermission?(): void;
+  /**
+   * What the notification the user last tapped opens (a page, a dialog), or
+   * null, once. The app asks when it starts (a tap can start it) and on each
+   * `notification-opened` event. Absent where a tap can't say (a browser).
+   */
+  takeOpened?(): Promise<MenuCommand | null>;
 }
 
 /** System idle time: pausing a timer while you're away, and the long-run reminder. */

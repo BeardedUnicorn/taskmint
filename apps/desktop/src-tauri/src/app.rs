@@ -175,14 +175,27 @@ pub fn run() {
                 .build()?;
 
             // Clicking a notification brings the window forward (it may be
-            // hidden to the tray). Registered before anything can notify:
-            // notifications shown before a handler exists report nothing.
+            // hidden to the tray), on the page it's about. Registered before
+            // anything can notify: notifications shown before a handler
+            // exists report nothing.
             let notified_state = state.clone();
             app.notification().on_action(move |action| {
-                if action.action_id() == "tap" {
-                    notified_state.platform.show_main_window();
-                }
+                let shown = action.notification();
+                let opens = shown
+                    .and_then(|shown| shown.extra().get(crate::platform::os::OPENS))
+                    .and_then(|command| serde_json::from_value(command.clone()).ok());
+                crate::notifications::performed(
+                    &notified_state,
+                    action.action_id(),
+                    shown.map(|shown| shown.id()),
+                    opens,
+                );
             })?;
+
+            // A phone shows the running timer in a notification (once the
+            // page is up: timer_notice::start)
+            #[cfg(mobile)]
+            crate::timer_notice::enable(&state);
 
             #[cfg(desktop)]
             start_desktop(app, &handle, &state);

@@ -105,21 +105,28 @@ const ACTIVITY: Kind[] = [
   },
 ];
 
-/** What each kind of device calls its parts: where messages show, and where to allow notifications. */
+/**
+ * What each kind of device calls its parts: where messages show, and where
+ * to allow notifications. A phone sets each group's sound itself (Android's
+ * notification channels), so the app has no sound switch there.
+ */
 const WORDS = {
   desktop: {
+    soundSwitch: true,
     intro:
       "While you're using TaskMint, messages appear in the corner of the window. When it's in the background or hidden in the tray, the ones below come as system notifications instead; reminders always do.",
     inside: 'Turn off to keep every message inside the window.',
     help: 'Nothing appeared? Check System Settings → Notifications → TaskMint.',
   },
   mobile: {
+    soundSwitch: false,
     intro:
       "While you're using TaskMint, messages appear at the bottom of the screen. When it's in the background, the ones below come as notifications instead; reminders always do.",
     inside: 'Turn off to keep every message inside the app.',
-    help: "Nothing appeared? Check your phone's Settings → Apps → TaskMint → Notifications.",
+    help: "Sounds and pop-ups for Reminders and Activity are in your phone's Settings → Apps → TaskMint → Notifications. Nothing appeared? Check there too.",
   },
   web: {
+    soundSwitch: true,
     intro:
       "While you're using TaskMint, messages appear in the corner of the page. When it's in another tab, the ones below come as browser notifications instead.",
     inside: 'Turn off to keep every message inside the page.',
@@ -165,12 +172,14 @@ export function NotificationSettingsSection() {
         checked={preferences.desktopEnabled}
         onChange={checked => updatePreferences({ desktopEnabled: checked })}
       />
-      <SettingRow
-        label="Play a sound"
-        checked={preferences.sound}
-        disabled={off}
-        onChange={checked => updatePreferences({ sound: checked })}
-      />
+      {words.soundSwitch && (
+        <SettingRow
+          label="Play a sound"
+          checked={preferences.sound}
+          disabled={off}
+          onChange={checked => updatePreferences({ sound: checked })}
+        />
+      )}
 
       <Divider sx={{ my: 2 }} />
       <Typography variant="overline" color="text.secondary">

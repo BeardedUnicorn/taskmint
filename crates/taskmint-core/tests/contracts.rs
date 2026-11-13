@@ -286,6 +286,11 @@ fn constants() -> Constants {
             ),
             ("SYNC_PENDING", "SYNC_PENDING", json!(events::SYNC_PENDING)),
             ("MENU_COMMAND", "MENU_COMMAND", json!(events::MENU_COMMAND)),
+            (
+                "NOTIFICATION_OPENED",
+                "NOTIFICATION_OPENED",
+                json!(events::NOTIFICATION_OPENED),
+            ),
         ],
     );
     out.line("export type EventName = (typeof EVENTS)[keyof typeof EVENTS];\n");
@@ -299,6 +304,11 @@ fn constants() -> Constants {
         "The record holding the task list.",
         "TASKS_RECORD_KEY",
         json!(TASKS_RECORD_KEY),
+    );
+    out.value(
+        "The id of the phone's withdrawal-reminder alarm.",
+        "WITHDRAWAL_REMINDER_ID",
+        json!(WITHDRAWAL_REMINDER_ID),
     );
     out.list(
         "The frontend's records, as the backend stores them.",

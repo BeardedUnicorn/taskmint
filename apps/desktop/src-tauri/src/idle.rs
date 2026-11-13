@@ -295,7 +295,7 @@ mod tests {
             pause.idle_since,
             crate::testing::start() + chrono::Duration::minutes(10)
         );
-        assert_eq!(f.platform.recorded().notifications[0].0, "Timer paused");
+        assert_eq!(f.platform.recorded().notifications[0].title, "Timer paused");
         assert_eq!(
             f.platform.event_names()[1..],
             ["timer-instance-paused", "notification-posted"]
@@ -410,7 +410,7 @@ mod tests {
         let notifications = &f.platform.recorded().notifications;
         assert_eq!(notifications.len(), 1);
         assert_eq!(
-            notifications[0].1,
+            notifications[0].body,
             "Writing's timer has been running for 02:00."
         );
     }

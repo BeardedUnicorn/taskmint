@@ -15,6 +15,7 @@
  */
 
 import { useEffect } from 'react';
+import { WITHDRAWAL_REMINDER_ID } from '@taskmint/contracts';
 import { getBackend } from '../backend';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNotificationPreferences } from '../notifications/preferences';
@@ -28,8 +29,8 @@ import { usePayoutData } from './usePayoutData';
 export const WITHDRAWAL_REMINDER_SENT_KEY = 'withdrawalReminderSent';
 /** The alarm this device set (`id@dueMs|text`), or null. */
 export const WITHDRAWAL_REMINDER_ALARM_KEY = 'withdrawalReminderAlarm';
-/** The alarm's id: setting it again replaces it. */
-export const WITHDRAWAL_REMINDER_ALARM_ID = 4100;
+/** The alarm's id: setting it again replaces it (a tap reports it, which says it's about Payouts). */
+export const WITHDRAWAL_REMINDER_ALARM_ID = WITHDRAWAL_REMINDER_ID;
 
 const CHECK_INTERVAL_MS = 60_000;
 
