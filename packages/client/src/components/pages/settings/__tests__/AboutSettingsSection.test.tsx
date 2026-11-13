@@ -6,6 +6,8 @@ import { AboutProvider } from '../../../about/About';
 import { NavigationProvider } from '../../../../contexts/NavigationContext';
 import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import type { ReleaseNotes } from '../../../../utils/changelog';
+import { setPhoneViewport } from '../../../../__tests__/setup/viewport';
+import { SettingsLinkContext } from '../settingsLink';
 
 const state = vi.hoisted(() => ({ version: '2.1.0', releases: [] as ReleaseNotes[] }));
 vi.mock('../../../../utils/appVersion', async importOriginal => ({
@@ -129,5 +131,24 @@ describe('AboutSettingsSection', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'About TaskMint…' }));
     expect(screen.getByRole('dialog', { name: 'TaskMint' })).toHaveTextContent('Version 2.1.0 · Released Nov 8, 2026');
+  });
+
+  it("folds this version's notes away on a phone, unless a What's new link opened About", () => {
+    setPhoneViewport();
+    state.releases = [release('2.1.0', '2026-11-08')];
+    const { unmount } = render(<AboutSettingsSection />);
+    const toggle = screen.getByRole('button', { name: "What's new in 2.1.0" });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Something new in 2.1.0.')).toBeInTheDocument();
+    unmount();
+
+    render(
+      <SettingsLinkContext.Provider value>
+        <AboutSettingsSection />
+      </SettingsLinkContext.Provider>
+    );
+    expect(screen.getByRole('button', { name: "What's new in 2.1.0" })).toHaveAttribute('aria-expanded', 'true');
   });
 });
