@@ -8,6 +8,10 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.4.1 – 2026-11-12
+
+No user-facing changes.
+
 ## 4.4.0 – 2026-11-12
 
 ### Added
