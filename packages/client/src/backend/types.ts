@@ -119,6 +119,18 @@ export interface SplashScreenPlatform {
   hide(): void;
 }
 
+/**
+ * A phone's back gesture and button (Android). Left to itself, Android's
+ * back leaves the app from any page, even with a dialog open; the app takes
+ * it over to close what's open and step back first.
+ */
+export interface BackButtonPlatform {
+  /** Calls `handler` on each press, in place of Android's own back. Resolves to a function that stops it. */
+  listen(handler: () => void): Promise<() => void>;
+  /** Sends the app to the background, as back does from an app's first screen. */
+  leaveApp(): void;
+}
+
 /** Usage analytics (Firebase Analytics): the web app's, and Android's native SDK. */
 export interface AnalyticsPlatform {
   /** On or off, as Settings → Privacy says. */
@@ -135,6 +147,7 @@ export interface Platform {
   tray?: TrayPlatform;
   systemBars?: SystemBarsPlatform;
   splashScreen?: SplashScreenPlatform;
+  backButton?: BackButtonPlatform;
   /** Shows a file the app just wrote in the file manager. */
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */

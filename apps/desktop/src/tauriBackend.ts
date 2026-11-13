@@ -12,9 +12,10 @@
  * out, as it does in a browser. Its notifications can also be set for later,
  * as alarms the system shows with the app closed. On Android it also has the
  * status bar, which MainActivity.kt hands the webview directly, outside
- * dispatch.
+ * dispatch, and the back button (Tauri's app plugin).
  */
 
+import { onBackButtonPress } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { CORE_ERRORS, type CommandName, type CommandReply } from '@taskmint/contracts';
@@ -162,6 +163,30 @@ function splashScreen(): Pick<Platform, 'splashScreen'> {
   return android ? { splashScreen: { hide: () => android.hide() } } : {};
 }
 
+/** What Android's MainActivity.kt adds for leaving the app from its first screen. */
+interface AndroidAppTask {
+  /** Puts the app in the background (Activity.moveTaskToBack). */
+  moveToBack(): void;
+}
+
+/**
+ * Android's back button: Tauri's app plugin hands each press to the page
+ * while it listens, and MainActivity.kt sends the app to the background.
+ */
+function backButton(): Pick<Platform, 'backButton'> {
+  const android = (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp;
+  if (!android) return {};
+  return {
+    backButton: {
+      listen: async handler => {
+        const listener = await onBackButtonPress(() => handler());
+        return () => void listener.unregister();
+      },
+      leaveApp: () => android.moveToBack(),
+    },
+  };
+}
+
 /** The "Desktop app" OAuth client Google sign-in uses (the build's VITE_GOOGLE_DESKTOP_CLIENT_*). */
 export interface GoogleDesktopClient {
   clientId: string;
@@ -214,7 +239,7 @@ export function createTauriBackend(capabilities: Capabilities, google?: GoogleDe
     platform: {
       ...everywhere,
       ...(capabilities.runtime === 'mobile'
-        ? { notifications: phoneNotifications, ...systemBars(), ...splashScreen(), ...analytics() }
+        ? { notifications: phoneNotifications, ...systemBars(), ...splashScreen(), ...backButton(), ...analytics() }
         : desktopOnly),
       ...googleSignIn(capabilities.runtime, google),
     },

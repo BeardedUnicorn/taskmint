@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, onTestFinished } from 'vitest';
+import { onBackButtonPress } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type Event } from '@tauri-apps/api/event';
 import { CORE_ERRORS } from '@taskmint/contracts';
@@ -8,6 +9,7 @@ const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
+vi.mock('@tauri-apps/api/app', () => ({ onBackButtonPress: vi.fn() }));
 
 const mockInvoke = vi.mocked(invoke);
 const mockListen = vi.mocked(listen);
@@ -318,6 +320,39 @@ describe('createTauriBackend', () => {
     expect(dispatched()).toEqual([]);
     // The desktop has no launch screen, bridge or not
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.splashScreen).toBeUndefined();
+  });
+
+  it("takes over Android's back through Tauri's app plugin, and leaves the app through MainActivity", async () => {
+    const moveToBack = vi.fn();
+    vi.stubGlobal('TaskMintApp', { moveToBack });
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const unregister = vi.fn(async () => undefined);
+    vi.mocked(onBackButtonPress).mockResolvedValue({ unregister } as unknown as Awaited<
+      ReturnType<typeof onBackButtonPress>
+    >);
+
+    const android = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
+    const handler = vi.fn();
+    const stop = await android.platform.backButton!.listen(handler);
+    vi.mocked(onBackButtonPress).mock.calls[0][0]({ canGoBack: false });
+    expect(handler).toHaveBeenCalledTimes(1);
+    stop();
+    expect(unregister).toHaveBeenCalled();
+
+    android.platform.backButton!.leaveApp();
+    expect(moveToBack).toHaveBeenCalledTimes(1);
+    expect(Object.keys(android.platform).sort()).toEqual([
+      'appInfo',
+      'backButton',
+      'files',
+      'notifications',
+      'openLink',
+    ]);
+    expect(dispatched()).toEqual([]);
+    // The desktop has no back button, bridge or not
+    expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.backButton).toBeUndefined();
   });
 
   it("counts usage through Android's native analytics, and the desktop has none", () => {

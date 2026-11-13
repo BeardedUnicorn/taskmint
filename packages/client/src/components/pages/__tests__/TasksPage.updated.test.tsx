@@ -13,6 +13,16 @@ import { TasksPage } from '../TasksPage';
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';
 import { setPhoneViewport } from '../../../__tests__/setup/viewport';
+import { act } from 'react';
+import { fakeBackend } from '../../../testing';
+import { NavigationProvider } from '../../../contexts/NavigationContext';
+import { useBackButton } from '../../../navigation/backButton';
+
+/** The app shell's part in Android's back. */
+function BackButton() {
+  useBackButton();
+  return null;
+}
 
 // Mock the task detail pane
 vi.mock('../tasks/TaskDetailPane', () => ({
@@ -190,6 +200,27 @@ describe('TasksPage - Task List Layout', () => {
 
     // The selection stays for when the list opens it again
     expect(screen.getByText('Task 2 Details')).toBeInTheDocument();
+  });
+
+  it("on a phone, Android's back goes from a task to the list", async () => {
+    setPhoneViewport();
+    render(
+      <NavigationProvider>
+        <BackButton />
+        <TasksPage {...mockProps} />
+      </NavigationProvider>
+    );
+    fireEvent.click(screen.getByText('Task 2'));
+    expect(await screen.findByText('Task 2 Details')).toBeInTheDocument();
+    const { backButton } = fakeBackend().platform;
+    backButton.leaveApp.mockClear();
+    await waitFor(() => expect(backButton.listen).toHaveBeenCalled());
+    // Back to the list (jsdom keeps both panes; the task's step back is used up)…
+    act(() => fakeBackend().pressBack());
+    expect(backButton.leaveApp).not.toHaveBeenCalled();
+    // …so the next back is Home's, which leaves the app
+    act(() => fakeBackend().pressBack());
+    expect(backButton.leaveApp).toHaveBeenCalledTimes(1);
   });
 
   it('has no way back on a desktop, where the list stays beside the task', () => {

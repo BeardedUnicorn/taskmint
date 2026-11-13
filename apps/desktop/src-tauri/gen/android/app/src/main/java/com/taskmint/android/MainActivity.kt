@@ -80,6 +80,7 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(SystemBars(), "TaskMintSystemBars")
     webView.addJavascriptInterface(GoogleSignIn(), "TaskMintGoogleSignIn")
     webView.addJavascriptInterface(Analytics(), "TaskMintAnalytics")
+    webView.addJavascriptInterface(AppTask(), "TaskMintApp")
   }
 
   /**
@@ -108,6 +109,19 @@ class MainActivity : TauriActivity() {
         barsTheme = theme
         if (splash == null) applyBarsTheme()
       }
+    }
+  }
+
+  /**
+   * Back on the app's first screen. The page takes over Android's back
+   * (Tauri's onBackButtonPress) to close dialogs and step back to Home, so
+   * from Home it asks for what back does there by default: the app goes to
+   * the background, still running, as on any first screen.
+   */
+  private inner class AppTask {
+    @JavascriptInterface
+    fun moveToBack() {
+      runOnUiThread { moveTaskToBack(true) }
     }
   }
 

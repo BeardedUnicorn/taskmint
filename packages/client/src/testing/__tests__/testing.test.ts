@@ -36,6 +36,7 @@ describe('createFakeBackend', () => {
     await expect(backend.platform.tray.setWithdrawalLabel('Withdrawal open')).resolves.toBeUndefined();
     expect(backend.platform.systemBars.setTheme('dark')).toBeUndefined();
     expect(backend.platform.splashScreen.hide()).toBeUndefined();
+    expect(backend.platform.backButton.leaveApp()).toBeUndefined();
     await expect(backend.platform.reveal('/b/file')).resolves.toBeUndefined();
     await expect(backend.platform.captureStatus()).resolves.toEqual({ running: true, port: 43117, warning: null });
   });
@@ -49,6 +50,7 @@ describe('createFakeBackend', () => {
         'tray',
         'systemBars',
         'splashScreen',
+        'backButton',
         'reveal',
         'captureStatus',
         'googleSignIn',
