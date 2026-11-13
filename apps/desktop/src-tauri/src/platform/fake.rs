@@ -20,6 +20,8 @@ pub struct Recorded {
     /// Set for later, in order; a cancel doesn't remove one.
     pub scheduled: Vec<ScheduledNotification>,
     pub cancelled: Vec<i32>,
+    /// Times the app asked to be let notify.
+    pub asked_to_notify: usize,
     pub save_dialogs: Vec<SaveDialog>,
     pub open_dialogs: Vec<String>,
     pub folder_dialogs: Vec<String>,
@@ -183,6 +185,10 @@ impl Platform for FakePlatform {
         self.check("cancel")?;
         self.recorded().cancelled.push(id);
         Ok(())
+    }
+
+    fn ask_to_notify(&self) {
+        self.recorded().asked_to_notify += 1;
     }
 
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile> {

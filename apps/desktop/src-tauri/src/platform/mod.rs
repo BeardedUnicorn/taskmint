@@ -79,6 +79,10 @@ pub trait Platform: Send + Sync {
     fn schedule_notification(&self, scheduled: &ScheduledNotification) -> Result<(), String>;
     /// Takes back the notification set with `id`, if it's still to come.
     fn cancel_notification(&self, id: i32) -> Result<(), String>;
+    /// Asks the user to let the app notify (Android 13 and later), unless
+    /// they already answered. Returns at once: the system asks on its own. A
+    /// desktop has nothing to ask.
+    fn ask_to_notify(&self);
     /// Where to save; None when the dialog is dismissed.
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile>;
     /// A JSON file to open; None when the dialog is dismissed.

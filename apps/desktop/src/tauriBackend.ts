@@ -97,6 +97,7 @@ const phoneNotifications: NotificationPlatform = {
   schedule: ({ id, atMs, kind, title, body }) =>
     command<boolean>('schedule_notification', { id, at: new Date(atMs).toISOString(), kind, title, body }),
   cancel: id => command<void>('cancel_notification', { id }),
+  askPermission: () => void command<void>('ask_to_notify'),
 };
 
 /** What only a desktop has. */

@@ -498,6 +498,22 @@ mod mobile {
     }
 }
 
+/// Asks for permission to notify, unless the user already answered.
+#[cfg(mobile)]
+fn ask_to_notify(app: &AppHandle) {
+    use tauri_plugin_notification::PermissionState;
+    let notification = app.notification();
+    match notification.permission_state() {
+        Ok(PermissionState::Granted | PermissionState::Denied) => {}
+        Ok(_) => {
+            if let Err(e) = notification.request_permission() {
+                log::error!("Failed to ask for permission to notify: {}", e);
+            }
+        }
+        Err(e) => log::error!("Failed to read the permission to notify: {}", e),
+    }
+}
+
 impl Platform for TauriPlatform {
     fn emit(&self, event: &str, payload: &Value) -> Result<(), String> {
         self.app.emit(event, payload).map_err(text)
@@ -526,6 +542,16 @@ impl Platform for TauriPlatform {
 
     fn cancel_notification(&self, id: i32) -> Result<(), String> {
         cancel_os_notification(&self.app, id)
+    }
+
+    fn ask_to_notify(&self) {
+        // The plugin answers on the main thread, so the question waits on a
+        // thread of its own
+        #[cfg(mobile)]
+        {
+            let app = self.app.clone();
+            std::thread::spawn(move || ask_to_notify(&app));
+        }
     }
 
     fn pick_save_file(&self, dialog: &SaveDialog) -> Option<PickedFile> {

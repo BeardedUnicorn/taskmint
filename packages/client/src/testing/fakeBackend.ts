@@ -4,9 +4,9 @@
  * with nothing in it: commands resolve to undefined, dialogs are cancelled,
  * no OS notification shows (nor is any set for later), and every optional
  * platform feature is present (pass `without` to leave some out;
- * `laterNotifications` is notifications' schedule and cancel). `pressBack`
- * is Android's back gesture, and `changeInsets` its keyboard or navigation
- * bar changing.
+ * `laterNotifications` is a phone's notifications: schedule, cancel and
+ * askPermission). `pressBack` is Android's back gesture, and `changeInsets`
+ * its keyboard or navigation bar changing.
  */
 
 import { vi, type Mock } from 'vitest';
@@ -105,6 +105,7 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
       setPreferences: vi.fn(async () => undefined),
       schedule: vi.fn(async () => false),
       cancel: vi.fn(async () => undefined),
+      askPermission: vi.fn(),
     },
     idle: {
       isSupported: vi.fn(async () => true),
@@ -167,6 +168,7 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     if (feature === 'laterNotifications') {
       delete (platform.notifications as Partial<FakePlatform['notifications']>).schedule;
       delete (platform.notifications as Partial<FakePlatform['notifications']>).cancel;
+      delete (platform.notifications as Partial<FakePlatform['notifications']>).askPermission;
     } else {
       delete platform[feature];
     }
