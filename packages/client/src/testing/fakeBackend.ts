@@ -5,7 +5,8 @@
  * no OS notification shows (nor is any set for later), and every optional
  * platform feature is present (pass `without` to leave some out;
  * `laterNotifications` is a phone's notifications: schedule, cancel and
- * askPermission). `pressBack` is Android's back gesture, and `changeInsets`
+ * askPermission; `notificationTaps` is takeOpened, which a browser lacks).
+ * `pressBack` is Android's back gesture, and `changeInsets`
  * its keyboard or navigation bar changing.
  */
 
@@ -87,6 +88,7 @@ export interface FakeBackendOptions {
     | 'openLink'
     | 'openFolder'
     | 'laterNotifications'
+    | 'notificationTaps'
   >;
 }
 
@@ -166,7 +168,9 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     openFolder: vi.fn(async () => undefined),
   };
   for (const feature of without) {
-    if (feature === 'laterNotifications') {
+    if (feature === 'notificationTaps') {
+      delete (platform.notifications as Partial<FakePlatform['notifications']>).takeOpened;
+    } else if (feature === 'laterNotifications') {
       delete (platform.notifications as Partial<FakePlatform['notifications']>).schedule;
       delete (platform.notifications as Partial<FakePlatform['notifications']>).cancel;
       delete (platform.notifications as Partial<FakePlatform['notifications']>).askPermission;

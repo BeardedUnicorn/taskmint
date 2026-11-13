@@ -59,6 +59,7 @@ describe('createFakeBackend', () => {
         'openLink',
         'openFolder',
         'laterNotifications',
+        'notificationTaps',
       ],
     });
 
