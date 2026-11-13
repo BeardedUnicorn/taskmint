@@ -10,6 +10,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use taskmint_core::shell::MenuCommand;
 
 pub mod os;
 
@@ -35,6 +36,31 @@ pub enum PickedFile {
     Document(url::Url),
 }
 
+/// The group a notification belongs to on Android (its notification
+/// channel): the phone's settings list each one under TaskMint, to silence or
+/// allow on its own. A desktop has no such thing and ignores it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    /// What the user asked to hear about: the withdrawal, the daily goal and
+    /// summary, a long run (Settings → Notifications → Reminders).
+    Reminders,
+    /// What the app reports: captures, backups, errors (Settings →
+    /// Notifications → Activity).
+    Activity,
+}
+
+/// An OS notification to show now.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShownNotification {
+    pub title: String,
+    pub body: String,
+    /// With the system sound (where the system lets the app choose).
+    pub sound: bool,
+    pub channel: Channel,
+    /// What tapping it opens in the app (None: the app as it was).
+    pub opens: Option<MenuCommand>,
+}
+
 /// An OS notification set to show later, by the system itself, so it shows
 /// with the app closed (a phone's alarm).
 #[derive(Debug, Clone, PartialEq)]
@@ -45,6 +71,8 @@ pub struct ScheduledNotification {
     pub title: String,
     pub body: String,
     pub sound: bool,
+    pub channel: Channel,
+    pub opens: Option<MenuCommand>,
 }
 
 /// A newer release the update feed announced (GitHub's latest release).
@@ -72,13 +100,17 @@ pub enum DownloadEvent {
 pub trait Platform: Send + Sync {
     /// Sends an event to the webview.
     fn emit(&self, event: &str, payload: &Value) -> Result<(), String>;
-    /// Shows an OS notification, with the system sound when `sound`.
-    fn notify(&self, title: &str, body: &str, sound: bool) -> Result<(), String>;
+    /// Shows an OS notification.
+    fn notify(&self, notification: &ShownNotification) -> Result<(), String>;
     /// Sets a notification for the system to show at its time, in place of
     /// any set before with the same id. Only a phone or tablet can.
     fn schedule_notification(&self, scheduled: &ScheduledNotification) -> Result<(), String>;
     /// Takes back the notification set with `id`, if it's still to come.
     fn cancel_notification(&self, id: i32) -> Result<(), String>;
+    /// Sets up what notifications need before the first is shown (Android's
+    /// channels). Called once the page is up: the system's notification
+    /// plugin is ready only once the webview has loaded.
+    fn prepare_notifications(&self);
     /// Asks the user to let the app notify (Android 13 and later), unless
     /// they already answered. Returns at once: the system asks on its own. A
     /// desktop has nothing to ask.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: resources found only by name at run time, which a release
+     build's resource shrinking can't see in use. The notification plugin
+     looks up its icon by the name tauri.android.conf.json gives it. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_taskmint" />

@@ -106,6 +106,7 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
       schedule: vi.fn(async () => false),
       cancel: vi.fn(async () => undefined),
       askPermission: vi.fn(),
+      takeOpened: vi.fn(async () => null),
     },
     idle: {
       isSupported: vi.fn(async () => true),

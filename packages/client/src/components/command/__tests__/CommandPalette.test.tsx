@@ -503,6 +503,22 @@ describe('the menu bar', () => {
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeInTheDocument();
   });
 
+  it('opens the page a tapped notification is about, when it starts and on each tap', async () => {
+    const { takeOpened } = fakeBackend().platform.notifications;
+    // The tap that started the app
+    takeOpened.mockResolvedValueOnce({ type: 'showView', view: 'payouts' });
+    renderCenter();
+    await waitFor(() => expect(where()).toBe('payouts {}'));
+
+    takeOpened.mockResolvedValueOnce({ type: 'settings' });
+    await act(async () => fakeBackend().emit('notification-opened', null));
+    expect(where()).toBe('settings {}');
+    // Another app already took it: nothing to open
+    await act(async () => fakeBackend().emit('notification-opened', null));
+    expect(where()).toBe('settings {}');
+    expect(takeOpened).toHaveBeenCalledTimes(3);
+  });
+
   it('waits while a dialog or the palette is open, but opens About over them', async () => {
     renderCenter();
     menu({ type: 'commandPalette' });

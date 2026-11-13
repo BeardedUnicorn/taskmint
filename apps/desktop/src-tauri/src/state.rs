@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex, PoisonError, Weak};
 use taskmint_core::idle::IdleState;
 use taskmint_core::model::CaptureServerStatus;
 use taskmint_core::notifications::NotificationPrefs;
+use taskmint_core::shell::MenuCommand;
 use taskmint_core::workspace::Parts;
 
 /// Run `f` on the value behind `mutex`. Each value here is replaced or set
@@ -63,6 +64,9 @@ pub struct Shell {
     // The tray's line about the next withdrawal (the app works it out and
     // sends it; the money math lives there). In memory only.
     tray_withdrawal: Mutex<Option<String>>,
+    // What the notification the user last tapped opens, until the app takes
+    // it (notifications::take_opened). In memory only.
+    opened_notification: Mutex<Option<MenuCommand>>,
 }
 
 /// The shell, shared by the IPC command, the tray, the idle monitor and
@@ -106,6 +110,7 @@ impl AppState {
                 idle: Mutex::new(IdleState::default()),
                 notification_prefs: Mutex::new(NotificationPrefs::default()),
                 tray_withdrawal: Mutex::new(None),
+                opened_notification: Mutex::new(None),
             }
         }))
     }
@@ -148,6 +153,12 @@ impl Shell {
         with_tray_withdrawal_mut,
         tray_withdrawal,
         Option<String>
+    );
+    accessors!(
+        with_opened_notification,
+        with_opened_notification_mut,
+        opened_notification,
+        Option<MenuCommand>
     );
     accessors!(
         with_capture_server_status,

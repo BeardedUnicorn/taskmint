@@ -27,7 +27,7 @@ import type {
   Platform,
   SavedFile,
 } from '@taskmint/client/backend';
-import type { AppInfo } from '@taskmint/contracts';
+import type { AppInfo, MenuCommand } from '@taskmint/contracts';
 
 /** What a dismissed save or open dialog rejects with. */
 const { EXPORT_CANCELLED, IMPORT_CANCELLED } = CORE_ERRORS;
@@ -88,6 +88,7 @@ const everywhere: Platform = {
   notifications: {
     show: (kind, title, body) => command<boolean>('show_desktop_notification', { kind, title, body }),
     setPreferences: prefs => command<void>('set_notification_preferences', { prefs }),
+    takeOpened: () => command<MenuCommand | null>('take_opened_notification'),
   },
 };
 

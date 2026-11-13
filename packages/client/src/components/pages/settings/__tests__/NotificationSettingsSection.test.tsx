@@ -100,8 +100,12 @@ describe('NotificationSettingsSection', () => {
     }
     expect(screen.queryByText(/tray|window/)).not.toBeInTheDocument();
     expect(screen.getByText(/messages appear at the bottom of the screen/)).toBeInTheDocument();
+    // Android sets each group's sound itself
+    expect(screen.queryByRole('switch', { name: 'Play a sound' })).not.toBeInTheDocument();
     expect(
-      screen.getByText("Nothing appeared? Check your phone's Settings → Apps → TaskMint → Notifications.")
+      screen.getByText(
+        "Sounds and pop-ups for Reminders and Activity are in your phone's Settings → Apps → TaskMint → Notifications. Nothing appeared? Check there too."
+      )
     ).toBeInTheDocument();
   });
 

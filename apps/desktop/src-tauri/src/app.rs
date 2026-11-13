@@ -175,13 +175,16 @@ pub fn run() {
                 .build()?;
 
             // Clicking a notification brings the window forward (it may be
-            // hidden to the tray). Registered before anything can notify:
-            // notifications shown before a handler exists report nothing.
+            // hidden to the tray), on the page it's about. Registered before
+            // anything can notify: notifications shown before a handler
+            // exists report nothing.
             let notified_state = state.clone();
             app.notification().on_action(move |action| {
-                if action.action_id() == "tap" {
-                    notified_state.platform.show_main_window();
-                }
+                let opens = action
+                    .notification()
+                    .and_then(|shown| shown.extra().get(crate::platform::os::OPENS))
+                    .and_then(|command| serde_json::from_value(command.clone()).ok());
+                crate::notifications::performed(&notified_state, action.action_id(), opens);
             })?;
 
             #[cfg(desktop)]

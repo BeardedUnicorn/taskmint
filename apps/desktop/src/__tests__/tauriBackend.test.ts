@@ -163,6 +163,12 @@ describe('createTauriBackend', () => {
     expect(platform.notifications.cancel).toBeUndefined();
   });
 
+  it('takes what a tapped notification opens from Rust', async () => {
+    mockInvoke.mockResolvedValueOnce({ type: 'showView', view: 'payouts' });
+    await expect(platform.notifications.takeOpened!()).resolves.toEqual({ type: 'showView', view: 'payouts' });
+    expect(dispatched()).toEqual([['take_opened_notification']]);
+  });
+
   it('reaches the idle monitor', async () => {
     const idle = platform.idle!;
     await idle.isSupported();

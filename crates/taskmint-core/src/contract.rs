@@ -192,6 +192,9 @@ pub mod events {
     pub const SYNC_PENDING: &str = "sync-pending";
     /// A menu bar item for the app (a page, a dialog): its `MenuCommand`.
     pub const MENU_COMMAND: &str = "menu-command";
+    /// The user tapped a notification about a page: the app takes what it
+    /// opens (the shell's take_opened_notification).
+    pub const NOTIFICATION_OPENED: &str = "notification-opened";
 }
 
 #[cfg(test)]

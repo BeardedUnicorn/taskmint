@@ -12,16 +12,18 @@
 //! document (a content:// address) that the fs plugin opens for the app.
 
 use super::{
-    AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, ScheduledNotification,
+    AvailableUpdate, Channel, DownloadEvent, PickedFile, Platform, SaveDialog,
+    ScheduledNotification, ShownNotification,
 };
 use crate::app_menu::model::{Action, AppMenu};
 use crate::tray::model::{TrayMenu, TrayStatus};
 use serde_json::Value;
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use taskmint_core::shell::MenuCommand;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
-use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_notification::{NotificationBuilder, NotificationExt};
 use tauri_plugin_opener::OpenerExt;
 
 #[cfg(desktop)]
@@ -99,6 +101,63 @@ fn open_picked_file(app: &AppHandle, file: &PickedFile, write: bool) -> std::io:
     app.fs().open(path, options)
 }
 
+/// Android's id for each channel (its name and description are in
+/// create_channels).
+#[cfg(target_os = "android")]
+fn channel_id(channel: Channel) -> &'static str {
+    match channel {
+        Channel::Reminders => "reminders",
+        Channel::Activity => "activity",
+    }
+}
+
+/// Puts a notification in its channel (Android's; a desktop has none) and
+/// says what tapping it opens, which the tap reports back (app.rs).
+fn routed<R: tauri::Runtime>(
+    builder: NotificationBuilder<R>,
+    _channel: Channel,
+    opens: Option<MenuCommand>,
+) -> NotificationBuilder<R> {
+    #[cfg(target_os = "android")]
+    let builder = builder.channel_id(channel_id(_channel));
+    match opens {
+        Some(command) => builder.extra(OPENS, command),
+        None => builder,
+    }
+}
+
+/// The key of the notification's extra data that says what tapping it opens.
+pub const OPENS: &str = "opens";
+
+/// Creates TaskMint's channels, which the phone's settings list under the
+/// app: the system drops a notification for a channel that doesn't exist.
+/// Also deletes the notification plugin's own "Default" channel, which
+/// nothing uses; the plugin makes it again each time the app starts, so this
+/// runs once per start, after the plugin has (prepare_notifications).
+#[cfg(target_os = "android")]
+fn create_channels(app: &AppHandle) {
+    use tauri_plugin_notification::{Channel as Group, Importance};
+    let groups = [
+        Group::builder(channel_id(Channel::Reminders), "Reminders")
+            .description("Withdrawals, your daily goal and summary, and a timer left running")
+            .importance(Importance::High)
+            .vibration(true)
+            .build(),
+        Group::builder(channel_id(Channel::Activity), "Activity")
+            .description("Work logs captured, backups and errors")
+            .importance(Importance::Default)
+            .build(),
+    ];
+    for group in groups {
+        if let Err(e) = app.notification().create_channel(group) {
+            log::error!("Failed to create a notification channel: {}", e);
+        }
+    }
+    if let Err(e) = app.notification().delete_channel("default") {
+        log::error!("Failed to delete the default notification channel: {}", e);
+    }
+}
+
 /// A phone's alarm: the system shows the notification at its time, with the
 /// app closed, and in Doze too.
 #[cfg(mobile)]
@@ -109,7 +168,7 @@ fn schedule_os_notification(
     use tauri_plugin_notification::Schedule;
     let nanos = i128::from(scheduled.at.timestamp_millis()) * 1_000_000;
     let date = time::OffsetDateTime::from_unix_timestamp_nanos(nanos).map_err(text)?;
-    let mut builder = app
+    let builder = app
         .notification()
         .builder()
         .id(scheduled.id)
@@ -122,6 +181,7 @@ fn schedule_os_notification(
             repeating: false,
             allow_while_idle: true,
         });
+    let mut builder = routed(builder, scheduled.channel, scheduled.opens);
     if scheduled.sound {
         builder = builder.sound(SOUND);
     }
@@ -519,18 +579,19 @@ impl Platform for TauriPlatform {
         self.app.emit(event, payload).map_err(text)
     }
 
-    fn notify(&self, title: &str, body: &str, sound: bool) -> Result<(), String> {
+    fn notify(&self, notification: &ShownNotification) -> Result<(), String> {
         // The large body is Android's: without it the plugin's empty inbox
         // style hides the text whenever the notification is expanded
         // (desktops ignore it)
-        let mut builder = self
+        let builder = self
             .app
             .notification()
             .builder()
-            .title(title)
-            .body(body)
-            .large_body(body);
-        if sound {
+            .title(&notification.title)
+            .body(&notification.body)
+            .large_body(&notification.body);
+        let mut builder = routed(builder, notification.channel, notification.opens);
+        if notification.sound {
             builder = builder.sound(SOUND);
         }
         builder.show().map_err(text)
@@ -542,6 +603,14 @@ impl Platform for TauriPlatform {
 
     fn cancel_notification(&self, id: i32) -> Result<(), String> {
         cancel_os_notification(&self.app, id)
+    }
+
+    fn prepare_notifications(&self) {
+        #[cfg(target_os = "android")]
+        {
+            static PREPARED: std::sync::Once = std::sync::Once::new();
+            PREPARED.call_once(|| create_channels(&self.app));
+        }
     }
 
     fn ask_to_notify(&self) {

@@ -72,6 +72,11 @@ enum Shell {
     /// something that notifies: their first work, a withdrawal reminder, a
     /// test notification. Not at launch, before they've seen the app.
     AskToNotify {},
+    /// What the notification the user last tapped opens (a MenuCommand), or
+    /// null, once. The app asks as soon as it's up (a tap can start it) and
+    /// on each `notification-opened`. Being up, it's also when the phone's
+    /// notifications can be set up (Platform::prepare_notifications).
+    TakeOpenedNotification {},
     GetCaptureServerStatus {},
     ValidateBackupPath {
         path: String,
@@ -139,7 +144,7 @@ enum Shell {
     GetAppInfo {},
 }
 
-const SHELL_COMMANDS: [&str; 28] = [
+const SHELL_COMMANDS: [&str; 29] = [
     "set_idle_settings",
     "get_idle_support",
     "get_idle_pause",
@@ -150,6 +155,7 @@ const SHELL_COMMANDS: [&str; 28] = [
     "schedule_notification",
     "cancel_notification",
     "ask_to_notify",
+    "take_opened_notification",
     "get_capture_server_status",
     "validate_backup_path",
     "perform_automatic_backup",
@@ -229,6 +235,10 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
         Shell::AskToNotify {} => {
             state.platform.ask_to_notify();
             Value::Null
+        }
+        Shell::TakeOpenedNotification {} => {
+            state.platform.prepare_notifications();
+            reply(notifications::take_opened(state))
         }
         Shell::GetCaptureServerStatus {} => {
             reply(state.with_capture_server_status(|status| status.clone()))
@@ -442,9 +452,14 @@ mod tests {
             json!({ "kind": "general", "title": "Saved", "body": "All good" }),
         );
         assert_eq!(shown, Ok(json!(true)));
+        let shown = &f.platform.recorded().notifications;
         assert_eq!(
-            f.platform.recorded().notifications,
-            [("Saved".to_string(), "All good".to_string(), true)]
+            (
+                shown[0].title.as_str(),
+                shown[0].body.as_str(),
+                shown[0].sound
+            ),
+            ("Saved", "All good", true)
         );
     }
 
@@ -485,6 +500,30 @@ mod tests {
         let f = fixture();
         assert_eq!(run(&f, "ask_to_notify", json!({})), Ok(Value::Null));
         assert_eq!(f.platform.recorded().asked_to_notify, 1);
+    }
+
+    #[test]
+    fn the_app_takes_what_a_tapped_notification_opens_once() {
+        let f = fixture();
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(Value::Null)
+        );
+        // The page is up: the phone's channels can be made
+        assert_eq!(f.platform.recorded().notifications_prepared, 1);
+        notifications::performed(
+            &f.state,
+            notifications::TAPPED,
+            Some(taskmint_core::shell::MenuCommand::Settings),
+        );
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(json!({ "type": "settings" }))
+        );
+        assert_eq!(
+            run(&f, "take_opened_notification", json!({})),
+            Ok(Value::Null)
+        );
     }
 
     #[test]

@@ -4,6 +4,7 @@
 
 use super::{
     AvailableUpdate, DownloadEvent, PickedFile, Platform, SaveDialog, ScheduledNotification,
+    ShownNotification,
 };
 use crate::app_menu::model::{Action, AppMenu};
 use crate::tray::model::{TrayMenu, TrayStatus};
@@ -16,12 +17,14 @@ use std::sync::Mutex;
 #[derive(Debug, Default)]
 pub struct Recorded {
     pub events: Vec<(String, Value)>,
-    pub notifications: Vec<(String, String, bool)>,
+    pub notifications: Vec<ShownNotification>,
     /// Set for later, in order; a cancel doesn't remove one.
     pub scheduled: Vec<ScheduledNotification>,
     pub cancelled: Vec<i32>,
     /// Times the app asked to be let notify.
     pub asked_to_notify: usize,
+    /// Times notifications were set up (prepare_notifications).
+    pub notifications_prepared: usize,
     pub save_dialogs: Vec<SaveDialog>,
     pub open_dialogs: Vec<String>,
     pub folder_dialogs: Vec<String>,
@@ -167,11 +170,9 @@ impl Platform for FakePlatform {
         Ok(())
     }
 
-    fn notify(&self, title: &str, body: &str, sound: bool) -> Result<(), String> {
+    fn notify(&self, notification: &ShownNotification) -> Result<(), String> {
         self.check("notify")?;
-        self.recorded()
-            .notifications
-            .push((title.to_string(), body.to_string(), sound));
+        self.recorded().notifications.push(notification.clone());
         Ok(())
     }
 
@@ -185,6 +186,10 @@ impl Platform for FakePlatform {
         self.check("cancel")?;
         self.recorded().cancelled.push(id);
         Ok(())
+    }
+
+    fn prepare_notifications(&self) {
+        self.recorded().notifications_prepared += 1;
     }
 
     fn ask_to_notify(&self) {

@@ -6,13 +6,23 @@
 //!
 //! On a phone the app also sets notifications for later (`schedule`), which
 //! the system shows at their time with the app closed.
+//!
+//! Each kind goes in a channel (Android lists them in its settings, to
+//! silence one or let it pop up) and says which page tapping it opens. A tap
+//! is kept until the page takes it (`take_opened`): the tap may be what
+//! started the app, before the page could hear of it.
 
-use crate::events::{emit_quiet, NOTIFICATION_POSTED};
-use crate::platform::ScheduledNotification;
+use crate::events::{emit_quiet, NOTIFICATION_OPENED, NOTIFICATION_POSTED};
+use crate::platform::{Channel, ScheduledNotification, ShownNotification};
 use crate::state::Shell;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use taskmint_core::notifications::NotificationKind;
+use taskmint_core::shell::{MenuCommand, MenuView};
+
+/// What the system reports when the user taps a notification itself (not
+/// one of its buttons).
+pub const TAPPED: &str = "tap";
 
 /// Who asked for the notification: the app (it records its own history) or
 /// the backend (announced so the app can record it).
@@ -33,6 +43,32 @@ struct PostedNotification<'a> {
     at: String,
 }
 
+/// The channel a kind of notification goes in: the same two groups as
+/// Settings → Notifications.
+pub fn channel_of(kind: NotificationKind) -> Channel {
+    use NotificationKind::*;
+    match kind {
+        GoalMilestone | LongRun | IdlePause | DailySummary | WithdrawalReady | Test => {
+            Channel::Reminders
+        }
+        General | WorkLogCapture | BackupFailure | BackupSuccess | Error => Channel::Activity,
+    }
+}
+
+/// What tapping a kind of notification opens: the page it's about (None:
+/// the app as it was).
+pub fn opens(kind: NotificationKind) -> Option<MenuCommand> {
+    use NotificationKind::*;
+    let page = |view| Some(MenuCommand::ShowView { view });
+    match kind {
+        GoalMilestone | DailySummary => page(MenuView::Home),
+        LongRun | IdlePause => page(MenuView::Sessions),
+        WithdrawalReady | WorkLogCapture => page(MenuView::Payouts),
+        BackupFailure => Some(MenuCommand::Settings),
+        General | BackupSuccess | Error | Test => None,
+    }
+}
+
 /// Show a notification if the preferences allow it. Returns whether it was
 /// shown (the app falls back to a toast when it wasn't).
 pub fn post(
@@ -47,7 +83,14 @@ pub fn post(
         log::debug!("Notification {:?} suppressed by the user's settings", kind);
         return false;
     }
-    if let Err(e) = shell.platform.notify(title, body, prefs.sound) {
+    let notification = ShownNotification {
+        title: title.to_string(),
+        body: body.to_string(),
+        sound: prefs.sound,
+        channel: channel_of(kind),
+        opens: opens(kind),
+    };
+    if let Err(e) = shell.platform.notify(&notification) {
         log::warn!("Failed to show a notification: {}", e);
         return false;
     }
@@ -92,6 +135,8 @@ pub fn schedule(
         title: title.to_string(),
         body: body.to_string(),
         sound: prefs.sound,
+        channel: channel_of(kind),
+        opens: opens(kind),
     };
     match shell.platform.schedule_notification(&scheduled) {
         Ok(()) => true,
@@ -107,6 +152,28 @@ pub fn cancel(shell: &Shell, id: i32) {
     if let Err(e) = shell.platform.cancel_notification(id) {
         log::warn!("Failed to take back a notification set for later: {}", e);
     }
+}
+
+/// The system reported `action` on a notification (a tap, a swipe away);
+/// `opens` is what the notification said tapping it opens. A tap brings the
+/// app forward, and keeps the page it's about for the app to open
+/// (`take_opened`), telling it so.
+pub fn performed(shell: &Shell, action: &str, opens: Option<MenuCommand>) {
+    if action != TAPPED {
+        return;
+    }
+    shell.platform.show_main_window();
+    if let Some(command) = opens {
+        shell.with_opened_notification_mut(|opened| *opened = Some(command));
+        emit_quiet(shell, NOTIFICATION_OPENED, ());
+    }
+}
+
+/// What the last tapped notification opens, once. The page asks as soon as
+/// it's up (the tap may have started the app) and whenever it hears of a
+/// tap.
+pub fn take_opened(shell: &Shell) -> Option<MenuCommand> {
+    shell.with_opened_notification_mut(Option::take)
 }
 
 #[cfg(test)]
@@ -132,7 +199,15 @@ mod tests {
 
         assert_eq!(
             platform.recorded().notifications,
-            [("Still working?".to_string(), "4h".to_string(), true)]
+            [ShownNotification {
+                title: "Still working?".to_string(),
+                body: "4h".to_string(),
+                sound: true,
+                channel: Channel::Reminders,
+                opens: Some(MenuCommand::ShowView {
+                    view: MenuView::Sessions
+                }),
+            }]
         );
         assert_eq!(
             platform.recorded().events,
@@ -163,7 +238,7 @@ mod tests {
         ));
 
         // Sound is off unless the user turns it on
-        assert!(!platform.recorded().notifications[0].2);
+        assert!(!platform.recorded().notifications[0].sound);
         assert!(platform.recorded().events.is_empty());
     }
 
@@ -220,6 +295,10 @@ mod tests {
                 title: "Withdrawal ready".to_string(),
                 body: "$80.00".to_string(),
                 sound: true,
+                channel: Channel::Reminders,
+                opens: Some(MenuCommand::ShowView {
+                    view: MenuView::Payouts
+                }),
             }]
         );
         assert!(f.platform.recorded().cancelled.is_empty());
@@ -273,5 +352,68 @@ mod tests {
         f.platform.fail("cancel");
         cancel(&f.state, 8);
         assert_eq!(f.platform.recorded().cancelled, [7]);
+    }
+
+    #[test]
+    fn each_kind_goes_in_its_settings_group_and_opens_its_page() {
+        use NotificationKind::*;
+        let page = |view| Some(MenuCommand::ShowView { view });
+        let cases = [
+            (GoalMilestone, Channel::Reminders, page(MenuView::Home)),
+            (DailySummary, Channel::Reminders, page(MenuView::Home)),
+            (LongRun, Channel::Reminders, page(MenuView::Sessions)),
+            (IdlePause, Channel::Reminders, page(MenuView::Sessions)),
+            (WithdrawalReady, Channel::Reminders, page(MenuView::Payouts)),
+            (Test, Channel::Reminders, None),
+            (WorkLogCapture, Channel::Activity, page(MenuView::Payouts)),
+            (
+                BackupFailure,
+                Channel::Activity,
+                Some(MenuCommand::Settings),
+            ),
+            (BackupSuccess, Channel::Activity, None),
+            (General, Channel::Activity, None),
+            (Error, Channel::Activity, None),
+        ];
+        for (kind, channel, page) in cases {
+            assert_eq!(
+                (channel_of(kind), opens(kind)),
+                (channel, page),
+                "{:?}",
+                kind
+            );
+        }
+    }
+
+    #[test]
+    fn a_tap_brings_the_app_forward_and_keeps_its_page_for_the_app() {
+        let f = fixture();
+        let payouts = MenuCommand::ShowView {
+            view: MenuView::Payouts,
+        };
+        performed(&f.state, TAPPED, Some(payouts));
+
+        assert_eq!(f.platform.recorded().windows_shown, 1);
+        assert_eq!(f.platform.event_names(), ["notification-opened"]);
+        // The page takes it once
+        assert_eq!(take_opened(&f.state), Some(payouts));
+        assert_eq!(take_opened(&f.state), None);
+    }
+
+    #[test]
+    fn a_tap_on_one_about_no_page_only_brings_the_app_forward() {
+        let f = fixture();
+        performed(&f.state, TAPPED, None);
+        assert_eq!(f.platform.recorded().windows_shown, 1);
+        assert!(f.platform.event_names().is_empty());
+        assert_eq!(take_opened(&f.state), None);
+    }
+
+    #[test]
+    fn swiping_one_away_does_nothing() {
+        let f = fixture();
+        performed(&f.state, "dismiss", Some(MenuCommand::Settings));
+        assert_eq!(f.platform.recorded().windows_shown, 0);
+        assert_eq!(take_opened(&f.state), None);
     }
 }

@@ -286,6 +286,11 @@ fn constants() -> Constants {
             ),
             ("SYNC_PENDING", "SYNC_PENDING", json!(events::SYNC_PENDING)),
             ("MENU_COMMAND", "MENU_COMMAND", json!(events::MENU_COMMAND)),
+            (
+                "NOTIFICATION_OPENED",
+                "NOTIFICATION_OPENED",
+                json!(events::NOTIFICATION_OPENED),
+            ),
         ],
     );
     out.line("export type EventName = (typeof EVENTS)[keyof typeof EVENTS];\n");
