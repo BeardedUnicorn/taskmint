@@ -61,6 +61,13 @@
         android:textColor="@color/widget_text"
         android:textSize="14sp" />
 
+    <!-- Takes up whatever height the widget has to spare, so the next
+         release sits at the bottom at any size -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
     <TextView
         android:id="@+id/payouts_release"
         android:layout_width="match_parent"
