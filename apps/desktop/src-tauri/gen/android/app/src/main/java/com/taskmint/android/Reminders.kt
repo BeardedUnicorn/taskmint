@@ -11,6 +11,7 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Build
 import android.util.Log
+import android.webkit.WebView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.tauri.annotation.Command
@@ -236,7 +237,6 @@ class TimerNoticeArgs {
   var text: String = ""
   var countingFromMs: Long? = null
   var pausedMs: Long? = null
-  var channel: String = ""
 }
 
 /**
@@ -246,6 +246,11 @@ class TimerNoticeArgs {
  */
 @TauriPlugin
 class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
+  /** The running timer's channel is in the phone's settings from the start, not from the first timer. */
+  override fun load(webView: WebView) {
+    TimerNotices.channel(activity)
+  }
+
   @Command
   fun setReminder(invoke: Invoke) {
     val args = invoke.parseArgs(ReminderArgs::class.java)
@@ -262,7 +267,7 @@ class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun setTimerNotice(invoke: Invoke) {
     val args = invoke.parseArgs(TimerNoticeArgs::class.java)
-    TimerNotices.set(activity, TimerNotice(args.task, args.text, args.countingFromMs, args.pausedMs, args.channel))
+    TimerNotices.set(activity, TimerNotice(args.task, args.text, args.countingFromMs, args.pausedMs))
     invoke.resolve()
   }
 

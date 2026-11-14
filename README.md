@@ -287,7 +287,9 @@ rather than offer the download.
   and Stop. On Android 17 it's a Live Update, so the time also counts in
   the status bar, and it shows today's time and money beside the timer (an
   Android 16 system that has Live Updates promotes it too; 16's first
-  release takes the request and shows it as before);
+  release takes the request and shows it as before). From Android 16 its
+  channel has the default importance with no sound, since a lock screen
+  leaves out a low-importance notification, Live Update or not;
 - the long-run reminder, end-of-day summary and goal milestones as alarms
   that arrive with the app closed;
 - launcher shortcuts (long-press the icon) for the likeliest tasks, Add time
