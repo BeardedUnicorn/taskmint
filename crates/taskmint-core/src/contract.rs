@@ -91,6 +91,10 @@ pub mod launch {
     pub const ADD_TIME: &str = "add-time";
     pub const HOME: &str = "home";
     pub const PAYOUTS: &str = "payouts";
+    /// The Calendar widget's list and header.
+    pub const CALENDAR: &str = "calendar";
+    /// The This week chart.
+    pub const HISTORY: &str = "history";
     pub const PAUSE: &str = "pause";
     pub const RESUME: &str = "resume";
     /// Starts the task whose id follows (a favourite task's shortcut).
@@ -312,6 +316,8 @@ mod tests {
                 launch::ADD_TIME,
                 launch::HOME,
                 launch::PAYOUTS,
+                launch::CALENDAR,
+                launch::HISTORY,
                 launch::PAUSE,
                 launch::RESUME,
                 launch::START_TASK
@@ -321,6 +327,8 @@ mod tests {
                 "add-time",
                 "home",
                 "payouts",
+                "calendar",
+                "history",
                 "pause",
                 "resume",
                 "start-task:"

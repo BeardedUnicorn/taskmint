@@ -8,7 +8,7 @@ use crate::notifications;
 use crate::state::AppState;
 use crate::tray::{self, model::TrayAction};
 use taskmint_core::contract::launch::{
-    ADD_TIME, HOME, PAUSE, PAYOUTS, RESUME, START_TASK, START_WORK,
+    ADD_TIME, CALENDAR, HISTORY, HOME, PAUSE, PAYOUTS, RESUME, START_TASK, START_WORK,
 };
 use taskmint_core::shell::{MenuCommand, MenuView};
 
@@ -23,6 +23,8 @@ pub fn run(state: &AppState, action: &str) {
         ADD_TIME => notifications::open(state, MenuCommand::AddTime),
         HOME => notifications::open(state, page(MenuView::Home)),
         PAYOUTS => notifications::open(state, page(MenuView::Payouts)),
+        CALENDAR => notifications::open(state, page(MenuView::Calendar)),
+        HISTORY => notifications::open(state, page(MenuView::History)),
         PAUSE => tray::run(state, TrayAction::PauseTimer),
         RESUME => tray::run(state, TrayAction::ResumeTimer),
         _ => match action.strip_prefix(START_TASK) {
@@ -73,12 +75,14 @@ mod tests {
             (ADD_TIME, MenuCommand::AddTime),
             (HOME, page(MenuView::Home)),
             (PAYOUTS, page(MenuView::Payouts)),
+            (CALENDAR, page(MenuView::Calendar)),
+            (HISTORY, page(MenuView::History)),
         ];
         for (action, command) in cases {
             run(&f.state, action);
             assert_eq!(notifications::take_opened(&f.state), Some(command));
         }
-        assert_eq!(f.platform.recorded().windows_shown, 4);
+        assert_eq!(f.platform.recorded().windows_shown, 6);
     }
 
     #[test]
