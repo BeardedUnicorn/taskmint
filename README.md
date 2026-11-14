@@ -284,9 +284,10 @@ rather than offer the download.
 
 **What the phone adds**, around the same app:
 - the running timer in a notification, with its clock and Pause, Switch task
-  and Stop. On Android 16 and later it's a Live Update, so the time also
-  counts in the status bar; on Android 17 it shows today's time and money
-  beside the timer;
+  and Stop. On Android 17 it's a Live Update, so the time also counts in
+  the status bar, and it shows today's time and money beside the timer (an
+  Android 16 system that has Live Updates promotes it too; 16's first
+  release takes the request and shows it as before);
 - the long-run reminder, end-of-day summary and goal milestones as alarms
   that arrive with the app closed;
 - launcher shortcuts (long-press the icon) for the likeliest tasks, Add time

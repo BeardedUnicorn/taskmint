@@ -9,8 +9,9 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <!-- and is set again after the phone restarts (RemindersRestore) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- The running timer's notification is a Live Update on Android 16 and
-         later: its time also counts in the status bar (TimerNotice.kt) -->
+    <!-- The running timer's notification asks to be a Live Update (Android
+         16 and later): its time then also counts in the status bar
+         (TimerNotice.kt) -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <!-- Whether Advanced Protection is on (Android 16 and later): it blocks
          installing an update from outside the Play Store, and the update

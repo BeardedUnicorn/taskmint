@@ -71,10 +71,10 @@ data class TimerNotice(
  * when (os.rs, through [RemindersPlugin]); this draws it, which the
  * notification plugin couldn't do as Android 16 and 17 allow:
  *
- * - Android 16 and later make it a Live Update (the user can turn that off
- *   in the phone's settings for TaskMint): the time also counts in a chip in
- *   the status bar, and it shows on the lock screen and the always-on
- *   display.
+ * - From Android 16 it asks to be a Live Update (the user can turn that off
+ *   in the phone's settings for TaskMint): the time then also counts in a
+ *   chip in the status bar. Android 17 makes it one; Android 16's first
+ *   release takes the request and shows the notification as before.
  * - Android 17 lays it out as figures (Notification.MetricStyle): the timer,
  *   and today's time and money from the widgets' figures (Widgets), which
  *   the page works out. They're as fresh as the page last sent: the times
@@ -196,9 +196,10 @@ object TimerNotices {
   }
 
   /**
-   * Android 16 and later: a Live Update. Asked for through the notification's
-   * extras: Android 16's first release has no setter for it. The chip in the
-   * status bar counts the timer, or says it's paused.
+   * Android 16 and later: asks to be a Live Update, through the
+   * notification's extras (Android 16's first release has no setter for it,
+   * and doesn't promote it either). The chip in the status bar counts the
+   * timer, or says it's paused.
    */
   @RequiresApi(Build.VERSION_CODES.BAKLAVA)
   private fun liveUpdate(context: Context, notice: TimerNotice): Notification {
