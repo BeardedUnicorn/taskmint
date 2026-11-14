@@ -91,7 +91,8 @@ export function DataManagementSection() {
         Export your time tracking data for backup or import data from a previous backup.
       </Typography>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} useFlexGap sx={{ flexWrap: 'wrap' }}>
+      {/* (12px apart in a row: the three fit one line in the desktop window at its narrowest) */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 2, sm: 1.5 }} useFlexGap sx={{ flexWrap: 'wrap' }}>
         <Button
           variant="contained"
           startIcon={<DownloadIcon />}
