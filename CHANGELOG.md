@@ -8,6 +8,21 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.6.0 – 2026-11-14
+
+### Added
+
+- Two Android home-screen widgets: Calendar, a scrolling agenda of your recent weeks day by day (time, goal, money, releases and withdrawals) through the payouts ahead, opened at this week; and This week, a bar for each day against your daily goal.
+
+### Changed
+
+- The Android Today and Payouts widgets fit any size from one row up: a running timer's clock leads Today, a tall Today adds this week and a tall Payouts lists the next releases. Figures from an earlier day say so ("Yesterday") instead of "Today", Payouts names what its amount is and turns to "Ready to withdraw" on time, and the widgets follow the launcher's rounded corners, with larger buttons that respond to a tap.
+- Continue with Google now looks like Google's own sign-in button: the colour G on a white button, or a near-black one in the dark theme, in Google's font.
+
+### Fixed
+
+- On Android, a widget's or launcher shortcut's Start, Add time or page, and a tapped notification, open what they're for again instead of only bringing TaskMint up on Home.
+
 ## 4.5.0 – 2026-11-13
 
 ### Added
