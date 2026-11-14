@@ -105,7 +105,12 @@ function ScheduledLine({
         {reminder.dueMs > nowMs ? `Reminder: ${when}` : `Your scheduled withdrawal is ready (since ${when})`}
         {amount && ` · ${amount.estimatedCents > 0 ? '~' : ''}${formatCents(amount.totalCents)}`}
       </Typography>
-      <Button size="small" onClick={onRemove} aria-label="Remove the scheduled withdrawal" sx={{ flexShrink: 0 }}>
+      <Button
+        size="small"
+        onClick={onRemove}
+        aria-label="Remove the scheduled withdrawal"
+        sx={{ flexShrink: 0, mr: -1.25 }}
+      >
         Remove
       </Button>
     </Box>
