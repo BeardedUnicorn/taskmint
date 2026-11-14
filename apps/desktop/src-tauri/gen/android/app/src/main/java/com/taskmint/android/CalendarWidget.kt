@@ -7,6 +7,7 @@ import androidx.core.widget.RemoteViewsCompat
 import com.taskmint.android.Widgets.text
 import com.taskmint.android.Widgets.visible
 import com.taskmint.android.Widgets.whole
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** The Calendar widget (CalendarViews). */
@@ -41,6 +42,17 @@ object CalendarViews : WidgetKind {
     )
 
   override fun part(snapshot: JSONObject) = listOf(snapshot.opt("day"), snapshot.opt("agenda")).toString()
+
+  /** From this week on: the picker's picture can't be scrolled to it. */
+  override fun previewOf(snapshot: JSONObject): JSONObject {
+    val preview = JSONObject(snapshot.toString())
+    val agenda = preview.optJSONObject("agenda") ?: return preview
+    val rows = agenda.optJSONArray("rows") ?: return preview
+    val fromThisWeek = JSONArray()
+    for (index in agenda.optInt("thisWeekIndex") until rows.length()) fromThisWeek.put(rows.get(index))
+    agenda.put("rows", fromThisWeek).put("thisWeekIndex", 0)
+    return preview
+  }
 
   /** This week's header: its date and row ("2026-11-08@7"), which moves when earlier weeks come or go. */
   private fun thisWeek(snapshot: JSONObject?): String? {

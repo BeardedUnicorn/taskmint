@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.appwidget.AppWidgetProviderInfo
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -41,6 +42,9 @@ import org.json.JSONObject
  * on its own (a Chronometer). The widgets are redrawn at midnight (Today
  * then says "Yesterday" over figures the page hasn't updated) and when the
  * next withdrawal opens (WidgetRefresh).
+ *
+ * On Android 15 and later the widget picker shows each widget with these
+ * figures too (preview), in place of its layout's sample.
  */
 object Widgets {
   private const val PREFS = "TaskMintWidgets"
@@ -48,6 +52,8 @@ object Widgets {
   /** The snapshot's version these widgets read; an older one shows "Open TaskMint…". */
   private const val VERSION = 2
   private const val REFRESH_WINDOW_MS = 10 * 60_000L
+  /** How often a widget's preview is set, at most: the system takes only a few an hour. */
+  private const val PREVIEW_EVERY_MS = 60 * 60_000L
 
   private val kinds: List<WidgetKind>
     get() = listOf(TodayViews, PayoutsViews, CalendarViews, WeekViews)
@@ -60,7 +66,13 @@ object Widgets {
     prefs(context).edit().putString(SNAPSHOT, json).apply()
     val after = read(json)
     for (kind in kinds) {
-      if (before == null || after == null || kind.part(before) != kind.part(after)) redraw(context, kind)
+      val changed = before == null || after == null || kind.part(before) != kind.part(after)
+      if (changed) redraw(context, kind)
+      preview(context, kind, after, changed)
+    }
+    // The running timer's notification shows today's figures too (Android 17)
+    if (before == null || after == null || TimerNotices.part(before) != TimerNotices.part(after)) {
+      TimerNotices.redraw(context)
     }
     scheduleRefresh(context, after)
   }
@@ -70,10 +82,54 @@ object Widgets {
 
   fun snapshot(context: Context): JSONObject? = read(prefs(context).getString(SNAPSHOT, null))
 
-  /** Every widget, from the kept figures (at midnight, the opening, a clock change). */
+  /**
+   * Every widget, from the kept figures (at midnight, the opening, a clock
+   * change), and the running timer's notification, whose figures for today
+   * go once they're yesterday's.
+   */
   fun redrawAll(context: Context) {
     for (kind in kinds) redraw(context, kind)
+    TimerNotices.redraw(context)
     scheduleRefresh(context, snapshot(context))
+  }
+
+  /**
+   * The widget picker's preview of `kind`: the widget itself, with the
+   * figures as they are (Android 15 and later). Before then, and until the
+   * page has sent figures, the picker shows the layout's sample
+   * (previewLayout). Set when `changed` says its figures did, at most once an
+   * hour: a change that comes sooner, or that the system turns down, waits
+   * for the next call after that. `afterUpdate`: TaskMint was just updated,
+   * which can leave a kept preview pointing at layouts that have moved, so
+   * it's set again now.
+   */
+  fun preview(context: Context, kind: WidgetKind, snapshot: JSONObject?, changed: Boolean, afterUpdate: Boolean = false) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM || snapshot == null) return
+    val prefs = prefs(context)
+    val setAt = "previewAt:${kind.provider.simpleName}"
+    val waiting = "previewWaiting:${kind.provider.simpleName}"
+    val last = prefs.getLong(setAt, 0)
+    if (!changed && !afterUpdate && last != 0L && !prefs.getBoolean(waiting, false)) return
+    val now = System.currentTimeMillis()
+    val tooSoon = !afterUpdate && now - last in 0 until PREVIEW_EVERY_MS
+    val set =
+      !tooSoon &&
+        runCatching {
+          AppWidgetManager.getInstance(context).setWidgetPreview(
+            ComponentName(context, kind.provider),
+            AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN,
+            kind.views(context, kind.previewOf(snapshot), kind.previewFit, AppWidgetManager.INVALID_APPWIDGET_ID, null)
+          )
+        }.getOrDefault(false)
+    val edit = prefs.edit().putBoolean(waiting, !set)
+    if (set) edit.putLong(setAt, now)
+    edit.apply()
+  }
+
+  /** Every widget's preview again, after TaskMint was updated (RemindersRestore). */
+  fun previewsAfterUpdate(context: Context) {
+    val snapshot = snapshot(context)
+    for (kind in kinds) preview(context, kind, snapshot, changed = true, afterUpdate = true)
   }
 
   private fun redraw(context: Context, kind: WidgetKind) {
@@ -121,7 +177,8 @@ object Widgets {
 
   /**
    * Redraws every widget at the next local midnight or when the next
-   * withdrawal opens, whichever comes first; nothing once no widget is left.
+   * withdrawal opens, whichever comes first; nothing once no widget is left
+   * and the running timer's notification shows no figures of the day's.
    */
   fun scheduleRefresh(context: Context, snapshot: JSONObject? = this.snapshot(context)) {
     val alarms = context.getSystemService(AlarmManager::class.java) ?: return
@@ -133,7 +190,8 @@ object Widgets {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
       )
     val manager = AppWidgetManager.getInstance(context)
-    if (kinds.all { manager.getAppWidgetIds(ComponentName(context, it.provider)).isEmpty() }) {
+    val noWidgets = kinds.all { manager.getAppWidgetIds(ComponentName(context, it.provider)).isEmpty() }
+    if (noWidgets && !TimerNotices.followsFigures(context)) {
       alarms.cancel(refresh)
       return
     }
@@ -198,6 +256,9 @@ object Widgets {
     if (money.startsWith("~")) context.getString(R.string.widget_about, money.substring(1)) else money
 
   private fun dayKey(calendar: Calendar): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
+
+  /** Today, as the snapshot's `day` has it (YYYY-MM-DD). */
+  fun today(): String = dayKey(Calendar.getInstance())
 
   /** "Today" for today's figures; "Yesterday" or "Wed, Nov 11" once they're from an earlier day. */
   fun dayLabel(context: Context, day: String): String {
@@ -286,6 +347,13 @@ interface WidgetKind {
 
   /** After its widgets `ids` are drawn; `fresh` as Widgets.draw has it. */
   fun drawn(context: Context, ids: IntArray, snapshot: JSONObject?, fresh: Boolean) {}
+
+  /** The size class the widget picker's preview is drawn at (Widgets.preview): the size it's first placed at. */
+  val previewFit: Fit
+    get() = Fit(Height.CARD, narrow = false)
+
+  /** The figures the preview shows: the snapshot's, less what a picture that stays as it is can't show. */
+  fun previewOf(snapshot: JSONObject): JSONObject = snapshot
 }
 
 /** A widget provider: draws its kind when placed, resized or restarted. */
@@ -295,6 +363,8 @@ abstract class TaskMintWidget : AppWidgetProvider() {
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
     settling { Widgets.draw(context, kind, ids, fresh = true) }
     Widgets.scheduleRefresh(context)
+    // One that was waiting its turn, or never set
+    Widgets.preview(context, kind, Widgets.snapshot(context), changed = false)
   }
 
   /** Resized: before Android 12, a new size can need another layout. */

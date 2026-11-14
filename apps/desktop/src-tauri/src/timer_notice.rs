@@ -10,9 +10,13 @@
 //! notifications" switch in Settings; the phone's settings can turn off its
 //! channel on its own.
 //!
-//! The system takes it down when it's tapped, and the user can swipe it
-//! away. A tap or a button puts it back (`refresh`); a swipe leaves it gone
-//! until the timer changes.
+//! On Android it's TaskMint's own (gen/android: TimerNotice.kt), a Live
+//! Update where the phone has them: the time counts in the status bar too,
+//! and Android 17 adds today's time and money from the widgets' figures. A
+//! tap or a button leaves it up there. An iPhone's is the notification
+//! plugin's, which the system takes down when it's tapped; `refresh` puts it
+//! back. The user can swipe it away, and it then stays gone until the timer
+//! changes.
 
 use crate::notifications::{self, TAPPED};
 use crate::state::AppState;
@@ -39,6 +43,10 @@ pub struct TimerNotice {
     pub counting_from: Option<DateTime<Utc>>,
     /// The line under the task.
     pub text: String,
+    /// While paused: how long it had run, for a clock stopped there. None
+    /// while it runs (its time then changes by the second, and a notice
+    /// that's the same isn't shown again).
+    pub paused_for_ms: Option<u64>,
 }
 
 impl TimerNotice {
@@ -49,11 +57,13 @@ impl TimerNotice {
                 task_name,
                 counting_from: None,
                 text: format!("Paused at {}", in_words(live.elapsed_ms)),
+                paused_for_ms: Some(live.elapsed_ms),
             },
             false => Self {
                 task_name,
                 counting_from: Some(now - Duration::milliseconds(live.elapsed_ms as i64)),
                 text: "Running".to_string(),
+                paused_for_ms: None,
             },
         }
     }
@@ -196,6 +206,7 @@ mod tests {
             task_name: "Writing".to_string(),
             counting_from: Some(at),
             text: "Running".to_string(),
+            paused_for_ms: None,
         })
     }
 
@@ -226,6 +237,7 @@ mod tests {
         let paused = shown(&f).last().cloned().unwrap().unwrap();
         assert!(paused.is_paused());
         assert_eq!(paused.text, "Paused at 1h 23m");
+        assert_eq!(paused.paused_for_ms, Some(83 * 60_000));
 
         // Ten minutes paused: it counts from ten minutes later
         f.advance_ms(10 * 60_000);

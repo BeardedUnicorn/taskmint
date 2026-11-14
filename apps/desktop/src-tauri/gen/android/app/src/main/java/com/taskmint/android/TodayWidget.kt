@@ -33,6 +33,12 @@ object TodayViews : WidgetKind {
   override fun part(snapshot: JSONObject) =
     listOf(snapshot.opt("updatedAtMs"), snapshot.opt("day"), snapshot.opt("today"), snapshot.opt("timer")).toString()
 
+  /** Four columns wide: its button has its words. */
+  override val previewFit = Fit(Height.CARD, narrow = false, roomy = true)
+
+  /** Without the timer: the picker's picture would keep a clock running long after the timer stopped. */
+  override fun previewOf(snapshot: JSONObject): JSONObject = JSONObject(snapshot.toString()).put("timer", JSONObject.NULL)
+
   /** What the timer's button does: its words, icon, action and spoken name. */
   private enum class Action(val label: Int, val icon: Int, val launch: String, val description: Int) {
     START(R.string.widget_start, R.drawable.ic_widget_play, "start-work", R.string.widget_start_description),

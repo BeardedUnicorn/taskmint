@@ -20,6 +20,7 @@ import {
   type AvailableUpdate,
   type DownloadProgress,
 } from './updates';
+import { sideloadingBlocked } from './tauriBackend';
 
 /** The launch check waits this long, so it doesn't compete with startup. */
 export const FIRST_CHECK_DELAY_MS = 10_000;
@@ -100,7 +101,8 @@ function Notes({ update }: { update: AvailableUpdate }) {
 /**
  * The update check (the client's Background extension): it runs on its own
  * at launch and daily, and asks before installing what it finds, or on a
- * phone, before downloading it.
+ * phone, before downloading it. A phone with Advanced Protection on won't
+ * install the download, so there the dialog says how to update instead.
  */
 export function UpdatePrompt() {
   useAutomaticChecks();
@@ -113,6 +115,7 @@ export function UpdatePrompt() {
   const { update } = state;
   const installing = state.status === 'installing';
   const phone = downloadsUpdates();
+  const blocked = phone && sideloadingBlocked();
   return (
     <Dialog
       open
@@ -125,9 +128,11 @@ export function UpdatePrompt() {
       <DialogTitle id="update-dialog-title">TaskMint {update.version} is available</DialogTitle>
       <DialogContent>
         <DialogContentText>
-          {phone
-            ? `You have ${update.currentVersion}. Download opens the new version in your browser; open it once it's downloaded, and Android updates TaskMint with your data kept.`
-            : `You have ${update.currentVersion}. TaskMint downloads the update, installs it and restarts. Running timers keep counting.`}
+          {blocked
+            ? `You have ${update.currentVersion}. Advanced Protection is on, and it blocks apps that don't come from Google Play, so Android won't install this update. To update, turn Advanced Protection off in the phone's Settings, download the update here, then turn it back on.`
+            : phone
+              ? `You have ${update.currentVersion}. Download opens the new version in your browser; open it once it's downloaded, and Android updates TaskMint with your data kept.`
+              : `You have ${update.currentVersion}. TaskMint downloads the update, installs it and restarts. Running timers keep counting.`}
         </DialogContentText>
         <Notes update={update} />
         {installing && (
@@ -143,15 +148,17 @@ export function UpdatePrompt() {
       </DialogContent>
       <DialogActions>
         <Button onClick={updates.later} disabled={installing}>
-          {state.status === 'installFailed' ? 'Close' : 'Later'}
+          {state.status === 'installFailed' || blocked ? 'Close' : 'Later'}
         </Button>
-        <Button
-          variant="contained"
-          onClick={() => void (phone ? updates.download() : updates.install())}
-          disabled={installing}
-        >
-          {state.status === 'installFailed' ? 'Try again' : phone ? 'Download' : 'Download and install'}
-        </Button>
+        {!blocked && (
+          <Button
+            variant="contained"
+            onClick={() => void (phone ? updates.download() : updates.install())}
+            disabled={installing}
+          >
+            {state.status === 'installFailed' ? 'Try again' : phone ? 'Download' : 'Download and install'}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

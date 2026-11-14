@@ -243,6 +243,8 @@ interface AndroidAppTask {
   moveToBack(): void;
   /** What opened the app and it hasn't acted on (AndroidLaunch, as JSON), once; null when nothing. */
   takeLaunch(): string | null;
+  /** Whether the phone won't install an update (Advanced Protection is on). */
+  installsBlocked(): boolean;
   /** The launcher's shortcuts, as JSON (AppShortcut[]). */
   setShortcuts(json: string): void;
   /** What the home-screen widgets show, as JSON (WidgetSnapshot). */
@@ -250,6 +252,15 @@ interface AndroidAppTask {
   haptic(kind: string): void;
   /** In CSS px; a zero size for none. */
   setEdgeSwipeArea(left: number, top: number, width: number, height: number): void;
+}
+
+/**
+ * Whether the phone won't install an update it downloads: Android's
+ * Advanced Protection blocks apps that don't come from the Play Store, as
+ * TaskMint's updates don't. False anywhere else.
+ */
+export function sideloadingBlocked(): boolean {
+  return (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp?.installsBlocked() ?? false;
 }
 
 /**
