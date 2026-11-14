@@ -7,9 +7,10 @@
 
 import { FormEvent, useState } from 'react';
 import { Alert, Box, Button, Chip, CircularProgress, Stack, TextField, Typography, useTheme } from '@mui/material';
-import { CloudSync as CloudIcon, Google as GoogleIcon } from '@mui/icons-material';
+import { CloudSync as CloudIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
+import { GoogleSignInButton } from '../../cloud/GoogleSignInButton';
 import { SignOutDialog } from '../../cloud/SignOutDialog';
 import { useCloudSync, type SyncEngine, type SyncView } from '../../../cloud';
 import { cloudErrorMessage } from '../../../cloud/errors';
@@ -136,9 +137,7 @@ export function SignInForm({ engine, intro = INTRO }: { engine: SignInActions; i
         </Stack>
         {engine.canUseGoogle && mode !== 'reset' && (
           <Box>
-            <Button variant="outlined" startIcon={<GoogleIcon />} disabled={busy} onClick={() => void google()}>
-              Continue with Google
-            </Button>
+            <GoogleSignInButton disabled={busy} onClick={() => void google()} />
           </Box>
         )}
       </Stack>
