@@ -1,81 +1,186 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TaskMint: the Payouts widget (Widgets.payouts). Its own texts are the
-     widget picker's preview (previewLayout); Widgets.payouts replaces them. -->
+<!-- TaskMint: the Payouts widget, two rows and more (PayoutsViews): what
+     the amount is (the next withdrawal, or the next release until one is
+     recorded), the amount, when it opens or "Ready to withdraw", the next
+     releases when tall, and a note at the bottom. Also the widget's layout
+     until its first draw, so its texts are empty. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:foreground="@drawable/widget_card_ripple"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="@dimen/widget_padding">
+
+    <include layout="@layout/widget_header" />
 
     <LinearLayout
+        android:id="@+id/widget_content"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <ImageView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/ic_stat_taskmint"
-            android:tint="@color/widget_accent" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
 
         <TextView
-            android:layout_width="0dp"
+            android:id="@+id/payouts_label"
+            style="@style/TaskMintWidget.Caption"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:layout_weight="1"
-            android:text="@string/widget_payouts_label"
-            android:textColor="@color/widget_text"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:layout_marginTop="8dp" />
 
         <TextView
-            android:id="@+id/widget_as_of"
+            android:id="@+id/payouts_amount"
+            style="@style/TaskMintWidget.Hero"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="as of 3:42 PM"
-            android:textColor="@color/widget_text_secondary"
-            android:textSize="12sp" />
+            android:layout_marginTop="2dp" />
+
+        <TextView
+            android:id="@+id/payouts_status"
+            style="@style/TaskMintWidget.Body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="2" />
+
+        <TextView
+            android:id="@+id/payouts_pill"
+            style="@style/TaskMintWidget.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/widget_withdrawal_open"
+            android:visibility="gone" />
+
+        <!-- Tall: the height to spare split around the releases -->
+        <FrameLayout
+            android:id="@+id/releases_spacer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/releases_block"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/TaskMintWidget.Overline"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_upcoming_releases" />
+
+            <LinearLayout
+                android:id="@+id/release_0"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:baselineAligned="true"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/release_0_day"
+                    style="@style/TaskMintWidget.Body"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:singleLine="true" />
+
+                <TextView
+                    android:id="@+id/release_0_amount"
+                    style="@style/TaskMintWidget.Body"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:fontFeatureSettings="tnum" />
+            </LinearLayout>
+            <LinearLayout
+                android:id="@+id/release_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:baselineAligned="true"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/release_1_day"
+                    style="@style/TaskMintWidget.Body"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:singleLine="true" />
+
+                <TextView
+                    android:id="@+id/release_1_amount"
+                    style="@style/TaskMintWidget.Body"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:fontFeatureSettings="tnum" />
+            </LinearLayout>
+            <LinearLayout
+                android:id="@+id/release_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:baselineAligned="true"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/release_2_day"
+                    style="@style/TaskMintWidget.Body"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:singleLine="true" />
+
+                <TextView
+                    android:id="@+id/release_2_amount"
+                    style="@style/TaskMintWidget.Body"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:fontFeatureSettings="tnum" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Whatever height is to spare, so the note sits at the bottom -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:minHeight="6dp" />
+
+        <TextView
+            android:id="@+id/payouts_footnote"
+            style="@style/TaskMintWidget.Caption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="2"
+            android:singleLine="false" />
     </LinearLayout>
 
     <TextView
-        android:id="@+id/payouts_amount"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="~$1,100"
-        android:textColor="@color/widget_accent"
-        android:textSize="26sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/payouts_status"
+        android:id="@+id/widget_message"
+        style="@style/TaskMintWidget.Body"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:maxLines="2"
-        android:text="Opens Mon, Nov 10, 6:25 PM"
-        android:textColor="@color/widget_text"
-        android:textSize="14sp" />
-
-    <!-- Takes up whatever height the widget has to spare, so the next
-         release sits at the bottom at any size -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-    <TextView
-        android:id="@+id/payouts_release"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:ellipsize="end"
-        android:singleLine="true"
-        android:text="Next release Fri, Nov 14 · $230"
+        android:layout_marginTop="8dp"
+        android:maxLines="3"
+        android:text="@string/widget_open_app"
         android:textColor="@color/widget_text_secondary"
-        android:textSize="13sp" />
+        android:visibility="gone" />
 </LinearLayout>

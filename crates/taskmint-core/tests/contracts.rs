@@ -333,6 +333,8 @@ fn constants() -> Constants {
             ("ADD_TIME", "ADD_TIME", json!(launch::ADD_TIME)),
             ("HOME", "HOME", json!(launch::HOME)),
             ("PAYOUTS", "PAYOUTS", json!(launch::PAYOUTS)),
+            ("CALENDAR", "CALENDAR", json!(launch::CALENDAR)),
+            ("HISTORY", "HISTORY", json!(launch::HISTORY)),
             ("PAUSE", "PAUSE", json!(launch::PAUSE)),
             ("RESUME", "RESUME", json!(launch::RESUME)),
             ("START_TASK", "START_TASK", json!(launch::START_TASK)),

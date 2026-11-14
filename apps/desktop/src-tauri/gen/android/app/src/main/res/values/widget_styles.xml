@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TaskMint: the home-screen widgets' type and controls (Widgets.kt).
+         Figures use tabular digits, so a counting clock doesn't shift.
+         TaskMintWidget is the root the others' names hang from. -->
+    <style name="TaskMintWidget" />
+
+    <style name="TaskMintWidget.Title">
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="TaskMintWidget.Body">
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="TaskMintWidget.Secondary">
+        <item name="android:textColor">@color/widget_text_secondary</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="TaskMintWidget.Caption">
+        <item name="android:textColor">@color/widget_text_secondary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+    </style>
+
+    <!-- A section's name: "THIS WEEK", "WEEK OF NOV 8" -->
+    <style name="TaskMintWidget.Overline" parent="TaskMintWidget.Caption">
+        <item name="android:textSize">11sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.06</item>
+    </style>
+
+    <!-- The big figure: today's money, the next withdrawal -->
+    <style name="TaskMintWidget.Hero">
+        <item name="android:textColor">@color/widget_accent</item>
+        <item name="android:textSize">34sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- A smaller figure: money beside the running clock, a day's money -->
+    <style name="TaskMintWidget.Figure">
+        <item name="android:textColor">@color/widget_accent</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:singleLine">true</item>
+    </style>
+
+    <!-- A running timer's clock -->
+    <style name="TaskMintWidget.Clock" parent="TaskMintWidget.Hero">
+        <item name="android:textSize">30sp</item>
+    </style>
+
+    <!-- The brand-green pill: 40dp drawn in a 48dp touch target -->
+    <style name="TaskMintWidget.Button">
+        <item name="android:layout_height">48dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">88dp</item>
+        <item name="android:background">@drawable/widget_button</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">18dp</item>
+        <item name="android:drawablePadding">4dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">@color/widget_button_text</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:elevation">0dp</item>
+    </style>
+
+    <!-- The same as a round icon button, where there's no room for words -->
+    <style name="TaskMintWidget.IconButton">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:background">@drawable/widget_icon_button</item>
+        <item name="android:scaleType">center</item>
+    </style>
+
+    <!-- "Ready to withdraw" -->
+    <style name="TaskMintWidget.Pill">
+        <item name="android:background">@drawable/widget_pill</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:paddingTop">3dp</item>
+        <item name="android:paddingBottom">3dp</item>
+        <item name="android:textColor">@color/widget_button_text</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:singleLine">true</item>
+    </style>
+
+    <!-- A Calendar day's badge (TaskMintWidget.Badge.Info / .Success) -->
+    <style name="TaskMintWidget.Badge">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginEnd">4dp</item>
+        <item name="android:paddingStart">5dp</item>
+        <item name="android:paddingEnd">6dp</item>
+        <item name="android:paddingTop">1dp</item>
+        <item name="android:paddingBottom">1dp</item>
+        <item name="android:drawablePadding">3dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:visibility">gone</item>
+    </style>
+
+    <style name="TaskMintWidget.Badge.Info">
+        <item name="android:textColor">@color/widget_info_text</item>
+    </style>
+
+    <style name="TaskMintWidget.Badge.Success">
+        <item name="android:textColor">@color/widget_success_text</item>
+    </style>
+
+    <!-- A goal bar in the brand green, as the app's are (.Met: the goal
+         reached, in the success green) -->
+    <style name="TaskMintWidget.Goal" parent="@android:style/Widget.Material.ProgressBar.Horizontal">
+        <item name="android:max">100</item>
+        <item name="android:minHeight">4dp</item>
+        <item name="android:maxHeight">6dp</item>
+        <item name="android:progressBackgroundTint">@color/widget_track</item>
+        <item name="android:progressTint">@color/widget_button</item>
+    </style>
+
+    <style name="TaskMintWidget.Goal.Met">
+        <item name="android:progressTint">@color/widget_success</item>
+    </style>
+</resources>

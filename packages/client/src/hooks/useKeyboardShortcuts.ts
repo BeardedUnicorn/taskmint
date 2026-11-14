@@ -79,9 +79,13 @@ export function shortcutFor(event: KeyPress, mac: boolean, inBrowser = false): S
 /** The command palette's root carries this, so it doesn't count as "another" modal. */
 export const PALETTE_ATTRIBUTE = 'data-command-palette';
 
-/** A dialog, menu or popover (other than the palette) is open. */
+/**
+ * A dialog, menu or popover (other than the palette) is open. One kept
+ * mounted while closed (a phone's swipe-open menu) is hidden, and doesn't
+ * count: it would hold off every shortcut and launch for good.
+ */
 export function otherModalOpen(): boolean {
-  return document.querySelector(`.MuiModal-root:not([${PALETTE_ATTRIBUTE}])`) !== null;
+  return document.querySelector(`.MuiModal-root:not(.MuiModal-hidden):not([${PALETTE_ATTRIBUTE}])`) !== null;
 }
 
 export function useKeyboardShortcuts({

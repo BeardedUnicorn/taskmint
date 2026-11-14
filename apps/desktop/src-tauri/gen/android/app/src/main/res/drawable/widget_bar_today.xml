@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: today's bar in the This week chart. Its level (setImageLevel,
+     0-10000) is its height in the chart, from the bottom. -->
+<scale xmlns:android="http://schemas.android.com/apk/res/android"
+    android:scaleGravity="bottom|fill_horizontal"
+    android:scaleHeight="100%">
+    <shape android:shape="rectangle">
+        <solid android:color="@color/widget_accent" />
+        <corners android:radius="4dp" />
+    </shape>
+</scale>

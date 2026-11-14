@@ -2,8 +2,20 @@
 <resources>
     <!-- TaskMint: the widgets in dark mode (values/colors.xml: light) -->
     <color name="widget_background">#FF1F1F1F</color>
+    <color name="widget_surface">#FF26302D</color>
+    <color name="widget_divider">#1FFFFFFF</color>
+    <color name="widget_ripple">#1FFFFFFF</color>
     <color name="widget_text">#FFFAFAFA</color>
     <color name="widget_text_secondary">#FFB0B0B0</color>
     <color name="widget_accent">#FF65D6A1</color>
     <color name="widget_track">#FF424242</color>
+    <color name="widget_bar">#FF3E8E6A</color>
+    <color name="widget_info_text">#FF90CAF9</color>
+    <color name="widget_info_tint">#2E2196F3</color>
+    <color name="widget_info_line">#B32196F3</color>
+    <!-- A goal met -->
+    <color name="widget_success">#FF32CD32</color>
+    <color name="widget_success_text">#FF7AE07A</color>
+    <color name="widget_success_tint">#2E32CD32</color>
+    <color name="widget_success_line">#B332CD32</color>
 </resources>

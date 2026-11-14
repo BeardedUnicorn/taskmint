@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: the Today widget, two rows and more, while a timer runs
+     (TodayViews): the timer card first, its clock the big figure, with
+     Pause; then today's money and time, the goal, and this week when
+     tall. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:foreground="@drawable/widget_card_ripple"
+    android:orientation="vertical"
+    android:padding="@dimen/widget_padding">
+
+    <include layout="@layout/widget_header" />
+
+    <LinearLayout
+        android:id="@+id/widget_content"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/timer_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/widget_inner"
+            android:orientation="vertical"
+            android:paddingStart="14dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="4dp"
+            android:paddingBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/timer_task"
+                        style="@style/TaskMintWidget.Title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <Chronometer
+                        android:id="@+id/today_clock"
+                        style="@style/TaskMintWidget.Clock"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/timer_button"
+                    style="@style/TaskMintWidget.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:drawableStart="@drawable/ic_widget_play" />
+
+                <ImageButton
+                    android:id="@+id/timer_icon_button"
+                    style="@style/TaskMintWidget.IconButton"
+                    android:layout_marginStart="4dp"
+                    android:src="@drawable/ic_widget_play"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Narrow: the clock under the task and button, the card's width -->
+            <Chronometer
+                android:id="@+id/today_clock_under"
+                style="@style/TaskMintWidget.Clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="26sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Whatever height is to spare, between the timer and the day's figures -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:minHeight="10dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:baselineAligned="true"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/today_money"
+                style="@style/TaskMintWidget.Figure"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/today_time"
+                style="@style/TaskMintWidget.Secondary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- The time under the money, where there's no room beside it -->
+        <TextView
+            android:id="@+id/today_time_under"
+            style="@style/TaskMintWidget.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/goal_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ProgressBar
+                android:id="@+id/goal_bar"
+                style="@style/TaskMintWidget.Goal"
+                android:layout_width="0dp"
+                android:layout_height="6dp"
+                android:layout_weight="1" />
+
+            <ProgressBar
+                android:id="@+id/goal_bar_met"
+                style="@style/TaskMintWidget.Goal.Met"
+                android:layout_width="0dp"
+                android:layout_height="6dp"
+                android:layout_weight="1"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/goal_text"
+                style="@style/TaskMintWidget.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- Tall: the height to spare split around the day's figures -->
+        <FrameLayout
+            android:id="@+id/week_spacer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/week_block"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/TaskMintWidget.Overline"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_week_label" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:baselineAligned="true"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/week_money"
+                    style="@style/TaskMintWidget.Figure"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/week_time"
+                    style="@style/TaskMintWidget.Secondary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_message"
+        style="@style/TaskMintWidget.Body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:maxLines="3"
+        android:text="@string/widget_open_app"
+        android:textColor="@color/widget_text_secondary"
+        android:visibility="gone" />
+</LinearLayout>

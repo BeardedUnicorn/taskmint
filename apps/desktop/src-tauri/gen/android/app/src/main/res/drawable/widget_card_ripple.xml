@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: a widget's press feedback over its whole card -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/widget_ripple">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFFFF" />
+            <corners android:radius="@dimen/widget_radius" />
+        </shape>
+    </item>
+</ripple>

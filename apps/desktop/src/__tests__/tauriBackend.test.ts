@@ -444,10 +444,14 @@ describe('createTauriBackend', () => {
     android.appShortcuts!.set([shortcut]);
     expect(bridge.setShortcuts).toHaveBeenCalledWith(JSON.stringify([shortcut]));
     const snapshot = {
+      version: 2 as const,
       updatedAtMs: 1,
-      today: { money: '$0', time: '0m', goalPercent: null },
+      day: '2026-11-13',
+      today: { money: '$0', time: '0m', goalPercent: null, week: { money: '$0', time: '0m' } },
       timer: null,
       payouts: null,
+      agenda: { month: 'November', monthMoney: null, rows: [], thisWeekIndex: 0 },
+      week: { totals: '$0 · 0m', measure: 'money' as const, goalLevel: null, days: [] },
     };
     android.widgets!.update(snapshot);
     expect(bridge.updateWidgets).toHaveBeenCalledWith(JSON.stringify(snapshot));

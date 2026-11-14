@@ -10,7 +10,7 @@
  * first and the withdrawal panel under it, and a day opens in place.
  */
 
-import { ReactNode, useCallback, useId, useMemo, useState } from 'react';
+import { ReactNode, useId, useMemo, useState } from 'react';
 import { Box, Button, IconButton, Paper, Skeleton, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import {
@@ -32,7 +32,7 @@ import { formatDurationCompact } from '../../../utils/formatters';
 import { formatMonthYear } from '../../../utils/locale';
 import { useCompactLayout } from '../../../hooks/useCompactLayout';
 import { NextWithdrawalPanel } from '../payouts/withdrawals/NextWithdrawalPanel';
-import { buildCalendarMonth } from './calendarMonth';
+import { buildCalendarMonth, goalForDay } from './calendarMonth';
 import { MonthGrid } from './MonthGrid';
 import { MonthAgenda } from './MonthAgenda';
 import { CalendarDayDialog } from './CalendarDayDialog';
@@ -97,15 +97,7 @@ const CalendarPage = () => {
   const [focusedDate, setFocusedDate] = useState(today);
   const [openDay, setOpenDay] = useState<string | null>(null);
 
-  // A day's goal: what it was that day when recorded, else today's goal
-  const goalFor = useCallback(
-    (date: string) => {
-      const recorded = achievements.find(achievement => achievement.date === date);
-      if (recorded) return recorded.goalAmount;
-      return currentGoal?.isEnabled && currentGoal.targetAmount > 0 ? currentGoal.targetAmount : null;
-    },
-    [achievements, currentGoal]
-  );
+  const goalFor = useMemo(() => goalForDay(achievements, currentGoal), [achievements, currentGoal]);
 
   const view = useMemo(
     () => buildCalendarMonth(month, { cells, events, withdrawals, plan, nowMs, goalFor }),

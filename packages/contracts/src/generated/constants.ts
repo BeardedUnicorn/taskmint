@@ -100,6 +100,8 @@ export const LAUNCH_ACTIONS = {
   ADD_TIME: "add-time",
   HOME: "home",
   PAYOUTS: "payouts",
+  CALENDAR: "calendar",
+  HISTORY: "history",
   PAUSE: "pause",
   RESUME: "resume",
   START_TASK: "start-task:",

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: widget_button as a 40dp circle in its 48dp touch target -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="4dp">
+    <ripple android:color="@color/widget_button_ripple">
+        <item>
+            <shape android:shape="oval">
+                <solid android:color="@color/widget_button" />
+            </shape>
+        </item>
+    </ripple>
+</inset>

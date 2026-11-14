@@ -6,13 +6,40 @@
     <string name="widget_today_label">Today</string>
     <string name="widget_today_description">Today\'s time and money, your daily goal, and the running timer</string>
     <string name="widget_payouts_label">Payouts</string>
-    <string name="widget_payouts_description">What you can withdraw, when the next withdrawal opens, and the next release</string>
+    <string name="widget_payouts_description">What you can withdraw, when the next withdrawal opens, and the releases coming up</string>
+    <string name="widget_calendar_label">Calendar</string>
+    <string name="widget_calendar_description">Your recent weeks day by day, and the releases and withdrawal opening ahead</string>
+    <string name="widget_week_label">This week</string>
+    <string name="widget_week_description">A bar for each day this week, against your daily goal</string>
+
     <string name="widget_as_of">as of %1$s</string>
     <string name="widget_open_app">Open TaskMint to show your figures here.</string>
+    <!-- A figure for screen readers: "~$45" is "About $45" -->
+    <string name="widget_about">About %1$s</string>
+
+    <!-- Today -->
+    <string name="widget_yesterday">Yesterday</string>
     <string name="widget_goal_percent">%1$d%% of goal</string>
-    <string name="widget_not_working">Not working</string>
+    <string name="widget_goal_short">%1$d%%</string>
+    <string name="widget_time_today">%1$s today</string>
+    <string name="widget_of_goal">of goal</string>
+    <string name="widget_no_timer">No timer running</string>
     <string name="widget_start">Start</string>
     <string name="widget_pause">Pause</string>
     <string name="widget_resume">Resume</string>
-    <string name="widget_withdrawal_open">Withdrawal open</string>
+    <string name="widget_start_description">Start a timer</string>
+    <string name="widget_pause_description">Pause the timer</string>
+    <string name="widget_resume_description">Resume the timer</string>
+    <string name="widget_figures">%1$s · %2$s</string>
+    <!-- A paused timer, one row tall: "Paused · Writing" -->
+    <string name="widget_paused_task">Paused · %1$s</string>
+
+    <!-- Payouts -->
+    <string name="widget_withdrawal_open">Ready to withdraw</string>
+    <string name="widget_upcoming_releases">Upcoming releases</string>
+    <string name="widget_next_release">Next release</string>
+    <string name="widget_no_payouts">No payouts on the way yet.</string>
+
+    <!-- Calendar -->
+    <string name="widget_nothing_tracked">Nothing tracked yet</string>
 </resources>

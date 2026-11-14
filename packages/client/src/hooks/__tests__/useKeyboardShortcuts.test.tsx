@@ -147,4 +147,16 @@ describe('useKeyboardShortcuts', () => {
     expect(result.current.view).toBe('home');
     expect(onTogglePalette).not.toHaveBeenCalled();
   });
+
+  it('acts while a dialog is only kept mounted, closed (a phone menu kept for its swipe)', () => {
+    const { result } = setup();
+    render(
+      <Dialog open={false} keepMounted>
+        <div>Menu</div>
+      </Dialog>
+    );
+
+    ctrl('2');
+    expect(result.current.view).not.toBe('home');
+  });
 });

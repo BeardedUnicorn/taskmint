@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: the Payouts widget one row tall (PayoutsViews): what the
+     amount is, the amount, and when it opens or "Ready to withdraw"; wide,
+     the next release on the right -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:foreground="@drawable/widget_card_ripple"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/widget_padding"
+    android:paddingTop="6dp"
+    android:paddingEnd="@dimen/widget_padding"
+    android:paddingBottom="6dp">
+
+    <LinearLayout
+        android:id="@+id/widget_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/payouts_label"
+                style="@style/TaskMintWidget.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/payouts_amount"
+                style="@style/TaskMintWidget.Hero"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="24sp" />
+
+            <TextView
+                android:id="@+id/payouts_status"
+                style="@style/TaskMintWidget.Secondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/payouts_pill"
+                style="@style/TaskMintWidget.Pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/widget_withdrawal_open"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Wide, under a withdrawal: the next release -->
+        <LinearLayout
+            android:id="@+id/row_aside"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:gravity="end"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/TaskMintWidget.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_next_release" />
+
+            <TextView
+                android:id="@+id/row_aside_figure"
+                style="@style/TaskMintWidget.Figure"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/row_aside_detail"
+                style="@style/TaskMintWidget.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_message"
+        style="@style/TaskMintWidget.Body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="2"
+        android:text="@string/widget_open_app"
+        android:textColor="@color/widget_text_secondary"
+        android:visibility="gone" />
+</LinearLayout>

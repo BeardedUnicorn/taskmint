@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: the daily goal's line across the This week chart. Its level
+     (setImageLevel, 0-10000) is the goal's height: the scaled area's top
+     edge carries the dashed line. -->
+<scale xmlns:android="http://schemas.android.com/apk/res/android"
+    android:scaleGravity="bottom|fill_horizontal"
+    android:scaleHeight="100%">
+    <layer-list>
+        <item android:gravity="top|fill_horizontal" android:height="2dp">
+            <shape android:shape="line">
+                <stroke
+                    android:width="1.5dp"
+                    android:color="@color/widget_text_secondary"
+                    android:dashWidth="4dp"
+                    android:dashGap="3dp" />
+            </shape>
+        </item>
+    </layer-list>
+</scale>

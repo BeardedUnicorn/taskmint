@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: the Today widget (the widget picker's preview: sample figures, no "as of") -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="@dimen/widget_padding">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_stat_taskmint"
+            android:tint="@color/widget_accent" />
+
+        <TextView
+            style="@style/TaskMintWidget.Title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:text="@string/widget_today_label" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_inner"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="8dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/TaskMintWidget.Title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Writing" />
+
+            <TextView
+                style="@style/TaskMintWidget.Clock"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:gravity="center_vertical"
+                android:text="1:23:45" />
+        </LinearLayout>
+
+        <Button
+            style="@style/TaskMintWidget.Button"
+            android:layout_width="wrap_content"
+            android:layout_marginStart="8dp"
+            android:drawableStart="@drawable/ic_widget_pause"
+            android:text="@string/widget_pause" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="10dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:baselineAligned="true"
+        android:orientation="horizontal">
+
+        <TextView
+            style="@style/TaskMintWidget.Figure"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="~$45" />
+
+        <TextView
+            style="@style/TaskMintWidget.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="2h 13m" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ProgressBar
+            style="@style/TaskMintWidget.Goal"
+            android:layout_width="0dp"
+            android:layout_height="6dp"
+            android:layout_weight="1"
+            android:progress="64" />
+
+        <TextView
+            style="@style/TaskMintWidget.Caption"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="64% of goal" />
+    </LinearLayout>
+</LinearLayout>
