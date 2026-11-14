@@ -126,7 +126,13 @@ export function components(mode: ColorMode): Components<Theme> {
       },
     },
     // A phone's selected tab: the brand green, dark enough to read on white
-    MuiBottomNavigationAction: { styleOverrides: { root: { '&.Mui-selected': { color: brandText(mode) } } } },
+    // …and its label keeps the others' size, so the tabs don't shift or crowd with larger system text
+    MuiBottomNavigationAction: {
+      styleOverrides: {
+        root: { '&.Mui-selected': { color: brandText(mode) } },
+        label: { '&.Mui-selected': { fontSize: '0.75rem' } },
+      },
+    },
     MuiMenuItem: { styleOverrides: { root: { minHeight: 44, ...focusRing('-2px') } } },
     MuiListItem: { styleOverrides: { root: { minHeight: 44, ...focusRing('-2px') } } },
     MuiTableCell: {

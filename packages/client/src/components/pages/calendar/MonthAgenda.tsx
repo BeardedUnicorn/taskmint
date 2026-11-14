@@ -88,7 +88,7 @@ function AgendaDay({ day, open, onToggle }: { day: CalendarDay; open: boolean; o
           </Box>
 
           <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" noWrap>
               {day.timeMs > 0 && formatDurationCompact(day.timeMs)}
             </Typography>
             {goalPercent !== null && (
@@ -104,7 +104,7 @@ function AgendaDay({ day, open, onToggle }: { day: CalendarDay; open: boolean; o
 
           {/* A set width for the usual amounts, so every day's goal bar ends at the same place */}
           {worked && (
-            <Typography sx={{ ...MONO_FIGURE, fontSize: '0.95rem', minWidth: '9ch', textAlign: 'right' }}>
+            <Typography sx={{ ...MONO_FIGURE, fontSize: '0.95rem', minWidth: '8ch', textAlign: 'right' }}>
               {earnedText(day)}
             </Typography>
           )}
@@ -145,21 +145,28 @@ function AgendaWeek({
   const days = week.days.filter(day => dayHasActivity(day) || day.isToday);
   return (
     <Box role="listitem" aria-label={describeWeek(week)}>
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, px: 0.5, mb: 0.75 }}>
+      {/* The week's name stays whole; its totals drop to their own line when larger text needs the room */}
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 1, px: 0.5, mb: 0.75 }}>
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ flex: 1, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+          sx={{
+            flex: '1 0 auto',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            whiteSpace: 'nowrap',
+          }}
         >
           {weekTitle(week)}
         </Typography>
         {worked && (
-          <>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, ml: 'auto', whiteSpace: 'nowrap' }}>
             <Typography variant="caption" color="text.secondary">
               {formatDurationCompact(week.timeMs)}
             </Typography>
             <Typography sx={{ ...MONO_FIGURE, fontSize: '0.85rem' }}>{earnedText(week)}</Typography>
-          </>
+          </Box>
         )}
       </Box>
       <Paper variant="outlined">

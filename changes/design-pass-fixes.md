@@ -13,3 +13,5 @@ type: Fixed
 - Home's "If you wait", "Add time" and "See all in History" line up with the edges of the cards around them, and a withdrawal reminder's Remove sits on its line.
 - On Payouts on a phone, a month's name and hours are no longer squeezed into a narrow column beside its amount, and the releases list drops the empty indent it kept for a lock when nothing is held.
 - Signing in with an email that has no account says so in plain words on a server that reports it as "user not found".
+- With larger system text on a phone, the Calendar's month title no longer runs under the next-month arrow, a week's totals and a day's hours stay on one line, and the bottom tabs' labels keep one size instead of the selected one growing into its neighbours.
+- A long task name made of one unbroken word no longer pushes Payouts' daily reconciliation table past its card, and an empty page's message takes less of a phone's screen.

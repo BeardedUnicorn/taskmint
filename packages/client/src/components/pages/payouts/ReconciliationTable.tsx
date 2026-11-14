@@ -226,7 +226,7 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>
                               {formatWeekdayDate(parseDateStringLocal(cell.workDay))}
                             </TableCell>
-                            <TableCell>{cell.taskName}</TableCell>
+                            <TableCell sx={{ overflowWrap: 'anywhere' }}>{cell.taskName}</TableCell>
                             <TableCell align="right" sx={MONO}>
                               {cell.trackedMs > 0 ? formatDuration(cell.trackedMs) : '—'}
                             </TableCell>

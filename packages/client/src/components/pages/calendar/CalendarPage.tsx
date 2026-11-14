@@ -171,8 +171,9 @@ const CalendarPage = () => {
                 fontWeight: 700,
                 minWidth: 190,
                 textAlign: 'center',
-                // One line between the arrows, whatever the month
-                [PHONE]: { minWidth: 0, flex: 1, fontSize: '1rem', whiteSpace: 'nowrap' },
+                // One line between the arrows for every month; with larger system text it
+                // takes two rather than running under the arrow
+                [PHONE]: { minWidth: 0, flex: 1, fontSize: '1rem', lineHeight: 1.25 },
               }}
             >
               {formatMonthYear(dayjs(`${month}-01`).toDate())}
