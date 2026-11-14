@@ -8,7 +8,6 @@
 //! from the old identifier.
 
 use crate::dispatch;
-use crate::environment::Environment;
 use crate::platform::os::TauriPlatform;
 use crate::state::AppState;
 use crate::store::JsonFileStore;
@@ -21,6 +20,7 @@ use tauri_plugin_notification::NotificationExt;
 use {
     crate::app_menu::{self, model::MenuOs},
     crate::capture_server::{self, CaptureServer},
+    crate::environment::Environment,
     crate::legacy_identifier::{self, Dirs, Os},
     crate::ticker::Ticker,
     crate::{idle, tray},
