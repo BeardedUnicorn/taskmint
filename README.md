@@ -330,6 +330,9 @@ was made by `pnpm tauri android init` from `tauri.conf.json` and
   unless it's `production`, the app is `com.taskmint.android.dev` ("TaskMint
   Dev", `applicationIdSuffix`; the code's package stays the same) with
   Analytics off (`firebase_analytics_collection_deactivated` in the manifest).
+  The debug build type's suffix is the line the Tauri CLI keeps in step with
+  `debugApplicationIdSuffix` in `tauri.android.conf.json`, which is also the
+  name `tauri android dev` starts after installing.
 - Firebase: `app/firebase/google-services.production.json` and
   `google-services.dev.json` (each project's Android app's public config,
   downloaded from the Firebase console; `app/build.gradle.kts` copies the
