@@ -168,10 +168,46 @@ fn create_channels(app: &AppHandle) {
     }
 }
 
-/// The running timer's notification (a phone's): its task, the system's
+/// What RemindersPlugin's setTimerNotice takes (gen/android:
+/// TimerNotice.kt).
+#[cfg(target_os = "android")]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TimerNoticeArgs<'a> {
+    task: &'a str,
+    text: &'a str,
+    counting_from_ms: Option<i64>,
+    paused_ms: Option<u64>,
+    channel: &'a str,
+}
+
+/// The running timer's notification on Android: TaskMint's own (gen/android:
+/// TimerNotice.kt), which can be a Live Update, as the notification plugin's
+/// can't. Showing it again replaces it in place.
+#[cfg(target_os = "android")]
+fn set_os_timer_notice(app: &AppHandle, notice: Option<&TimerNotice>) -> Result<(), String> {
+    let plugin = &app.state::<Reminders>().0;
+    let Some(notice) = notice else {
+        return plugin
+            .run_mobile_plugin::<()>("clearTimerNotice", serde_json::json!({}))
+            .map_err(text);
+    };
+    let args = TimerNoticeArgs {
+        task: &notice.task_name,
+        text: &notice.text,
+        counting_from_ms: notice.counting_from.map(|from| from.timestamp_millis()),
+        paused_ms: notice.paused_for_ms,
+        channel: channel_id(Channel::Timer),
+    };
+    plugin
+        .run_mobile_plugin::<()>("setTimerNotice", args)
+        .map_err(text)
+}
+
+/// The running timer's notification on an iPhone: its task, the system's
 /// clock counting up while it runs, and its buttons. Showing it again
 /// replaces it in place.
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
 fn set_os_timer_notice(app: &AppHandle, notice: Option<&TimerNotice>) -> Result<(), String> {
     use crate::timer_notice::TIMER_NOTICE_ID;
     let Some(notice) = notice else {
@@ -210,14 +246,14 @@ fn set_os_timer_notice(_app: &AppHandle, _notice: Option<&TimerNotice>) -> Resul
 
 /// The running timer's buttons (and a paused one's), by the id the
 /// notification names them with.
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
 const RUNNING_BUTTONS: &str = "timer-running";
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
 const PAUSED_BUTTONS: &str = "timer-paused";
 
 /// Tells the system the timer notification's buttons, the first time it's
 /// shown (the plugin keeps them for the app's run).
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
 fn add_timer_buttons(app: &AppHandle) {
     use crate::timer_notice::{PAUSE, RESUME, STOP, SWITCH};
     use tauri_plugin_notification::{Action as Button, ActionType as Buttons};
@@ -242,9 +278,10 @@ fn add_timer_buttons(app: &AppHandle) {
     });
 }
 
-/// The shell's way to TaskMint's own Android reminders (gen/android:
-/// Reminders.kt), which keep what they set, to set it again after the phone
-/// restarts. The notification plugin's alarms are lost then.
+/// The shell's way to TaskMint's own Android notifications: its reminders
+/// (gen/android: Reminders.kt), which keep what they set, to set it again
+/// after the phone restarts (the notification plugin's alarms are lost
+/// then), and the running timer's (TimerNotice.kt).
 #[cfg(target_os = "android")]
 struct Reminders(tauri::plugin::PluginHandle<tauri::Wry>);
 

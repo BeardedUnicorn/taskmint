@@ -203,13 +203,15 @@ class ReminderAlarm : BroadcastReceiver() {
 /**
  * The phone has started (and been unlocked: the reminders are kept in
  * storage that opens then), or TaskMint was updated: sets the reminders'
- * alarms again.
+ * alarms again, and after an update the widget picker's previews.
  */
 class RemindersRestore : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     when (intent.action) {
       Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> Reminders.restore(context)
     }
+    // An update can move the layouts the widget picker's previews were drawn with
+    if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) Widgets.previewsAfterUpdate(context)
   }
 }
 
@@ -227,7 +229,21 @@ class ReminderIdArgs {
   var id: Int = 0
 }
 
-/** How the shell sets and takes back reminders (os.rs, `reminders_plugin`). */
+/** The running timer's notification, as os.rs sends it ([TimerNotice]). */
+@InvokeArg
+class TimerNoticeArgs {
+  var task: String = ""
+  var text: String = ""
+  var countingFromMs: Long? = null
+  var pausedMs: Long? = null
+  var channel: String = ""
+}
+
+/**
+ * How the shell reaches TaskMint's own notifications (os.rs,
+ * `reminders_plugin`): it sets and takes back reminders, and shows the
+ * running timer's ([TimerNotices]).
+ */
 @TauriPlugin
 class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
@@ -240,6 +256,19 @@ class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun cancelReminder(invoke: Invoke) {
     Reminders.cancel(activity, invoke.parseArgs(ReminderIdArgs::class.java).id)
+    invoke.resolve()
+  }
+
+  @Command
+  fun setTimerNotice(invoke: Invoke) {
+    val args = invoke.parseArgs(TimerNoticeArgs::class.java)
+    TimerNotices.set(activity, TimerNotice(args.task, args.text, args.countingFromMs, args.pausedMs, args.channel))
+    invoke.resolve()
+  }
+
+  @Command
+  fun clearTimerNotice(invoke: Invoke) {
+    TimerNotices.clear(activity)
     invoke.resolve()
   }
 }

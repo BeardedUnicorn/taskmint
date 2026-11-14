@@ -61,6 +61,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -424,6 +425,31 @@ describe('on a phone', () => {
     );
     fireEvent.click(within(dialog).getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(sent('download_update')).toHaveLength(2));
+  });
+
+  it("says Android won't install it while Advanced Protection is on, and offers no download", async () => {
+    vi.stubGlobal('TaskMintApp', { installsBlocked: () => true });
+    answer({ check_for_update: release });
+    render(<UpdatePrompt />);
+    await act(() => updates.check({ manual: true }));
+    const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+
+    expect(dialog).toHaveTextContent("Advanced Protection is on, and it blocks apps that don't come from Google Play");
+    expect(dialog).toHaveTextContent('turn Advanced Protection off');
+    expect(within(dialog).queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(sent('download_update')).toHaveLength(0);
+  });
+
+  it('offers the download as ever while Advanced Protection is off', async () => {
+    vi.stubGlobal('TaskMintApp', { installsBlocked: () => false });
+    answer({ check_for_update: release });
+    render(<UpdatePrompt />);
+    await act(() => updates.check({ manual: true }));
+    const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+    expect(within(dialog).getByRole('button', { name: 'Download' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Later' })).toBeInTheDocument();
   });
 
   it('only downloads an update a check found', async () => {

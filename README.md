@@ -277,22 +277,31 @@ allow it, go back and install. A later release's APK installs the same way,
 over the app, and keeps its data: they're all signed with the same key (see
 [Android signing](#android-signing)). The app checks for a new release at
 launch and daily, as the desktop does (Settings → Updates). Its Download
-opens the new APK in the browser, which installs the same way.
+opens the new APK in the browser, which installs the same way. With
+Android's Advanced Protection on, the phone installs nothing from outside
+Google Play: the update dialog then says to turn it off for the update,
+rather than offer the download.
 
 **What the phone adds**, around the same app:
 - the running timer in a notification, with its clock and Pause, Switch task
-  and Stop;
+  and Stop. On Android 17 it's a Live Update, so the time also counts in
+  the status bar, and it shows today's time and money beside the timer (an
+  Android 16 system that has Live Updates promotes it too; 16's first
+  release takes the request and shows it as before);
 - the long-run reminder, end-of-day summary and goal milestones as alarms
   that arrive with the app closed;
 - launcher shortcuts (long-press the icon) for the likeliest tasks, Add time
   and Payouts;
-- Today and Payouts home-screen widgets;
+- Today, Payouts, Calendar and This week home-screen widgets, which the
+  widget picker shows with your own figures (Android 15 and later);
 - touch feedback on the timer;
 - a swipe in from the left edge, just above the bottom tabs, to open the
   menu.
 
 Most of the Android-only code is `gen/android/.../MainActivity.kt` (its
-`TaskMintApp` bridge), `Widgets.kt` and `Launch.kt`.
+`TaskMintApp` bridge), `Widgets.kt`, `Launch.kt`, `Reminders.kt` and
+`TimerNotice.kt` (the two kinds of notification TaskMint posts itself, which
+the shell reaches through `RemindersPlugin`).
 
 **Prerequisites**, besides the ones above:
 
@@ -321,6 +330,9 @@ was made by `pnpm tauri android init` from `tauri.conf.json` and
   unless it's `production`, the app is `com.taskmint.android.dev` ("TaskMint
   Dev", `applicationIdSuffix`; the code's package stays the same) with
   Analytics off (`firebase_analytics_collection_deactivated` in the manifest).
+  The debug build type's suffix is the line the Tauri CLI keeps in step with
+  `debugApplicationIdSuffix` in `tauri.android.conf.json`, which is also the
+  name `tauri android dev` starts after installing.
 - Firebase: `app/firebase/google-services.production.json` and
   `google-services.dev.json` (each project's Android app's public config,
   downloaded from the Firebase console; `app/build.gradle.kts` copies the
@@ -339,7 +351,8 @@ was made by `pnpm tauri android init` from `tauri.conf.json` and
     sync.
   - `TaskMintAnalytics`: Firebase Analytics, and its off switch.
   - `TaskMintApp`: back on Home sends the app to the background. The page
-    takes over Android's back through Tauri's `onBackButtonPress`.
+    takes over Android's back through Tauri's `onBackButtonPress`. It also
+    says whether Advanced Protection blocks installing an update.
 
   `app/proguard-rules.pro` keeps the bridges, and Credential Manager's Play
   services provider, through R8.

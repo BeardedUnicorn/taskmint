@@ -229,8 +229,18 @@ function AppContent() {
           <Sidebar activeView={activeView} onViewChange={navigate} footer={renderFooter} headerAction={renderBell} />
         )}
         {/* minWidth 0: a wide table scrolls inside its page instead of
-            stretching the content past the window */}
-        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            stretching the content past the window. Below the status bar on
+            an edge-to-edge tablet screen (a phone's top bar keeps clear of
+            it itself) */}
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            pt: compact ? 0 : 'env(safe-area-inset-top)',
+          }}
+        >
           {compact && <CompactTopBar title={VIEW_LABELS[activeView]} onOpenNavigation={openNavigation} />}
           {/* Clear of the gesture bar on an edge-to-edge phone screen (a
               phone's bottom bar keeps clear of it itself) */}

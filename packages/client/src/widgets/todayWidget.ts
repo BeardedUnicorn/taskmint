@@ -11,7 +11,12 @@ import type { DailyGoalProgressData } from '../hooks/useDailyGoalProgressMonitor
 import type { PayoutData } from '../hooks/usePayoutData';
 import { TaskSession, TimerInstance, TimerState } from '../types/timer';
 import { formatDurationCompact } from '../utils/formatters';
-import { getInstanceElapsedMs, instanceTaskName, mostRecentlyPaused } from '../utils/timerHelpers';
+import {
+  getInstanceDateString,
+  getInstanceElapsedMs,
+  instanceTaskName,
+  mostRecentlyPaused,
+} from '../utils/timerHelpers';
 import { widgetMoney } from './widgetText';
 
 /** The timer running now, else the one paused last in the active session (as the tray and the phone's notification have it). */
@@ -43,10 +48,17 @@ export function todayWidget(
     pausedFor: running ? null : formatDurationCompact(elapsedMs),
   };
 
+  // A timer's whole time belongs to the day it started (getInstanceDateString),
+  // so today's time counts only while one begun today runs. It then grows a
+  // second each second, and where it counts from stays put.
+  const counts = running && getInstanceDateString(live.instance, live.session.date) === payout.today;
+
   return {
     today: {
       money: widgetMoney(totals.earnedCents, totals.estimatedCents > 0),
       time: formatDurationCompact(totals.timeMs),
+      countingFromMs: counts ? payout.nowMs - totals.timeMs : null,
+      timeMs: counts ? null : totals.timeMs,
       goalPercent: goal.enabled ? Math.round(goal.percent) : null,
       week: {
         money: widgetMoney(week.earnedCents, week.estimatedCents > 0),

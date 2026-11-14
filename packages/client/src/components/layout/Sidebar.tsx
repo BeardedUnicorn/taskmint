@@ -162,6 +162,8 @@ export function Sidebar({
               '& .MuiDrawer-paper': {
                 width: isCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
                 boxSizing: 'border-box',
+                // Below the status bar on an edge-to-edge tablet screen
+                pt: 'env(safe-area-inset-top)',
                 backgroundColor: 'background.paper',
                 borderRight: '1px solid',
                 borderColor: 'divider',

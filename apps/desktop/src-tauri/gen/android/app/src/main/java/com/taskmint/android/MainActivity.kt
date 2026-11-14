@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.os.CancellationSignal
+import android.security.advancedprotection.AdvancedProtectionManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
@@ -205,8 +206,9 @@ class MainActivity : TauriActivity() {
 
   /**
    * The app's place on the phone, outside its page: leaving it, what it was
-   * opened for, its launcher shortcuts, its home-screen widgets, touch
-   * feedback, and the band at the left edge where a swipe opens its menu.
+   * opened for, whether the phone will install an update, its launcher
+   * shortcuts, its home-screen widgets, touch feedback, and the band at the
+   * left edge where a swipe opens its menu.
    */
   private inner class AppTask {
     /**
@@ -219,6 +221,19 @@ class MainActivity : TauriActivity() {
     fun moveToBack() {
       runOnUiThread { moveTaskToBack(true) }
     }
+
+    /**
+     * Whether the phone won't install an update: Advanced Protection
+     * (Android 16 and later) blocks apps from outside the Play Store, which
+     * is where TaskMint's updates come from (the page then says so rather
+     * than offer the download).
+     */
+    @JavascriptInterface
+    fun installsBlocked(): Boolean =
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+        runCatching {
+          getSystemService(AdvancedProtectionManager::class.java)?.isAdvancedProtectionEnabled == true
+        }.getOrDefault(false)
 
     /** What the app was opened for and hasn't acted on (see `launch`), once; null when nothing. */
     @JavascriptInterface
