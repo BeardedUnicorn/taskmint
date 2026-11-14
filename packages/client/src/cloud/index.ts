@@ -1,7 +1,7 @@
 /**
  * The page's cloud sync, when the shell's build has a Firebase app: started
- * once with the client (startClient), read by the Settings section and the
- * data reset.
+ * once with the client (startClient), read by the Settings section, the
+ * data reset, and an import or restore.
  */
 
 import { useSyncExternalStore } from 'react';
