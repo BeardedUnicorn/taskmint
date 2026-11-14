@@ -389,6 +389,64 @@ describe('cloud sync, linked', () => {
     expect(phaseOf(engine)).toBe('synced');
   });
 
+  it('sends what changed at once when asked to, done once the cloud has it', async () => {
+    const { engine, host } = await linked();
+    let land!: () => void;
+    vi.mocked(store.write).mockImplementationOnce(() => new Promise<void>(resolve => (land = resolve)));
+    host.state.outgoing = [doc('s1')];
+    // The change's own send is still waiting its turn
+    host.backend.emit(EVENTS.SYNC_PENDING);
+    let done = false;
+    const flushed = engine.flush().then(() => (done = true));
+    await vi.waitFor(() => expect(store.write).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(store.write).mock.calls[0][1]).toEqual([doc('s1')]);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(done).toBe(false);
+    land();
+    await flushed;
+    // (and that send was dropped: the cloud has it)
+    expect(store.write).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for a send already on its way', async () => {
+    const { engine, host } = await linked();
+    let land!: () => void;
+    vi.mocked(store.write).mockImplementationOnce(() => new Promise<void>(resolve => (land = resolve)));
+    host.state.outgoing = [doc('s1')];
+    engine.syncNow();
+    await vi.waitFor(() => expect(store.write).toHaveBeenCalledTimes(1));
+    let done = false;
+    const flushed = engine.flush().then(() => (done = true));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(done).toBe(false);
+    land();
+    await flushed;
+    expect(store.write).toHaveBeenCalledTimes(1);
+  });
+
+  it('says why what changed didn’t reach the cloud when asked to send it, and sends it again later', async () => {
+    const { engine, host } = await linked();
+    vi.mocked(store.write).mockRejectedValueOnce({ code: 'unavailable' });
+    host.state.outgoing = [doc('s1')];
+    await expect(engine.flush()).rejects.toThrow('Can’t reach the cloud. Changes will sync once it’s back.');
+    expect(engine.getView()).toMatchObject({ phase: 'error' });
+    await vi.waitFor(() => expect(store.writes).toHaveLength(1));
+    // A send that failed on its way fails it too: the cloud lacks its documents
+    let fail!: (error: unknown) => void;
+    vi.mocked(store.write).mockImplementationOnce(() => new Promise<void>((_, reject) => (fail = reject)));
+    host.state.outgoing = [doc('s2')];
+    engine.syncNow();
+    await vi.waitFor(() => expect(store.write).toHaveBeenCalledTimes(3));
+    const flushed = engine.flush();
+    fail(new Error('quota'));
+    await expect(flushed).rejects.toThrow('quota');
+  });
+
+  it('has nothing to send when asked to while not syncing', async () => {
+    const engine = await started(syncHost());
+    await expect(engine.flush()).rejects.toThrow('Sync isn’t running right now.');
+  });
+
   it('sends nothing for a change while not linked', async () => {
     const host = syncHost({ outgoing: [doc('s1')] });
     await started(host);
