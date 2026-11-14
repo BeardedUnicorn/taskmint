@@ -20,11 +20,41 @@ export function KeyboardShortcutsList() {
         ] as Array<[string, string]>)),
   ];
   return (
-    <Box component="dl" sx={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', columnGap: 3, rowGap: 1, m: 0 }}>
+    <Box
+      component="dl"
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: 'max-content 1fr',
+        columnGap: 2,
+        rowGap: 1,
+        alignItems: 'baseline',
+        m: 0,
+      }}
+    >
       {rows.map(([keys, action]) => (
         <Box key={keys} sx={{ display: 'contents' }}>
-          <Typography component="dt" variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-            {keys}
+          {/* Drawn as a key cap */}
+          <Typography component="dt" variant="body2" sx={{ m: 0 }}>
+            <Box
+              component="kbd"
+              sx={{
+                display: 'inline-block',
+                px: 0.75,
+                py: 0.25,
+                border: 1,
+                borderColor: 'divider',
+                borderBottomWidth: 2,
+                borderRadius: 0.5,
+                bgcolor: 'action.hover',
+                fontFamily: 'inherit',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                lineHeight: 1.4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {keys}
+            </Box>
           </Typography>
           <Typography component="dd" variant="body2" color="text.secondary" sx={{ m: 0 }}>
             {action}

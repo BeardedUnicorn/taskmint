@@ -112,7 +112,19 @@ export function components(mode: ColorMode): Components<Theme> {
         },
       },
     },
-    MuiTab: { styleOverrides: { root: { minHeight: 48, ...focusRing('2px') } } },
+    // A selected tab's label is brand green, dark enough to read on white
+    MuiTab: {
+      styleOverrides: { root: { minHeight: 48, ...focusRing('2px'), '&.Mui-selected': { color: brandText(mode) } } },
+    },
+    MuiTabs: { styleOverrides: { indicator: { backgroundColor: brandText(mode) } } },
+    // A neutral track, so an empty bar doesn't read as a full one in a dimmer shade of its fill
+    MuiLinearProgress: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          '&.MuiLinearProgress-determinate': { backgroundColor: theme.palette.action.selected },
+        }),
+      },
+    },
     // A phone's selected tab: the brand green, dark enough to read on white
     MuiBottomNavigationAction: { styleOverrides: { root: { '&.Mui-selected': { color: brandText(mode) } } } },
     MuiMenuItem: { styleOverrides: { root: { minHeight: 44, ...focusRing('-2px') } } },
@@ -152,10 +164,14 @@ export function components(mode: ColorMode): Components<Theme> {
         },
       },
     },
-    // Too many buttons for one row on a phone wrap, right-aligned
+    // The buttons line up with the dialog's text (24px in); too many for one
+    // row on a phone wrap, right-aligned
     MuiDialogActions: {
       styleOverrides: {
-        root: { [PHONE]: { flexWrap: 'wrap', gap: 8, '& > :not(style) ~ :not(style)': { marginLeft: 0 } } },
+        root: {
+          padding: '8px 24px 20px',
+          [PHONE]: { flexWrap: 'wrap', gap: 8, '& > :not(style) ~ :not(style)': { marginLeft: 0 } },
+        },
       },
     },
     MuiTooltip: {

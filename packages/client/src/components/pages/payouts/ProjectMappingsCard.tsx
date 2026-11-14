@@ -119,7 +119,7 @@ export function ProjectMappingsCard({ mappings, entries, sessions, tasks, onAppl
   };
 
   return (
-    <Paper sx={{ p: 3, mt: 4, [PHONE]: { p: 2 } }}>
+    <Paper sx={{ p: 3, [PHONE]: { p: 2 } }}>
       <Box
         sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
         onClick={() => setOpen(prev => !prev)}

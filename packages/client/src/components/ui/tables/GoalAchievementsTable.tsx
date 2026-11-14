@@ -28,7 +28,7 @@ import { isToday, formatLocalDate, formatLocalDateWithDay } from '../../../utils
 import { HOVER } from '../../../theme/media';
 import { PHONE_TABLE } from './tableStyles';
 import { StackedList, StackedRow } from './StackedRows';
-import { useCompactLayout } from '../../../hooks/useCompactLayout';
+import { useNarrowLayout } from '../../../hooks/useCompactLayout';
 import { formatWeekdayDate } from '../../../utils/locale';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 
@@ -58,7 +58,7 @@ const KINDS: Record<
 const kindOf = (achievement: DailyGoalAchievement): RowKind =>
   achievement.status === 'missed' && isToday(achievement.date) ? 'inProgress' : achievement.status;
 
-const amountSx = { fontWeight: 600, fontFamily: 'monospace' } as const;
+const amountSx = { fontWeight: 600, fontFamily: '"Roboto Mono", monospace' } as const;
 
 function Difference({ achievement, kind }: { achievement: DailyGoalAchievement; kind: RowKind }) {
   const { difference } = achievement;
@@ -120,7 +120,8 @@ function PhoneDay({ achievement }: { achievement: DailyGoalAchievement }) {
 }
 
 export function GoalAchievementsTable({ achievements }: GoalAchievementsTableProps) {
-  const compact = useCompactLayout();
+  // A window too narrow for the table gets the rows a phone does
+  const compact = useNarrowLayout();
   // Most recent first
   const sortedAchievements = useMemo(
     () => [...achievements].sort((a, b) => b.date.localeCompare(a.date)),
@@ -170,17 +171,17 @@ export function GoalAchievementsTable({ achievements }: GoalAchievementsTablePro
                 Earned
               </Typography>
             </TableCell>
-            <TableCell align="center">
+            <TableCell>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Progress
               </Typography>
             </TableCell>
-            <TableCell align="center">
+            <TableCell>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Status
               </Typography>
             </TableCell>
-            <TableCell align="center">
+            <TableCell>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Difference
               </Typography>
@@ -205,18 +206,18 @@ export function GoalAchievementsTable({ achievements }: GoalAchievementsTablePro
                 </TableCell>
 
                 <TableCell align="right">
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                  <Typography variant="body2" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
                     {formatCurrency(achievement.goalAmount)}
                   </Typography>
                 </TableCell>
 
                 <TableCell align="right">
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                  <Typography variant="body2" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
                     {formatCurrency(achievement.earnedAmount)}
                   </Typography>
                 </TableCell>
 
-                <TableCell align="center">
+                <TableCell>
                   <Tooltip title={`${achievement.percentageAchieved.toFixed(1)}% of goal achieved`}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 120 }}>
                       <LinearProgress
@@ -232,7 +233,7 @@ export function GoalAchievementsTable({ achievements }: GoalAchievementsTablePro
                   </Tooltip>
                 </TableCell>
 
-                <TableCell align="center">
+                <TableCell>
                   <Chip
                     icon={look.icon}
                     label={look.label}
@@ -242,7 +243,7 @@ export function GoalAchievementsTable({ achievements }: GoalAchievementsTablePro
                   />
                 </TableCell>
 
-                <TableCell align="center">
+                <TableCell>
                   <Tooltip title={look.tooltip}>
                     <Box>
                       <Difference achievement={achievement} kind={kind} />

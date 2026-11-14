@@ -141,7 +141,11 @@ const CalendarPage = () => {
   return (
     <PageContainer>
       {header}
-      {!compact && <NextWithdrawalPanel />}
+      {!compact && (
+        <Box sx={{ mb: 3 }}>
+          <NextWithdrawalPanel />
+        </Box>
+      )}
 
       <Paper sx={{ p: { xs: 1.5, sm: 2.5 } }}>
         <Box
@@ -167,7 +171,8 @@ const CalendarPage = () => {
                 fontWeight: 700,
                 minWidth: 190,
                 textAlign: 'center',
-                [PHONE]: { minWidth: 0, flex: 1, fontSize: '1.1rem' },
+                // One line between the arrows, whatever the month
+                [PHONE]: { minWidth: 0, flex: 1, fontSize: '1rem', whiteSpace: 'nowrap' },
               }}
             >
               {formatMonthYear(dayjs(`${month}-01`).toDate())}
@@ -177,8 +182,7 @@ const CalendarPage = () => {
             </IconButton>
             <Button
               size="small"
-              // An outlined button that's disabled reads as an empty box on a phone
-              variant={compact ? 'text' : 'outlined'}
+              // (A disabled outlined button reads as an empty box)
               disabled={month === thisMonth}
               onClick={() => goToMonth(thisMonth)}
               sx={{ ml: 1 }}
@@ -191,8 +195,8 @@ const CalendarPage = () => {
               display: 'flex',
               flexWrap: 'wrap',
               gap: { xs: 2, sm: 3 },
-              // Three and two on a phone, lined up, instead of however they wrap
-              [PHONE]: { width: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1.5 },
+              // Two to a row on a phone, lined up, with room for a five-figure amount
+              [PHONE]: { width: '100%', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.5 },
             }}
           >
             <Stat label="Tracked" value={formatDurationCompact(summary.timeMs)} />
@@ -243,7 +247,9 @@ const CalendarPage = () => {
       </Paper>
 
       {compact ? (
-        <NextWithdrawalPanel />
+        <Box sx={{ mt: 2 }}>
+          <NextWithdrawalPanel />
+        </Box>
       ) : (
         <CalendarDayDialog date={openDay} onChangeDate={setOpenDay} onClose={() => setOpenDay(null)} />
       )}

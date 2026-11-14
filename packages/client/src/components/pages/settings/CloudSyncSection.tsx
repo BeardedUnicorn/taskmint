@@ -6,7 +6,18 @@
  */
 
 import { FormEvent, useState } from 'react';
-import { Alert, Box, Button, Chip, CircularProgress, Stack, TextField, Typography, useTheme } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Divider,
+  Stack,
+  TextField,
+  Typography,
+  useTheme,
+} from '@mui/material';
 import { CloudSync as CloudIcon } from '@mui/icons-material';
 import { SettingsSection } from './SettingsSection';
 import { ConfirmDialog } from '../../ui/dialogs/ConfirmDialog';
@@ -85,9 +96,11 @@ export function SignInForm({ engine, intro = INTRO }: { engine: SignInActions; i
 
   return (
     <Box component="form" onSubmit={submit} noValidate sx={{ maxWidth: 420 }}>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {intro}
-      </Typography>
+      {intro && (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {intro}
+        </Typography>
+      )}
       {notice && (
         <Alert severity="success" sx={{ mb: 2 }}>
           {notice}
@@ -108,38 +121,60 @@ export function SignInForm({ engine, intro = INTRO }: { engine: SignInActions; i
           size="small"
         />
         {mode !== 'reset' && (
-          <TextField
-            label="Password"
-            type="password"
-            autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
-            value={password}
-            onChange={event => setPassword(event.target.value)}
-            size="small"
-          />
-        )}
-        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={busy}
-            startIcon={busy ? <CircularProgress size={16} color="inherit" /> : undefined}
-          >
-            {FORM_TITLES[mode]}
-          </Button>
-          {mode === 'signIn' ? (
-            <>
-              <Button onClick={() => switchTo('signUp')}>Create an account</Button>
-              <Button onClick={() => switchTo('reset')}>Forgot password?</Button>
-            </>
-          ) : (
-            <Button onClick={() => switchTo('signIn')}>I have an account</Button>
-          )}
-        </Stack>
-        {engine.canUseGoogle && mode !== 'reset' && (
           <Box>
-            <GoogleSignInButton disabled={busy} onClick={() => void google()} />
+            <TextField
+              label="Password"
+              type="password"
+              autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
+              value={password}
+              onChange={event => setPassword(event.target.value)}
+              size="small"
+              fullWidth
+            />
+            {/* Under the password it's about, at the field's right edge */}
+            {mode === 'signIn' && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5 }}>
+                <Button size="small" onClick={() => switchTo('reset')} sx={{ mr: -1.25 }}>
+                  Forgot password?
+                </Button>
+              </Box>
+            )}
           </Box>
         )}
+        <Button
+          type="submit"
+          variant="contained"
+          fullWidth
+          disabled={busy}
+          startIcon={busy ? <CircularProgress size={16} color="inherit" /> : undefined}
+        >
+          {FORM_TITLES[mode]}
+        </Button>
+        {engine.canUseGoogle && mode !== 'reset' && (
+          <>
+            <Divider sx={{ typography: 'caption', color: 'text.secondary' }}>or</Divider>
+            {/* As wide as the fields (within Google's 400px) */}
+            <Box sx={{ display: 'flex', '& > *': { flex: 1 } }}>
+              <GoogleSignInButton disabled={busy} onClick={() => void google()} />
+            </Box>
+          </>
+        )}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 0.5 }}>
+          {mode === 'signIn' ? (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                New to TaskMint?
+              </Typography>
+              <Button size="small" onClick={() => switchTo('signUp')}>
+                Create an account
+              </Button>
+            </>
+          ) : (
+            <Button size="small" onClick={() => switchTo('signIn')}>
+              I have an account
+            </Button>
+          )}
+        </Box>
       </Stack>
     </Box>
   );

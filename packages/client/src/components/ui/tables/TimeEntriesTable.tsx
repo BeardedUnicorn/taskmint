@@ -31,7 +31,7 @@ import dayjs from 'dayjs';
 import { PHONE } from '../../../theme/media';
 import { PHONE_TABLE } from './tableStyles';
 import { TimeEntryRows } from './TimeEntryRows';
-import { useCompactLayout } from '../../../hooks/useCompactLayout';
+import { useNarrowLayout } from '../../../hooks/useCompactLayout';
 
 export type SortField = 'taskName' | 'startTime' | 'endTime' | 'duration' | 'date' | 'earnings' | 'source';
 export type SortDirection = 'asc' | 'desc';
@@ -110,13 +110,14 @@ export function TimeEntriesTable({
 }: TimeEntriesTableProps) {
   const handleSort = (field: SortField) =>
     onSort(field, sortField === field && sortDirection === 'asc' ? 'desc' : 'asc');
-  const compact = useCompactLayout();
+  // A window too narrow for the table gets the rows a phone does
+  const compact = useNarrowLayout();
 
   if (compact) {
     const current = `${sortField}:${sortDirection}`;
     return (
       <Box>
-        <FormControl size="small" sx={{ mb: 1, minWidth: 200 }}>
+        <FormControl size="small" fullWidth sx={{ mb: 1 }}>
           <InputLabel id="time-entries-sort">Sort by</InputLabel>
           <Select
             labelId="time-entries-sort"
@@ -135,20 +136,23 @@ export function TimeEntriesTable({
             ))}
           </Select>
         </FormControl>
-        <TimeEntryRows
-          entries={entries}
-          tasks={tasks}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          showTask
-          label="Time entries"
-        />
+        {/* In a card, as the table is */}
+        <Paper sx={{ px: 1.5, pt: 0.5, overflow: 'hidden' }}>
+          <TimeEntryRows
+            entries={entries}
+            tasks={tasks}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            showTask
+            label="Time entries"
+          />
+        </Paper>
       </Box>
     );
   }
 
   return (
-    <Paper variant="outlined">
+    <Paper sx={{ overflow: 'hidden' }}>
       {/* On a phone the page scrolls down and the table only sideways */}
       <TableContainer sx={{ maxHeight: 600, [PHONE]: { maxHeight: 'none' } }}>
         <Table stickyHeader size="small" sx={PHONE_TABLE}>
@@ -222,7 +226,7 @@ export function TimeEntriesTable({
                   </TableCell>
 
                   <TableCell align="right">
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                       {isImported ? (
                         <Tooltip title="Set by the work-log import. Re-import to change it.">
                           <Box

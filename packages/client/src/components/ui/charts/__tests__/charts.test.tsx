@@ -58,6 +58,18 @@ describe('TaskTimeBarChart', () => {
     expect(screen.queryByText('Earnings ($)')).not.toBeInTheDocument();
   });
 
+  it('keeps a few names level under their bars, and slants many to fit', async () => {
+    const few = render(<TaskTimeBarChart data={data} measure="time" />);
+    expect(await screen.findByText('Annotation')).toBeInTheDocument();
+    expect(few.container.querySelector('text[transform^="rotate(-45"]')).toBeNull();
+    few.unmount();
+
+    const many = Array.from({ length: 7 }, (_, index) => ({ ...data[0], taskName: `Task ${index + 1}` }));
+    const { container } = render(<TaskTimeBarChart data={many} measure="time" />);
+    expect(await screen.findByText('Task 7')).toBeInTheDocument();
+    expect(container.querySelector('text[transform^="rotate(-45"]')).not.toBeNull();
+  });
+
   it('draws the earnings instead when asked', async () => {
     render(<TaskTimeBarChart data={data} measure="earnings" />);
     expect(screen.getByText('Earnings by Task')).toBeInTheDocument();

@@ -91,13 +91,13 @@ export function DataManagementSection() {
         Export your time tracking data for backup or import data from a previous backup.
       </Typography>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} useFlexGap sx={{ flexWrap: 'wrap' }}>
         <Button
           variant="contained"
           startIcon={<DownloadIcon />}
           onClick={handleExportData}
           disabled={isExporting}
-          sx={{ minWidth: 150 }}
+          sx={{ whiteSpace: 'nowrap' }}
         >
           {isExporting ? 'Exporting...' : 'Export Data'}
         </Button>
@@ -107,7 +107,7 @@ export function DataManagementSection() {
           startIcon={<UploadIcon />}
           onClick={handleImportData}
           disabled={isImporting}
-          sx={{ minWidth: 150 }}
+          sx={{ whiteSpace: 'nowrap' }}
         >
           {isImporting ? 'Importing...' : 'Import Data'}
         </Button>
@@ -117,7 +117,7 @@ export function DataManagementSection() {
           startIcon={<RestoreIcon />}
           onClick={() => void handleChooseRestore()}
           disabled={isImporting}
-          sx={{ minWidth: 150 }}
+          sx={{ whiteSpace: 'nowrap' }}
         >
           Restore Exactly
         </Button>
@@ -146,7 +146,7 @@ export function DataManagementSection() {
         startIcon={<ResetIcon />}
         onClick={() => setResetDialogOpen(true)}
         disabled={isResetting}
-        sx={{ minWidth: 150 }}
+        sx={{ whiteSpace: 'nowrap' }}
       >
         {isResetting ? 'Resetting...' : 'Reset All Data'}
       </Button>

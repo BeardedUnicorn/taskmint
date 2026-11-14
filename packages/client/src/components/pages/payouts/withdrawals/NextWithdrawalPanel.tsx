@@ -50,6 +50,8 @@ function IfYouWait({ steps }: { steps: WaitStep[] }) {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         endIcon={<ExpandMoreIcon sx={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />}
+        // The label lines up with the panel's text, not the button's padding
+        sx={{ ml: -1.25 }}
       >
         If you wait
       </Button>
@@ -97,13 +99,13 @@ function ScheduledLine({
   const { amount } = reminder;
   const when = formatWeekdayDateTime(reminder.dueMs);
   return (
-    <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
       <AlarmOnIcon fontSize="small" color="primary" />
-      <Typography variant="body2">
+      <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }}>
         {reminder.dueMs > nowMs ? `Reminder: ${when}` : `Your scheduled withdrawal is ready (since ${when})`}
         {amount && ` · ${amount.estimatedCents > 0 ? '~' : ''}${formatCents(amount.totalCents)}`}
       </Typography>
-      <Button size="small" onClick={onRemove} aria-label="Remove the scheduled withdrawal">
+      <Button size="small" onClick={onRemove} aria-label="Remove the scheduled withdrawal" sx={{ flexShrink: 0 }}>
         Remove
       </Button>
     </Box>
@@ -198,7 +200,7 @@ export function NextWithdrawalPanel() {
   }
 
   return (
-    <Paper component="section" aria-label="Withdrawals" sx={{ p: 3, mb: 3, [PHONE]: { p: 2 } }}>
+    <Paper component="section" aria-label="Withdrawals" sx={{ p: 3, [PHONE]: { p: 2 } }}>
       {content}
       {reminder && !loadError && (
         <ScheduledLine reminder={reminder} nowMs={nowMs} onRemove={cancelScheduledWithdrawal} />

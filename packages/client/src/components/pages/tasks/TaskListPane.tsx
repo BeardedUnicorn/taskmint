@@ -29,6 +29,7 @@ import { EmptyState } from '../../ui/display/EmptyState';
 import { formatCurrency } from '../../../utils/formatters';
 import { SearchListHeader } from '../../ui';
 import { useCompactLayout } from '../../../hooks/useCompactLayout';
+import { HOVER } from '../../../theme/media';
 
 /** A phone's menu of one task's actions: Edit, Archive or Unarchive, and Delete. */
 function TaskActionsMenu({
@@ -129,26 +130,11 @@ export function TaskListPane({
         onClick={() => onSelectTask(task)}
         sx={{
           py: 2,
+          // The task shown beside the list: a quiet tint and a brand edge
           '&.Mui-selected': {
-            backgroundColor: 'primary.dark',
-            color: 'primary.contrastText',
-            '&:hover': {
-              backgroundColor: 'primary.dark',
-            },
-            '& .MuiTypography-root': {
-              color: 'primary.contrastText',
-            },
-            '& .MuiChip-root': {
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
-              color: 'primary.contrastText',
-              borderColor: 'rgba(255, 255, 255, 0.3)',
-            },
-            '& .MuiIconButton-root': {
-              color: 'primary.contrastText',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              },
-            },
+            backgroundColor: 'action.selected',
+            boxShadow: theme => `inset 3px 0 0 ${theme.palette.primary.main}`,
+            '&:hover': { backgroundColor: 'action.selected' },
           },
         }}
       >
@@ -159,7 +145,11 @@ export function TaskListPane({
           primary={
             <Typography
               variant="body1"
-              sx={{ fontWeight: 500, color: task.isArchived ? 'text.secondary' : 'text.primary' }}
+              sx={{
+                fontWeight: 500,
+                color: task.isArchived ? 'text.secondary' : 'text.primary',
+                overflowWrap: 'anywhere',
+              }}
             >
               {task.name}
               {task.isFavorite && (
@@ -196,7 +186,7 @@ export function TaskListPane({
                   <MoreIcon />
                 </IconButton>
               ) : (
-                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', gap: 0.5, '& .MuiIconButton-root': { color: 'text.secondary' } }}>
                   <IconButton
                     size="small"
                     aria-label="Edit task"
@@ -236,8 +226,8 @@ export function TaskListPane({
                   )}
                   <IconButton
                     size="small"
-                    color="error"
                     aria-label="Delete task"
+                    sx={{ [HOVER]: { '&:hover': { color: 'error.main' } } }}
                     onClick={e => {
                       e.stopPropagation();
                       onDeleteTask(task.id);

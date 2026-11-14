@@ -48,9 +48,7 @@ export function HistorySummary({ entries, tasks }: HistorySummaryProps) {
           <Typography variant="body2" color="text.secondary">
             Total time
           </Typography>
-          <Typography variant="h6" color="primary">
-            {formatDuration(stats.totalDuration)}
-          </Typography>
+          <Typography variant="h6">{formatDuration(stats.totalDuration)}</Typography>
         </Box>
         <Box>
           <Typography variant="body2" color="text.secondary">
@@ -62,17 +60,13 @@ export function HistorySummary({ entries, tasks }: HistorySummaryProps) {
           <Typography variant="body2" color="text.secondary">
             Entries
           </Typography>
-          <Typography variant="h6" color="info.main">
-            {stats.entryCount}
-          </Typography>
+          <Typography variant="h6">{stats.entryCount}</Typography>
         </Box>
         <Box>
           <Typography variant="body2" color="text.secondary">
             Tasks worked on
           </Typography>
-          <Typography variant="h6" color="secondary.main">
-            {stats.taskCount}
-          </Typography>
+          <Typography variant="h6">{stats.taskCount}</Typography>
         </Box>
       </Stack>
     </Paper>

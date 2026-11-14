@@ -46,6 +46,7 @@ import { HistorySummary } from './HistorySummary';
 import { HistoryCharts } from './HistoryCharts';
 import { PageContainer, PageHeader } from '../../layout/PageLayout';
 import { EmptyState } from '../../ui/display/EmptyState';
+import { PHONE } from '../../../theme/media';
 
 /** The range History opens on until you choose another. */
 const DEFAULT_DATE_PRESET: DateRangePreset = 'last7';
@@ -246,13 +247,13 @@ export function HistoryPage({
       ) : (
         <>
           {/* Results Summary */}
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="body2" color="text.secondary">
               {`Showing ${startIndex + 1}-${Math.min(endIndex, filteredEntries.length)} of ${filteredEntries.length} ${filteredEntries.length === 1 ? 'entry' : 'entries'}`}
               {filteredEntries.length !== timeEntries.length && <> (filtered from {timeEntries.length} total)</>}
             </Typography>
 
-            <FormControl size="small" sx={{ minWidth: 120 }}>
+            <FormControl size="small" sx={{ minWidth: 104, flexShrink: 0 }}>
               <InputLabel id={perPageLabelId}>Per page</InputLabel>
               <Select
                 labelId={perPageLabelId}
@@ -298,7 +299,7 @@ export function HistoryPage({
 
       {/* Daily goal results over the range */}
       {(currentGoal?.isEnabled || goalHistory.length > 0) && (
-        <Paper sx={{ p: 3, mt: 3 }}>
+        <Paper sx={{ p: 3, mt: 3, [PHONE]: { p: 2 } }}>
           <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
             Daily goal
           </Typography>

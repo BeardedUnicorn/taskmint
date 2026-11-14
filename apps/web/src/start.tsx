@@ -34,9 +34,12 @@ const DEFAULTS: WebStart = {
 
 export function SignInPage({ store }: { store: CloudStore }) {
   return (
-    <AuthLayout title="Sign in to TaskMint">
+    <AuthLayout
+      title="Sign in to TaskMint"
+      subtitle="Your sessions, tasks and work logs, here and on your other devices."
+    >
       <SignInForm
-        intro="Your sessions, tasks and work logs, here and on your other devices."
+        intro=""
         engine={{
           signIn: store.signIn,
           signUp: store.signUp,

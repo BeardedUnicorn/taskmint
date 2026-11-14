@@ -17,7 +17,8 @@ export const BRAND_TEXT_LIGHT = '#1F6F4A';
 export const brandText = (mode: ColorMode) => (mode === 'light' ? BRAND_TEXT_LIGHT : BRAND);
 
 const brand = {
-  primary: { main: BRAND, dark: '#4CAF50', light: '#B2DFDB' },
+  // `dark` is a pressed or hovered brand fill: the same mint, a step deeper
+  primary: { main: BRAND, dark: '#4FC38C', light: '#B2DFDB' },
   secondary: { main: '#0D7377', dark: '#004D40', light: '#4DB6AC' },
 };
 
@@ -30,7 +31,7 @@ export const palettes: Record<ColorMode, PaletteOptions> = {
     error: { main: '#D32F2F', contrastText: '#ffffff' },
     warning: { main: '#A15C00', dark: '#8A5300', contrastText: '#ffffff' },
     info: { main: '#0277BD', contrastText: '#ffffff' },
-    success: { main: '#2E7D32', contrastText: '#ffffff' },
+    success: { main: BRAND_TEXT_LIGHT, contrastText: '#ffffff' },
     divider: 'rgba(0, 0, 0, 0.12)',
   },
   dark: {
@@ -42,9 +43,10 @@ export const palettes: Record<ColorMode, PaletteOptions> = {
     text: { primary: '#FAFAFA', secondary: '#b0b0b0' },
     // These are bright: dark text reads on them, white doesn't
     error: { main: '#FF5C5C', contrastText: '#000000' },
-    warning: { main: '#FFD700', contrastText: '#000000' },
+    warning: { main: '#FFC83D', contrastText: '#000000' },
     info: { main: '#2196f3', contrastText: '#000000' },
-    success: { main: '#32CD32', contrastText: '#000000' },
+    // One green: money earned and things going well are the brand's mint
+    success: { main: BRAND, contrastText: '#000000' },
     divider: 'rgba(255, 255, 255, 0.12)',
   },
 };

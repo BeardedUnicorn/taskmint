@@ -7,7 +7,7 @@
 
 import { useMemo } from 'react';
 import dayjs from 'dayjs';
-import { Alert, Box, Button, Chip, List, ListItem, ListItemText, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, Chip, List, ListItem, ListItemText, Stack, Typography } from '@mui/material';
 import {
   CalendarMonth as WeekIcon,
   MoreTime as AddTimeIcon,
@@ -36,6 +36,7 @@ import { formatLocalDate } from '../../../utils/dateHelpers';
 import { formatCents } from '../../../utils/payoutCalculator';
 import { formatShortDateTime } from '../../../utils/locale';
 import { PHONE } from '../../../theme/media';
+import { MONO } from '../payouts/payoutStyles';
 import { PeriodTotals, periodTotals, thisWeek } from './homeTotals';
 
 /** How many tasks Home offers to start with one click. */
@@ -48,7 +49,6 @@ const STATS_GRID = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
   gap: 3,
-  mb: 3,
   [PHONE]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2 },
 } as const;
 
@@ -107,12 +107,15 @@ function RightNow({ onStartWork, onAddTime, nowMs }: HomePageProps & { nowMs: nu
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 1.5 }}>
           <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 0 }}>
             This session:{' '}
-            <Box component="span" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
+            <Box component="span" sx={MONO}>
               {formatTime(getSessionElapsedMs(activeSession, nowMs))}
             </Box>{' '}
-            · {formatCurrency(sessionEarnings(activeSession, tasks, nowMs))}
+            {/* (The dot stays with its amount if the line breaks) */}
+            <Box component="span" sx={{ whiteSpace: 'nowrap' }}>
+              · {formatCurrency(sessionEarnings(activeSession, tasks, nowMs))}
+            </Box>
           </Typography>
-          <Button size="small" onClick={() => navigate('sessions')}>
+          <Button size="small" onClick={() => navigate('sessions')} sx={{ mr: -1.25 }}>
             Open Sessions
           </Button>
         </Box>
@@ -133,7 +136,7 @@ function RightNow({ onStartWork, onAddTime, nowMs }: HomePageProps & { nowMs: nu
               sx={{ maxWidth: '100%' }}
             />
           ))}
-          <Button size="small" startIcon={<AddTimeIcon />} onClick={onAddTime} sx={{ ml: 'auto' }}>
+          <Button size="small" startIcon={<AddTimeIcon />} onClick={onAddTime} sx={{ ml: 'auto', mr: -1.25 }}>
             Add time
           </Button>
         </Box>
@@ -161,7 +164,7 @@ function RecentSessions({ sessions, nowMs }: { sessions: TaskSession[]; nowMs: n
         <Typography id="home-recent" variant="h6" component="h2" sx={SECTION_TITLE}>
           Recent sessions
         </Typography>
-        <Button size="small" onClick={() => navigate('history')} sx={{ mb: 1.5 }}>
+        <Button size="small" onClick={() => navigate('history')} sx={{ mb: 1.5, mr: -1.25 }}>
           See all in History
         </Button>
       </Box>
@@ -170,7 +173,7 @@ function RecentSessions({ sessions, nowMs }: { sessions: TaskSession[]; nowMs: n
           Finished sessions show here.
         </Typography>
       ) : (
-        <Paper variant="outlined">
+        <Card>
           <List disablePadding>
             {recent.map((session, index) => (
               <ListItem key={session.id} divider={index < recent.length - 1}>
@@ -180,13 +183,13 @@ function RecentSessions({ sessions, nowMs }: { sessions: TaskSession[]; nowMs: n
                   slotProps={{ primary: { noWrap: true } }}
                   sx={{ minWidth: 0 }}
                 />
-                <Typography variant="body2" sx={{ ml: 2, fontWeight: 600, flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ ml: 2, fontWeight: 600, flexShrink: 0, ...MONO }}>
                   {formatCurrency(sessionEarnings(session, tasks, nowMs))}
                 </Typography>
               </ListItem>
             ))}
           </List>
-        </Paper>
+        </Card>
       )}
     </Box>
   );
@@ -247,7 +250,7 @@ export function HomePage({ onStartWork, onAddTime }: HomePageProps) {
                 totals.today.timeMs > 0 ? `${formatDurationCompact(totals.today.timeMs)} worked` : 'Nothing tracked yet'
               }
               icon={<TodayIcon sx={{ fontSize: 40 }} />}
-              color="success"
+              color="primary"
             />
             <StatsCard
               title="This week"
@@ -258,9 +261,9 @@ export function HomePage({ onStartWork, onAddTime }: HomePageProps) {
             />
           </Box>
           {goal.enabled && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
+            <Card sx={{ p: 2, mt: 3, [PHONE]: { mt: 2 } }}>
               <GoalProgress progress={goal} />
-            </Paper>
+            </Card>
           )}
         </Box>
 

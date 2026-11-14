@@ -102,7 +102,12 @@ function AgendaDay({ day, open, onToggle }: { day: CalendarDay; open: boolean; o
             )}
           </Box>
 
-          {worked && <Typography sx={{ ...MONO_FIGURE, fontSize: '0.95rem' }}>{earnedText(day)}</Typography>}
+          {/* A set width for the usual amounts, so every day's goal bar ends at the same place */}
+          {worked && (
+            <Typography sx={{ ...MONO_FIGURE, fontSize: '0.95rem', minWidth: '9ch', textAlign: 'right' }}>
+              {earnedText(day)}
+            </Typography>
+          )}
           <ExpandMoreIcon
             aria-hidden
             sx={{

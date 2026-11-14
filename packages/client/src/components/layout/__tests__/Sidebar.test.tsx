@@ -2,6 +2,7 @@ import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EDGE_SWIPE, EDGE_SWIPE_CLASS, Sidebar } from '../Sidebar';
 import { fakeBackend, installFakeBackendForTest } from '../../../testing';
+import { setWindowWidth } from '../../../__tests__/setup/viewport';
 
 beforeEach(() => {
   localStorage.clear();
@@ -15,6 +16,16 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'History' })).toHaveAttribute('aria-current', 'page');
     fireEvent.click(screen.getByRole('button', { name: 'Tasks' }));
     expect(onViewChange).toHaveBeenCalledWith('tasks');
+  });
+
+  it('is its strip of icons in a window between a phone and the desktop minimum, with no way to widen it', () => {
+    setWindowWidth(700);
+    const footer = vi.fn((collapsed: boolean) => <span>{collapsed ? 'ring' : 'bar'}</span>);
+    render(<Sidebar activeView="home" onViewChange={vi.fn()} footer={footer} />);
+
+    expect(screen.getByText('ring')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'TaskMint' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sidebar/ })).not.toBeInTheDocument();
   });
 
   it("slides in as a phone's menu: always expanded, no shortcuts, closed by picking a page", () => {

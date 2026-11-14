@@ -39,7 +39,6 @@ import { entryEarnings, entryRate } from '../../../utils/earnings';
 import { WORKLOG_IMPORT_SOURCE } from '../../../types/workLog';
 import { entryEnd, exportableEntries } from '../../../utils/csvExport';
 import { PHONE } from '../../../theme/media';
-import { STACK_WRAP } from '../../ui/phoneLayout';
 import { TimeEntryRows } from '../../ui/tables/TimeEntryRows';
 import { useCompactLayout } from '../../../hooks/useCompactLayout';
 import { PHONE_TABLE } from '../../ui/tables/tableStyles';
@@ -125,7 +124,7 @@ export function TaskDetailPane({
               [PHONE]: { flexWrap: 'wrap', gap: 1 },
             }}
           >
-            <Typography variant="h5" sx={{ fontWeight: 600, [PHONE]: { overflowWrap: 'anywhere' } }}>
+            <Typography variant="h5" sx={{ fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>
               {task.name}
             </Typography>
             {task.isArchived && <Chip label="Archived" size="small" color="warning" variant="outlined" />}
@@ -158,7 +157,8 @@ export function TaskDetailPane({
         <Stack
           direction="row"
           spacing={3}
-          sx={{ mb: 2, [PHONE]: { flexDirection: 'column', gap: 0.5, '& > :not(style) ~ :not(style)': { ml: 0 } } }}
+          useFlexGap
+          sx={{ mb: 2, flexWrap: 'wrap', rowGap: 0.5, [PHONE]: { flexDirection: 'column', gap: 0.5 } }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <MoneyIcon color="action" fontSize="small" />
@@ -175,22 +175,21 @@ export function TaskDetailPane({
         </Stack>
 
         {/* Task Statistics */}
-        <Stack direction="row" spacing={2} sx={{ [PHONE]: STACK_WRAP }}>
+        {/* One quiet style for the three: the icons say which is which */}
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
           <Chip
             icon={<TimeIcon />}
             label={`Total Time: ${formatDuration(taskStats.totalDuration)}`}
-            color="primary"
             variant="outlined"
           />
           {taskStats.totalEarnings > 0 && (
             <Chip
               icon={<MoneyIcon />}
               label={`Total Earnings: ${formatCurrency(taskStats.totalEarnings)}`}
-              color="success"
               variant="outlined"
             />
           )}
-          <Chip label={`${taskStats.entryCount} entries`} color="info" variant="outlined" />
+          <Chip label={`${taskStats.entryCount} entries`} variant="outlined" />
         </Stack>
       </Box>
 

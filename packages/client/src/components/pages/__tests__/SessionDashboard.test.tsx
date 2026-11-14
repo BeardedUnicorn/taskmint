@@ -864,14 +864,14 @@ describe('SessionDashboard', () => {
       expect(screen.getByText('$11.00')).toBeInTheDocument();
     });
 
-    it('shows placeholders and honest copy when no session is active', () => {
+    it('leaves the figures out when no session is active', () => {
       Object.assign(mockSessionManagement, { activeSession: null });
 
       renderDashboard();
 
-      expect(screen.getAllByText('—')).toHaveLength(2);
-      expect(screen.getByText('No active session')).toBeInTheDocument();
-      expect(screen.getByText('Start a session to track earnings')).toBeInTheDocument();
+      // The list starts the page: no cards of dashes
+      expect(screen.queryByText('Session Time')).not.toBeInTheDocument();
+      expect(screen.queryByText('Session Earnings')).not.toBeInTheDocument();
     });
 
     it("includes the active session's timers from earlier days", () => {

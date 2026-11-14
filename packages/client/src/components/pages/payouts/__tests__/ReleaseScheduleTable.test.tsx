@@ -46,10 +46,10 @@ describe('ReleaseScheduleTable', () => {
 
     const rows = bodyRows();
     expect(rows.map(r => r.textContent)).toEqual([
-      expect.stringContaining('2026-11-9'),
-      expect.stringContaining('2026-11-10'),
+      expect.stringContaining('Mon, Nov 9'),
+      expect.stringContaining('Tue, Nov 10'),
       `Withdrawals open ${OPENING}`,
-      expect.stringContaining('2026-11-11'),
+      expect.stringContaining('Wed, Nov 11'),
     ]);
     expect(within(rows[3]).queryByRole('img', { name: /Held/ })).not.toBeInTheDocument();
   });
@@ -86,8 +86,8 @@ describe('ReleaseScheduleTable', () => {
     const estimated = { ...row(12, 8, 0), releaseTime: undefined, releaseIso: undefined, estimatedCents: 4000 };
     renderWithMoney(<ReleaseScheduleTable />, { nowMs: NOW, schedule: [row(11, 9, 3500), estimated] });
     const [imported, estimate] = bodyRows();
-    expect(imported).toHaveTextContent('2026-11-119:00 AM$35.00—$35.00');
-    expect(estimate).toHaveTextContent('2026-11-12—~$40.00$40.00');
+    expect(imported).toHaveTextContent('Wed, Nov 119:00 AM$35.00—$35.00');
+    expect(estimate).toHaveTextContent('Thu, Nov 12—~$40.00$40.00');
   });
 
   it('schedules a withdrawal from a release, by its row or its button', () => {

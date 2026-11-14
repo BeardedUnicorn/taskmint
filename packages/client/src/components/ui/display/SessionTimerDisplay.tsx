@@ -59,11 +59,9 @@ export const SessionTimerDisplay = memo(function SessionTimerDisplay({
 
   return (
     <Paper
-      elevation={2}
       sx={{
         p: 3,
         [PHONE]: { p: 2 },
-        borderRadius: 2,
         bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: runningInstance ? 'success.main' : 'divider',

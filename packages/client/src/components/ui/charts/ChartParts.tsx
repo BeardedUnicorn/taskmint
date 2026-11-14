@@ -38,12 +38,12 @@ const DESKTOP_CHART: ChartLayout = {
   barsAcross: false,
 };
 
-// A phone's width goes to the plot
+// A phone's width goes to the plot, with room on the right for a line's last point
 const PHONE_CHART: ChartLayout = {
   height: 300,
-  sideMargin: { left: 0, right: 0 },
+  sideMargin: { left: 0, right: 12 },
   axisWidth: 40,
-  tickFontSize: 11,
+  tickFontSize: 12,
   axisTitles: false,
   pieRadius: 100,
   barsAcross: true,

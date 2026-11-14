@@ -12,7 +12,7 @@ import '@testing-library/jest-dom/vitest';
 import { TasksPage } from '../TasksPage';
 import { Task } from '../../../types/task';
 import { TimeEntry } from '../../../types/timer';
-import { setPhoneViewport } from '../../../__tests__/setup/viewport';
+import { setPhoneViewport, setWindowWidth } from '../../../__tests__/setup/viewport';
 import { act } from 'react';
 import { fakeBackend } from '../../../testing';
 import { NavigationProvider } from '../../../contexts/NavigationContext';
@@ -200,6 +200,25 @@ describe('TasksPage - Task List Layout', () => {
 
     // The selection stays for when the list opens it again
     expect(screen.getByText('Task 2 Details')).toBeInTheDocument();
+  });
+
+  it('shows one pane at a time in a window too narrow for both, as on a phone', async () => {
+    // The desktop window at its minimum: the sidebar leaves the page 560px
+    setWindowWidth(800);
+    render(<TasksPage {...mockProps} />);
+
+    fireEvent.click(screen.getByText('Task 2'));
+    expect(await screen.findByText('Task 2 Details')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All tasks' })).toBeInTheDocument();
+  });
+
+  it('shows the list beside the task in a wide window, with no way back needed', async () => {
+    setWindowWidth(1440);
+    render(<TasksPage {...mockProps} />);
+
+    fireEvent.click(screen.getByText('Task 2'));
+    expect(await screen.findByText('Task 2 Details')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'All tasks' })).not.toBeInTheDocument();
   });
 
   it("on a phone, Android's back goes from a task to the list", async () => {

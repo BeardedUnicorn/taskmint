@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { render } from '../../../../__tests__/setup/test-helpers';
 import userEvent from '@testing-library/user-event';
-import { CloudSyncSection } from '../CloudSyncSection';
+import { CloudSyncSection, SignInForm } from '../CloudSyncSection';
 import { SyncEngine, setCloudSyncForTest } from '../../../../cloud';
 import { asBackend, bea, createFakeCloudStore, type FakeCloudStore } from '../../../../testing';
 import { syncHost } from '../../../../cloud/__tests__/syncHost';
@@ -265,5 +265,25 @@ describe('Settings → Cloud sync, signed in', () => {
     await screen.findByText(/The cloud data was deleted/);
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+  });
+});
+
+describe('SignInForm', () => {
+  const engine = {
+    signIn: vi.fn(async () => {}),
+    signUp: vi.fn(async () => {}),
+    resetPassword: vi.fn(async () => {}),
+    signInWithGoogle: vi.fn(async () => {}),
+    canUseGoogle: false,
+  };
+
+  it('says what signing in is for, unless the page around it already has', () => {
+    const { unmount } = render(<SignInForm engine={engine} />);
+    expect(screen.getByText(/Without it, everything stays on this device/)).toBeInTheDocument();
+    unmount();
+
+    render(<SignInForm engine={engine} intro="" />);
+    expect(screen.queryByText(/Without it, everything stays on this device/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
 });

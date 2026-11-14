@@ -82,7 +82,7 @@ export const SessionList = memo(function SessionList({
 
   if (isLoading) {
     return (
-      <Box sx={{ p: 2 }}>
+      <Box>
         <Stack spacing={2}>
           {[0, 1, 2].map(i => (
             <Skeleton key={i} variant="rounded" height={110} />
@@ -94,7 +94,7 @@ export const SessionList = memo(function SessionList({
 
   if (sessions.length === 0) {
     return (
-      <Box sx={{ p: 2 }}>
+      <Box>
         <EmptyState
           icon={<TimerIcon />}
           title="No sessions yet"
@@ -110,7 +110,7 @@ export const SessionList = memo(function SessionList({
   }
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box>
       <SessionFilterBar filters={filters} />
 
       {byDate.length === 0 ? (
@@ -139,11 +139,13 @@ export const SessionList = memo(function SessionList({
         <Stack spacing={3}>
           {byDate.map(({ date, sessions: daySessions }) => (
             <Box key={date}>
+              {/* A label over its day's cards: quieter than the cards' own titles */}
               <Typography
-                variant="h6"
-                sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontWeight: 600 }}
+                variant="subtitle2"
+                component="h3"
+                sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontWeight: 600 }}
               >
-                <DateIcon />
+                <DateIcon fontSize="small" />
                 {/* new Date('YYYY-MM-DD') parses as UTC midnight, which is
                     the previous local day west of UTC — parse as local. */}
                 {formatDate(parseDateStringLocal(date))}

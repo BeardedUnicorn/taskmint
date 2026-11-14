@@ -42,8 +42,8 @@ const STATS_GRID = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
   gap: 3,
-  mb: 4,
-  [PHONE]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2, mb: 3 },
+  mb: 3,
+  [PHONE]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2 },
 } as const;
 
 interface SessionDashboardProps {
@@ -188,7 +188,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
     return (
       <PageContainer>
         <Box aria-busy="true" aria-label="Loading sessions">
-          <Skeleton variant="rounded" height={64} sx={{ mb: 4 }} />
+          <Skeleton variant="rounded" height={64} sx={{ mb: 3 }} />
           <Box sx={STATS_GRID}>
             <Skeleton variant="rounded" height={120} />
             <Skeleton variant="rounded" height={120} />
@@ -221,7 +221,7 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
         Sessions
       </Typography>
       {/* Session Timer Bar */}
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 3 }}>
         <SessionTimerToolbar
           activeSession={activeSession}
           startOptions={startOptions}
@@ -234,31 +234,31 @@ export function SessionDashboard({ onStartWork, onAddTime }: SessionDashboardPro
         />
       </Box>
 
-      {/* Overview Stats: the active session's time and earnings */}
-      <Box sx={STATS_GRID}>
-        <StatsCard
-          title="Session Time"
-          value={activeSession ? formatTime(stats.totalTime) : '—'}
-          subtitle={activeSession ? sessionTitle(activeSession) : 'No active session'}
-          icon={<TimerIcon sx={{ fontSize: 40 }} />}
-          color="primary"
-        />
-        <StatsCard
-          title="Session Earnings"
-          value={activeSession ? formatCurrency(stats.totalEarnings) : '—'}
-          subtitle={
-            activeSession
-              ? stats.hourlyRates.length > 1
+      {/* The active session's time and earnings; with none, the list starts the page */}
+      {activeSession && (
+        <Box sx={STATS_GRID}>
+          <StatsCard
+            title="Session Time"
+            value={formatTime(stats.totalTime)}
+            subtitle={sessionTitle(activeSession)}
+            icon={<TimerIcon sx={{ fontSize: 40 }} />}
+            color="primary"
+          />
+          <StatsCard
+            title="Session Earnings"
+            value={formatCurrency(stats.totalEarnings)}
+            subtitle={
+              stats.hourlyRates.length > 1
                 ? 'Mixed rates'
                 : stats.hourlyRates[0] > 0
                   ? `At ${formatCurrency(stats.hourlyRates[0])}/hr`
                   : 'Set an hourly rate on this task'
-              : 'Start a session to track earnings'
-          }
-          icon={<MoneyIcon sx={{ fontSize: 40 }} />}
-          color="success"
-        />
-      </Box>
+            }
+            icon={<MoneyIcon sx={{ fontSize: 40 }} />}
+            color="primary"
+          />
+        </Box>
+      )}
 
       {/* An active session has the page to itself; the list of every session
           (and its Add time button) shows once no session is active. */}
