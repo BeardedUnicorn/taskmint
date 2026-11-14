@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: a Calendar widget day at the single of its week's card
+     (the agenda's `position`), pressed like the card's other rows -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/widget_ripple">
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/widget_surface" />
+                    <corners android:radius="@dimen/widget_inner_radius" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</ripple>

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: the Today widget one row tall (TodayViews). Running: the clock
+     over the task; paused: where it stopped over "Paused · the task"; idle:
+     today's money over its time. Wide, today's figures (or the goal) on the
+     right. Then the timer's button. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:foreground="@drawable/widget_card_ripple"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="@dimen/widget_padding"
+    android:paddingTop="6dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="6dp">
+
+    <LinearLayout
+        android:id="@+id/widget_content"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <Chronometer
+                android:id="@+id/today_clock"
+                style="@style/TaskMintWidget.Clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="24sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/today_money"
+                style="@style/TaskMintWidget.Hero"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="24sp"
+                android:visibility="gone" />
+
+            <!-- A paused timer's time, stopped -->
+            <TextView
+                android:id="@+id/row_paused"
+                style="@style/TaskMintWidget.Hero"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/widget_text"
+                android:textSize="24sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/row_detail"
+                style="@style/TaskMintWidget.Secondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/row_aside"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:gravity="end"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/row_aside_figure"
+                style="@style/TaskMintWidget.Figure"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/row_aside_detail"
+                style="@style/TaskMintWidget.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/timer_icon_button"
+            style="@style/TaskMintWidget.IconButton"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_widget_play" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_message"
+        style="@style/TaskMintWidget.Body"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:maxLines="2"
+        android:text="@string/widget_open_app"
+        android:textColor="@color/widget_text_secondary"
+        android:visibility="gone" />
+</LinearLayout>

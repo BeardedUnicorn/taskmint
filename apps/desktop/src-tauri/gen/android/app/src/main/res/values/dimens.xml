@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TaskMint: the widgets' card and inner-card corners (values-v31: the
+         launcher's own, so they match the widgets around them) and padding -->
+    <dimen name="widget_radius">20dp</dimen>
+    <dimen name="widget_inner_radius">12dp</dimen>
+    <dimen name="widget_padding">16dp</dimen>
+</resources>

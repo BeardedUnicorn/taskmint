@@ -178,11 +178,24 @@ export interface AppShortcutsPlatform {
 
 /**
  * What the home-screen widgets show (Android), as the app works it out:
- * text ready to show, and the times the widget counts from or checks.
+ * text ready to show, and the times the widgets count from or check. Each
+ * widget reads its own part (Today: `today` and `timer`; Payouts; the
+ * Calendar's `agenda`; the This week chart's `week`).
  */
 export interface WidgetSnapshot {
+  /** The widgets read only this version: an older snapshot shows "Open TaskMint…" until a new one comes. */
+  version: 2;
   updatedAtMs: number;
-  today: { money: string; time: string; goalPercent: number | null };
+  /** The local day (YYYY-MM-DD) the figures are for: once it's past, Today says "Yesterday" or the date. */
+  day: string;
+  today: {
+    /** "~$45": an estimate is marked. */
+    money: string;
+    time: string;
+    goalPercent: number | null;
+    /** This week's money and time, as Home has them (a tall widget shows them). */
+    week: { money: string; time: string };
+  };
   /** The live timer; null when nothing runs or waits paused. */
   timer: {
     task: string;
@@ -190,14 +203,94 @@ export interface WidgetSnapshot {
     countingFromMs: number | null;
     /** While paused: "Paused at 1h 23m". */
     status: string | null;
+    /** While paused: how long it ran, "1h 23m" (one row tall, the big line). */
+    pausedFor: string | null;
   } | null;
-  payouts: {
+  /** The next withdrawal, else the next release; null when neither is on the way. */
+  payouts: WidgetPayouts | null;
+  agenda: WidgetAgenda;
+  week: WidgetWeek;
+}
+
+export interface WidgetPayouts {
+  /** "Next withdrawal", or "Next release" until a withdrawal is recorded. */
+  label: string;
+  amount: string;
+  /** "Opens Mon, Nov 10, 6:25 PM", "Ready to withdraw", or the release's day. */
+  status: string;
+  isOpen: boolean;
+  /** When the next withdrawal opens: the widget says "Ready to withdraw" from then. */
+  opensAtMs: number | null;
+  /** "Next release Fri, Nov 14 · $230", under a withdrawal. */
+  nextRelease: string | null;
+  /** What to do for more, when there's no withdrawal to plan from. */
+  hint: string | null;
+  /** The next few release days, soonest first: a tall widget lists them. */
+  releases: { day: string; amount: string }[];
+}
+
+/** A day's badge in the Calendar: money released (or still to be), a withdrawal, the next withdrawal's opening. */
+export type WidgetBadgeKind = 'release' | 'releaseAhead' | 'withdrawal' | 'opens' | 'openNow';
+
+/** Where a day sits in its week's card: its corners round at the card's top and bottom. */
+export type WidgetRowPosition = 'top' | 'middle' | 'bottom' | 'single';
+
+export type WidgetAgendaRow =
+  | {
+      kind: 'week';
+      /** The week's first day (YYYY-MM-DD). */
+      date: string;
+      /** "Week of Nov 8" */
+      title: string;
+      /** "20h 22m · ~$402", or null for a week with no work. */
+      totals: string | null;
+    }
+  | {
+      kind: 'day';
+      date: string;
+      /** "Fri" */
+      weekday: string;
+      dayOfMonth: string;
+      isToday: boolean;
+      time: string | null;
+      goalPercent: number | null;
+      money: string | null;
+      badges: { kind: WidgetBadgeKind; text: string }[];
+      position: WidgetRowPosition;
+      /** The day in words, for screen readers. */
+      spoken: string;
+    };
+
+/** The Calendar widget's list: the phone's Calendar agenda, from recent weeks to the upcoming releases. */
+export interface WidgetAgenda {
+  /** "November" */
+  month: string;
+  /** This month's money so far, or null for none. */
+  monthMoney: string | null;
+  rows: WidgetAgendaRow[];
+  /** This week's header row: the list opens there. */
+  thisWeekIndex: number;
+}
+
+/** The This week chart: a bar a day, Sunday to Saturday. */
+export interface WidgetWeek {
+  /** "~$402 · 14h 5m" */
+  totals: string;
+  /** What the bars measure: money, or time when the week has no money (no rates). */
+  measure: 'money' | 'time';
+  /** Where the daily goal's line is (0–10000 of the chart's height), or null for none. */
+  goalLevel: number | null;
+  days: {
+    /** "S" */
+    letter: string;
+    /** The bar's height, 0–10000 of the chart's. */
+    level: number;
+    /** "$65", "2h 10m", or "" for nothing. */
     amount: string;
-    status: string;
-    /** When the next withdrawal opens: the widget says "Withdrawal open" once it has. */
-    opensAtMs: number | null;
-    nextRelease: string | null;
-  } | null;
+    isToday: boolean;
+    isFuture: boolean;
+    spoken: string;
+  }[];
 }
 
 /** The home-screen widgets (Android): they show the latest snapshot sent. */

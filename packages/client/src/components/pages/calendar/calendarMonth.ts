@@ -8,6 +8,7 @@
  */
 
 import dayjs from 'dayjs';
+import { DailyGoal, DailyGoalAchievement } from '../../../types/goal';
 import { Withdrawal } from '../../../types/withdrawal';
 import { formatDateString } from '../../../utils/dateHelpers';
 import { PayoutDayCell, ReleaseEvent } from '../../../utils/payoutCalculator';
@@ -110,6 +111,18 @@ export interface CalendarMonth {
   isEmpty: boolean;
 }
 
+/** A day's goal (dollars): what it was that day when recorded, else today's goal, or null for none. */
+export function goalForDay(
+  achievements: DailyGoalAchievement[],
+  currentGoal: DailyGoal | null
+): (date: string) => number | null {
+  return date => {
+    const recorded = achievements.find(achievement => achievement.date === date);
+    if (recorded) return recorded.goalAmount;
+    return currentGoal?.isEnabled && currentGoal.targetAmount > 0 ? currentGoal.targetAmount : null;
+  };
+}
+
 export interface CalendarMonthInput {
   cells: PayoutDayCell[];
   events: ReleaseEvent[];
@@ -127,8 +140,17 @@ function addTo(map: Map<string, number>, key: string, amount: number): void {
 /** The local YYYY-MM-DD of an instant. */
 const dayOf = (ms: number | string) => formatDateString(new Date(ms));
 
-/** `month` is YYYY-MM. Weeks start on Sunday; there are as many as the month spans. */
-export function buildCalendarMonth(month: string, input: CalendarMonthInput): CalendarMonth {
+/**
+ * `weekCount` weeks of days from `firstSunday` (YYYY-MM-DD), with each day's
+ * work, releases, withdrawals and opening, and each week's totals. A day is
+ * `inMonth` when it's in `month` (YYYY-MM); without a month, every day is.
+ */
+export function buildCalendarWeeks(
+  firstSunday: string,
+  weekCount: number,
+  input: CalendarMonthInput,
+  month?: string
+): CalendarWeek[] {
   const { cells, events, withdrawals, plan, nowMs, goalFor } = input;
   const today = dayOf(nowMs);
 
@@ -158,10 +180,10 @@ export function buildCalendarMonth(month: string, input: CalendarMonthInput): Ca
   }
   const opensOn = plan && !plan.isOpen ? dayOf(plan.opensAtMs) : null;
 
-  const first = dayjs(`${month}-01`);
-  const last = first.endOf('month');
   const weeks: CalendarWeek[] = [];
-  for (let start = first.subtract(first.day(), 'day'); !start.isAfter(last, 'day'); start = start.add(7, 'day')) {
+  const first = dayjs(firstSunday);
+  for (let week = 0; week < weekCount; week++) {
+    const start = first.add(week * 7, 'day');
     const days: CalendarDay[] = [];
     for (let offset = 0; offset < 7; offset++) {
       const at = start.add(offset, 'day');
@@ -169,7 +191,7 @@ export function buildCalendarMonth(month: string, input: CalendarMonthInput): Ca
       days.push({
         date,
         dayOfMonth: at.date(),
-        inMonth: at.month() === first.month(),
+        inMonth: month === undefined || date.startsWith(month),
         isToday: date === today,
         earnedCents: earned.get(date) ?? 0,
         estimatedCents: estimated.get(date) ?? 0,
@@ -190,6 +212,18 @@ export function buildCalendarMonth(month: string, input: CalendarMonthInput): Ca
       timeMs: days.reduce((sum, day) => sum + day.timeMs, 0),
     });
   }
+  return weeks;
+}
+
+/** `month` is YYYY-MM. Weeks start on Sunday; there are as many as the month spans. */
+export function buildCalendarMonth(month: string, input: CalendarMonthInput): CalendarMonth {
+  const { cells, events, withdrawals, nowMs } = input;
+  const first = dayjs(`${month}-01`);
+  const last = first.endOf('month');
+  const firstSunday = first.subtract(first.day(), 'day');
+  let weekCount = 0;
+  for (let start = firstSunday; !start.isAfter(last, 'day'); start = start.add(7, 'day')) weekCount++;
+  const weeks = buildCalendarWeeks(firstSunday.format('YYYY-MM-DD'), weekCount, input, month);
 
   const summary: CalendarMonthSummary = {
     timeMs: 0,

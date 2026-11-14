@@ -20,20 +20,20 @@ export function goalText(day: CalendarDay): string | null {
   return percent === null ? null : `${Math.round(percent)}% of the daily goal`;
 }
 
-/** The day in words, for screen readers. */
-export function describeDay(day: CalendarDay): string {
+/** The day in words, for screen readers, with its amounts as `money` writes them (to the cent by default). */
+export function describeDay(day: CalendarDay, money: (cents: number) => string = formatCents): string {
   const parts: string[] = [];
   if (dayWorked(day)) {
-    const earned = `earned ${day.estimatedCents > 0 ? 'about ' : ''}${formatCents(day.earnedCents)}`;
+    const earned = `earned ${day.estimatedCents > 0 ? 'about ' : ''}${money(day.earnedCents)}`;
     parts.push(day.timeMs > 0 ? `worked ${formatDurationCompact(day.timeMs)}, ${earned}` : earned);
   }
   const goal = goalText(day);
   if (goal) parts.push(goal);
   if (day.releasedCents > 0) {
-    parts.push(`${formatCents(day.releasedCents)} ${day.releasesAhead ? 'to be released' : 'released'}`);
+    parts.push(`${money(day.releasedCents)} ${day.releasesAhead ? 'to be released' : 'released'}`);
   }
   for (const withdrawal of day.withdrawals) {
-    parts.push(`withdrew ${formatCents(withdrawal.amountCents)} at ${formatClockTime(withdrawal.takenAt)}`);
+    parts.push(`withdrew ${money(withdrawal.amountCents)} at ${formatClockTime(withdrawal.takenAt)}`);
   }
   if (day.opensAtMs !== null) parts.push(`next withdrawal opens at ${formatClockTime(day.opensAtMs)}`);
   if (day.openNow) parts.push('withdrawal open now');

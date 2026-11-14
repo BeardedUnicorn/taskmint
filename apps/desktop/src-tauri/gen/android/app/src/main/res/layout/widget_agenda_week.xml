@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: a week's header in the Calendar widget: "WEEK OF NOV 8", its
+     time and money -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/agenda_week"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:baselineAligned="true"
+    android:orientation="horizontal"
+    android:paddingStart="4dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="6dp">
+
+    <TextView
+        android:id="@+id/week_title"
+        style="@style/TaskMintWidget.Overline"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/week_totals"
+        style="@style/TaskMintWidget.Caption"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:fontFamily="sans-serif-medium" />
+</LinearLayout>

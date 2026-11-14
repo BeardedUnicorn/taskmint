@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TaskMint: a widget's header (included): the leaf, its name (or Today's
+     day), and on the right "as of …" or a total -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_header"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="20dp"
+    android:orientation="horizontal">
+
+    <ImageView
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_stat_taskmint"
+        android:tint="@color/widget_accent" />
+
+    <TextView
+        android:id="@+id/widget_title"
+        style="@style/TaskMintWidget.Title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/widget_aside"
+        style="@style/TaskMintWidget.Caption"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp" />
+</LinearLayout>

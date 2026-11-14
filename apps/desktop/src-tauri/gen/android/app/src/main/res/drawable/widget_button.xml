@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TaskMint: a widget's button, the brand green -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="@color/widget_button" />
-    <corners android:radius="18dp" />
-</shape>
+<!-- TaskMint: a widget's button, the brand green: a 40dp pill in its 48dp
+     touch target, rippling when pressed -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetTop="4dp"
+    android:insetBottom="4dp">
+    <ripple android:color="@color/widget_button_ripple">
+        <item>
+            <shape android:shape="rectangle">
+                <solid android:color="@color/widget_button" />
+                <corners android:radius="20dp" />
+            </shape>
+        </item>
+    </ripple>
+</inset>
