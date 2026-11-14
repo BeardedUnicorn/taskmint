@@ -15,9 +15,35 @@ const payout = (cells = [cell({ estimatedCents: 4_550, trackedMs: 133 * MINUTE }
 describe('todayWidget', () => {
   it("shows today's money and time, the goal, this week, and the running timer counting", () => {
     expect(todayWidget(payout(), goal, [working(false)], week)).toEqual({
-      today: { money: '~$46', time: '2h 13m', goalPercent: 64, week: { money: '~$310', time: '14h 20m' } },
+      today: {
+        money: '~$46',
+        time: '2h 13m',
+        // Today's time counts with the timer, from where 2h 13m ago puts it
+        countingFromMs: NOW - 133 * MINUTE,
+        timeMs: null,
+        goalPercent: 64,
+        week: { money: '~$310', time: '14h 20m' },
+      },
       timer: { task: 'Writing', countingFromMs: NOW - 50 * MINUTE, status: null, pausedFor: null },
     });
+  });
+
+  it("holds today's time still while the timer is paused, or one begun yesterday still runs", () => {
+    const still = { countingFromMs: null, timeMs: 133 * MINUTE };
+    expect(todayWidget(payout(), goal, [working(true)], week).today).toMatchObject(still);
+    expect(todayWidget(payout(), goal, [], week).today).toMatchObject(still);
+
+    // Its whole time is yesterday's, so today's doesn't grow with it
+    const sinceYesterday = createMockTaskSession({
+      taskName: 'Writing',
+      isActive: true,
+      timerInstances: [
+        createMockTimerInstance({ startTime: new Date(NOW - 20 * 60 * MINUTE).toISOString(), isRunning: true }),
+      ],
+    });
+    const overnight = todayWidget(payout(), goal, [sinceYesterday], week);
+    expect(overnight.today).toMatchObject(still);
+    expect(overnight.timer).toMatchObject({ countingFromMs: NOW - 20 * 60 * MINUTE });
   });
 
   it('says where a paused timer stopped, and leaves the goal out when there is none', () => {

@@ -70,8 +70,12 @@ describe('useHomeWidgets', () => {
       week: { goalLevel: 9100 },
     });
 
-    // A second on, the same text: nothing new to send
-    data.payout = payout({ nowMs: NOW + 1_000 });
+    // A second on, the running timer has a second more: the same text (and
+    // today's time still counts from the same moment), so nothing new to send
+    data.payout = payout({
+      nowMs: NOW + 1_000,
+      cells: [cell({ estimatedCents: 4_550, trackedMs: 133 * MINUTE + 1_000 })],
+    });
     rerender();
     expect(update).toHaveBeenCalledTimes(1);
     data.payout = payout({ cells: [cell({ estimatedCents: 9_900, trackedMs: 300 * MINUTE })] });

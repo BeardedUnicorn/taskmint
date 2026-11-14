@@ -192,6 +192,14 @@ export interface WidgetSnapshot {
     /** "~$45": an estimate is marked. */
     money: string;
     time: string;
+    /**
+     * While a timer begun today runs: when today's time would have started
+     * had it never stopped (the phone's timer notification counts from it).
+     * Null while today's time stands still.
+     */
+    countingFromMs: number | null;
+    /** Today's time while it stands still; null while it counts. */
+    timeMs: number | null;
     goalPercent: number | null;
     /** This week's money and time, as Home has them (a tall widget shows them). */
     week: { money: string; time: string };
