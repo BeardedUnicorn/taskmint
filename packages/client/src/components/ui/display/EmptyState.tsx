@@ -8,6 +8,7 @@
 
 import { ReactNode } from 'react';
 import { Box, Paper, Typography } from '@mui/material';
+import { PHONE } from '../../../theme/media';
 
 export interface EmptyStateProps {
   icon?: ReactNode;
@@ -22,7 +23,13 @@ export function EmptyState({ icon, title, description, action, plain = false }: 
   return (
     <Paper
       elevation={plain ? 0 : 1}
-      sx={{ p: plain ? 4 : 6, textAlign: 'center', ...(plain && { bgcolor: 'transparent' }) }}
+      sx={{
+        p: plain ? 4 : 6,
+        textAlign: 'center',
+        ...(plain && { bgcolor: 'transparent' }),
+        // A phone's narrow column: less air around the message
+        [PHONE]: { px: 2, py: plain ? 3 : 4 },
+      }}
     >
       {icon && <Box sx={{ color: 'text.secondary', mb: 1, '& svg': { fontSize: 48 } }}>{icon}</Box>}
       <Typography variant="h6" sx={{ fontWeight: 600 }}>

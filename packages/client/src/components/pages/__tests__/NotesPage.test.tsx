@@ -214,6 +214,29 @@ describe('NotesPage', () => {
     expect(screen.getByText('2 notes')).toBeInTheDocument();
   });
 
+  it('counts one note as one, and shows no count before any is written', () => {
+    const notes = (list: typeof mockNotes) => ({
+      notes: list,
+      createNote: vi.fn(),
+      updateNote: vi.fn(),
+      deleteNote: vi.fn(),
+      getNotesByTaskId: vi.fn(() => list),
+      getNotesByTimeEntryId: vi.fn(() => []),
+      getNoteById: vi.fn(),
+      getNotesStats: vi.fn(() => ({ totalNotes: list.length, templatesUsed: [], notesByTemplate: {} })),
+      isLoading: false,
+      error: null,
+    });
+    mockUseTaskNotes.mockReturnValue(notes(mockNotes.slice(0, 1)));
+    const { unmount } = render(<NotesPage tasks={mockTasks} runningTask={null} />);
+    expect(screen.getByText('1 note')).toBeInTheDocument();
+    unmount();
+
+    mockUseTaskNotes.mockReturnValue(notes([]));
+    render(<NotesPage tasks={mockTasks} runningTask={null} />);
+    expect(screen.queryByText(/^\d+ notes?$/)).not.toBeInTheDocument();
+  });
+
   it('filters notes by task when task filter is changed', async () => {
     mockUseTaskNotes.mockReturnValue({
       notes: mockNotes,

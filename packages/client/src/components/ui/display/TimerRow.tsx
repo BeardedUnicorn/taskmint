@@ -86,7 +86,7 @@ export function TimerRow({
       <TimerIcon fontSize="medium" sx={{ color: 'text.secondary' }} />
 
       {/* A set width, so the rows' times line up whatever their tasks are called */}
-      <Box sx={{ width: 160, minWidth: 0, [PHONE]: { width: 'auto', flex: 1 } }}>
+      <Box sx={{ width: 'min(40%, 320px)', minWidth: 0, [PHONE]: { width: 'auto', flex: 1 } }}>
         <Typography variant="body2" noWrap title={taskName} sx={{ fontWeight: 600, [PHONE]: TWO_LINES }}>
           {taskName}
         </Typography>

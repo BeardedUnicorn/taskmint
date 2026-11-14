@@ -267,7 +267,12 @@ export function NotificationSettingsSection() {
 
       <Divider sx={{ my: 2 }} />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
-        <Button variant="outlined" startIcon={<SendIcon />} onClick={sendTest}>
+        <Button
+          variant="outlined"
+          startIcon={<SendIcon />}
+          onClick={sendTest}
+          sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+        >
           Send test notification
         </Button>
         <Typography variant="body2" color="text.secondary">

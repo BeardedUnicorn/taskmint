@@ -32,8 +32,8 @@ describe('StatsCard', () => {
   });
 
   it('uses the colour named for other figures', () => {
-    inTheme('light', <StatsCard title="Today" value="$2" subtitle="" icon={<span />} color="success" />);
-    expect(screen.getByText('$2')).toHaveStyle({ color: 'rgb(46, 125, 50)' });
+    inTheme('light', <StatsCard title="Pending" value="$2" subtitle="" icon={<span />} color="info" />);
+    expect(screen.getByText('$2')).toHaveStyle({ color: 'rgb(2, 119, 189)' });
   });
 });
 

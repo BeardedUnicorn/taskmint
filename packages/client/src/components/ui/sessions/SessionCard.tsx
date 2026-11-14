@@ -18,7 +18,7 @@ import { formatDuration, formatTime } from '../../../utils/formatters';
 import { getSessionElapsedMs, sessionTaskTotals, sessionTitle } from '../../../utils/timerHelpers';
 import { isImportedSession } from './useSessionFilters';
 import { HOVER, PHONE } from '../../../theme/media';
-import { STACK_WRAP, TWO_LINES } from '../phoneLayout';
+import { TWO_LINES } from '../phoneLayout';
 
 interface SessionCardProps {
   session: TaskSession;
@@ -69,16 +69,9 @@ export const SessionCard = memo(function SessionCard({
       }}
       onClick={() => onSelect(session)}
     >
-      <CardContent sx={{ pb: 2 }}>
-        {/* On a phone the buttons go below the details */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 2,
-            [PHONE]: { flexDirection: 'column', alignItems: 'stretch', gap: 1 },
-          }}
-        >
+      <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+        {/* On a phone the card keeps only the menu button, which has the other two's actions */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, [PHONE]: { gap: 1 } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             {/* width 0 + minWidth 100%: fills the card, and a long name truncates
                 instead of widening the page's column */}
@@ -91,7 +84,12 @@ export const SessionCard = memo(function SessionCard({
               {title}
             </Typography>
 
-            <Stack direction="row" spacing={1} sx={{ mb: 2, [PHONE]: { mb: 1, ...STACK_WRAP } }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              useFlexGap
+              sx={{ flexWrap: 'wrap', mb: taskTotals.length > 1 || notePreview ? 1.5 : 0 }}
+            >
               <Chip
                 icon={<TimerIcon />}
                 label={formatElapsed(getSessionElapsedMs(session, nowMs))}
@@ -169,7 +167,11 @@ export const SessionCard = memo(function SessionCard({
             )}
           </Box>
 
-          <Stack direction="row" spacing={1} sx={{ mt: -1, mr: -1, [PHONE]: { m: 0, justifyContent: 'flex-end' } }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ mt: -1, mr: -1, flexShrink: 0, [PHONE]: { '& .MuiButton-root': { display: 'none' } } }}
+          >
             {/* Imported days change only by importing again */}
             {!isImportedSession(session) && (
               <Button

@@ -51,6 +51,8 @@ interface NotesPageProps {
 
 const NO_SESSIONS: TaskSession[] = [];
 
+/** "1 note", "2 notes". */
+const noteCount = (count: number) => `${count} ${count === 1 ? 'note' : 'notes'}`;
 export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesPageProps) {
   const taskFilterLabelId = useId();
   const templateFilterLabelId = useId();
@@ -178,13 +180,15 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
     <PageContainer fill>
       <PageHeader
         title="Notes"
+        // How many notes match; with none written yet there is nothing to count
         titleAdornment={
-          <Chip
-            label={`${filteredActiveNotes.length + filteredArchivedNotes.length} notes`}
-            size="small"
-            color="primary"
-            variant="outlined"
-          />
+          notes.length > 0 && (
+            <Chip
+              label={noteCount(filteredActiveNotes.length + filteredArchivedNotes.length)}
+              size="small"
+              variant="outlined"
+            />
+          )
         }
         subtitle="Manage all your notes across tasks in one place"
       >
@@ -231,7 +235,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                 [PHONE]: {
                   display: 'grid',
                   gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: 1,
+                  gap: 2,
                   '& > :not(style) ~ :not(style)': { ml: 0 },
                 },
               }}
@@ -297,7 +301,8 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                 startIcon={<AddIcon />}
                 onClick={handleCreateNote}
                 disabled={pickerTasks.length === 0}
-                sx={{ [PHONE]: { gridColumn: '1 / -1' } }}
+                // The page's main action, at the right of its controls
+                sx={{ ml: 'auto', [PHONE]: { gridColumn: '1 / -1' } }}
               >
                 Add Note
               </Button>

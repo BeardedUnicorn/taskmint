@@ -34,10 +34,10 @@ import { PHONE_TABLE } from '../../ui/tables/tableStyles';
 import { VISUALLY_HIDDEN } from '../../ui/visuallyHidden';
 import { ScheduleWithdrawalDialog } from './withdrawals/ScheduleWithdrawalDialog';
 import { StackedList, StackedRow } from '../../ui/tables/StackedRows';
-import { useCompactLayout } from '../../../hooks/useCompactLayout';
+import { useNarrowLayout } from '../../../hooks/useCompactLayout';
 
 const COLUMNS = 5;
-/** Room for the lock, so every row's date lines up. */
+/** Room for the lock when any release is held, so every row's date lines up. */
 const LOCK_WIDTH = 20;
 
 const rowKey = (row: ReleaseScheduleRow, idx: number) =>
@@ -60,7 +60,8 @@ function releaseParts(row: ReleaseScheduleRow): string {
 export function ReleaseScheduleTable() {
   const { schedule, plan, reminder, withdrawalIntervalDays } = usePayoutData();
   const [choosing, setChoosing] = useState<ReleaseScheduleRow | null>(null);
-  const compact = useCompactLayout();
+  // A window too narrow for the table gets the rows a phone does
+  const compact = useNarrowLayout();
   if (schedule.length === 0) return null;
 
   const heldUntil = heldUntilMs(plan);
@@ -91,7 +92,7 @@ export function ReleaseScheduleTable() {
   );
 
   return (
-    <Paper sx={{ p: 3, mb: 4, [PHONE]: { p: 2 } }}>
+    <Paper sx={{ p: 3, mb: 3, [PHONE]: { p: 2 } }}>
       <Typography variant="h6">Upcoming releases</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: heldCount > 0 ? 0.5 : 2 }}>
         Choose a release to schedule your next withdrawal for it, and TaskMint reminds you when it's ready.
@@ -117,9 +118,11 @@ export function ReleaseScheduleTable() {
                   label={scheduleLabel(row)}
                   selected={scheduled}
                   leading={
-                    <Box sx={{ width: LOCK_WIDTH, flexShrink: 0, display: 'flex', color: 'text.secondary' }}>
-                      {isHeld(row) && <LockClockIcon fontSize="small" titleAccess="Held" />}
-                    </Box>
+                    heldCount > 0 && (
+                      <Box sx={{ width: LOCK_WIDTH, flexShrink: 0, display: 'flex', color: 'text.secondary' }}>
+                        {isHeld(row) && <LockClockIcon fontSize="small" titleAccess="Held" />}
+                      </Box>
+                    )
                   }
                   title={row.releaseTime ? formatWeekdayDateTime(row.releaseMs) : formatWeekdayDate(row.releaseMs)}
                   figure={formatCurrency(centsToDollars(row.actualCents + row.estimatedCents))}
@@ -173,15 +176,17 @@ export function ReleaseScheduleTable() {
                     >
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                          <Box sx={{ width: LOCK_WIDTH, flexShrink: 0, display: 'flex', color: 'text.secondary' }}>
-                            {held && (
-                              <Tooltip title={`Held until withdrawals open on ${opening}`}>
-                                <LockClockIcon fontSize="small" titleAccess="Held" />
-                              </Tooltip>
-                            )}
-                          </Box>
+                          {heldCount > 0 && (
+                            <Box sx={{ width: LOCK_WIDTH, flexShrink: 0, display: 'flex', color: 'text.secondary' }}>
+                              {held && (
+                                <Tooltip title={`Held until withdrawals open on ${opening}`}>
+                                  <LockClockIcon fontSize="small" titleAccess="Held" />
+                                </Tooltip>
+                              )}
+                            </Box>
+                          )}
                           <div>
-                            <Typography variant="body2">{row.releaseDay}</Typography>
+                            <Typography variant="body2">{formatWeekdayDate(row.releaseMs)}</Typography>
                             {row.releaseTime && (
                               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                 {row.releaseTime}

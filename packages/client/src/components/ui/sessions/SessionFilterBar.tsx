@@ -16,15 +16,18 @@ import {
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { SessionFilters, SourceFilter, StatusFilter } from './useSessionFilters';
+import { PHONE, TOUCH } from '../../../theme/media';
 
 export function SessionFilterBar({ filters }: { filters: SessionFilters }) {
   const { taskNames, taskFilters } = filters;
   return (
     <>
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 2 }}>
+      {/* On a phone the search takes a row, and the two filters share the next */}
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
         <TextField
-          fullWidth
+          size="small"
           label="Search sessions"
+          sx={{ flex: '1 1 240px', [PHONE]: { flexBasis: '100%' } }}
           placeholder="Search sessions..."
           value={filters.searchQuery}
           onChange={event => filters.setSearchQuery(event.target.value)}
@@ -39,7 +42,7 @@ export function SessionFilterBar({ filters }: { filters: SessionFilters }) {
           }}
         />
 
-        <FormControl size="small" sx={{ minWidth: 120 }}>
+        <FormControl size="small" sx={{ minWidth: 120, [PHONE]: { flex: 1, minWidth: 0 } }}>
           <InputLabel id="session-status-label">Status</InputLabel>
           <Select
             labelId="session-status-label"
@@ -53,7 +56,7 @@ export function SessionFilterBar({ filters }: { filters: SessionFilters }) {
           </Select>
         </FormControl>
 
-        <FormControl size="small" sx={{ minWidth: 130 }}>
+        <FormControl size="small" sx={{ minWidth: 130, [PHONE]: { flex: 1, minWidth: 0 } }}>
           <InputLabel id="session-source-label">Source</InputLabel>
           <Select
             labelId="session-source-label"
@@ -69,7 +72,12 @@ export function SessionFilterBar({ filters }: { filters: SessionFilters }) {
       </Box>
 
       {taskNames.length > 0 && (
-        <Stack direction="row" spacing={1} useFlexGap sx={{ mb: 3, flexWrap: 'wrap' }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          useFlexGap
+          sx={{ mb: 3, flexWrap: 'wrap', [TOUCH]: { '& .MuiChip-root': { height: 32 } } }}
+        >
           {taskNames.map(name => {
             const selected = taskFilters.includes(name);
             return (

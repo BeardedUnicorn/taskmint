@@ -7,6 +7,20 @@
 /** Narrower than MUI's `sm` breakpoint: a phone held upright. Same as `theme.breakpoints.down('sm')`. */
 export const PHONE = '@media (max-width:599.95px)';
 
+/**
+ * Too narrow for a list and its detail side by side: a phone, a tablet held
+ * upright, or the desktop window near its 800px minimum (the sidebar takes
+ * 240 of that). Pages with two panes show one at a time under it.
+ */
+export const NARROW = '@media (max-width:1099.95px)';
+
+/**
+ * A browser window between a phone and the desktop's 800px minimum. The
+ * sidebar is kept, but as its strip of icons: at full width it would leave a
+ * page less room than a phone gives it.
+ */
+export const TIGHT = '@media (min-width:600px) and (max-width:799.95px)';
+
 /** The main pointer is a finger, so controls need room to be tapped. */
 export const TOUCH = '@media (pointer: coarse)';
 

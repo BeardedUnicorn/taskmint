@@ -78,7 +78,7 @@ export function TimeEntryRows({
               isImported ? (
                 <LockIcon
                   fontSize="small"
-                  sx={{ color: 'text.disabled', mx: 1.25 }}
+                  sx={{ color: 'text.disabled', mx: 1.5 }}
                   aria-label="Imported entries are read-only"
                 />
               ) : (

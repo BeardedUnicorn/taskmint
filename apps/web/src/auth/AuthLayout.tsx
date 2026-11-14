@@ -3,7 +3,16 @@ import { Box, CssBaseline, Paper, Stack, Typography } from '@mui/material';
 import { AppThemeProvider, Wordmark } from '@taskmint/client/ui';
 
 /** The pages outside the app: the app's theme, and a card under the logo. */
-export function AuthLayout({ title, children }: { title: string; children: ReactNode }) {
+export function AuthLayout({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  /** A line under the title, centered with it. */
+  subtitle?: string;
+  children: ReactNode;
+}) {
   return (
     <AppThemeProvider>
       <CssBaseline />
@@ -14,6 +23,11 @@ export function AuthLayout({ title, children }: { title: string; children: React
             <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
               {title}
             </Typography>
+            {subtitle && (
+              <Typography variant="body2" color="text.secondary">
+                {subtitle}
+              </Typography>
+            )}
           </Stack>
           {children}
         </Paper>

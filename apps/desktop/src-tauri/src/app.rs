@@ -8,6 +8,7 @@
 //! from the old identifier.
 
 use crate::dispatch;
+#[cfg(desktop)]
 use crate::environment::Environment;
 use crate::platform::os::TauriPlatform;
 use crate::state::AppState;
