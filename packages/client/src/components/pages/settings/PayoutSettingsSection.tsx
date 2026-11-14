@@ -5,13 +5,16 @@ import { useFundsReleaseSettings } from '../../../hooks/useFundsReleaseSettings'
 import { useWithdrawalIntervalSetting } from '../../../hooks/useWithdrawalIntervalSetting';
 
 /** The payment site's rules: how long it holds earnings, and how often it allows a withdrawal. */
+/** A small number: the field is as wide as its label needs, and the note under it runs on. */
+const NUMBER_FIELD = { '& .MuiInputBase-root': { maxWidth: 280 } } as const;
+
 export function PayoutSettingsSection() {
   const { days, updateDays } = useFundsReleaseSettings();
   const interval = useWithdrawalIntervalSetting();
   return (
     <SettingsSection title="Payouts" icon={<PayoutsIcon color="primary" />}>
       <Stack spacing={3}>
-        <FormControl sx={{ minWidth: 250 }}>
+        <FormControl sx={NUMBER_FIELD}>
           <InputLabel id="funds-release-label">Days Before Funds Released</InputLabel>
           <Select
             labelId="funds-release-label"
@@ -32,7 +35,7 @@ export function PayoutSettingsSection() {
           </FormHelperText>
         </FormControl>
 
-        <FormControl sx={{ minWidth: 250 }}>
+        <FormControl sx={NUMBER_FIELD}>
           <InputLabel id="withdrawal-interval-label">Days Between Withdrawals</InputLabel>
           <Select
             labelId="withdrawal-interval-label"

@@ -75,7 +75,8 @@ export function DailyGoalSettings() {
         which reach your desktop under Notifications). It starts over each day.
       </Typography>
 
-      <Stack spacing={3}>
+      {/* (Flex gap, so the switch keeps the label's own left alignment) */}
+      <Stack spacing={3} useFlexGap sx={{ alignItems: 'flex-start' }}>
         <FormControlLabel
           control={
             <Switch

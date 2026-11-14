@@ -37,7 +37,8 @@ import { ReleaseScheduleTable } from './ReleaseScheduleTable';
 import { usePayoutData } from '../../../hooks/usePayoutData';
 import { NextWithdrawalPanel } from './withdrawals/NextWithdrawalPanel';
 import { WithdrawalsCard } from './withdrawals/WithdrawalsCard';
-import { formatShortDateTime } from '../../../utils/locale';
+import { formatShortDateTime, formatWeekdayDate } from '../../../utils/locale';
+import { parseDateStringLocal } from '../../../utils/dateHelpers';
 import { PHONE } from '../../../theme/media';
 
 interface PayoutsPageProps {
@@ -167,34 +168,33 @@ export function PayoutsPage({ importRequested = false, onImportRequestHandled }:
           <CircularProgress />
         </Box>
       ) : isEmpty ? (
-        <EmptyState
-          icon={<WalletIcon />}
-          title="No payout data yet"
-          description="Track time on a task with an hourly rate to see estimates, or import your reported work from the payment site."
-          action={
-            <Button variant="contained" startIcon={<UploadIcon />} onClick={() => setImportOpen(true)}>
-              Import work logs
-            </Button>
-          }
-        />
+        <Box sx={{ mb: 3 }}>
+          <EmptyState
+            icon={<WalletIcon />}
+            title="No payout data yet"
+            description="Track time on a task with an hourly rate to see estimates, or import your reported work from the payment site."
+            action={
+              <Button variant="contained" startIcon={<UploadIcon />} onClick={() => setImportOpen(true)}>
+                Import work logs
+              </Button>
+            }
+          />
+        </Box>
       ) : (
         <>
-          <NextWithdrawalPanel />
+          <Box sx={{ mb: 3 }}>
+            <NextWithdrawalPanel />
+          </Box>
 
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
               gap: 3,
-              mb: 4,
-              // Two narrower columns on a phone, and a last card left alone on
-              // its row takes the whole row
-              [PHONE]: {
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: 2,
-                mb: 3,
-                '& > :last-child:nth-of-type(odd)': { gridColumn: '1 / -1' },
-              },
+              mb: 3,
+              // One to a row on a phone: these cards' notes are sentences, which
+              // two columns broke into four lines
+              [PHONE]: { gridTemplateColumns: 'minmax(0, 1fr)', gap: 2 },
             }}
           >
             {plan ? (
@@ -209,7 +209,7 @@ export function PayoutsPage({ importRequested = false, onImportRequestHandled }:
               <StatsCard
                 title="Available now"
                 value={formatCurrency(centsToDollars(summary.availableCents))}
-                subtitle={`released through ${today}, as the site reported at the last import`}
+                subtitle={`released through ${formatWeekdayDate(parseDateStringLocal(today))}, as the site reported at the last import`}
                 icon={<WalletIcon fontSize="large" />}
                 color="success"
               />
@@ -219,7 +219,7 @@ export function PayoutsPage({ importRequested = false, onImportRequestHandled }:
               value={formatCurrency(centsToDollars(summary.pendingCents))}
               subtitle={
                 summary.nextReleaseDay
-                  ? `next: ${summary.nextReleaseDay} · ${formatCurrency(centsToDollars(summary.nextReleaseCents))}`
+                  ? `next: ${formatWeekdayDate(parseDateStringLocal(summary.nextReleaseDay))} · ${formatCurrency(centsToDollars(summary.nextReleaseCents))}`
                   : 'nothing scheduled'
               }
               icon={<ScheduleIcon fontSize="large" />}

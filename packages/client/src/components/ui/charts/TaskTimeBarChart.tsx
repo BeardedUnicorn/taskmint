@@ -20,6 +20,8 @@ import {
 const AXIS_NAME_LENGTH = 15;
 /** A bar running across, with the room around it. */
 const ROW_HEIGHT = 44;
+/** The most bars whose names (up to AXIS_NAME_LENGTH long) fit level side by side. */
+const LEVEL_NAMES = 6;
 
 interface TaskPoint {
   taskName: string;
@@ -55,6 +57,8 @@ export function TaskTimeBarChart({ data, measure }: { data: TaskTimeData[]; meas
 
   const text = theme.palette.text.primary;
   const ticks = { fill: text, fontSize: layout.tickFontSize };
+  // A few names fit level under their bars; many are slanted to fit
+  const slanted = data.length > LEVEL_NAMES;
   const points: TaskPoint[] = data.map(item => ({
     taskName:
       item.taskName.length > AXIS_NAME_LENGTH ? `${item.taskName.substring(0, AXIS_NAME_LENGTH)}...` : item.taskName,
@@ -80,9 +84,14 @@ export function TaskTimeBarChart({ data, measure }: { data: TaskTimeData[]; meas
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={layout.height}>
-          <BarChart data={points} margin={{ top: 20, ...layout.sideMargin, bottom: 60 }}>
+          <BarChart data={points} margin={{ top: 20, ...layout.sideMargin, bottom: slanted ? 60 : 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} vertical={false} />
-            <XAxis dataKey="taskName" tick={ticks} angle={-45} textAnchor="end" height={80} interval={0} />
+            <XAxis
+              dataKey="taskName"
+              tick={ticks}
+              interval={0}
+              {...(slanted ? { angle: -45, textAnchor: 'end', height: 80 } : { height: 32 })}
+            />
             <YAxis
               width={layout.axisWidth}
               tick={ticks}

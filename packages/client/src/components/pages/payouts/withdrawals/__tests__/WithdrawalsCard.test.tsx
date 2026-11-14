@@ -56,7 +56,7 @@ describe('WithdrawalsCard', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     const [newest, oldest] = within(screen.getByRole('list', { name: 'Withdrawals' })).getAllByRole('listitem');
     expect(newest).toHaveTextContent('$712.50PayPal');
-    expect(oldest).toHaveTextContent('Wed, Nov 4, 9:00 AM$300.00');
+    expect(oldest).toHaveTextContent('Nov 4, 9:00 AM$300.00');
 
     fireEvent.click(within(newest).getByRole('button', { name: /^Actions for the withdrawal on/ }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));

@@ -92,6 +92,8 @@ export class SyncEngine {
   /** Backend calls run one at a time, in order. */
   private queue: Promise<unknown> = Promise.resolve();
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Sends on their way: each ends with null once the cloud has it, or with why it doesn't. */
+  private readonly sending = new Set<Promise<string | null>>();
   /** Bumped on each change of user, so work for an earlier one is dropped. */
   private generation = 0;
   /** Waiting for the cloud's data to first come in (firstSync). */
@@ -256,6 +258,22 @@ export class SyncEngine {
   /** Sends what changed now. */
   syncNow = () => this.send(0);
 
+  /**
+   * Sends what changed now and resolves once the cloud has all of it, the
+   * sends already on their way too. A page whose data is only in the cloud
+   * waits for this before it reloads: what hasn't been sent is gone with the
+   * page. Rejects with why when this device isn't syncing or the cloud didn't
+   * take it (a failed send is tried again later, as ever).
+   */
+  async flush(): Promise<void> {
+    if (!this.linked) throw new Error('Sync isn’t running right now.');
+    // This send has whatever the waiting one would
+    clearTimeout(this.timer);
+    const failures = await Promise.all([...this.sending, this.push(this.generation)]);
+    const failure = failures.find(why => why !== null);
+    if (failure !== undefined) throw new Error(failure);
+  }
+
   // ---- Inside ---------------------------------------------------------------
 
   private set(changes: Partial<SyncView>): void {
@@ -419,7 +437,15 @@ export class SyncEngine {
     this.timer = setTimeout(() => void this.push(generation), delayMs);
   }
 
-  private async push(generation: number): Promise<void> {
+  /** Sends what changed: null once the cloud has it, else why it doesn't. */
+  private push(generation: number): Promise<string | null> {
+    const sending = this.deliver(generation);
+    this.sending.add(sending);
+    void sending.then(() => this.sending.delete(sending));
+    return sending;
+  }
+
+  private async deliver(generation: number): Promise<string | null> {
     const linked = this.linked!;
     let fresh: OutgoingDoc[] = [];
     try {
@@ -437,12 +463,15 @@ export class SyncEngine {
           schema: SYNC_SCHEMA,
         });
       }
+      return null;
     } catch (error) {
-      if (generation !== this.generation) return;
+      const why = cloudErrorMessage(error);
+      if (generation !== this.generation) return why;
       // Sent again later; the listener carries on
       for (const doc of fresh) this.sent.delete(doc.docId);
-      this.set({ phase: 'error', error: cloudErrorMessage(error) });
+      this.set({ phase: 'error', error: why });
       this.send(this.options.retryMs);
+      return why;
     }
   }
 

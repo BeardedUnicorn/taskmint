@@ -36,3 +36,20 @@ export function setPhoneViewport(also: string[] = []): void {
     matchMedia.mockImplementation(query => mediaQueryList(query, false));
   });
 }
+
+/**
+ * Makes the rest of one test a mouse-driven window `width` px wide: width
+ * queries answer for that width, and nothing else matches (no touch, so a
+ * width under 600 is a narrow window rather than setPhoneViewport's phone).
+ */
+export function setWindowWidth(width: number): void {
+  const matchMedia = vi.mocked(window.matchMedia);
+  matchMedia.mockImplementation(query => {
+    const limits = [...query.matchAll(/\((max|min)-width:\s*([\d.]+)px\)/g)];
+    const fits = limits.every(([, kind, px]) => (kind === 'max' ? width <= Number(px) : width >= Number(px)));
+    return mediaQueryList(query, limits.length > 0 && fits);
+  });
+  onTestFinished(() => {
+    matchMedia.mockImplementation(query => mediaQueryList(query, false));
+  });
+}

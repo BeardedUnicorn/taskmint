@@ -50,6 +50,8 @@ describe('the web start', () => {
     const root = container();
     await act(() => start(root, at, { loadStore: async () => store, createBackend }));
     expect(screen.getByRole('heading', { name: 'Sign in to TaskMint' })).toBeInTheDocument();
+    // What it's for, under the heading (and not said again by the form)
+    expect(screen.getAllByText('Your sessions, tasks and work logs, here and on your other devices.')).toHaveLength(1);
     expect(createBackend).not.toHaveBeenCalled();
 
     await act(() => store.setUser(bea()));

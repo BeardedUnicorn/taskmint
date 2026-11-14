@@ -29,12 +29,13 @@ import { PHONE } from '../../../../theme/media';
 import { PHONE_TABLE } from '../../../ui/tables/tableStyles';
 import { RecordWithdrawalDialog } from './RecordWithdrawalDialog';
 import { RowMenu, StackedList, StackedRow } from '../../../ui/tables/StackedRows';
-import { useCompactLayout } from '../../../../hooks/useCompactLayout';
+import { useNarrowLayout } from '../../../../hooks/useCompactLayout';
 
 export function WithdrawalsCard() {
   const { withdrawals, loadError, deleteWithdrawal } = useWithdrawals();
   const [editing, setEditing] = useState<Withdrawal | null>(null);
-  const compact = useCompactLayout();
+  // A window too narrow for the table gets the rows a phone does
+  const compact = useNarrowLayout();
   // The panel above reports an unreadable record
   if (loadError) return null;
 
@@ -42,7 +43,7 @@ export function WithdrawalsCard() {
   const totalCents = withdrawals.reduce((sum, withdrawal) => sum + withdrawal.amountCents, 0);
 
   return (
-    <Paper sx={{ p: 3, mb: 4, [PHONE]: { p: 2 } }}>
+    <Paper sx={{ p: 3, mb: 3, [PHONE]: { p: 2 } }}>
       <Typography variant="h6">Withdrawals</Typography>
       {withdrawals.length === 0 ? (
         <EmptyState
@@ -63,7 +64,7 @@ export function WithdrawalsCard() {
                 return (
                   <StackedRow
                     key={withdrawal.id}
-                    title={formatWeekdayDateTime(withdrawal.takenAt)}
+                    title={when}
                     figure={formatCents(withdrawal.amountCents)}
                     details={withdrawal.note}
                     actions={

@@ -28,7 +28,7 @@ import { MONO } from './payoutStyles';
 import { PHONE } from '../../../theme/media';
 import { PHONE_TABLE } from '../../ui/tables/tableStyles';
 import { StackedList, StackedRow } from '../../ui/tables/StackedRows';
-import { useCompactLayout } from '../../../hooks/useCompactLayout';
+import { useNarrowLayout } from '../../../hooks/useCompactLayout';
 import { formatWeekdayDate } from '../../../utils/locale';
 import { parseDateStringLocal } from '../../../utils/dateHelpers';
 
@@ -46,6 +46,9 @@ function SourceChip({ cell }: { cell: PayoutDayCell }) {
   if (cell.isEstimate) return <Chip label="Estimate" size="small" color="warning" variant="outlined" />;
   return <Chip label="Tracked only" size="small" variant="outlined" />;
 }
+
+/** The window width its nine columns need beside the sidebar. */
+const RECONCILIATION_WIDTH = 1360;
 
 /** "6h 20m tracked · 6h 20m reported", with what's none as a dash. */
 function timesLine(trackedMs: number, importedMinutes: number): string {
@@ -76,17 +79,21 @@ function PhoneMonth({ group, open, onToggle }: { group: PayoutMonthGroup; open: 
         }}
       >
         {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+        {/* The month and its amount share a line when they fit; its hours get the full width below */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-            {label}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+              {label}
+            </Typography>
+            {/* At the right; a long one (actual + estimate) drops to its own line */}
+            <Typography variant="body2" sx={{ ...MONO, fontWeight: 600, whiteSpace: 'nowrap', ml: 'auto' }}>
+              {formatPayoutAmount(group.actualCents, group.estimatedCents)}
+            </Typography>
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
             {timesLine(group.trackedMs, group.importedMinutes)}
           </Typography>
         </Box>
-        <Typography variant="body2" sx={{ ...MONO, fontWeight: 600, whiteSpace: 'nowrap' }}>
-          {formatPayoutAmount(group.actualCents, group.estimatedCents)}
-        </Typography>
       </ButtonBase>
       {open && (
         <StackedList label={label}>
@@ -123,7 +130,8 @@ function PhoneMonth({ group, open, onToggle }: { group: PayoutMonthGroup; open: 
 }
 
 export function ReconciliationTable({ monthGroups, today }: { monthGroups: PayoutMonthGroup[]; today: string }) {
-  const compact = useCompactLayout();
+  // A window too narrow for the table gets the rows a phone does
+  const compact = useNarrowLayout(RECONCILIATION_WIDTH);
   const currentMonth = today.slice(0, 7);
   const defaultOpenMonth = monthGroups.some(group => group.month === currentMonth)
     ? currentMonth
@@ -143,7 +151,7 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
     });
 
   return (
-    <Paper sx={{ p: 3, [PHONE]: { p: 2 } }}>
+    <Paper sx={{ p: 3, mb: 3, [PHONE]: { p: 2 } }}>
       <Typography variant="h6" sx={{ mb: 2 }}>
         Daily reconciliation
       </Typography>
@@ -215,8 +223,10 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
                         const delta = deltaLabel(cell);
                         return (
                           <TableRow key={`${cell.taskId}-${cell.workDay}`}>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{cell.workDay}</TableCell>
-                            <TableCell>{cell.taskName}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                              {formatWeekdayDate(parseDateStringLocal(cell.workDay))}
+                            </TableCell>
+                            <TableCell sx={{ overflowWrap: 'anywhere' }}>{cell.taskName}</TableCell>
                             <TableCell align="right" sx={MONO}>
                               {cell.trackedMs > 0 ? formatDuration(cell.trackedMs) : '—'}
                             </TableCell>
@@ -238,7 +248,9 @@ export function ReconciliationTable({ monthGroups, today }: { monthGroups: Payou
                               ))}
                             </TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                              {cell.actualCents > 0 || cell.estimatedCents > 0 ? cell.releaseDay : '—'}
+                              {cell.actualCents > 0 || cell.estimatedCents > 0
+                                ? formatWeekdayDate(parseDateStringLocal(cell.releaseDay))
+                                : '—'}
                             </TableCell>
                             <TableCell>
                               <SourceChip cell={cell} />

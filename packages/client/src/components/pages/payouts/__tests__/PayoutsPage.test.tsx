@@ -13,7 +13,8 @@ import { PayoutDataProvider } from '../../../../contexts/PayoutDataContext';
 import { Task } from '../../../../types/task';
 import { TaskSession, TimerState } from '../../../../types/timer';
 import { WorkLogContextValue } from '../../../../contexts/WorkLogContext';
-import { formatDateString } from '../../../../utils/dateHelpers';
+import { formatDateString, parseDateStringLocal } from '../../../../utils/dateHelpers';
+import { formatWeekdayDate } from '../../../../utils/locale';
 import {
   createEmptyImportUndo,
   createMockProjectTaskMapping,
@@ -253,7 +254,7 @@ describe('PayoutsPage', () => {
     expect(within(upcomingTable).getByText('6:00 PM')).toBeInTheDocument();
 
     // Check that both times are rendered under the release date
-    const expectedReleaseDay = dayOffset(2); // 7 days after -5 = +2
+    const expectedReleaseDay = formatWeekdayDate(parseDateStringLocal(dayOffset(2))); // 7 days after -5 = +2
     const dateElements = within(upcomingTable).getAllByText(expectedReleaseDay);
     expect(dateElements.length).toBe(2); // Two separate rows, not grouped!
   });
@@ -287,6 +288,9 @@ describe('PayoutsPage', () => {
       const t = new Date();
       return formatDateString(new Date(t.getFullYear(), t.getMonth() + monthOffset, day));
     };
+    /** That day as the table writes it ("Sun, Nov 1"). */
+    const dayShown = (monthOffset: number, day: number) =>
+      formatWeekdayDate(parseDateStringLocal(dayInMonth(monthOffset, day)));
     const monthLabel = (monthOffset: number) => {
       const t = new Date();
       return new Date(t.getFullYear(), t.getMonth() + monthOffset, 1).toLocaleDateString('en-US', {
@@ -318,8 +322,8 @@ describe('PayoutsPage', () => {
 
       expect(screen.getByRole('button', { name: `Hide ${monthLabel(0)}` })).toHaveAttribute('aria-expanded', 'true');
       expect(screen.getByRole('button', { name: `Show ${monthLabel(-1)}` })).toHaveAttribute('aria-expanded', 'false');
-      expect(screen.getByText(dayInMonth(0, 1))).toBeInTheDocument();
-      expect(screen.queryByText(dayInMonth(-1, 10))).not.toBeInTheDocument();
+      expect(screen.getByText(dayShown(0, 1))).toBeInTheDocument();
+      expect(screen.queryByText(dayShown(-1, 10))).not.toBeInTheDocument();
       // Last month's header: 30m + 1h 30m reported, $40 + $60
       const lastMonthRow = screen.getByRole('button', { name: `Show ${monthLabel(-1)}` }).closest('tr')!;
       expect(within(lastMonthRow).getByText('$100.00')).toBeInTheDocument();
@@ -330,11 +334,11 @@ describe('PayoutsPage', () => {
       renderPage();
 
       fireEvent.click(screen.getByRole('button', { name: `Show ${monthLabel(-1)}` }));
-      expect(screen.getByText(dayInMonth(-1, 10))).toBeInTheDocument();
-      expect(screen.getByText(dayInMonth(-1, 20))).toBeInTheDocument();
+      expect(screen.getByText(dayShown(-1, 10))).toBeInTheDocument();
+      expect(screen.getByText(dayShown(-1, 20))).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: `Hide ${monthLabel(0)}` }));
-      expect(screen.queryByText(dayInMonth(0, 1))).not.toBeInTheDocument();
+      expect(screen.queryByText(dayShown(0, 1))).not.toBeInTheDocument();
     });
 
     it('opens the newest month when this month has nothing yet', () => {
@@ -342,7 +346,7 @@ describe('PayoutsPage', () => {
       renderPage();
 
       expect(screen.getByRole('button', { name: `Hide ${monthLabel(-1)}` })).toBeInTheDocument();
-      expect(screen.getByText(dayInMonth(-1, 10))).toBeInTheDocument();
+      expect(screen.getByText(dayShown(-1, 10))).toBeInTheDocument();
     });
   });
 

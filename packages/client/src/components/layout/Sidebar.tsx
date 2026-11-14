@@ -13,6 +13,7 @@ import {
   Divider,
   IconButton,
   Tooltip,
+  useMediaQuery,
   type DrawerProps,
   type SwipeableDrawerProps,
 } from '@mui/material';
@@ -30,7 +31,7 @@ import {
 } from '@mui/icons-material';
 
 import { VIEWS, VIEW_LABELS, type SidebarView } from '../../navigation/views';
-import { BOTTOM_BAR_HEIGHT, HOVER, SAFE_BOTTOM } from '../../theme/media';
+import { BOTTOM_BAR_HEIGHT, HOVER, SAFE_BOTTOM, TIGHT } from '../../theme/media';
 import { Wordmark } from '../ui/display/Wordmark';
 
 export type { SidebarView };
@@ -117,7 +118,9 @@ export function Sidebar({
   // Remembered across launches
   const [collapsedSetting, setIsCollapsed] = useLocalStorage('sidebarCollapsed', false);
   const temporary = variant === 'temporary';
-  const isCollapsed = !temporary && collapsedSetting;
+  // A window too tight for the full sidebar gets the strip of icons, whatever the setting
+  const tight = useMediaQuery(TIGHT, { noSsr: true });
+  const isCollapsed = !temporary && (collapsedSetting || tight);
   useEdgeSwipeArea(temporary);
   // The phone's menu opens and closes with a swipe too
   const Panel = (temporary ? SwipeableDrawer : Drawer) as ComponentType<DrawerProps & Partial<SwipeableDrawerProps>>;
@@ -187,7 +190,7 @@ export function Sidebar({
           </Box>
         )}
         {!isCollapsed && headerAction?.(false)}
-        {!temporary && (
+        {!temporary && !tight && (
           <IconButton
             onClick={() => setIsCollapsed(!isCollapsed)}
             size="small"

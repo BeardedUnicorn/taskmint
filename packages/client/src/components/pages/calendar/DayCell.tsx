@@ -154,7 +154,18 @@ export function DayCell({ day, tabbable, onOpen, onFocusDay }: DayCellProps) {
           </Box>
 
           {/* Wide: labelled badges */}
-          <Box sx={{ display: 'none', flexDirection: 'column', gap: 0.5, mt: 'auto', [WIDE]: { display: 'flex' } }}>
+          {/* Out to the cell's edge, with tight sides: a four-figure amount fits a narrow month's cell */}
+          <Box
+            sx={{
+              display: 'none',
+              flexDirection: 'column',
+              gap: 0.5,
+              mt: 'auto',
+              mx: -0.5,
+              '& > *': { px: 0.5 },
+              [WIDE]: { display: 'flex' },
+            }}
+          >
             <DayBadges day={day} />
           </Box>
         </Box>

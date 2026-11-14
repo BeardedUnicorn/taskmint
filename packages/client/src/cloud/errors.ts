@@ -5,6 +5,9 @@
 
 const MESSAGES: Record<string, string> = {
   'auth/invalid-credential': 'That email and password don’t match an account.',
+  // What a project without email-enumeration protection (the emulator, too) says instead
+  'auth/user-not-found': 'That email and password don’t match an account.',
+  'auth/wrong-password': 'That email and password don’t match an account.',
   'auth/invalid-email': 'That isn’t an email address.',
   'auth/user-disabled': 'This account has been turned off.',
   'auth/email-already-in-use': 'There’s already an account with that email. Sign in instead.',
