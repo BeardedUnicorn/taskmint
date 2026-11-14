@@ -100,7 +100,8 @@ fn open_picked_file(app: &AppHandle, file: &PickedFile, write: bool) -> std::io:
 }
 
 /// Android's id for each channel (its name and description are in
-/// create_channels).
+/// create_channels). The running timer's notification isn't the plugin's on
+/// Android, and its channel is TimerNotice.kt's to make and name.
 #[cfg(target_os = "android")]
 fn channel_id(channel: Channel) -> &'static str {
     match channel {
@@ -136,6 +137,7 @@ pub const OPENS: &str = "opens";
 
 /// Creates TaskMint's channels, which the phone's settings list under the
 /// app: the system drops a notification for a channel that doesn't exist.
+/// (The running timer's is made with its notification: TimerNotice.kt.)
 /// Also deletes the notification plugin's own "Default" channel, which
 /// nothing uses; the plugin makes it again each time the app starts, so this
 /// runs once per start, after the plugin has (prepare_notifications).
@@ -143,11 +145,6 @@ pub const OPENS: &str = "opens";
 fn create_channels(app: &AppHandle) {
     use tauri_plugin_notification::{Channel as Group, Importance};
     let groups = [
-        // Quiet: no sound, no pop-up, only in the shade and the status bar
-        Group::builder(channel_id(Channel::Timer), "Running timer")
-            .description("The timer while it runs, with buttons to pause or stop it")
-            .importance(Importance::Low)
-            .build(),
         Group::builder(channel_id(Channel::Reminders), "Reminders")
             .description("Withdrawals, your daily goal and summary, and a timer left running")
             .importance(Importance::High)
@@ -178,7 +175,6 @@ struct TimerNoticeArgs<'a> {
     text: &'a str,
     counting_from_ms: Option<i64>,
     paused_ms: Option<u64>,
-    channel: &'a str,
 }
 
 /// The running timer's notification on Android: TaskMint's own (gen/android:
@@ -197,7 +193,6 @@ fn set_os_timer_notice(app: &AppHandle, notice: Option<&TimerNotice>) -> Result<
         text: &notice.text,
         counting_from_ms: notice.counting_from.map(|from| from.timestamp_millis()),
         paused_ms: notice.paused_for_ms,
-        channel: channel_id(Channel::Timer),
     };
     plugin
         .run_mobile_plugin::<()>("setTimerNotice", args)

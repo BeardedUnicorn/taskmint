@@ -44,8 +44,10 @@
     <string name="widget_nothing_tracked">Nothing tracked yet</string>
 
     <!-- TaskMint: the running timer's notification (TimerNotice.kt): its
-         buttons, the status bar's word for a paused timer, and its figures'
-         labels on Android 17 -->
+         channel in the phone's settings, its buttons, the status bar's word
+         for a paused timer, and its figures' labels on Android 17 -->
+    <string name="timer_notice_channel">Running timer</string>
+    <string name="timer_notice_channel_description">The timer while it runs, with buttons to pause or stop it</string>
     <string name="timer_notice_pause">Pause</string>
     <string name="timer_notice_resume">Resume</string>
     <string name="timer_notice_switch">Switch task</string>

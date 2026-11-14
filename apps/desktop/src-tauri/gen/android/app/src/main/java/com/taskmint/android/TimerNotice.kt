@@ -11,6 +11,7 @@ import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.tauri.notification.ACTION_INTENT_KEY
@@ -34,7 +35,6 @@ data class TimerNotice(
   val text: String,
   val countingFromMs: Long?,
   val pausedMs: Long?,
-  val channel: String,
 ) {
   val running: Boolean
     get() = countingFromMs != null
@@ -45,7 +45,6 @@ data class TimerNotice(
       .put("text", text)
       .put("countingFromMs", countingFromMs ?: JSONObject.NULL)
       .put("pausedMs", pausedMs ?: JSONObject.NULL)
-      .put("channel", channel)
       .toString()
 
   companion object {
@@ -57,7 +56,6 @@ data class TimerNotice(
           saved.getString("text"),
           saved.time("countingFromMs"),
           saved.time("pausedMs"),
-          saved.getString("channel"),
         )
       } catch (_: JSONException) {
         null
@@ -102,6 +100,40 @@ object TimerNotices {
 
   /** The leaf's tint, as os.rs `routed` gives the plugin's notifications. */
   private val ICON_COLOR = Color.parseColor("#65D6A1")
+
+  /** The "Running timer" channel before Android 16, and from it (see [channel]). */
+  private const val QUIET_CHANNEL = "timer"
+  private const val LIVE_CHANNEL = "timer-live"
+
+  /**
+   * Makes the "Running timer" channel, which the phone's settings list
+   * under TaskMint, and gives its id (Android 8 and later have channels).
+   *
+   * Before Android 16 it's a quiet one: low importance, so no sound or
+   * pop-up, and the shade's silent section. A lock screen leaves silent
+   * notifications out, though, a Live Update among them, so where the
+   * notification asks to be one (Android 16 and later) its channel has the
+   * default importance, with no sound or vibration of its own: as quiet, and
+   * on the lock screen too. An app can't raise a channel's importance once
+   * it's made, hence a second id; the quiet one an earlier TaskMint made
+   * goes.
+   */
+  fun channel(context: Context): String {
+    val live = Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
+    val notifications = NotificationManagerCompat.from(context)
+    val importance =
+      if (live) NotificationManagerCompat.IMPORTANCE_DEFAULT else NotificationManagerCompat.IMPORTANCE_LOW
+    val channel =
+      NotificationChannelCompat.Builder(if (live) LIVE_CHANNEL else QUIET_CHANNEL, importance)
+        .setName(context.getString(R.string.timer_notice_channel))
+        .setDescription(context.getString(R.string.timer_notice_channel_description))
+        .setSound(null, null)
+        .setVibrationEnabled(false)
+        .build()
+    notifications.createNotificationChannel(channel)
+    if (live) notifications.deleteNotificationChannel(QUIET_CHANNEL)
+    return channel.id
+  }
 
   /** Shows `notice`, in place of the one before, and keeps it to draw again when today's figures change. */
   fun set(context: Context, notice: TimerNotice) {
@@ -178,7 +210,7 @@ object TimerNotices {
   /** Before Android 16: the task, the system's clock counting while it runs, and the buttons. */
   private fun plain(context: Context, notice: TimerNotice): Notification {
     val builder =
-      NotificationCompat.Builder(context, notice.channel)
+      NotificationCompat.Builder(context, channel(context))
         .setSmallIcon(R.drawable.ic_stat_taskmint)
         .setColor(ICON_COLOR)
         .setContentTitle(notice.task)
@@ -204,7 +236,7 @@ object TimerNotices {
   @RequiresApi(Build.VERSION_CODES.BAKLAVA)
   private fun liveUpdate(context: Context, notice: TimerNotice): Notification {
     val builder =
-      Notification.Builder(context, notice.channel)
+      Notification.Builder(context, channel(context))
         .setSmallIcon(R.drawable.ic_stat_taskmint)
         .setColor(ICON_COLOR)
         .setContentTitle(notice.task)
