@@ -50,6 +50,9 @@ fail = "=0.5.1"
 tauri-plugin-deep-link = "2.6"
 tauri-plugin-single-instance = { version = "2.5", features = ["deep-link"] }
 tauri-plugin-updater = "2.14"
+# The window's size and place, and whether it was maximized, kept between
+# launches
+tauri-plugin-window-state = "2.5"
 
 # Android's Save and Open dialogs pick documents (content:// addresses) that
 # only the fs plugin can open (platform/os.rs). A desktop opens paths itself.

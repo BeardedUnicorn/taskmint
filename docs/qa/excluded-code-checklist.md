@@ -54,6 +54,17 @@ Note anything that fails with the build, the OS version and what you saw.
       counting in the tray, and the tray menu still works. Clicking the Dock
       icon brings the window back.
 - [ ] **Quit.** Tray → Quit ends the app.
+- [ ] **Window size, position and maximized.** On a first launch (no
+      `.window-state.json` in the app's config folder: on macOS
+      `~/Library/Application Support/com.taskmint.desktop`, a dev build's
+      `com.taskmint.desktop.dev`) the window is 1620×1000 and centered. Move
+      and resize it, quit from the tray and launch again: it comes back
+      where it was, at that size, without first showing at the default
+      size. Again after closing it to the tray first, and after an update's
+      restart. Maximize it, quit and launch: it opens maximized, and
+      un-maximizing gives the size it had before. Move it to a second
+      display, quit, disconnect the display and launch: the window is on
+      the remaining display.
 - [ ] **Tray menu.** Start a task from the tray's menu, then pause and stop it.
       The window shows each change at once (menu events reach
       `tray::handle_menu_event`, and the change is emitted to the webview).

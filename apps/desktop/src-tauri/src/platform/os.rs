@@ -390,6 +390,26 @@ fn cancel_os_notification(_app: &AppHandle, _id: i32) -> Result<(), String> {
     Ok(())
 }
 
+/// What the window-state plugin keeps of the window: its size, its place
+/// and whether it was maximized. Not whether it was showing: closing hides
+/// it to the tray, and the next launch still shows it.
+#[cfg(desktop)]
+pub fn window_state() -> tauri_plugin_window_state::StateFlags {
+    use tauri_plugin_window_state::StateFlags;
+    StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED
+}
+
+/// Saves the window's size and place now. The plugin saves them when the
+/// app quits, but not when an update restarts it or a logout ends it, so
+/// they're saved each time the window hides too.
+#[cfg(desktop)]
+pub fn save_window_state(app: &AppHandle) {
+    use tauri_plugin_window_state::AppHandleExt;
+    if let Err(e) = app.save_window_state(window_state()) {
+        log::error!("Failed to save the window's size and place: {}", e);
+    }
+}
+
 /// The tray, the folder picker and the updater.
 #[cfg(desktop)]
 mod desktop {
@@ -945,6 +965,8 @@ impl Platform for TauriPlatform {
     }
 
     fn restart(&self) {
+        #[cfg(desktop)]
+        save_window_state(&self.app);
         self.app.restart()
     }
 
