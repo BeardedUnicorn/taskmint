@@ -12,6 +12,7 @@ import {
   changelogVersions,
   DESKTOP_TARGETS,
   extractSection,
+  FEED_RELEASES,
   highestBump,
   insertSection,
   isoDate,
@@ -179,6 +180,9 @@ describe('the CHANGELOG', () => {
       '## 2.0.0 – 2026-11-07\n\n### Added\n\n- Old thing.\n\n## 1.0.0 – 2026-10-11\n\n- First.'
     );
     assert.equal(releaseSections(header), '');
+    // The feed carries only the newest ones
+    assert.equal(releaseSections(existing, 1), '## 2.0.0 – 2026-11-07\n\n### Added\n\n- Old thing.');
+    assert.equal(FEED_RELEASES, 30);
   });
 });
 

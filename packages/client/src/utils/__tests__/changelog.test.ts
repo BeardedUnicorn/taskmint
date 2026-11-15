@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+  combineReleases,
   groupReleasesByMajor,
   hasUserFacingChanges,
   parseChangelog,
   parseReleaseSection,
   RELEASES,
   releasesBetween,
+  releasesSince,
+  summarizeRelease,
 } from '../changelog';
 import { APP_VERSION } from '../appVersion';
 
@@ -125,5 +128,65 @@ describe('releasesBetween', () => {
   it('has none when there is nothing between them', () => {
     expect(versions('2.1.0', '2.1.0')).toEqual([]);
     expect(releasesBetween('', '1.0.0', '2.0.0')).toEqual([]);
+  });
+});
+
+describe('releasesSince', () => {
+  it('keeps the order it was given', () => {
+    const releases = parseChangelog('## 2.1.0\n\n## 2.0.0\n\n## 1.9.0\n');
+    expect(releasesSince(releases, '1.9.0', '2.1.0').map(release => release.version)).toEqual(['2.1.0', '2.0.0']);
+    expect(releasesSince(releases, '2.1.0', '2.1.0')).toEqual([]);
+  });
+});
+
+describe('summarizeRelease', () => {
+  const [counted, loose, one, intro, none, bare] = parseChangelog(
+    [
+      '## 1.5.0\n\n### Added\n\n- One.\n- Two.\n\n### Removed\n\n### Fixed\n\n- A fix.',
+      '## 1.4.0\n\n- A bullet.\n- Another.',
+      '## 1.3.0\n\n- A bullet.',
+      '## 1.2.0\n\nThe first release.',
+      '## 1.1.0\n\nNo user-facing changes.',
+      '## 1.0.0',
+    ].join('\n\n')
+  );
+
+  it('counts the bullets under each heading, leaving out a heading with none', () => {
+    expect(summarizeRelease(counted)).toBe('2 added · 1 fixed');
+  });
+
+  it('counts bullets with no heading as changes', () => {
+    expect(summarizeRelease(loose)).toBe('2 changes');
+    expect(summarizeRelease(one)).toBe('1 change');
+  });
+
+  it('says so when nothing changed for a user, and nothing for an intro alone', () => {
+    expect(summarizeRelease(intro)).toBe('');
+    expect(summarizeRelease(none)).toBe('No user-facing changes');
+    expect(summarizeRelease(bare)).toBe('No user-facing changes');
+  });
+});
+
+describe('combineReleases', () => {
+  it("puts every release's bullets under their headings, in the changelog's order, newest first", () => {
+    const releases = parseChangelog(
+      [
+        '## 2.2.0\n\nA big one.\n\n### Fixed\n\n- Fix B.\n\n### Added\n\n- New B.',
+        '## 2.1.0\n\n- A loose bullet.\n\n### Notes\n\n- Something else.',
+        '## 2.0.0\n\nA big one.\n\n### Added\n\n- New A.\n- New B.\n\n### Security\n\n- Safer.',
+      ].join('\n\n')
+    );
+    expect(combineReleases(releases)).toEqual({
+      version: '2.2.0',
+      date: null,
+      intro: ['A big one.'],
+      groups: [
+        { type: 'Added', items: ['New B.', 'New A.'] },
+        { type: 'Fixed', items: ['Fix B.'] },
+        { type: 'Security', items: ['Safer.'] },
+        { type: '', items: ['A loose bullet.'] },
+        { type: 'Notes', items: ['Something else.'] },
+      ],
+    });
   });
 });

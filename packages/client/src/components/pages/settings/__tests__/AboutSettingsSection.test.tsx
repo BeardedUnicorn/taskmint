@@ -8,6 +8,8 @@ import { NotificationProvider } from '../../../../contexts/NotificationContext';
 import type { ReleaseNotes } from '../../../../utils/changelog';
 import { setPhoneViewport } from '../../../../__tests__/setup/viewport';
 import { SettingsLinkContext } from '../settingsLink';
+import { UPDATED_FROM_VERSION_KEY } from '../../../../hooks/useUpdatedNotice';
+import { writeLocal } from '../../../../utils/localStore';
 
 const state = vi.hoisted(() => ({ version: '2.1.0', releases: [] as ReleaseNotes[] }));
 vi.mock('../../../../utils/appVersion', async importOriginal => ({
@@ -84,9 +86,11 @@ describe('AboutSettingsSection', () => {
     // An older major version's releases stay folded under it
     expect(screen.queryByRole('button', { name: '1.0.0' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Version 1/ }));
-    const first = screen.getByRole('button', { name: '1.0.0' });
+    // Each row says how much the release changed
+    expect(older).toHaveTextContent('1 added');
+    const first = screen.getByRole('button', { name: '1.0.0 1 change' });
     fireEvent.click(first);
-    const region = screen.getByRole('region', { name: '1.0.0' });
+    const region = screen.getByRole('region', { name: '1.0.0 1 change' });
     expect(within(region).getByText('A bullet with no heading.')).toBeInTheDocument();
     expect(within(region).queryByRole('heading')).not.toBeInTheDocument();
   });
@@ -146,6 +150,39 @@ describe('AboutSettingsSection', () => {
     expect(shown()).toEqual(['2.1.0', '2.0.0']);
     fireEvent.click(within(pages).getByRole('button', { name: 'Go to previous page' }));
     expect(shown()).toEqual(['2.6.0', '2.5.0', '2.4.0', '2.3.0', '2.2.0']);
+  });
+
+  it('shows every release since the version the last update came from', () => {
+    state.version = '2.2.0';
+    state.releases = [
+      release('2.2.0', '2026-11-09'),
+      release('2.1.1', '2026-11-08', { intro: ['No user-facing changes.'], groups: [] }),
+      release('2.1.0', '2026-11-08'),
+      release('2.0.0', '2026-11-07'),
+    ];
+    writeLocal<unknown>(UPDATED_FROM_VERSION_KEY, '2.0.0', null);
+    render(<AboutSettingsSection />);
+
+    expect(screen.getByRole('heading', { name: "What's new since 2.0.0" })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: "What's new in 2.2.0" })).not.toBeInTheDocument();
+    // Each under its version, without the one that changed nothing to see
+    expect(screen.getAllByRole('heading', { level: 4 }).map(heading => heading.textContent)).toEqual([
+      '2.2.0 · Nov 9, 2026',
+      '2.1.0 · Nov 8, 2026',
+    ]);
+    expect(screen.getByText('Something new in 2.1.0.')).toBeInTheDocument();
+    expect(screen.queryByText('Something new in 2.0.0.')).not.toBeInTheDocument();
+    // The earlier releases are still listed below
+    expect(screen.getByRole('button', { name: /^2\.1\.0/ })).toBeInTheDocument();
+  });
+
+  it("shows this version's notes alone when the last update was one release", () => {
+    state.releases = [release('2.1.0', '2026-11-08'), release('2.0.0', '2026-11-07')];
+    writeLocal<unknown>(UPDATED_FROM_VERSION_KEY, '2.0.0', null);
+    render(<AboutSettingsSection />);
+
+    expect(screen.getByRole('heading', { name: "What's new in 2.1.0" })).toBeInTheDocument();
+    expect(screen.getByText('Something new in 2.1.0.')).toBeInTheDocument();
   });
 
   it('leaves out a release newer than this one', () => {

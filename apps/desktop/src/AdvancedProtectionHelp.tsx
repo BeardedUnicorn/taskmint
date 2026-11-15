@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import { openSecuritySettings } from './tauriBackend';
 import type { AvailableUpdate } from './updates';
+import { UpdateNotes } from './UpdateNotes';
 
 /** How to turn Advanced Protection off, in the order the phone's Settings asks. */
 const STEPS = [
@@ -24,7 +25,8 @@ interface AdvancedProtectionHelpProps {
  * Android installs nothing from outside Google Play there, so instead of a
  * download that can't be installed, this says how to turn it off. It asks
  * the phone again when the app comes back from Settings, and the download
- * takes its place once Advanced Protection is off.
+ * takes its place once Advanced Protection is off. The update's notes are
+ * here too.
  */
 export function AdvancedProtectionHelp({ update, onRecheck, onClose }: AdvancedProtectionHelpProps) {
   useEffect(() => {
@@ -48,6 +50,8 @@ export function AdvancedProtectionHelp({ update, onRecheck, onClose }: AdvancedP
             </Box>
           ))}
         </Box>
+        {/* What the update is worth the trouble for */}
+        <UpdateNotes update={update} />
       </DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap' }}>
         <Button onClick={onClose}>Close</Button>

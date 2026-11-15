@@ -11,4 +11,4 @@ export { SignInForm, type SignInActions } from './components/pages/settings/Clou
 export { useNotification } from './contexts/NotificationContext';
 export { Wordmark } from './components/ui/display/Wordmark';
 export { ReleaseNotes, ReleaseNotesList } from './components/ui/display/ReleaseNotes';
-export { hasUserFacingChanges, parseReleaseSection, releasesBetween } from './utils/changelog';
+export { combineReleases, hasUserFacingChanges, parseReleaseSection, releasesBetween } from './utils/changelog';
