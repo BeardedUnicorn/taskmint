@@ -93,7 +93,7 @@ export interface IdlePlatform {
 
 /** Automatic backups into a folder on this computer. */
 export interface FolderBackupPlatform {
-  /** Where backups go until the user picks a folder; null when there's no Documents folder. */
+  /** Where backups go until the user picks a folder; null when the platform has none. */
   defaultFolder(): Promise<string | null>;
   /** Asks for a folder. Null when the user cancels. */
   pickFolder(): Promise<string | null>;

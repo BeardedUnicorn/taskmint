@@ -125,13 +125,11 @@ pub fn pick_backup_dir(shell: &Shell) -> Option<String> {
         .map(|folder| path_text(&folder))
 }
 
-/// Where automatic backups go until the user picks a folder.
-pub fn default_backup_dir(shell: &Shell) -> Result<String, String> {
-    let documents = shell
-        .platform
-        .documents_dir()
-        .map_err(|e| format!("Failed to find the Documents folder: {}", e))?;
-    Ok(path_text(&documents.join(DEFAULT_BACKUP_FOLDER_NAME)))
+/// Where automatic backups go until the user picks a folder: inside the
+/// app's own data folder, which no system permission guards (a folder in
+/// Documents made macOS ask for access).
+pub fn default_backup_dir(shell: &Shell) -> String {
+    path_text(&shell.store.dir().join(DEFAULT_BACKUP_FOLDER_NAME))
 }
 
 /// Shows a file (a just-written export or backup) in the file manager.
@@ -308,12 +306,11 @@ mod tests {
     }
 
     #[test]
-    fn backups_go_in_a_documents_folder_until_the_user_picks_one() {
+    fn backups_go_in_the_data_folder_until_the_user_picks_one() {
         let f = fixture();
-        f.platform.set_documents("/Users/me/Documents");
         assert_eq!(
             default_backup_dir(&f.state),
-            Ok("/Users/me/Documents/TaskMint Backups".to_string())
+            path_text(&f.dir.0.join("Backups"))
         );
         f.platform.answer(Some(PathBuf::from("/Users/me/Backups")));
         assert_eq!(
@@ -321,12 +318,6 @@ mod tests {
             Some("/Users/me/Backups".to_string())
         );
         assert_eq!(pick_backup_dir(&f.state), None);
-
-        let none = fixture();
-        assert_eq!(
-            default_backup_dir(&none.state),
-            Err("Failed to find the Documents folder: no Documents folder".to_string())
-        );
     }
 
     #[test]

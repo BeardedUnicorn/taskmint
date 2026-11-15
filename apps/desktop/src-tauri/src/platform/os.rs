@@ -898,10 +898,6 @@ impl Platform for TauriPlatform {
         self.desktop.pick_folder(&self.app, title)
     }
 
-    fn documents_dir(&self) -> Result<PathBuf, String> {
-        self.app.path().document_dir().map_err(text)
-    }
-
     fn reveal(&self, path: &Path) -> Result<(), String> {
         self.app.opener().reveal_item_in_dir(path).map_err(text)
     }

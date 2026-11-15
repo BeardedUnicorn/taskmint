@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import {
   firstRunBackupConfig,
+  moveBackupFolderOutOfDocuments,
   BACKUP_CONFIG_KEY,
   BACKUP_FAILURE_NOTICE_KEY,
   useBackupSettings,
@@ -58,14 +59,14 @@ const notice = (n = 0) => mockNotify.mock.calls[n][0];
 
 describe('firstRunBackupConfig', () => {
   beforeEach(() => {
-    folders().defaultFolder.mockResolvedValue('/Users/me/Documents/TaskMint Backups');
+    folders().defaultFolder.mockResolvedValue('/Users/me/Library/Application Support/TaskMint/Backups');
   });
 
   it("turns weekly backups on in the platform's default folder", async () => {
     await expect(firstRunBackupConfig()).resolves.toEqual({
       enabled: true,
       frequency: 'weekly',
-      backupPath: '/Users/me/Documents/TaskMint Backups',
+      backupPath: '/Users/me/Library/Application Support/TaskMint/Backups',
       maxBackups: 10,
     });
   });
@@ -93,6 +94,69 @@ describe('firstRunBackupConfig', () => {
   });
 });
 
+describe('moveBackupFolderOutOfDocuments', () => {
+  const OLD_DEFAULT = '/Users/me/Documents/TaskMint Backups';
+
+  beforeEach(() => {
+    folders().defaultFolder.mockResolvedValue('/data/Backups');
+  });
+
+  it("moves the old default in Documents to the platform's default folder, keeping the other settings", async () => {
+    const saved = config({ backupPath: OLD_DEFAULT, frequency: 'weekly', lastBackupTime: '2026-11-01T10:00:00.000Z' });
+    stored(BACKUP_CONFIG_KEY, saved);
+    await moveBackupFolderOutOfDocuments();
+    expect(storedConfig()).toEqual({ ...saved, backupPath: '/data/Backups' });
+  });
+
+  it.each([['C:\\Users\\me\\Documents\\TaskMint Backups'], ['/Users/me/Documents/TaskMint Backups/']])(
+    'recognises the old default written as %s',
+    async backupPath => {
+      stored(BACKUP_CONFIG_KEY, config({ backupPath }));
+      await moveBackupFolderOutOfDocuments();
+      expect(storedConfig().backupPath).toBe('/data/Backups');
+    }
+  );
+
+  it.each([['/Volumes/Backup/TaskMint'], ['/Users/me/Documents/TaskMint Backups/2026'], ['/Users/me/Documents/Other']])(
+    'leaves a folder the user picked (%s) alone',
+    async backupPath => {
+      stored(BACKUP_CONFIG_KEY, config({ backupPath }));
+      await moveBackupFolderOutOfDocuments();
+      expect(storedConfig().backupPath).toBe(backupPath);
+      expect(folders().defaultFolder).not.toHaveBeenCalled();
+    }
+  );
+
+  it('does nothing when no backup settings were saved', async () => {
+    await moveBackupFolderOutOfDocuments();
+    expect(window.localStorage.getItem(BACKUP_CONFIG_KEY)).toBeNull();
+  });
+
+  it('keeps the saved folder without a default folder to move to', async () => {
+    folders().defaultFolder.mockResolvedValue(null);
+    stored(BACKUP_CONFIG_KEY, config({ backupPath: OLD_DEFAULT }));
+    await moveBackupFolderOutOfDocuments();
+    expect(storedConfig().backupPath).toBe(OLD_DEFAULT);
+  });
+
+  it("keeps the saved folder, and logs why, when the default folder can't be read", async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    folders().defaultFolder.mockRejectedValue(new Error('no data folder'));
+    stored(BACKUP_CONFIG_KEY, config({ backupPath: OLD_DEFAULT }));
+    await expect(moveBackupFolderOutOfDocuments()).resolves.toBeUndefined();
+    expect(storedConfig().backupPath).toBe(OLD_DEFAULT);
+    expect(error).toHaveBeenCalledWith('Failed to move the backup folder out of Documents:', expect.any(Error));
+    error.mockRestore();
+  });
+
+  it('does nothing where the platform has no folder backups', async () => {
+    installFakeBackendForTest({ without: ['folderBackups'] });
+    stored(BACKUP_CONFIG_KEY, config({ backupPath: OLD_DEFAULT }));
+    await moveBackupFolderOutOfDocuments();
+    expect(storedConfig().backupPath).toBe(OLD_DEFAULT);
+  });
+});
+
 describe('useBackupSettings', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -100,10 +164,10 @@ describe('useBackupSettings', () => {
 
   describe('settings', () => {
     it('saves the first-run settings on mount', async () => {
-      folders().defaultFolder.mockResolvedValue('/Documents/TaskMint Backups');
+      folders().defaultFolder.mockResolvedValue('/data/Backups');
       const result = mounted();
 
-      await waitFor(() => expect(result.current.config.backupPath).toBe('/Documents/TaskMint Backups'));
+      await waitFor(() => expect(result.current.config.backupPath).toBe('/data/Backups'));
       expect(storedConfig()).toMatchObject({ enabled: true, frequency: 'weekly' });
     });
 
@@ -113,13 +177,13 @@ describe('useBackupSettings', () => {
       const { unmount } = renderHook(() => useBackupSettings());
 
       unmount();
-      await act(async () => answer('/Documents/TaskMint Backups'));
+      await act(async () => answer('/data/Backups'));
       expect(window.localStorage.getItem(BACKUP_CONFIG_KEY)).toBeNull();
     });
 
     it('logs a first-run setup that failed', async () => {
       const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-      folders().defaultFolder.mockRejectedValue(new Error('no Documents'));
+      folders().defaultFolder.mockRejectedValue(new Error('no data folder'));
       mounted();
 
       await waitFor(() => expect(error).toHaveBeenCalledWith('Failed to set up automatic backups:', expect.any(Error)));

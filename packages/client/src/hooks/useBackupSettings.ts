@@ -59,8 +59,8 @@ export type BackupTrigger = 'manual' | 'automatic';
 
 /**
  * Automatic backups start on where the platform has folder backups (the
- * desktop app): weekly, the newest 10 kept, in its default folder
- * (Documents/TaskMint Backups). Only when no backup settings were ever saved
+ * desktop app): weekly, the newest 10 kept, in its default folder (Backups,
+ * inside the app's data folder). Only when no backup settings were ever saved
  * (a fresh install, or after Reset All Data); a saved choice, including
  * "off", is never touched. Resolves to the config to save, or null.
  */
@@ -75,6 +75,32 @@ export async function firstRunBackupConfig(): Promise<BackupConfig | null> {
   const backupPath = await folders.defaultFolder();
   if (!backupPath) return null;
   return { ...DEFAULT_BACKUP_CONFIG, enabled: true, frequency: 'weekly', backupPath, maxBackups: 10 };
+}
+
+/** The default backup folder before it moved into the app's data folder. */
+const OLD_DEFAULT_FOLDER = /[\\/]Documents[\\/]TaskMint Backups[\\/]?$/;
+
+/**
+ * Backups used to default to Documents/TaskMint Backups, and macOS asks for
+ * access to Documents whenever the app opens that folder. Saved settings
+ * still pointing there move to the platform's default folder; the backups
+ * already written stay where they are (moving them would need that access).
+ * Runs at every launch, before the first backup check, so a restored backup
+ * file can't bring the old folder back. Never fails: the settings stay as
+ * they were when the move can't be made.
+ */
+export async function moveBackupFolderOutOfDocuments(): Promise<void> {
+  const folders = getBackend().platform.folderBackups;
+  if (!folders) return;
+  try {
+    const saved = readLocal<BackupConfig | null>(BACKUP_CONFIG_KEY, null);
+    if (!saved || !OLD_DEFAULT_FOLDER.test(saved.backupPath)) return;
+    const backupPath = await folders.defaultFolder();
+    if (!backupPath) return;
+    writeLocal<BackupConfig>(BACKUP_CONFIG_KEY, { ...saved, backupPath }, DEFAULT_BACKUP_CONFIG);
+  } catch (error) {
+    console.error('Failed to move the backup folder out of Documents:', error);
+  }
 }
 
 export function useBackupSettings() {

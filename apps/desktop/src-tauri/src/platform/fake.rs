@@ -55,7 +55,6 @@ pub struct FakePlatform {
     pub dialog_answers: Mutex<VecDeque<Option<PickedFile>>>,
     /// The file behind each picked document the system lets the app open.
     document_files: Mutex<HashMap<url::Url, PathBuf>>,
-    documents: Mutex<Option<PathBuf>>,
     /// What the update feed announces.
     update: Mutex<Option<AvailableUpdate>>,
     /// How an update's download goes, in order.
@@ -81,10 +80,6 @@ impl FakePlatform {
             .lock()
             .unwrap()
             .retain(|failing| *failing != call);
-    }
-
-    pub fn set_documents(&self, folder: &str) {
-        *self.documents.lock().unwrap() = Some(PathBuf::from(folder));
     }
 
     pub fn answer(&self, answer: Option<PathBuf>) {
@@ -233,14 +228,6 @@ impl Platform for FakePlatform {
         self.recorded().folder_dialogs.push(title.to_string());
         self.next_answer()
             .and_then(|folder| self.resolve(&folder).ok())
-    }
-
-    fn documents_dir(&self) -> Result<PathBuf, String> {
-        self.documents
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or_else(|| "no Documents folder".to_string())
     }
 
     fn reveal(&self, path: &Path) -> Result<(), String> {

@@ -49,6 +49,24 @@ describe('startClient', () => {
     expect(cloud.startCloudSync).not.toHaveBeenCalled();
   });
 
+  it('moves a backup folder still in Documents before the app renders', async () => {
+    const backend = createFakeBackend();
+    backend.call.mockResolvedValue({ records: {}, revisions: {} });
+    backend.platform.folderBackups.defaultFolder.mockResolvedValue('/data/Backups');
+    window.localStorage.setItem(
+      'automaticBackupConfig',
+      JSON.stringify({ version: 1, data: { enabled: true, backupPath: '/Users/me/Documents/TaskMint Backups' } })
+    );
+
+    await act(() => startClient(container(), { backend: asBackend(backend), extensions: {} }));
+
+    expect(JSON.parse(window.localStorage.getItem('automaticBackupConfig')!).data).toEqual({
+      enabled: true,
+      backupPath: '/data/Backups',
+    });
+    expect(screen.getByText('app with')).toBeInTheDocument();
+  });
+
   it("starts cloud sync when the shell's build has a Firebase app", async () => {
     const backend = createFakeBackend();
     backend.call.mockResolvedValue({ records: {}, revisions: {} });

@@ -121,9 +121,9 @@ a section an older file doesn't have (work logs in v1, withdrawals and payout
 settings before v3) is left as it is. The app reloads after either. Settings →
 Automatic Backups writes the same file to a folder daily, weekly or monthly,
 keeping the newest N, and lists the backups in that folder with **Restore
-exactly** and **Merge** for each. They start on (weekly, into
-`Documents/TaskMint Backups`; macOS asks once for access to Documents) unless
-you've saved a backup setting before.
+exactly** and **Merge** for each. They start on (weekly, into `Backups`
+inside the app's data folder, which needs no permission; About → Show data
+folder shows it) unless you've saved a backup setting before.
 
 **Reset.** Settings → Data Management → Reset All Data wipes the data files
 (`sync.json` too), their `.bak` copies and `localStorage`, and signs this
