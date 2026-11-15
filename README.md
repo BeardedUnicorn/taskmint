@@ -277,10 +277,13 @@ allow it, go back and install. A later release's APK installs the same way,
 over the app, and keeps its data: they're all signed with the same key (see
 [Android signing](#android-signing)). The app checks for a new release at
 launch and daily, as the desktop does (Settings → Updates). Its Download
-opens the new APK in the browser, which installs the same way. With
-Android's Advanced Protection on, the phone installs nothing from outside
-Google Play: the update dialog then says to turn it off for the update,
-rather than offer the download.
+fetches the new APK itself (`AppUpdate.kt`, into the app's cache), shows how
+far it is, and opens Android's installer on it; the first time, Android asks
+to let TaskMint install apps. If that fails, Open in browser hands the APK's
+link to the browser, as releases up to 4.8.0 always did. With Android's
+Advanced Protection on, the phone installs nothing from outside Google Play:
+the update dialog then shows the steps to turn it off, with a button to the
+phone's Security settings, and offers the download once it's off.
 
 **What the phone adds**, around the same app:
 - the running timer in a notification, with its clock and Pause, Switch task
@@ -357,7 +360,9 @@ was made by `pnpm tauri android init` from `tauri.conf.json` and
   - `TaskMintAnalytics`: Firebase Analytics, and its off switch.
   - `TaskMintApp`: back on Home sends the app to the background. The page
     takes over Android's back through Tauri's `onBackButtonPress`. It also
-    says whether Advanced Protection blocks installing an update.
+    says whether Advanced Protection blocks installing an update, opens
+    the phone's Security settings, and downloads and installs an update
+    (`AppUpdate.kt`), reporting to `window.__taskmintUpdate`.
 
   `app/proguard-rules.pro` keeps the bridges, and Credential Manager's Play
   services provider, through R8.
@@ -419,7 +424,8 @@ are desktop-only dependencies) and in the webview (`tauriBackend.ts`,
 `extensions.tsx`): the tray, idle detection (a phone sets the long-run
 reminder as an alarm instead), folder backups, showing a file in the file
 manager, the capture server and `taskmint://` links for the browser
-extension, installing updates (a phone downloads the new APK instead), and
+extension, installing updates (a phone downloads the new APK and hands it
+to Android's installer instead), and
 the move from the old identifier. Export and Import go through Android's file picker,
 which returns a document (a `content://` address) rather than a path:
 `tauri-plugin-fs`, a mobile-only dependency, opens it (`platform/os.rs`), and

@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.os.CancellationSignal
+import android.provider.Settings
 import android.security.advancedprotection.AdvancedProtectionManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -240,6 +241,31 @@ class MainActivity : TauriActivity() {
         runCatching {
           getSystemService(AdvancedProtectionManager::class.java)?.isAdvancedProtectionEnabled == true
         }.getOrDefault(false)
+
+    /**
+     * The phone's Security settings, where Advanced Protection is turned
+     * off (Android has no screen of its own to open for it).
+     */
+    @JavascriptInterface
+    fun openSecuritySettings() {
+      runOnUiThread {
+        runCatching { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }
+          .onFailure { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+      }
+    }
+
+    /**
+     * Downloads a release and opens Android's installer on it (AppUpdate),
+     * telling the page how far it is (window.__taskmintUpdate).
+     */
+    @JavascriptInterface
+    fun downloadUpdate(version: String) {
+      AppUpdate.download(this@MainActivity, version) { report ->
+        runOnUiThread {
+          webView?.evaluateJavascript("window.__taskmintUpdate && window.__taskmintUpdate($report)", null)
+        }
+      }
+    }
 
     /** What the app was opened for and hasn't acted on (see `launch`), once; null when nothing. */
     @JavascriptInterface
