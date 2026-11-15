@@ -16,7 +16,8 @@ vi.mock('../../../../utils/appVersion', async importOriginal => ({
     return state.version;
   },
 }));
-vi.mock('../../../../utils/changelog', () => ({
+vi.mock('../../../../utils/changelog', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../utils/changelog')>()),
   get RELEASES() {
     return state.releases;
   },
@@ -80,11 +81,71 @@ describe('AboutSettingsSection', () => {
     expect(older).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Something new in 2.0.0.')).toBeVisible();
 
+    // An older major version's releases stay folded under it
+    expect(screen.queryByRole('button', { name: '1.0.0' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Version 1/ }));
     const first = screen.getByRole('button', { name: '1.0.0' });
     fireEvent.click(first);
     const region = screen.getByRole('region', { name: '1.0.0' });
     expect(within(region).getByText('A bullet with no heading.')).toBeInTheDocument();
     expect(within(region).queryByRole('heading')).not.toBeInTheDocument();
+  });
+
+  it('folds the earlier releases under their major versions, the newest open', () => {
+    state.version = '3.1.0';
+    state.releases = [
+      release('3.1.0', '2026-11-12'),
+      release('3.0.0', '2026-11-10'),
+      release('2.1.0', '2026-11-08'),
+      release('2.0.0', '2026-11-07'),
+      release('1.1.0', '2026-11-01'),
+      release('1.0.0', '2026-11-01'),
+      release('0.1.0', null),
+    ];
+    render(<AboutSettingsSection />);
+
+    const newest = screen.getByRole('button', { name: /^Version 3/ });
+    expect(newest).toHaveAttribute('aria-expanded', 'true');
+    expect(newest).toHaveTextContent('1 release · Nov 10, 2026');
+    expect(
+      within(screen.getByRole('group', { name: /^Version 3/ })).getByRole('button', { name: /^3\.0\.0/ })
+    ).toBeInTheDocument();
+
+    const older = screen.getByRole('button', { name: /^Version 2/ });
+    expect(older).toHaveAttribute('aria-expanded', 'false');
+    expect(older).toHaveTextContent('2 releases · Nov 7, 2026 – Nov 8, 2026');
+    expect(screen.queryByRole('button', { name: /^2\.1\.0/ })).not.toBeInTheDocument();
+    fireEvent.click(older);
+    expect(older).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: /^2\.1\.0/ })).toBeInTheDocument();
+    // Opening one leaves the others as they were
+    expect(newest).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(newest);
+    expect(newest).toHaveAttribute('aria-expanded', 'false');
+
+    // Released on one day, and with no dates at all
+    expect(screen.getByRole('button', { name: /^Version 1/ })).toHaveTextContent('2 releases · Nov 1, 2026');
+    expect(screen.getByRole('button', { name: /^Version 0/ }).textContent).toBe('Version 01 release');
+    // Nothing to page through
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+  });
+
+  it("shows a major version's releases five at a time", () => {
+    state.version = '2.7.0';
+    state.releases = [7, 6, 5, 4, 3, 2, 1, 0].map(minor => release(`2.${minor}.0`, '2026-11-08'));
+    render(<AboutSettingsSection />);
+
+    const shown = () =>
+      within(screen.getByRole('group', { name: /^Version 2/ }))
+        .getAllByRole('button', { name: /^2\.\d\.0/ })
+        .map(button => button.textContent?.slice(0, 5));
+    expect(shown()).toEqual(['2.6.0', '2.5.0', '2.4.0', '2.3.0', '2.2.0']);
+
+    const pages = screen.getByRole('navigation', { name: 'Version 2 releases, by page' });
+    fireEvent.click(within(pages).getByRole('button', { name: 'Go to page 2' }));
+    expect(shown()).toEqual(['2.1.0', '2.0.0']);
+    fireEvent.click(within(pages).getByRole('button', { name: 'Go to previous page' }));
+    expect(shown()).toEqual(['2.6.0', '2.5.0', '2.4.0', '2.3.0', '2.2.0']);
   });
 
   it('leaves out a release newer than this one', () => {

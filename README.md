@@ -574,6 +574,10 @@ with `tauri-plugin-updater` (`src/platform/os.rs`, `src/updates.rs`), so the
 webview needs no extra permission. A development build checks but won't
 install.
 
+Besides the new version's own notes, `latest.json` carries every release's
+notes (`changelog`: the CHANGELOG's sections). An app several releases
+behind shows what each release since its own brought, not only the newest.
+
 Updates are signed with a minisign key:
 
 - The public key is `plugins.updater.pubkey` in

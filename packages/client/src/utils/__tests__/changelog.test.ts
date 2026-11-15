@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { RELEASES, parseChangelog, parseReleaseSection } from '../changelog';
+import {
+  groupReleasesByMajor,
+  hasUserFacingChanges,
+  parseChangelog,
+  parseReleaseSection,
+  RELEASES,
+  releasesBetween,
+} from '../changelog';
 import { APP_VERSION } from '../appVersion';
 
 describe('parseChangelog', () => {
@@ -75,5 +82,48 @@ describe('RELEASES', () => {
   it("has notes for the app's own version, newest first", () => {
     expect(RELEASES[0].version).toBe(APP_VERSION);
     expect(RELEASES[0].groups.length + RELEASES[0].intro.length).toBeGreaterThan(0);
+  });
+});
+
+describe('groupReleasesByMajor', () => {
+  it('puts releases under their major versions, in the order given', () => {
+    const releases = parseChangelog('## 2.1.0\n\n## 2.0.0\n\n## 1.4.0\n\n## 10.0.0\n\n## 1.0.0\n');
+    expect(
+      groupReleasesByMajor(releases).map(group => [group.major, group.releases.map(release => release.version)])
+    ).toEqual([
+      [2, ['2.1.0', '2.0.0']],
+      [1, ['1.4.0', '1.0.0']],
+      [10, ['10.0.0']],
+    ]);
+    expect(groupReleasesByMajor([])).toEqual([]);
+  });
+});
+
+describe('hasUserFacingChanges', () => {
+  it('is false only for a release that says it has none, or says nothing', () => {
+    const [changed, intro, none, empty] = parseChangelog(
+      '## 1.3.0\n\n### Fixed\n\n- A fix.\n\n## 1.2.0\n\nThe first release.\n\n## 1.1.0\n\nNo user-facing changes.\n\n## 1.0.0\n'
+    );
+    expect(hasUserFacingChanges(changed)).toBe(true);
+    expect(hasUserFacingChanges(intro)).toBe(true);
+    expect(hasUserFacingChanges(none)).toBe(false);
+    expect(hasUserFacingChanges(empty)).toBe(false);
+  });
+});
+
+describe('releasesBetween', () => {
+  const text = '# Changelog\n\n## 2.1.0\n\n## 2.0.0\n\n## 1.10.0\n\n## 1.9.0\n\n## 1.8.2\n';
+  const versions = (current: string, latest: string) =>
+    releasesBetween(text, current, latest).map(release => release.version);
+
+  it('has every release after the running one, up to the one on offer, newest first', () => {
+    expect(versions('1.9.0', '2.0.0')).toEqual(['2.0.0', '1.10.0']);
+    expect(versions('1.8.2', '2.1.0')).toEqual(['2.1.0', '2.0.0', '1.10.0', '1.9.0']);
+    expect(versions('2.0.0', '2.1.0')).toEqual(['2.1.0']);
+  });
+
+  it('has none when there is nothing between them', () => {
+    expect(versions('2.1.0', '2.1.0')).toEqual([]);
+    expect(releasesBetween('', '1.0.0', '2.0.0')).toEqual([]);
   });
 });

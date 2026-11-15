@@ -11,7 +11,13 @@ import {
   LinearProgress,
   Typography,
 } from '@mui/material';
-import { ReleaseNotes, parseReleaseSection } from '@taskmint/client/ui';
+import {
+  hasUserFacingChanges,
+  parseReleaseSection,
+  ReleaseNotes,
+  ReleaseNotesList,
+  releasesBetween,
+} from '@taskmint/client/ui';
 import {
   automaticCheckDue,
   downloadsUpdates,
@@ -83,19 +89,46 @@ function Progress({ progress }: { progress: DownloadProgress | null }) {
   );
 }
 
+/** The releases an update brings: every one since the version running now, newest first. */
+function useReleasesSince(update: AvailableUpdate) {
+  return useMemo(
+    () => (update.changelog ? releasesBetween(update.changelog, update.currentVersion, update.version) : []),
+    [update.changelog, update.currentVersion, update.version]
+  );
+}
+
+/**
+ * What the update brings. Some releases behind, that's each release since
+ * this version (the feed's changelog), without those that changed nothing
+ * a user would see; otherwise the new release's own notes.
+ */
 function Notes({ update }: { update: AvailableUpdate }) {
-  const release = useMemo(
+  const since = useReleasesSince(update);
+  const latest = useMemo(
     () => (update.notes ? parseReleaseSection(update.version, update.notes) : null),
     [update.version, update.notes]
   );
-  if (!release) return null;
+  const releases = since.filter(hasUserFacingChanges);
+  const several = since.length > 1 && releases.length > 0;
+  if (!several && !latest) return null;
   return (
-    <Box sx={{ mt: 2, maxHeight: 280, overflow: 'auto' }}>
+    <Box sx={{ mt: 2, maxHeight: 360, overflow: 'auto' }}>
       <Typography variant="subtitle2" component="h3" sx={{ fontWeight: 600, mb: 1 }}>
-        What's new
+        {several ? `What's new since ${update.currentVersion}` : "What's new"}
       </Typography>
-      <ReleaseNotes release={release} />
+      {several ? <ReleaseNotesList releases={releases} /> : latest && <ReleaseNotes release={latest} />}
     </Box>
+  );
+}
+
+/** "You have 4.8.0, 3 releases behind." */
+function Behind({ update }: { update: AvailableUpdate }) {
+  const since = useReleasesSince(update);
+  return (
+    <>
+      You have {update.currentVersion}
+      {since.length > 1 && `, ${since.length} releases behind`}.
+    </>
   );
 }
 
@@ -134,9 +167,10 @@ export function UpdatePrompt() {
       <DialogTitle id="update-dialog-title">TaskMint {update.version} is available</DialogTitle>
       <DialogContent>
         <DialogContentText>
+          <Behind update={update} />{' '}
           {phone
-            ? `You have ${update.currentVersion}. TaskMint downloads the update, and Android asks before installing it. Your data is kept.`
-            : `You have ${update.currentVersion}. TaskMint downloads the update, installs it and restarts. Running timers keep counting.`}
+            ? 'TaskMint downloads the update, and Android asks before installing it. Your data is kept.'
+            : 'TaskMint downloads the update, installs it and restarts. Running timers keep counting.'}
         </DialogContentText>
         <Notes update={update} />
         {installing && (

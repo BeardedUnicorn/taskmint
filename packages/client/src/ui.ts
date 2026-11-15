@@ -10,5 +10,5 @@ export { ConfirmDialog } from './components/ui/dialogs/ConfirmDialog';
 export { SignInForm, type SignInActions } from './components/pages/settings/CloudSyncSection';
 export { useNotification } from './contexts/NotificationContext';
 export { Wordmark } from './components/ui/display/Wordmark';
-export { ReleaseNotes } from './components/ui/display/ReleaseNotes';
-export { parseReleaseSection } from './utils/changelog';
+export { ReleaseNotes, ReleaseNotesList } from './components/ui/display/ReleaseNotes';
+export { hasUserFacingChanges, parseReleaseSection, releasesBetween } from './utils/changelog';
