@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { Box, Typography } from '@mui/material';
 import type { ReleaseNotes as Release } from '../../../utils/changelog';
+import { formatLocalDate } from '../../../utils/dateHelpers';
 
 /** Text with its **bold** spans in bold (the changelog's Markdown). */
 function Strong({ text }: { text: string }) {
@@ -32,8 +33,11 @@ function NoteText({ text }: { text: string }) {
   );
 }
 
-/** A release's intro, then its bullets under their headings (Added, Fixed…). */
-export function ReleaseNotes({ release }: { release: Release }) {
+/**
+ * A release's intro, then its bullets under their headings (Added, Fixed…).
+ * `headings` is those headings' level: h5 under a heading for the release.
+ */
+export function ReleaseNotes({ release, headings = 'h4' }: { release: Release; headings?: 'h4' | 'h5' }) {
   return (
     <Box>
       {release.intro.map(paragraph => (
@@ -44,7 +48,7 @@ export function ReleaseNotes({ release }: { release: Release }) {
       {release.groups.map(({ type, items }, index) => (
         <Box key={`${type}-${index}`} sx={{ mb: 1.5 }}>
           {type && (
-            <Typography variant="subtitle2" component="h4" sx={{ fontWeight: 600 }}>
+            <Typography variant="subtitle2" component={headings} sx={{ fontWeight: 600 }}>
               {type}
             </Typography>
           )}
@@ -58,5 +62,26 @@ export function ReleaseNotes({ release }: { release: Release }) {
         </Box>
       ))}
     </Box>
+  );
+}
+
+/** Several releases' notes, each under its version and when it came out. */
+export function ReleaseNotesList({ releases }: { releases: Release[] }) {
+  return (
+    <>
+      {releases.map(release => (
+        <Box key={release.version} component="section" aria-label={release.version} sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" component="h4" sx={{ fontWeight: 600, mb: 0.5 }}>
+            {release.version}
+            {release.date && (
+              <Typography variant="body2" component="span" color="text.secondary">
+                {` · ${formatLocalDate(release.date)}`}
+              </Typography>
+            )}
+          </Typography>
+          <ReleaseNotes release={release} headings="h5" />
+        </Box>
+      ))}
+    </>
   );
 }

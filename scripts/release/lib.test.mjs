@@ -22,6 +22,7 @@ import {
   parseNote,
   releaseAssets,
   releaseDownloadUrl,
+  releaseSections,
   renderSection,
   setCargoLockVersions,
   setCargoTomlVersion,
@@ -170,6 +171,14 @@ describe('the CHANGELOG', () => {
     assert.equal(extractSection(existing, '2.0.0'), '### Added\n\n- Old thing.');
     assert.equal(extractSection(existing, '1.0.0'), '- First.');
     assert.equal(extractSection(existing, '3.0.0'), null);
+  });
+
+  it("has every release's section, without the file's header", () => {
+    assert.equal(
+      releaseSections(existing),
+      '## 2.0.0 – 2026-11-07\n\n### Added\n\n- Old thing.\n\n## 1.0.0 – 2026-10-11\n\n- First.'
+    );
+    assert.equal(releaseSections(header), '');
   });
 });
 
@@ -405,6 +414,7 @@ describe('desktop updates', () => {
       product: 'TaskMint',
       version: '2.3.0',
       notes: '### Added\n\n- Updates.',
+      changelog: '## 2.3.0 – 2026-11-20\n\n### Added\n\n- Updates.\n\n## 2.2.0 – 2026-11-19\n\n- Before.',
       pubDate: '2026-11-20T10:00:00Z',
       downloadUrl,
       signatures: { 'macos-arm64': 'c2lnLWFybQ==\n', 'macos-x64': 'c2lnLXg2NA==', 'windows-x64': 'c2lnLXdpbg==' },
@@ -412,6 +422,7 @@ describe('desktop updates', () => {
     assert.deepEqual(manifest, {
       version: '2.3.0',
       notes: '### Added\n\n- Updates.',
+      changelog: '## 2.3.0 – 2026-11-20\n\n### Added\n\n- Updates.\n\n## 2.2.0 – 2026-11-19\n\n- Before.',
       pub_date: '2026-11-20T10:00:00Z',
       platforms: {
         'darwin-aarch64': { signature: 'c2lnLWFybQ==', url: `${downloadUrl}/TaskMint-2.3.0-macos-arm64.app.tar.gz` },

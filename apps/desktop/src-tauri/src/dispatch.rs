@@ -794,6 +794,7 @@ mod tests {
             version: "1.3.0".to_string(),
             current_version: "1.2.3".to_string(),
             notes: Some("### Added\n\n- Updates".to_string()),
+            changelog: Some("## 1.3.0\n\n### Added\n\n- Updates".to_string()),
             date: None,
         }));
         assert_eq!(
@@ -802,6 +803,7 @@ mod tests {
                 "version": "1.3.0",
                 "currentVersion": "1.2.3",
                 "notes": "### Added\n\n- Updates",
+                "changelog": "## 1.3.0\n\n### Added\n\n- Updates",
                 "date": null
             }))
         );

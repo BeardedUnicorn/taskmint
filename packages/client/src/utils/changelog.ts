@@ -7,6 +7,7 @@
  */
 
 import changelogText from '../../../../CHANGELOG.md?raw';
+import { compareVersions } from './appVersion';
 
 export interface ReleaseNotesGroup {
   /** The heading: Added, Changed, Removed, Fixed or Security ('' for bullets with none). */
@@ -76,3 +77,36 @@ export function parseReleaseSection(version: string, text: string): ReleaseNotes
 
 /** The app's release notes, newest first. */
 export const RELEASES: ReleaseNotes[] = parseChangelog(changelogText);
+
+export interface MajorReleases {
+  /** The major version: 4 for 4.2.1. */
+  major: number;
+  releases: ReleaseNotes[];
+}
+
+/** Releases under their major versions, each in the order given. */
+export function groupReleasesByMajor(releases: ReleaseNotes[]): MajorReleases[] {
+  const groups: MajorReleases[] = [];
+  for (const release of releases) {
+    const major = Number(release.version.split('.')[0]);
+    const group = groups.find(candidate => candidate.major === major);
+    if (group) group.releases.push(release);
+    else groups.push({ major, releases: [release] });
+  }
+  return groups;
+}
+
+/** Whether a release has anything to read: "No user-facing changes." is its whole intro otherwise. */
+export function hasUserFacingChanges(release: ReleaseNotes): boolean {
+  return release.groups.length > 0 || release.intro.some(line => line !== 'No user-facing changes.');
+}
+
+/**
+ * The releases after `current` up to `latest`, newest first, from a
+ * changelog's text: what an update from one to the other brings.
+ */
+export function releasesBetween(text: string, current: string, latest: string): ReleaseNotes[] {
+  return parseChangelog(text).filter(
+    release => compareVersions(release.version, current) > 0 && compareVersions(release.version, latest) <= 0
+  );
+}

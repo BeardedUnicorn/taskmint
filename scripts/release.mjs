@@ -50,6 +50,7 @@ import {
   parseNote,
   releaseAssets,
   releaseDownloadUrl,
+  releaseSections,
   renderSection,
   setCargoLockVersions,
   setCargoTomlVersion,
@@ -515,9 +516,10 @@ creates the GitHub release; follow it with:
 
 /**
  * latest.json for the release: where each desktop update downloads from, its
- * signature (from releases/), and the version's notes.
+ * signature (from releases/), the version's notes, and every release's
+ * notes (`changelog`).
  */
-function writeUpdateManifest(version, notes, dir) {
+function writeUpdateManifest(version, notes, changelog, dir) {
   const repository = process.env.GH_REPO;
   if (!repository) stop('GH_REPO (owner/name) says where the release is; the Release workflow sets it.');
   const name = productName();
@@ -532,6 +534,7 @@ function writeUpdateManifest(version, notes, dir) {
       product: name,
       version,
       notes,
+      changelog,
       pubDate: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
       downloadUrl: releaseDownloadUrl(repository, version),
       signatures,
@@ -554,7 +557,8 @@ function githubRelease(version = currentVersion()) {
   const ref = process.env.GITHUB_REF_NAME;
   if (ref && ref !== tag) stop(`This run is for ${ref}, but the manifests say ${version}.`);
   if (!tagExists(tag)) stop(`There's no tag ${tag}.`);
-  const notes = extractSection(read(CHANGELOG), version);
+  const changelog = read(CHANGELOG);
+  const notes = extractSection(changelog, version);
   if (notes === null) stop(`CHANGELOG.md has no ${version} section.`);
 
   const name = productName();
@@ -563,7 +567,7 @@ function githubRelease(version = currentVersion()) {
   if (missing.length > 0) stop(`${RELEASES}/ is missing ${missing.join(', ')}.`);
   const files = [
     ...releaseAssets(name, version).map(file => join(dir, file)),
-    writeUpdateManifest(version, notes, dir),
+    writeUpdateManifest(version, notes, releaseSections(changelog), dir),
   ];
 
   if (succeeds('gh', ['release', 'view', tag])) {

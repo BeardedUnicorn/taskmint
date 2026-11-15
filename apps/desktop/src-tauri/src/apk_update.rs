@@ -13,6 +13,7 @@ use taskmint_core::contract::RELEASES_URL;
 struct Feed {
     version: String,
     notes: Option<String>,
+    changelog: Option<String>,
     pub_date: Option<String>,
 }
 
@@ -41,6 +42,7 @@ pub fn newer(feed: &str, current: &str) -> Result<Option<AvailableUpdate>, Strin
         version,
         current_version: current.to_string(),
         notes: feed.notes,
+        changelog: feed.changelog,
         date: feed.pub_date,
     }))
 }
@@ -62,6 +64,7 @@ mod tests {
         json!({
             "version": version,
             "notes": "### Added\n- Widgets",
+            "changelog": "## 4.5.0\n\n### Added\n- Widgets\n\n## 4.4.2\n\n- A fix",
             "pub_date": "2026-11-20T10:00:00Z",
             "platforms": { "darwin-aarch64": { "url": "x", "signature": "y" } }
         })
@@ -76,6 +79,9 @@ mod tests {
                 version: "4.5.0".to_string(),
                 current_version: "4.4.1".to_string(),
                 notes: Some("### Added\n- Widgets".to_string()),
+                changelog: Some(
+                    "## 4.5.0\n\n### Added\n- Widgets\n\n## 4.4.2\n\n- A fix".to_string()
+                ),
                 date: Some("2026-11-20T10:00:00Z".to_string()),
             }))
         );
@@ -93,6 +99,16 @@ mod tests {
         assert_eq!(newer(&feed("4.3.9"), "4.4.1"), Ok(None));
         // Notes and a date are optional
         assert_eq!(newer(r#"{"version":"4.4.1"}"#, "4.4.1"), Ok(None));
+    }
+
+    #[test]
+    fn a_feed_from_before_the_changelog_still_announces_its_release() {
+        let update = newer(r#"{"version":"4.5.0","notes":"- A fix"}"#, "4.4.1")
+            .unwrap()
+            .unwrap();
+        assert_eq!(update.notes.as_deref(), Some("- A fix"));
+        assert_eq!(update.changelog, None);
+        assert_eq!(update.date, None);
     }
 
     #[test]
