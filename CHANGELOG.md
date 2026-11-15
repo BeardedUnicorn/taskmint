@@ -8,6 +8,13 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.12.0 – 2026-11-15
+
+### Changed
+
+- Settings → About folds the earlier releases under their major versions (Version 4, Version 3…), five at a time, instead of listing every release ever made. The newest group starts open.
+- An update that skips several releases shows what each one brought, not only the newest: the prompt lists every release since the version you have, and says how many you're behind. This starts with updates from this version on.
+
 ## 4.11.0 – 2026-11-15
 
 ### Changed
