@@ -55,6 +55,12 @@ rules; the release signing keys.
     only name allowed) has exactly its fields, a JSON string under 200 KB,
     the server's time, the account's current epoch, and a contract version
     no older than the stored one's. It holds only amounts and times.
+  - The published widgets (`users/{uid}/published/widgets`, the only other
+    name allowed) are held to the same shape. They hold the widgets' text as
+    shown, the live timer's task name included; only the owner reads them.
+  - A phone's push address (`users/{uid}/devices/{deviceId}`) holds only its
+    Firebase installation ID, the platform, the app's version and the
+    server's time; only the owner reads or writes it.
   - `firebase/firestore.rules.test.mjs` checks each of these on the emulator,
     including another user and no user at all, in `verify.sh` and CI.
   - BudgetMint keeps its data in its own Firebase project, and signs in to
@@ -143,6 +149,19 @@ rules; the release signing keys.
 - **The Firebase sign-in sits in the webview's IndexedDB,** not the OS
   keychain, next to the data files it guards. A process on the computer can
   read either.
+- **An Android phone keeps the Firebase refresh token a second time,** for
+  its check of the published widgets with the app closed (`WidgetSync.kt`):
+  in the app's private storage, encrypted with an AES key that stays in the
+  phone's keystore, so a restored backup can't open it. It's forgotten on
+  signing out, when the device stops syncing with the account, and when
+  Firebase refuses it. The phone reads one document with it and writes
+  nothing.
+- **One Cloud Function runs with the project's own access**
+  (`apps/functions`, ADR 0005), outside the rules. It reads a user's
+  `devices` documents and the changed `published/widgets`, deletes dead
+  `devices` documents, and sends an empty message to those phones; it reads
+  nothing else and takes no input from a request. Anyone who could deploy a
+  function could read every user's data, as a project owner already can.
 - **Disabling an account takes up to an hour** to stop a token already
   issued.
 - **The rules check a document's shape, not its content.** A user can write

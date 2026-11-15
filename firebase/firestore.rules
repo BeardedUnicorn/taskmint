@@ -9,10 +9,18 @@ rules_version = '2';
 //   users/{uid}/data/{id}        one session, work-log entry, project mapping
 //                                or record: { kind, id, json, hash, deleted,
 //                                deviceId, schema, epoch, updatedAt }
-//   users/{uid}/published/{name} what TaskMint publishes for other apps: only
-//                                payoutForecast (docs/contracts/
-//                                payout-forecast.md): { schema, json, hash,
-//                                deviceId, appVersion, epoch, updatedAt }
+//   users/{uid}/published/{name} what TaskMint publishes to be read without
+//                                its data: payoutForecast for other apps
+//                                (docs/contracts/payout-forecast.md) and
+//                                widgets for a phone with TaskMint closed
+//                                (docs/contracts/widgets.md): { schema, json,
+//                                hash, deviceId, appVersion, epoch, updatedAt }
+//   users/{uid}/devices/{id}     a phone's push address, so a Cloud Function
+//                                (apps/functions) can tell it the published
+//                                widgets changed: { fid, platform,
+//                                appVersion, updatedAt }. The phone writes its
+//                                own (WidgetSync.kt); the function reads them
+//                                as the project's own service account.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedInAs(uid) {
@@ -62,7 +70,7 @@ service cloud.firestore {
       function validPublished(name) {
         let doc = request.resource.data;
         let fields = ['schema', 'json', 'hash', 'deviceId', 'appVersion', 'epoch', 'updatedAt'];
-        return name == 'payoutForecast'
+        return name in ['payoutForecast', 'widgets']
           && doc.keys().hasOnly(fields)
           && doc.keys().hasAll(fields)
           && doc.schema is int && doc.schema >= 1
@@ -79,6 +87,23 @@ service cloud.firestore {
       match /published/{name} {
         allow read: if signedInAs(uid);
         allow create, update: if signedInAs(uid) && validPublished(name);
+        allow delete: if signedInAs(uid);
+      }
+
+      function validDevice() {
+        let doc = request.resource.data;
+        let fields = ['fid', 'platform', 'appVersion', 'updatedAt'];
+        return doc.keys().hasOnly(fields)
+          && doc.keys().hasAll(fields)
+          && doc.fid is string && doc.fid.size() > 0 && doc.fid.size() <= 256
+          && doc.platform == 'android'
+          && doc.appVersion is string && doc.appVersion.size() <= 32
+          && doc.updatedAt == request.time;
+      }
+
+      match /devices/{deviceId} {
+        allow read: if signedInAs(uid);
+        allow create, update: if signedInAs(uid) && deviceId.size() <= 64 && validDevice();
         allow delete: if signedInAs(uid);
       }
     }

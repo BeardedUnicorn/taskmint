@@ -209,7 +209,11 @@ class ReminderAlarm : BroadcastReceiver() {
 class RemindersRestore : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     when (intent.action) {
-      Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> Reminders.restore(context)
+      Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> {
+        Reminders.restore(context)
+        // The widgets' figures are from before: other devices may have newer
+        WidgetSync.soon(context)
+      }
     }
     // An update can move the layouts the widget picker's previews were drawn with
     if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) Widgets.previewsAfterUpdate(context)

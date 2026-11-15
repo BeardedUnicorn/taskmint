@@ -45,6 +45,8 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
   const accountDoc = (uid: string) => fs.doc(db, 'users', uid);
   const data = (uid: string) => fs.collection(db, 'users', uid, 'data');
   const published = (uid: string) => fs.collection(db, 'users', uid, 'published');
+  /** The phones' push addresses (firebase/firestore.rules): the phones write their own. */
+  const devices = (uid: string) => fs.collection(db, 'users', uid, 'devices');
   /** Deletes `refs`, a batch at a time. */
   const deleteRefs = async (refs: DocumentReference[]) => {
     for (let start = 0; start < refs.length; start += BATCH_SIZE) {
@@ -87,6 +89,7 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
         : auth.signInWithPopup(session, new auth.GoogleAuthProvider()));
     },
     signOut: () => auth.signOut(session),
+    refreshToken: () => session.currentUser?.refreshToken ?? null,
     async deleteUser() {
       await auth.deleteUser(session.currentUser!);
     },
@@ -163,8 +166,12 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
       const next = epoch + 1;
       // Writes from devices still on the old epoch are refused from here on
       await fs.updateDoc(accountDoc(uid), { epoch: next });
-      const [all, shared] = await Promise.all([fs.getDocs(data(uid)), fs.getDocs(published(uid))]);
-      await deleteRefs([...all.docs, ...shared.docs].map(doc => doc.ref));
+      const [all, shared, phones] = await Promise.all([
+        fs.getDocs(data(uid)),
+        fs.getDocs(published(uid)),
+        fs.getDocs(devices(uid)),
+      ]);
+      await deleteRefs([...all.docs, ...shared.docs, ...phones.docs].map(doc => doc.ref));
       return next;
     },
     async publish(uid, name, doc: PublishedDoc, meta) {

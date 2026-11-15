@@ -133,6 +133,9 @@ describe('the Firebase store', () => {
     expect(auth.signInWithPopup).toHaveBeenCalledWith(sdk.auth, expect.any(auth.GoogleAuthProvider));
     await store.signOut();
     expect(auth.signOut).toHaveBeenCalledWith(sdk.auth);
+    expect(store.refreshToken()).toBeNull();
+    sdk.auth.currentUser = { uid: 'bea', refreshToken: 'refresh' };
+    expect(store.refreshToken()).toBe('refresh');
     sdk.auth.currentUser = { uid: 'bea' };
     await store.deleteUser();
     expect(auth.deleteUser).toHaveBeenCalledWith({ uid: 'bea' });
@@ -269,12 +272,14 @@ describe('the Firebase store', () => {
     const all = Array.from({ length: BATCH_SIZE + 1 }, (_, i) => ({ ref: `ref${i}` }));
     vi.mocked(fs.getDocs)
       .mockResolvedValueOnce({ docs: all } as never)
-      .mockResolvedValueOnce({ docs: [{ ref: 'forecast' }] } as never);
+      .mockResolvedValueOnce({ docs: [{ ref: 'forecast' }] } as never)
+      .mockResolvedValueOnce({ docs: [{ ref: 'phone' }] } as never);
     expect(await store.deleteAll('bea', 4)).toBe(5);
     expect(fs.updateDoc).toHaveBeenCalledWith({ path: 'users/bea' }, { epoch: 5 });
     expect(fs.getDocs).toHaveBeenCalledWith({ path: 'users/bea/published' });
-    expect(sdk.batch.delete).toHaveBeenCalledTimes(BATCH_SIZE + 2);
-    expect(sdk.batch.delete).toHaveBeenLastCalledWith('forecast');
+    expect(fs.getDocs).toHaveBeenCalledWith({ path: 'users/bea/devices' });
+    expect(sdk.batch.delete).toHaveBeenCalledTimes(BATCH_SIZE + 3);
+    expect(sdk.batch.delete).toHaveBeenLastCalledWith('phone');
     expect(sdk.batch.commit).toHaveBeenCalledTimes(2);
   });
 

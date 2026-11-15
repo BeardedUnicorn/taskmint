@@ -105,6 +105,23 @@
             </intent-filter>
         </receiver>
 
+        <!-- TaskMint: the message that another device published the widgets'
+             figures (WidgetPush.kt). The phone has a push address only while
+             it syncs with an account (WidgetSync turns it on and off). -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+        <!-- Messages are sent to the Firebase installation ID (registration
+             tokens are deprecated) -->
+        <meta-data
+            android:name="firebase_messaging_installation_id_enabled"
+            android:value="true" />
+        <service android:name=".WidgetPush" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- TaskMint: its reminders' alarms (Reminders.kt), and setting
              them again once the phone has started and been unlocked, or
              TaskMint was updated. Not LOCKED_BOOT_COMPLETED: the reminders

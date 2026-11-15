@@ -2,7 +2,9 @@
 
 - **Status:** accepted (2026-11-09); the project here is production's, and
   every other build uses a dev twin, `taskmint-dev`, since
-  [ADR 0004](0004-dev-environment.md) (2026-11-12)
+  [ADR 0004](0004-dev-environment.md) (2026-11-12); "nothing to run or pay
+  for" superseded by [ADR 0005](0005-widget-push.md) (2026-11-14): the Blaze
+  plan and one Cloud Function
 - **Supersedes:** [ADR 0001](0001-web-support.md) decisions 1 (accounts),
   2 (the server), 3 (desktop server mode), 5 (Postgres storage), 6 (the API)
   and 10 (hosting). Its other decisions stand: the pure `taskmint-core`, the

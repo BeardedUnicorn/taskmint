@@ -62,6 +62,7 @@ describe('createFakeBackend', () => {
         'notificationTaps',
         'appShortcuts',
         'widgets',
+        'backgroundSync',
         'haptics',
         'edgeSwipe',
       ],

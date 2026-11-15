@@ -4,6 +4,7 @@ import { cloudErrorMessage } from '../errors';
 import { getCloudSync, setCloudSyncForTest, startCloudSync, syncsThisDevice, useCloudSync } from '..';
 import { asBackend, bea, createFakeBackend, createFakeCloudStore, installFakeBackendForTest } from '../../testing';
 import type { CloudConfig } from '../types';
+import { syncHost } from './syncHost';
 
 // The real SDK can’t run in jsdom: the default load gets a fake store
 const firebase = vi.hoisted(() => ({ createFirebaseStore: vi.fn() }));
@@ -57,6 +58,33 @@ describe('the page’s cloud sync', () => {
     expect(store.signInWithGoogle).toHaveBeenLastCalledWith(null);
 
     expect(startCloudSync(asBackend(browser), CONFIG, async () => store).canUseGoogle).toBe(false);
+  });
+
+  it('tells a phone’s own sync the account and the Firebase app, where there is one', async () => {
+    const store = createFakeCloudStore();
+    store.setEpoch('bea', 1);
+    store.setUser(bea());
+    const firebase = { apiKey: 'key', projectId: 'taskmint-dev' } as CloudConfig['firebase'];
+    const link = { uid: 'bea', epoch: 1, deviceId: 'desk', refreshToken: 'refresh-token' };
+
+    const phone = syncHost({ account: { uid: 'bea', epoch: 1 } }).backend;
+    startCloudSync(asBackend(phone), { ...CONFIG, firebase }, async () => store);
+    await vi.waitFor(() =>
+      expect(phone.platform.backgroundSync.set.mock.calls).toEqual([
+        [{ ...link, apiKey: 'key', projectId: 'taskmint-dev' }],
+      ])
+    );
+    act(() => store.setUser(null));
+    await vi.waitFor(() => expect(phone.platform.backgroundSync.clear).toHaveBeenCalledTimes(1));
+
+    store.setUser(bea());
+    const emulated = syncHost({ account: { uid: 'bea', epoch: 1 } }).backend;
+    startCloudSync(asBackend(emulated), { ...CONFIG, firebase, emulatorHost: '10.0.2.2' }, async () => store);
+    await vi.waitFor(() =>
+      expect(emulated.platform.backgroundSync.set).toHaveBeenCalledWith(
+        expect.objectContaining({ emulatorHost: '10.0.2.2' })
+      )
+    );
   });
 
   it('loads Firebase itself by default', async () => {

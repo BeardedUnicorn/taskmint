@@ -5,13 +5,22 @@
  * changes: money in whole dollars and time in minutes, so a running timer
  * sends a new snapshot about once a minute rather than every second (the
  * widget's own clock counts the timer).
+ *
+ * With cloud sync, every device (the desktop and the web app too) also
+ * publishes them (widgets/publishedWidgets), so a phone with TaskMint closed
+ * shows what happened on another device: a running timer's growing figures
+ * only every quarter of an hour, a change to the timer or the day at once.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { getBackend } from '../backend';
+import { getCloudSync } from '../cloud';
 import { goalForDay } from '../components/pages/calendar/calendarMonth';
 import { useSessionManagementContext } from '../contexts/SessionManagementContext';
 import { useDailyGoalProgress } from '../contexts/DailyGoalProgressContext';
+import { useNotificationPreferences } from '../notifications/preferences';
+import { deviceZone } from '../utils/payoutForecast';
+import { type PublishedMark, publishedWidgets, widgetsDue } from '../widgets/publishedWidgets';
 import { widgetSnapshot } from '../widgets/widgetSnapshot';
 import { useDailyGoals } from './useDailyGoals';
 import { usePayoutData } from './usePayoutData';
@@ -35,6 +44,32 @@ export function useHomeWidgets(): void {
 
   useEffect(() => {
     if (!ready) return;
-    getBackend().platform.widgets?.update({ updatedAtMs: Date.now(), ...JSON.parse(snapshot) });
+    const send = () => getBackend().platform.widgets?.update({ updatedAtMs: Date.now(), ...JSON.parse(snapshot) });
+    send();
+    // While the page was hidden the phone may have shown figures another
+    // device published: back in front, the page's are the ones to show again
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') send();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [ready, snapshot]);
+
+  // The timer's notification follows the same switch with the app closed
+  const [{ desktopEnabled }] = useNotificationPreferences();
+  useEffect(() => {
+    getBackend().platform.backgroundSync?.setTimerNotice(desktopEnabled);
+  }, [desktopEnabled]);
+
+  const sync = getCloudSync();
+  const published = useRef<PublishedMark | null>(null);
+  useEffect(() => {
+    if (!ready || !sync) return;
+    const figures = JSON.parse(snapshot);
+    const mark = widgetsDue(published.current, figures, Date.now());
+    const doc = mark && publishedWidgets(figures, deviceZone());
+    if (!doc) return;
+    published.current = mark;
+    sync.publishWidgets(doc);
+  }, [ready, sync, snapshot]);
 }

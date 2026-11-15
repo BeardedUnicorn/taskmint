@@ -13,8 +13,14 @@
  *   they're made. A document it sent counts as sent once it comes back.
  * - Deleting the cloud data (from any device) moves the account to a new
  *   epoch, and a device still on the old one stops syncing, keeping its data.
- * - Linked and caught up, it publishes the payout forecast other apps read
- *   (utils/payoutForecast) whenever this device's changes, after a pause.
+ * - Linked, a phone's own code is told the account (`background`), so it
+ *   reads the published widgets with the page closed; and told to stop once
+ *   this device no longer syncs with the signed-in account. An error doesn't
+ *   stop it: the link stands.
+ * - Linked and caught up, it publishes what's read without TaskMint's data:
+ *   the payout forecast other apps read (utils/payoutForecast) and the
+ *   widgets' figures a closed phone reads (widgets/publishedWidgets),
+ *   whenever this device's change, after a pause.
  */
 
 import { EVENTS, SYNC_SCHEMA, type OutgoingDoc, type SyncStatus } from '@taskmint/contracts';
@@ -58,10 +64,16 @@ export interface EngineOptions {
   sendDelayMs: number;
   /** How long after a failure it tries again. */
   retryMs: number;
-  /** How long after the forecast changes it's published, so a burst of changes is one write. */
+  /** How long after a published document changes it's written, so a burst of changes is one write. */
   publishDelayMs: number;
   /** How long after a failed publish it tries again (an older ruleset refuses it until it's deployed). */
   publishRetryMs: number;
+}
+
+/** Where a phone's own code is told which account to read with the page closed (index.ts). */
+export interface BackgroundLink {
+  set(link: { uid: string; epoch: number; deviceId: string; refreshToken: string }): void;
+  clear(): void;
 }
 
 export const ENGINE_OPTIONS: EngineOptions = {
@@ -73,6 +85,15 @@ export const ENGINE_OPTIONS: EngineOptions = {
 
 /** The published payout forecast's document (utils/payoutForecast PAYOUT_FORECAST_DOC). */
 export const FORECAST_DOC = 'payoutForecast';
+/** The published widgets' document (widgets/publishedWidgets WIDGETS_DOC). */
+export const WIDGETS_DOC = 'widgets';
+
+/** A published document as this device has it, and the hash it last published while linked. */
+interface PublishSlot {
+  doc: PublishedDoc;
+  publishedHash: string | null;
+  timer: ReturnType<typeof setTimeout> | undefined;
+}
 
 /** Phases where no data is on its way, so nothing waits for it (firstSync). */
 const WAITS_FOR_NOTHING = new Set<SyncPhase>(['signedOut', 'choose', 'otherAccount', 'error', 'cloudReset']);
@@ -99,23 +120,22 @@ export class SyncEngine {
   /** Waiting for the cloud's data to first come in (firstSync). */
   private caughtUp = false;
   private readonly waiting: (() => void)[] = [];
-  /** The payout forecast as this device has it, and the hash it last published while linked. */
-  private forecast: PublishedDoc | null = null;
-  /** The cloud's data has come in since linking, so the forecast counts it. */
+  /** What this device publishes, by document name. */
+  private readonly published = new Map<string, PublishSlot>();
+  /** The cloud's data has come in since linking, so what's published counts it. */
   private received = false;
-  private publishedHash: string | null = null;
-  private publishTimer: ReturnType<typeof setTimeout> | undefined;
 
   /**
    * `google` gets a Google ID token the shell's own way (null: Firebase's
    * popup does it), given the app's theme; none when this build can't sign
-   * in with Google.
+   * in with Google. `background` is the phone's own sync (none elsewhere).
    */
   constructor(
     private readonly backend: Backend,
     private readonly loadStore: () => Promise<CloudStore>,
     private readonly options: EngineOptions = ENGINE_OPTIONS,
-    private readonly google: ((theme: 'light' | 'dark') => Promise<string | null>) | null = null
+    private readonly google: ((theme: 'light' | 'dark') => Promise<string | null>) | null = null,
+    private readonly background: BackgroundLink | null = null
   ) {}
 
   /** Whether "Continue with Google" can work here. */
@@ -213,6 +233,7 @@ export class SyncEngine {
     // (A failure leaves it syncing, to try again)
     await this.cloud.deleteAll(uid, epoch);
     this.detach();
+    this.background?.clear();
     await this.run(() => this.backend.call('unlink_sync_account'));
     this.set({ phase: 'cloudReset', pending: 0, held: 0 });
   }
@@ -233,9 +254,22 @@ export class SyncEngine {
    * has it. Only a change here publishes: another device's forecast doesn't.
    */
   publishForecast(doc: PublishedDoc): void {
-    if (doc.hash === this.forecast?.hash) return;
-    this.forecast = doc;
-    this.schedulePublish(this.options.publishDelayMs);
+    this.offer(FORECAST_DOC, doc);
+  }
+
+  /**
+   * The widgets' figures as this device now has them (widgets/publishedWidgets),
+   * published as the forecast is: a phone with TaskMint closed reads them.
+   */
+  publishWidgets(doc: PublishedDoc): void {
+    this.offer(WIDGETS_DOC, doc);
+  }
+
+  private offer(name: string, doc: PublishedDoc): void {
+    const slot = this.published.get(name);
+    if (doc.hash === slot?.doc.hash) return;
+    this.published.set(name, { doc, publishedHash: slot?.publishedHash ?? null, timer: slot?.timer });
+    this.schedulePublish(name, this.options.publishDelayMs);
   }
 
   /**
@@ -293,9 +327,11 @@ export class SyncEngine {
     this.linked = null;
     this.sent.clear();
     clearTimeout(this.timer);
-    clearTimeout(this.publishTimer);
-    this.publishTimer = undefined;
-    this.publishedHash = null;
+    for (const slot of this.published.values()) {
+      clearTimeout(slot.timer);
+      slot.timer = undefined;
+      slot.publishedHash = null;
+    }
     this.received = false;
   }
 
@@ -310,6 +346,7 @@ export class SyncEngine {
     this.detach();
     this.choosing = null;
     if (!user) {
+      this.background?.clear();
       this.set({ phase: 'signedOut', user: null, error: null, pending: 0, held: 0 });
       return;
     }
@@ -326,6 +363,7 @@ export class SyncEngine {
       const status = await this.run(() => this.backend.call('get_sync_status'));
       if (generation !== this.generation) return;
       if (status.account && status.account.uid !== user.uid) {
+        this.background?.clear();
         this.set({ phase: 'otherAccount' });
         return;
       }
@@ -338,6 +376,7 @@ export class SyncEngine {
         if (generation !== this.generation) return;
         if (both || fromOtherAccount) {
           this.choosing = epoch;
+          this.background?.clear();
           this.set({ phase: 'choose', fromOtherAccount });
           return;
         }
@@ -357,6 +396,8 @@ export class SyncEngine {
   private follow(uid: string, status: SyncStatus, generation: number): void {
     const epoch = status.account!.epoch;
     this.linked = { uid, epoch, deviceId: status.deviceId };
+    const refreshToken = this.cloud.refreshToken();
+    if (refreshToken) this.background?.set({ uid, epoch, deviceId: status.deviceId, refreshToken });
     this.watching.push(
       this.cloud.watchAccount(uid, current => {
         if (current !== epoch) void this.reset();
@@ -375,6 +416,7 @@ export class SyncEngine {
   /** The cloud data was deleted elsewhere: stop, keeping this device's data. */
   private async reset(): Promise<void> {
     this.detach();
+    this.background?.clear();
     await this.run(() => this.backend.call('unlink_sync_account'));
     this.set({ phase: 'cloudReset', pending: 0, held: 0 });
   }
@@ -390,42 +432,46 @@ export class SyncEngine {
       this.catchUp();
       // A merge may have something to send back
       this.send(0);
-      // The forecast waits for the cloud's data (unless it's already on its way)
-      if (this.publishTimer === undefined) this.schedulePublish(this.options.publishDelayMs);
+      // What's published waits for the cloud's data (unless it's already on its way)
+      for (const [name, slot] of this.published) {
+        if (slot.timer === undefined) this.schedulePublish(name, this.options.publishDelayMs);
+      }
     } catch (error) {
       this.fail(error, generation);
     }
   }
 
-  private schedulePublish(delayMs: number): void {
-    clearTimeout(this.publishTimer);
-    this.publishTimer = undefined;
-    if (!this.linked || this.forecast === null || this.forecast.hash === this.publishedHash) return;
+  private schedulePublish(name: string, delayMs: number): void {
+    const slot = this.published.get(name)!;
+    clearTimeout(slot.timer);
+    slot.timer = undefined;
+    if (!this.linked || slot.doc.hash === slot.publishedHash) return;
     const generation = this.generation;
     // (Unlinking clears the timer, so it fires only while linked)
-    this.publishTimer = setTimeout(() => void this.publishNow(generation), delayMs);
+    slot.timer = setTimeout(() => void this.publishNow(name, generation), delayMs);
   }
 
   /**
-   * Publishes the forecast if this device has all the cloud's data: none held
+   * Publishes a document if this device has all the cloud's data: none held
    * back for a newer TaskMint, which would publish its own. A failure isn't
    * sync's: it's tried again later, quietly.
    */
-  private async publishNow(generation: number): Promise<void> {
-    this.publishTimer = undefined;
+  private async publishNow(name: string, generation: number): Promise<void> {
+    const slot = this.published.get(name)!;
+    slot.timer = undefined;
     const linked = this.linked!;
-    const forecast = this.forecast!;
+    const { doc } = slot;
     if (!this.received || this.view.held > 0) return;
     try {
-      await this.cloud.publish(linked.uid, FORECAST_DOC, forecast, {
+      await this.cloud.publish(linked.uid, name, doc, {
         deviceId: linked.deviceId,
         epoch: linked.epoch,
       });
-      if (generation === this.generation) this.publishedHash = forecast.hash;
+      if (generation === this.generation) this.published.get(name)!.publishedHash = doc.hash;
     } catch (error) {
       if (generation !== this.generation) return;
-      console.warn('Failed to publish the payout forecast:', error);
-      this.schedulePublish(this.options.publishRetryMs);
+      console.warn(`Failed to publish ${name}:`, error);
+      this.schedulePublish(name, this.options.publishRetryMs);
     }
   }
 

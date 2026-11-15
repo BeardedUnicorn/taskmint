@@ -27,6 +27,7 @@ import type {
   SystemBarsPlatform,
   TrayPlatform,
   WidgetsPlatform,
+  BackgroundSyncPlatform,
   HapticKind,
 } from '../backend/types';
 import type { AppFolder, AppInfo, AppLink, CaptureServerStatus } from '@taskmint/contracts';
@@ -46,6 +47,7 @@ export interface FakePlatform extends Platform {
   backButton: Mocked<BackButtonPlatform>;
   appShortcuts: Mocked<AppShortcutsPlatform>;
   widgets: Mocked<WidgetsPlatform>;
+  backgroundSync: Mocked<BackgroundSyncPlatform>;
   haptics: Mock<(kind: HapticKind) => void>;
   edgeSwipe: Mocked<EdgeSwipePlatform>;
   reveal: Mock<(path: string) => Promise<void>>;
@@ -90,6 +92,7 @@ export interface FakeBackendOptions {
     | 'backButton'
     | 'appShortcuts'
     | 'widgets'
+    | 'backgroundSync'
     | 'haptics'
     | 'edgeSwipe'
     | 'reveal'
@@ -167,6 +170,11 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     },
     widgets: {
       update: vi.fn(),
+    },
+    backgroundSync: {
+      set: vi.fn(),
+      clear: vi.fn(),
+      setTimerNotice: vi.fn(),
     },
     haptics: vi.fn(),
     edgeSwipe: {

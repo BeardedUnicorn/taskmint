@@ -407,6 +407,7 @@ describe('createTauriBackend', () => {
       'appInfo',
       'appShortcuts',
       'backButton',
+      'backgroundSync',
       'edgeSwipe',
       'files',
       'haptics',
@@ -425,6 +426,9 @@ describe('createTauriBackend', () => {
       takeLaunch: vi.fn(),
       setShortcuts: vi.fn(),
       updateWidgets: vi.fn(),
+      setBackgroundSync: vi.fn(),
+      clearBackgroundSync: vi.fn(),
+      setBackgroundTimerNotice: vi.fn(),
       haptic: vi.fn(),
       setEdgeSwipeArea: vi.fn(),
     };
@@ -462,6 +466,13 @@ describe('createTauriBackend', () => {
     };
     android.widgets!.update(snapshot);
     expect(bridge.updateWidgets).toHaveBeenCalledWith(JSON.stringify(snapshot));
+    const link = { uid: 'bea', epoch: 1, deviceId: 'phone', refreshToken: 'r', apiKey: 'k', projectId: 'p' };
+    android.backgroundSync!.set(link);
+    expect(bridge.setBackgroundSync).toHaveBeenCalledWith(JSON.stringify(link));
+    android.backgroundSync!.setTimerNotice(false);
+    expect(bridge.setBackgroundTimerNotice).toHaveBeenCalledWith(false);
+    android.backgroundSync!.clear();
+    expect(bridge.clearBackgroundSync).toHaveBeenCalledTimes(1);
     android.haptics!('start');
     expect(bridge.haptic).toHaveBeenCalledWith('start');
     android.edgeSwipe!.setArea({ left: 0, top: 500, width: 24, height: 200 });

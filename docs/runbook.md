@@ -46,6 +46,28 @@ pnpm install --frozen-lockfile && pnpm build:wasm && TASKMINT_ENV=production pnp
 pnpm firebase deploy --only hosting --project taskmint-f9a05
 ```
 
+The Cloud Function (`apps/functions`, ADR 0005) isn't in the workflow's
+deploy: its service account has no roles for functions. After a change
+under `apps/functions`, from the release's tag, signed in as an owner:
+
+```bash
+pnpm install --frozen-lockfile && pnpm firebase deploy --only functions --project taskmint-f9a05
+```
+
+A project's first functions deploy turns on its APIs (Cloud Functions,
+Cloud Build, Artifact Registry, Cloud Run, Eventarc) and fails once or twice
+while their permissions spread ("Permission denied while using the Eventarc
+Service Agent"): run it again a few minutes later. It then asks for a
+cleanup policy for the build images, once:
+
+```bash
+pnpm firebase functions:artifacts:setpolicy --project taskmint-f9a05 --location us-central1 --days 1 --force
+```
+
+Its logs are in the Firebase console under Functions (`widgetsPublished`),
+or `pnpm firebase functions:log --project taskmint-f9a05 --only
+widgetsPublished`; each run says how many phones it told.
+
 Re-running the tag's `Deploy the web app` job (`gh run rerun <run id>
 --job <job id>`, or the Actions page) does the same with no local login.
 
