@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.8.0 – 2026-11-15
+
+### Added
+
+- On Android, with cloud sync, the home-screen widgets and the running timer's notification now follow your other devices while TaskMint is closed: a timer started on the desktop shows on the phone within seconds, or at the phone's next check (every quarter of an hour) when the push message doesn't get through, without opening the app.
+
 ## 4.7.0 – 2026-11-14
 
 ### Changed
