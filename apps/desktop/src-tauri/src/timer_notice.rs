@@ -1,6 +1,6 @@
-//! A phone's running-timer notification: the task, its time counting up
-//! (the system draws the clock), and buttons to pause or resume, switch
-//! task, or stop. It follows the sessions as the tray does on a desktop
+//! A phone's running-timer notification: the task being worked on, and
+//! buttons to pause or resume, switch task, or stop. It says what the day
+//! comes to (today's time and money), not how long the one timer has run. It follows the sessions as the tray does on a desktop
 //! (state.rs publishes each change to both), so a timer started on Home, by
 //! a button here, or on another device through sync all show.
 //!
@@ -11,8 +11,8 @@
 //! channel on its own.
 //!
 //! On Android it's TaskMint's own (gen/android: TimerNotice.kt), a Live
-//! Update where the phone has them: the time counts in the status bar too,
-//! and Android 17 adds today's time and money from the widgets' figures. A
+//! Update where the phone has them, with today's time and money from the
+//! widgets' figures: today's time counts there and in the status bar. A
 //! tap or a button leaves it up there. An iPhone's is the notification
 //! plugin's, which the system takes down when it's tapped; `refresh` puts it
 //! back. The user can swipe it away, and it then stays gone until the timer
@@ -39,14 +39,11 @@ pub const STOP: &str = "stop";
 pub struct TimerNotice {
     pub task_name: String,
     /// While it runs: when it would have started had it never paused, which
-    /// the system's clock counts up from. None while paused.
+    /// tells one run from the next (and an iPhone's clock counts up from).
+    /// None while paused.
     pub counting_from: Option<DateTime<Utc>>,
-    /// The line under the task.
+    /// The line under the task: "Running" or "Paused".
     pub text: String,
-    /// While paused: how long it had run, for a clock stopped there. None
-    /// while it runs (its time then changes by the second, and a notice
-    /// that's the same isn't shown again).
-    pub paused_for_ms: Option<u64>,
 }
 
 impl TimerNotice {
@@ -56,29 +53,18 @@ impl TimerNotice {
             true => Self {
                 task_name,
                 counting_from: None,
-                text: format!("Paused at {}", in_words(live.elapsed_ms)),
-                paused_for_ms: Some(live.elapsed_ms),
+                text: "Paused".to_string(),
             },
             false => Self {
                 task_name,
                 counting_from: Some(now - Duration::milliseconds(live.elapsed_ms as i64)),
                 text: "Running".to_string(),
-                paused_for_ms: None,
             },
         }
     }
 
     pub fn is_paused(&self) -> bool {
         self.counting_from.is_none()
-    }
-}
-
-/// "1h 23m", "23m", "0m": the app's way of giving a finished time.
-fn in_words(ms: u64) -> String {
-    let minutes = ms / 60_000;
-    match minutes / 60 {
-        0 => format!("{}m", minutes),
-        hours => format!("{}h {}m", hours, minutes % 60),
     }
 }
 
@@ -206,7 +192,6 @@ mod tests {
             task_name: "Writing".to_string(),
             counting_from: Some(at),
             text: "Running".to_string(),
-            paused_for_ms: None,
         })
     }
 
@@ -228,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn a_paused_timer_says_where_it_stopped_and_resuming_skips_the_pause() {
+    fn a_paused_timer_says_so_and_resuming_skips_the_pause() {
         let f = with_tasks();
         phone(&f);
         call(&f, "start_task");
@@ -236,8 +221,7 @@ mod tests {
         call(&f, "pause_live_timer");
         let paused = shown(&f).last().cloned().unwrap().unwrap();
         assert!(paused.is_paused());
-        assert_eq!(paused.text, "Paused at 1h 23m");
-        assert_eq!(paused.paused_for_ms, Some(83 * 60_000));
+        assert_eq!(paused.text, "Paused");
 
         // Ten minutes paused: it counts from ten minutes later
         f.advance_ms(10 * 60_000);
@@ -249,13 +233,6 @@ mod tests {
 
         call(&f, "stop_live_timer");
         assert_eq!(shown(&f).last().cloned().unwrap(), None);
-    }
-
-    #[test]
-    fn short_times_read_in_minutes() {
-        assert_eq!(in_words(0), "0m");
-        assert_eq!(in_words(23 * 60_000 + 59_000), "23m");
-        assert_eq!(in_words(2 * 3_600_000), "2h 0m");
     }
 
     #[test]

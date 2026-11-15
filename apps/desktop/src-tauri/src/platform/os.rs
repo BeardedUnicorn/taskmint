@@ -172,9 +172,7 @@ fn create_channels(app: &AppHandle) {
 #[serde(rename_all = "camelCase")]
 struct TimerNoticeArgs<'a> {
     task: &'a str,
-    text: &'a str,
     counting_from_ms: Option<i64>,
-    paused_ms: Option<u64>,
 }
 
 /// The running timer's notification on Android: TaskMint's own (gen/android:
@@ -190,9 +188,7 @@ fn set_os_timer_notice(app: &AppHandle, notice: Option<&TimerNotice>) -> Result<
     };
     let args = TimerNoticeArgs {
         task: &notice.task_name,
-        text: &notice.text,
         counting_from_ms: notice.counting_from.map(|from| from.timestamp_millis()),
-        paused_ms: notice.paused_for_ms,
     };
     plugin
         .run_mobile_plugin::<()>("setTimerNotice", args)

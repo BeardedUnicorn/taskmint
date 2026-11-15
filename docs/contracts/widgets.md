@@ -42,9 +42,13 @@ the live timer's task name; nothing else typed.
 
 Whenever a linked device's figures change, 5 seconds later, if the cloud's
 copy differs. While a timer runs the money and time grow every minute, which
-a reader doesn't need (it counts from `timer.countingFromMs` and
-`today.countingFromMs`), so then it's written when the timer or the day
-changes and otherwise at most every 15 minutes.
+a reader doesn't need: it counts today's time from `today.countingFromMs`
+and works today's money out from `today.earning` (`baseCents + perHourCents
+× (now − fromMs) / an hour`, the running timer's rate from where its time
+counts). So then it's written when the timer or the day changes and
+otherwise at most every 15 minutes. `timer` names the task and says whether
+it runs (`countingFromMs`) or waits paused; how long the one timer has run
+isn't shown anywhere.
 
 ## Who's told
 

@@ -13,6 +13,15 @@ pub fn format_duration_hm(ms: u64) -> String {
     format!("{:02}:{:02}", total_minutes / 60, total_minutes % 60)
 }
 
+/// "1h 23m", "23m", "0m": the app's way of giving a finished time.
+pub fn format_duration_words(ms: u64) -> String {
+    let minutes = ms / 60_000;
+    match minutes / 60 {
+        0 => format!("{}m", minutes),
+        hours => format!("{}h {}m", hours, minutes % 60),
+    }
+}
+
 /// Whether a backup file's stamp is a real `YYYYMMDD_HHMMSS` time (in a
 /// plausible year), so only TaskMint's own backups are ever pruned.
 pub fn is_valid_backup_timestamp(timestamp: &str) -> bool {
@@ -37,6 +46,13 @@ mod tests {
         assert_eq!(format_duration_hm(59_999), "00:00");
         assert_eq!(format_duration_hm(90 * 60_000), "01:30");
         assert_eq!(format_duration_hm(26 * 3_600_000 + 5 * 60_000), "26:05");
+    }
+
+    #[test]
+    fn short_times_read_in_minutes() {
+        assert_eq!(format_duration_words(0), "0m");
+        assert_eq!(format_duration_words(23 * 60_000 + 59_000), "23m");
+        assert_eq!(format_duration_words(2 * 3_600_000), "2h 0m");
     }
 
     #[test]

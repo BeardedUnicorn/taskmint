@@ -169,7 +169,7 @@ fn apply_long_run(state: &AppState, long_run: LongRun) {
         &format!(
             "{}'s timer has been running for {}.",
             long_run.task_name,
-            crate::utils::format_duration_hm(long_run.run_ms)
+            crate::utils::format_duration_words(long_run.run_ms)
         ),
         Origin::Backend,
     );
@@ -411,7 +411,7 @@ mod tests {
         assert_eq!(notifications.len(), 1);
         assert_eq!(
             notifications[0].body,
-            "Writing's timer has been running for 02:00."
+            "Writing's timer has been running for 2h 0m."
         );
     }
 

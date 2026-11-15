@@ -334,11 +334,18 @@ On a phone with Google Play services, with the release APK:
       before a restart and nothing arrives after it. With the phone off past
       the reminder's time, it shows once the phone is unlocked. After
       `adb shell am force-stop`, opening TaskMint sets it again.
-- [ ] **Running-timer notification:** starting work shows the task with its
-      time counting up; Pause turns it to "Paused at …" with Resume, Stop
-      takes it down, and Switch task opens the Switch task dialog. Tapping it
-      opens Sessions and it stays. After `am kill` and opening TaskMint again
-      it's back. Swiped away, it returns at the next pause or resume.
+- [ ] **Running-timer notification:** starting work shows the task with
+      today's time counting up and the money earned today, never the one
+      timer's own time: Today and Earned figures on Android 17 (the status
+      bar's chip counts today's time), "Today · 3:12:45" in the header over
+      "~$45 earned today" before. Pause turns it to "Paused" with today's
+      time standing still and Resume, Stop takes it down, and Switch task
+      opens the Switch task dialog. Tapping it opens Sessions and it stays.
+      After `am kill` and opening TaskMint again it's back. Swiped away, it
+      returns at the next pause or resume. With TaskMint killed and a timer
+      running, the money moves on within minutes of each dollar earned, and
+      after `adb reboot` and an unlock the notification is back without
+      opening TaskMint.
 - [ ] **Asked once, then shown:** on a fresh install, the first Start work
       asks to allow notifications; allowing shows the running timer's
       notification at once.
@@ -350,11 +357,13 @@ On a phone with Google Play services, with the release APK:
 - [ ] **Shortcuts:** long-pressing the icon offers Start for the top tasks,
       Add time and Payouts. Each opens TaskMint for it, the app killed or
       not. Start begins the task and shows Home.
-- [ ] **Widgets:** both are in the widget picker with a preview. Today shows
-      the running timer counting; its Pause and Resume act and open the app.
-      Payouts says "Withdrawal open" once its time passes (within 30
-      minutes). Both follow the phone's light and dark mode. A release build
-      (R8, resource shrinking) draws them too.
+- [ ] **Widgets:** all four are in the widget picker with a preview. With a
+      timer running Today shows its task over today's time counting and the
+      money earned today (the same figures as the notification), paused it
+      says "Paused" with today's time still; its Pause and Resume act and
+      open the app. Payouts says "Ready to withdraw" once its time passes
+      (within 10 minutes). All follow the phone's light and dark mode. A
+      release build (R8, resource shrinking) draws them too.
 - [ ] **Widgets with the app closed:** signed in on the phone and a
       desktop, with TaskMint killed on the phone (`am kill`), start a timer
       on the desktop. Within a quarter of an hour the Today widget counts it and the running timer's

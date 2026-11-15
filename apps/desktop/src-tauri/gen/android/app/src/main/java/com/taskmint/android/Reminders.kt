@@ -211,6 +211,8 @@ class RemindersRestore : BroadcastReceiver() {
     when (intent.action) {
       Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> {
         Reminders.restore(context)
+        // The system dropped the running timer's notification with the rest
+        TimerNotices.restore(context)
         // The widgets' figures are from before: other devices may have newer
         WidgetSync.soon(context)
       }
@@ -238,9 +240,7 @@ class ReminderIdArgs {
 @InvokeArg
 class TimerNoticeArgs {
   var task: String = ""
-  var text: String = ""
   var countingFromMs: Long? = null
-  var pausedMs: Long? = null
 }
 
 /**
@@ -271,7 +271,7 @@ class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun setTimerNotice(invoke: Invoke) {
     val args = invoke.parseArgs(TimerNoticeArgs::class.java)
-    TimerNotices.set(activity, TimerNotice(args.task, args.text, args.countingFromMs, args.pausedMs))
+    TimerNotices.set(activity, TimerNotice(args.task, args.countingFromMs))
     invoke.resolve()
   }
 

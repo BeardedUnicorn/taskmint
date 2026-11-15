@@ -461,6 +461,7 @@ describe('createTauriBackend', () => {
         time: '0m',
         countingFromMs: null,
         timeMs: 0,
+        earning: null,
         goalPercent: null,
         week: { money: '$0', time: '0m' },
       },

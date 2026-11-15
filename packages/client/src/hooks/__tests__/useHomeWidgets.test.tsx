@@ -22,6 +22,9 @@ const state = vi.hoisted(() => ({ sessions: [] as TaskSession[] }));
 vi.mock('../../contexts/SessionManagementContext', () => ({
   useSessionManagementContext: () => ({ sessions: state.sessions }),
 }));
+vi.mock('../../contexts/TaskManagementContext', () => ({
+  useTaskManagementContext: () => ({ tasks: [] }),
+}));
 
 const progress = { enabled: true, percent: 63.6, earned: 63.6, target: 100, currency: 'USD' };
 const goals = {

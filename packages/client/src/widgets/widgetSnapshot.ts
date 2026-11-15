@@ -11,6 +11,7 @@ import { buildCalendarWeeks } from '../components/pages/calendar/calendarMonth';
 import { thisWeek } from '../components/pages/home/homeTotals';
 import type { DailyGoalProgressData } from '../hooks/useDailyGoalProgressMonitor';
 import type { PayoutData } from '../hooks/usePayoutData';
+import type { Task } from '../types/task';
 import type { TaskSession } from '../types/timer';
 import type { Withdrawal } from '../types/withdrawal';
 import { AGENDA_WEEKS_AHEAD, AGENDA_WEEKS_BACK, agendaWidget } from './agendaWidget';
@@ -22,6 +23,8 @@ export interface WidgetInputs {
   payout: Pick<PayoutData, 'cells' | 'events' | 'schedule' | 'plan' | 'today' | 'nowMs'>;
   goal: Pick<DailyGoalProgressData, 'enabled' | 'percent'>;
   sessions: TaskSession[];
+  /** For the running timer's rate. */
+  tasks: Task[];
   withdrawals: Withdrawal[];
   /** A day's goal in dollars, or null (calendarMonth's goalForDay). */
   goalFor: (date: string) => number | null;
@@ -32,6 +35,7 @@ export function widgetSnapshot({
   payout,
   goal,
   sessions,
+  tasks,
   withdrawals,
   goalFor,
 }: WidgetInputs): Omit<WidgetSnapshot, 'updatedAtMs'> {
@@ -50,7 +54,7 @@ export function widgetSnapshot({
   return {
     version: 2,
     day: today,
-    ...todayWidget(payout, goal, sessions, week),
+    ...todayWidget(payout, goal, sessions, week, tasks),
     payouts: payoutsWidget(payout),
     agenda: agendaWidget(weeks, AGENDA_WEEKS_BACK, payout),
     week: weekWidget(week, today, goalFor(today)),

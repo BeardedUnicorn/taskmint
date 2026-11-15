@@ -194,12 +194,19 @@ export interface WidgetSnapshot {
     time: string;
     /**
      * While a timer begun today runs: when today's time would have started
-     * had it never stopped (the phone's timer notification counts from it).
-     * Null while today's time stands still.
+     * had it never stopped (the phone's widget and timer notification count
+     * from it). Null while today's time stands still.
      */
     countingFromMs: number | null;
     /** Today's time while it stands still; null while it counts. */
     timeMs: number | null;
+    /**
+     * While a timer begun today runs and today's money grows with it: the
+     * money is `baseCents + perHourCents × (now − fromMs) / an hour`, so the
+     * phone keeps it up with TaskMint closed. Null while the money stands
+     * still (`money` is it).
+     */
+    earning: { baseCents: number; perHourCents: number; fromMs: number } | null;
     goalPercent: number | null;
     /** This week's money and time, as Home has them (a tall widget shows them). */
     week: { money: string; time: string };
@@ -207,14 +214,8 @@ export interface WidgetSnapshot {
   /** The live timer; null when nothing runs or waits paused. */
   timer: {
     task: string;
-    /** While it runs: when it would have started had it never paused (the widget's clock counts from it). */
+    /** While it runs: when it would have started had it never paused. Null while paused. */
     countingFromMs: number | null;
-    /** While paused: "Paused at 1h 23m". */
-    status: string | null;
-    /** While paused: how long it ran, "1h 23m" (one row tall, the big line). */
-    pausedFor: string | null;
-    /** While paused: how long it ran (the phone's timer notification, set from a published snapshot). */
-    pausedMs: number | null;
   } | null;
   /** The next withdrawal, else the next release; null when neither is on the way. */
   payouts: WidgetPayouts | null;

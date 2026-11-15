@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TaskMint: the Today widget one row tall (TodayViews). Running: the clock
-     over the task; paused: where it stopped over "Paused · the task"; idle:
-     today's money over its time. Wide, today's figures (or the goal) on the
-     right. Then the timer's button. -->
+<!-- TaskMint: the Today widget one row tall (TodayViews). Running: today's
+     time counting over the task; paused: today's time over "Paused · the
+     task"; idle: today's money over its time. Wide, the money earned today
+     (or the goal) on the right. Then the timer's button. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
@@ -47,7 +47,7 @@
                 android:textSize="24sp"
                 android:visibility="gone" />
 
-            <!-- A paused timer's time, stopped -->
+            <!-- Today's time, standing still while the timer is paused -->
             <TextView
                 android:id="@+id/row_paused"
                 style="@style/TaskMintWidget.Hero"

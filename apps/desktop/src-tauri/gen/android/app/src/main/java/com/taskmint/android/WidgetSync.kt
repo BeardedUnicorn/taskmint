@@ -286,15 +286,7 @@ object WidgetSync {
 
     if (!prefs(context).getBoolean(TIMER_NOTICE, true)) return
     val timer = figures.optJSONObject("timer")
-    val countingFrom = timer?.time("countingFromMs")
-    // (A paused timer from a TaskMint that didn't say how long it ran: left as it is)
-    val pausedMs = if (timer == null || timer.isNull("pausedMs")) null else timer.getLong("pausedMs")
-    when {
-      timer == null -> TimerNotices.setRemote(context, null)
-      countingFrom != null -> TimerNotices.setRemote(context, TimerNotice(timer.getString("task"), "Running", countingFrom, null))
-      pausedMs != null ->
-        TimerNotices.setRemote(context, TimerNotice(timer.getString("task"), timer.optString("status"), null, pausedMs))
-    }
+    TimerNotices.setRemote(context, timer?.let { TimerNotice(it.getString("task"), it.time("countingFromMs")) })
   }
 
   /** An RFC 3339 time in UTC ("2026-11-14T21:00:00.123456Z"), as epoch milliseconds. */

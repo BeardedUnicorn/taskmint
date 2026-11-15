@@ -57,7 +57,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="38dp"
                 android:gravity="center_vertical"
-                android:text="1:23:45" />
+                android:text="2:13:45" />
         </LinearLayout>
 
         <Button
@@ -91,7 +91,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="2h 13m" />
+            android:text="@string/widget_earned_today" />
     </LinearLayout>
 
     <LinearLayout

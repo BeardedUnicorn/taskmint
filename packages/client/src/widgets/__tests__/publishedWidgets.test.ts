@@ -6,13 +6,14 @@ import { APP_VERSION } from '../../utils/appVersion';
 import { fnv1a64 } from '../../utils/fnv';
 import { MAX_WIDGETS_JSON, PUBLISH_EVERY_MS, publishedWidgets, widgetsDue } from '../publishedWidgets';
 import { widgetSnapshot } from '../widgetSnapshot';
-import { MINUTE, NOW, cell, working } from './widgetFixtures';
+import { MINUTE, NOW, TASKS, cell, working } from './widgetFixtures';
 
 const snapshot = (paused = false, cents = 4_550) =>
   widgetSnapshot({
     payout: createMockPayoutData({ nowMs: NOW, cells: [cell({ estimatedCents: cents, trackedMs: 133 * MINUTE })] }),
     goal: { enabled: true, percent: 45.5 },
     sessions: [working(paused)],
+    tasks: TASKS,
     withdrawals: [],
     goalFor: () => 100,
   });

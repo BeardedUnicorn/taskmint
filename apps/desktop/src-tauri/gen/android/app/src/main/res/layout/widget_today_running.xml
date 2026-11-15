@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- TaskMint: the Today widget, two rows and more, while a timer runs
-     (TodayViews): the timer card first, its clock the big figure, with
-     Pause; then today's money and time, the goal, and this week when
-     tall. -->
+     (TodayViews): the timer card first, the task over today's time (the big
+     figure, counting), with Pause; then the money earned today, the goal,
+     and this week when tall. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
