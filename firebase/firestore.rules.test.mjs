@@ -194,6 +194,69 @@ describe('the published payout forecast', () => {
   });
 });
 
+describe('the published widgets', () => {
+  const WIDGETS = 'users/bea/published/widgets';
+  const widgets = changes => forecast({ schema: 2, json: '{"version":2}', ...changes });
+
+  it('are written, read and deleted by their owner only', async () => {
+    await assertSucceeds(setDoc(doc(bea(), WIDGETS), widgets()));
+    await assertSucceeds(getDoc(doc(bea(), WIDGETS)));
+    await assertFails(getDoc(doc(cal(), WIDGETS)));
+    await assertFails(getDoc(doc(nobody(), WIDGETS)));
+    await assertFails(setDoc(doc(cal(), WIDGETS), widgets()));
+    await assertSucceeds(deleteDoc(doc(bea(), WIDGETS)));
+  });
+
+  it('are held to the forecast’s shape, epoch and contract order', async () => {
+    await assertSucceeds(setDoc(doc(bea(), WIDGETS), widgets()));
+    await assertFails(setDoc(doc(bea(), WIDGETS), widgets({ schema: 1 })));
+    await assertFails(setDoc(doc(bea(), WIDGETS), widgets({ extra: 1 })));
+    await assertFails(setDoc(doc(bea(), WIDGETS), widgets({ epoch: 2 })));
+    await assertFails(setDoc(doc(bea(), WIDGETS), widgets({ json: 'x'.repeat(200001) })));
+  });
+});
+
+describe('a phone’s push address', () => {
+  const DEVICE = 'users/bea/devices/phone';
+  const device = (changes = {}) => ({
+    fid: 'installation-id',
+    platform: 'android',
+    appVersion: '4.8.0',
+    updatedAt: serverTimestamp(),
+    ...changes,
+  });
+
+  it('is written, read and deleted by its owner only, with or without an account document', async () => {
+    await assertSucceeds(setDoc(doc(bea(), DEVICE), device()));
+    await assertSucceeds(setDoc(doc(bea(), DEVICE), device({ fid: 'next-installation-id' })));
+    await assertSucceeds(getDoc(doc(bea(), DEVICE)));
+    await assertFails(getDoc(doc(cal(), DEVICE)));
+    await assertFails(getDoc(doc(nobody(), DEVICE)));
+    await assertFails(setDoc(doc(cal(), DEVICE), device()));
+    await assertFails(deleteDoc(doc(cal(), DEVICE)));
+    await assertSucceeds(deleteDoc(doc(bea(), DEVICE)));
+    await assertSucceeds(setDoc(doc(cal(), 'users/cal/devices/phone'), device()));
+  });
+
+  it('holds only an installation ID, as the phone writes it', async () => {
+    const refused = [
+      device({ extra: 1 }),
+      device({ fid: '' }),
+      device({ fid: 7 }),
+      device({ fid: 'x'.repeat(257) }),
+      device({ platform: 'ios' }),
+      device({ appVersion: 'x'.repeat(33) }),
+      device({ updatedAt: Timestamp.fromMillis(0) }),
+    ];
+    for (const data of refused) {
+      await assertFails(setDoc(doc(bea(), DEVICE), data));
+    }
+    const { platform: _, ...missing } = device();
+    await assertFails(setDoc(doc(bea(), DEVICE), missing));
+    await assertFails(setDoc(doc(bea(), `users/bea/devices/${'d'.repeat(65)}`), device()));
+  });
+});
+
 describe('BudgetMint’s old paths', () => {
   // BudgetMint keeps its data in its own Firebase project now (BudgetMint's ADR 0003)
   it('take no writes, even as BudgetMint wrote them', async () => {

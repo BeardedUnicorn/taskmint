@@ -21,6 +21,7 @@ import com.taskmint.android.Widgets.text
 import com.taskmint.android.Widgets.time
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.abs
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -38,6 +39,13 @@ data class TimerNotice(
 ) {
   val running: Boolean
     get() = countingFromMs != null
+
+  /** Whether `other` shows the same: where a running one counts from may differ by a moment between devices. */
+  fun sameAs(other: TimerNotice): Boolean =
+    task == other.task &&
+      text == other.text &&
+      running == other.running &&
+      (countingFromMs == null || other.countingFromMs == null || abs(countingFromMs - other.countingFromMs) <= 2_000)
 
   fun toJson(): String =
     JSONObject()
@@ -83,6 +91,14 @@ data class TimerNotice(
  * does. The intent has an action of its own: the plugin takes down the
  * notification of any ACTION_MAIN intent with those extras, and this one
  * stays up.
+ *
+ * With TaskMint closed, [WidgetSync] shows the timer another device started
+ * (`setRemote`), from the figures that device published. The shell knows
+ * nothing of that one, and says again what it shows only when its own timer
+ * changes. So when the app comes forward over a notification that isn't the
+ * shell's (`resumed`), what the shell last asked for goes back: its notice,
+ * or none after a moment (`LET_SYNC_LAND_MS`), in which sync brings the
+ * other device's timer in and the shell asks for it itself.
  */
 object TimerNotices {
   /** The notification's id (timer_notice.rs TIMER_NOTICE_ID): the page knows the timer's by it. */
@@ -90,6 +106,13 @@ object TimerNotices {
 
   private const val STORE = "taskmint_timer_notice"
   private const val NOTICE = "notice"
+  /** What the shell last asked for (absent: none), and whether what's kept isn't that but a published one. */
+  private const val SHELL = "shell"
+  private const val REMOTE = "remote"
+  /** How long a notice from published figures outlives the shell's "none" as the app opens. */
+  private const val LET_SYNC_LAND_MS = 5_000L
+  /** Bumped by each change: a clear waiting for sync goes ahead only if nothing changed since. */
+  @Volatile private var change = 0
   private const val PRESS = "com.taskmint.android.TIMER_NOTICE"
 
   /** The buttons, as timer_notice.rs knows them. */
@@ -135,19 +158,65 @@ object TimerNotices {
     return channel.id
   }
 
-  /** Shows `notice`, in place of the one before, and keeps it to draw again when today's figures change. */
+  /** The shell's: shows `notice`, in place of the one before, and keeps it to draw again when today's figures change. */
   fun set(context: Context, notice: TimerNotice) {
+    change++
+    saved(context).edit().putString(SHELL, notice.toJson()).putBoolean(REMOTE, false).apply()
+    put(context, notice)
+  }
+
+  /**
+   * The shell's: takes it down, as nothing runs or waits paused. One from
+   * published figures stays a moment longer: the shell may not have the
+   * other device's timer yet, and asks for it once it does.
+   */
+  fun clear(context: Context) {
+    saved(context).edit().remove(SHELL).apply()
+    if (saved(context).getBoolean(REMOTE, false)) clearUnlessChanged(context) else takeDown(context)
+  }
+
+  /**
+   * From published figures, with TaskMint closed: shows `notice` (null:
+   * takes it down) unless that's what is kept already, so one the user
+   * swiped away stays gone until the timer changes.
+   */
+  fun setRemote(context: Context, notice: TimerNotice?) {
+    val kept = saved(context).getString(NOTICE, null)?.let(TimerNotice::fromJson)
+    if (notice == null) {
+      if (kept != null) takeDown(context)
+      return
+    }
+    if (kept != null && kept.sameAs(notice)) return
+    change++
+    saved(context).edit().putBoolean(REMOTE, true).apply()
+    put(context, notice)
+  }
+
+  /** The app came forward: over a notice from published figures, what the shell last asked for goes back. */
+  fun resumed(context: Context) {
+    if (!saved(context).getBoolean(REMOTE, false)) return
+    val shell = saved(context).getString(SHELL, null)?.let(TimerNotice::fromJson)
+    if (shell != null) set(context, shell) else clearUnlessChanged(context)
+  }
+
+  private fun put(context: Context, notice: TimerNotice) {
     saved(context).edit().putString(NOTICE, notice.toJson()).apply()
     show(context, notice)
     // Today's figures are a day's: they go at midnight (Widgets.redrawAll)
     Widgets.scheduleRefresh(context)
   }
 
-  /** Takes it down: nothing runs or waits paused. */
-  fun clear(context: Context) {
-    saved(context).edit().remove(NOTICE).apply()
+  private fun takeDown(context: Context) {
+    change++
+    saved(context).edit().remove(NOTICE).putBoolean(REMOTE, false).apply()
     NotificationManagerCompat.from(context).cancel(ID)
     Widgets.scheduleRefresh(context)
+  }
+
+  private fun clearUnlessChanged(context: Context) {
+    val app = context.applicationContext
+    val asked = ++change
+    Widgets.later(LET_SYNC_LAND_MS) { if (change == asked) takeDown(app) }
   }
 
   /** Whether it shows figures that change without the timer changing (Android 17's, with today's). */

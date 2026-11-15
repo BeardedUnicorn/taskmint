@@ -34,7 +34,8 @@ import org.json.JSONObject
  * version 2). It's kept here, so a widget added or redrawn later has it,
  * and each widget is redrawn only when its own part changes: a running timer
  * sends Today's figures every minute, and the Calendar's list would lose its
- * scroll if it were sent again with them.
+ * scroll if it were sent again with them. With TaskMint closed, the figures
+ * another device published come the same way (WidgetSync).
  *
  * A widget picks its layout by its size (Fit): Android 12 and later get one
  * per size class and switch between them as the widget is resized; earlier

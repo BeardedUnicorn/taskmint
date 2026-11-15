@@ -56,6 +56,13 @@ or read TaskMint's sync documents, which are TaskMint's own business.
    BudgetMint keeps its data). Delete account deletes BudgetMint's data
    first, since without the account nobody could reach it.
 
+8. **The widgets' figures are published the same way** (since November
+   2026): `users/{uid}/published/widgets`, the snapshot the phone's widgets
+   show, so a phone with TaskMint closed can read one document and show a
+   timer started on another device ([contract](../contracts/widgets.md)).
+   Unlike the forecast it carries text as shown, the live timer's task name
+   included; like it, only the owner reads it.
+
 ## Consequences
 
 - The forecast exists only while some TaskMint device syncs. It goes stale

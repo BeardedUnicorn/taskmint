@@ -1,0 +1,24 @@
+{
+  "name": "@taskmint/functions",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TaskMint's Cloud Function: tells a user's phones their published widgets changed",
+  "scripts": {
+    "build": "tsc -p . && node build.mjs",
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.1",
+    "firebase-functions": "7.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "esbuild": "^0.28.2",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

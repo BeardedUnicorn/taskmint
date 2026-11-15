@@ -249,6 +249,11 @@ interface AndroidAppTask {
   setShortcuts(json: string): void;
   /** What the home-screen widgets show, as JSON (WidgetSnapshot). */
   updateWidgets(json: string): void;
+  /** The account to read published widgets from with the app closed, as JSON (BackgroundSyncLink). */
+  setBackgroundSync(json: string): void;
+  clearBackgroundSync(): void;
+  /** Whether the timer's notification is wanted while the app is closed. */
+  setBackgroundTimerNotice(wanted: boolean): void;
   haptic(kind: string): void;
   /** In CSS px; a zero size for none. */
   setEdgeSwipeArea(left: number, top: number, width: number, height: number): void;
@@ -265,16 +270,21 @@ export function sideloadingBlocked(): boolean {
 
 /**
  * The app on the phone, outside its page (MainActivity.kt's AppTask): the
- * launcher's shortcuts, the home-screen widgets, touch feedback, and the
- * band where a swipe opens the menu. Called on the bridge itself: Android
+ * launcher's shortcuts, the home-screen widgets and their sync with the app
+ * closed, touch feedback, and the band where a swipe opens the menu. Called on the bridge itself: Android
  * refuses a method taken off it.
  */
-function phoneApp(): Pick<Platform, 'appShortcuts' | 'widgets' | 'haptics' | 'edgeSwipe'> {
+function phoneApp(): Pick<Platform, 'appShortcuts' | 'widgets' | 'backgroundSync' | 'haptics' | 'edgeSwipe'> {
   const android = (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp;
   if (!android) return {};
   return {
     appShortcuts: { set: shortcuts => android.setShortcuts(JSON.stringify(shortcuts)) },
     widgets: { update: snapshot => android.updateWidgets(JSON.stringify(snapshot)) },
+    backgroundSync: {
+      set: link => android.setBackgroundSync(JSON.stringify(link)),
+      clear: () => android.clearBackgroundSync(),
+      setTimerNotice: wanted => android.setBackgroundTimerNotice(wanted),
+    },
     haptics: kind => android.haptic(kind),
     edgeSwipe: {
       setArea: area => {

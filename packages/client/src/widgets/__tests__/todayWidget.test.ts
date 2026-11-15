@@ -24,7 +24,7 @@ describe('todayWidget', () => {
         goalPercent: 64,
         week: { money: '~$310', time: '14h 20m' },
       },
-      timer: { task: 'Writing', countingFromMs: NOW - 50 * MINUTE, status: null, pausedFor: null },
+      timer: { task: 'Writing', countingFromMs: NOW - 50 * MINUTE, status: null, pausedFor: null, pausedMs: null },
     });
   });
 
@@ -49,7 +49,13 @@ describe('todayWidget', () => {
   it('says where a paused timer stopped, and leaves the goal out when there is none', () => {
     expect(todayWidget(payout(), noGoal, [working(true)], week)).toMatchObject({
       today: { goalPercent: null },
-      timer: { task: 'Writing', countingFromMs: null, status: 'Paused at 50m', pausedFor: '50m' },
+      timer: {
+        task: 'Writing',
+        countingFromMs: null,
+        status: 'Paused at 50m',
+        pausedFor: '50m',
+        pausedMs: 50 * MINUTE,
+      },
     });
   });
 

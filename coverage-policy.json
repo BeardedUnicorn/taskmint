@@ -10,6 +10,9 @@
     "packages": {
       "apps/desktop": [],
       "apps/extension": [],
+      "apps/functions": [
+        { "glob": "src/index.ts", "why": "the function's registration and its calls into firebase-admin (Firestore, Messaging); every decision is in push.ts" }
+      ],
       "apps/web": [
         { "glob": "src/wasm/**", "why": "wasm-bindgen's output for crates/taskmint-wasm (scripts/build-wasm.mjs); core's host is tested in Rust" }
       ],

@@ -295,7 +295,10 @@ rather than offer the download.
 - launcher shortcuts (long-press the icon) for the likeliest tasks, Add time
   and Payouts;
 - Today, Payouts, Calendar and This week home-screen widgets, which the
-  widget picker shows with your own figures (Android 15 and later);
+  widget picker shows with your own figures (Android 15 and later). With
+  cloud sync they and the running timer's notification follow your other
+  devices with TaskMint closed: within seconds where a push message gets
+  through, and at a check every quarter of an hour otherwise;
 - touch feedback on the timer;
 - a swipe in from the left edge, just above the bottom tabs, to open the
   menu.
@@ -755,8 +758,11 @@ VITE_FIREBASE_EMULATOR_HOST=127.0.0.1 pnpm --filter @taskmint/web dev    # http:
 TASKMINT_DATA_DIR=$HOME/tmp/taskmint-dev VITE_FIREBASE_EMULATOR_HOST=127.0.0.1 pnpm tauri dev
 ```
 
-From the Android emulator the host is `10.0.2.2`. Accounts made there exist
-only in the emulator, and its data is gone when it stops.
+From the Android emulator the host is `10.0.2.2`. Android 17 keeps an app
+off the local network, that address included, until it's allowed: there,
+forward the two ports (`adb reverse tcp:9099 tcp:9099`, `adb reverse tcp:8085
+tcp:8085`) and use `127.0.0.1`. Accounts made there exist only in the
+emulator, and its data is gone when it stops.
 
 To check the production headers, build the web app and serve it from the
 Hosting emulator (port 5002). That build talks to the dev project:
@@ -859,6 +865,7 @@ apps/web/                    Web app (@taskmint/web): sign-in page, then the cli
   src/settings/              The Account section
   src/wasm/                  pnpm build:wasm's output (not committed)
 apps/extension/              Work-log capture extension (MV3, TypeScript; built into dist/)
+apps/functions/              The Cloud Function that tells phones their published widgets changed (built into dist/)
 firebase/                    Firestore rules, their tests, and indexes (firebase.json deploys them)
 assets/brand/                Logo and app-icon masters (see Development)
 docs/                        ADRs, the coverage policy, the security review, the runbook

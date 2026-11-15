@@ -536,7 +536,7 @@ describe('cloud sync, publishing the payout forecast', () => {
     engine.publishForecast(forecast('a'));
     await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
     expect(phaseOf(engine)).toBe('synced');
-    expect(warn).toHaveBeenCalledWith('Failed to publish the payout forecast:', expect.any(Error));
+    expect(warn).toHaveBeenCalledWith('Failed to publish payoutForecast:', expect.any(Error));
     await vi.waitFor(() => expect(store.published.get('bea/payoutForecast')).toMatchObject({ hash: 'a' }));
     expect(store.publish).toHaveBeenCalledTimes(2);
     warn.mockRestore();
@@ -581,5 +581,113 @@ describe('cloud sync, publishing the payout forecast', () => {
     engine.publishForecast(forecast('a'));
     await sleep(80);
     expect(store.publish).not.toHaveBeenCalled();
+  });
+
+  it('publishes the widgets’ figures beside the forecast, each on its own', async () => {
+    const { engine } = await caughtUp();
+    engine.publishForecast(forecast('a'));
+    engine.publishWidgets(forecast('w1'));
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(2));
+    expect(store.published.get('bea/payoutForecast')).toMatchObject({ hash: 'a', ...META });
+    expect(store.published.get('bea/widgets')).toMatchObject({ hash: 'w1', ...META });
+
+    // Only the one that changed is written again
+    engine.publishWidgets(forecast('w2'));
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(3));
+    expect(store.publish).toHaveBeenLastCalledWith('bea', 'widgets', forecast('w2'), META);
+    expect(store.published.get('bea/payoutForecast')).toMatchObject({ hash: 'a' });
+  });
+
+  it('publishes both again on the next link', async () => {
+    const { engine } = await caughtUp();
+    engine.publishForecast(forecast('a'));
+    engine.publishWidgets(forecast('w1'));
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(2));
+    store.setUser(null);
+    store.setUser(bea());
+    await vi.waitFor(() => expect(store.listens.filter(listen => listen.open)).toHaveLength(1));
+    store.emit({ docs: [], cursor: 'c2' });
+    await vi.waitFor(() => expect(store.publish).toHaveBeenCalledTimes(4));
+  });
+});
+
+describe('cloud sync, telling a phone’s own sync', () => {
+  const background = { set: vi.fn(), clear: vi.fn() };
+  const LINK = { uid: 'bea', epoch: 1, deviceId: 'desk', refreshToken: 'refresh-token' };
+
+  beforeEach(() => {
+    background.set.mockClear();
+    background.clear.mockClear();
+  });
+
+  async function phone(host: ReturnType<typeof syncHost>) {
+    const engine = new SyncEngine(asBackend(host.backend), async () => store, OPTIONS, null, background);
+    await engine.start();
+    return engine;
+  }
+
+  it('hands over the account once linked, and takes it back on signing out', async () => {
+    store.setEpoch('bea', 1);
+    const engine = await phone(syncHost());
+    expect(background.clear).toHaveBeenCalledTimes(1);
+    store.setUser(bea());
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('synced'));
+    expect(background.set.mock.calls).toEqual([[LINK]]);
+    expect(background.clear).toHaveBeenCalledTimes(1);
+
+    // An error isn't the end of the link
+    store.emitError({ code: 'permission-denied' });
+    expect(phaseOf(engine)).toBe('error');
+    expect(background.clear).toHaveBeenCalledTimes(1);
+
+    store.setUser(null);
+    await vi.waitFor(() => expect(background.clear).toHaveBeenCalledTimes(2));
+  });
+
+  it('hands nothing over without a token', async () => {
+    store.setEpoch('bea', 1);
+    vi.mocked(store.refreshToken).mockReturnValue(null);
+    const engine = await phone(syncHost());
+    store.setUser(bea());
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('synced'));
+    expect(background.set).not.toHaveBeenCalled();
+  });
+
+  it('holds off while the data isn’t the account’s: a choice to make, or another account’s', async () => {
+    store.setEpoch('bea', 1);
+    store.setHasData('bea', true);
+    const choosing = await phone(syncHost({ hasData: true }));
+    store.setUser(bea());
+    await vi.waitFor(() => expect(phaseOf(choosing)).toBe('choose'));
+    expect(background.clear).toHaveBeenCalledTimes(2);
+    expect(background.set).not.toHaveBeenCalled();
+    await choosing.choose('merge');
+    expect(background.set.mock.calls).toEqual([[LINK]]);
+    choosing.stop();
+
+    background.clear.mockClear();
+    store = createFakeCloudStore();
+    store.setUser(bea());
+    const other = await phone(syncHost({ account: { uid: 'cal', epoch: 1 }, hasData: true }));
+    await vi.waitFor(() => expect(phaseOf(other)).toBe('otherAccount'));
+    expect(background.clear).toHaveBeenCalledTimes(1);
+    expect(background.set).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes it back when the cloud data is deleted, here or elsewhere', async () => {
+    store.setEpoch('bea', 1);
+    store.setUser(bea());
+    const engine = await phone(syncHost({ account: { uid: 'bea', epoch: 1 } }));
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('synced'));
+    expect(background.clear).not.toHaveBeenCalled();
+    await engine.deleteCloudData();
+    expect(background.clear).toHaveBeenCalled();
+
+    await engine.syncThisAccount();
+    expect(background.set).toHaveBeenLastCalledWith({ ...LINK, epoch: 2 });
+    background.clear.mockClear();
+    store.setEpoch('bea', 3);
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('cloudReset'));
+    expect(background.clear).toHaveBeenCalledTimes(1);
   });
 });

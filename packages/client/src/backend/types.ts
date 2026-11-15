@@ -213,6 +213,8 @@ export interface WidgetSnapshot {
     status: string | null;
     /** While paused: how long it ran, "1h 23m" (one row tall, the big line). */
     pausedFor: string | null;
+    /** While paused: how long it ran (the phone's timer notification, set from a published snapshot). */
+    pausedMs: number | null;
   } | null;
   /** The next withdrawal, else the next release; null when neither is on the way. */
   payouts: WidgetPayouts | null;
@@ -306,6 +308,36 @@ export interface WidgetsPlatform {
   update(snapshot: WidgetSnapshot): void;
 }
 
+/** What the phone needs to read the account's published widgets with TaskMint closed. */
+export interface BackgroundSyncLink {
+  uid: string;
+  /** The epoch this device is linked to: figures published under another aren't its. */
+  epoch: number;
+  /** This device's: what it published itself it has already. */
+  deviceId: string;
+  /** The signed-in user's Firebase refresh token: the phone trades it for ID tokens. */
+  refreshToken: string;
+  /** The Firebase web app's key and project (CloudConfig). */
+  apiKey: string;
+  projectId: string;
+  /** Development builds: the Auth and Firestore emulators on this host. */
+  emulatorHost?: string;
+}
+
+/**
+ * Sync with the app closed (Android): the phone reads the widgets' figures
+ * the account's other devices publish (docs/contracts/widgets.md) and shows
+ * them, and the running timer's notification with them.
+ */
+export interface BackgroundSyncPlatform {
+  /** This device syncs with an account: read its published figures from now on. */
+  set(link: BackgroundSyncLink): void;
+  /** It no longer does: stop, and forget the token. */
+  clear(): void;
+  /** Whether the timer's notification is wanted (Settings → Notifications, this device's). */
+  setTimerNotice(wanted: boolean): void;
+}
+
 /** Touch feedback as the timer starts or resumes, pauses, or stops. */
 export type HapticKind = 'start' | 'pause' | 'stop';
 
@@ -345,6 +377,7 @@ export interface Platform {
   backButton?: BackButtonPlatform;
   appShortcuts?: AppShortcutsPlatform;
   widgets?: WidgetsPlatform;
+  backgroundSync?: BackgroundSyncPlatform;
   /** A short buzz (Android), as the phone's touch feedback setting allows. */
   haptics?(kind: HapticKind): void;
   edgeSwipe?: EdgeSwipePlatform;

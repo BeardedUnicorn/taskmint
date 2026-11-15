@@ -46,6 +46,7 @@ export function todayWidget(
     countingFromMs: running ? payout.nowMs - elapsedMs : null,
     status: running ? null : `Paused at ${formatDurationCompact(elapsedMs)}`,
     pausedFor: running ? null : formatDurationCompact(elapsedMs),
+    pausedMs: running ? null : elapsedMs,
   };
 
   // A timer's whole time belongs to the day it started (getInstanceDateString),

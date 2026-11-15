@@ -17,6 +17,9 @@ Tauri or plugin versions, or to the `Platform` trait they implement.
 | `apps/desktop/src-tauri/src/main.rs` | calls `taskmint_lib::run`; no console window on Windows | [Windows and Linux](#windows-and-linux) |
 | `apps/desktop/src-tauri/gen/android/…/MainActivity.kt` | the launch screen, and the webview's bridges: launch screen, system bars, Google sign-in, analytics (Kotlin isn't measured) | [Android](#android) |
 | `apps/desktop/src-tauri/gen/android/…/Reminders.kt` | the reminders' alarms (the withdrawal, a long run, the summary, the goal's milestones), kept to set again after a restart or a force stop (Kotlin isn't measured) | [Android](#android) |
+| `apps/desktop/src-tauri/gen/android/…/WidgetSync.kt` | the widgets' and the timer notification's check of the figures other devices publish, with the app closed: the kept token, the read, when figures are taken (Kotlin isn't measured) | [Android](#android) |
+| `apps/desktop/src-tauri/gen/android/…/WidgetPush.kt` | the push message that the published widgets changed, and the phone's push address (Kotlin isn't measured) | [Android](#android) |
+| `apps/functions/src/index.ts` | the Cloud Function's registration and its Firestore and Cloud Messaging calls | [Android](#android) |
 | cloud sync against the real Firebase project | the tested engine and rules, on Google's servers and in real webviews | [Cloud sync](#cloud-sync) |
 | desktop `cfg(target_os = "windows" \| "linux")` code | not compiled on the macOS coverage run | [Windows and Linux](#windows-and-linux) |
 
@@ -340,6 +343,30 @@ On a phone with Google Play services, with the release APK:
       Payouts says "Withdrawal open" once its time passes (within 30
       minutes). Both follow the phone's light and dark mode. A release build
       (R8, resource shrinking) draws them too.
+- [ ] **Widgets with the app closed:** signed in on the phone and a
+      desktop, with TaskMint killed on the phone (`am kill`), start a timer
+      on the desktop. Within a quarter of an hour the Today widget counts it and the running timer's
+      notification shows; stopping it on the desktop clears both at the next
+      check. Opening TaskMint then shows one notification, and its Pause
+      works. (WorkManager won't run the check before it's due, forced or
+      not. On an emulator, `adb root` and `adb shell am broadcast -a
+      android.intent.action.BOOT_COMPLETED -n
+      <package>/com.taskmint.android.RemindersRestore` runs one now.)
+- [ ] **…and when it shouldn't:** swiped away, that notification stays gone
+      at the next check. With System notifications off (Settings →
+      Notifications) the widgets follow and no notification shows. After
+      Sign out, `dumpsys jobscheduler` lists no TaskMint job and the widgets
+      stop following; so too after Delete cloud data on the desktop, once
+      the phone's app has been opened. After `adb reboot` and an unlock the
+      check runs again. A release build (R8) does all of this too.
+- [ ] **Push:** on a phone or an emulator with Google Play services, on a
+      project with the function deployed: once signed in,
+      `users/{uid}/devices/{deviceId}` holds the phone's installation ID.
+      With TaskMint killed, starting a timer on the desktop shows on the
+      Today widget and in the notification within seconds, and the
+      function's log says it told one phone; so too with the phone dozing
+      (`adb shell dumpsys deviceidle force-idle`). Signing out deletes the
+      `devices` document.
 - [ ] **Haptics:** starting, pausing and stopping a timer buzz (Settings →
       Sound & vibration → touch feedback on).
 - [ ] **Edge swipe:** with gesture navigation, a swipe in from the left edge

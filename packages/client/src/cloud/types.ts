@@ -86,6 +86,11 @@ export interface CloudStore {
   /** With a Google ID token the shell got itself, or (null) in a popup. */
   signInWithGoogle(idToken: string | null): Promise<void>;
   signOut(): Promise<void>;
+  /**
+   * The signed-in user's refresh token, null signed out: a phone's own code
+   * reads the cloud with it while the page is closed (BackgroundSyncPlatform).
+   */
+  refreshToken(): string | null;
   /** Deletes the signed-in user's account (Firebase may ask them to sign in again first). */
   deleteUser(): Promise<void>;
   /** The account's epoch; null when it has none yet. */
@@ -107,7 +112,7 @@ export interface CloudStore {
   write(uid: string, docs: OutgoingDoc[], meta: WriteMeta): Promise<void>;
   /**
    * Moves the account to the next epoch and deletes its documents, the
-   * published ones too; the new epoch.
+   * published ones and the phones' push addresses too; the new epoch.
    */
   deleteAll(uid: string, epoch: number): Promise<number>;
   /**

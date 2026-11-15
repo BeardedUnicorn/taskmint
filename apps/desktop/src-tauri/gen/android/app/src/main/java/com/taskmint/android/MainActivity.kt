@@ -157,6 +157,12 @@ class MainActivity : TauriActivity() {
     return true
   }
 
+  // The shell's notice goes back over one shown from published figures (TimerNotices)
+  override fun onResume() {
+    super.onResume()
+    TimerNotices.resumed(applicationContext)
+  }
+
   // Added before the page loads, so the webview has them from the start
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
@@ -274,6 +280,28 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface
     fun updateWidgets(json: String) {
       Widgets.save(this@MainActivity, json)
+    }
+
+    /**
+     * This device syncs with an account (BackgroundSyncLink, as JSON): with
+     * the app closed, the widgets follow the figures its other devices
+     * publish (WidgetSync).
+     */
+    @JavascriptInterface
+    fun setBackgroundSync(json: String) {
+      WidgetSync.set(applicationContext, json)
+    }
+
+    /** It no longer does (signed out, or the cloud data is gone). */
+    @JavascriptInterface
+    fun clearBackgroundSync() {
+      WidgetSync.clear(applicationContext)
+    }
+
+    /** Whether the running timer's notification is wanted, for the one WidgetSync shows. */
+    @JavascriptInterface
+    fun setBackgroundTimerNotice(wanted: Boolean) {
+      WidgetSync.setTimerNotice(applicationContext, wanted)
     }
 
     /**

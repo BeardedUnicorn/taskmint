@@ -131,12 +131,18 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
+    // TaskMint: the widgets' check of the figures other devices publish,
+    // with the app closed (WidgetSync.kt)
+    implementation("androidx.work:work-runtime:2.11.2")
     // TaskMint: the launch screen, held until the page has drawn (MainActivity)
     implementation("androidx.core:core-splashscreen:1.2.0")
     // TaskMint: Firebase Analytics, and Google sign-in for cloud sync through
     // Credential Manager (MainActivity's bridges)
     implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-analytics")
+    // TaskMint: the message that another device published the widgets'
+    // figures (WidgetPush.kt)
+    implementation("com.google.firebase:firebase-messaging")
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")

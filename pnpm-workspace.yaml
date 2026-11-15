@@ -1,6 +1,7 @@
 packages:
   - apps/desktop
   - apps/extension
+  - apps/functions
   - apps/web
   - packages/*
 

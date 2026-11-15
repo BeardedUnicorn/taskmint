@@ -6,7 +6,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { getBackend, type Backend } from '../backend';
-import { ENGINE_OPTIONS, SyncEngine, type SyncView } from './engine';
+import { type BackgroundLink, ENGINE_OPTIONS, SyncEngine, type SyncView } from './engine';
 import type { CloudConfig, CloudStore } from './types';
 
 export type { CloudConfig, CloudStore, CloudUser } from './types';
@@ -34,7 +34,19 @@ export function startCloudSync(
     : config.popupSignIn
       ? async () => null
       : null;
-  current = new SyncEngine(backend, load, ENGINE_OPTIONS, google);
+  // A phone reads the published widgets itself while the page is closed
+  const { backgroundSync } = backend.platform;
+  const background = backgroundSync && {
+    set: (link: Parameters<BackgroundLink['set']>[0]) =>
+      backgroundSync.set({
+        ...link,
+        apiKey: config.firebase.apiKey,
+        projectId: config.firebase.projectId,
+        ...(config.emulatorHost ? { emulatorHost: config.emulatorHost } : {}),
+      }),
+    clear: () => backgroundSync.clear(),
+  };
+  current = new SyncEngine(backend, load, ENGINE_OPTIONS, google, background);
   void current.start();
   return current;
 }

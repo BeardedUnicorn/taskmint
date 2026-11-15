@@ -22,7 +22,8 @@
    @android.webkit.JavascriptInterface public <methods>;
 }
 # and the app's place on the phone (window.TaskMintApp): leaving it from Home,
-# what it was opened for, its shortcuts, widgets, haptics and swipe band
+# what it was opened for, its shortcuts, widgets (and their sync with the app
+# closed), haptics and swipe band
 -keepclassmembers class com.taskmint.android.MainActivity$AppTask {
    @android.webkit.JavascriptInterface public <methods>;
 }
