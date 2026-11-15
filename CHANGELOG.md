@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.10.0 – 2026-11-15
+
+### Added
+
+- The desktop window reopens at the size and place it was left, and maximized if it was.
+
 ## 4.9.0 – 2026-11-15
 
 ### Changed
