@@ -18,12 +18,16 @@ import {
   type MajorReleases,
   RELEASES,
   type ReleaseNotes as Release,
+  summarizeRelease,
 } from '../../../utils/changelog';
-import { ReleaseNotes } from '../../ui/display/ReleaseNotes';
+import { ReleaseNotes, ReleaseNotesList } from '../../ui/display/ReleaseNotes';
+import { releasesSinceUpdate, UPDATED_FROM_VERSION_KEY } from '../../../hooks/useUpdatedNotice';
+import { readLocal } from '../../../utils/localStore';
 import { formatLocalDate } from '../../../utils/dateHelpers';
 import { useOptionalAbout } from '../../about/About';
 import { useCompactLayout } from '../../../hooks/useCompactLayout';
 import { useOpenedFromLink } from './settingsLink';
+import { PHONE } from '../../../theme/media';
 
 const releasedOn = (release: Release) => (release.date ? `Released ${formatLocalDate(release.date)}` : null);
 
@@ -96,6 +100,7 @@ function MajorVersion({ group, defaultOpen }: { group: MajorReleases; defaultOpe
                 expandIcon={<ExpandMoreIcon />}
                 id={`release-${release.version}`}
                 aria-controls={`release-${release.version}-notes`}
+                sx={{ '& .MuiAccordionSummary-content': { flexWrap: 'wrap', alignItems: 'baseline' } }}
               >
                 <Typography variant="body2" sx={{ fontWeight: 600, mr: 2 }}>
                   {release.version}
@@ -105,6 +110,14 @@ function MajorVersion({ group, defaultOpen }: { group: MajorReleases; defaultOpe
                     {formatLocalDate(release.date)}
                   </Typography>
                 )}
+                {/* How much it changed: at the row's end, or on a phone under the version */}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ ml: 'auto', pl: 2, mr: 1, [PHONE]: { flexBasis: '100%', ml: 0, pl: 0 } }}
+                >
+                  {summarizeRelease(release)}
+                </Typography>
               </AccordionSummary>
               <AccordionDetails id={`release-${release.version}-notes`}>
                 <ReleaseNotes release={release} />
@@ -134,6 +147,8 @@ function MajorVersion({ group, defaultOpen }: { group: MajorReleases; defaultOpe
  * it. On a phone, where About is a screen of its own, this version's notes
  * fold away like the earlier ones, unless a "What's new" link opened it.
  * The earlier releases fold under their major versions, the newest open.
+ * After an update that skipped releases, "what's new" is every release
+ * since the version before (useUpdatedNotice notes which that was).
  */
 export function AboutSettingsSection() {
   const current = RELEASES.find(release => release.version === APP_VERSION);
@@ -141,7 +156,13 @@ export function AboutSettingsSection() {
   const about = useOptionalAbout();
   const compact = useCompactLayout();
   const fromLink = useOpenedFromLink();
-  const notes = current ? (
+  const from = readLocal<unknown>(UPDATED_FROM_VERSION_KEY, null);
+  const since = releasesSinceUpdate(from);
+  const several = since.length > 1;
+  const whatsNew = several ? `What's new since ${from}` : `What's new in ${APP_VERSION}`;
+  const notes = several ? (
+    <ReleaseNotesList releases={since} />
+  ) : current ? (
     <ReleaseNotes release={current} />
   ) : (
     <Typography variant="body2" color="text.secondary">
@@ -179,7 +200,7 @@ export function AboutSettingsSection() {
         <Accordion disableGutters variant="outlined" defaultExpanded={fromLink} sx={{ mt: 3 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />} id="release-current" aria-controls="release-current-notes">
             <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
-              What's new in {APP_VERSION}
+              {whatsNew}
             </Typography>
           </AccordionSummary>
           <AccordionDetails id="release-current-notes">{notes}</AccordionDetails>
@@ -187,7 +208,7 @@ export function AboutSettingsSection() {
       ) : (
         <>
           <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600, mt: 3, mb: 1 }}>
-            What's new in {APP_VERSION}
+            {whatsNew}
           </Typography>
           {notes}
         </>

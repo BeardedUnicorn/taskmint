@@ -16,7 +16,13 @@ function Strong({ text }: { text: string }) {
   );
 }
 
-/** A bullet's text, with `code` spans set in monospace and **bold** in bold. */
+/**
+ * A Markdown link as its label alone. The app opens only its own named
+ * links, and notes can come from the update feed, so a link isn't one here.
+ */
+const withoutLinks = (text: string) => text.replace(/\[([^\]]+)\]\([^)\s]+\)/g, '$1');
+
+/** A bullet's text, with `code` spans set in monospace, **bold** in bold, and links as their labels. */
 function NoteText({ text }: { text: string }) {
   return (
     <>
@@ -26,7 +32,7 @@ function NoteText({ text }: { text: string }) {
             {part}
           </Box>
         ) : (
-          <Strong key={index} text={part} />
+          <Strong key={index} text={withoutLinks(part)} />
         )
       )}
     </>
