@@ -373,8 +373,15 @@ On a phone with Google Play services, with the release APK:
       just above the bottom tabs opens the menu; higher up, the same swipe is
       Back. The open menu swipes shut.
 - [ ] **Update check:** a release older than the latest finds it (About →
-      Check for updates). Download opens the APK's download in the browser,
-      and installing it keeps the data. A dev build says it doesn't update.
+      Check for updates). Download shows its progress in the dialog, then
+      Android's installer opens (after allowing TaskMint to install apps,
+      the first time), and installing keeps the data. With no network, the
+      dialog says why and Open in browser hands the APK to the browser. A
+      dev build says it doesn't update.
+- [ ] **Advanced Protection:** with it on (Settings → Security & privacy),
+      the update dialog shows the steps to turn it off instead of Download;
+      Open Settings opens the phone's Security settings, and coming back
+      with it off shows Download.
 
 ## Windows and Linux
 

@@ -406,6 +406,7 @@ describe('createTauriBackend', () => {
     expect(Object.keys(android.platform).sort()).toEqual([
       'appInfo',
       'appShortcuts',
+      'appUpdate',
       'backButton',
       'backgroundSync',
       'edgeSwipe',
@@ -420,7 +421,7 @@ describe('createTauriBackend', () => {
     expect(createTauriBackend({ runtime: 'desktop', dataLocation: 'local' }).platform.backButton).toBeUndefined();
   });
 
-  it("sets shortcuts, widgets, touch feedback and the swipe band through MainActivity's app bridge", () => {
+  it("sets shortcuts, widgets, touch feedback and the swipe band, and updates, through MainActivity's app bridge", async () => {
     const bridge = {
       moveToBack: vi.fn(),
       takeLaunch: vi.fn(),
@@ -431,10 +432,12 @@ describe('createTauriBackend', () => {
       setBackgroundTimerNotice: vi.fn(),
       haptic: vi.fn(),
       setEdgeSwipeArea: vi.fn(),
+      downloadUpdate: vi.fn(),
     };
     vi.stubGlobal('TaskMintApp', bridge);
     onTestFinished(() => {
       vi.unstubAllGlobals();
+      delete window.__taskmintUpdate;
     });
     const { platform: android } = createTauriBackend({ runtime: 'mobile', dataLocation: 'local' });
 
@@ -475,6 +478,17 @@ describe('createTauriBackend', () => {
     expect(bridge.clearBackgroundSync).toHaveBeenCalledTimes(1);
     android.haptics!('start');
     expect(bridge.haptic).toHaveBeenCalledWith('start');
+    const progress = vi.fn();
+    const updated = android.appUpdate!.download('4.9.0', progress);
+    expect(bridge.downloadUpdate).toHaveBeenCalledWith('4.9.0');
+    window.__taskmintUpdate!({ downloaded: 10, total: null });
+    window.__taskmintUpdate!({ downloaded: 20, total: 20 });
+    expect(progress.mock.calls).toEqual([[{ downloaded: 10, total: null }], [{ downloaded: 20, total: 20 }]]);
+    window.__taskmintUpdate!({ done: true });
+    await expect(updated).resolves.toBeUndefined();
+    const failed = android.appUpdate!.download('4.9.0', progress);
+    window.__taskmintUpdate!({ error: 'GitHub answered 404.' });
+    await expect(failed).rejects.toBe('GitHub answered 404.');
     android.edgeSwipe!.setArea({ left: 0, top: 500, width: 24, height: 200 });
     android.edgeSwipe!.setArea(null);
     expect(bridge.setEdgeSwipeArea.mock.calls).toEqual([
@@ -483,7 +497,8 @@ describe('createTauriBackend', () => {
     ]);
     // A desktop has none of them
     const { platform: desktop } = createTauriBackend({ runtime: 'desktop', dataLocation: 'local' });
-    expect([desktop.appShortcuts, desktop.widgets, desktop.haptics, desktop.edgeSwipe]).toEqual([
+    expect([desktop.appShortcuts, desktop.widgets, desktop.haptics, desktop.edgeSwipe, desktop.appUpdate]).toEqual([
+      undefined,
       undefined,
       undefined,
       undefined,

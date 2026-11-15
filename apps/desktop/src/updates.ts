@@ -110,7 +110,7 @@ export function automaticCheckDue(now: number): boolean {
   return current.autoCheck && (last === null || now - last >= CHECK_INTERVAL_MS);
 }
 
-/** A phone downloads its update instead of installing it. */
+/** A phone downloads its update and Android installs it, instead of the app installing it. */
 export function downloadsUpdates(): boolean {
   return getBackend().capabilities.runtime === 'mobile';
 }
@@ -198,10 +198,33 @@ export const updates = {
   },
 
   /**
-   * A phone's update: opens the release's APK in the browser, for Android
-   * to install once it's downloaded, and closes the dialog.
+   * A phone's update: downloads the release, showing its progress, and opens
+   * Android's installer on it, which asks before it replaces the app. The
+   * dialog closes once the installer is up. Where the app can't download it
+   * itself, the browser does.
    */
   async download(): Promise<void> {
+    const { update } = current;
+    if (update.status !== 'available' && update.status !== 'installFailed') return;
+    const found = update.update;
+    const { appUpdate } = getBackend().platform;
+    if (!appUpdate) return updates.openInBrowser();
+    setUpdate({ status: 'installing', update: found, progress: null });
+    try {
+      await appUpdate.download(found.version, progress =>
+        setUpdate({ status: 'installing', update: found, progress: { ...progress, installing: false } })
+      );
+      setUpdate({ status: 'available', update: found, open: false });
+    } catch (error) {
+      setUpdate({ status: 'installFailed', update: found, error: sentence(error) });
+    }
+  },
+
+  /**
+   * A phone's update the other way: opens the release's APK in the browser,
+   * for Android to install once it's downloaded, and closes the dialog.
+   */
+  async openInBrowser(): Promise<void> {
     const { update } = current;
     if (update.status !== 'available' && update.status !== 'installFailed') return;
     try {

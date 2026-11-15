@@ -399,61 +399,170 @@ describe('on a phone', () => {
     setBackend(asBackend(backend));
   });
 
-  it('downloads the release in the browser instead of installing it, and closes the dialog', async () => {
+  it('downloads the release itself, showing how far it is, and closes the dialog for the installer', async () => {
+    let finish!: () => void;
+    backend.platform.appUpdate.download.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve;
+        })
+    );
+    answer({ check_for_update: release });
+    render(<UpdatePrompt />);
+    await act(() => updates.check({ manual: true }));
+    const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+    expect(dialog).toHaveTextContent('TaskMint downloads the update, and Android asks before installing it');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+    expect(await within(dialog).findByText('Starting the download…')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Download' })).toBeDisabled();
+    const [version, onProgress] = backend.platform.appUpdate.download.mock.calls[0];
+    expect(version).toBe('2.3.0');
+
+    act(() => onProgress({ downloaded: 6_000_000, total: 24_000_000 }));
+    expect(within(dialog).getByText('Downloading… 6.0 MB of 24.0 MB')).toBeInTheDocument();
+    expect(within(dialog).getByRole('progressbar', { name: 'Downloading the update' })).toHaveAttribute(
+      'aria-valuenow',
+      '25'
+    );
+
+    await act(async () => finish());
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(updates.get().update).toMatchObject({ status: 'available', open: false });
+    expect(sent('download_update')).toHaveLength(0);
+    expect(sent('install_update')).toHaveLength(0);
+  });
+
+  it('says why the download failed, and can try again or hand it to the browser', async () => {
+    backend.platform.appUpdate.download.mockRejectedValue('GitHub answered 404.');
     answer({ check_for_update: release, download_update: undefined });
     render(<UpdatePrompt />);
     await act(() => updates.check({ manual: true }));
     const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
-    expect(dialog).toHaveTextContent('Download opens the new version in your browser');
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(sent('download_update')).toHaveLength(1);
-    expect(sent('install_update')).toHaveLength(0);
-    expect(updates.get().update).toMatchObject({ status: 'available', open: false });
-  });
-
-  it("says why the download couldn't open, and can try again", async () => {
-    answer({ check_for_update: release, download_update: rejects('no browser to open it in') });
-    render(<UpdatePrompt />);
-    await act(() => updates.check({ manual: true }));
-    const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+    expect(within(dialog).queryByRole('button', { name: 'Open in browser' })).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      "The download couldn't be opened. No browser to open it in."
+      "The update couldn't be downloaded. GitHub answered 404."
     );
     fireEvent.click(within(dialog).getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(sent('download_update')).toHaveLength(2));
-  });
+    await waitFor(() => expect(backend.platform.appUpdate.download).toHaveBeenCalledTimes(2));
+    await within(dialog).findByRole('alert');
 
-  it("says Android won't install it while Advanced Protection is on, and offers no download", async () => {
-    vi.stubGlobal('TaskMintApp', { installsBlocked: () => true });
-    answer({ check_for_update: release });
-    render(<UpdatePrompt />);
-    await act(() => updates.check({ manual: true }));
-    const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
-
-    expect(dialog).toHaveTextContent("Advanced Protection is on, and it blocks apps that don't come from Google Play");
-    expect(dialog).toHaveTextContent('turn Advanced Protection off');
-    expect(within(dialog).queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Open in browser' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(sent('download_update')).toHaveLength(0);
+    expect(sent('download_update')).toHaveLength(1);
+    expect(updates.get().update).toMatchObject({ status: 'available', open: false });
   });
 
-  it('offers the download as ever while Advanced Protection is off', async () => {
-    vi.stubGlobal('TaskMintApp', { installsBlocked: () => false });
-    answer({ check_for_update: release });
-    render(<UpdatePrompt />);
-    await act(() => updates.check({ manual: true }));
-    const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
-    expect(within(dialog).getByRole('button', { name: 'Download' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Later' })).toBeInTheDocument();
+  describe("where the app can't download it itself", () => {
+    beforeEach(() => {
+      backend = createFakeBackend({ capabilities: { runtime: 'mobile' }, without: ['appUpdate'] });
+      setBackend(asBackend(backend));
+    });
+
+    it('downloads the release in the browser, and closes the dialog', async () => {
+      answer({ check_for_update: release, download_update: undefined });
+      render(<UpdatePrompt />);
+      await act(() => updates.check({ manual: true }));
+      const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(sent('download_update')).toHaveLength(1);
+      expect(updates.get().update).toMatchObject({ status: 'available', open: false });
+    });
+
+    it("says why the browser couldn't open it", async () => {
+      answer({ check_for_update: release, download_update: rejects('no browser to open it in') });
+      render(<UpdatePrompt />);
+      await act(() => updates.check({ manual: true }));
+      const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+        "The update couldn't be downloaded. No browser to open it in."
+      );
+    });
+  });
+
+  describe('with Advanced Protection on', () => {
+    let blocked: boolean;
+    const openSecuritySettings = vi.fn();
+
+    beforeEach(() => {
+      blocked = true;
+      openSecuritySettings.mockClear();
+      vi.stubGlobal('TaskMintApp', { installsBlocked: () => blocked, openSecuritySettings });
+    });
+
+    it('shows how to turn it off instead of a download, and opens the Security settings', async () => {
+      answer({ check_for_update: release });
+      render(<UpdatePrompt />);
+      await act(() => updates.check({ manual: true }));
+      const dialog = await screen.findByRole('dialog', { name: 'Turn off Advanced Protection to update' });
+
+      expect(dialog).toHaveTextContent('TaskMint 2.3.0 is available, and you have 2.2.0.');
+      expect(dialog).toHaveTextContent("it blocks apps that don't come from Google Play");
+      const steps = within(within(dialog).getByRole('list', { name: 'How to turn off Advanced Protection' }));
+      expect(steps.getAllByRole('listitem').map(step => step.textContent)).toEqual([
+        'Open the phone’s Settings, then Security & privacy.',
+        'Tap Advanced Protection.',
+        'Turn Device protection off, and restart the phone if it asks.',
+        'Open TaskMint again and download the update.',
+        'Once TaskMint has updated, turn Device protection back on the same way.',
+      ]);
+      expect(within(dialog).queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Open Settings' }));
+      expect(openSecuritySettings).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(backend.platform.appUpdate.download).not.toHaveBeenCalled();
+    });
+
+    it('offers the download once it is off: on Check again, or on coming back to the app', async () => {
+      answer({ check_for_update: release });
+      render(<UpdatePrompt />);
+      await act(() => updates.check({ manual: true }));
+      const help = await screen.findByRole('dialog', { name: 'Turn off Advanced Protection to update' });
+
+      // Still on: the same screen
+      fireEvent.click(within(help).getByRole('button', { name: 'Check again' }));
+      expect(screen.getByRole('dialog', { name: 'Turn off Advanced Protection to update' })).toBeInTheDocument();
+
+      blocked = false;
+      fireEvent.click(within(help).getByRole('button', { name: 'Check again' }));
+      const dialog = await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' });
+      expect(within(dialog).getByRole('button', { name: 'Download' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Later' })).toBeInTheDocument();
+
+      // On again, then off while the app is in the background
+      blocked = true;
+      act(() => updates.show());
+      await screen.findByRole('dialog', { name: 'Turn off Advanced Protection to update' });
+      blocked = false;
+      const visibility = vi.spyOn(document, 'visibilityState', 'get');
+      visibility.mockReturnValue('hidden');
+      fireEvent(document, new Event('visibilitychange'));
+      expect(screen.getByRole('dialog', { name: 'Turn off Advanced Protection to update' })).toBeInTheDocument();
+      visibility.mockReturnValue('visible');
+      fireEvent(document, new Event('visibilitychange'));
+      expect(await screen.findByRole('dialog', { name: 'TaskMint 2.3.0 is available' })).toBeInTheDocument();
+    });
+
+    it('opens no settings anywhere but on Android', async () => {
+      vi.unstubAllGlobals();
+      const { openSecuritySettings: open } = await import('../tauriBackend');
+      expect(() => open()).not.toThrow();
+    });
   });
 
   it('only downloads an update a check found', async () => {
     await updates.download();
+    await updates.openInBrowser();
+    expect(backend.platform.appUpdate.download).not.toHaveBeenCalled();
     expect(sent('download_update')).toHaveLength(0);
   });
 

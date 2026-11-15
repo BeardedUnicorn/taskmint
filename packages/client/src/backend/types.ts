@@ -358,6 +358,21 @@ export interface EdgeSwipePlatform {
   setArea(area: ScreenArea | null): void;
 }
 
+/** How far an update's download is, in bytes; `total` is null when the server doesn't say. */
+export interface AppUpdateProgress {
+  downloaded: number;
+  total: number | null;
+}
+
+/**
+ * The app's own update where the system installs it (Android): the app
+ * downloads the release and opens the system's installer on it.
+ */
+export interface AppUpdatePlatform {
+  /** Resolves once the installer is open; rejects with why it couldn't be. */
+  download(version: string, onProgress: (progress: AppUpdateProgress) => void): Promise<void>;
+}
+
 /** Usage analytics (Firebase Analytics): the web app's, and Android's native SDK. */
 export interface AnalyticsPlatform {
   /** On or off, as Settings → Privacy says. */
@@ -381,6 +396,7 @@ export interface Platform {
   /** A short buzz (Android), as the phone's touch feedback setting allows. */
   haptics?(kind: HapticKind): void;
   edgeSwipe?: EdgeSwipePlatform;
+  appUpdate?: AppUpdatePlatform;
   /** Shows a file the app just wrote in the file manager. */
   reveal?(path: string): Promise<void>;
   /** The localhost server the browser extension delivers captures to. */

@@ -245,6 +245,10 @@ interface AndroidAppTask {
   takeLaunch(): string | null;
   /** Whether the phone won't install an update (Advanced Protection is on). */
   installsBlocked(): boolean;
+  /** The phone's Security settings, where Advanced Protection is turned off. */
+  openSecuritySettings(): void;
+  /** Downloads a release and opens Android's installer on it; `window.__taskmintUpdate` hears how far it is. */
+  downloadUpdate(version: string): void;
   /** The launcher's shortcuts, as JSON (AppShortcut[]). */
   setShortcuts(json: string): void;
   /** What the home-screen widgets show, as JSON (WidgetSnapshot). */
@@ -268,13 +272,31 @@ export function sideloadingBlocked(): boolean {
   return (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp?.installsBlocked() ?? false;
 }
 
+/** Opens the phone's Security settings, where Advanced Protection is turned off. Nothing anywhere else. */
+export function openSecuritySettings(): void {
+  (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp?.openSecuritySettings();
+}
+
+/** What AppUpdate.kt reports of a download: how far it is, that the installer is open, or why it isn't. */
+type UpdateReport = { downloaded: number; total: number | null } | { done: true } | { error: string };
+
+declare global {
+  interface Window {
+    __taskmintUpdate?: (report: UpdateReport) => void;
+  }
+}
+
 /**
  * The app on the phone, outside its page (MainActivity.kt's AppTask): the
  * launcher's shortcuts, the home-screen widgets and their sync with the app
- * closed, touch feedback, and the band where a swipe opens the menu. Called on the bridge itself: Android
+ * closed, touch feedback, the band where a swipe opens the menu, and the
+ * app's own update. Called on the bridge itself: Android
  * refuses a method taken off it.
  */
-function phoneApp(): Pick<Platform, 'appShortcuts' | 'widgets' | 'backgroundSync' | 'haptics' | 'edgeSwipe'> {
+function phoneApp(): Pick<
+  Platform,
+  'appShortcuts' | 'widgets' | 'backgroundSync' | 'haptics' | 'edgeSwipe' | 'appUpdate'
+> {
   const android = (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp;
   if (!android) return {};
   return {
@@ -291,6 +313,17 @@ function phoneApp(): Pick<Platform, 'appShortcuts' | 'widgets' | 'backgroundSync
         const { left, top, width, height } = area ?? { left: 0, top: 0, width: 0, height: 0 };
         android.setEdgeSwipeArea(left, top, width, height);
       },
+    },
+    appUpdate: {
+      download: (version, onProgress) =>
+        new Promise<void>((resolve, reject) => {
+          window.__taskmintUpdate = report => {
+            if ('done' in report) resolve();
+            else if ('error' in report) reject(report.error);
+            else onProgress(report);
+          };
+          android.downloadUpdate(version);
+        }),
     },
   };
 }

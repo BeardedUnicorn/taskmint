@@ -14,6 +14,7 @@ import { vi, type Mock } from 'vitest';
 import type {
   AnalyticsPlatform,
   AppShortcutsPlatform,
+  AppUpdatePlatform,
   BackButtonPlatform,
   Backend,
   Capabilities,
@@ -50,6 +51,7 @@ export interface FakePlatform extends Platform {
   backgroundSync: Mocked<BackgroundSyncPlatform>;
   haptics: Mock<(kind: HapticKind) => void>;
   edgeSwipe: Mocked<EdgeSwipePlatform>;
+  appUpdate: Mocked<AppUpdatePlatform>;
   reveal: Mock<(path: string) => Promise<void>>;
   captureStatus: Mock<() => Promise<CaptureServerStatus>>;
   googleSignIn: Mock<(theme: 'light' | 'dark') => Promise<string>>;
@@ -95,6 +97,7 @@ export interface FakeBackendOptions {
     | 'backgroundSync'
     | 'haptics'
     | 'edgeSwipe'
+    | 'appUpdate'
     | 'reveal'
     | 'captureStatus'
     | 'googleSignIn'
@@ -179,6 +182,9 @@ export function createFakeBackend({ capabilities, without = [] }: FakeBackendOpt
     haptics: vi.fn(),
     edgeSwipe: {
       setArea: vi.fn(),
+    },
+    appUpdate: {
+      download: vi.fn(async () => undefined),
     },
     reveal: vi.fn(async () => undefined),
     captureStatus: vi.fn(async () => ({ running: true, port: 43117, warning: null })),
