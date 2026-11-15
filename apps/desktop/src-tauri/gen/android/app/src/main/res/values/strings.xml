@@ -23,6 +23,9 @@
     <string name="widget_goal_short">%1$d%%</string>
     <string name="widget_time_today">%1$s today</string>
     <string name="widget_of_goal">of goal</string>
+    <!-- Beside today's money while a timer runs, and under it one row tall -->
+    <string name="widget_earned_today">earned today</string>
+    <string name="widget_earned">earned</string>
     <string name="widget_no_timer">No timer running</string>
     <string name="widget_start">Start</string>
     <string name="widget_pause">Pause</string>
@@ -44,16 +47,23 @@
     <string name="widget_nothing_tracked">Nothing tracked yet</string>
 
     <!-- TaskMint: the running timer's notification (TimerNotice.kt): its
-         channel in the phone's settings, its buttons, the status bar's word
-         for a paused timer, and its figures' labels on Android 17 -->
+         channel in the phone's settings, its buttons, how the timer is, the
+         line with today's money (and time, when the header doesn't count
+         it), and its figures' labels -->
     <string name="timer_notice_channel">Running timer</string>
-    <string name="timer_notice_channel_description">The timer while it runs, with buttons to pause or stop it</string>
+    <string name="timer_notice_channel_description">The task you\'re working on with today\'s time and money, and buttons to pause or stop the timer</string>
     <string name="timer_notice_pause">Pause</string>
     <string name="timer_notice_resume">Resume</string>
     <string name="timer_notice_switch">Switch task</string>
     <string name="timer_notice_stop">Stop</string>
+    <string name="timer_notice_running">Running</string>
     <string name="timer_notice_paused">Paused</string>
-    <string name="timer_notice_timer">Timer</string>
+    <!-- "~$45 earned today" -->
+    <string name="timer_notice_earned_today">%1$s earned today</string>
+    <!-- "3h 12m today · ~$45 earned" -->
+    <string name="timer_notice_time_and_earned">%1$s today · %2$s earned</string>
+    <!-- "Paused · 3h 12m today · ~$45 earned" -->
+    <string name="timer_notice_paused_with">Paused · %1$s</string>
     <string name="timer_notice_today">Today</string>
     <string name="timer_notice_earned">Earned</string>
 </resources>

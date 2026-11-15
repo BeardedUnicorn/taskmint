@@ -1,7 +1,11 @@
 /** Shared figures for the widget builders' tests: Friday, Nov 13 2026, 2 PM. */
 
 import type { PayoutDayCell } from '../../utils/payoutCalculator';
-import { createMockTaskSession, createMockTimerInstance } from '../../__tests__/setup/session-test-utils';
+import {
+  createMockTask,
+  createMockTaskSession,
+  createMockTimerInstance,
+} from '../../__tests__/setup/session-test-utils';
 
 export const MINUTE = 60_000;
 export const NOW = new Date(2026, 10, 13, 14, 0).getTime();
@@ -24,10 +28,15 @@ export const cell = (overrides: Partial<PayoutDayCell> = {}): PayoutDayCell =>
     ...overrides,
   }) as PayoutDayCell;
 
+/** The task the cells and `working` are on, at $30 an hour. */
+export const TASKS = [createMockTask({ id: 't', name: 'Writing', hourlyRate: 30 })];
+
 /** A session on "Writing" whose timer started 60 minutes ago (10 of them paused), running or paused. */
 export const working = (paused: boolean) =>
   createMockTaskSession({
+    taskId: 't',
     taskName: 'Writing',
+    date: TODAY,
     isActive: true,
     timerInstances: [
       createMockTimerInstance({

@@ -60,7 +60,7 @@ describe('agendaWidget', () => {
       kind: 'week',
       date: '2026-10-18',
       title: 'Week of Oct 18',
-      totals: '3h 10m · ~$105',
+      totals: '~$105 · 3h 10m',
     });
     expect(view.rows[5]).toEqual({
       kind: 'day',

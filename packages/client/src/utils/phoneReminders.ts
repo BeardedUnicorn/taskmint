@@ -22,6 +22,7 @@ import { buildDailySummary } from '../hooks/useDailySummary';
 import { EXCEEDED_TIER, nextGoalMilestone } from '../hooks/useDailyGoalProgressMonitor';
 import { formatDateString } from './dateHelpers';
 import { earningsOnDate } from './earnings';
+import { formatDurationCompact } from './formatters';
 import { getInstanceElapsedMs, instanceTaskName } from './timerHelpers';
 
 const HOUR_MS = 3_600_000;
@@ -29,9 +30,9 @@ const HOUR_MS = 3_600_000;
 /** The daily goal's milestones, each with its own alarm (GOAL_MILESTONE_ID + its index). */
 export const GOAL_TIERS = [50, 75, 100, EXCEEDED_TIER] as const;
 
-/** "Writing's timer has been running for 04:00.", as the desktop's reminder says it. */
+/** "Writing's timer has been running for 4h 0m.", as the desktop's reminder says it. */
 function longRunBody(task: string, hours: number): string {
-  return `${task}'s timer has been running for ${String(hours).padStart(2, '0')}:00.`;
+  return `${task}'s timer has been running for ${formatDurationCompact(hours * HOUR_MS)}.`;
 }
 
 /** The long-run reminder: when the running timer reaches `hours` (0: off) of tracked time. */

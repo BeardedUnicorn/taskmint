@@ -88,7 +88,7 @@ export function agendaWidget(
       date: week.days[0].date,
       title: weekTitle(week),
       totals: worked
-        ? `${formatDurationCompact(week.timeMs)} · ${widgetMoney(week.earnedCents, week.estimatedCents > 0)}`
+        ? `${widgetMoney(week.earnedCents, week.estimatedCents > 0)} · ${formatDurationCompact(week.timeMs)}`
         : null,
     });
     days.forEach((day, at) => rows.push(dayRow(day, at, days.length)));

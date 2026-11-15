@@ -17,7 +17,6 @@ import androidx.core.app.NotificationManagerCompat
 import app.tauri.notification.ACTION_INTENT_KEY
 import app.tauri.notification.DEFAULT_PRESS_ACTION
 import app.tauri.notification.NOTIFICATION_INTENT_KEY
-import com.taskmint.android.Widgets.text
 import com.taskmint.android.Widgets.time
 import java.time.Duration
 import java.time.Instant
@@ -27,15 +26,13 @@ import org.json.JSONObject
 
 /**
  * The running timer's notification as the shell wants it (timer_notice.rs):
- * the task, the line under it ("Running", "Paused at 1h 23m"), and either
- * when the timer would have started had it never paused (it runs, and the
- * system's clock counts from there) or how long it had run (it's paused).
+ * the task, and when the timer would have started had it never paused (it
+ * runs) or nothing (it's paused). The time isn't shown: it tells one run
+ * from the next.
  */
 data class TimerNotice(
   val task: String,
-  val text: String,
   val countingFromMs: Long?,
-  val pausedMs: Long?,
 ) {
   val running: Boolean
     get() = countingFromMs != null
@@ -43,28 +40,20 @@ data class TimerNotice(
   /** Whether `other` shows the same: where a running one counts from may differ by a moment between devices. */
   fun sameAs(other: TimerNotice): Boolean =
     task == other.task &&
-      text == other.text &&
       running == other.running &&
       (countingFromMs == null || other.countingFromMs == null || abs(countingFromMs - other.countingFromMs) <= 2_000)
 
   fun toJson(): String =
     JSONObject()
       .put("task", task)
-      .put("text", text)
       .put("countingFromMs", countingFromMs ?: JSONObject.NULL)
-      .put("pausedMs", pausedMs ?: JSONObject.NULL)
       .toString()
 
   companion object {
     fun fromJson(json: String): TimerNotice? =
       try {
         val saved = JSONObject(json)
-        TimerNotice(
-          saved.getString("task"),
-          saved.getString("text"),
-          saved.time("countingFromMs"),
-          saved.time("pausedMs"),
-        )
+        TimerNotice(saved.getString("task"), saved.time("countingFromMs"))
       } catch (_: JSONException) {
         null
       }
@@ -72,19 +61,30 @@ data class TimerNotice(
 }
 
 /**
- * The running timer's notification: the task, its time counting, and buttons
- * to pause or resume, switch task, or stop. The shell says what it shows and
- * when (os.rs, through [RemindersPlugin]); this draws it, which the
- * notification plugin couldn't do as Android 16 and 17 allow:
+ * The running timer's notification: the task being worked on, today's time
+ * and the money earned today, and buttons to pause or resume, switch task,
+ * or stop. It says what the day comes to, not how long the one timer has
+ * run. The shell says which task and when (os.rs, through
+ * [RemindersPlugin]); today's figures are the widgets' (Widgets), which the
+ * page works out, and this draws them, which the notification plugin
+ * couldn't do as Android 16 and 17 allow:
  *
+ * - Before Android 17 today's time counts in the notification's header
+ *   ("Today · 3:12:45") while a timer begun today runs, and the line under
+ *   the task has the money ("~$45 earned today"); standing still, the time
+ *   is in the line too.
  * - From Android 16 it asks to be a Live Update (the user can turn that off
- *   in the phone's settings for TaskMint): the time then also counts in a
- *   chip in the status bar. Android 17 makes it one; Android 16's first
+ *   in the phone's settings for TaskMint): today's time then also counts in
+ *   a chip in the status bar. Android 17 makes it one; Android 16's first
  *   release takes the request and shows the notification as before.
- * - Android 17 lays it out as figures (Notification.MetricStyle): the timer,
- *   and today's time and money from the widgets' figures (Widgets), which
- *   the page works out. They're as fresh as the page last sent: the times
- *   count on their own, the money waits for the page.
+ * - Android 17 lays it out as figures (Notification.MetricStyle): Today and
+ *   Earned.
+ *
+ * Both figures keep up with TaskMint closed: the time counts on its own, and
+ * the money is worked out from the running timer's rate each time it's
+ * drawn, which Widgets.scheduleRefresh asks for as each dollar is earned.
+ * Without figures for today (none sent yet, or they're yesterday's) it has
+ * the task and "Running" or "Paused".
  *
  * A tap or a button opens TaskMint with the notification plugin's extras,
  * which say what was pressed (MainActivity.keepLaunch), as a reminder's tap
@@ -192,6 +192,14 @@ object TimerNotices {
     put(context, notice)
   }
 
+  /**
+   * The phone has started (RemindersRestore): the system dropped the
+   * notification, and the timer it was up for still runs or waits paused.
+   */
+  fun restore(context: Context) {
+    saved(context).getString(NOTICE, null)?.let(TimerNotice::fromJson)?.let { show(context, it) }
+  }
+
   /** The app came forward: over a notice from published figures, what the shell last asked for goes back. */
   fun resumed(context: Context) {
     if (!saved(context).getBoolean(REMOTE, false)) return
@@ -219,16 +227,14 @@ object TimerNotices {
     Widgets.later(LET_SYNC_LAND_MS) { if (change == asked) takeDown(app) }
   }
 
-  /** Whether it shows figures that change without the timer changing (Android 17's, with today's). */
-  fun followsFigures(context: Context): Boolean =
-    Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN && saved(context).contains(NOTICE)
+  /** Whether it's up, showing today's figures, which change without the timer changing. */
+  fun followsFigures(context: Context): Boolean = saved(context).contains(NOTICE)
 
   /**
    * Draws it again with today's figures as they are now, if it's still up:
    * one the user swiped away stays gone until the timer changes.
    */
   fun redraw(context: Context) {
-    if (!followsFigures(context)) return
     val notice = saved(context).getString(NOTICE, null)?.let(TimerNotice::fromJson) ?: return
     val showing = context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == ID }
     if (showing) show(context, notice)
@@ -237,7 +243,13 @@ object TimerNotices {
   /** The part of the widgets' figures it shows: it's drawn again when this changes. */
   fun part(snapshot: JSONObject): String {
     val today = snapshot.optJSONObject("today")
-    return listOf(snapshot.opt("day"), today?.opt("money"), today?.opt("countingFromMs"), today?.opt("timeMs")).toString()
+    return listOf(
+      snapshot.opt("day"),
+      today?.opt("money"),
+      today?.opt("countingFromMs"),
+      today?.opt("timeMs"),
+      today?.opt("earning"),
+    ).toString()
   }
 
   private fun saved(context: Context) = context.getSharedPreferences(STORE, Context.MODE_PRIVATE)
@@ -265,33 +277,84 @@ object TimerNotices {
       context.getString(R.string.timer_notice_stop) to STOP,
     )
 
+  /**
+   * Today's figures as the notification shows them: the time counting
+   * (`countingFromMs`) or standing still (`stillMs`), and the money.
+   */
+  private class Today(val countingFromMs: Long?, val stillMs: Long?, val money: String?)
+
+  /**
+   * Today's figures from the widgets', while those are today's. The page
+   * says whether today's time counts (`countingFromMs`, with a running timer
+   * begun today) or stands still (`timeMs`); the shell's word on the timer
+   * comes first, so in the moment between a pause here and the page's next
+   * figures, today's time stops where it had counted to.
+   */
+  private fun today(context: Context, notice: TimerNotice): Today? {
+    val snapshot = Widgets.snapshot(context)?.takeIf { it.optString("day") == Widgets.today() } ?: return null
+    val today = snapshot.optJSONObject("today") ?: return null
+    val now = System.currentTimeMillis()
+    val countingFrom = today.time("countingFromMs")
+    val still = if (countingFrom != null) (now - countingFrom).coerceAtLeast(0) else today.time("timeMs")
+    return Today(
+      countingFromMs = countingFrom.takeIf { notice.running },
+      stillMs = still.takeIf { countingFrom == null || !notice.running },
+      money = Widgets.todayMoney(today, notice.running, now),
+    )
+  }
+
+  private fun status(context: Context, notice: TimerNotice): String =
+    context.getString(if (notice.running) R.string.timer_notice_running else R.string.timer_notice_paused)
+
+  /**
+   * The line under the task, before Android 17: the money earned today, with
+   * today's time when the header's clock doesn't count it, after "Paused"
+   * for a paused timer. Just "Running" or "Paused" without today's figures.
+   */
+  private fun line(context: Context, notice: TimerNotice, today: Today?): String {
+    val money = today?.money
+    val time = today?.stillMs?.let(Widgets::timeInWords)
+    val figures =
+      when {
+        money != null && time != null -> context.getString(R.string.timer_notice_time_and_earned, time, money)
+        money != null -> context.getString(R.string.timer_notice_earned_today, money)
+        time != null -> context.getString(R.string.widget_time_today, time)
+        else -> return status(context, notice)
+      }
+    return if (notice.running) figures else context.getString(R.string.timer_notice_paused_with, figures)
+  }
+
   // Posting without permission (Android 13 and later) does nothing, and
   // areNotificationsEnabled says so first
   @SuppressLint("MissingPermission")
   private fun show(context: Context, notice: TimerNotice) {
     val notifications = NotificationManagerCompat.from(context)
     if (!notifications.areNotificationsEnabled()) return
+    val today = today(context, notice)
     val notification =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) liveUpdate(context, notice) else plain(context, notice)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) liveUpdate(context, notice, today)
+      else plain(context, notice, today)
     notifications.notify(ID, notification)
   }
 
-  /** Before Android 16: the task, the system's clock counting while it runs, and the buttons. */
-  private fun plain(context: Context, notice: TimerNotice): Notification {
+  /** Before Android 16: the task, today's time counting in the header while it does, the money, and the buttons. */
+  private fun plain(context: Context, notice: TimerNotice, today: Today?): Notification {
     val builder =
       NotificationCompat.Builder(context, channel(context))
         .setSmallIcon(R.drawable.ic_stat_taskmint)
         .setColor(ICON_COLOR)
         .setContentTitle(notice.task)
-        .setContentText(notice.text)
+        .setContentText(line(context, notice, today))
         .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
         // Android 7, which has no channels: quiet, as the Running timer channel is
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .setOngoing(true)
         .setOnlyAlertOnce(true)
         .setContentIntent(press(context, DEFAULT_PRESS_ACTION))
-        .setShowWhen(notice.running)
-    notice.countingFromMs?.let { builder.setWhen(it).setUsesChronometer(true) }
+        .setShowWhen(today?.countingFromMs != null)
+    today?.countingFromMs?.let {
+      builder.setSubText(context.getString(R.string.timer_notice_today)).setWhen(it).setUsesChronometer(true)
+    }
     for ((label, action) in buttons(context, notice)) builder.addAction(0, label, press(context, action))
     return builder.build()
   }
@@ -299,17 +362,19 @@ object TimerNotices {
   /**
    * Android 16 and later: asks to be a Live Update, through the
    * notification's extras (Android 16's first release has no setter for it,
-   * and doesn't promote it either). The chip in the status bar counts the
-   * timer, or says it's paused.
+   * and doesn't promote it either). The chip in the status bar counts
+   * today's time, or says the timer is paused.
    */
   @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-  private fun liveUpdate(context: Context, notice: TimerNotice): Notification {
+  private fun liveUpdate(context: Context, notice: TimerNotice, today: Today?): Notification {
+    val figures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) figures(context, today) else null
     val builder =
       Notification.Builder(context, channel(context))
         .setSmallIcon(R.drawable.ic_stat_taskmint)
         .setColor(ICON_COLOR)
         .setContentTitle(notice.task)
-        .setContentText(notice.text)
+        // The figures have today's time and money: the line just says how the timer is
+        .setContentText(if (figures != null) status(context, notice) else line(context, notice, today))
         .setCategory(Notification.CATEGORY_STOPWATCH)
         .setOngoing(true)
         .setOnlyAlertOnce(true)
@@ -319,64 +384,50 @@ object TimerNotices {
     for ((label, action) in buttons(context, notice)) {
       builder.addAction(Notification.Action.Builder(null as Icon?, label, press(context, action)).build())
     }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
-      // The timer is one of the figures: no clock beside the task as well
-      builder.setStyle(figures(context, notice)).setShowWhen(false)
+    val countingFrom = today?.countingFromMs
+    if (figures != null) {
+      // Today's time is one of the figures: no clock beside the task as well
+      builder.setStyle(figures).setShowWhen(false)
+    } else if (countingFrom != null) {
+      builder
+        .setSubText(context.getString(R.string.timer_notice_today))
+        .setShowWhen(true)
+        .setWhen(countingFrom)
+        .setUsesChronometer(true)
     } else {
-      builder.setShowWhen(notice.running)
-      notice.countingFromMs?.let { builder.setWhen(it).setUsesChronometer(true) }
+      builder.setShowWhen(false)
     }
     return builder.build()
   }
 
   /**
-   * Android 17's layout: the timer (the figure the status bar's chip shows),
-   * then today's time and money while the widgets' figures are today's.
+   * Android 17's layout: today's time (the figure the status bar's chip
+   * shows), counting or standing still, then the money earned today. Null
+   * without figures for today.
    */
   @RequiresApi(Build.VERSION_CODES.CINNAMON_BUN)
-  private fun figures(context: Context, notice: TimerNotice): Notification.MetricStyle {
-    val style = Notification.MetricStyle()
-    val clock = Notification.Metric.TimeDifference.FORMAT_CHRONOMETER
-    val timer =
-      notice.countingFromMs?.let { Notification.Metric.TimeDifference.forStopwatch(Instant.ofEpochMilli(it), clock) }
-        ?: Notification.Metric.TimeDifference.forPausedStopwatch(Duration.ofMillis(notice.pausedMs ?: 0), clock)
-    style.addMetric(Notification.Metric(timer, context.getString(R.string.timer_notice_timer)))
-    style.setCriticalMetric(0)
-
-    val today = Widgets.snapshot(context)?.takeIf { it.optString("day") == Widgets.today() }?.optJSONObject("today")
-    if (today != null) {
-      todayTime(today, notice)?.let { style.addMetric(Notification.Metric(it, context.getString(R.string.timer_notice_today))) }
-      today.text("money")?.let { money ->
-        style.addMetric(
-          Notification.Metric(Notification.Metric.FixedText(money), context.getString(R.string.timer_notice_earned))
-        )
+  private fun figures(context: Context, today: Today?): Notification.MetricStyle? {
+    if (today == null) return null
+    val words = Notification.Metric.TimeDifference.FORMAT_ADAPTIVE
+    val time =
+      when {
+        today.countingFromMs != null ->
+          Notification.Metric.TimeDifference.forStopwatch(Instant.ofEpochMilli(today.countingFromMs), words)
+        today.stillMs != null ->
+          Notification.Metric.TimeDifference.forPausedStopwatch(Duration.ofMillis(today.stillMs), words)
+        else -> null
       }
+    if (time == null && today.money == null) return null
+    val style = Notification.MetricStyle()
+    if (time != null) {
+      style.addMetric(Notification.Metric(time, context.getString(R.string.timer_notice_today)))
+      style.setCriticalMetric(0)
+    }
+    today.money?.let { money ->
+      style.addMetric(
+        Notification.Metric(Notification.Metric.FixedText(money), context.getString(R.string.timer_notice_earned))
+      )
     }
     return style
-  }
-
-  /**
-   * Today's time: counting with a running timer begun today, else standing
-   * still. The page says which (`countingFromMs` or `timeMs`); the shell's
-   * word on the timer comes first, so in the moment between a pause here and
-   * the page's next figures, today's time stops where it had counted to.
-   * Null from a page too old to say.
-   */
-  @RequiresApi(Build.VERSION_CODES.CINNAMON_BUN)
-  private fun todayTime(today: JSONObject, notice: TimerNotice): Notification.Metric.TimeDifference? {
-    val words = Notification.Metric.TimeDifference.FORMAT_ADAPTIVE
-    val countingFrom = today.time("countingFromMs")
-    val still = today.time("timeMs")
-    return when {
-      countingFrom != null && notice.running ->
-        Notification.Metric.TimeDifference.forStopwatch(Instant.ofEpochMilli(countingFrom), words)
-      countingFrom != null ->
-        Notification.Metric.TimeDifference.forPausedStopwatch(
-          Duration.ofMillis((System.currentTimeMillis() - countingFrom).coerceAtLeast(0)),
-          words,
-        )
-      still != null -> Notification.Metric.TimeDifference.forPausedStopwatch(Duration.ofMillis(still), words)
-      else -> null
-    }
   }
 }

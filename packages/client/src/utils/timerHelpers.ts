@@ -122,9 +122,11 @@ export function sessionTitle(session: TaskSession): string {
   return sessionTaskNames(session).join(', ');
 }
 
+/** When a timer was paused (0 when it never said). */
+export const pausedAtMs = (timer: TimerInstance): number => toMs(timer.pausedAt) ?? 0;
+
 /** The paused timer paused last (a session can hold several). */
 export function mostRecentlyPaused(session: TaskSession): TimerInstance | undefined {
-  const pausedAtMs = (timer: TimerInstance) => toMs(timer.pausedAt) ?? 0;
   return session.timerInstances
     .filter(timer => timer.state === TimerState.paused)
     .sort((a, b) => pausedAtMs(b) - pausedAtMs(a))[0];

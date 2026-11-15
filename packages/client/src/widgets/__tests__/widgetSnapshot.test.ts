@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMockPayoutData } from '../../__tests__/setup/payout-test-utils';
 import { widgetSnapshot } from '../widgetSnapshot';
-import { MINUTE, NOW, TODAY, cell, working } from './widgetFixtures';
+import { MINUTE, NOW, TASKS, TODAY, cell, working } from './widgetFixtures';
 
 describe('widgetSnapshot', () => {
   it("gives each widget its part, this week's figures agreeing across them", () => {
@@ -18,6 +18,7 @@ describe('widgetSnapshot', () => {
       payout,
       goal: { enabled: true, percent: 45.5 },
       sessions: [working(false)],
+      tasks: TASKS,
       withdrawals: [],
       goalFor: () => 100,
     });

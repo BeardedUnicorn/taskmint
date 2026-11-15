@@ -286,11 +286,12 @@ the update dialog then shows the steps to turn it off, with a button to the
 phone's Security settings, and offers the download once it's off.
 
 **What the phone adds**, around the same app:
-- the running timer in a notification, with its clock and Pause, Switch task
-  and Stop. On Android 17 it's a Live Update, so the time also counts in
-  the status bar, and it shows today's time and money beside the timer (an
-  Android 16 system that has Live Updates promotes it too; 16's first
-  release takes the request and shows it as before). From Android 16 its
+- the running timer in a notification: the task you're on, today's time
+  counting and the money earned today, with Pause, Switch task and Stop.
+  Both figures keep up with TaskMint closed. On Android 17 it's a Live
+  Update, so today's time also counts in the status bar (an Android 16
+  system that has Live Updates promotes it too; 16's first release takes
+  the request and shows it as before). From Android 16 its
   channel has the default importance with no sound, since a lock screen
   leaves out a low-importance notification, Live Update or not;
 - the long-run reminder, end-of-day summary and goal milestones as alarms

@@ -17,6 +17,7 @@ import android.text.format.DateFormat
 import android.util.SizeF
 import android.view.View
 import android.widget.RemoteViews
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -24,7 +25,7 @@ import java.util.Locale
 import org.json.JSONObject
 
 /**
- * The home-screen widgets: Today (the running timer, today's time and money,
+ * The home-screen widgets: Today (the task being worked on, today's time and money,
  * the daily goal), Payouts (the next withdrawal and the releases coming), the
  * Calendar (the phone's Calendar agenda) and This week (a bar a day).
  *
@@ -39,8 +40,9 @@ import org.json.JSONObject
  *
  * A widget picks its layout by its size (Fit): Android 12 and later get one
  * per size class and switch between them as the widget is resized; earlier
- * Androids get the one for the widget's current size. A running timer counts
- * on its own (a Chronometer). The widgets are redrawn at midnight (Today
+ * Androids get the one for the widget's current size. While a timer runs
+ * today's time counts on its own (a Chronometer) and today's money is drawn
+ * again with each dollar earned. The widgets are redrawn at midnight (Today
  * then says "Yesterday" over figures the page hasn't updated) and when the
  * next withdrawal opens (WidgetRefresh).
  *
@@ -71,7 +73,7 @@ object Widgets {
       if (changed) redraw(context, kind)
       preview(context, kind, after, changed)
     }
-    // The running timer's notification shows today's figures too (Android 17)
+    // The running timer's notification shows today's figures too
     if (before == null || after == null || TimerNotices.part(before) != TimerNotices.part(after)) {
       TimerNotices.redraw(context)
     }
@@ -177,26 +179,41 @@ object Widgets {
   const val SETTLE_MS = 3_500L
 
   /**
+   * Today's money and the running timer's notification again, as the money
+   * a running timer earns reaches the next dollar (WidgetRefresh, MONEY):
+   * the other widgets' figures haven't changed, and the Calendar's list
+   * would lose its scroll.
+   */
+  fun redrawMoney(context: Context) {
+    redraw(context, TodayViews)
+    TimerNotices.redraw(context)
+    scheduleRefresh(context, snapshot(context))
+  }
+
+  /** The refresh's action when it's only for today's money (redrawMoney); every widget otherwise. */
+  const val MONEY = "com.taskmint.android.WIDGET_MONEY"
+
+  /**
    * Redraws every widget at the next local midnight or when the next
-   * withdrawal opens, whichever comes first; nothing once no widget is left
-   * and the running timer's notification shows no figures of the day's.
+   * withdrawal opens, whichever comes first, and today's money each time a
+   * running timer earns another dollar; nothing once no widget is left and
+   * the running timer's notification isn't up.
    */
   fun scheduleRefresh(context: Context, snapshot: JSONObject? = this.snapshot(context)) {
     val alarms = context.getSystemService(AlarmManager::class.java) ?: return
-    val refresh =
-      PendingIntent.getBroadcast(
-        context,
-        0,
-        Intent(context, WidgetRefresh::class.java),
-        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-      )
+    val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    val refresh = PendingIntent.getBroadcast(context, 0, Intent(context, WidgetRefresh::class.java), flags)
+    val money = PendingIntent.getBroadcast(context, 1, Intent(context, WidgetRefresh::class.java).setAction(MONEY), flags)
     val manager = AppWidgetManager.getInstance(context)
-    val noWidgets = kinds.all { manager.getAppWidgetIds(ComponentName(context, it.provider)).isEmpty() }
-    if (noWidgets && !TimerNotices.followsFigures(context)) {
+    val shown = { kind: WidgetKind -> manager.getAppWidgetIds(ComponentName(context, kind.provider)).isNotEmpty() }
+    val noticeUp = TimerNotices.followsFigures(context)
+    val now = System.currentTimeMillis()
+    val nextDollar = if (noticeUp || shown(TodayViews)) snapshot?.let { nextDollarAt(it, now) } else null
+    if (nextDollar != null) alarms.setWindow(AlarmManager.RTC, nextDollar, MONEY_WINDOW_MS, money) else alarms.cancel(money)
+    if (kinds.none(shown) && !noticeUp) {
       alarms.cancel(refresh)
       return
     }
-    val now = System.currentTimeMillis()
     val midnight =
       Calendar.getInstance().apply {
         timeInMillis = now
@@ -210,6 +227,58 @@ object Widgets {
     // A window, not exact: the phone needn't wake for it, and the opening
     // still shows within minutes of its time
     alarms.setWindow(AlarmManager.RTC, minOf(midnight, opens ?: midnight), REFRESH_WINDOW_MS, refresh)
+  }
+
+  // ----- Today's money, kept up while a timer runs -----
+
+  private const val HOUR_MS = 3_600_000.0
+  /** The soonest today's money is drawn again, and how late that may be (the phone needn't wake for it). */
+  private const val MONEY_EVERY_MS = 60_000L
+  private const val MONEY_WINDOW_MS = 60_000L
+
+  /**
+   * Today's money in cents at `now`, as a running timer begun today earns
+   * it (the snapshot's `today.earning`: what the day comes to without that
+   * timer, its rate, and where its time counts from). Null when the money
+   * stands still.
+   */
+  private fun earningCents(today: JSONObject, now: Long): Double? {
+    val earning = today.optJSONObject("earning") ?: return null
+    val ran = (now - earning.getLong("fromMs")).coerceAtLeast(0)
+    return earning.getDouble("baseCents") + earning.getDouble("perHourCents") * ran / HOUR_MS
+  }
+
+  /** "~$1,235": whole dollars, as the page writes an estimate (widgetText.ts). */
+  private fun estimate(cents: Double): String {
+    val dollars = NumberFormat.getCurrencyInstance(Locale.US).apply { maximumFractionDigits = 0 }
+    return "~" + dollars.format(Math.round(cents / 100))
+  }
+
+  /**
+   * Today's money as it is at `now`: worked out from the running timer's
+   * rate while `running` and the page said how it grows, else as the page
+   * last wrote it.
+   */
+  fun todayMoney(today: JSONObject, running: Boolean, now: Long): String? =
+    (if (running) earningCents(today, now) else null)?.let(::estimate) ?: today.text("money")
+
+  /** When today's money next shows another dollar; null while it stands still or the figures aren't today's. */
+  private fun nextDollarAt(snapshot: JSONObject, now: Long): Long? {
+    if (snapshot.optString("day") != today()) return null
+    if (snapshot.optJSONObject("timer")?.time("countingFromMs") == null) return null
+    val today = snapshot.optJSONObject("today") ?: return null
+    val perHour = today.optJSONObject("earning")?.optDouble("perHourCents") ?: return null
+    val cents = earningCents(today, now) ?: return null
+    if (!(perHour > 0)) return null
+    // Whole dollars round at 50 cents
+    val next = Math.round(cents / 100) * 100 + 50
+    return now + maxOf(((next - cents) / perHour * HOUR_MS).toLong() + 1_000, MONEY_EVERY_MS)
+  }
+
+  /** "3h 12m", "12m": a time as the page writes it (formatDurationCompact). */
+  fun timeInWords(ms: Long): String {
+    val minutes = ms.coerceAtLeast(0) / 60_000
+    return if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
   }
 
   // ----- What the widgets share -----
@@ -386,11 +455,15 @@ abstract class TaskMintWidget : AppWidgetProvider() {
   }
 }
 
-/** Redraws the widgets at midnight, when the next withdrawal opens, and when the phone's clock or zone changes. */
+/**
+ * Redraws the widgets at midnight, when the next withdrawal opens, and when
+ * the phone's clock or zone changes; and today's money alone as a running
+ * timer earns another dollar (Widgets.MONEY).
+ */
 class WidgetRefresh : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val pending = goAsync()
-    Widgets.redrawAll(context)
+    if (intent.action == Widgets.MONEY) Widgets.redrawMoney(context) else Widgets.redrawAll(context)
     Widgets.later(Widgets.SETTLE_MS) { pending.finish() }
   }
 }

@@ -18,6 +18,7 @@ import { getCloudSync } from '../cloud';
 import { goalForDay } from '../components/pages/calendar/calendarMonth';
 import { useSessionManagementContext } from '../contexts/SessionManagementContext';
 import { useDailyGoalProgress } from '../contexts/DailyGoalProgressContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { useNotificationPreferences } from '../notifications/preferences';
 import { deviceZone } from '../utils/payoutForecast';
 import { type PublishedMark, publishedWidgets, widgetsDue } from '../widgets/publishedWidgets';
@@ -31,15 +32,16 @@ export function useHomeWidgets(): void {
   const payout = usePayoutData();
   const goal = useDailyGoalProgress();
   const { sessions } = useSessionManagementContext();
+  const { tasks } = useTaskManagementContext();
   const { withdrawals } = useWithdrawals();
   const { currentGoal, achievements } = useDailyGoals();
   const goalFor = useMemo(() => goalForDay(achievements, currentGoal), [achievements, currentGoal]);
   const ready = !payout.isLoading;
   const snapshot = useMemo(
-    () => JSON.stringify(widgetSnapshot({ payout, goal, sessions, withdrawals, goalFor })),
+    () => JSON.stringify(widgetSnapshot({ payout, goal, sessions, tasks, withdrawals, goalFor })),
     // The payout data ticks every second while a timer runs; the text
     // only changes about once a minute, and only a change is sent
-    [payout, goal, sessions, withdrawals, goalFor]
+    [payout, goal, sessions, tasks, withdrawals, goalFor]
   );
 
   useEffect(() => {

@@ -5,7 +5,6 @@ import android.os.SystemClock
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
-import com.taskmint.android.Widgets.text
 import com.taskmint.android.Widgets.time
 import com.taskmint.android.Widgets.visible
 import com.taskmint.android.Widgets.whole
@@ -18,11 +17,15 @@ class TodayWidget : TaskMintWidget() {
 }
 
 /**
- * Today: today's money and time, the daily goal and the live timer, from
- * the snapshot's `today` and `timer`. While a timer runs its clock is the
- * big figure (widget_today_running); otherwise today's money is
- * (widget_today). One row tall, it's a line with the timer's button
- * (widget_today_row); tall, it adds this week's figures.
+ * Today: today's money and time, the daily goal and the task being worked
+ * on, from the snapshot's `today` and `timer`. While a timer runs, its task
+ * and today's time are the big figures (widget_today_running), the time
+ * counting when the timer began today, with the money earned today under
+ * them, drawn again with each dollar (Widgets.todayMoney). Otherwise today's
+ * money is the big figure (widget_today). One row tall, it's a line with the
+ * timer's button (widget_today_row); tall, it adds this week's figures. It
+ * shows what the day comes to, as the timer's notification does, not how
+ * long the one timer has run.
  */
 object TodayViews : WidgetKind {
   override val provider = TodayWidget::class.java
@@ -65,7 +68,8 @@ object TodayViews : WidgetKind {
 
     Widgets.content(views)
     val today = snapshot.getJSONObject("today")
-    val money = today.getString("money")
+    val now = System.currentTimeMillis()
+    val money = Widgets.todayMoney(today, countingFrom != null, now) ?: ""
     val time = today.getString("time")
     val goal = today.whole("goalPercent")
     Widgets.header(views, Widgets.dayLabel(context, snapshot.getString("day")), if (fit.narrow) null else Widgets.asOf(context, snapshot))
@@ -101,16 +105,25 @@ object TodayViews : WidgetKind {
     button(context, views, action, iconOnly = oneRow || !fit.roomy)
 
     if (countingFrom != null) {
-      // The clock counts from the timer's start (pauses left out), in the
-      // boot-relative time a Chronometer takes
-      val base = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - countingFrom)
-      views.setChronometer(R.id.today_clock, base, null, true)
+      // The clock is today's time: counting from where the page says it
+      // would have started (a timer begun today), else stopped at what
+      // today has come to (one begun yesterday: its time is yesterday's).
+      // A Chronometer takes boot-relative time.
+      val todayFrom = today.time("countingFromMs")
+      val todayMs = if (todayFrom != null) (now - todayFrom).coerceAtLeast(0) else today.time("timeMs") ?: 0
+      val base = SystemClock.elapsedRealtime() - todayMs
+      val counts = todayFrom != null
+      views.setChronometer(R.id.today_clock, base, null, counts)
       views.setTextViewTextSize(R.id.today_clock, TypedValue.COMPLEX_UNIT_SP, clockSize(fit))
       // A narrow card has no room beside the button: the clock goes under it
       val under = !oneRow && fit.narrow
-      views.setChronometer(R.id.today_clock_under, base, null, under)
+      views.setChronometer(R.id.today_clock_under, base, null, under && counts)
       views.setViewVisibility(R.id.today_clock_under, visible(under))
       if (!oneRow) views.setViewVisibility(R.id.today_clock, visible(!under))
+      // The clock has today's time: beside the money, what it is
+      val earned = context.getString(R.string.widget_earned_today)
+      views.setTextViewText(R.id.today_time, earned)
+      views.setTextViewText(R.id.today_time_under, earned)
     } else {
       // Paused or idle: a clock left from a run stops counting
       views.setChronometer(R.id.today_clock, SystemClock.elapsedRealtime(), null, false)
@@ -173,13 +186,13 @@ object TodayViews : WidgetKind {
     }
     views.setViewVisibility(R.id.timer_task, View.VISIBLE)
     views.setTextViewText(R.id.timer_task, timer.getString("task"))
-    views.setTextViewText(R.id.timer_status, timer.text("status") ?: "")
+    views.setTextViewText(R.id.timer_status, context.getString(R.string.timer_notice_paused))
   }
 
   /**
-   * One row: the running clock over its task, a paused timer's time over
-   * "Paused · its task", or today's money over its time; wide, today's
-   * figures (or the goal) on the right.
+   * One row: today's time over the task while a timer runs (counting) or
+   * waits paused ("Paused · its task"), or today's money over its time;
+   * wide, the money earned today (or the goal) on the right.
    */
   private fun row(
     context: Context,
@@ -195,7 +208,7 @@ object TodayViews : WidgetKind {
     views.setViewVisibility(R.id.today_clock, visible(countingFrom != null))
     views.setViewVisibility(R.id.today_money, visible(timer == null))
     views.setViewVisibility(R.id.row_paused, visible(paused))
-    if (paused) views.setTextViewText(R.id.row_paused, timer!!.text("pausedFor") ?: "")
+    if (paused) views.setTextViewText(R.id.row_paused, time)
     val detail =
       when {
         timer == null -> context.getString(R.string.widget_time_today, time)
@@ -204,11 +217,11 @@ object TodayViews : WidgetKind {
       }
     views.setTextViewText(R.id.row_detail, detail)
 
-    // Wide: today's money and time beside a timer, or the goal beside today's money
+    // Wide: the money earned today beside a timer, or the goal beside today's money
     val aside: Pair<String, String>? =
       when {
         fit.narrow -> null
-        timer != null -> money to time
+        timer != null -> money to context.getString(R.string.widget_earned)
         goal != null -> context.getString(R.string.widget_goal_short, goal) to context.getString(R.string.widget_of_goal)
         else -> null
       }

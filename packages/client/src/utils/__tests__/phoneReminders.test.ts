@@ -60,7 +60,7 @@ describe('longRunAlarm', () => {
       atMs: START + 10 * MINUTE + 4 * HOUR,
       kind: 'longRun',
       title: 'Still working?',
-      body: "Writing's timer has been running for 04:00.",
+      body: "Writing's timer has been running for 4h 0m.",
     });
   });
 
