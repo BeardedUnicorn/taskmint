@@ -119,6 +119,13 @@ pub fn run() {
         // in tauri.production.conf.json, so a dev build has none); the
         // webview asks before installing one
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // The window's size and place from last time, maximized if it was;
+        // the first time, it's centered (tauri.conf.json)
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(crate::platform::os::window_state())
+                .build(),
+        )
         // Closing the window hides it to the tray: timers keep running and
         // the tray stays usable; quit from the tray menu. Without a tray icon
         // the window closes normally, since nothing could bring it back.
@@ -129,6 +136,7 @@ pub fn run() {
                     .is_some_and(|state| state.platform.has_tray());
                 if window.label() == "main" && has_tray {
                     api.prevent_close();
+                    crate::platform::os::save_window_state(window.app_handle());
                     let _ = window.hide();
                 }
             }
@@ -175,9 +183,18 @@ pub fn run() {
             // comes after the move above), titled as the build is named
             // ("TaskMint Dev" for a dev build)
             let window = app.config().app.windows[0].clone();
-            WebviewWindowBuilder::from_config(&handle, &window)?
-                .title(&handle.package_info().name)
-                .build()?;
+            let builder = WebviewWindowBuilder::from_config(&handle, &window)?
+                .title(&handle.package_info().name);
+            // On a desktop it's built hidden and shown once the window-state
+            // plugin has put it back as it was, so it doesn't open at the
+            // default size and then jump
+            #[cfg(desktop)]
+            let builder = builder.visible(false);
+            let window = builder.build()?;
+            #[cfg(desktop)]
+            window.show()?;
+            #[cfg(mobile)]
+            let _ = window;
 
             // Clicking a notification brings the window forward (it may be
             // hidden to the tray), on the page it's about. Registered before
