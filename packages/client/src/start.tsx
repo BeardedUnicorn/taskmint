@@ -16,6 +16,7 @@ import './styles.css';
 import { initSentry } from './utils/sentry';
 import { loadAppRecords } from './services/appRecords';
 import { moveLocalAccountSettings } from './services/localAccountSettings';
+import { moveBackupFolderOutOfDocuments } from './hooks/useBackupSettings';
 import { StartupError } from './components/StartupError';
 import { setBackend, type Backend } from './backend';
 import { AppExtensionsProvider, type AppExtensions } from './app/extensions';
@@ -62,6 +63,8 @@ export async function startClient(
     );
     return;
   }
+  // Before the first render: the launch backup check reads the saved folder
+  await moveBackupFolderOutOfDocuments();
   root.render(
     <React.StrictMode>
       <AppExtensionsProvider value={extensions}>

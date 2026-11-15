@@ -137,7 +137,6 @@ pub trait Platform: Send + Sync {
     fn open_picked(&self, file: &PickedFile) -> std::io::Result<File>;
     /// A folder; None when the dialog is dismissed.
     fn pick_folder(&self, title: &str) -> Option<PathBuf>;
-    fn documents_dir(&self) -> Result<PathBuf, String>;
     /// Shows a file in the file manager.
     fn reveal(&self, path: &Path) -> Result<(), String>;
     /// Opens a folder in the file manager.

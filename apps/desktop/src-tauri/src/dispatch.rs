@@ -289,7 +289,7 @@ fn run_shell(state: &AppState, shell: Shell) -> Result<Value, String> {
             max_backups,
             (state.clock)(),
         )),
-        Shell::DefaultBackupDir {} => reply(files::default_backup_dir(state)?),
+        Shell::DefaultBackupDir {} => reply(files::default_backup_dir(state)),
         Shell::PickBackupDir {} => reply(files::pick_backup_dir(state)),
         Shell::ListBackups { folder } => reply(crate::backup::list_backups(&folder)?),
         Shell::ReadBackup { folder, name } => reply(crate::backup::read_backup(&folder, &name)?),
@@ -680,10 +680,9 @@ mod tests {
         assert_eq!(written["success"], true);
         assert_eq!(written["timestamp"], "2026-03-02T15:00:00+00:00");
 
-        f.platform.set_documents("/Users/me/Documents");
         assert_eq!(
             run(&f, "default_backup_dir", json!({})),
-            Ok(json!("/Users/me/Documents/TaskMint Backups"))
+            Ok(json!(f.dir.0.join("Backups").to_string_lossy()))
         );
         f.platform.answer(Some(folder.clone()));
         assert_eq!(run(&f, "pick_backup_dir", json!({})), Ok(json!(path)));
@@ -737,7 +736,6 @@ mod tests {
         let f = fixture();
         f.platform.fail("reveal");
         for (command, args) in [
-            ("default_backup_dir", json!({})),
             ("export_data_to_file", json!({ "dataJson": "{}" })),
             (
                 "export_csv_file",

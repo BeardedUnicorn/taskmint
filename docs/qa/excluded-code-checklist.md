@@ -106,8 +106,7 @@ Note anything that fails with the build, the OS version and what you saw.
       webview (the funds-release delay, idle settings). The log names each
       move.
 - [ ] A second launch moves nothing.
-- [ ] macOS asks again for notification permission, and for access to
-      Documents at the next folder backup (both are granted per identifier).
+- [ ] macOS asks again for notification permission (granted per identifier).
 
 **Deep links (bundled app):**
 - [ ] With the app quit, `open 'taskmint://capture-pending'` launches it and
@@ -132,8 +131,10 @@ Note anything that fails with the build, the OS version and what you saw.
 - [ ] **Open dialog.** Import opens a file picker that shows JSON files.
 - [ ] **Folder picker.** Settings → Automatic Backups → choose a folder opens
       a folder picker.
-- [ ] **Documents folder.** A fresh data folder's backups default to
-      `~/Documents/TaskMint Backups` (macOS asks once for access to Documents).
+- [ ] **Default backup folder.** A fresh data folder's backups default to
+      `Backups` inside the data folder, and macOS never asks for access to
+      Documents; settings saved with the old `~/Documents/TaskMint Backups`
+      switch to it at the next launch.
 - [ ] **Reveal.** After a backup, its notification's "Show in Finder" button
       reveals the file, selected, in Finder.
 - [ ] **Bring the window forward.** Covered by "Second launch" and the deep

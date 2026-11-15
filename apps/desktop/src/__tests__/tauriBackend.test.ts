@@ -188,8 +188,10 @@ describe('createTauriBackend', () => {
     const folders = platform.folderBackups!;
 
     it('default to a folder Rust names, and pick one with its folder dialog', async () => {
-      mockInvoke.mockResolvedValueOnce('/Users/me/Documents/TaskMint Backups');
-      await expect(folders.defaultFolder()).resolves.toBe('/Users/me/Documents/TaskMint Backups');
+      mockInvoke.mockResolvedValueOnce('/Users/me/Library/Application Support/com.taskmint.desktop/Backups');
+      await expect(folders.defaultFolder()).resolves.toBe(
+        '/Users/me/Library/Application Support/com.taskmint.desktop/Backups'
+      );
       mockInvoke.mockResolvedValueOnce(null);
       await expect(folders.pickFolder()).resolves.toBeNull();
 
