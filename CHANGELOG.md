@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.10.1 – 2026-11-15
+
+### Changed
+
+- Automatic backups now go in a `Backups` folder inside the app's data folder (About shows where), so macOS no longer asks for access to Documents at launch. Settings still pointing at `Documents/TaskMint Backups` switch over by themselves; the backups already there stay, and a folder you picked yourself is unchanged.
+
 ## 4.10.0 – 2026-11-15
 
 ### Added
