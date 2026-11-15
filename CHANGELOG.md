@@ -8,6 +8,19 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.13.0 – 2026-11-15
+
+### Changed
+
+- After an update that skipped releases, Settings → About shows what's new since the version you had, release by release, and the "Updated to TaskMint" notice says so.
+- The update prompt can show several releases' notes by release or all together by type (Added, Fixed…); from five releases behind it starts by type.
+- Each earlier release in Settings → About says how much it changed ("2 added · 1 fixed") before you open it.
+- On an Android phone with Advanced Protection on, the screen that explains how to update also shows what the update brings.
+
+### Fixed
+
+- A link in the release notes shows as its text, not as raw Markdown.
+
 ## 4.12.0 – 2026-11-15
 
 ### Changed
