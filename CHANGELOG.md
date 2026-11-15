@@ -8,6 +8,13 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.9.0 – 2026-11-15
+
+### Changed
+
+- On Android, TaskMint downloads its own update, shows how far the download is, and opens Android's installer, instead of handing the download to the browser (where it could stall and never install). The first time, Android asks to let TaskMint install apps. If the download fails, Open in browser does it the old way.
+- On an Android phone with Advanced Protection on, the update dialog now shows the steps to turn it off, with a button that opens the phone's Security settings, and offers the download as soon as it's off.
+
 ## 4.8.0 – 2026-11-15
 
 ### Added
