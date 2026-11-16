@@ -456,6 +456,20 @@ describe('buildReleaseSchedule', () => {
     expect(rows[0].releaseTime).not.toBe(rows[1].releaseTime);
   });
 
+  it('makes one row of the imports released in the same minute, at the first one', () => {
+    const first = makeEntry({ id: 'first', createdAt: '2026-08-25T14:57:08.655Z', amountCents: 37_500 });
+    const second = makeEntry({ id: 'second', createdAt: '2026-08-25T14:57:27.694Z', amountCents: 34_375 });
+    const nextMinute = makeEntry({ id: 'next', createdAt: '2026-08-25T14:58:00.000Z', amountCents: 100 });
+
+    const rows = buildReleaseSchedule(buildReleaseEvents([], [nextMinute, second, first], 7), NOW_MS);
+
+    expect(rows.map(r => [r.releaseIso, r.actualCents])).toEqual([
+      ['2026-09-01T14:57:08.655Z', 71_875],
+      ['2026-09-01T14:58:00.000Z', 100],
+    ]);
+    expect(rows[0].releaseMs).toBe(Date.parse('2026-09-01T14:57:08.655Z'));
+  });
+
   it('puts an import with an odd report time at the start of its release day', () => {
     const odd = makeEntry({ id: 'odd', createdAt: 'not a date', amountCents: 300 });
     const timed = makeEntry({ id: 'timed', createdAt: '2026-08-26T20:00:00.000Z', amountCents: 700 });

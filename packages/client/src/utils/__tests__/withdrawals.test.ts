@@ -5,9 +5,11 @@ import {
   DAY_MS,
   classifyRelease,
   curveAt,
+  endOfReleaseMinute,
   heldUntilMs,
   planReminder,
   planWithdrawals,
+  sameReleaseMinute,
   scheduledFor,
   withdrawableAt,
   withdrawableCurve,
@@ -16,6 +18,9 @@ import {
 } from '../withdrawals';
 
 const HOUR = 3_600_000;
+const SECOND = 1000;
+/** The last millisecond of a minute that starts at `ms` (the tests' times are whole minutes). */
+const END_OF_MINUTE = 59_999;
 // A withdrawal on Nov 7 at noon (local), and "now" a day later
 const W = new Date(2026, 10, 7, 12, 0).getTime();
 const NOW = W + DAY_MS;
@@ -138,7 +143,19 @@ describe('planWithdrawals', () => {
     expect(plan?.next.totalCents).toBe(3000);
     expect(plan?.availableNow.totalCents).toBe(1000);
     expect(plan?.ifYouWait).toEqual([
-      { atMs: W + INTERVAL + HOUR, addedCents: 4000, totalCents: 7000, hasEstimate: true },
+      { atMs: W + INTERVAL + HOUR + END_OF_MINUTE, addedCents: 4000, totalCents: 7000, hasEstimate: true },
+    ]);
+  });
+
+  it('lists releases in the same minute as one wait, with all of them', () => {
+    const opens = W + INTERVAL;
+    const events = [
+      imported(opens + HOUR + 8 * SECOND, 37_500, 'Pending Approval', W - DAY_MS),
+      imported(opens + HOUR + 27 * SECOND, 34_375, 'Pending Approval', W - DAY_MS),
+    ];
+    const plan = planWithdrawals(events, [withdrawal('w', W)], INTERVAL, NOW);
+    expect(plan?.ifYouWait).toEqual([
+      { atMs: opens + HOUR + END_OF_MINUTE, addedCents: 71_875, totalCents: 71_875, hasEstimate: false },
     ]);
   });
 
@@ -166,7 +183,7 @@ describe('planWithdrawals', () => {
     const plan = planWithdrawals(events, [withdrawal('w', W)], INTERVAL, NOW);
     expect(plan?.ifYouWait).toHaveLength(6);
     expect(plan?.ifYouWait[0]).toEqual({
-      atMs: opens + 2 * HOUR,
+      atMs: opens + 2 * HOUR + END_OF_MINUTE,
       addedCents: 100,
       totalCents: 100,
       hasEstimate: false,
@@ -207,9 +224,51 @@ describe('scheduling the next withdrawal', () => {
   it('is ready at a later release, with everything released since the last withdrawal', () => {
     expect(scheduledFor(OPENS + 2 * DAY_MS, plan, events)).toEqual({
       releaseMs: OPENS + 2 * DAY_MS,
-      dueMs: OPENS + 2 * DAY_MS,
+      dueMs: OPENS + 2 * DAY_MS + END_OF_MINUTE,
       isHeld: false,
       amount: { actualCents: 3000, estimatedCents: 500, pastDueCents: 0, totalCents: 3500 },
+    });
+  });
+
+  describe('for a minute with several releases (one row in Payouts)', () => {
+    // Two entries the site reported 19 seconds apart: released in the same minute
+    const FIRST = OPENS + DAY_MS + 8 * SECOND;
+    const SECOND_ONE = OPENS + DAY_MS + 27 * SECOND;
+    const sameMinute = [
+      imported(W + HOUR, 1000, 'Pending Approval', W - DAY_MS),
+      imported(FIRST, 37_500, 'Pending Approval', W - DAY_MS),
+      imported(SECOND_ONE, 34_375, 'Pending Approval', W - DAY_MS),
+      imported(OPENS + DAY_MS + 60 * SECOND, 5000, 'Pending Approval', W - DAY_MS),
+    ];
+    const minutePlan = planWithdrawals(sameMinute, [withdrawal('w', W)], INTERVAL, NOW);
+
+    it('counts every release in the minute, whichever of them it was scheduled for', () => {
+      for (const releaseMs of [FIRST, SECOND_ONE]) {
+        expect(scheduledFor(releaseMs, minutePlan, sameMinute)).toEqual({
+          releaseMs,
+          // Ready once the whole minute is released, and not the next minute's
+          dueMs: OPENS + DAY_MS + END_OF_MINUTE,
+          isHeld: false,
+          amount: { actualCents: 72_875, estimatedCents: 0, pastDueCents: 0, totalCents: 72_875 },
+        });
+      }
+      expect(planReminder(scheduled(FIRST), minutePlan, sameMinute)?.amount?.totalCents).toBe(72_875);
+    });
+
+    it("isn't held when withdrawals open within the release's minute", () => {
+      const opensWithin = planWithdrawals(sameMinute, [withdrawal('w', FIRST + 10 * SECOND - INTERVAL)], INTERVAL, NOW);
+      expect(scheduledFor(FIRST, opensWithin, sameMinute)).toMatchObject({
+        dueMs: OPENS + DAY_MS + END_OF_MINUTE,
+        isHeld: false,
+      });
+    });
+
+    it('tells the minutes apart', () => {
+      expect(endOfReleaseMinute(FIRST)).toBe(OPENS + DAY_MS + END_OF_MINUTE);
+      expect(endOfReleaseMinute(OPENS + DAY_MS + END_OF_MINUTE)).toBe(OPENS + DAY_MS + END_OF_MINUTE);
+      expect(sameReleaseMinute(FIRST, SECOND_ONE)).toBe(true);
+      expect(sameReleaseMinute(FIRST, OPENS + DAY_MS + 60 * SECOND)).toBe(false);
+      expect(sameReleaseMinute(FIRST, OPENS + DAY_MS - 1)).toBe(false);
     });
   });
 

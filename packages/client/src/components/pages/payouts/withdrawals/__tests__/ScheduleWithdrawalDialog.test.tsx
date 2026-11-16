@@ -117,6 +117,27 @@ describe('ScheduleWithdrawalDialog', () => {
     expect(readAppRecord('scheduledWithdrawal')).toBeUndefined();
   });
 
+  it('counts every release in the minute of the one it was opened from', () => {
+    // Two imports the site reported seconds apart share a row, which opens the dialog at the first one's time
+    const sameMinute = [
+      createMockReleaseEvent({ releaseMs: FREE + 8_000, actualCents: 37_500 }),
+      createMockReleaseEvent({ releaseMs: FREE + 27_000, actualCents: 34_375 }),
+      createMockReleaseEvent({ releaseMs: FREE + 60_000, actualCents: 999 }),
+    ];
+    renderWithMoney(<ScheduleWithdrawalDialog row={row(FREE + 8_000)} onClose={vi.fn()} />, {
+      nowMs: NOW,
+      events: sameMinute,
+      plan: createMockPlan(),
+      // Scheduled for the other release of the same minute: still this row's
+      reminder: reminder(FREE + 27_000),
+    });
+    expect(screen.getByRole('dialog', { name: 'Scheduled withdrawal' })).toHaveTextContent(
+      "You'll be remindedTue, Nov 10, 11:53 PM"
+    );
+    expect(dialog()).toHaveTextContent('It will be$718.75');
+    expect(dialog()).not.toHaveTextContent('This replaces');
+  });
+
   it('has no amount until a withdrawal is recorded', () => {
     renderWithMoney(<ScheduleWithdrawalDialog row={row(HELD)} onClose={vi.fn()} />, { nowMs: NOW, events });
     expect(dialog()).toHaveTextContent('Remind meMon, Nov 9, 12:00 PM');

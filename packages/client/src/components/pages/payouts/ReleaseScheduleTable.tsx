@@ -27,7 +27,7 @@ import { usePayoutData } from '../../../hooks/usePayoutData';
 import { ReleaseScheduleRow, centsToDollars } from '../../../utils/payoutCalculator';
 import { formatCurrency } from '../../../utils/formatters';
 import { formatWeekdayDate, formatWeekdayDateTime } from '../../../utils/locale';
-import { heldUntilMs } from '../../../utils/withdrawals';
+import { heldUntilMs, sameReleaseMinute } from '../../../utils/withdrawals';
 import { MONO } from './payoutStyles';
 import { PHONE } from '../../../theme/media';
 import { PHONE_TABLE } from '../../ui/tables/tableStyles';
@@ -70,9 +70,12 @@ export function ReleaseScheduleTable() {
   const heldCount = schedule.filter(isHeld).length;
   const opening = heldUntil === null ? '' : formatWeekdayDateTime(heldUntil);
   const every = `${withdrawalIntervalDays} day${withdrawalIntervalDays === 1 ? '' : 's'}`;
+  // The reminder is for the row's whole minute, whichever of its releases was chosen
+  const isScheduled = (row: ReleaseScheduleRow) =>
+    reminder != null && sameReleaseMinute(reminder.releaseMs, row.releaseMs);
   const scheduleLabel = (row: ReleaseScheduleRow) => {
     const when = formatWeekdayDateTime(row.releaseMs);
-    return reminder?.releaseMs === row.releaseMs
+    return isScheduled(row)
       ? `Scheduled withdrawal for the release on ${when}`
       : `Schedule a withdrawal for the release on ${when}`;
   };
@@ -110,7 +113,7 @@ export function ReleaseScheduleTable() {
       {compact ? (
         <StackedList label="Upcoming releases">
           {schedule.map((row, idx) => {
-            const scheduled = reminder?.releaseMs === row.releaseMs;
+            const scheduled = isScheduled(row);
             return (
               <Fragment key={rowKey(row, idx)}>
                 <StackedRow
@@ -163,7 +166,7 @@ export function ReleaseScheduleTable() {
             <TableBody>
               {schedule.map((row, idx) => {
                 const held = isHeld(row);
-                const scheduled = reminder?.releaseMs === row.releaseMs;
+                const scheduled = isScheduled(row);
                 const label = scheduleLabel(row);
                 return (
                   <Fragment key={rowKey(row, idx)}>

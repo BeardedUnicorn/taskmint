@@ -399,7 +399,7 @@ export function isSettledStatus(status?: string): boolean {
 
 /**
  * Upcoming releases (strictly after now), soonest first, one row per release
- * time: imported money still pending (not Paid, not Untransferred), and the
+ * minute (at its first release's time): imported money still pending (not Paid, not Untransferred), and the
  * estimates of days not imported yet.
  */
 export function buildReleaseSchedule(events: ReleaseEvent[], nowMs: number = Date.now()): ReleaseScheduleRow[] {
@@ -407,7 +407,8 @@ export function buildReleaseSchedule(events: ReleaseEvent[], nowMs: number = Dat
   for (const event of events) {
     if (event.releaseMs <= nowMs || isSettledStatus(event.status)) continue;
     const { releaseDay, releaseTime, releaseIso, releaseMs } = event;
-    const key = releaseTime ? `${releaseDay} ${releaseTime}` : releaseDay;
+    // By the minute itself, not its label: the hour the clocks go back comes twice
+    const key = releaseTime ? String(Math.floor(releaseMs / 60_000)) : releaseDay;
     const row = byKey.get(key) ?? { releaseDay, releaseTime, releaseIso, releaseMs, actualCents: 0, estimatedCents: 0 };
     byKey.set(key, row);
     row.actualCents += event.actualCents;

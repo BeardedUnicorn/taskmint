@@ -122,6 +122,23 @@ describe('ReleaseScheduleTable', () => {
     expect(bodyRows()[0]).not.toHaveClass('Mui-selected');
   });
 
+  it('marks the release when the withdrawal was scheduled for another second of its minute', () => {
+    renderWithMoney(<ReleaseScheduleTable />, {
+      nowMs: NOW,
+      schedule,
+      reminder: {
+        id: 's1',
+        releaseMs: schedule[2].releaseMs + 27_000,
+        dueMs: schedule[2].releaseMs + 59_999,
+        isHeld: false,
+        amount: createMockAmount(),
+      },
+    });
+    const button = screen.getByRole('button', { name: 'Scheduled withdrawal for the release on Wed, Nov 11, 9:00 AM' });
+    expect(button.closest('tr')).toHaveClass('Mui-selected');
+    expect(bodyRows()[1]).not.toHaveClass('Mui-selected');
+  });
+
   describe('on a phone', () => {
     const rows = () => within(screen.getByRole('list', { name: 'Upcoming releases' })).getAllByRole('listitem');
 

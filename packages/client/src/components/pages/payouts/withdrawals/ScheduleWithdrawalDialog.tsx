@@ -11,7 +11,7 @@ import { usePayoutData } from '../../../../hooks/usePayoutData';
 import { useWithdrawals } from '../../../../hooks/useWithdrawals';
 import { ReleaseScheduleRow, formatCents } from '../../../../utils/payoutCalculator';
 import { formatWeekdayDateTime } from '../../../../utils/locale';
-import { scheduledFor } from '../../../../utils/withdrawals';
+import { sameReleaseMinute, scheduledFor } from '../../../../utils/withdrawals';
 import { MONO } from '../payoutStyles';
 import { amountNotes } from './NextWithdrawalPanel';
 import { askToNotify } from '../../../../hooks/useAskToNotify';
@@ -27,7 +27,7 @@ export function ScheduleWithdrawalDialog({ row, onClose }: ScheduleWithdrawalDia
   const { scheduleWithdrawal, cancelScheduledWithdrawal } = useWithdrawals();
 
   const { dueMs, isHeld, amount } = scheduledFor(row.releaseMs, plan, events);
-  const isScheduled = reminder?.releaseMs === row.releaseMs;
+  const isScheduled = reminder != null && sameReleaseMinute(reminder.releaseMs, row.releaseMs);
   const notes = amount && amountNotes(amount);
   const every = `${withdrawalIntervalDays} day${withdrawalIntervalDays === 1 ? '' : 's'}`;
 

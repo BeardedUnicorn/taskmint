@@ -14,12 +14,27 @@
  * A release before the next withdrawal opens is held: it can't be taken out
  * until the opening. A withdrawal scheduled for a release is due at the
  * release, or at the opening when the release is held (planReminder).
+ *
+ * Payouts shows releases to the minute, one row for all in the same minute.
+ * So a scheduled withdrawal, and each "If you wait" row, counts its whole
+ * minute (endOfReleaseMinute), not only what's released by its first second.
  */
 
 import { ScheduledWithdrawal, Withdrawal } from '../types/withdrawal';
 import { ReleaseEvent, isPaid, isUntransferred } from './payoutCalculator';
 
 export const DAY_MS = 86_400_000;
+const MINUTE_MS = 60_000;
+
+/** The last millisecond of the minute `ms` is in: by then, everything Payouts shows at that minute is released. */
+export function endOfReleaseMinute(ms: number): number {
+  return Math.floor(ms / MINUTE_MS) * MINUTE_MS + MINUTE_MS - 1;
+}
+
+/** Whether two release times are in the same minute (the same Payouts row). */
+export function sameReleaseMinute(a: number, b: number): boolean {
+  return Math.floor(a / MINUTE_MS) === Math.floor(b / MINUTE_MS);
+}
 
 /** How far past the opening "If you wait" looks. */
 const WAIT_WINDOW_MS = 7 * DAY_MS;
@@ -174,7 +189,7 @@ export function withdrawalTooClose(
 }
 
 export interface WaitStep {
-  /** A release time after the opening. */
+  /** The end of a minute with a release, after the opening. */
   atMs: number;
   /** What waiting until then adds. */
   addedCents: number;
@@ -220,7 +235,7 @@ export function planWithdrawals(
     ...new Set(
       events
         .filter(event => event.releaseMs > opensAtMs && event.releaseMs <= opensAtMs + WAIT_WINDOW_MS)
-        .map(event => event.releaseMs)
+        .map(event => endOfReleaseMinute(event.releaseMs))
     ),
   ];
   let previous = next;
@@ -257,7 +272,7 @@ export function heldUntilMs(plan: WithdrawalPlan | null): number | null {
 export interface ScheduledFor {
   /** The release it waits for. */
   releaseMs: number;
-  /** When it's ready: the release, or the opening when the release is held. */
+  /** When it's ready: the end of the release's minute, or the opening when the release is held. */
   dueMs: number;
   /** The release lands before withdrawals open, so it waits for the opening. */
   isHeld: boolean;
@@ -268,8 +283,10 @@ export interface ScheduledFor {
 /** A withdrawal scheduled for the release at `releaseMs`, against the plan. */
 export function scheduledFor(releaseMs: number, plan: WithdrawalPlan | null, events: ReleaseEvent[]): ScheduledFor {
   if (plan === null) return { releaseMs, dueMs: releaseMs, isHeld: false, amount: null };
-  const isHeld = releaseMs < plan.allowedAtMs;
-  const dueMs = isHeld ? plan.allowedAtMs : releaseMs;
+  // The release's row in Payouts is its whole minute: ready once all of it is released
+  const releasedMs = endOfReleaseMinute(releaseMs);
+  const isHeld = releasedMs < plan.allowedAtMs;
+  const dueMs = isHeld ? plan.allowedAtMs : releasedMs;
   return { releaseMs, dueMs, isHeld, amount: withdrawableAt(events, takenAtMs(plan.last), dueMs) };
 }
 
