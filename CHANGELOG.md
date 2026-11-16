@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.13.1 – 2026-11-16
+
+### Fixed
+
+- A scheduled withdrawal's reminder counts every release in its row of Upcoming releases. When two releases landed in the same minute, the reminder left out the later one and showed less than the row. "If you wait" lists such a minute once, with its full amount.
+
 ## 4.13.0 – 2026-11-15
 
 ### Changed
