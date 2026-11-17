@@ -108,6 +108,26 @@ describe('FieldEditor', () => {
     expect(latest().validation).toBeUndefined();
   });
 
+  it("says so at the field when its pattern isn't a regular expression, settings open or closed", () => {
+    renderEditor();
+    expand();
+    expect(screen.getByText('Optional regular expression for validation')).toBeInTheDocument();
+
+    type('Pattern (Regex)', '[A-Z');
+    expect(screen.getByLabelText('Pattern (Regex)')).toBeInvalid();
+    expect(screen.getByText('Pattern isn’t a valid regular expression')).toBeInTheDocument();
+    expect(screen.queryByText('Optional regular expression for validation')).not.toBeInTheDocument();
+
+    // Closed, the field still says what's wrong with it
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Pattern isn’t a valid regular expression');
+
+    expand();
+    type('Pattern (Regex)', '[A-Z]');
+    expect(screen.getByLabelText('Pattern (Regex)')).toBeValid();
+    expect(screen.queryByText('Pattern isn’t a valid regular expression')).not.toBeInTheDocument();
+  });
+
   it('keeps number limits as decimals', async () => {
     const { latest } = renderEditor();
     expand();

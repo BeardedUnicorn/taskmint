@@ -34,6 +34,7 @@ import { ConfirmDialog } from '../../ui';
 import { errorMessage } from '../../../utils/errors';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { PHONE } from '../../../theme/media';
+import { fieldSettingsError } from '../../../utils/noteFields';
 
 export function NoteTemplateBuilder({
   templates,
@@ -78,7 +79,9 @@ export function NoteTemplateBuilder({
     [onSelectTemplate]
   );
 
-  // (Save is disabled until the template has a name)
+  // (Save is disabled until the template has a name, and while a field says
+  // what's wrong with its settings: notes on it couldn't be checked)
+  const canSave = templateName.trim() !== '' && !templateFields.some(fieldSettingsError);
   const handleSaveTemplate = useCallback(async () => {
     try {
       const templateData = {
@@ -287,7 +290,7 @@ export function NoteTemplateBuilder({
                   placeholder="Optional description for this template"
                 />
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button variant="contained" onClick={handleSaveTemplate} disabled={!templateName.trim()}>
+                  <Button variant="contained" onClick={handleSaveTemplate} disabled={!canSave}>
                     {selectedTemplate ? 'Update Template' : 'Create Template'}
                   </Button>
                   {isEditing && (

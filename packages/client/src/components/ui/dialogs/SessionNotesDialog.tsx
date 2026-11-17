@@ -37,6 +37,9 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
   const { getTemplateById } = useNoteTemplates();
   // The note open in the editor: a new one, an existing one, or none
   const [editing, setEditing] = useState<TaskNote | 'new' | null>(null);
+  // Each new note gets an editor of its own: the one before may hold a note
+  // it has saved by itself, which this dialog doesn't know about
+  const [newNoteCount, setNewNoteCount] = useState(0);
   const [editorCollapsed, setEditorCollapsed] = useState(false);
 
   const sessionNotes = useMemo(() => notes.filter(note => note.sessionId === session.id), [notes, session]);
@@ -56,6 +59,7 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
   const openEditor = (note: TaskNote | 'new') => {
     setEditorCollapsed(false);
     setEditing(note);
+    if (note === 'new') setNewNoteCount(count => count + 1);
   };
 
   const handleClose = () => {
@@ -94,7 +98,7 @@ export function SessionNotesDialog({ onClose, session, timerInstanceId, tasks }:
         {editing && (
           <Box sx={{ mb: 3 }}>
             <NoteEditor
-              key={editing === 'new' ? 'new' : editing.id}
+              key={editing === 'new' ? `new-${newNoteCount}` : editing.id}
               taskId={noteTaskId}
               template={editorTemplate}
               existingNote={editing === 'new' ? null : editing}

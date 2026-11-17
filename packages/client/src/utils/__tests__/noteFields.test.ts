@@ -3,6 +3,7 @@ import {
   coerceNumber,
   coerceNumbers,
   emptyValues,
+  fieldSettingsError,
   isEmptyDraft,
   orderedFields,
   validateFieldValues,
@@ -98,6 +99,14 @@ describe('validateFieldValues', () => {
     const short = [field({ id: 's', type: 'text', label: 'Summary', validation: { min: 5 } })];
     expect(validateFieldValues(short, { s: 'abc' })).toEqual({ s: 'Summary must be at least 5 characters' });
     expect(validateFieldValues(short, { s: 12345 })).toEqual({ s: 'Summary must be text' });
+  });
+
+  it("accepts any text where a stored pattern isn't a regular expression, rather than throwing", () => {
+    const broken = [field({ id: 't', type: 'text', label: 'Code', validation: { pattern: '[A-Z' } })];
+    expect(validateFieldValues(broken, { t: 'anything' })).toEqual({});
+    expect(fieldSettingsError(broken[0])).toBe('Pattern isn’t a valid regular expression');
+    expect(fieldSettingsError(field({ id: 't', type: 'text', validation: { pattern: '^[A-Z]+$' } }))).toBeNull();
+    expect(fieldSettingsError(field({ id: 't', type: 'text' }))).toBeNull();
   });
 
   it('checks dates, checkboxes and select options', () => {
