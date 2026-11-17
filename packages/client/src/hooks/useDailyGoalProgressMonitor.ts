@@ -3,7 +3,7 @@
  *
  * Today's earnings against the daily goal, live: computed from the sessions
  * (including a running timer) with the shared earnings rules, ticking while a
- * timer runs. Sends the 50% / 75% / 100% / exceeded notifications as they're
+ * timer runs (and once a minute otherwise, so the day turns over). Sends the 50% / 75% / 100% / exceeded notifications as they're
  * crossed (reminders: they reach the OS even while TaskMint is in front), and
  * saves today's target so the day keeps it if the goal changes later. Used
  * once, in DailyGoalProgressProvider, which shares the progress it returns.
@@ -26,6 +26,8 @@ import { goalAlarmAnnounced } from '../utils/goalAlarms';
 
 /** How often today's total refreshes while a timer runs. */
 const LIVE_TICK_MS = 10_000;
+/** How often the day is checked with none running, so it turns over soon after midnight. */
+const IDLE_TICK_MS = 60_000;
 
 export interface UseDailyGoalProgressMonitorProps {
   sessions: TaskSession[];
@@ -103,8 +105,9 @@ export function useDailyGoalProgressMonitor({
   const { notify } = useNotification();
 
   // Today's total only moves while a timer runs; otherwise it changes with
-  // the sessions themselves (stops, edits, Add time, imports).
-  const nowMs = useNowMs(hasRunningTimer(sessions), LIVE_TICK_MS, sessions);
+  // the sessions themselves (stops, edits, Add time, imports) and with the
+  // day: left open overnight, today becomes yesterday with nothing changing.
+  const nowMs = useNowMs(true, hasRunningTimer(sessions) ? LIVE_TICK_MS : IDLE_TICK_MS, sessions);
 
   const today = formatDateString(new Date(nowMs));
 

@@ -172,6 +172,54 @@ describe('useDailyGoalProgressMonitor', () => {
     expect(readAppRecord(STORAGE_KEYS.DAILY_GOAL)).toMatchObject({ targetAmount: 100, lastNotifiedPercent: 75 });
   });
 
+  it('moves to the new day on its own, with no timer running', async () => {
+    // Left open overnight: an hour's work that ended at 23:00
+    vi.useFakeTimers();
+    const evening = new Date();
+    evening.setHours(23, 30, 0, 0);
+    vi.setSystemTime(evening);
+    const yesterday = formatDateString(evening);
+    storeGoal(100, yesterday);
+    const start = new Date(evening.getTime() - 1.5 * HOUR);
+    const sessions: TaskSession[] = [
+      {
+        ...runningFor(0)[0],
+        timerInstances: [
+          {
+            id: 'i-1',
+            sessionId: 's-1',
+            startTime: start.toISOString(),
+            endTime: new Date(start.getTime() + HOUR).toISOString(),
+            duration: HOUR,
+            pausedDuration: 0,
+            state: TimerState.stopped,
+            createdAt: start.toISOString(),
+            updatedAt: start.toISOString(),
+          },
+        ],
+        totalDuration: HOUR,
+        isActive: false,
+        date: yesterday,
+      },
+    ];
+    const { result } = renderHook(
+      () => ({ progress: useDailyGoalProgressMonitor({ sessions, tasks }), goals: useDailyGoals() }),
+      { wrapper }
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(result.current.progress.earned).toBeCloseTo(60, 1);
+
+    // Past midnight, nothing else changing
+    await act(() => vi.advanceTimersByTimeAsync(HOUR));
+
+    const today = formatDateString(new Date());
+    expect(today).not.toBe(yesterday);
+    expect(result.current.progress.earned).toBe(0);
+    expect(result.current.progress.percent).toBe(0);
+    // (and the day's milestones start over)
+    expect(result.current.goals.currentGoal?.lastNotificationDate).toBe(today);
+  });
+
   it('reports nothing when no goal is set', () => {
     const { result } = renderHook(() => useDailyGoalProgressMonitor({ sessions: runningFor(1), tasks }), { wrapper });
     expect(result.current.enabled).toBe(false);

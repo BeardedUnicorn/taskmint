@@ -120,6 +120,16 @@ describe('HomePage', () => {
     expect(screen.queryByRole('heading', { name: 'Home', level: 1 })).not.toBeInTheDocument();
   });
 
+  it('is headed by the day its figures are for, which moves on with no timer running', () => {
+    const { unmount } = renderHome();
+    expect(screen.getByText('Wednesday, November 11, 2026')).toBeInTheDocument();
+    unmount();
+
+    // Left open overnight: the payout data's day turns over once a minute
+    renderHome({ nowMs: NOW + 86_400_000 });
+    expect(screen.getByText('Thursday, November 12, 2026')).toBeInTheDocument();
+  });
+
   it('asks for a task first when there is nothing to start', () => {
     mockTasks.tasks = [];
     renderHome();
