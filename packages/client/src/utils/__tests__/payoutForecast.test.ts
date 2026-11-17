@@ -186,7 +186,7 @@ describe('buildPayoutForecast', () => {
     expect(forecastAt(forecast, W + 30 * DAY_MS).totalCents).toBe(4900);
   });
 
-  it('measures open timers as of their last change, not now, and says how they go on', () => {
+  it('measures running timers as of their last change, not now, and says how they go on', () => {
     // Running since 9:00, last changed at 9:30; paused yesterday at 15:00 on another task
     const start = new Date(2026, 10, 9, 9, 0).getTime();
     const running = createMockTimerInstance({
@@ -194,6 +194,14 @@ describe('buildPayoutForecast', () => {
       isRunning: true,
       startTime: iso(start),
       updatedAt: iso(start + HOUR / 2),
+    });
+    // Another, on another task, running since 9:15 at $40/h
+    const second = createMockTimerInstance({
+      id: 'run-2',
+      isRunning: true,
+      startTime: iso(start + HOUR / 4),
+      updatedAt: iso(start + HOUR / 4),
+      task: { taskId: 'task-0', taskName: 'First', hourlyRate: 40 },
     });
     const pausedStart = new Date(2026, 10, 8, 14, 0).getTime();
     const paused = createMockTimerInstance({
@@ -212,7 +220,7 @@ describe('buildPayoutForecast', () => {
       duration: HOUR,
       updatedAt: iso(doneStart + HOUR),
     });
-    const sessions = [createMockTaskSession({ timerInstances: [running, paused, stopped] })];
+    const sessions = [createMockTaskSession({ timerInstances: [running, second, paused, stopped] })];
     const sinceMs = start + HOUR / 2;
 
     const build = () => payoutForecastJson(buildPayoutForecast(inputs({ sessions }), ZONE));
@@ -225,17 +233,20 @@ describe('buildPayoutForecast', () => {
 
     const forecast = JSON.parse(first) as PayoutForecast;
     expect(forecast.asOfMs).toBe(sinceMs);
-    // Open timers last changed at sinceMs: their days go out 7 days after it, until they stop
-    const open = (day: number, estimatedCents: number, centsPerHour: number) => ({
-      atMs: releaseOf(sinceMs),
+    const step = (atMs: number, day: number, estimatedCents: number) => ({
+      atMs,
       day: formatDateString(new Date(day)),
       actualCents: 0,
       estimatedCents,
       pastDueCents: 0,
-      open: { sinceMs, centsPerHour },
     });
-    // Ordered by task and day: the running one (task-1), then the paused one (task-2)
-    expect(forecast.steps).toEqual([open(start, 3000, 6000), open(pausedStart, 4000, 0)]);
+    expect(forecast.steps).toEqual([
+      // The paused one's money stands still, so its release does: 7 days after the pause, an ordinary step
+      step(releaseOf(pausedStart + HOUR), pausedStart, 4000),
+      // The running ones last changed at sinceMs: their days go out 7 days after it, until they stop; by task
+      { ...step(releaseOf(sinceMs), start, 1000), open: { sinceMs, centsPerHour: 4000 } },
+      { ...step(releaseOf(sinceMs), start, 3000), open: { sinceMs, centsPerHour: 6000 } },
+    ]);
     // The stopped timer's day was released before the data was written: carried
     expect(forecast.carried).toEqual({ actualCents: 0, estimatedCents: 6000, pastDueCents: 0 });
     expect(forecast.carriedDays).toEqual([
@@ -244,7 +255,7 @@ describe('buildPayoutForecast', () => {
     expect(forecast.recentDays).toEqual([
       { day: formatDateString(new Date(doneStart)), actualCents: 0, estimatedCents: 6000 },
       { day: formatDateString(new Date(pausedStart)), actualCents: 0, estimatedCents: 4000 },
-      { day: formatDateString(new Date(start)), actualCents: 0, estimatedCents: 3000 },
+      { day: formatDateString(new Date(start)), actualCents: 0, estimatedCents: 4000 },
     ]);
   });
 

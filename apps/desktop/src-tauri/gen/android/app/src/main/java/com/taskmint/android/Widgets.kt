@@ -194,8 +194,8 @@ object Widgets {
   const val MONEY = "com.taskmint.android.WIDGET_MONEY"
 
   /**
-   * Redraws every widget at the next local midnight or when the next
-   * withdrawal opens, whichever comes first, and today's money each time a
+   * Redraws every widget at the next local midnight, when the next
+   * withdrawal opens or at the next release, whichever comes first, and today's money each time a
    * running timer earns another dollar; nothing once no widget is left and
    * the running timer's notification isn't up.
    */
@@ -226,7 +226,8 @@ object Widgets {
     val opens = snapshot?.optJSONObject("payouts")?.time("opensAtMs")?.takeIf { it > now }
     // A window, not exact: the phone needn't wake for it, and the opening
     // still shows within minutes of its time
-    alarms.setWindow(AlarmManager.RTC, minOf(midnight, opens ?: midnight), REFRESH_WINDOW_MS, refresh)
+    val release = snapshot?.let { PayoutsViews.nextChangeAt(it, now) }
+    alarms.setWindow(AlarmManager.RTC, minOf(midnight, opens ?: midnight, release ?: midnight), REFRESH_WINDOW_MS, refresh)
   }
 
   // ----- Today's money, kept up while a timer runs -----
@@ -248,11 +249,13 @@ object Widgets {
     return earning.getDouble("baseCents") + earning.getDouble("perHourCents") * ran / HOUR_MS
   }
 
-  /** "~$1,235": whole dollars, as the page writes an estimate (widgetText.ts). */
-  private fun estimate(cents: Double): String {
+  /** "$1,235", "~$1,235" for an estimate: whole dollars, as the page writes money (widgetText.ts). */
+  fun money(cents: Double, estimated: Boolean): String {
     val dollars = NumberFormat.getCurrencyInstance(Locale.US).apply { maximumFractionDigits = 0 }
-    return "~" + dollars.format(Math.round(cents / 100))
+    return (if (estimated) "~" else "") + dollars.format(Math.round(cents / 100))
   }
+
+  private fun estimate(cents: Double): String = money(cents, true)
 
   /**
    * Today's money as it is at `now`: worked out from the running timer's
@@ -456,8 +459,8 @@ abstract class TaskMintWidget : AppWidgetProvider() {
 }
 
 /**
- * Redraws the widgets at midnight, when the next withdrawal opens, and when
- * the phone's clock or zone changes; and today's money alone as a running
+ * Redraws the widgets at midnight, when the next withdrawal opens, at each
+ * release, and when the phone's clock or zone changes; and today's money alone as a running
  * timer earns another dollar (Widgets.MONEY).
  */
 class WidgetRefresh : BroadcastReceiver() {

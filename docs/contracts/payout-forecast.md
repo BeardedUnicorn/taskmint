@@ -63,11 +63,11 @@ All times are epoch milliseconds, all money integer cents.
 
 ### Open steps
 
-A step with `open: {sinceMs, centsPerHour}` is a day whose timer hasn't
-stopped: its money is as of `sinceMs`. At `now`:
+A step with `open: {sinceMs, centsPerHour}` is a day with a running timer:
+its money is as of `sinceMs`. At `now`:
 
 - it has earned `estimatedCents + centsPerHour × (now − sinceMs) / 3_600_000`
-  (rounded to cents; `centsPerHour` is 0 for a paused timer);
+  (rounded to cents);
 - it's released `fundsReleaseDays` calendar days (in `zone`) after the
   timer stops: assuming it stops now, at `max(atMs, now + fundsReleaseDays)`.
 

@@ -9,8 +9,9 @@
  * time, so the same figures are the same bytes (and hash) and aren't written
  * twice. While a timer runs the text changes about once a minute (money and
  * time grow), which the phone doesn't need: its clock counts the timer from
- * where the snapshot says. So a running timer's figures go out when the timer
- * or the day changes, and otherwise at most every `PUBLISH_EVERY_MS`.
+ * where the snapshot says. So a running timer's figures go out when the timer,
+ * the day or the next withdrawal changes, and otherwise at most every
+ * `PUBLISH_EVERY_MS`.
  */
 
 import type { WidgetSnapshot } from '../backend/types';
@@ -45,8 +46,15 @@ export interface PublishedMark {
   atMs: number;
 }
 
-/** The day and the live timer: a change in either is published at once. */
-const timerKey = (snapshot: Snapshot) => JSON.stringify([snapshot.day, snapshot.timer]);
+/**
+ * The day, the live timer and the next withdrawal (how much, when it opens):
+ * a change in any is published at once. A withdrawal recorded while a timer
+ * runs changes the last, and a phone shouldn't show the old one for long.
+ */
+const timerKey = (snapshot: Snapshot) => {
+  const { payouts } = snapshot;
+  return JSON.stringify([snapshot.day, snapshot.timer, payouts && [payouts.label, payouts.amount, payouts.status]]);
+};
 
 /**
  * The mark to publish `snapshot` under now, or null when it can wait: the

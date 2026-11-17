@@ -228,6 +228,24 @@ describe('buildPayoutCells', () => {
       NOW_MS
     );
     expect(live.releaseIso).toBe(new Date(NOW_MS + 7 * 86_400_000).toISOString());
+
+    // Paused, its money stands still, so its release does too: a week after the pause, whatever the time now
+    const pausedAt = new Date(2026, 7, 31, 13, 30).toISOString();
+    const paused = { ...running, state: TimerState.paused, isRunning: false, isPaused: true, pausedAt };
+    const pausedCell = (nowMs: number, instance: typeof running = paused) =>
+      buildPayoutCells(
+        [],
+        [makeSession({ date: dayStr(2026, 8, 31), timerInstances: [instance] })],
+        [makeTask()],
+        7,
+        nowMs
+      )[0];
+    expect(pausedCell(NOW_MS).releaseIso).toBe(new Date(2026, 8, 7, 13, 30).toISOString());
+    expect(pausedCell(NOW_MS + 3_600_000).releaseIso).toBe(pausedCell(NOW_MS).releaseIso);
+    // One that never said when it was paused, or said it oddly, counts from now
+    for (const odd of [null, 'garbled']) {
+      expect(pausedCell(NOW_MS, { ...paused, pausedAt: odd }).releaseIso).toBe(live.releaseIso);
+    }
   });
 
   it('releases a day without timers, or with an odd report time, on its work day plus the release days', () => {

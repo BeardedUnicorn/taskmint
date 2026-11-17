@@ -99,6 +99,28 @@ describe('RecordWithdrawalDialog', () => {
     ).toBeInTheDocument();
   });
 
+  it('expects what the saved time takes: to the minute, so a release later in it waits for the next one', () => {
+    seedAppRecords({ withdrawals: [LAST] });
+    const now = new Date(2026, 10, 10, 12, 0, 45);
+    const at = (second: number) => new Date(2026, 10, 10, 12, 0, second).getTime();
+    open(
+      {},
+      {
+        nowMs: now.getTime(),
+        events: [
+          createMockReleaseEvent({ releaseMs: at(0), actualCents: 10000 }),
+          createMockReleaseEvent({ releaseMs: at(30), actualCents: 2500 }),
+        ],
+      }
+    );
+    expect(amount()).toHaveValue('100.00');
+    save();
+    expect(readAppRecord('withdrawals')).toEqual([
+      LAST,
+      expect.objectContaining({ takenAt: new Date(at(0)).toISOString(), amountCents: 10000 }),
+    ]);
+  });
+
   it('warns about a withdrawal too soon after another, but still records it', () => {
     seedAppRecords({ withdrawals: [LAST] });
     open({}, { withdrawalIntervalDays: 3 });

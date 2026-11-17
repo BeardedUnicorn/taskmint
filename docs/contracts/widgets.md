@@ -45,10 +45,31 @@ copy differs. While a timer runs the money and time grow every minute, which
 a reader doesn't need: it counts today's time from `today.countingFromMs`
 and works today's money out from `today.earning` (`baseCents + perHourCents
 × (now − fromMs) / an hour`, the running timer's rate from where its time
-counts). So then it's written when the timer or the day changes and
-otherwise at most every 15 minutes. `timer` names the task and says whether
+counts). So then it's written when the timer, the day or the next withdrawal
+(`payouts.label`, `amount`, `status`) changes and otherwise at most every 15
+minutes. `timer` names the task and says whether
 it runs (`countingFromMs`) or waits paused; how long the one timer has run
 isn't shown anywhere.
+
+## What moves with the clock
+
+The text is as of the writing, and a phone shows it for hours. `payouts`
+says how its figures move meanwhile, for the reader to follow on its own
+clock. Each time is the end of a release's minute; an estimate's cents are
+whole dollars.
+
+- `payouts.releases[].parts`: `[{atMs, cents, estimated}]`, the day's
+  releases. A part is gone once `now >= atMs`, and the day with its last;
+  what's left of a day is its parts' sum. Until a withdrawal is recorded
+  (`hint` is set) the first day left is the big figure.
+- `payouts.growth`: `{cents, estimated, steps: [{atMs, cents, estimated}]}`,
+  `null` with no withdrawal recorded. `cents` is `amount`; the next
+  withdrawal takes each step too once `now >= atMs` (all are after it opens),
+  up to twelve of them.
+- `payouts.opensAtMs`: "Ready to withdraw" from then.
+
+A snapshot without `parts` or `growth` (an older TaskMint's) is shown as
+written.
 
 ## Who's told
 

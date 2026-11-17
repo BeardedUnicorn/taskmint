@@ -236,8 +236,25 @@ export interface WidgetPayouts {
   nextRelease: string | null;
   /** What to do for more, when there's no withdrawal to plan from. */
   hint: string | null;
-  /** The next few release days, soonest first: a tall widget lists them. */
-  releases: { day: string; amount: string }[];
+  /**
+   * The next few release days, soonest first: a tall widget lists them. The
+   * phone drops each of a day's `parts` as its time passes (and the day with
+   * its last), adding up what's left.
+   */
+  releases: { day: string; amount: string; parts: WidgetMoneyStep[] }[];
+  /**
+   * How the next withdrawal grows after it opens (null with no withdrawal to
+   * plan from): `amount` in cents, and each later release it would take. The
+   * phone adds the steps whose time has passed.
+   */
+  growth: { cents: number; estimated: boolean; steps: WidgetMoneyStep[] } | null;
+}
+
+/** Money released at a time: the end of its release minute (as Payouts rows are). An estimate is in whole dollars. */
+export interface WidgetMoneyStep {
+  atMs: number;
+  cents: number;
+  estimated: boolean;
 }
 
 /** A day's badge in the Calendar: money released (or still to be), a withdrawal, the next withdrawal's opening. */
