@@ -72,6 +72,18 @@ describe('delivering to the app on this computer', () => {
     expect(badge(chrome).text).toBe('✓');
   });
 
+  it('keeps a capture showing as queued when it fails within a minute of one delivered', async () => {
+    await worker.handleCapture(PAYLOAD, SITE_TAB);
+    expect(chrome.alarms.armed.has(worker.BADGE_CLEAR_ALARM)).toBe(true);
+
+    unreachable();
+    expect(await worker.attemptDelivery({ payloadText: '{"other":1}', capturedAt: 'now' })).toBe(false);
+    // The tick's clear-up is called off: it would show idle while this one waits
+    expect(chrome.alarms.armed.has(worker.BADGE_CLEAR_ALARM)).toBe(false);
+    expect(chrome.alarms.armed.get(worker.RETRY_ALARM)).toEqual({ periodInMinutes: 1 });
+    expect(badge(chrome).text).toBe('!');
+  });
+
   it('counts an error reply as not delivered', async () => {
     reachable(500);
     expect(await worker.attemptDelivery({ payloadText: PAYLOAD, capturedAt: 'then' })).toBe(false);
