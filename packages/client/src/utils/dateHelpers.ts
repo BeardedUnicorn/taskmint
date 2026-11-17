@@ -58,18 +58,19 @@ export function formatLocalDateWithDay(date: Date | string): string {
 }
 
 /**
- * Format a date for display with relative time logic (Today, Yesterday, etc.)
+ * Format a date for display with relative time logic (Today, Yesterday, etc.),
+ * by local calendar days: 22:00 last night is yesterday at 08:00, though it
+ * was under 24 hours ago.
  */
 export function formatRelativeDate(date: Date | string): string {
   const dateObj = dayjs(date).local();
-  const now = dayjs().local();
-  const diffDays = now.diff(dateObj, 'day');
+  const diffDays = dayjs().local().startOf('day').diff(dateObj.startOf('day'), 'day');
 
   if (diffDays === 0) {
     return `Today at ${dateObj.format('h:mm A')}`;
   } else if (diffDays === 1) {
     return `Yesterday at ${dateObj.format('h:mm A')}`;
-  } else if (diffDays < 7) {
+  } else if (diffDays > 1 && diffDays < 7) {
     return `${diffDays} days ago`;
   } else {
     return dateObj.format('MMM D, YYYY');

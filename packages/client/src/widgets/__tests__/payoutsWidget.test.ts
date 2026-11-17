@@ -86,6 +86,56 @@ describe('payoutsWidget', () => {
     });
   });
 
+  it("keeps the phone's sums in step with the app where estimates aren't whole dollars", () => {
+    const at = (hour: number) => new Date(2026, 10, 14, hour).getTime();
+    const estimates = (cents: number) =>
+      [12, 13, 14].map(hour => ({ ...row('2026-11-14', 0, cents), releaseMs: at(hour) }));
+    /** What the phone shows of the day once `gone` of its parts have been released: the rest, added up. */
+    const left = (cents: number, gone: number) =>
+      payoutsWidget({ plan: null, schedule: estimates(cents), events: [] })!
+        .releases[0].parts.slice(gone)
+        .reduce((sum, part) => sum + part.cents, 0);
+
+    // Three estimates of $2.40: $7.20 in all, $4.80 after one, $2.40 after two
+    expect([left(240, 0), left(240, 1), left(240, 2)]).toEqual([700, 500, 200]);
+    // Parts under 50¢ still add up: $1.20, 80¢, 40¢
+    expect([left(40, 0), left(40, 1), left(40, 2)]).toEqual([100, 100, 0]);
+
+    // The withdrawal: $1,102.40 at its opening, and $2.40 more with each release after
+    const plan = createMockPlan({ next: createMockAmount({ actualCents: 110_000, estimatedCents: 240 }) });
+    const events = [1, 2, 3].map(hours =>
+      createMockReleaseEvent({
+        releaseMs: plan.opensAtMs + hours * 3_600_000,
+        actualCents: 0,
+        estimatedCents: 240,
+        status: undefined,
+      })
+    );
+    const growth = payoutsWidget({ plan, schedule: [], events })!.growth!;
+    const taken = (passed: number) =>
+      growth.steps.slice(0, passed).reduce((sum, step) => sum + step.cents, growth.cents);
+    expect([taken(0), taken(1), taken(2), taken(3)]).toEqual([110_200, 110_500, 110_700, 111_000]);
+  });
+
+  it('keeps exact cents where nothing is an estimate, and whole dollars for actual money beside one', () => {
+    const at = (hour: number) => new Date(2026, 10, 14, hour).getTime();
+    const actual = [
+      { ...row('2026-11-14', 1_050), releaseMs: at(12) },
+      { ...row('2026-11-14', 2_075), releaseMs: at(13) },
+    ];
+    expect(
+      payoutsWidget({ plan: null, schedule: actual, events: [] })!.releases[0].parts.map(part => part.cents)
+    ).toEqual([1_050, 2_075]);
+
+    // With an estimate later that day: $31.65 in all, $21.15 once the first is released
+    const mixed = [...actual, { ...row('2026-11-14', 0, 40), releaseMs: at(14) }];
+    expect(payoutsWidget({ plan: null, schedule: mixed, events: [] })!.releases[0].parts).toEqual([
+      { atMs: at(12) + 59_999, cents: 1_100, estimated: false },
+      { atMs: at(13) + 59_999, cents: 2_100, estimated: false },
+      { atMs: at(14) + 59_999, cents: 0, estimated: true },
+    ]);
+  });
+
   it('follows no more than a dozen releases', () => {
     const plan = createMockPlan();
     const events = Array.from({ length: 20 }, (_, index) =>

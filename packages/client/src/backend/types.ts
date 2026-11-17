@@ -250,7 +250,12 @@ export interface WidgetPayouts {
   growth: { cents: number; estimated: boolean; steps: WidgetMoneyStep[] } | null;
 }
 
-/** Money released at a time: the end of its release minute (as Payouts rows are). An estimate is in whole dollars. */
+/**
+ * Money released at a time: the end of its release minute (as Payouts rows
+ * are). Its cents are what the phone adds to its running total (what's left
+ * of a day, what a withdrawal has grown to), which is in whole dollars
+ * wherever an estimate is among the amounts (widgets/payoutsWidget).
+ */
 export interface WidgetMoneyStep {
   atMs: number;
   cents: number;
