@@ -27,6 +27,12 @@ import org.json.JSONObject
  * while the activity is resumed: at once, or as soon as it next is. The APK
  * stays in the cache, and asking for that version again opens the installer
  * on it with no download.
+ *
+ * How long it carries on in the background is Android's call. Android 17
+ * takes a backgrounded app off the network some six seconds after it leaves
+ * the screen (seen on the emulator; there's no foreground service here to
+ * hold it), and the download then fails with the system's reason, which the
+ * page shows when the user is back.
  */
 object AppUpdate {
   /** The release's APK, as scripts/release/lib.mjs names it (and apk_update.rs links it). */
