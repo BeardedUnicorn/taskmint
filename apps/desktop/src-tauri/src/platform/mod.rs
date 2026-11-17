@@ -178,8 +178,9 @@ pub trait Platform: Send + Sync {
         &self,
         progress: &mut (dyn FnMut(DownloadEvent) + Send),
     ) -> Result<(), String>;
-    /// A phone's way to update: opens the APK of the release check_update
-    /// found in the browser, for the user to install (apk_update). A
-    /// desktop installs instead.
+    /// A phone's other way to update, when the app's own download
+    /// (AppUpdate.kt) can't be used or failed: opens the APK of the release
+    /// check_update found in the browser, for the user to install
+    /// (apk_update). A desktop installs instead.
     fn download_update(&self) -> Result<(), String>;
 }

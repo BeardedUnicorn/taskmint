@@ -247,7 +247,11 @@ interface AndroidAppTask {
   installsBlocked(): boolean;
   /** The phone's Security settings, where Advanced Protection is turned off. */
   openSecuritySettings(): void;
-  /** Downloads a release and opens Android's installer on it; `window.__taskmintUpdate` hears how far it is. */
+  /**
+   * Downloads a release (or joins the download of it that's under way) and
+   * opens Android's installer on it; `window.__taskmintUpdate` hears how far
+   * it is.
+   */
   downloadUpdate(version: string): void;
   /** The launcher's shortcuts, as JSON (AppShortcut[]). */
   setShortcuts(json: string): void;
@@ -277,7 +281,10 @@ export function openSecuritySettings(): void {
   (window as { TaskMintApp?: AndroidAppTask }).TaskMintApp?.openSecuritySettings();
 }
 
-/** What AppUpdate.kt reports of a download: how far it is, that the installer is open, or why it isn't. */
+/**
+ * What AppUpdate.kt reports of a download: how far it is, that the installer
+ * is open (it waits for TaskMint to be in front), or why it isn't.
+ */
 type UpdateReport = { downloaded: number; total: number | null } | { done: true } | { error: string };
 
 declare global {
