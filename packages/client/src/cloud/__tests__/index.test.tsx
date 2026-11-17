@@ -1,8 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { cloudErrorMessage } from '../errors';
-import { getCloudSync, setCloudSyncForTest, startCloudSync, syncsThisDevice, useCloudSync } from '..';
-import { asBackend, bea, createFakeBackend, createFakeCloudStore, installFakeBackendForTest } from '../../testing';
+import {
+  getCloudSync,
+  saveToCloud,
+  setCloudSyncForTest,
+  startCloudSync,
+  SyncEngine,
+  syncsThisDevice,
+  useCloudSync,
+} from '..';
+import {
+  asBackend,
+  bea,
+  createFakeBackend,
+  createFakeCloudStore,
+  fakeBackend,
+  installFakeBackendForTest,
+  seedAppRecords,
+} from '../../testing';
+import { STORAGE_KEYS } from '../../constants';
+import { writeAppRecord } from '../../services/appRecords';
 import type { CloudConfig } from '../types';
 import { syncHost } from './syncHost';
 
@@ -91,6 +109,40 @@ describe('the page’s cloud sync', () => {
     const engine = startCloudSync(asBackend(createFakeBackend()), CONFIG);
     await vi.waitFor(() => expect(engine.getView().phase).toBe('signedOut'));
     expect(firebase.createFirebaseStore).toHaveBeenCalledWith(CONFIG);
+  });
+});
+
+describe('saving what the page has to the cloud', () => {
+  it('waits for record writes on their way, then for the cloud to have what sync sends, or says why not', async () => {
+    const store = createFakeCloudStore();
+    store.setEpoch('bea', 1);
+    store.setUser(bea());
+    const host = syncHost({ account: { uid: 'bea', epoch: 1 } });
+    const engine = new SyncEngine(asBackend(host.backend), async () => store);
+    setCloudSyncForTest(engine);
+    await engine.start();
+    // (Linked, and its first look for something to send done)
+    await vi.waitFor(() => expect(host.backend.call).toHaveBeenCalledWith('get_sync_outgoing'));
+    await new Promise(resolve => setTimeout(resolve, 10));
+    host.backend.call.mockClear();
+
+    // A record on its way to the backend, which sync then has to send
+    seedAppRecords({});
+    let land!: () => void;
+    fakeBackend().call.mockImplementationOnce(() => new Promise(resolve => (land = () => resolve(undefined))));
+    const written = writeAppRecord(STORAGE_KEYS.DAILY_GOAL, { targetAmount: 100 });
+    const saved = saveToCloud(engine);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(host.backend.call).not.toHaveBeenCalledWith('get_sync_outgoing');
+
+    host.state.outgoing = [{ docId: 'record~dailyGoal', kind: 'record', id: 'dailyGoal', json: '{}', hash: 'h1' }];
+    land();
+    await written;
+    await saved;
+    expect(store.writes.map(write => write.docs)).toEqual([host.state.outgoing]);
+
+    store.setUser(null);
+    await expect(saveToCloud(engine)).rejects.toThrow('Sync isn’t running right now.');
   });
 });
 
