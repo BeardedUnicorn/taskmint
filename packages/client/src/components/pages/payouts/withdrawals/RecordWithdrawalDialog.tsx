@@ -67,7 +67,8 @@ export function RecordWithdrawalDialog({ withdrawal, initialDay, onClose }: Reco
   const [amountError, setAmountError] = useState<string | null>(null);
   const [timeError, setTimeError] = useState<string | null>(null);
 
-  const takenAtMs = takenAt.valueOf();
+  // To the minute, as it's saved: the amount expected is what that cutoff takes
+  const takenAtMs = takenAt.second(0).millisecond(0).valueOf();
   // What a withdrawal then takes: what was released since the one before it
   const expected = useMemo(() => {
     const previous = withdrawalBefore(withdrawals, takenAtMs, withdrawal?.id);
@@ -83,7 +84,7 @@ export function RecordWithdrawalDialog({ withdrawal, initialDay, onClose }: Reco
 
   const handleSubmit = () => {
     const amountCents = parseAmountCents(shownAmount);
-    const time = takenAt.second(0).millisecond(0).toDate();
+    const time = new Date(takenAtMs);
     const future = time.getTime() > Date.now() + FUTURE_TOLERANCE_MS;
     setAmountError(amountCents === null ? 'Enter the amount you withdrew, like 712.50' : null);
     setTimeError(future ? "A withdrawal can't be in the future" : null);

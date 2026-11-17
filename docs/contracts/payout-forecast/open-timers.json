@@ -1,5 +1,5 @@
 {
-  "description": "A running timer (last changed 12:30, at $60/h) and a paused one: their steps are open, as of 12:30. At now (13:30) the running one has earned an hour more, and both are released 7 days after now.",
+  "description": "A running timer (last changed 12:30, at $60/h) and a paused one. The running one’s step is open, as of 12:30: at now (13:30) it has earned an hour more, and is released 7 days after now. The paused one’s is an ordinary step, 7 days after it was paused.",
   "nowMs": 1799933400000,
   "forecast": {
     "schema": 1,
@@ -67,6 +67,13 @@
         "pastDueCents": 0
       },
       {
+        "atMs": 1800457200000,
+        "day": "2027-01-13",
+        "actualCents": 0,
+        "estimatedCents": 3000,
+        "pastDueCents": 0
+      },
+      {
         "atMs": 1800534600000,
         "day": "2027-01-14",
         "actualCents": 0,
@@ -75,17 +82,6 @@
         "open": {
           "sinceMs": 1799929800000,
           "centsPerHour": 6000
-        }
-      },
-      {
-        "atMs": 1800534600000,
-        "day": "2027-01-13",
-        "actualCents": 0,
-        "estimatedCents": 3000,
-        "pastDueCents": 0,
-        "open": {
-          "sinceMs": 1799929800000,
-          "centsPerHour": 0
         }
       }
     ],
@@ -146,9 +142,9 @@
     {
       "atMs": 1800538140000,
       "actualCents": 8200,
-      "estimatedCents": 0,
+      "estimatedCents": 3000,
       "pastDueCents": 900,
-      "totalCents": 8200
+      "totalCents": 11200
     },
     {
       "atMs": 1800538200000,

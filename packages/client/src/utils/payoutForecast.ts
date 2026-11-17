@@ -56,9 +56,9 @@ export interface ForecastStep extends CurveAmount {
   /** The work day whose money it is (YYYY-MM-DD in the forecast's zone). */
   day: string;
   /**
-   * A timer on its day hasn't stopped: its money is as of `sinceMs`, and it's
-   * released the release days after the timer stops. A running one earns
-   * `centsPerHour` meanwhile (0 when paused).
+   * A timer on its day is running: its money is as of `sinceMs`, it earns
+   * `centsPerHour` meanwhile, and it's released the release days after the
+   * timer stops.
    */
   open?: { sinceMs: number; centsPerHour: number };
 }
@@ -123,17 +123,21 @@ const parsed = (iso: string): number => {
 
 const cellKey = (taskId: string, workDay: string) => `${taskId} ${workDay}`;
 
-/** The timers that haven't stopped, by (task, day), with what they earn an hour; and when they last changed. */
+/**
+ * The running timers, by (task, day), with what they earn an hour; and when
+ * the timers that haven't stopped last changed. A paused timer's day isn't
+ * open: its money and its release stand still from the pause (buildPayoutCells).
+ */
 function openTimers(sessions: TaskSession[], tasks: Task[]) {
   const open = new Map<string, number>();
   let sinceMs = 0;
   for (const session of sessions) {
     for (const instance of session.timerInstances) {
       if (instance.endTime) continue;
-      const key = cellKey(instanceTaskId(instance, session), getInstanceDateString(instance, session.date));
-      const rate = instance.state === TimerState.running ? Math.round(instanceRate(instance, session, tasks) * 100) : 0;
-      open.set(key, (open.get(key) ?? 0) + rate);
       sinceMs = Math.max(sinceMs, parsed(instance.updatedAt));
+      if (instance.state !== TimerState.running) continue;
+      const key = cellKey(instanceTaskId(instance, session), getInstanceDateString(instance, session.date));
+      open.set(key, (open.get(key) ?? 0) + Math.round(instanceRate(instance, session, tasks) * 100));
     }
   }
   return { open, sinceMs };

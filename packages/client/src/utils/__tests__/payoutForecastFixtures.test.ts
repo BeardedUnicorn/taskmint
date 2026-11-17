@@ -141,7 +141,7 @@ const SCENARIOS: Scenario[] = [
   {
     name: 'open-timers',
     description:
-      'A running timer (last changed 12:30, at $60/h) and a paused one: their steps are open, as of 12:30. At now (13:30) the running one has earned an hour more, and both are released 7 days after now.',
+      'A running timer (last changed 12:30, at $60/h) and a paused one. The running one’s step is open, as of 12:30: at now (13:30) it has earned an hour more, and is released 7 days after now. The paused one’s is an ordinary step, 7 days after it was paused.',
     inputs: inputs({ entries: LEDGER, sessions: TIMERS, withdrawals: [withdrawal('w1', at(13), 5000)] }),
     nowMs: at(14, 13, 30),
     times: [at(14, 13, 30), at(20, 12), at(21, 13, 30) - MINUTE, at(21, 13, 30), at(30)],

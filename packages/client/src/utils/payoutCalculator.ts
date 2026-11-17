@@ -10,7 +10,7 @@
 
 import dayjs from 'dayjs';
 import { Task } from '../types/task';
-import { TaskSession } from '../types/timer';
+import { TaskSession, TimerInstance, TimerState } from '../types/timer';
 import { WorkLogEntry } from '../types/workLog';
 import { formatDateString, parseDateStringLocal } from './dateHelpers';
 import { effectiveMinutes } from './workLogImport';
@@ -62,6 +62,17 @@ function isValidCreatedAtForWorkDay(createdAtIso: string, workDay: string): bool
   const workDayMs = parseDateStringLocal(workDay).getTime();
   const diffMs = createdMs - workDayMs;
   return diffMs >= -86_400_000 && diffMs <= 3 * 86_400_000;
+}
+
+/**
+ * When a timer's work was last done: its end, the moment it was paused (its
+ * money stands still from then, so its release does too), or now while it runs.
+ */
+function instanceLastWorkedMs(instance: TimerInstance, nowMs: number): number {
+  if (instance.endTime) return new Date(instance.endTime).getTime();
+  const pausedMs =
+    instance.state === TimerState.paused && instance.pausedAt ? new Date(instance.pausedAt).getTime() : Number.NaN;
+  return Number.isNaN(pausedMs) ? nowMs : pausedMs;
 }
 
 function cellKey(taskId: string, workDay: string): string {
@@ -163,7 +174,7 @@ export function buildPayoutCells(
       for (const session of sessions) {
         for (const instance of getTimersOnDate(session, workDay)) {
           if (instanceTaskId(instance, session) !== taskId) continue;
-          const endMs = instance.endTime ? new Date(instance.endTime).getTime() : nowMs;
+          const endMs = instanceLastWorkedMs(instance, nowMs);
           if (latestInstanceTimeMs === null || endMs > latestInstanceTimeMs) {
             latestInstanceTimeMs = endMs;
           }
