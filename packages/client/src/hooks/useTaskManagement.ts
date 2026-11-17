@@ -10,6 +10,7 @@ import { STORAGE_KEYS } from '../constants';
 export function useTaskManagement(): UseTaskManagementReturn {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const taskService = ServiceFactory.getTaskService();
   const { executeAsync } = useAsyncError();
   const { showError, showSuccess } = useNotification();
@@ -27,6 +28,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       try {
         const loadedTasks = await taskService.getAllTasks();
         setTasks(loadedTasks);
+        setHasLoaded(true);
       } catch (error) {
         console.error('Failed to load tasks:', error);
         showError('Failed to load tasks. Please refresh the page and try again.');
@@ -190,6 +192,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       unarchiveTask,
       toggleFavorite,
       isLoading,
+      hasLoaded,
     }),
     [
       tasks,
@@ -202,6 +205,7 @@ export function useTaskManagement(): UseTaskManagementReturn {
       unarchiveTask,
       toggleFavorite,
       isLoading,
+      hasLoaded,
     ]
   );
 }

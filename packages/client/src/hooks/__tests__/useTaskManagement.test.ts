@@ -88,9 +88,11 @@ describe('useTaskManagement', () => {
 
       expect(result.current.tasks).toEqual([]);
       expect(result.current.isLoading).toBe(true);
+      expect(result.current.hasLoaded).toBe(false);
 
       // Wait for the hook to finish loading
       await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.hasLoaded).toBe(true);
     });
 
     it('should load tasks on mount', async () => {
@@ -112,6 +114,8 @@ describe('useTaskManagement', () => {
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       expect(mockShowError).toHaveBeenCalledWith('Failed to load tasks. Please refresh the page and try again.');
+      // (not loaded: nothing may be planned against an empty list)
+      expect(result.current.hasLoaded).toBe(false);
 
       consoleSpy.mockRestore();
     });
