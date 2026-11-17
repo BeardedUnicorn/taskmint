@@ -2,8 +2,9 @@
 import type { TaskSession } from "./TaskSession";
 
 /**
- * One (task, workDay) rewrite: delete the listed finalized instances and
- * insert the replacement session built from the ledger. A remap that leaves
+ * One (task, workDay) rewrite: delete the listed finalized instances, and
+ * the day's earlier import whether listed or not, and insert the
+ * replacement session built from the ledger. A remap that leaves
  * a day with nothing left to import for this task sends no replacement: the
  * group only removes that day's imported time.
  */

@@ -270,30 +270,28 @@ pub fn apply_idle_choice(
 }
 
 /// Pause the running timer `instance_id` as of `idle_since` (an IdleAction::
-/// Pause). Returns false, changing nothing, when that timer is gone or no
-/// longer running.
+/// Pause), held within its current run: a timer resumed since the monitor
+/// looked doesn't pause from before it ran, nor one from a time still to
+/// come. Returns when the pause counts from, or None, changing nothing,
+/// when that timer is gone or no longer running.
 pub fn pause_for_idle(
     sessions: &mut [TaskSession],
     instance_id: &str,
     idle_since: DateTime<Utc>,
     now: DateTime<Utc>,
-) -> bool {
-    let Some(session) = sessions
+) -> Option<DateTime<Utc>> {
+    let session = sessions
         .iter_mut()
-        .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))
-    else {
-        return false;
-    };
-    let Some(instance) = session
+        .find(|s| s.timer_instances.iter().any(|i| i.id == instance_id))?;
+    let instance = session
         .timer_instances
         .iter_mut()
-        .find(|i| i.id == instance_id && i.is_running)
-    else {
-        return false;
-    };
-    pause_instance_at(instance, idle_since, now);
+        .find(|i| i.id == instance_id && i.is_running)?;
+    let run_began = instance.resumed_at.unwrap_or(instance.start_time);
+    let paused_at = idle_since.min(now).max(run_began);
+    pause_instance_at(instance, paused_at, now);
     session.updated_at = now.to_rfc3339();
-    true
+    Some(paused_at)
 }
 
 #[cfg(test)]
@@ -715,7 +713,10 @@ mod tests {
             session(true, vec![running("r", 0)]),
         ];
 
-        assert!(pause_for_idle(&mut sessions, "r", ts(1_800), ts(3_000)));
+        assert_eq!(
+            pause_for_idle(&mut sessions, "r", ts(1_800), ts(3_000)),
+            Some(ts(1_800))
+        );
 
         let timer = &sessions[1].timer_instances[0];
         assert!(timer.is_paused && !timer.is_running);
@@ -728,9 +729,39 @@ mod tests {
         let mut sessions = vec![session(true, vec![instance("stopped", 0)])];
         let before = sessions.clone();
 
-        assert!(!pause_for_idle(&mut sessions, "stopped", ts(10), ts(20)));
-        assert!(!pause_for_idle(&mut sessions, "gone", ts(10), ts(20)));
+        assert_eq!(
+            pause_for_idle(&mut sessions, "stopped", ts(10), ts(20)),
+            None
+        );
+        assert_eq!(pause_for_idle(&mut sessions, "gone", ts(10), ts(20)), None);
         assert_eq!(sessions, before);
+    }
+
+    #[test]
+    fn the_idle_pause_stays_within_the_run_it_pauses() {
+        // Resumed at 2_000, after the monitor saw the user go idle at 1_800
+        let mut sessions = vec![session(true, vec![running("r", 2_000)])];
+        assert_eq!(
+            pause_for_idle(&mut sessions, "r", ts(1_800), ts(3_000)),
+            Some(ts(2_000))
+        );
+        assert_eq!(sessions[0].timer_instances[0].paused_at, Some(ts(2_000)));
+
+        // One never resumed is held to its start
+        let mut started = running("n", 2_500);
+        started.resumed_at = None;
+        let mut sessions = vec![session(true, vec![started])];
+        assert_eq!(
+            pause_for_idle(&mut sessions, "n", ts(1_800), ts(3_000)),
+            Some(ts(2_500))
+        );
+
+        // And a time still to come is now
+        let mut sessions = vec![session(true, vec![running("r", 0)])];
+        assert_eq!(
+            pause_for_idle(&mut sessions, "r", ts(9_000), ts(3_000)),
+            Some(ts(3_000))
+        );
     }
 
     #[test]

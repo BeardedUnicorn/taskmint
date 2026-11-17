@@ -57,6 +57,10 @@ became:
      (`docId → {hash, json}`) of what the cloud last said;
    - `get_sync_outgoing` diffs the data against the baseline;
      `apply_sync_incoming` takes the cloud's changes in order;
+   - a device's own write takes a moment to come back, so it remembers the
+     hash of each document it hands out: that document coming in only moves
+     the baseline, and what was done here meanwhile (an Undo) stays and goes
+     out next;
    - a change on both sides merges three ways: arrays keyed by `id` item by
      item (timers inside a session, tasks, notes, templates, withdrawals),
      `dailyGoalAchievements` by date, objects field by field, and this

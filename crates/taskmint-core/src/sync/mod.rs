@@ -7,6 +7,12 @@
 //! The baseline only moves when a document comes in, a device's own writes
 //! included, so it always follows the cloud's order of writes.
 //!
+//! A device's own write takes a moment to come back (longer offline), and
+//! until it does the baseline is still from before it. So the device
+//! remembers what it handed out (`take_outgoing`): that document coming in
+//! moves the baseline and nothing else. Whatever was done here meanwhile
+//! (an Undo, a deletion) stays, and goes out next.
+//!
 //! The client moves the documents (Firestore); these functions never see
 //! the network.
 
@@ -152,7 +158,15 @@ pub struct SyncState {
     /// signing in to another one asks before its data goes there.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous_uid: Option<String>,
+    /// This device's writes on their way: each document's hashes as they
+    /// were handed out (`take_outgoing`), oldest first, "" for a deletion.
+    /// One of them coming in is that write, not a change from elsewhere.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub sent: BTreeMap<String, Vec<String>>,
 }
+
+/// How many of a document's writes on their way are remembered (the newest).
+pub const SENT_KEPT: usize = 16;
 
 /// A document from the cloud.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -398,6 +412,24 @@ fn merge_entity(
     }
 }
 
+/// Whether the document `id`, arriving as `json`, is a write this device
+/// handed out. It and the ones handed out before it are then done with: the
+/// cloud's copy only moves on.
+fn came_back(sent: &mut BTreeMap<String, Vec<String>>, id: &str, json: Option<&str>) -> bool {
+    let arrived = json.map(hash).unwrap_or_default();
+    let Some(hashes) = sent.get_mut(id) else {
+        return false;
+    };
+    let Some(at) = hashes.iter().position(|hash| *hash == arrived) else {
+        return false;
+    };
+    hashes.drain(..=at);
+    if hashes.is_empty() {
+        sent.remove(id);
+    }
+    true
+}
+
 /// Applies documents from the cloud, in the order they were written, and
 /// carries on from `cursor` next time.
 pub fn apply_incoming(
@@ -441,7 +473,10 @@ pub fn apply_incoming(
             .and_then(|synced| synced.json.clone());
         let local_json = local.as_ref().map(text);
         let remote_json = remote.as_ref().map(text);
-        if local_json != remote_json {
+        // This device's own write, back from the cloud: what's here now is
+        // newer (an Undo since, say), so it stays, and goes out if it differs
+        let own = came_back(&mut workspace.sync.sent, &doc.doc_id, doc.json.as_deref());
+        if local_json != remote_json && !own {
             if local_json == base_json {
                 put(workspace, kind, &key, remote, &mut applied);
                 applied.summary.applied += 1;
@@ -509,6 +544,24 @@ pub fn outgoing(workspace: &Workspace) -> Vec<OutgoingDoc> {
             })
         });
     changed.chain(deleted).collect()
+}
+
+/// `outgoing`, for the client to write: each document handed out is
+/// remembered, so it's known for this device's own when it comes back
+/// (`apply_incoming`). Whether there was one to remember that wasn't already.
+pub fn take_outgoing(workspace: &mut Workspace) -> (Vec<OutgoingDoc>, bool) {
+    let docs = outgoing(workspace);
+    let mut noted = false;
+    for doc in &docs {
+        let sent = workspace.sync.sent.entry(doc.doc_id.clone()).or_default();
+        if sent.last() != Some(&doc.hash) {
+            sent.push(doc.hash.clone());
+            let extra = sent.len().saturating_sub(SENT_KEPT);
+            sent.drain(..extra);
+            noted = true;
+        }
+    }
+    (docs, noted)
 }
 
 /// Whether this device has data of its own.

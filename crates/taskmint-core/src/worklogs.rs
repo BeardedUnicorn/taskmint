@@ -236,8 +236,9 @@ pub fn undo_import(workspace: &mut Workspace, undo: WorkLogImportUndo) -> Result
     Ok(())
 }
 
-/// One (task, workDay) rewrite: delete the listed finalized instances and
-/// insert the replacement session built from the ledger. A remap that leaves
+/// One (task, workDay) rewrite: delete the listed finalized instances, and
+/// the day's earlier import whether listed or not, and insert the
+/// replacement session built from the ledger. A remap that leaves
 /// a day with nothing left to import for this task sends no replacement: the
 /// group only removes that day's imported time.
 #[derive(Debug, Deserialize)]
@@ -404,6 +405,24 @@ fn find_instance<'a>(
     })
 }
 
+/// The timers an earlier import left in this group's task and day. The
+/// group replaces them whether or not it lists them: a client whose copy of
+/// the sessions was behind (still loading, or another device imported the
+/// day first) would otherwise count the day twice.
+fn imported_before<'a>(
+    sessions: &'a [TaskSession],
+    group: &'a RewriteGroup,
+) -> impl Iterator<Item = &'a TimerInstance> {
+    sessions
+        .iter()
+        .filter(|s| s.source.as_deref() == Some(WORKLOG_IMPORT_SOURCE) && s.date == group.work_day)
+        .flat_map(|s| {
+            s.timer_instances
+                .iter()
+                .filter(|i| s.task_id_of(i) == group.task_id)
+        })
+}
+
 /// Re-validate a rewrite group against current state. Any Err skips the group
 /// (reported in the summary) without touching sessions.
 pub fn validate_rewrite_group(
@@ -415,7 +434,9 @@ pub fn validate_rewrite_group(
         group.work_day
     );
 
-    if !group.blocking_instance_ids.is_empty() {
+    if !group.blocking_instance_ids.is_empty()
+        || imported_before(sessions, group).any(|i| i.is_running || i.is_paused)
+    {
         return Err(timer_active_msg);
     }
 
@@ -456,6 +477,7 @@ pub fn validate_rewrite_group(
         .delete_instance_ids
         .iter()
         .map(String::as_str)
+        .chain(imported_before(sessions, group).map(|i| i.id.as_str()))
         .collect();
     if sessions.iter().any(|s| s.id == replacement.id) {
         return Err("replacement session id already exists".to_string());
@@ -495,17 +517,19 @@ pub fn validate_rewrite_group(
 
 /// Apply a validated rewrite group: remove the bucket's instances (validation
 /// checked they're all this task's, so another task's timers in the same
-/// session stay), drop sessions this emptied (unless they carry user notes or
-/// are active — those stay as shells), and insert the synthesized replacement.
+/// session stay) and whatever an earlier import left in it (`imported_before`),
+/// drop sessions this emptied (unless they carry user notes or are active —
+/// those stay as shells), and insert the synthesized replacement.
 pub fn apply_rewrite_group(
     sessions: &mut Vec<TaskSession>,
     group: RewriteGroup,
     now: DateTime<Utc>,
 ) -> AppliedGroup {
-    let delete_set: HashSet<&str> = group
+    let delete_set: HashSet<String> = group
         .delete_instance_ids
         .iter()
-        .map(String::as_str)
+        .cloned()
+        .chain(imported_before(sessions, &group).map(|i| i.id.clone()))
         .collect();
 
     let mut deleted = 0;
@@ -1139,6 +1163,90 @@ mod tests {
             &[task]
         ));
     }
+    /// An earlier import's session for task-1 on the helpers' day.
+    fn imported(id: &str, instance_id: &str) -> TaskSession {
+        let mut session = session_with(
+            id,
+            "task-1",
+            vec![finalized_instance(instance_id, id, 0, 60_000)],
+        );
+        session.source = Some(WORKLOG_IMPORT_SOURCE.to_string());
+        session
+    }
+
+    #[test]
+    fn a_group_built_from_sessions_that_were_behind_still_replaces_the_days_import() {
+        // The day was imported already (on another device, or before this
+        // client had loaded its sessions): the group lists nothing of it
+        let mut other_day = imported("imp_other_day", "o1");
+        other_day.date = "2026-08-24".to_string();
+        let mut other_task = imported("imp_other_task", "o2");
+        other_task.task_id = "task-2".to_string();
+        let tracked = session_with(
+            "tracked",
+            "task-1",
+            vec![finalized_instance("t1", "tracked", 0, 60_000)],
+        );
+        let mut sessions = vec![imported("imp", "i1"), other_day, other_task, tracked];
+
+        // It may even reuse the earlier import's timer id
+        let g = group(
+            "task-1",
+            vec!["already-gone"],
+            replacement(
+                "task-1",
+                "2026-08-25",
+                vec![repl_instance("i1", 200, 90_000)],
+            ),
+        );
+        assert_eq!(validate_rewrite_group(&sessions, &g), Ok(()));
+        let applied = apply_rewrite_group(&mut sessions, g, ts(1_000));
+
+        // The day's earlier import went; another day's, another task's and
+        // tracked time the group didn't list all stay
+        assert_eq!(applied.deleted_instances, 1);
+        assert_eq!(
+            sessions.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            ["imp_other_day", "imp_other_task", "tracked", "session_repl"]
+        );
+
+        // A group that only removes the day's import does the same
+        let mut sessions = vec![imported("imp", "i1")];
+        let removal = RewriteGroup {
+            task_id: "task-1".to_string(),
+            work_day: "2026-08-25".to_string(),
+            delete_instance_ids: Vec::new(),
+            blocking_instance_ids: Vec::new(),
+            replacement_session: None,
+        };
+        assert_eq!(validate_rewrite_group(&sessions, &removal), Ok(()));
+        apply_rewrite_group(&mut sessions, removal, ts(1_000));
+        assert!(sessions.is_empty());
+    }
+
+    #[test]
+    fn a_timer_running_in_the_days_earlier_import_skips_the_group() {
+        let mut earlier = imported("imp", "i1");
+        earlier.timer_instances[0].is_running = true;
+        let sessions = vec![earlier];
+        let g = group(
+            "task-1",
+            vec![],
+            replacement(
+                "task-1",
+                "2026-08-25",
+                vec![repl_instance("r1", 200, 90_000)],
+            ),
+        );
+        assert_eq!(
+            validate_rewrite_group(&sessions, &g),
+            Err(
+                "a timer is running or paused on 2026-08-25; stop it first, then re-import"
+                    .to_string()
+            )
+        );
+    }
+
     #[test]
     fn a_removal_only_group_validates_and_drops_the_imported_day() {
         let mut imported = session_with(
