@@ -279,7 +279,9 @@ object WidgetSync {
     if (figures.optInt("version") != SCHEMA) return
 
     val kept = Widgets.snapshot(context)
-    if (kept != null && (writtenMs <= kept.optLong("updatedAtMs") || figures.getString("day") < kept.optString("day"))) return
+    // Newer than the kept ones: written after they were, and after the page last had them current
+    val keptMs = maxOf(kept?.optLong("updatedAtMs") ?: 0, Widgets.confirmedAt(context))
+    if (kept != null && (writtenMs <= keptMs || figures.getString("day") < kept.optString("day"))) return
     // The app may have come forward while this read
     if (inFront()) return
     Widgets.save(context, figures.put("updatedAtMs", writtenMs).toString())

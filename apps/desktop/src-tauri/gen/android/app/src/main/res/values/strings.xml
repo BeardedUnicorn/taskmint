@@ -41,6 +41,7 @@
     <string name="widget_withdrawal_open">Ready to withdraw</string>
     <string name="widget_upcoming_releases">Upcoming releases</string>
     <string name="widget_next_release">Next release</string>
+    <string name="widget_release_held">%1$s (held)</string>
     <string name="widget_no_payouts">No payouts on the way yet.</string>
 
     <!-- Calendar -->

@@ -354,7 +354,8 @@ function entryRelease(entry: WorkLogEntry, fundsReleaseDays: number): ReleaseSch
 
 /**
  * Every release, past and future, soonest first: one per imported entry with
- * money, and one per day's estimate (tracked time not imported yet).
+ * money (a deduction's is negative), and one per day's estimate (tracked time
+ * not imported yet).
  */
 export function buildReleaseEvents(
   cells: PayoutDayCell[],
@@ -363,7 +364,8 @@ export function buildReleaseEvents(
 ): ReleaseEvent[] {
   const events: ReleaseEvent[] = [];
   for (const entry of entries) {
-    if (entry.amountCents <= 0) continue;
+    // A deduction (negative) counts against what's released with it
+    if (entry.amountCents === 0) continue;
     const reportedMs = Date.parse(entry.updatedAt);
     events.push({
       ...entryRelease(entry, fundsReleaseDays),

@@ -47,7 +47,7 @@ object PayoutsViews : WidgetKind {
 
     // The figures as they are now: the page wrote them a while ago, and releases have passed since
     val now = System.currentTimeMillis()
-    val releases = releasesLeft(payouts, now)
+    val releases = releasesLeft(context, payouts, now)
     val planned = payouts.text("hint") == null
     if (!planned && releases.isEmpty()) return Widgets.message(views, context.getString(R.string.widget_no_payouts))
 
@@ -109,18 +109,21 @@ object PayoutsViews : WidgetKind {
    * of a day is added up. A day without parts (an older snapshot) stays as
    * the page wrote it.
    */
-  private fun releasesLeft(payouts: JSONObject, now: Long): List<Release> {
+  private fun releasesLeft(context: Context, payouts: JSONObject, now: Long): List<Release> {
     val days = payouts.optJSONArray("releases") ?: return emptyList()
     return (0 until days.length()).mapNotNull { index ->
       val day = days.getJSONObject(index)
-      val parts = day.optJSONArray("parts") ?: return@mapNotNull Release(day.getString("day"), day.getString("amount"))
+      // Held: released before the next withdrawal opens, so in its amount already
+      val held = day.optBoolean("held")
+      val name = day.getString("day").let { if (held) context.getString(R.string.widget_release_held, it) else it }
+      val parts = day.optJSONArray("parts") ?: return@mapNotNull Release(name, day.getString("amount"))
       val left = (0 until parts.length()).map(parts::getJSONObject).filter { it.getLong("atMs") > now }
       when (left.size) {
         0 -> null
-        parts.length() -> Release(day.getString("day"), day.getString("amount"))
+        parts.length() -> Release(name, day.getString("amount"))
         else ->
           Release(
-            day.getString("day"),
+            name,
             Widgets.money(left.sumOf { it.getDouble("cents") }, left.any { it.optBoolean("estimated") })
           )
       }

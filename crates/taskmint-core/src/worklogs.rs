@@ -308,8 +308,12 @@ pub fn sync_work_log_task_names(
 
 /// Upsert ledger entries by id. An existing entry is replaced wholesale (the
 /// site may revise minutes/amount/status) except `imported_at`, which keeps
-/// its first-seen value, and `updated_at`, which moves only when something
-/// else changed (so re-importing the same days changes nothing to sync).
+/// its first-seen value, and `updated_at`, which is when the site last said
+/// something that matters about the entry: it moves when anything else
+/// changed, and for an entry not yet Paid on every import (the withdrawal
+/// math takes "still pending" or "still Untransferred" after a withdrawal as
+/// news). A Paid entry that's the same stays as it is, so re-importing
+/// settled days changes nothing to sync.
 /// Returns (added, updated).
 pub fn upsert_entries(
     store: &mut Vec<WorkLogEntry>,
@@ -332,7 +336,8 @@ pub fn upsert_entries(
                     updated_at: existing.updated_at.clone(),
                     ..entry.clone()
                 } == *existing;
-                if unchanged || (keep_updated_at && !existing.updated_at.is_empty()) {
+                let settled = existing.status.trim().eq_ignore_ascii_case("paid");
+                if (unchanged && settled) || (keep_updated_at && !existing.updated_at.is_empty()) {
                     entry.updated_at = existing.updated_at.clone();
                 }
                 *existing = entry;
@@ -701,14 +706,25 @@ mod tests {
 
     #[test]
     fn upsert_entries_is_idempotent() {
+        let paid = |id: &str| WorkLogEntry {
+            status: " paid ".to_string(),
+            ..entry(id)
+        };
+        let pending = |id: &str| WorkLogEntry {
+            status: "Pending Approval".to_string(),
+            ..entry(id)
+        };
         let mut store = Vec::new();
-        upsert_entries(&mut store, vec![entry("e1"), entry("e2")], "T1", false);
+        upsert_entries(&mut store, vec![paid("e1"), pending("e2")], "T1", false);
         let (added, updated) =
-            upsert_entries(&mut store, vec![entry("e1"), entry("e2")], "T2", false);
+            upsert_entries(&mut store, vec![paid("e1"), pending("e2")], "T2", false);
         assert_eq!((added, updated), (0, 2));
         assert_eq!(store.len(), 2);
-        // Nothing changed, so nothing new to sync
+        // A Paid entry that's the same: nothing new to sync
         assert_eq!(store[0].updated_at, "T1");
+        // One the site still holds: it said so again
+        assert_eq!(store[1].updated_at, "T2");
+        assert_eq!(store[1].imported_at, "T1");
     }
 
     #[test]
