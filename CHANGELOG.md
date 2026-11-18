@@ -8,6 +8,27 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.13.4 – 2026-11-17
+
+### Fixed
+
+- On Android, an update that finishes downloading while TaskMint is in the background (you switched apps, or the screen locked) opens Android's installer when you come back to TaskMint. It used to close the update dialog with no installer and no message, and Download then fetched the whole update again. An update already downloaded is now used again: Download opens the installer on it at once.
+- Work logs captured from the browser wait until TaskMint has loaded your sessions, tasks and work logs. A capture that arrived as TaskMint started could be held for review as if its project matched no task, or count a tracked day twice.
+- The daily goal starts a new day on its own. With TaskMint left open overnight and no timer running, the sidebar, Home and the Today widget kept showing yesterday's progress (and Home yesterday's date) until a session changed.
+- Deleting a task with tracked time no longer warns that its earnings will show as $0. Tracked time keeps the rate it was recorded at; Archive is still offered to keep the task.
+- The browser extension's badge keeps showing `!` while a capture waits for TaskMint. When a capture couldn't be delivered within a minute of one that was, the badge went blank as if nothing was waiting, though the extension kept retrying.
+- A timer paused for being away is never paused from before it last started or resumed, which could leave it with no time at all.
+- Importing work logs for a day that was already imported always replaces that import. A day could be counted twice when the import came from a device that hadn't caught up yet (another device imported it first, or the app had only just opened).
+- A note's date goes by the calendar day: one written at 10 PM last night reads "Yesterday", not "Today".
+- A note template field's pattern has to be a valid regular expression: the field says so, and the template can't be saved until it's fixed or cleared. A broken pattern saved earlier no longer stops notes on that template from saving.
+- Add Note starts a new note every time. Once the note you were writing had saved itself, Add Note did nothing and further typing went into that note. Deleting such a note from its editor now closes the editor too.
+- Notes keep what you typed in the last second. Closing a session's notes, opening another note, switching to Templates or leaving the page right after typing dropped it; it's saved on the way out now. Discard still discards.
+- The phone's Payouts widget adds up estimates as the app does. Each release was rounded to a whole dollar by itself, so what was left of a day, or what a withdrawal had grown to, could show a dollar or two less than Payouts, and amounts under 50¢ vanished.
+- Signing out, or signing in as someone else, while a device is being connected to Cloud sync leaves it signed out. It could go on syncing with the account you had just left, and show "synced" with nobody signed in.
+- With cloud sync, an Undo (or a quick change of mind) no longer comes undone a moment later. Deleting a timer and undoing it, adding time and undoing it, or starring and unstarring a task before the first change had reached the cloud used to bring the first change back, on every device. It happened most on a slow connection or offline.
+- The web app sends your latest changes to your account before it signs out, and asks first if they can't be sent. A change made in the second before signing out was lost.
+- Changes sync at once when TaskMint is hidden or closed (a browser tab, the phone app left), not a second later.
+
 ## 4.13.3 – 2026-11-17
 
 ### Fixed
