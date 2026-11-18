@@ -206,7 +206,8 @@ export const updates = {
    * Android's installer on it, which asks before it replaces the app. The
    * dialog closes once the installer is up: as the download ends or, with
    * TaskMint in the background by then, when it's next in front. A release
-   * the phone still has from an earlier download isn't downloaded again.
+   * the phone still has from an earlier download isn't downloaded again,
+   * and a download that was cut off carries on from where it stopped.
    * Where the app can't download it itself, the browser does.
    */
   async download(): Promise<void> {

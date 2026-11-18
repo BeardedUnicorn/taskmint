@@ -279,7 +279,12 @@ over the app, and keeps its data: they're all signed with the same key (see
 launch and daily, as the desktop does (Settings → Updates). Its Download
 fetches the new APK itself (`AppUpdate.kt`, into the app's cache), shows how
 far it is, and opens Android's installer on it; the first time, Android asks
-to let TaskMint install apps. If that fails, Open in browser hands the APK's
+to let TaskMint install apps. A download that's interrupted keeps what it
+has and asks GitHub for the rest only: by itself once TaskMint is in front
+again when leaving it was the reason (Android takes an app off the network
+within seconds of it leaving the screen), and on Try again otherwise. The
+whole APK is checked against its signature before the installer opens. If
+the download fails, Open in browser hands the APK's
 link to the browser, as releases up to 4.8.0 always did. With Android's
 Advanced Protection on, the phone installs nothing from outside Google Play:
 the update dialog then shows the steps to turn it off, with a button to the

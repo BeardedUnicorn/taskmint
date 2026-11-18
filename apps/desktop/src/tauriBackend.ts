@@ -248,9 +248,9 @@ interface AndroidAppTask {
   /** The phone's Security settings, where Advanced Protection is turned off. */
   openSecuritySettings(): void;
   /**
-   * Downloads a release (or joins the download of it that's under way) and
-   * opens Android's installer on it; `window.__taskmintUpdate` hears how far
-   * it is.
+   * Downloads a release (or joins the download of it that's under way, or
+   * carries on with one that was cut off) and opens Android's installer on
+   * it; `window.__taskmintUpdate` hears how far it is.
    */
   downloadUpdate(version: string): void;
   /** The launcher's shortcuts, as JSON (AppShortcut[]). */
