@@ -654,3 +654,194 @@ fn started_timers_are_claimed_once_the_device_has_an_id() {
     );
     assert!(!claim_timers(&mut workspace, &["r"]));
 }
+
+/// What the client would write from `take_outgoing`, coming back.
+fn echoes(docs: &[OutgoingDoc]) -> Vec<IncomingDoc> {
+    docs.iter()
+        .map(|doc| incoming(&doc.doc_id, doc.json.clone()))
+        .collect()
+}
+
+#[test]
+fn an_undo_before_this_devices_own_write_comes_back_stays_undone() {
+    let mut workspace = linked();
+    let kept = session(
+        "s1",
+        "1",
+        json!([timer("t1", "2026-11-01T09:00:00Z", false)]),
+    );
+    workspace.sessions.push(kept.clone());
+    workspace.records.insert(
+        TASKS_RECORD_KEY.into(),
+        json!([{ "id": "a", "star": false }]),
+    );
+    agree(&mut workspace);
+
+    // A timer deleted and a task starred: both go out
+    workspace.sessions[0].timer_instances.clear();
+    workspace.records.insert(
+        TASKS_RECORD_KEY.into(),
+        json!([{ "id": "a", "star": true }]),
+    );
+    let (sent, noted) = take_outgoing(&mut workspace);
+    assert!(noted);
+    assert_eq!(sent.len(), 2);
+
+    // Both undone before the writes come back
+    workspace.sessions[0] = kept.clone();
+    workspace.records.insert(
+        TASKS_RECORD_KEY.into(),
+        json!([{ "id": "a", "star": false }]),
+    );
+    assert!(outgoing(&workspace).is_empty());
+
+    let applied = apply_incoming(&mut workspace, echoes(&sent), None);
+    assert_eq!(applied.summary, SyncApplied::default());
+    assert_eq!(applied.changed, Parts::NONE);
+    assert_eq!(workspace.sessions, [kept]);
+    assert_eq!(
+        workspace.records[TASKS_RECORD_KEY],
+        json!([{ "id": "a", "star": false }])
+    );
+    assert!(workspace.sync.sent.is_empty());
+
+    // The cloud has the deletion and the star: the undo goes out after them
+    let (undo, noted) = take_outgoing(&mut workspace);
+    assert!(noted);
+    assert_eq!(
+        undo.iter().map(|d| d.doc_id.as_str()).collect::<Vec<_>>(),
+        ["record~predefinedTasks", "session~s1"]
+    );
+    apply_incoming(&mut workspace, echoes(&undo), None);
+    assert!(outgoing(&workspace).is_empty());
+    assert!(workspace.sync.sent.is_empty());
+}
+
+#[test]
+fn what_was_added_then_removed_before_its_write_comes_back_stays_removed() {
+    let mut workspace = linked();
+    workspace.sessions.push(session("s1", "1", json!([])));
+    let (added, _) = take_outgoing(&mut workspace);
+
+    // Removed again (an Undo): nothing to send, the cloud never agreed on it
+    workspace.sessions.clear();
+    assert!(outgoing(&workspace).is_empty());
+
+    let applied = apply_incoming(&mut workspace, echoes(&added), None);
+    assert_eq!(applied.changed, Parts::NONE);
+    assert!(workspace.sessions.is_empty());
+    // Now the cloud has it, so its deletion goes out
+    let (out, _) = take_outgoing(&mut workspace);
+    assert_eq!(
+        out.iter()
+            .map(|d| (d.doc_id.as_str(), d.json.is_none()))
+            .collect::<Vec<_>>(),
+        [("session~s1", true)]
+    );
+
+    // And a deletion undone before it comes back: the session goes out again
+    apply_incoming(&mut workspace, echoes(&out), None);
+    workspace.sessions.push(session("s1", "1", json!([])));
+    agree(&mut workspace);
+    workspace.sessions.clear();
+    let (gone, _) = take_outgoing(&mut workspace);
+    workspace.sessions.push(session("s1", "1", json!([])));
+    assert!(outgoing(&workspace).is_empty());
+    apply_incoming(&mut workspace, echoes(&gone), None);
+    assert_eq!(workspace.sessions.len(), 1);
+    assert_eq!(outgoing(&workspace).len(), 1);
+}
+
+#[test]
+fn each_write_in_flight_is_known_when_it_comes_back_whatever_came_of_the_others() {
+    let goal = |target: u32| json!({ "targetAmount": target });
+    let mut workspace = linked();
+    workspace.records.insert("dailyGoal".into(), goal(10));
+    agree(&mut workspace);
+
+    workspace.records.insert("dailyGoal".into(), goal(20));
+    let (first, _) = take_outgoing(&mut workspace);
+    // Handed out again while it's on its way: nothing new to remember
+    assert_eq!(take_outgoing(&mut workspace), (first.clone(), false));
+    workspace.records.insert("dailyGoal".into(), goal(30));
+    let (second, _) = take_outgoing(&mut workspace);
+    workspace.records.insert("dailyGoal".into(), goal(10));
+    assert_eq!(workspace.sync.sent["record~dailyGoal"].len(), 2);
+
+    // Each comes back in turn: neither is taken for a change from elsewhere
+    apply_incoming(&mut workspace, echoes(&first), None);
+    assert_eq!(workspace.records["dailyGoal"], goal(10));
+    assert_eq!(workspace.sync.sent["record~dailyGoal"].len(), 1);
+    apply_incoming(&mut workspace, echoes(&second), None);
+    assert_eq!(workspace.records["dailyGoal"], goal(10));
+    assert!(workspace.sync.sent.is_empty());
+    assert_eq!(outgoing(&workspace).len(), 1);
+
+    // Only the last comes back (the cloud's listener skipped the first): the
+    // ones before it are done with too
+    agree(&mut workspace);
+    workspace.records.insert("dailyGoal".into(), goal(20));
+    take_outgoing(&mut workspace);
+    workspace.records.insert("dailyGoal".into(), goal(30));
+    let (last, _) = take_outgoing(&mut workspace);
+    workspace.records.insert("dailyGoal".into(), goal(10));
+    apply_incoming(&mut workspace, echoes(&last), None);
+    assert_eq!(workspace.records["dailyGoal"], goal(10));
+    assert!(workspace.sync.sent.is_empty());
+
+    // What this device didn't hand out is a change from elsewhere, as ever
+    agree(&mut workspace);
+    let applied = apply_incoming(
+        &mut workspace,
+        vec![incoming("record~dailyGoal", Some(goal(40).to_string()))],
+        None,
+    );
+    assert_eq!(applied.summary.applied, 1);
+    assert_eq!(workspace.records["dailyGoal"], goal(40));
+
+    // Also while a write of this device's is on its way: that one is still
+    // known when it comes back after it
+    workspace.records.insert("dailyGoal".into(), goal(50));
+    let (mine, _) = take_outgoing(&mut workspace);
+    let applied = apply_incoming(
+        &mut workspace,
+        vec![incoming("record~dailyGoal", Some(goal(60).to_string()))],
+        None,
+    );
+    assert_eq!(applied.summary.merged, 1);
+    assert_eq!(workspace.records["dailyGoal"], goal(50));
+    assert_eq!(workspace.sync.sent["record~dailyGoal"].len(), 1);
+    apply_incoming(&mut workspace, echoes(&mine), None);
+    assert!(workspace.sync.sent.is_empty());
+    assert!(outgoing(&workspace).is_empty());
+}
+
+#[test]
+fn writes_in_flight_are_forgotten_with_the_account_and_never_pile_up() {
+    let mut workspace = linked();
+    for target in 0..(SENT_KEPT as u32 + 5) {
+        workspace
+            .records
+            .insert("dailyGoal".into(), json!({ "targetAmount": target }));
+        take_outgoing(&mut workspace);
+    }
+    let kept = &workspace.sync.sent["record~dailyGoal"];
+    assert_eq!(kept.len(), SENT_KEPT);
+    assert_eq!(
+        kept.last().map(String::as_str),
+        Some(hash(&json!({ "targetAmount": SENT_KEPT as u32 + 4 }).to_string()).as_str())
+    );
+
+    unlink(&mut workspace);
+    assert!(workspace.sync.sent.is_empty());
+    assert_eq!(take_outgoing(&mut workspace), (Vec::new(), false));
+
+    link(
+        &mut workspace,
+        SyncAccount {
+            uid: "u1".into(),
+            epoch: 2,
+        },
+    );
+    assert!(workspace.sync.sent.is_empty());
+}

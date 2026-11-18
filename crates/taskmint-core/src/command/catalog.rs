@@ -468,8 +468,11 @@ impl Command {
             // An exact restore replaces the records too
             Command::RestoreBackupData(_) => Access::write(records_and_links),
             Command::ResetAllAppData(_) => Access::write(Parts::ALL),
-            Command::GetSyncStatus(_) | Command::GetSyncOutgoing(_) => Access::read(synced),
-            Command::LinkSyncAccount(_) | Command::ApplySyncIncoming(_) => Access::write(synced),
+            Command::GetSyncStatus(_) => Access::read(synced),
+            // Handing out what's to send notes it (the sync state)
+            Command::GetSyncOutgoing(_)
+            | Command::LinkSyncAccount(_)
+            | Command::ApplySyncIncoming(_) => Access::write(synced),
             Command::UnlinkSyncAccount(_) => Access::write(Parts::SYNC),
         }
     }

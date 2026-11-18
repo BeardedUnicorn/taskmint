@@ -7,6 +7,10 @@
  * the way to do that). Auto-save also waits while a field shows an error, or
  * after a failed save until the next edit, so a failure doesn't repeat every
  * second.
+ *
+ * When the editor goes away within that second (its dialog closed, another
+ * note opened, another page), what auto-save was still waiting to save is
+ * saved then, by the same rules, unless the changes were discarded.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -57,6 +61,8 @@ export interface NoteDraft {
   /** Something outside the fields changed (the note's task). */
   touch: () => void;
   save: () => Promise<SaveResult>;
+  /** The unsaved changes aren't wanted (Discard, or the note is being deleted): leaving won't save them. */
+  discard: () => void;
 }
 
 export function useNoteDraft({
@@ -79,15 +85,26 @@ export function useNoteDraft({
   // Each edit bumps the revision: a save only marks the draft clean if
   // nothing changed while it was in flight
   const revisionRef = useRef(0);
-  const latestRef = useRef({ values, note, template, persist, onError });
+  // What a save still has to do once the editor has gone (no more renders to
+  // read): the revision the store has, the note as saved, the save on its way
+  const savedRevisionRef = useRef(0);
+  const noteRef = useRef(initialNote);
+  const inFlightRef = useRef<Promise<SaveResult> | null>(null);
+  const discardedRef = useRef(false);
+  const latestRef = useRef({ values, template, persist, onError });
   useEffect(() => {
-    latestRef.current = { values, note, template, persist, onError };
+    latestRef.current = { values, template, persist, onError };
   });
 
   const edited = useCallback(() => {
     revisionRef.current += 1;
+    discardedRef.current = false;
     setDirty(true);
     setFailure(null);
+  }, []);
+
+  const discard = useCallback(() => {
+    discardedRef.current = true;
   }, []);
 
   const setField = useCallback(
@@ -112,8 +129,9 @@ export function useNoteDraft({
     [edited]
   );
 
-  const save = useCallback(async (): Promise<SaveResult> => {
-    const { values, note, template, persist, onError } = latestRef.current;
+  const saveDraft = useCallback(async (): Promise<SaveResult> => {
+    const { values, template, persist, onError } = latestRef.current;
+    const note = noteRef.current;
     const processed = coerceNumbers(template?.fields, values);
 
     if (isEmptyDraft(processed)) {
@@ -131,6 +149,8 @@ export function useNoteDraft({
     setSaving(true);
     try {
       const saved = await persist(processed, note);
+      noteRef.current = saved;
+      savedRevisionRef.current = revision;
       setNote(saved);
       setSavedAt(new Date());
       setFailure(null);
@@ -149,12 +169,40 @@ export function useNoteDraft({
     }
   }, []);
 
+  const save = useCallback((): Promise<SaveResult> => {
+    const landing = saveDraft();
+    inFlightRef.current = landing;
+    void landing.then(() => {
+      inFlightRef.current = null;
+    });
+    return landing;
+  }, [saveDraft]);
+
   const blocked = isEmptyDraft(values) || Object.keys(errors).length > 0 || failure !== null;
   useEffect(() => {
     if (!autoSave || !dirty || saving || blocked) return;
     const timeout = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timeout);
   }, [autoSave, dirty, saving, blocked, values, save]);
+
+  // The editor going away: what auto-save would still have saved is saved now
+  const leavingRef = useRef({ autoSave, blocked });
+  useEffect(() => {
+    leavingRef.current = { autoSave, blocked };
+  });
+  useEffect(
+    () => () => {
+      const { autoSave, blocked } = leavingRef.current;
+      if (!autoSave || blocked || discardedRef.current) return;
+      void (async () => {
+        // A save on its way lands first: a new note is created once (then
+        // updated), and one that failed isn't tried again behind the user's back
+        if ((await inFlightRef.current) === 'failed') return;
+        if (revisionRef.current !== savedRevisionRef.current) await save();
+      })();
+    },
+    [save]
+  );
 
   const status: SaveStatus = saving
     ? { state: 'saving' }
@@ -166,5 +214,5 @@ export function useNoteDraft({
           ? { state: 'saved', at: savedAt }
           : { state: 'idle' };
 
-  return { values, errors, note, dirty, status, setField, replaceValues, touch: edited, save };
+  return { values, errors, note, dirty, status, setField, replaceValues, touch: edited, save, discard };
 }

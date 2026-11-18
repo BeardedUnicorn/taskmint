@@ -4,8 +4,10 @@
  * the update dialog and Settings → Updates show, and whether checks run on
  * their own. One store for the window, read with useUpdates().
  *
- * A phone isn't updated in place: it downloads the release's APK in the
- * browser (apk_update.rs), and Android installs it over the app.
+ * A phone isn't updated in place: the app downloads the release's APK
+ * (AppUpdate.kt) and opens Android's installer on it, which installs it over
+ * the app. Where the app can't download it, or its download fails, the
+ * browser does (apk_update.rs).
  */
 
 import { useSyncExternalStore } from 'react';
@@ -202,8 +204,10 @@ export const updates = {
   /**
    * A phone's update: downloads the release, showing its progress, and opens
    * Android's installer on it, which asks before it replaces the app. The
-   * dialog closes once the installer is up. Where the app can't download it
-   * itself, the browser does.
+   * dialog closes once the installer is up: as the download ends or, with
+   * TaskMint in the background by then, when it's next in front. A release
+   * the phone still has from an earlier download isn't downloaded again.
+   * Where the app can't download it itself, the browser does.
    */
   async download(): Promise<void> {
     const { update } = current;

@@ -2,8 +2,12 @@
  * Note Editor
  *
  * Creates or edits a note: free-form text, or the fields of a template. The
- * draft saves itself a second after you stop typing (useNoteDraft); Save
- * saves and closes. A new note can switch templates until it's first saved.
+ * draft saves itself a second after you stop typing, and when the editor
+ * goes away before that (useNoteDraft); Save saves and closes. A new note can
+ * switch templates until it's first saved.
+ *
+ * A new note is created inside the editor, which its parent can't see: give
+ * each new note's editor its own `key`, so asking for another starts one.
  */
 
 import { useCallback, useMemo, useState } from 'react';
@@ -146,7 +150,7 @@ export function NoteEditor({
     autoSave: !autoSaveDisabled,
     onError: message => showError(message, { category: 'note', title: "Couldn't save the note" }),
   });
-  const { values, errors, note, status, setField, replaceValues, touch, save } = draft;
+  const { values, errors, note, status, setField, replaceValues, touch, save, discard } = draft;
   const isSaving = status.state === 'saving';
   const hasErrors = Object.keys(errors).length > 0;
 
@@ -192,6 +196,18 @@ export function NoteEditor({
       return;
     }
     setShowDiscardDialog(true);
+  };
+
+  // Unsaved changes aren't wanted from here on: the editor going away
+  // (which saves them otherwise) leaves them
+  const handleDiscard = () => {
+    discard();
+    onCloseEditor?.();
+  };
+
+  const handleDelete = (noteId: string) => {
+    discard();
+    void onDeleteNote(noteId);
   };
 
   const handleCopy = useCallback(
@@ -352,7 +368,7 @@ export function NoteEditor({
                 Clear
               </Button>
               {note && (
-                <Button variant="outlined" color="error" onClick={() => void onDeleteNote(note.id)} disabled={isSaving}>
+                <Button variant="outlined" color="error" onClick={() => handleDelete(note.id)} disabled={isSaving}>
                   Delete Note
                 </Button>
               )}
@@ -369,7 +385,7 @@ export function NoteEditor({
       <ConfirmDialog
         open={showDiscardDialog}
         onClose={() => setShowDiscardDialog(false)}
-        onConfirm={() => onCloseEditor?.()}
+        onConfirm={handleDiscard}
         title="Discard changes?"
         message="You have unsaved changes. Are you sure you want to discard them?"
         confirmLabel="Discard"

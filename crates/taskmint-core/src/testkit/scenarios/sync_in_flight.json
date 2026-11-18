@@ -1,0 +1,80 @@
+{
+  "name": "an undo made before this device's own write comes back stays undone, and goes to the cloud next",
+  "steps": [
+    {
+      "call": "link_sync_account",
+      "args": { "uid": "u1", "epoch": 1, "mode": "merge" },
+      "reply": { "account": { "uid": "u1", "epoch": 1 }, "pending": 0 }
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 100 } },
+      "reply": { "revision": 1 },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "get_sync_outgoing",
+      "reply": [{ "docId": "record~dailyGoal", "json": "{\"targetAmount\":100}" }],
+      "save": { "goal100": "/0/json" }
+    },
+    {
+      "call": "apply_sync_incoming",
+      "args": { "docs": [{ "docId": "record~dailyGoal", "json": "$goal100", "schema": 1 }], "cursor": "c1" },
+      "reply": { "applied": 0, "merged": 0, "skipped": 0, "held": 0 }
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 200 }, "baseRevision": 1 },
+      "reply": { "revision": 2 },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "add_manual_time",
+      "args": { "taskId": "t1", "taskName": "Writing", "startTime": "2026-03-01T10:00:00Z", "durationMs": 3600000 },
+      "save": { "added": "/id" },
+      "events": ["timer-instance-stopped"]
+    },
+    {
+      "call": "get_sync_outgoing",
+      "reply": [
+        { "docId": "record~dailyGoal", "json": "{\"targetAmount\":200}" },
+        { "kind": "session", "id": "$added" }
+      ],
+      "save": { "goal200": "/0/json", "addedDoc": "/1/docId", "addedJson": "/1/json" }
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 100 }, "baseRevision": 2 },
+      "reply": { "revision": 3 },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "delete_session",
+      "args": { "sessionId": "$added" },
+      "events": ["sessions-changed"]
+    },
+    { "call": "get_sync_status", "reply": { "pending": 0 } },
+    {
+      "reload": true,
+      "call": "apply_sync_incoming",
+      "args": {
+        "docs": [
+          { "docId": "record~dailyGoal", "json": "$goal200", "schema": 1 },
+          { "docId": "$addedDoc", "json": "$addedJson", "schema": 1 }
+        ],
+        "cursor": "c2"
+      },
+      "reply": { "applied": 0, "merged": 0, "skipped": 0, "held": 0 }
+    },
+    { "call": "get_app_records", "reply": { "records": { "dailyGoal": { "targetAmount": 100 } } } },
+    { "call": "get_sessions", "reply": [] },
+    {
+      "call": "get_sync_outgoing",
+      "reply": [
+        { "docId": "record~dailyGoal", "json": "{\"targetAmount\":100}" },
+        { "docId": "$addedDoc", "json": null, "hash": "" }
+      ]
+    },
+    { "reload": true, "call": "get_sync_status", "reply": { "pending": 2, "cursor": "c2" } }
+  ]
+}

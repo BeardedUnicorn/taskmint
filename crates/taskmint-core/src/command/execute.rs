@@ -386,17 +386,16 @@ fn run(command: Command, workspace: &mut Workspace, ctx: &Ctx) -> Result<Execute
         }
         Command::PauseTimerAt(args) => {
             let paused = pause_for_idle(sessions, &args.instance_id, args.idle_since, now);
-            let done = sessions_if(paused, paused);
-            if paused {
+            let done = sessions_if(paused.is_some(), paused.is_some());
+            match paused {
                 // The pause starts when input stopped, not when it was noticed.
-                done.event(Event::instance(
+                Some(paused_at) => done.event(Event::instance(
                     TIMER_INSTANCE_PAUSED,
                     &args.instance_id,
                     "pausedAt",
-                    args.idle_since,
-                ))
-            } else {
-                done
+                    paused_at,
+                )),
+                None => done,
             }
         }
         Command::ApplyIdleChoice(args) => {
@@ -522,7 +521,11 @@ fn run(command: Command, workspace: &mut Workspace, ctx: &Ctx) -> Result<Execute
             crate::sync::unlink(workspace);
             Executed::new((), Parts::SYNC)
         }
-        Command::GetSyncOutgoing(_) => Executed::read(crate::sync::outgoing(workspace)),
+        Command::GetSyncOutgoing(_) => {
+            // What's handed out is remembered until it comes back
+            let (docs, noted) = crate::sync::take_outgoing(workspace);
+            Executed::new(docs, if noted { Parts::SYNC } else { Parts::NONE })
+        }
         Command::ApplySyncIncoming(args) => {
             let applied = crate::sync::apply_incoming(workspace, args.docs, args.cursor);
             let mut done = Executed::new(&applied.summary, applied.changed | Parts::SYNC);

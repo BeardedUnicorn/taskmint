@@ -6,6 +6,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { getBackend, type Backend } from '../backend';
+import { flushAppRecords } from '../services/appRecords';
 import { type BackgroundLink, ENGINE_OPTIONS, SyncEngine, type SyncView } from './engine';
 import type { CloudConfig, CloudStore } from './types';
 
@@ -54,6 +55,17 @@ export function startCloudSync(
 /** The page's sync, or null when this build has none. */
 export function getCloudSync(): SyncEngine | null {
   return current;
+}
+
+/**
+ * Resolves once the cloud has everything this page has saved: the record
+ * writes still on their way to the backend, then what sync has to send.
+ * Rejects with why it doesn't. A page whose data is only in the cloud (the
+ * web app) waits for this before letting go of it.
+ */
+export async function saveToCloud(engine: SyncEngine): Promise<void> {
+  await flushAppRecords();
+  await engine.flush();
 }
 
 /**

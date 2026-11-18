@@ -32,7 +32,7 @@ import { orderTasksForStart } from '../../../utils/taskOrdering';
 import { getSessionElapsedMs, hasRunningTimer, sessionTitle } from '../../../utils/timerHelpers';
 import { sessionEarnings } from '../../../utils/earnings';
 import { formatCurrency, formatDate, formatDurationCompact, formatTime } from '../../../utils/formatters';
-import { formatLocalDate } from '../../../utils/dateHelpers';
+import { formatLocalDate, parseDateStringLocal } from '../../../utils/dateHelpers';
 import { formatCents } from '../../../utils/payoutCalculator';
 import { formatShortDateTime } from '../../../utils/locale';
 import { PHONE } from '../../../theme/media';
@@ -217,7 +217,8 @@ export function HomePage({ onStartWork, onAddTime }: HomePageProps) {
 
   return (
     <PageContainer>
-      <PageHeader title="Home" subtitle={formatDate(new Date(nowMs))} />
+      {/* The payout data's day: it turns over on its own, where this page's clock stops with the timers */}
+      <PageHeader title="Home" subtitle={formatDate(parseDateStringLocal(today))} />
 
       {lastImport !== null && importIsStale && (
         <Alert

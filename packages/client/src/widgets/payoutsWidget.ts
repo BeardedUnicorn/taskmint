@@ -22,15 +22,33 @@ export const WIDGET_RELEASES = 3;
 /** How many releases after the opening the next withdrawal follows. */
 export const WIDGET_GROWTH_STEPS = 12;
 
+/** Money at a time, before it's put the way the phone adds it up. */
+interface Amount {
+  atMs: number;
+  actualCents: number;
+  estimatedCents: number;
+}
+
 /**
- * Money at a time, as the phone adds it up. An estimate goes in whole
- * dollars: a running timer's grows every second, and the widgets' text
- * changes no more often than their whole dollars do.
+ * Amounts as the phone adds them up, one after another in this order: each
+ * gets the cents that make the phone's running total the true one. Exact
+ * where none is an estimate. With an estimate among them, every running
+ * total goes in whole dollars: a running timer's estimate grows every second,
+ * and the widgets' text changes no more often than their whole dollars do.
+ * It's the total that is rounded, not each amount, whose remainders would
+ * add up (three of $2.40 made $6, not $7; amounts under 50¢ vanished).
  */
-function moneyStep(atMs: number, actualCents: number, estimatedCents: number): WidgetMoneyStep {
-  const estimated = estimatedCents > 0;
-  const cents = actualCents + estimatedCents;
-  return { atMs: endOfReleaseMinute(atMs), cents: estimated ? Math.round(cents / 100) * 100 : cents, estimated };
+function moneySteps(amounts: readonly Amount[]): WidgetMoneyStep[] {
+  const whole = amounts.some(amount => amount.estimatedCents > 0);
+  let total = 0;
+  let sent = 0;
+  return amounts.map(({ atMs, actualCents, estimatedCents }) => {
+    total += actualCents + estimatedCents;
+    const upTo = whole ? Math.round(total / 100) * 100 : total;
+    const cents = upTo - sent;
+    sent = upTo;
+    return { atMs: endOfReleaseMinute(atMs), cents, estimated: estimatedCents > 0 };
+  });
 }
 
 /**
@@ -39,21 +57,22 @@ function moneyStep(atMs: number, actualCents: number, estimatedCents: number): W
  * null when it's open or there's none) is held: that withdrawal takes it.
  */
 function releaseDays(schedule: PayoutData['schedule'], heldUntilMs: number | null): WidgetPayouts['releases'] {
-  const days = new Map<string, { cents: number; estimated: boolean; held: boolean; parts: WidgetMoneyStep[] }>();
+  const days = new Map<string, { cents: number; estimated: boolean; held: boolean; rows: Amount[] }>();
   for (const row of schedule) {
-    const day = days.get(row.releaseDay) ?? { cents: 0, estimated: false, held: heldUntilMs !== null, parts: [] };
+    const day = days.get(row.releaseDay) ?? { cents: 0, estimated: false, held: heldUntilMs !== null, rows: [] };
     if (!days.has(row.releaseDay) && days.size === WIDGET_RELEASES) break;
     day.cents += row.actualCents + row.estimatedCents;
     day.estimated ||= row.estimatedCents > 0;
     day.held &&= heldUntilMs !== null && row.releaseMs <= heldUntilMs;
-    day.parts.push(moneyStep(row.releaseMs, row.actualCents, row.estimatedCents));
+    day.rows.push({ atMs: row.releaseMs, actualCents: row.actualCents, estimatedCents: row.estimatedCents });
     days.set(row.releaseDay, day);
   }
-  return [...days].map(([releaseDay, { cents, estimated, held, parts }]) => ({
+  return [...days].map(([releaseDay, { cents, estimated, held, rows }]) => ({
     day: formatWeekdayDate(parseDateStringLocal(releaseDay)),
     amount: widgetMoney(cents, estimated),
     held,
-    parts,
+    // The phone adds up what's left of a day, so its totals run from the day's last part back
+    parts: moneySteps([...rows].reverse()).reverse(),
   }));
 }
 
@@ -63,24 +82,22 @@ function growthOf(
   events: PayoutData['events']
 ): NonNullable<WidgetPayouts['growth']> {
   const { steps } = withdrawableCurve(events, Date.parse(plan.last.takenAt));
-  const base = moneyStep(plan.opensAtMs, plan.next.actualCents, plan.next.estimatedCents);
   // One step per release minute, as Payouts has one row
-  const byMinute = new Map<number, { actualCents: number; estimatedCents: number }>();
+  const byMinute = new Map<number, Amount>();
   for (const step of steps) {
     if (step.atMs <= plan.opensAtMs) continue;
     const atMs = endOfReleaseMinute(step.atMs);
-    const minute = byMinute.get(atMs) ?? { actualCents: 0, estimatedCents: 0 };
+    const minute = byMinute.get(atMs) ?? { atMs, actualCents: 0, estimatedCents: 0 };
     byMinute.set(atMs, minute);
     minute.actualCents += step.actualCents;
     minute.estimatedCents += step.estimatedCents;
   }
-  return {
-    cents: base.cents,
-    estimated: base.estimated,
-    steps: [...byMinute]
-      .slice(0, WIDGET_GROWTH_STEPS)
-      .map(([atMs, { actualCents, estimatedCents }]) => moneyStep(atMs, actualCents, estimatedCents)),
-  };
+  // The phone adds each step that has passed to the opening's amount
+  const [base, ...later] = moneySteps([
+    { atMs: plan.opensAtMs, actualCents: plan.next.actualCents, estimatedCents: plan.next.estimatedCents },
+    ...[...byMinute.values()].slice(0, WIDGET_GROWTH_STEPS),
+  ]);
+  return { cents: base.cents, estimated: base.estimated, steps: later };
 }
 
 /** A release day as the widget names it: "Wed, Nov 18", "Wed, Nov 18 (held)". */

@@ -45,4 +45,6 @@ export interface UseTaskManagementReturn {
   /** Star or unstar a task (no toast: the star itself shows the change). */
   toggleFavorite: (taskId: string) => Promise<Task | null>;
   isLoading: boolean;
+  /** The tasks have been read (`isLoading` is false before the first read starts, too). */
+  hasLoaded: boolean;
 }

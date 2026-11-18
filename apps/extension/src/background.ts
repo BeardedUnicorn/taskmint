@@ -81,6 +81,9 @@ export async function attemptDelivery(
     return true;
   } catch {
     await chrome.storage.local.set({ pendingCapture: capture });
+    // An earlier delivery's tick was due to clear within the minute, and
+    // would take this badge with it
+    await chrome.alarms.clear(BADGE_CLEAR_ALARM);
     await setBadge('queued');
     await chrome.alarms.create(RETRY_ALARM, { periodInMinutes: RETRY_PERIOD_MINUTES });
 

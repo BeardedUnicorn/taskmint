@@ -9,6 +9,11 @@
  * arrived by taskmint:// link (any web page can open one, and an import
  * rewrites tracked days), and payloads with a project that has no task match.
  *
+ * A capture is planned against the sessions, tasks, ledger and mappings, so
+ * none is taken until they have loaded (`ready`): against empty lists a new
+ * project would seem to need a task match, and a tracked day's timers
+ * wouldn't be found to rewrite. The backend keeps it until then.
+ *
  * Captures usually land while you're in the browser, so each outcome is
  * also a desktop notification when the app window isn't focused.
  *
@@ -57,6 +62,8 @@ export interface UseWorkLogCaptureDeps {
   stagedCapture: StagedCapture | null;
   stageCapture: (capture: StagedCapture) => void;
   clearStagedCapture: () => void;
+  /** The sessions, tasks and work logs have loaded: a capture can be planned against them. */
+  ready: boolean;
 }
 
 export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
@@ -201,12 +208,14 @@ export function useWorkLogCapture(deps: UseWorkLogCaptureDeps): void {
   }, [notify, showWarning]);
 
   // A payload may have arrived before the frontend mounted (deep-link cold
-  // start) — the take-on-mount call and the event handler share one path.
+  // start), or while the data was loading — taking it once that's in and
+  // the event handler share one path.
+  const { ready } = deps;
   useEffect(() => {
-    void processPending();
-  }, [processPending]);
+    if (ready) void processPending();
+  }, [ready, processPending]);
   // A server's resync: a capture may have arrived while the stream was down
   useBackendEvent([WORK_LOG_CAPTURED_EVENT, BACKEND_EVENTS.RESYNC], () => {
-    void processPending();
+    if (ready) void processPending();
   });
 }

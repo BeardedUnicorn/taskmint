@@ -703,8 +703,9 @@ mod desktop {
 }
 
 /// A phone's or tablet's stand-in for the desktop parts: none of them is
-/// there, except updates, which a phone checks in the release feed and
-/// downloads as an APK in the browser (apk_update).
+/// there, except updates, which a phone checks in the release feed. The
+/// app downloads the APK itself (AppUpdate.kt); the browser can instead
+/// (apk_update).
 #[cfg(mobile)]
 mod mobile {
     use super::text;

@@ -83,6 +83,11 @@ class MainActivity : TauriActivity() {
     // A force stop loses the reminders' alarms, and nothing else sets them
     // again until the phone restarts
     Reminders.restore(this)
+    // An update's download reports to this activity's page from now on,
+    // one begun under an earlier activity too
+    AppUpdate.attach(this) { report ->
+      webView?.evaluateJavascript("window.__taskmintUpdate && window.__taskmintUpdate($report)", null)
+    }
     ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
       val density = resources.displayMetrics.density
       val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / density
@@ -160,16 +165,27 @@ class MainActivity : TauriActivity() {
     return true
   }
 
-  // The shell's notice goes back over one shown from published figures (TimerNotices)
+  // The shell's notice goes back over one shown from published figures
+  // (TimerNotices), and an update downloaded while the app was in the
+  // background gets its installer (AppUpdate)
   override fun onResume() {
     super.onResume()
     TimerNotices.resumed(applicationContext)
+    AppUpdate.resumed(this)
   }
 
-  // The page kept the widgets' figures current while it was in front (WidgetSync takes only newer ones)
+  // No longer in front: an update's installer waits for the next resume
+  // (AppUpdate), and the page kept the widgets' figures current while it was
+  // in front (WidgetSync takes only newer ones)
   override fun onPause() {
+    AppUpdate.paused(this)
     super.onPause()
     if (widgetsFromPage) Widgets.confirm(applicationContext)
+  }
+
+  override fun onDestroy() {
+    AppUpdate.detach(this)
+    super.onDestroy()
   }
 
   // Added before the page loads, so the webview has them from the start
@@ -264,15 +280,13 @@ class MainActivity : TauriActivity() {
 
     /**
      * Downloads a release and opens Android's installer on it (AppUpdate),
-     * telling the page how far it is (window.__taskmintUpdate).
+     * which tells the page how far it is (window.__taskmintUpdate, through
+     * onCreate's attach). The download is the app's: it outlives this
+     * activity, and asking again while it runs joins it.
      */
     @JavascriptInterface
     fun downloadUpdate(version: String) {
-      AppUpdate.download(this@MainActivity, version) { report ->
-        runOnUiThread {
-          webView?.evaluateJavascript("window.__taskmintUpdate && window.__taskmintUpdate($report)", null)
-        }
-      }
+      AppUpdate.download(applicationContext, version)
     }
 
     /** What the app was opened for and hasn't acted on (see `launch`), once; null when nothing. */

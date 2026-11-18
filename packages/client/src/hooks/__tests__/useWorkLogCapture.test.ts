@@ -75,6 +75,7 @@ function makeDeps(overrides: Partial<UseWorkLogCaptureDeps> = {}): UseWorkLogCap
     stagedCapture: null,
     stageCapture: vi.fn(),
     clearStagedCapture: vi.fn(),
+    ready: true,
     ...overrides,
   };
 }
@@ -136,6 +137,26 @@ describe('useWorkLogCapture', () => {
     const [, undo] = mockNotify.mock.calls[0][0].actions;
     undo.onClick();
     expect(deps.undoImport).toHaveBeenCalledWith(appliedSummary.undo);
+  });
+
+  it('waits for the sessions, tasks and work logs a capture is planned against', async () => {
+    takeQueue.push(capture(samplePayloadText));
+    const applyImport = vi.fn(async () => appliedSummary);
+    // Just started: nothing has loaded, so the project would seem to match no task
+    const loading = makeDeps({ ready: false, tasks: [], applyImport });
+    const { rerender } = renderHook(({ deps }) => useWorkLogCapture(deps), { initialProps: { deps: loading } });
+    await fireCaptureEvent();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(mockInvoke).not.toHaveBeenCalledWith('take_pending_work_log_capture');
+    expect(loading.stageCapture).not.toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
+
+    // Loaded: the capture is still there to take, and applies
+    const loaded = makeDeps({ applyImport });
+    rerender({ deps: loaded });
+    await waitFor(() => expect(applyImport).toHaveBeenCalledTimes(1));
+    expect(loaded.stageCapture).not.toHaveBeenCalled();
   });
 
   it("never changes a task's rate, even when the site's pay implies another", async () => {

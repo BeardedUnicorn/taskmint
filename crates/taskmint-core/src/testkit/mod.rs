@@ -74,7 +74,7 @@ fn present<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Value>, 
     Value::deserialize(deserializer).map(Some)
 }
 
-const SCENARIOS: [&str; 12] = [
+const SCENARIOS: [&str; 13] = [
     include_str!("scenarios/records.json"),
     include_str!("scenarios/timer.json"),
     include_str!("scenarios/starting_work.json"),
@@ -87,6 +87,7 @@ const SCENARIOS: [&str; 12] = [
     include_str!("scenarios/work_logs.json"),
     include_str!("scenarios/restore_and_reset.json"),
     include_str!("scenarios/sync.json"),
+    include_str!("scenarios/sync_in_flight.json"),
 ];
 
 pub fn scenarios() -> Vec<Scenario> {

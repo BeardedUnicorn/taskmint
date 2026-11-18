@@ -3,7 +3,8 @@
  *
  * One template field's settings: label, type, required, placeholder, the
  * type's validation or options, and a preview. The builder holds the field;
- * every change goes back to it whole.
+ * every change goes back to it whole. A pattern that isn't a regular
+ * expression is kept as typed and marked: the builder won't save it.
  */
 
 import { useId, useState } from 'react';
@@ -41,6 +42,7 @@ import {
 } from '@mui/icons-material';
 import { FieldEditorProps, TemplateField, FieldType, SelectOption } from '../../../types/notes';
 import { PHONE } from '../../../theme/media';
+import { fieldSettingsError } from '../../../utils/noteFields';
 
 /** Two fields side by side that share a phone's width instead of overflowing it. */
 const PAIR_ON_PHONE = { gap: 1, '& > *': { flex: 1, minWidth: 0 } } as const;
@@ -96,6 +98,8 @@ export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, 
     setOptions(options.map((option, i) => (i === index ? { ...option, ...changes } : option)));
 
   const TypeIcon = FIELD_TYPE_ICONS[field.type];
+  // A pattern that isn't a regular expression: the builder won't save it
+  const settingsError = fieldSettingsError(field);
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
@@ -169,6 +173,13 @@ export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, 
           </Tooltip>
         </Box>
       </Box>
+
+      {/* With the settings closed, what's wrong in them still shows */}
+      {settingsError && !expanded && (
+        <Typography variant="caption" color="error" role="alert" sx={{ display: 'block', mt: 1 }}>
+          {settingsError}
+        </Typography>
+      )}
 
       {/* Expanded Field Configuration */}
       <Collapse in={expanded} unmountOnExit>
@@ -253,7 +264,8 @@ export function FieldEditor({ field, onUpdateField, onDeleteField, onMoveField, 
                 fullWidth
                 sx={{ mt: 1 }}
                 placeholder="^[A-Za-z]+$"
-                helperText="Optional regular expression for validation"
+                error={settingsError !== null}
+                helperText={settingsError ?? 'Optional regular expression for validation'}
               />
             </Box>
           )}

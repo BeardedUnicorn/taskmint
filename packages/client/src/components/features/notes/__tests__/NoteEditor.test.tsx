@@ -159,6 +159,55 @@ describe('NoteEditor', () => {
     });
   });
 
+  it("doesn't save changes that were discarded, when the editor then goes", async () => {
+    const onSaveNote = vi.fn().mockResolvedValue({ id: 'note1' });
+    const view = render(
+      <NoteEditor
+        taskId="task1"
+        template={null}
+        onSaveNote={onSaveNote}
+        onUpdateNote={mockOnUpdateNote}
+        onDeleteNote={mockOnDeleteNote}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        onCloseEditor={() => view.unmount()}
+        noteLevel="task"
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Note Content'), { target: { value: 'changed' } });
+    fireEvent.click(screen.getByText('Cancel'));
+    fireEvent.click(await screen.findByText('Discard'));
+
+    await waitFor(() => expect(screen.queryByLabelText('Note Content')).not.toBeInTheDocument());
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(onSaveNote).not.toHaveBeenCalled();
+  });
+
+  it("doesn't save a note's last changes back when it's deleted", async () => {
+    const onUpdateNote = vi.fn().mockResolvedValue(existingTemplateNote);
+    const view = render(
+      <NoteEditor
+        taskId="task1"
+        template={mockTemplate}
+        existingNote={existingTemplateNote}
+        onSaveNote={mockOnSaveNote}
+        onUpdateNote={onUpdateNote}
+        onDeleteNote={async () => view.unmount()}
+        isCollapsed={false}
+        onToggleCollapse={() => {}}
+        noteLevel="task"
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Text Field'), { target: { value: 'edited' } });
+    fireEvent.click(screen.getByText('Delete Note'));
+
+    await waitFor(() => expect(screen.queryByLabelText('Text Field')).not.toBeInTheDocument());
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(onUpdateNote).not.toHaveBeenCalled();
+  });
+
   it('parses number inputs as numbers before saving', async () => {
     const numberTemplate: NoteTemplate = {
       id: 'tmpl-number',

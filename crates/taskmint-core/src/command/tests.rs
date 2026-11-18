@@ -398,16 +398,33 @@ fn timer_events_carry_the_instance_and_the_moment() {
         }]
     );
 
-    let paused = run(
-        &mut workspace,
-        "pause_timer_at",
-        json!({ "instanceId": id, "idleSince": "2026-03-02T14:50:00Z" }),
-    )
-    .unwrap();
+    // Noticed at 15:20; input stopped at 15:10
+    let noticed = Ctx {
+        now: Utc.with_ymd_and_hms(2026, 3, 2, 15, 20, 0).unwrap(),
+        ..ctx()
+    };
+    let pause = |workspace: &mut Workspace, idle_since: &str| {
+        let args = json!({ "instanceId": id, "idleSince": idle_since });
+        execute(
+            Command::parse("pause_timer_at", args).unwrap(),
+            workspace,
+            &noticed,
+        )
+        .unwrap()
+    };
+    let mut resumed_meanwhile = workspace.clone();
+    let paused = pause(&mut workspace, "2026-03-02T15:10:00Z");
     // As of when input stopped
     assert_eq!(
         paused.events[0].payload,
-        json!({ "instanceId": id, "pausedAt": "2026-03-02T14:50:00+00:00" })
+        json!({ "instanceId": id, "pausedAt": "2026-03-02T15:10:00+00:00" })
+    );
+
+    // Never from before the run began: the event says what was saved
+    let paused = pause(&mut resumed_meanwhile, "2026-03-02T14:50:00Z");
+    assert_eq!(
+        paused.events[0].payload,
+        json!({ "instanceId": id, "pausedAt": "2026-03-02T15:00:00+00:00" })
     );
 }
 

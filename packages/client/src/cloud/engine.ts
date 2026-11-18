@@ -10,7 +10,9 @@
  *   synced with one), even with the cloud empty: it doesn't go there unasked.
  * - Linked, it reads the cloud's changes as they're written and applies
  *   them, and sends this device's changes (`sync-pending`) shortly after
- *   they're made. A document it sent counts as sent once it comes back.
+ *   they're made, or at once when the page is hidden or going away: it may
+ *   not get another turn, and the web app's data is only in the page until
+ *   it's sent. A document it sent counts as sent once it comes back.
  * - Deleting the cloud data (from any device) moves the account to a new
  *   epoch, and a device still on the old one stops syncing, keeping its data.
  * - Linked, a phone's own code is told the account (`background`), so it
@@ -95,6 +97,22 @@ interface PublishSlot {
   timer: ReturnType<typeof setTimeout> | undefined;
 }
 
+/** Why a send didn't reach the cloud when the user changed while it was being put together. */
+const OVERTAKEN = 'Signed out before it was sent.';
+
+/** Calls `listener` when the page is hidden or going away; returns how to stop. */
+function onPageHidden(listener: () => void): Unsubscribe {
+  const hidden = () => {
+    if (document.visibilityState === 'hidden') listener();
+  };
+  document.addEventListener('visibilitychange', hidden);
+  window.addEventListener('pagehide', listener);
+  return () => {
+    document.removeEventListener('visibilitychange', hidden);
+    window.removeEventListener('pagehide', listener);
+  };
+}
+
 /** Phases where no data is on its way, so nothing waits for it (firstSync). */
 const WAITS_FOR_NOTHING = new Set<SyncPhase>(['signedOut', 'choose', 'otherAccount', 'error', 'cloudReset']);
 
@@ -144,7 +162,10 @@ export class SyncEngine {
   }
 
   async start(): Promise<void> {
-    this.unsubscribe.push(this.backend.subscribe(EVENTS.SYNC_PENDING, () => this.send(this.options.sendDelayMs)));
+    this.unsubscribe.push(
+      this.backend.subscribe(EVENTS.SYNC_PENDING, () => this.send(this.options.sendDelayMs)),
+      onPageHidden(() => this.sendAtOnce())
+    );
     try {
       this.store = await this.loadStore();
     } catch (error) {
@@ -394,6 +415,9 @@ export class SyncEngine {
 
   /** Reads the account's changes and watches its epoch, then sends this device's. */
   private follow(uid: string, status: SyncStatus, generation: number): void {
+    // Signed out (or in as someone else) while this device was being linked:
+    // the link stands, as for any device signed out of, and nobody is followed
+    if (generation !== this.generation) return;
     const epoch = status.account!.epoch;
     this.linked = { uid, epoch, deviceId: status.deviceId };
     const refreshToken = this.cloud.refreshToken();
@@ -483,6 +507,13 @@ export class SyncEngine {
     this.timer = setTimeout(() => void this.push(generation), delayMs);
   }
 
+  /** The page is hidden or going away: what waits to be sent goes now, with no timer to wait out. */
+  private sendAtOnce(): void {
+    if (!this.linked) return;
+    clearTimeout(this.timer);
+    void this.push(this.generation);
+  }
+
   /** Sends what changed: null once the cloud has it, else why it doesn't. */
   private push(generation: number): Promise<string | null> {
     const sending = this.deliver(generation);
@@ -501,6 +532,12 @@ export class SyncEngine {
         for (const doc of fresh) this.sent.set(doc.docId, doc.hash);
         return this.backend.call('get_sync_status');
       });
+      if (generation !== this.generation) {
+        // Signed out (or in as someone else) meanwhile: nothing is sent, or
+        // counts as sent, and the status is no longer this send's to give
+        for (const doc of fresh) this.sent.delete(doc.docId);
+        return OVERTAKEN;
+      }
       this.update(status);
       if (fresh.length > 0) {
         await this.cloud.write(linked.uid, fresh, {
