@@ -129,6 +129,25 @@ describe('NoteTemplateBuilder', () => {
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ description: undefined }));
   });
 
+  it("doesn't save a template while a field's pattern isn't a regular expression", async () => {
+    const handlers = renderBuilder([template()]);
+    click(/^Standup/);
+    const pattern = (value: string) => {
+      fireEvent.click(screen.getAllByRole('button', { name: 'Expand' })[0]);
+      fireEvent.change(screen.getByLabelText('Pattern (Regex)'), { target: { value } });
+      fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
+    };
+
+    pattern('(unclosed');
+    expect(screen.getByRole('button', { name: 'Update Template' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Pattern isn’t a valid regular expression');
+
+    pattern('(closed)');
+    click('Update Template');
+    await waitFor(() => expect(handlers.update).toHaveBeenCalled());
+    expect(handlers.update.mock.calls[0][1].fields![0].validation).toEqual({ pattern: '(closed)' });
+  });
+
   it('starts a new template over on Cancel', () => {
     renderBuilder();
     click('New Template');

@@ -64,6 +64,9 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
   const [selectedTemplate, setSelectedTemplate] = useState<NoteTemplate | null>(null);
   const [isEditorCollapsed, setIsEditorCollapsed] = useState(false);
   const [isCreatingNewNote, setIsCreatingNewNote] = useState(false);
+  // Each new note gets an editor of its own: the one before may hold a note
+  // it has saved by itself, which this page doesn't know about
+  const [newNoteCount, setNewNoteCount] = useState(0);
 
   // State for filtering and search
   const [searchQuery, setSearchQuery] = useState('');
@@ -121,11 +124,13 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
   // Handlers
   const handleDeleteNote = async (noteId: string): Promise<void> => {
     await deleteNote(noteId);
-    if (editingNote?.id === noteId) {
-      setEditingNote(null);
-      setSelectedTemplate(null);
-      setIsCreatingNewNote(false);
-    }
+    if (editingNote?.id === noteId) handleCloseEditor();
+  };
+
+  // From the editor, whose note it is (a new one it saved by itself too)
+  const handleDeleteFromEditor = async (noteId: string): Promise<void> => {
+    await deleteNote(noteId);
+    handleCloseEditor();
   };
 
   const handleEditNote = (note: TaskNote) => {
@@ -140,6 +145,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
   const handleCreateNote = () => {
     setEditingNote(null);
     setIsCreatingNewNote(true);
+    setNewNoteCount(count => count + 1);
 
     // The default task's default template, if it has one
     const defaultTask = tasks.find(task => task.id === getDefaultTaskId());
@@ -325,7 +331,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                 {(editingNote || selectedTemplate || isCreatingNewNote) && (
                   <Box sx={{ mb: 3 }}>
                     <NoteEditor
-                      key={editingNote?.id ?? 'new'}
+                      key={editingNote?.id ?? `new-${newNoteCount}`}
                       tasks={editorTasks}
                       taskId={editingNote?.taskId || getDefaultTaskId()}
                       template={selectedTemplate}
@@ -333,7 +339,7 @@ export function NotesPage({ tasks, sessions = NO_SESSIONS, runningTask }: NotesP
                       noteLevel="task"
                       onSaveNote={handleSaveNote}
                       onUpdateNote={handleUpdateNote}
-                      onDeleteNote={handleDeleteNote}
+                      onDeleteNote={handleDeleteFromEditor}
                       isCollapsed={isEditorCollapsed}
                       onToggleCollapse={handleToggleEditor}
                       onCloseEditor={handleCloseEditor}

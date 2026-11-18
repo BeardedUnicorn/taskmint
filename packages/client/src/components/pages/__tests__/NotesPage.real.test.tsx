@@ -3,7 +3,7 @@
  * filtering by task and template, the archived section, and editing.
  */
 
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotesPage } from '../NotesPage';
 import { TaskNotesProvider } from '../../../contexts/TaskNotesContext';
@@ -11,6 +11,7 @@ import { NoteTemplatesProvider } from '../../../contexts/NoteTemplatesContext';
 import { TaskNote } from '../../../types/notes';
 import { Task } from '../../../types/task';
 import { readAppRecord } from '../../../services/appRecords';
+import { AUTOSAVE_DELAY_MS } from '../../../hooks/useNoteDraft';
 import { seedAppRecords } from '../../../testing';
 import { createMockTask } from '../../../__tests__/setup/session-test-utils';
 import { createNotificationMock } from '../../../__tests__/setup/notificationMock';
@@ -104,6 +105,92 @@ describe('NotesPage, for real', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete Note' }));
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Task' })).not.toBeInTheDocument());
     expect((readAppRecord('taskNotes') as TaskNote[]).map(saved => saved.id)).not.toContain('templated');
+  });
+
+  it('starts another note with Add Note once the open new one has saved itself', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      page();
+      await waitFor(() => expect(shown('Text of free')).toBe(true));
+      const saved = () => (readAppRecord('taskNotes') as TaskNote[]).map(note => note.fieldValues.content);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Note' }));
+      fireEvent.change(screen.getByLabelText('Note Content'), { target: { value: 'First' } });
+      await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS));
+      await waitFor(() => expect(saved()).toContain('First'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Note' }));
+      expect(screen.getByLabelText('Note Content')).toHaveValue('');
+      expect(screen.getByText('New note')).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Note Content'), { target: { value: 'Second' } });
+      await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS));
+      await waitFor(() => expect(saved()).toEqual(expect.arrayContaining(['First', 'Second'])));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps what was typed in the last second on the way to the Templates tab', async () => {
+    page();
+    await waitFor(() => expect(shown('Text of free')).toBe(true));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Note' }));
+    fireEvent.change(screen.getByLabelText('Note Content'), { target: { value: 'Before the tab' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Templates' }));
+
+    await waitFor(() =>
+      expect((readAppRecord('taskNotes') as TaskNote[]).map(note => note.fieldValues.content)).toContain(
+        'Before the tab'
+      )
+    );
+  });
+
+  it('closes the editor when the new note it saved by itself is deleted from it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      page();
+      await waitFor(() => expect(shown('Text of free')).toBe(true));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Note' }));
+      fireEvent.change(screen.getByLabelText('Note Content'), { target: { value: 'Short-lived' } });
+      await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS));
+      // Typed on, and deleted before that saved: it isn't saved back
+      fireEvent.change(await screen.findByLabelText('Note Content'), { target: { value: 'Short-lived, still' } });
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete Note' }));
+
+      await waitFor(() => expect(screen.queryByLabelText('Note Content')).not.toBeInTheDocument());
+      await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS));
+      expect((readAppRecord('taskNotes') as TaskNote[]).map(note => note.id)).toEqual([
+        'free',
+        'templated',
+        'archived',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('closes the editor when the note open in it is deleted from the list, not when another is', async () => {
+    page();
+    await waitFor(() => expect(shown('Shipped')).toBe(true));
+    // (A menu that has just closed still hides the page for a moment)
+    const menuOf = async (text: string) => {
+      const menus = await screen.findAllByRole('button', { name: 'More actions' });
+      fireEvent.click(menus.find(menu => menu.closest('.MuiPaper-root')?.textContent?.includes(text))!);
+    };
+
+    await menuOf('Shipped');
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit Note' }));
+    expect(await screen.findByRole('combobox', { name: 'Task' })).toHaveTextContent('Retired');
+
+    await menuOf('Text of free');
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete Note' }));
+    await waitFor(() => expect(shown('Text of free')).toBe(false));
+    expect(screen.getByRole('combobox', { name: 'Task' })).toBeInTheDocument();
+
+    await menuOf('Shipped');
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete Note' }));
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Task' })).not.toBeInTheDocument());
   });
 
   it('waits for a task before a new note can be added', async () => {

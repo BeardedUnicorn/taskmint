@@ -29,13 +29,14 @@ vi.mock('../../hooks/useWorkLogCapture', () => ({
 }));
 
 const mockSessions = [{ id: 'session-1' }];
+const loaded = vi.hoisted(() => ({ sessions: true, tasks: true }));
 vi.mock('../SessionManagementContext', () => ({
-  useSessionManagementContext: () => ({ sessions: mockSessions }),
+  useSessionManagementContext: () => ({ sessions: mockSessions, hasLoaded: loaded.sessions }),
 }));
 
 const mockTasks = [createMockTask()];
 vi.mock('../TaskManagementContext', () => ({
-  useTaskManagementContext: () => ({ tasks: mockTasks }),
+  useTaskManagementContext: () => ({ tasks: mockTasks, hasLoaded: loaded.tasks }),
 }));
 
 function Probe() {
@@ -87,8 +88,38 @@ describe('WorkLogContext', () => {
         sessions: mockSessions,
         tasks: mockTasks,
         stageCapture: expect.any(Function),
+        ready: true,
       })
     );
+  });
+
+  it('holds captures back until the sessions, the tasks and the work logs have all loaded', () => {
+    const ready = () => (mockUseWorkLogCapture.mock.lastCall![0] as { ready: boolean }).ready;
+    const mount = () =>
+      render(
+        <WorkLogProvider>
+          <Probe />
+        </WorkLogProvider>
+      ).unmount();
+    try {
+      loaded.sessions = false;
+      mount();
+      expect(ready()).toBe(false);
+
+      loaded.sessions = true;
+      loaded.tasks = false;
+      mount();
+      expect(ready()).toBe(false);
+
+      loaded.tasks = true;
+      mockWorkLogs.hasLoaded = false;
+      mount();
+      expect(ready()).toBe(false);
+    } finally {
+      loaded.sessions = true;
+      loaded.tasks = true;
+      mockWorkLogs.hasLoaded = true;
+    }
   });
 
   it('throws when used outside the provider', () => {

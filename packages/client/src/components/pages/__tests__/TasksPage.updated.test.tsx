@@ -323,7 +323,10 @@ describe('TasksPage - Task List Layout', () => {
 
       const dialog = await screen.findByRole('dialog');
       expect(within(dialog).getByText(/1 time entry \(1h 0m\)/)).toBeInTheDocument();
-      expect(within(dialog).getByText(/lose its hourly rate/)).toBeInTheDocument();
+      // Tracked time keeps the rate captured for it: nothing about lost rates or $0
+      expect(within(dialog).getByText(/stay in your history and keep their earnings/)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/hourly rate|\$0/)).not.toBeInTheDocument();
+      expect(within(dialog).getByText(/Archive it instead to keep it, hidden from task pickers/)).toBeInTheDocument();
       expect(within(dialog).queryByText(/remove all associated time entries/)).not.toBeInTheDocument();
 
       fireEvent.click(within(dialog).getByRole('button', { name: 'Archive instead' }));

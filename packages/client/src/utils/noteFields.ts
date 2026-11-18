@@ -52,6 +52,21 @@ export function isEmptyDraft(values: FieldValues): boolean {
 
 const isBlank = (value: unknown) => value === undefined || value === null || value === '';
 
+/** A text field's pattern as a regular expression; null when it isn't one. */
+function patternRegExp(pattern: string): RegExp | null {
+  try {
+    return new RegExp(pattern);
+  } catch {
+    return null;
+  }
+}
+
+/** What's wrong with a field's settings, so its template can't be saved; null when nothing is. */
+export function fieldSettingsError(field: TemplateField): string | null {
+  const pattern = field.validation?.pattern;
+  return pattern && !patternRegExp(pattern) ? 'Pattern isn’t a valid regular expression' : null;
+}
+
 /** A message for each field whose value isn't acceptable, by field id. */
 export function validateFieldValues(fields: readonly TemplateField[], values: FieldValues): Record<string, string> {
   const errors: Record<string, string> = {};
@@ -89,7 +104,9 @@ export function validateFieldValues(fields: readonly TemplateField[], values: Fi
           errors[field.id] = `${label} must be at least ${validation.min} characters`;
         } else if (validation?.max !== undefined && value.length > validation.max) {
           errors[field.id] = `${label} must be at most ${validation.max} characters`;
-        } else if (validation?.pattern && !new RegExp(validation.pattern).test(value)) {
+        } else if (validation?.pattern && patternRegExp(validation.pattern)?.test(value) === false) {
+          // (A stored pattern that isn't a regular expression rules nothing
+          // out: the template editor refuses new ones)
           errors[field.id] = `${label} format is invalid`;
         }
         break;

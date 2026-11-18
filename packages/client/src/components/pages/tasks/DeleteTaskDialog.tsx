@@ -17,10 +17,11 @@ interface DeleteTaskDialogProps {
 }
 
 /**
- * Deleting a task leaves its sessions in place (they live in the backend's
- * sessions.json), but they lose the task's hourly rate, so their earnings
- * show as $0. When that history exists, say so and offer Archive, which keeps
- * the rate and hides the task from pickers.
+ * Deleting a task leaves its tracked time in place, earnings included: each
+ * session and timer keeps the name and the rate captured for it
+ * (utils/earnings). What goes is the task itself, and with it this page's
+ * list of that time. When there is such history, say so and offer Archive,
+ * which keeps the task and hides it from pickers.
  */
 export function DeleteTaskDialog({ task, history, onDelete, onArchive, onClose }: DeleteTaskDialogProps) {
   if (!task) return null;
@@ -31,8 +32,8 @@ export function DeleteTaskDialog({ task, history, onDelete, onArchive, onClose }
 
   const message = hasHistory
     ? `"${task.name}" has ${entries} (${formatDuration(history.trackedMs)}). They stay in your ` +
-      'history, but without the task they lose its hourly rate, so their earnings show as $0.' +
-      (canArchive ? ' Archive it instead to keep the rate and hide it from task pickers.' : '')
+      'history and keep their earnings, but are no longer listed under a task here.' +
+      (canArchive ? ' Archive it instead to keep it, hidden from task pickers.' : '')
     : `Delete "${task.name}"?`;
 
   const handleDelete = () => {

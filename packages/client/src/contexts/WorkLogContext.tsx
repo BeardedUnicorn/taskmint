@@ -8,7 +8,8 @@
  *
  * Must sit inside SessionManagementProvider and TaskManagementProvider — the
  * capture handler builds rewrite groups from sessions and maps projects to
- * tasks. It never changes a task's rate.
+ * tasks, so it waits until those and the work logs have loaded. It never
+ * changes a task's rate.
  */
 
 import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
@@ -26,8 +27,8 @@ const WorkLogContext = createContext<WorkLogContextValue | null>(null);
 
 export function WorkLogProvider({ children }: { children: ReactNode }) {
   const workLogs = useWorkLogs();
-  const { sessions } = useSessionManagementContext();
-  const { tasks } = useTaskManagementContext();
+  const { sessions, hasLoaded: sessionsLoaded } = useSessionManagementContext();
+  const { tasks, hasLoaded: tasksLoaded } = useTaskManagementContext();
 
   const [stagedCapture, setStagedCapture] = useState<StagedCapture | null>(null);
   const stageCapture = useCallback((capture: StagedCapture) => {
@@ -47,6 +48,7 @@ export function WorkLogProvider({ children }: { children: ReactNode }) {
     stagedCapture,
     stageCapture,
     clearStagedCapture,
+    ready: sessionsLoaded && tasksLoaded && workLogs.hasLoaded,
   });
 
   const value = useMemo(

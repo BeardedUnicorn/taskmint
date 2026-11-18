@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SessionNotesDialog } from '../SessionNotesDialog';
@@ -13,6 +13,7 @@ import { TaskSession, TimerState } from '../../../../types/timer';
 import { noteText } from '../../../../utils/notes';
 import { seedAppRecords } from '../../../../testing';
 import { readAppRecord } from '../../../../services/appRecords';
+import { AUTOSAVE_DELAY_MS } from '../../../../hooks/useNoteDraft';
 
 const tasks: Task[] = [{ id: 'task-1', name: 'Annotation', createdAt: '', updatedAt: '' }];
 
@@ -216,12 +217,72 @@ describe('SessionNotesDialog', () => {
     expect(await within(dialog).findByLabelText('Note Content')).toBeInTheDocument();
   });
 
-  it('closes, dropping the note being edited', async () => {
+  it('closes, with no note made of one left blank', async () => {
     const onClose = vi.fn();
     renderDialog(null, onClose);
 
     fireEvent.click(await screen.findByRole('button', { name: /add note|create first note/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalled();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(readAppRecord(STORAGE_KEYS.TASK_NOTES) ?? []).toEqual([]);
+  });
+
+  it('keeps what was typed in the last second when it closes', async () => {
+    seedAppRecords({ [STORAGE_KEYS.TASK_NOTES]: [note('n-1', 'Session note')] });
+    renderDialog();
+    const dialog = await screen.findByRole('dialog');
+
+    // A new note, closed before its auto-save
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Add Note' }));
+    fireEvent.change(within(dialog).getByLabelText('Note Content'), { target: { value: 'Half a thought' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() =>
+      expect((readAppRecord(STORAGE_KEYS.TASK_NOTES) as TaskNote[]).map(noteText)).toEqual([
+        'Session note',
+        'Half a thought',
+      ])
+    );
+  });
+
+  it('keeps the last second of an edit when another note is opened', async () => {
+    seedAppRecords({ [STORAGE_KEYS.TASK_NOTES]: [note('n-1', 'First note'), note('n-2', 'Second note')] });
+    renderDialog();
+    const dialog = await screen.findByRole('dialog');
+    const edit = async (index: number) => {
+      fireEvent.click((await within(dialog).findAllByRole('button', { name: 'More actions' }))[index]);
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit Note' }));
+    };
+
+    await edit(0);
+    const before = (await within(dialog).findByLabelText('Note Content')) as HTMLTextAreaElement;
+    const edited = `${before.value}, edited`;
+    fireEvent.change(before, { target: { value: edited } });
+    await edit(1);
+
+    await waitFor(() => expect((readAppRecord(STORAGE_KEYS.TASK_NOTES) as TaskNote[]).map(noteText)).toContain(edited));
+  });
+
+  it('starts another note with Add Note once the open new one has saved itself', async () => {
+    seedAppRecords({ [STORAGE_KEYS.TASK_NOTES]: [note('n-1', 'Session note')] });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      renderDialog();
+      const dialog = await screen.findByRole('dialog');
+      const saved = () => (readAppRecord(STORAGE_KEYS.TASK_NOTES) as TaskNote[]).map(noteText);
+
+      fireEvent.click(await within(dialog).findByRole('button', { name: 'Add Note' }));
+      fireEvent.change(within(dialog).getByLabelText('Note Content'), { target: { value: 'First' } });
+      await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS));
+      await waitFor(() => expect(saved()).toContain('First'));
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add Note' }));
+      expect(within(dialog).getByLabelText('Note Content')).toHaveValue('');
+      fireEvent.change(within(dialog).getByLabelText('Note Content'), { target: { value: 'Second' } });
+      await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS));
+      await waitFor(() => expect(saved()).toEqual(['Session note', 'First', 'Second']));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -221,6 +221,74 @@ describe('cloud sync, signing in', () => {
     await new Promise(resolve => setTimeout(resolve, 10));
     expect(engine.getView()).toMatchObject({ phase: 'signedOut', error: null });
   });
+
+  /** Holds the backend's `command` until the returned function is called. */
+  function hold(host: ReturnType<typeof syncHost>, command: string) {
+    let release: (() => void) | undefined;
+    const original = host.backend.call.getMockImplementation()!;
+    host.backend.call.mockImplementation((name, args) =>
+      name === command && !release
+        ? new Promise(resolve => (release = () => resolve(original(name, args))))
+        : original(name, args)
+    );
+    return async () => {
+      await vi.waitFor(() => expect(release).toBeDefined());
+      return release!;
+    };
+  }
+
+  it('follows nobody when signed out while this device was being linked', async () => {
+    const host = syncHost({ outgoing: [doc('s1')] });
+    const engine = await started(host);
+    const held = hold(host, 'link_sync_account');
+    store.setUser(bea());
+    const link = await held();
+    store.setUser(null);
+    link();
+    await new Promise(resolve => setTimeout(resolve, 40));
+
+    expect(engine.getView()).toMatchObject({ phase: 'signedOut', user: null, error: null });
+    expect(store.listens).toEqual([]);
+    expect(store.watchAccount).not.toHaveBeenCalled();
+    // (nothing of this device's sent to the account, then or on a retry)
+    expect(store.write).not.toHaveBeenCalled();
+  });
+
+  it('follows nobody when signed out while the chosen way of joining was being made', async () => {
+    store.setEpoch('bea', 3);
+    store.setHasData('bea', true);
+    const host = syncHost({ hasData: true, outgoing: [doc('s1')] });
+    const engine = await started(host);
+    store.setUser(bea());
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('choose'));
+    const held = hold(host, 'link_sync_account');
+    const chosen = engine.choose('merge');
+    const link = await held();
+    store.setUser(null);
+    link();
+    await chosen;
+    await new Promise(resolve => setTimeout(resolve, 40));
+
+    expect(engine.getView()).toMatchObject({ phase: 'signedOut', user: null, error: null });
+    expect(store.listens).toEqual([]);
+    expect(store.write).not.toHaveBeenCalled();
+  });
+
+  it("doesn't follow the earlier account when someone else signs in while it was being linked", async () => {
+    const host = syncHost();
+    const engine = await started(host);
+    const held = hold(host, 'link_sync_account');
+    store.setUser(bea());
+    const link = await held();
+    store.setUser(bea('cal'));
+    link();
+
+    // The device is bea's now: cal is told so, and nothing of bea's is read
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('otherAccount'));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(phaseOf(engine)).toBe('otherAccount');
+    expect(store.listens).toEqual([]);
+  });
 });
 
 describe('cloud sync, linked', () => {
@@ -272,6 +340,89 @@ describe('cloud sync, linked', () => {
     fail(new Error('gone'));
     await new Promise(resolve => setTimeout(resolve, 30));
     expect(engine.getView()).toMatchObject({ phase: 'signedOut', error: null });
+  });
+
+  it('sends nothing, and stays signed out, when a sign-out overtook a send being put together', async () => {
+    for (const command of ['get_sync_outgoing', 'get_sync_status']) {
+      store = createFakeCloudStore();
+      const { engine, host } = await linked();
+      host.state.outgoing = [doc('s1')];
+      let release: (() => void) | undefined;
+      const original = host.backend.call.getMockImplementation()!;
+      host.backend.call.mockImplementation((name, args) =>
+        name === command && !release
+          ? new Promise(resolve => (release = () => resolve(original(name, args))))
+          : original(name, args)
+      );
+      engine.syncNow();
+      await vi.waitFor(() => expect(release).toBeDefined());
+      store.setUser(null);
+      release!();
+      await new Promise(resolve => setTimeout(resolve, 40));
+      expect(engine.getView()).toMatchObject({ phase: 'signedOut', user: null, error: null });
+      expect(store.write).not.toHaveBeenCalled();
+
+      // Signed in again, it's sent: it wasn't taken for sent meanwhile
+      store.setUser(bea());
+      await vi.waitFor(() => expect(store.writes).toHaveLength(1));
+      expect(store.writes[0].docs).toEqual([doc('s1')]);
+    }
+  });
+
+  it('tells a wait for the cloud that a sign-out overtook what it was sending', async () => {
+    const { engine, host } = await linked();
+    host.state.outgoing = [doc('s1')];
+    let release!: () => void;
+    const original = host.backend.call.getMockImplementation()!;
+    host.backend.call.mockImplementationOnce(
+      (name, args) => new Promise(resolve => (release = () => resolve(original(name, args))))
+    );
+    const flushed = engine.flush();
+    await vi.waitFor(() => expect(release).toBeDefined());
+    store.setUser(null);
+    release();
+    await expect(flushed).rejects.toThrow('Signed out before it was sent.');
+  });
+
+  it('sends a change at once when the page is hidden or going away, not after the usual wait', async () => {
+    const host = syncHost({ account: { uid: 'bea', epoch: 1 } });
+    store.setEpoch('bea', 1);
+    const engine = new SyncEngine(asBackend(host.backend), async () => store, { ...OPTIONS, sendDelayMs: 60_000 });
+    await engine.start();
+    store.setUser(bea());
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('synced'));
+    const visibility = vi.spyOn(document, 'visibilityState', 'get');
+    try {
+      host.state.outgoing = [doc('s1')];
+      host.backend.emit(EVENTS.SYNC_PENDING);
+      // Shown again (or still): it waits as ever
+      visibility.mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(store.write).not.toHaveBeenCalled();
+
+      visibility.mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.waitFor(() => expect(store.writes).toHaveLength(1));
+      expect(store.writes[0].docs).toEqual([doc('s1')]);
+
+      host.state.outgoing = [doc('s1'), doc('s2')];
+      host.backend.emit(EVENTS.SYNC_PENDING);
+      window.dispatchEvent(new Event('pagehide'));
+      await vi.waitFor(() => expect(store.writes).toHaveLength(2));
+      expect(store.writes[1].docs).toEqual([doc('s2')]);
+
+      // Stopped, or signed out: nothing to send for
+      store.setUser(null);
+      const calls = host.backend.call.mock.calls.length;
+      window.dispatchEvent(new Event('pagehide'));
+      engine.stop();
+      document.dispatchEvent(new Event('visibilitychange'));
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(host.backend.call.mock.calls.length).toBe(calls);
+    } finally {
+      visibility.mockRestore();
+    }
   });
 
   it('applies what comes in, in order, and drops a batch a sign-out overtook', async () => {
