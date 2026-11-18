@@ -8,6 +8,12 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.13.5 – 2026-11-17
+
+### Fixed
+
+- On Android, an update's download that is interrupted carries on from where it stopped instead of starting again. Android takes TaskMint off the network a few seconds after you switch apps or lock the screen: the download now waits, and finishes by itself when you come back to TaskMint. Try again after any other failure also keeps what was already downloaded.
+
 ## 4.13.4 – 2026-11-17
 
 ### Fixed
