@@ -8,6 +8,16 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.13.3 – 2026-11-17
+
+### Fixed
+
+- The next withdrawal no longer leaves out money the site still showed as pending or Untransferred when you imported again after a withdrawal and nothing about the entry had changed.
+- A deduction from the site (a negative amount) now comes off the withdrawal it's released with.
+- The phone's widgets keep the figures TaskMint showed while it was open, instead of taking an older copy another device published meanwhile.
+- The Today widget stops adding a running timer's money to yesterday's figure after midnight.
+- The Payouts widget marks a release that comes before the next withdrawal opens as held: its money is already in the amount shown.
+
 ## 4.13.2 – 2026-11-17
 
 ### Fixed
