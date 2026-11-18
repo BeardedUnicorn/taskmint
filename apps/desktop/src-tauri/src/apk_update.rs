@@ -1,8 +1,10 @@
 //! A phone's updates. The Android app isn't in a store, so it reads the same
-//! release feed as a desktop's updater (latest.json) and, for a newer
-//! version, downloads that release's APK in the browser for the user to
-//! install (Android asks first). The decisions are here; fetching the feed
-//! and opening the browser are platform/os.rs's.
+//! release feed as a desktop's updater (latest.json). For a newer version
+//! the app downloads that release's APK itself and opens Android's installer
+//! on it (AppUpdate.kt, which builds the same link as download_url); where
+//! it can't, or that fails, the browser downloads the APK for the user to
+//! install. Android asks first either way. The decisions are here; fetching
+//! the feed and opening the browser are platform/os.rs's.
 
 use crate::platform::AvailableUpdate;
 use serde::Deserialize;
