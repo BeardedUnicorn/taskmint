@@ -431,6 +431,9 @@ describe('buildReleaseEvents', () => {
     const early = makeEntry({ id: 'early', createdAt: '2026-08-25T14:30:00.000Z', amountCents: 2500 });
     const unstamped = makeEntry({ id: 'unstamped', createdAt: '2026-08-25T15:00:00.000Z', updatedAt: 'never' });
     const nothing = makeEntry({ id: 'nothing', amountCents: 0 });
+    // A deduction counts against what's released with it
+    const deduction = makeEntry({ id: 'deduction', createdAt: '2026-08-25T14:30:00.000Z', amountCents: -500 });
+    expect(buildReleaseEvents([], [deduction], 7).map(e => e.actualCents)).toEqual([-500]);
 
     const events = buildReleaseEvents(cells, [late, nothing, unstamped, early], 7);
 

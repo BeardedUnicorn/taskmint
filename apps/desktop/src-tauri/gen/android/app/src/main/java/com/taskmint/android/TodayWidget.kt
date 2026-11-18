@@ -69,7 +69,9 @@ object TodayViews : WidgetKind {
     Widgets.content(views)
     val today = snapshot.getJSONObject("today")
     val now = System.currentTimeMillis()
-    val money = Widgets.todayMoney(today, countingFrom != null, now) ?: ""
+    // Only today's money grows with a running timer: yesterday's stays as it was written
+    val growing = countingFrom != null && snapshot.optString("day") == Widgets.today()
+    val money = Widgets.todayMoney(today, growing, now) ?: ""
     val time = today.getString("time")
     val goal = today.whole("goalPercent")
     Widgets.header(views, Widgets.dayLabel(context, snapshot.getString("day")), if (fit.narrow) null else Widgets.asOf(context, snapshot))

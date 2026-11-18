@@ -33,20 +33,26 @@ function moneyStep(atMs: number, actualCents: number, estimatedCents: number): W
   return { atMs: endOfReleaseMinute(atMs), cents: estimated ? Math.round(cents / 100) * 100 : cents, estimated };
 }
 
-/** The schedule's next release days (soonest first), each day's money added up. */
-function releaseDays(schedule: PayoutData['schedule']): WidgetPayouts['releases'] {
-  const days = new Map<string, { cents: number; estimated: boolean; parts: WidgetMoneyStep[] }>();
+/**
+ * The schedule's next release days (soonest first), each day's money added
+ * up. A day all released by `heldUntilMs` (the next withdrawal's opening,
+ * null when it's open or there's none) is held: that withdrawal takes it.
+ */
+function releaseDays(schedule: PayoutData['schedule'], heldUntilMs: number | null): WidgetPayouts['releases'] {
+  const days = new Map<string, { cents: number; estimated: boolean; held: boolean; parts: WidgetMoneyStep[] }>();
   for (const row of schedule) {
-    const day = days.get(row.releaseDay) ?? { cents: 0, estimated: false, parts: [] };
+    const day = days.get(row.releaseDay) ?? { cents: 0, estimated: false, held: heldUntilMs !== null, parts: [] };
     if (!days.has(row.releaseDay) && days.size === WIDGET_RELEASES) break;
     day.cents += row.actualCents + row.estimatedCents;
     day.estimated ||= row.estimatedCents > 0;
+    day.held &&= heldUntilMs !== null && row.releaseMs <= heldUntilMs;
     day.parts.push(moneyStep(row.releaseMs, row.actualCents, row.estimatedCents));
     days.set(row.releaseDay, day);
   }
-  return [...days].map(([releaseDay, { cents, estimated, parts }]) => ({
+  return [...days].map(([releaseDay, { cents, estimated, held, parts }]) => ({
     day: formatWeekdayDate(parseDateStringLocal(releaseDay)),
     amount: widgetMoney(cents, estimated),
+    held,
     parts,
   }));
 }
@@ -77,9 +83,12 @@ function growthOf(
   };
 }
 
+/** A release day as the widget names it: "Wed, Nov 18", "Wed, Nov 18 (held)". */
+const heldDay = ({ day, held }: { day: string; held: boolean }) => (held ? `${day} (held)` : day);
+
 export function payoutsWidget(payout: Pick<PayoutData, 'plan' | 'schedule' | 'events'>): WidgetPayouts | null {
   const { plan } = payout;
-  const releases = releaseDays(payout.schedule);
+  const releases = releaseDays(payout.schedule, plan && !plan.isOpen ? plan.opensAtMs : null);
   const [next] = releases;
 
   if (plan) {
@@ -89,7 +98,7 @@ export function payoutsWidget(payout: Pick<PayoutData, 'plan' | 'schedule' | 'ev
       status: plan.isOpen ? 'Ready to withdraw' : `Opens ${formatWeekdayDateTime(plan.opensAtMs)}`,
       isOpen: plan.isOpen,
       opensAtMs: plan.isOpen ? null : plan.opensAtMs,
-      nextRelease: next ? `Next release ${next.day} · ${next.amount}` : null,
+      nextRelease: next ? `Next release ${heldDay(next)} · ${next.amount}` : null,
       hint: null,
       releases,
       growth: growthOf(plan, payout.events),
