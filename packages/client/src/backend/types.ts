@@ -239,9 +239,10 @@ export interface WidgetPayouts {
   /**
    * The next few release days, soonest first: a tall widget lists them. The
    * phone drops each of a day's `parts` as its time passes (and the day with
-   * its last), adding up what's left.
+   * its last), adding up what's left. A `held` day is released before the
+   * next withdrawal opens: its money is in `amount` already.
    */
-  releases: { day: string; amount: string; parts: WidgetMoneyStep[] }[];
+  releases: { day: string; amount: string; held: boolean; parts: WidgetMoneyStep[] }[];
   /**
    * How the next withdrawal grows after it opens (null with no withdrawal to
    * plan from): `amount` in cents, and each later release it would take. The

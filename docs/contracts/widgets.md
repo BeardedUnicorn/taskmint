@@ -61,7 +61,9 @@ whole dollars.
 - `payouts.releases[].parts`: `[{atMs, cents, estimated}]`, the day's
   releases. A part is gone once `now >= atMs`, and the day with its last;
   what's left of a day is its parts' sum. Until a withdrawal is recorded
-  (`hint` is set) the first day left is the big figure.
+  (`hint` is set) the first day left is the big figure. A day with `held`
+  true is all released before the next withdrawal opens: its money is in
+  `amount` already, and the reader says so ("Wed, Nov 18 (held)").
 - `payouts.growth`: `{cents, estimated, steps: [{atMs, cents, estimated}]}`,
   `null` with no withdrawal recorded. `cents` is `amount`; the next
   withdrawal takes each step too once `now >= atMs` (all are after it opens),

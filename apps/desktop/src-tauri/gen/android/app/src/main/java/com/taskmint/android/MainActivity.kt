@@ -68,6 +68,8 @@ class MainActivity : TauriActivity() {
    *   `{"action": …}` (Launch.ACTION).
    */
   @Volatile private var launch: String? = null
+  /** The page has sent the widgets' figures since this activity began. */
+  @Volatile private var widgetsFromPage = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val splashScreen = installSplashScreen()
@@ -172,9 +174,13 @@ class MainActivity : TauriActivity() {
     AppUpdate.resumed(this)
   }
 
+  // No longer in front: an update's installer waits for the next resume
+  // (AppUpdate), and the page kept the widgets' figures current while it was
+  // in front (WidgetSync takes only newer ones)
   override fun onPause() {
     AppUpdate.paused(this)
     super.onPause()
+    if (widgetsFromPage) Widgets.confirm(applicationContext)
   }
 
   override fun onDestroy() {
@@ -322,6 +328,8 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface
     fun updateWidgets(json: String) {
       Widgets.save(this@MainActivity, json)
+      widgetsFromPage = true
+      Widgets.confirm(this@MainActivity)
     }
 
     /**

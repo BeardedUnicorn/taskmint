@@ -40,9 +40,14 @@ describe('payoutsWidget', () => {
       nextRelease: 'Next release Sat, Nov 14 · $230',
       hint: null,
       releases: [
-        { day: 'Sat, Nov 14', amount: '$230', parts: [part('2026-11-14', 20_000), part('2026-11-14', 3_000)] },
-        { day: 'Mon, Nov 16', amount: '~$60', parts: [part('2026-11-16', 6_000, true)] },
-        { day: 'Wed, Nov 18', amount: '$70', parts: [part('2026-11-18', 7_000)] },
+        {
+          day: 'Sat, Nov 14',
+          amount: '$230',
+          held: false,
+          parts: [part('2026-11-14', 20_000), part('2026-11-14', 3_000)],
+        },
+        { day: 'Mon, Nov 16', amount: '~$60', held: false, parts: [part('2026-11-16', 6_000, true)] },
+        { day: 'Wed, Nov 18', amount: '$70', held: false, parts: [part('2026-11-18', 7_000)] },
       ],
       // An estimate in whole dollars: $1,123.45
       growth: { cents: 112_300, estimated: true, steps: [] },
@@ -134,6 +139,24 @@ describe('payoutsWidget', () => {
       { atMs: at(13) + 59_999, cents: 2_100, estimated: false },
       { atMs: at(14) + 59_999, cents: 0, estimated: true },
     ]);
+  });
+
+  it('marks a day released before the withdrawal opens as held: its money is in the amount already', () => {
+    // Opens on the 15th at noon: the 14th is all before it, the 16th after; open, nothing is held
+    const opensAtMs = new Date('2026-11-15T12:00:00').getTime();
+    const held = (plan: ReturnType<typeof createMockPlan> | null, rows = schedule) =>
+      payoutsWidget({ plan, schedule: rows, events: [] })!;
+    const closed = held(createMockPlan({ opensAtMs }));
+    expect(closed.releases.map(release => release.held)).toEqual([true, false, false]);
+    expect(closed.nextRelease).toBe('Next release Sat, Nov 14 (held) · $230');
+    // A day partly after the opening isn't
+    const split = held(createMockPlan({ opensAtMs: new Date('2026-11-14T12:00:00').getTime() }), [
+      row('2026-11-14', 20_000),
+      { ...row('2026-11-14', 3_000), releaseMs: new Date('2026-11-14T18:00:00').getTime() },
+    ]);
+    expect(split.releases.map(release => release.held)).toEqual([false]);
+    expect(held(createMockPlan({ opensAtMs, isOpen: true })).releases.some(release => release.held)).toBe(false);
+    expect(held(null).releases.some(release => release.held)).toBe(false);
   });
 
   it('follows no more than a dozen releases', () => {

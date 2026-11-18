@@ -52,6 +52,7 @@ import org.json.JSONObject
 object Widgets {
   private const val PREFS = "TaskMintWidgets"
   private const val SNAPSHOT = "snapshot"
+  private const val CONFIRMED = "confirmedAtMs"
   /** The snapshot's version these widgets read; an older one shows "Open TaskMint…". */
   private const val VERSION = 2
   private const val REFRESH_WINDOW_MS = 10 * 60_000L
@@ -79,6 +80,18 @@ object Widgets {
     }
     scheduleRefresh(context, after)
   }
+
+  /**
+   * The page's figures are current as of now: it just sent them, or it's
+   * been open with them until now. A published copy written before this
+   * isn't newer, though it was written after the page last changed its text.
+   */
+  fun confirm(context: Context) {
+    prefs(context).edit().putLong(CONFIRMED, System.currentTimeMillis()).apply()
+  }
+
+  /** When the page last had the kept figures current (0 when it never has). */
+  fun confirmedAt(context: Context): Long = prefs(context).getLong(CONFIRMED, 0)
 
   private fun read(json: String?): JSONObject? =
     json?.let { runCatching { JSONObject(it) }.getOrNull() }?.takeIf { it.optInt("version") == VERSION }
