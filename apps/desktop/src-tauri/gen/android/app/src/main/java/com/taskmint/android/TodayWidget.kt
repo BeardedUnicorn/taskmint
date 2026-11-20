@@ -28,8 +28,9 @@ class TodayWidget : TaskMintWidget() {
  * Its button acts in the background, without opening TaskMint, while the
  * figures are the phone's own (WidgetAction): Pause and Resume the timer
  * shown, Start the task used last (the snapshot's `start`, which the idle
- * card names). Over another device's figures, or with no task to start, it
- * opens TaskMint: to pause or resume there, or to choose a task.
+ * card names). Over another device's figures of a timer the phone's data may
+ * not have, or with no task to start, it opens TaskMint: to pause or resume
+ * there, or to choose a task.
  */
 object TodayViews : WidgetKind {
   override val provider = TodayWidget::class.java
@@ -251,9 +252,9 @@ object TodayViews : WidgetKind {
     // Narrow, the time goes under the money
     views.setViewVisibility(R.id.today_time, visible(!fit.narrow))
     views.setViewVisibility(R.id.today_time_under, visible(fit.narrow))
-    if (running) {
-      if (tall) views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, 22f)
-    }
+    // Under the timer card the money is a smaller figure, a little bigger
+    // when tall. Said either way: a widget made shorter keeps its layout
+    if (running) views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, if (tall) 22f else 18f)
     if (timer == null) {
       // The task Start begins, when it starts one here; else Start opens TaskMint to choose
       views.setViewVisibility(R.id.timer_task, visible(startTask != null))

@@ -27,9 +27,10 @@ import org.json.JSONObject
  * anything the cloud has.
  *
  * A button is one of these only while the figures shown are the phone's own
- * (TodayViews, TimerNotices). When they're another device's, the phone's
- * data may not have that timer yet, and the button opens TaskMint as it
- * always did; so does an action that couldn't be done.
+ * (TodayViews, TimerNotices), or another device's of the same timer
+ * (WidgetSync). When they're another device's of a timer the phone's data
+ * may not have yet, the button opens TaskMint as it always did; so does an
+ * action that couldn't be done.
  */
 class WidgetAction : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
@@ -73,6 +74,15 @@ object TimerButtons {
 
   /** Runs `action` and shows what it came to. Reads and saves files: not on the main thread. */
   fun press(context: Context, action: String) {
+    // Ahead of the cloud from before the action runs. While TaskMint is
+    // alive (in front under the notification shade, or just left) its page
+    // hears of the action and sends its own figures, which says the phone
+    // is no longer ahead (MainActivity.updateWidgets): that has to come
+    // after this, or the widgets would refuse other devices' figures until
+    // TaskMint was next opened
+    val wasAhead = Widgets.ahead(context)
+    val pressedAt = System.currentTimeMillis()
+    Widgets.setAhead(context, true)
     val acted =
       runCatching { Headless.act(context.dataDir.absolutePath, action) }
         .onFailure { Log.w(TAG, "Couldn't run $action", it) }
@@ -80,15 +90,18 @@ object TimerButtons {
         ?.let { runCatching { JSONObject(it) }.getOrNull() }
     if (acted == null || !acted.optBoolean("done")) {
       Log.w(TAG, "$action wasn't done here; opening TaskMint for it")
+      // Nothing changed: no further ahead than before
+      if (!wasAhead) Widgets.setAhead(context, false)
       openApp(context, action)
       return
     }
 
     val now = System.currentTimeMillis()
-    Widgets.snapshot(context)?.let { figures ->
-      Widgets.save(context, WidgetFigures.afterAction(figures, acted, now, Widgets.today()).toString(), own = true)
+    Widgets.moveOn(context) { figures ->
+      // The page's own, sent since the press, have the action already
+      if (figures.optLong("updatedAtMs") >= pressedAt) null
+      else WidgetFigures.afterAction(figures, acted, now, Widgets.today())
     }
-    Widgets.setAhead(context, true)
 
     val timer = acted.optJSONObject("timer")
     val countingFrom = timer?.time("countingFromMs")

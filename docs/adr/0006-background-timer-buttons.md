@@ -41,11 +41,17 @@ a second copy over the same files would overwrite the first one's changes.
    schema 2): `start` (the task used last, which Start begins and the idle
    card names), `timer.perHourCents` and `start.perHourCents` (what the money
    grows by), and `today.moneyCents`.
-4. **A button acts here only on the phone's own figures.** The kept snapshot
-   says whose it is (`own`: the page's, or a button's since). Over figures
-   another device published, the phone's data may not have that timer yet,
-   and the button opens TaskMint as before. So does an action that couldn't
-   be done (`done: false`), and Start when no task has been used yet.
+4. **A button acts here only on a timer the phone's data has.** The kept
+   snapshot says so (`own`: the page's figures, or a button's since). Over
+   figures another device published, the phone's data may not have that
+   timer yet, and the button opens TaskMint as before. So does an action
+   that couldn't be done (`done: false`), and Start when no task has been
+   used yet. Published figures that show the same live timer the phone's own
+   did (the same task and state, counting from the same moment, or none in
+   both) stay `own` (2026-11-20): a desktop left open publishes a running
+   timer's figures every quarter of an hour, and without this the phone's
+   buttons went back to opening TaskMint within that long of its own timer
+   starting.
 5. **What only the page does waits for the app.** Cloud sync runs in the
    page ([ADR 0002](0002-firebase.md) decision 6), so other devices hear of a
    button's action when TaskMint is next opened on the phone, and the

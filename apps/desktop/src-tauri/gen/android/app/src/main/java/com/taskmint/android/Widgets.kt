@@ -72,11 +72,16 @@ object Widgets {
 
   /**
    * Keeps the figures and redraws the widgets whose part of them changed.
-   * `own`: they're this phone's, worked out from its own data (the page's,
-   * or moved on by a timer button here), not another device's published
-   * ones. A timer button acts here, without opening TaskMint, only on the
-   * phone's own figures: its data has the timer they show (WidgetAction).
+   * `own`: the phone's data has the timer they show. They're this phone's,
+   * worked out from its own data (the page's, or moved on by a timer button
+   * here), or another device's published ones with the same timer the
+   * phone's own had (WidgetSync). A timer button acts here, without opening
+   * TaskMint, only on those (WidgetAction).
+   *
+   * One at a time: the page, a timer button and a check of the published
+   * figures each come on a thread of their own.
    */
+  @Synchronized
   fun save(context: Context, json: String, own: Boolean) {
     val before = read(prefs(context).getString(SNAPSHOT, null))
     val kept = runCatching { JSONObject(json).put(OWN, own).toString() }.getOrDefault(json)
@@ -92,6 +97,18 @@ object Widgets {
       attempt("the timer's notification") { TimerNotices.redraw(context) }
     }
     scheduleRefresh(context, after)
+  }
+
+  /**
+   * Moves the kept figures on, as the phone's own (a timer button's action
+   * here): `change` gives the new ones from those kept, or null to leave
+   * them as they are. Read and kept in one step, so figures the page sends
+   * meanwhile are neither lost under these nor changed twice.
+   */
+  @Synchronized
+  fun moveOn(context: Context, change: (JSONObject) -> JSONObject?) {
+    val next = snapshot(context)?.let(change) ?: return
+    save(context, next.toString(), own = true)
   }
 
   /**
