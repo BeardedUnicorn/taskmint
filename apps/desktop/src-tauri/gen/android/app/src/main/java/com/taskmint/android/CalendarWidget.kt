@@ -4,9 +4,7 @@ import android.content.Context
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.widget.RemoteViewsCompat
-import com.taskmint.android.Widgets.text
 import com.taskmint.android.Widgets.visible
-import com.taskmint.android.Widgets.whole
 import org.json.JSONArray
 import org.json.JSONObject
 

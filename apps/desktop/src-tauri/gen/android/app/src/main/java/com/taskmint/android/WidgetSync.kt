@@ -18,14 +18,10 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.google.firebase.installations.FirebaseInstallations
 import com.google.firebase.messaging.FirebaseMessaging
-import com.taskmint.android.Widgets.time
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.security.KeyStore
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import javax.crypto.Cipher
@@ -274,7 +270,7 @@ object WidgetSync {
     val text = { name: String -> fields.getJSONObject(name).getString("stringValue") }
     if (whole("schema") != SCHEMA.toLong() || whole("epoch") != link.getLong("epoch")) return
     if (text("deviceId") == link.getString("deviceId")) return
-    val writtenMs = millis(published.getString("updateTime"))
+    val writtenMs = WidgetFigures.millis(published.getString("updateTime"))
     val figures = JSONObject(text("json"))
     if (figures.optInt("version") != SCHEMA) return
 
@@ -289,14 +285,6 @@ object WidgetSync {
     if (!prefs(context).getBoolean(TIMER_NOTICE, true)) return
     val timer = figures.optJSONObject("timer")
     TimerNotices.setRemote(context, timer?.let { TimerNotice(it.getString("task"), it.time("countingFromMs")) })
-  }
-
-  /** An RFC 3339 time in UTC ("2026-11-14T21:00:00.123456Z"), as epoch milliseconds. */
-  private fun millis(time: String): Long {
-    val seconds = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-    val whole = seconds.parse(time.substring(0, 19))!!.time
-    val fraction = time.substring(19).trimEnd('Z').trimStart('.')
-    return whole + if (fraction.isEmpty()) 0 else fraction.padEnd(3, '0').substring(0, 3).toLong()
   }
 
   private class Reply(val code: Int, val body: String)

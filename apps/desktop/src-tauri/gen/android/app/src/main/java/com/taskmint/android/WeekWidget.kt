@@ -3,7 +3,6 @@ package com.taskmint.android
 import android.content.Context
 import android.widget.RemoteViews
 import com.taskmint.android.Widgets.visible
-import com.taskmint.android.Widgets.whole
 import org.json.JSONObject
 
 /** The This week widget (WeekViews). */

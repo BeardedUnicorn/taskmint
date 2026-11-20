@@ -17,7 +17,6 @@ import android.text.format.DateFormat
 import android.util.SizeF
 import android.view.View
 import android.widget.RemoteViews
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -221,7 +220,7 @@ object Widgets {
     val shown = { kind: WidgetKind -> manager.getAppWidgetIds(ComponentName(context, kind.provider)).isNotEmpty() }
     val noticeUp = TimerNotices.followsFigures(context)
     val now = System.currentTimeMillis()
-    val nextDollar = if (noticeUp || shown(TodayViews)) snapshot?.let { nextDollarAt(it, now) } else null
+    val nextDollar = if (noticeUp || shown(TodayViews)) snapshot?.let { WidgetFigures.nextDollarAt(it, now, today()) } else null
     if (nextDollar != null) alarms.setWindow(AlarmManager.RTC, nextDollar, MONEY_WINDOW_MS, money) else alarms.cancel(money)
     if (kinds.none(shown) && !noticeUp) {
       alarms.cancel(refresh)
@@ -239,72 +238,14 @@ object Widgets {
     val opens = snapshot?.optJSONObject("payouts")?.time("opensAtMs")?.takeIf { it > now }
     // A window, not exact: the phone needn't wake for it, and the opening
     // still shows within minutes of its time
-    val release = snapshot?.let { PayoutsViews.nextChangeAt(it, now) }
+    val release = snapshot?.let { WidgetFigures.nextReleaseAt(it, now) }
     alarms.setWindow(AlarmManager.RTC, minOf(midnight, opens ?: midnight, release ?: midnight), REFRESH_WINDOW_MS, refresh)
   }
 
-  // ----- Today's money, kept up while a timer runs -----
-
-  private const val HOUR_MS = 3_600_000.0
-  /** The soonest today's money is drawn again, and how late that may be (the phone needn't wake for it). */
-  private const val MONEY_EVERY_MS = 60_000L
+  /** How late today's money may be drawn again (the phone needn't wake for it). */
   private const val MONEY_WINDOW_MS = 60_000L
 
-  /**
-   * Today's money in cents at `now`, as a running timer begun today earns
-   * it (the snapshot's `today.earning`: what the day comes to without that
-   * timer, its rate, and where its time counts from). Null when the money
-   * stands still.
-   */
-  private fun earningCents(today: JSONObject, now: Long): Double? {
-    val earning = today.optJSONObject("earning") ?: return null
-    val ran = (now - earning.getLong("fromMs")).coerceAtLeast(0)
-    return earning.getDouble("baseCents") + earning.getDouble("perHourCents") * ran / HOUR_MS
-  }
-
-  /** "$1,235", "~$1,235" for an estimate: whole dollars, as the page writes money (widgetText.ts). */
-  fun money(cents: Double, estimated: Boolean): String {
-    val dollars = NumberFormat.getCurrencyInstance(Locale.US).apply { maximumFractionDigits = 0 }
-    return (if (estimated) "~" else "") + dollars.format(Math.round(cents / 100))
-  }
-
-  private fun estimate(cents: Double): String = money(cents, true)
-
-  /**
-   * Today's money as it is at `now`: worked out from the running timer's
-   * rate while `running` and the page said how it grows, else as the page
-   * last wrote it.
-   */
-  fun todayMoney(today: JSONObject, running: Boolean, now: Long): String? =
-    (if (running) earningCents(today, now) else null)?.let(::estimate) ?: today.text("money")
-
-  /** When today's money next shows another dollar; null while it stands still or the figures aren't today's. */
-  private fun nextDollarAt(snapshot: JSONObject, now: Long): Long? {
-    if (snapshot.optString("day") != today()) return null
-    if (snapshot.optJSONObject("timer")?.time("countingFromMs") == null) return null
-    val today = snapshot.optJSONObject("today") ?: return null
-    val perHour = today.optJSONObject("earning")?.optDouble("perHourCents") ?: return null
-    val cents = earningCents(today, now) ?: return null
-    if (!(perHour > 0)) return null
-    // Whole dollars round at 50 cents
-    val next = Math.round(cents / 100) * 100 + 50
-    return now + maxOf(((next - cents) / perHour * HOUR_MS).toLong() + 1_000, MONEY_EVERY_MS)
-  }
-
-  /** "3h 12m", "12m": a time as the page writes it (formatDurationCompact). */
-  fun timeInWords(ms: Long): String {
-    val minutes = ms.coerceAtLeast(0) / 60_000
-    return if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
-  }
-
   // ----- What the widgets share -----
-
-  /** A string field that may be null (or missing) in the JSON. */
-  fun JSONObject.text(name: String): String? = if (isNull(name)) null else getString(name)
-
-  fun JSONObject.time(name: String): Long? = if (isNull(name)) null else getLong(name)
-
-  fun JSONObject.whole(name: String): Int? = if (isNull(name)) null else getInt(name)
 
   fun visible(shown: Boolean) = if (shown) View.VISIBLE else View.GONE
 

@@ -5,9 +5,7 @@ import android.os.SystemClock
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
-import com.taskmint.android.Widgets.time
 import com.taskmint.android.Widgets.visible
-import com.taskmint.android.Widgets.whole
 import org.json.JSONObject
 
 /** The Today widget (TodayViews). */
@@ -21,7 +19,7 @@ class TodayWidget : TaskMintWidget() {
  * on, from the snapshot's `today` and `timer`. While a timer runs, its task
  * and today's time are the big figures (widget_today_running), the time
  * counting when the timer began today, with the money earned today under
- * them, drawn again with each dollar (Widgets.todayMoney). Otherwise today's
+ * them, drawn again with each dollar (WidgetFigures.todayMoney). Otherwise today's
  * money is the big figure (widget_today). One row tall, it's a line with the
  * timer's button (widget_today_row); tall, it adds this week's figures. It
  * shows what the day comes to, as the timer's notification does, not how
@@ -71,7 +69,7 @@ object TodayViews : WidgetKind {
     val now = System.currentTimeMillis()
     // Only today's money grows with a running timer: yesterday's stays as it was written
     val growing = countingFrom != null && snapshot.optString("day") == Widgets.today()
-    val money = Widgets.todayMoney(today, growing, now) ?: ""
+    val money = WidgetFigures.todayMoney(today, growing, now) ?: ""
     val time = today.getString("time")
     val goal = today.whole("goalPercent")
     Widgets.header(views, Widgets.dayLabel(context, snapshot.getString("day")), if (fit.narrow) null else Widgets.asOf(context, snapshot))

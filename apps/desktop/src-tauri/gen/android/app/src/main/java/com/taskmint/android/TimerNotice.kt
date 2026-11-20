@@ -17,7 +17,6 @@ import androidx.core.app.NotificationManagerCompat
 import app.tauri.notification.ACTION_INTENT_KEY
 import app.tauri.notification.DEFAULT_PRESS_ACTION
 import app.tauri.notification.NOTIFICATION_INTENT_KEY
-import com.taskmint.android.Widgets.time
 import java.time.Duration
 import java.time.Instant
 import kotlin.math.abs
@@ -299,7 +298,7 @@ object TimerNotices {
     return Today(
       countingFromMs = countingFrom.takeIf { notice.running },
       stillMs = still.takeIf { countingFrom == null || !notice.running },
-      money = Widgets.todayMoney(today, notice.running, now),
+      money = WidgetFigures.todayMoney(today, notice.running, now),
     )
   }
 
@@ -313,7 +312,7 @@ object TimerNotices {
    */
   private fun line(context: Context, notice: TimerNotice, today: Today?): String {
     val money = today?.money
-    val time = today?.stillMs?.let(Widgets::timeInWords)
+    val time = today?.stillMs?.let(WidgetFigures::timeInWords)
     val figures =
       when {
         money != null && time != null -> context.getString(R.string.timer_notice_time_and_earned, time, money)
