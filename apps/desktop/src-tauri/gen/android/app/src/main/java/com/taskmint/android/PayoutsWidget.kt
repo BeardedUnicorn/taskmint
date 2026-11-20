@@ -1,6 +1,7 @@
 package com.taskmint.android
 
 import android.content.Context
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.taskmint.android.Widgets.visible
@@ -30,6 +31,10 @@ object PayoutsViews : WidgetKind {
 
   override fun part(snapshot: JSONObject) = listOf(snapshot.opt("updatedAtMs"), snapshot.opt("payouts")).toString()
 
+  /** The card's padding either side (widget_padding), and the room the next release takes beside the amount. */
+  private const val PADDING_DP = 32f
+  private const val ASIDE_DP = 100f
+
   override fun views(context: Context, snapshot: JSONObject?, fit: Fit, id: Int, scroll: Int?): RemoteViews {
     val views =
       RemoteViews(context.packageName, if (fit.height == Height.ROW) R.layout.widget_payouts_row else R.layout.widget_payouts)
@@ -54,6 +59,15 @@ object PayoutsViews : WidgetKind {
     val status = if (planned) payouts.getString("status") else releases[0].day
     views.setTextViewText(R.id.payouts_label, payouts.getString("label"))
     views.setTextViewText(R.id.payouts_amount, amount)
+    // As big as fits: the card's width less its padding; one row tall, less
+    // the next release beside it too
+    val row = fit.height == Height.ROW
+    val room = Widgets.widthDp(context, fit, id) - PADDING_DP - (if (row && !fit.narrow) ASIDE_DP else 0f)
+    views.setTextViewTextSize(
+      R.id.payouts_amount,
+      TypedValue.COMPLEX_UNIT_SP,
+      Widgets.figureSp(context, if (row) 24f else 34f, amount, room)
+    )
     views.setContentDescription(R.id.payouts_amount, Widgets.spoken(context, amount))
 
     // Open once its time has passed, though the page hasn't said so yet

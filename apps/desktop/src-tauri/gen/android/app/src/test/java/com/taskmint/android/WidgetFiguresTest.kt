@@ -386,26 +386,33 @@ class WidgetFiguresTest {
   // ----- Fitting a figure to its room -----
 
   @Test
+  fun a_figures_marks_are_narrower_than_its_digits() {
+    assertEquals(3 * 0.58f, WidgetFigures.widthEm("$45"), 0.001f)
+    // "20:44:57": six digits and two colons
+    assertEquals(6 * 0.58f + 2 * 0.27f, WidgetFigures.widthEm("20:44:57"), 0.001f)
+    assertEquals(0f, WidgetFigures.widthEm(""), 0.001f)
+  }
+
+  @Test
   fun a_figure_keeps_its_size_while_it_fits() {
-    assertEquals(34f, WidgetFigures.fitSp(34f, chars = 3, availableDp = 168f, fontScale = 1f))
-    assertEquals(34f, WidgetFigures.fitSp(34f, chars = 0, availableDp = 10f, fontScale = 1f))
+    assertEquals(34f, WidgetFigures.fitSp(34f, "$45", availableDp = 168f, fontScale = 1f))
+    assertEquals(34f, WidgetFigures.fitSp(34f, "", availableDp = 10f, fontScale = 1f))
     // A font scale that makes no sense counts as none
-    assertEquals(34f, WidgetFigures.fitSp(34f, chars = 3, availableDp = 168f, fontScale = 0f))
+    assertEquals(34f, WidgetFigures.fitSp(34f, "$45", availableDp = 168f, fontScale = 0f))
   }
 
   @Test
   fun a_long_figure_or_big_text_is_drawn_smaller_to_fit() {
-    // "~$12,345" in a narrow widget (78dp across): 8 × 34 × 0.58 = 158dp wide
-    assertEquals(16f, WidgetFigures.fitSp(34f, chars = 8, availableDp = 78f, fontScale = 1f))
-    // The same figure with the phone's text at its largest
-    val large = WidgetFigures.fitSp(34f, chars = 6, availableDp = 168f, fontScale = 2f)
-    assertTrue(large < 34f)
-    assertEquals(24f, large)
+    // "~$12,345" in a narrow widget (78dp across): 7 × 0.58 + 0.27 = 4.33em, 147dp at 34sp
+    assertEquals(18f, WidgetFigures.fitSp(34f, "~$12,345", availableDp = 78f, fontScale = 1f))
+    // A figure that fits, until the phone's text is at its largest
+    assertEquals(34f, WidgetFigures.fitSp(34f, "$1,234", availableDp = 168f, fontScale = 1f))
+    assertEquals(26f, WidgetFigures.fitSp(34f, "$1,234", availableDp = 168f, fontScale = 2f))
   }
 
   @Test
   fun a_figure_never_goes_below_a_readable_size() {
-    assertEquals(14f, WidgetFigures.fitSp(34f, chars = 12, availableDp = 40f, fontScale = 2f))
+    assertEquals(14f, WidgetFigures.fitSp(34f, "~$1,234,567", availableDp = 40f, fontScale = 2f))
   }
 
   // ----- The widgets' sizes -----

@@ -5,4 +5,8 @@
     <dimen name="widget_radius">20dp</dimen>
     <dimen name="widget_inner_radius">12dp</dimen>
     <dimen name="widget_padding">16dp</dimen>
+    <!-- The Calendar's date column and the circle round today's date: in sp,
+         so they hold their text at any font size -->
+    <dimen name="widget_day_column">36sp</dimen>
+    <dimen name="widget_day_number">28sp</dimen>
 </resources>

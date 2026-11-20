@@ -48,6 +48,9 @@
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:fontFeatureSettings">tnum</item>
         <item name="android:singleLine">true</item>
+        <!-- Sized to fit (Widgets.figureSp); past its smallest, cut short
+             with an ellipsis, not through a digit -->
+        <item name="android:ellipsize">end</item>
         <item name="android:includeFontPadding">false</item>
     </style>
 
@@ -63,6 +66,8 @@
     <!-- A running timer's clock -->
     <style name="TaskMintWidget.Clock" parent="TaskMintWidget.Hero">
         <item name="android:textSize">30sp</item>
+        <!-- A clock's text changes each second: no ellipsis coming and going -->
+        <item name="android:ellipsize">none</item>
     </style>
 
     <!-- The brand-green pill: 40dp drawn in a 48dp touch target -->

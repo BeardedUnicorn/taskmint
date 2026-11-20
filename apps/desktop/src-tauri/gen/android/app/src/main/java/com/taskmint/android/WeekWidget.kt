@@ -25,8 +25,8 @@ class WeekWidget : TaskMintWidget() {
 object WeekViews : WidgetKind {
   override val provider = WeekWidget::class.java
 
-  /** Only width (where the totals go) and being tall (the amounts) change it. */
-  override val sizes = Fit.sizes(listOf(Height.ROW, Height.TALL))
+  /** Only width (where the totals go; roomy, room for the amounts) and being tall (the amounts) change it. */
+  override val sizes = Fit.sizes(listOf(Height.ROW, Height.TALL), roomy = true)
 
   private val columns = listOf(R.id.column_0, R.id.column_1, R.id.column_2, R.id.column_3, R.id.column_4, R.id.column_5, R.id.column_6)
   private val bars = listOf(R.id.bar_0, R.id.bar_1, R.id.bar_2, R.id.bar_3, R.id.bar_4, R.id.bar_5, R.id.bar_6)
@@ -75,7 +75,8 @@ object WeekViews : WidgetKind {
       views.setTextViewText(amounts[index], day.optString("amount"))
       views.setContentDescription(columns[index], day.optString("spoken"))
     }
-    views.setViewVisibility(R.id.amounts, visible(fit.height == Height.TALL && !fit.narrow))
+    // A column needs four columns' width for an amount ("~$123") to fit under it
+    views.setViewVisibility(R.id.amounts, visible(fit.height == Height.TALL && fit.roomy))
 
     val goal = week.whole("goalLevel")
     views.setViewVisibility(R.id.goal_line, visible(goal != null))

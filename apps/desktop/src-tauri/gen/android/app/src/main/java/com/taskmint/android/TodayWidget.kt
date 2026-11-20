@@ -122,10 +122,24 @@ object TodayViews : WidgetKind {
       val base = SystemClock.elapsedRealtime() - todayMs
       val counts = todayFrom != null && current
       views.setChronometer(R.id.today_clock, base, null, counts)
-      views.setTextViewTextSize(R.id.today_clock, TypedValue.COMPLEX_UNIT_SP, clockSize(fit))
+      // Sized for the longest it will read while it counts: "9:59:59", or
+      // "20:44:57" from ten hours on
+      val longest = if (todayMs >= 10 * 3_600_000L) "20:44:57" else "9:59:59"
+      val width = Widgets.widthDp(context, fit, id)
+      val beside = width - (if (oneRow) ROW_PADDING_DP else CARD_PADDING_DP + INNER_PADDING_DP) - buttonDp(fit, oneRow)
+      views.setTextViewTextSize(
+        R.id.today_clock,
+        TypedValue.COMPLEX_UNIT_SP,
+        Widgets.figureSp(context, clockSize(fit), longest, beside - (if (oneRow && !fit.narrow) ASIDE_DP else 0f))
+      )
       // A narrow card has no room beside the button: the clock goes under it
       val under = !oneRow && fit.narrow
       views.setChronometer(R.id.today_clock_under, base, null, under && counts)
+      views.setTextViewTextSize(
+        R.id.today_clock_under,
+        TypedValue.COMPLEX_UNIT_SP,
+        Widgets.figureSp(context, 26f, longest, width - CARD_PADDING_DP - INNER_PADDING_DP)
+      )
       views.setViewVisibility(R.id.today_clock_under, visible(under))
       if (!oneRow) views.setViewVisibility(R.id.today_clock, visible(!under))
       // The clock has today's time: beside the money, what it is
@@ -140,11 +154,39 @@ object TodayViews : WidgetKind {
       // The row has no header to say whose day the figures are
       val day = if (current) null else Widgets.dayLabel(context, snapshot.getString("day"))
       row(context, views, timer, countingFrom, money, time, goal, fit, day)
+      // Its big figure (today's money, or the time standing still), as big as fits
+      val room = Widgets.widthDp(context, fit, id) - ROW_PADDING_DP - buttonDp(fit, true) - (if (fit.narrow) 0f else ASIDE_DP)
+      views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, 24f, money, room))
+      views.setTextViewTextSize(R.id.row_paused, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, 24f, time, room))
     } else {
-      card(context, views, timer, layout == R.layout.widget_today_running, fit)
+      val running = layout == R.layout.widget_today_running
+      card(context, views, timer, running, fit)
+      if (!running) {
+        // Today's money, as big as fits beside its time (under it when narrow)
+        val room = Widgets.widthDp(context, fit, id) - CARD_PADDING_DP - (if (fit.narrow) 0f else TIME_BESIDE_DP)
+        views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, heroSize(fit), money, room))
+      }
     }
     return views
   }
+
+  /** What's beside a figure, in dp: the widget's padding, the timer card's, a button, a row's right-hand figure, the time by the money. */
+  private const val CARD_PADDING_DP = 32f
+  private const val ROW_PADDING_DP = 24f
+  private const val INNER_PADDING_DP = 18f
+  private const val ASIDE_DP = 92f
+  private const val TIME_BESIDE_DP = 70f
+
+  /** The timer button's width with its margin: with words when roomy, else the round one. */
+  private fun buttonDp(fit: Fit, oneRow: Boolean): Float = if (!oneRow && fit.roomy) 104f else 56f
+
+  /** Today's money at its biggest, by the card's size (a little smaller when narrow). */
+  private fun heroSize(fit: Fit): Float =
+    when {
+      fit.narrow -> 28f
+      fit.height == Height.TALL -> 40f
+      else -> 34f
+    }
 
   /** The running clock's size (sp) beside its button: as big as a 20-hour "20:44:57" fits. */
   private fun clockSize(fit: Fit): Float =
@@ -179,15 +221,6 @@ object TodayViews : WidgetKind {
     views.setViewVisibility(R.id.today_time_under, visible(fit.narrow))
     if (running) {
       if (tall) views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, 22f)
-    } else {
-      // and the money is a little smaller
-      val hero =
-        when {
-          fit.narrow -> 28f
-          tall -> 40f
-          else -> 34f
-        }
-      views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, hero)
     }
     if (timer == null) {
       views.setViewVisibility(R.id.timer_task, View.GONE)

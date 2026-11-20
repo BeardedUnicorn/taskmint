@@ -16,6 +16,7 @@ import android.os.Looper
 import android.text.format.DateFormat
 import android.util.Log
 import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import java.text.SimpleDateFormat
@@ -296,6 +297,32 @@ object Widgets {
 
   fun visible(shown: Boolean) = if (shown) View.VISIBLE else View.GONE
 
+  /**
+   * How wide (dp) the widget `id` is when it's drawn at `fit`: its own
+   * width as the launcher gives it, while that's within the size class;
+   * else the class's narrowest (a layout for a size the widget isn't at
+   * now, or the picker's preview).
+   */
+  fun widthDp(context: Context, fit: Fit, id: Int): Float {
+    val own =
+      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) 0f
+      else AppWidgetManager.getInstance(context).getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH).toFloat()
+    val from = fit.narrowestDp
+    return if (own >= from && !(fit.narrow && own >= Fit.WIDE_FROM)) own else from
+  }
+
+  /**
+   * The size (sp) the figure `text` is drawn at, no bigger than `base`, to
+   * fit `roomDp` across at the phone's font size (WidgetFigures.fitSp). An
+   * sp isn't always the font scale's dp: from Android 14 big text grows
+   * less than small, so the scale is measured at `base`.
+   */
+  fun figureSp(context: Context, base: Float, text: String, roomDp: Float): Float {
+    val metrics = context.resources.displayMetrics
+    val scale = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, base, metrics) / (base * metrics.density)
+    return WidgetFigures.fitSp(base, text, roomDp, scale)
+  }
+
   /** The header's name and its right-hand side (none when null). */
   fun header(views: RemoteViews, title: String, aside: String?) {
     views.setTextViewText(R.id.widget_title, title)
@@ -390,6 +417,15 @@ enum class Height {
  * whether roomy (four columns: room for a button's words).
  */
 data class Fit(val height: Height, val narrow: Boolean, val roomy: Boolean = false) {
+  /** The narrowest (dp) a widget of this size class is. */
+  val narrowestDp: Float
+    get() =
+      when {
+        narrow -> NARROWEST_SHOWN
+        roomy -> ROOMY_FROM
+        else -> WIDE_FROM
+      }
+
   companion object {
     /** Where (dp) a widget stops being narrow and starts being roomy, and starts being a card and tall. */
     const val WIDE_FROM = 200f
@@ -398,6 +434,8 @@ data class Fit(val height: Height, val narrow: Boolean, val roomy: Boolean = fal
     const val TALL_FROM = 290f
     private const val NARROWEST = 100f
     private const val SHORTEST = 40f
+    /** The narrowest a widget is made (its minResizeWidth). */
+    private const val NARROWEST_SHOWN = 110f
 
     fun of(width: Float, height: Float) =
       Fit(

@@ -265,21 +265,26 @@ object WidgetFigures {
 
   // ----- Fitting a figure to its room -----
 
-  /** A digit's width in a medium sans-serif, as a share of the text's size. */
+  /** A digit's width in a medium sans-serif with tabular figures, as a share of the text's size. */
   private const val DIGIT_EM = 0.58f
+  /** A colon's, comma's, point's or space's. */
+  private const val MARK_EM = 0.27f
   /** The smallest a big figure goes: under this it's cut short with an ellipsis instead. */
   private const val SMALLEST_SP = 14f
 
+  /** How wide `text` is drawn, in ems: a figure's digits and signs are all about as wide, its marks narrower. */
+  fun widthEm(text: String): Float = text.sumOf { (if (it in ":,. ") MARK_EM else DIGIT_EM).toDouble() }.toFloat()
+
   /**
-   * The size (sp) a figure of `chars` characters is drawn at so it fits
-   * `availableDp` across, no bigger than `base`: the phone's font size
-   * (`fontScale`) makes text wider, and a long figure ("~$12,345") in a
+   * The size (sp) the figure `text` is drawn at so it fits `availableDp`
+   * across, no bigger than `base`: the phone's font size (`fontScale`: how
+   * many dp an sp is) makes text wider, and a long figure ("~$12,345") in a
    * narrow widget wouldn't fit at the size a short one does.
    */
-  fun fitSp(base: Float, chars: Int, availableDp: Float, fontScale: Float): Float {
+  fun fitSp(base: Float, text: String, availableDp: Float, fontScale: Float): Float {
     val scale = if (fontScale > 0) fontScale else 1f
-    val width = chars * base * scale * DIGIT_EM
-    if (width <= availableDp || chars == 0) return base
+    val width = widthEm(text) * base * scale
+    if (width <= availableDp || width <= 0f) return base
     return maxOf(floor(base * availableDp / width), SMALLEST_SP)
   }
 }
