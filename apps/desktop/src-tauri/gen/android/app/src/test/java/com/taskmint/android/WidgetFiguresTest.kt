@@ -383,6 +383,121 @@ class WidgetFiguresTest {
     assertTrue(WidgetFigures.takes(figures("2026-11-18", "America/New_York"), written, mine, 0))
   }
 
+  // ----- A timer button pressed on the phone -----
+
+  private val day = "2026-11-18"
+
+  /** The page's snapshot with nothing running: $40 and 2 hours today, Writing used last at $60 an hour. */
+  private fun idle(start: String = """{ "taskId": "t", "task": "Writing", "perHourCents": 6000 }""") =
+    json(
+      """
+      { "version": 2, "updatedAtMs": 1, "day": "$day", "timer": null, "start": $start,
+        "today": { "money": "$40", "time": "2h 0m", "countingFromMs": null, "timeMs": ${2 * hour},
+                   "earning": null, "moneyCents": 4000, "goalPercent": 50 } }
+      """
+    )
+
+  private fun acted(timer: String) = json("""{ "done": true, "timer": $timer }""")
+
+  /** An object's fields as text, whatever order they're kept in. */
+  private fun fields(of: JSONObject): Map<String, String> = of.keys().asSequence().associateWith { of.get(it).toString() }
+
+  private fun started(at: Long, beganToday: Boolean = true) =
+    acted("""{ "task": "Writing", "countingFromMs": $at, "beganToday": $beganToday }""")
+
+  private val pausedTimer = acted("""{ "task": "Writing", "countingFromMs": null, "beganToday": true }""")
+
+  @Test
+  fun start_sets_todays_time_and_money_counting() {
+    val after = WidgetFigures.afterAction(idle(), started(noon), noon, day)
+    assertEquals(noon, after.getLong("updatedAtMs"))
+    assertEquals(
+      fields(json("""{ "task": "Writing", "countingFromMs": $noon, "perHourCents": 6000 }""")),
+      fields(after.getJSONObject("timer"))
+    )
+    val today = after.getJSONObject("today")
+    // Two hours stood: the clock counts from two hours ago
+    assertEquals(noon - 2 * hour, today.getLong("countingFromMs"))
+    assertTrue(today.isNull("timeMs"))
+    assertTrue(today.isNull("moneyCents"))
+    assertEquals("~$40", today.getString("money"))
+    // and the money grows from the $40 at the task's rate
+    assertEquals("~$70", WidgetFigures.todayMoney(today, running = true, now = noon + hour / 2))
+    assertEquals(noon + minute, WidgetFigures.nextDollarAt(after, noon, day))
+    // What the page alone works out stays
+    assertEquals(50, today.getInt("goalPercent"))
+  }
+
+  @Test
+  fun pause_stands_the_figures_where_they_had_got_to_and_resume_counts_on() {
+    val running = WidgetFigures.afterAction(idle(), started(noon), noon, day)
+    val paused = WidgetFigures.afterAction(running, pausedTimer, noon + hour / 2, day)
+    val today = paused.getJSONObject("today")
+    assertTrue(paused.getJSONObject("timer").isNull("countingFromMs"))
+    assertEquals(6_000, paused.getJSONObject("timer").getInt("perHourCents"))
+    assertTrue(today.isNull("countingFromMs"))
+    assertTrue(today.isNull("earning"))
+    assertEquals(2 * hour + hour / 2, today.getLong("timeMs"))
+    assertEquals("2h 30m", today.getString("time"))
+    assertEquals(7_000, today.getInt("moneyCents"))
+    assertEquals("~$70", today.getString("money"))
+    assertNull(WidgetFigures.nextDollarAt(paused, noon + hour, day))
+
+    // Resumed an hour later: the time counts on from 2h 30m, the money from $70
+    val resumed = WidgetFigures.afterAction(paused, started(noon + hour), noon + 3 * hour / 2, day)
+    val counting = resumed.getJSONObject("today")
+    assertEquals(noon + 3 * hour / 2 - (2 * hour + hour / 2), counting.getLong("countingFromMs"))
+    assertEquals("~$100", WidgetFigures.todayMoney(counting, running = true, now = noon + 2 * hour))
+  }
+
+  @Test
+  fun stop_takes_the_timer_away_and_leaves_the_day_standing() {
+    val running = WidgetFigures.afterAction(idle(), started(noon), noon, day)
+    val stopped = WidgetFigures.afterAction(running, acted("null"), noon + hour, day)
+    assertTrue(stopped.isNull("timer"))
+    assertEquals("~$100", stopped.getJSONObject("today").getString("money"))
+    assertEquals(3 * hour, stopped.getJSONObject("today").getLong("timeMs"))
+  }
+
+  @Test
+  fun the_money_stands_when_the_task_adds_none() {
+    // No rate, or the day's money is the site's
+    val unpaid = idle("""{ "taskId": "t", "task": "Writing", "perHourCents": null }""")
+    val today = WidgetFigures.afterAction(unpaid, started(noon), noon, day).getJSONObject("today")
+    assertEquals(noon - 2 * hour, today.getLong("countingFromMs"))
+    assertTrue(today.isNull("earning"))
+    assertEquals("$40", today.getString("money"))
+    assertEquals(4_000, today.getInt("moneyCents"))
+  }
+
+  @Test
+  fun a_snapshot_without_the_moneys_cents_keeps_its_money_as_written() {
+    // An older TaskMint's, taken from another device and since made the phone's own
+    val older = idle().apply { getJSONObject("today").remove("moneyCents") }
+    val today = WidgetFigures.afterAction(older, started(noon), noon, day).getJSONObject("today")
+    assertEquals(noon - 2 * hour, today.getLong("countingFromMs"))
+    assertTrue(today.isNull("earning"))
+    assertEquals("$40", today.getString("money"))
+  }
+
+  @Test
+  fun a_timer_begun_on_an_earlier_day_leaves_today_standing() {
+    val today = WidgetFigures.afterAction(idle(), started(noon - 30 * hour, beganToday = false), noon, day).getJSONObject("today")
+    assertTrue(today.isNull("countingFromMs"))
+    assertEquals(2 * hour, today.getLong("timeMs"))
+    assertTrue(today.isNull("earning"))
+  }
+
+  @Test
+  fun figures_from_a_day_gone_by_keep_all_but_the_timer() {
+    val after = WidgetFigures.afterAction(idle(), started(noon), noon, "2026-11-19")
+    assertEquals(noon, after.getJSONObject("timer").getLong("countingFromMs"))
+    assertEquals(fields(idle().getJSONObject("today")), fields(after.getJSONObject("today")))
+    // (and a snapshot with no figures for today at all)
+    val bare = json("""{ "day": "$day", "timer": null, "start": null }""")
+    assertTrue(WidgetFigures.afterAction(bare, started(noon), noon, day).getJSONObject("timer").isNull("perHourCents"))
+  }
+
   // ----- Fitting a figure to its room -----
 
   @Test

@@ -27,6 +27,11 @@
 -keepclassmembers class com.taskmint.android.MainActivity$AppTask {
    @android.webkit.JavascriptInterface public <methods>;
 }
+# The widgets' and the notification's timer buttons call into the Rust
+# library by this name (Java_com_taskmint_android_Headless_act)
+-keep class com.taskmint.android.Headless {
+   native <methods>;
+}
 # Credential Manager finds its Play services provider by reflection
 -if class androidx.credentials.CredentialManager
 -keep class androidx.credentials.playservices.** {

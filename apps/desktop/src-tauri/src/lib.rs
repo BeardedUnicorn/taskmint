@@ -15,6 +15,7 @@ pub mod environment;
 pub mod events;
 pub mod files;
 pub mod google_sign_in;
+pub mod headless;
 pub mod idle;
 pub mod launch;
 pub mod legacy_identifier;

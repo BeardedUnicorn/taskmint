@@ -56,6 +56,9 @@ object Widgets {
   private const val PREFS = "TaskMintWidgets"
   private const val SNAPSHOT = "snapshot"
   private const val CONFIRMED = "confirmedAtMs"
+  private const val AHEAD = "ahead"
+  /** In the kept snapshot: whether its figures are this phone's own (`save`). */
+  const val OWN = "own"
   /** The snapshot's version these widgets read; an older one shows "Open TaskMint…". */
   const val VERSION = 2
   private const val REFRESH_WINDOW_MS = 10 * 60_000L
@@ -67,11 +70,18 @@ object Widgets {
 
   fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-  /** Keeps the page's figures and redraws the widgets whose part of them changed. */
-  fun save(context: Context, json: String) {
+  /**
+   * Keeps the figures and redraws the widgets whose part of them changed.
+   * `own`: they're this phone's, worked out from its own data (the page's,
+   * or moved on by a timer button here), not another device's published
+   * ones. A timer button acts here, without opening TaskMint, only on the
+   * phone's own figures: its data has the timer they show (WidgetAction).
+   */
+  fun save(context: Context, json: String, own: Boolean) {
     val before = read(prefs(context).getString(SNAPSHOT, null))
-    prefs(context).edit().putString(SNAPSHOT, json).apply()
-    val after = read(json)
+    val kept = runCatching { JSONObject(json).put(OWN, own).toString() }.getOrDefault(json)
+    prefs(context).edit().putString(SNAPSHOT, kept).apply()
+    val after = read(kept)
     for (kind in kinds) {
       val changed = before == null || after == null || kind.part(before) != kind.part(after)
       if (changed) redraw(context, kind)
@@ -118,6 +128,18 @@ object Widgets {
 
   /** When the page last had the kept figures current (0 when it never has). */
   fun confirmedAt(context: Context): Long = prefs(context).getLong(CONFIRMED, 0)
+
+  /**
+   * A timer button changed the phone's data with TaskMint closed
+   * (WidgetAction), and the cloud hasn't heard: the kept figures are ahead
+   * of anything another device has published, until the page sends its own
+   * again (MainActivity.updateWidgets), syncing as it does.
+   */
+  fun setAhead(context: Context, ahead: Boolean) {
+    prefs(context).edit().putBoolean(AHEAD, ahead).apply()
+  }
+
+  fun ahead(context: Context): Boolean = prefs(context).getBoolean(AHEAD, false)
 
   private fun read(json: String?): JSONObject? =
     json?.let { runCatching { JSONObject(it) }.getOrNull() }?.takeIf { it.optInt("version") == VERSION }

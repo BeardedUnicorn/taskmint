@@ -263,6 +263,64 @@ object WidgetFigures {
     return day >= dayAt(writtenMs, TimeZone.getTimeZone(zone))
   }
 
+  // ----- A timer button pressed on the phone (WidgetAction) -----
+
+  /**
+   * The snapshot as the page would write it after a timer button's action
+   * here, at `now`: `acted` is what the action came to (Headless.act: the
+   * live timer, where it counts from, whether it began today).
+   *
+   * The timer is as `acted` says. Today's figures first stand where they had
+   * got to (a pause or a stop), and then, with a timer that runs and began
+   * today, count on from there: the time from now, and the money at what
+   * the snapshot said that task's timer adds an hour (`timer.perHourCents`
+   * for a resume, `start.perHourCents` for a start) on top of what the day
+   * has come to. Figures from a day gone by stay as they were written: the
+   * page works out the new day's.
+   */
+  fun afterAction(snapshot: JSONObject, acted: JSONObject, now: Long, today: String): JSONObject {
+    val next = JSONObject(snapshot.toString()).put("updatedAtMs", now)
+    val timer = acted.optJSONObject("timer")
+    val countingFrom = timer?.time("countingFromMs")
+    // The same timer as before (a pause, a resume), or the one Start begins
+    val rate = (snapshot.optJSONObject("timer") ?: snapshot.optJSONObject("start"))?.opt("perHourCents") as? Number
+    val perHour = rate?.toDouble()
+    next.put(
+      "timer",
+      if (timer == null) JSONObject.NULL
+      else
+        JSONObject()
+          .put("task", timer.getString("task"))
+          .put("countingFromMs", countingFrom ?: JSONObject.NULL)
+          .put("perHourCents", rate ?: JSONObject.NULL)
+    )
+    val figures = next.optJSONObject("today")
+    if (figures == null || snapshot.optString("day") != today) return next
+
+    // Where today has got to
+    val grew = figures.optJSONObject("earning") != null
+    val time = figures.time("countingFromMs")?.let { (now - it).coerceAtLeast(0) } ?: figures.time("timeMs") ?: 0
+    val cents = earningCents(figures, now) ?: if (figures.isNull("moneyCents")) null else figures.optDouble("moneyCents")
+    figures.put("countingFromMs", JSONObject.NULL).put("timeMs", time).put("time", timeInWords(time)).put("earning", JSONObject.NULL)
+    if (cents != null) {
+      figures.put("moneyCents", Math.round(cents))
+      // What a timer earned by the hour is an estimate until the site pays it
+      if (grew) figures.put("money", money(cents, true))
+    }
+
+    // And on from there, with a timer that runs and whose time is today's
+    if (countingFrom != null && timer.optBoolean("beganToday")) {
+      figures.put("countingFromMs", now - time).put("timeMs", JSONObject.NULL)
+      if (cents != null && perHour != null && perHour > 0) {
+        figures
+          .put("earning", JSONObject().put("baseCents", cents).put("perHourCents", perHour).put("fromMs", now))
+          .put("moneyCents", JSONObject.NULL)
+          .put("money", money(cents, true))
+      }
+    }
+    return next
+  }
+
   // ----- Fitting a figure to its room -----
 
   /** A digit's width in a medium sans-serif with tabular figures, as a share of the text's size. */

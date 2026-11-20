@@ -360,10 +360,25 @@ On a phone with Google Play services, with the release APK:
 - [ ] **Widgets:** all four are in the widget picker with a preview. With a
       timer running Today shows its task over today's time counting and the
       money earned today (the same figures as the notification), paused it
-      says "Paused" with today's time still; its Pause and Resume act and
-      open the app. Payouts says "Ready to withdraw" once its time passes
-      (within 10 minutes). All follow the phone's light and dark mode. A
-      release build (R8, resource shrinking) draws them too.
+      says "Paused" with today's time still. Payouts says "Ready to
+      withdraw" at the minute its time passes (`dumpsys alarm` lists an
+      exact alarm for it). All follow the phone's light and dark mode, and
+      at the largest font size (Settings → Display) no figure is cut
+      through. A release build (R8, resource shrinking) draws them too.
+- [ ] **Widget and notification buttons, without the app:** with TaskMint
+      killed (`am kill`), Today's Start begins the task its card names,
+      Pause and Resume act, and the notification's Pause, Resume and Stop
+      do too; each shows on the widget and the notification within a second
+      and TaskMint doesn't open. Opening TaskMint then shows the same timer
+      on Home. The same with TaskMint left in the background for a few
+      minutes. With another device's timer showing (started on the desktop,
+      the phone's app closed), the buttons open TaskMint. Before any task
+      has been used, Start opens the Start work dialog. A release build
+      (R8) does all of this.
+- [ ] **Widgets over midnight:** with TaskMint killed and the phone's date
+      moved to tomorrow, Today says "Yesterday" with its clock and money
+      standing still, This week's highlight moves to the new day, and the
+      Calendar's does too; moved past Saturday, This week says "Last week".
 - [ ] **Widgets with the app closed:** signed in on the phone and a
       desktop, with TaskMint killed on the phone (`am kill`), start a timer
       on the desktop. Within a quarter of an hour the Today widget counts it and the running timer's

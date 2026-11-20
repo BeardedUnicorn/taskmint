@@ -51,6 +51,24 @@ minutes. `timer` names the task and says whether
 it runs (`countingFromMs`) or waits paused; how long the one timer has run
 isn't shown anywhere.
 
+## What a phone's own buttons need
+
+The Today widget's and the notification's timer buttons act on the phone,
+with TaskMint closed ([ADR 0006](../adr/0006-background-timer-buttons.md)),
+and the phone then moves its own copy of the figures on. For that the
+snapshot says:
+
+- `start`: `{taskId, task, perHourCents}`, the task used most recently of
+  those not archived: what Start begins. `null` before any has been used.
+- `timer.perHourCents`, `start.perHourCents`: what today's money grows by an
+  hour while that task's timer runs; `null` when it doesn't grow with it (no
+  rate, or the day's money for the task is the site's).
+- `today.moneyCents`: today's money in cents while it stands still; `null`
+  while it grows (`today.earning` has it then).
+
+A reader that didn't write the figures ignores them: over another device's
+figures the phone's buttons open TaskMint.
+
 ## What moves with the clock
 
 The text is as of the writing, and a phone shows it for hours. `payouts`

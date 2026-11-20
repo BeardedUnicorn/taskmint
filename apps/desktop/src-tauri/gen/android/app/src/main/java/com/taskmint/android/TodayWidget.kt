@@ -24,6 +24,12 @@ class TodayWidget : TaskMintWidget() {
  * timer's button (widget_today_row); tall, it adds this week's figures. It
  * shows what the day comes to, as the timer's notification does, not how
  * long the one timer has run.
+ *
+ * Its button acts in the background, without opening TaskMint, while the
+ * figures are the phone's own (WidgetAction): Pause and Resume the timer
+ * shown, Start the task used last (the snapshot's `start`, which the idle
+ * card names). Over another device's figures, or with no task to start, it
+ * opens TaskMint: to pause or resume there, or to choose a task.
  */
 object TodayViews : WidgetKind {
   override val provider = TodayWidget::class.java
@@ -32,7 +38,15 @@ object TodayViews : WidgetKind {
   override val sizes = Fit.sizes(roomy = true)
 
   override fun part(snapshot: JSONObject) =
-    listOf(snapshot.opt("updatedAtMs"), snapshot.opt("day"), snapshot.opt("today"), snapshot.opt("timer")).toString()
+    listOf(
+      snapshot.opt("updatedAtMs"),
+      snapshot.opt("day"),
+      snapshot.opt("today"),
+      snapshot.opt("timer"),
+      // What its button does
+      snapshot.opt("start"),
+      snapshot.opt(Widgets.OWN),
+    ).toString()
 
   /** Four columns wide: its button has its words. */
   override val previewFit = Fit(Height.CARD, narrow = false, roomy = true)
@@ -107,7 +121,18 @@ object TodayViews : WidgetKind {
         countingFrom != null -> Action.PAUSE
         else -> Action.RESUME
       }
-    button(context, views, action, iconOnly = oneRow || !fit.roomy)
+    val own = snapshot.optBoolean(Widgets.OWN)
+    val startTask = snapshot.optJSONObject("start")?.takeIf { own && timer == null }
+    val press =
+      when {
+        startTask != null -> TimerButtons.pending(context, TimerButtons.start(startTask.getString("taskId")))
+        own && timer != null -> TimerButtons.pending(context, action.launch)
+        else -> Launch.pending(context, action.launch)
+      }
+    val spoken =
+      startTask?.let { context.getString(R.string.widget_start_task_description, it.getString("task")) }
+        ?: context.getString(action.description)
+    button(context, views, action, press, spoken, iconOnly = oneRow || !fit.roomy)
 
     if (countingFrom != null) {
       // The clock is today's time: counting from where the page says it
@@ -160,7 +185,7 @@ object TodayViews : WidgetKind {
       views.setTextViewTextSize(R.id.row_paused, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, 24f, time, room))
     } else {
       val running = layout == R.layout.widget_today_running
-      card(context, views, timer, running, fit)
+      card(context, views, timer, startTask?.getString("task"), running, fit)
       if (!running) {
         // Today's money, as big as fits beside its time (under it when narrow)
         val room = Widgets.widthDp(context, fit, id) - CARD_PADDING_DP - (if (fit.narrow) 0f else TIME_BESIDE_DP)
@@ -196,14 +221,21 @@ object TodayViews : WidgetKind {
       Height.TALL -> 40f
     }
 
-  private fun button(context: Context, views: RemoteViews, action: Action, iconOnly: Boolean) {
-    val launch = Launch.pending(context, action.launch)
+  private fun button(
+    context: Context,
+    views: RemoteViews,
+    action: Action,
+    press: android.app.PendingIntent,
+    spoken: String,
+    iconOnly: Boolean,
+  ) {
     views.setTextViewText(R.id.timer_button, context.getString(action.label))
+    views.setContentDescription(R.id.timer_button, spoken)
     views.setTextViewCompoundDrawablesRelative(R.id.timer_button, action.icon, 0, 0, 0)
-    views.setOnClickPendingIntent(R.id.timer_button, launch)
+    views.setOnClickPendingIntent(R.id.timer_button, press)
     views.setImageViewResource(R.id.timer_icon_button, action.icon)
-    views.setContentDescription(R.id.timer_icon_button, context.getString(action.description))
-    views.setOnClickPendingIntent(R.id.timer_icon_button, launch)
+    views.setContentDescription(R.id.timer_icon_button, spoken)
+    views.setOnClickPendingIntent(R.id.timer_icon_button, press)
     views.setViewVisibility(R.id.timer_button, visible(!iconOnly))
     views.setViewVisibility(R.id.timer_icon_button, visible(iconOnly))
   }
@@ -211,9 +243,9 @@ object TodayViews : WidgetKind {
   /**
    * Two rows and more: the figures sized to the room, and the timer card
    * (its clock is set already). Tall, the height to spare is split around
-   * this week.
+   * this week. With no timer, `startTask` is the task Start begins.
    */
-  private fun card(context: Context, views: RemoteViews, timer: JSONObject?, running: Boolean, fit: Fit) {
+  private fun card(context: Context, views: RemoteViews, timer: JSONObject?, startTask: String?, running: Boolean, fit: Fit) {
     val tall = fit.height == Height.TALL
     views.setViewVisibility(R.id.week_spacer, visible(tall))
     // Narrow, the time goes under the money
@@ -223,8 +255,13 @@ object TodayViews : WidgetKind {
       if (tall) views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, 22f)
     }
     if (timer == null) {
-      views.setViewVisibility(R.id.timer_task, View.GONE)
-      views.setTextViewText(R.id.timer_status, context.getString(R.string.widget_no_timer))
+      // The task Start begins, when it starts one here; else Start opens TaskMint to choose
+      views.setViewVisibility(R.id.timer_task, visible(startTask != null))
+      views.setTextViewText(R.id.timer_task, startTask ?: "")
+      views.setTextViewText(
+        R.id.timer_status,
+        context.getString(if (startTask != null) R.string.widget_not_running else R.string.widget_no_timer)
+      )
       return
     }
     views.setViewVisibility(R.id.timer_task, View.VISIBLE)

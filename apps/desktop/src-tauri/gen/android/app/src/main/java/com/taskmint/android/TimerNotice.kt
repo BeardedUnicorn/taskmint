@@ -85,11 +85,13 @@ data class TimerNotice(
  * Without figures for today (none sent yet, or they're yesterday's) it has
  * the task and "Running" or "Paused".
  *
- * A tap or a button opens TaskMint with the notification plugin's extras,
- * which say what was pressed (MainActivity.keepLaunch), as a reminder's tap
- * does. The intent has an action of its own: the plugin takes down the
- * notification of any ACTION_MAIN intent with those extras, and this one
- * stays up.
+ * Pause, Resume and Stop act in the background, without opening TaskMint,
+ * while the notification is the phone's own timer's (WidgetAction); over a
+ * timer another device started they open TaskMint, as a tap and Switch task
+ * always do: with the notification plugin's extras, which say what was
+ * pressed (MainActivity.keepLaunch), as a reminder's tap does. The intent
+ * has an action of its own: the plugin takes down the notification of any
+ * ACTION_MAIN intent with those extras, and this one stays up.
  *
  * With TaskMint closed, [WidgetSync] shows the timer another device started
  * (`setRemote`), from the figures that device published. The shell knows
@@ -244,6 +246,8 @@ object TimerNotices {
     val today = snapshot.optJSONObject("today")
     return listOf(
       snapshot.opt("day"),
+      // What its buttons do
+      snapshot.opt(Widgets.OWN),
       today?.opt("money"),
       today?.opt("countingFromMs"),
       today?.opt("timeMs"),
@@ -267,14 +271,25 @@ object TimerNotices {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
-  /** The buttons, in order: each one's words and what it reports. */
-  private fun buttons(context: Context, notice: TimerNotice): List<Pair<String, String>> =
-    listOf(
-      if (notice.running) context.getString(R.string.timer_notice_pause) to PAUSE
-      else context.getString(R.string.timer_notice_resume) to RESUME,
-      context.getString(R.string.timer_notice_switch) to SWITCH,
-      context.getString(R.string.timer_notice_stop) to STOP,
+  /** Opens TaskMint for a button's `action` (WidgetAction, when it couldn't act here). */
+  fun open(context: Context, action: String): PendingIntent = press(context, action)
+
+  /**
+   * The buttons, in order: each one's words and what pressing it does.
+   * Pause, Resume and Stop act here in the background while this is the
+   * phone's own timer (not one from another device's published figures,
+   * which the phone's data may not have); Switch task opens TaskMint.
+   */
+  private fun buttons(context: Context, notice: TimerNotice): List<Pair<String, PendingIntent>> {
+    val own = !saved(context).getBoolean(REMOTE, false) && Widgets.snapshot(context)?.optBoolean(Widgets.OWN) == true
+    val act = { action: String -> if (own) TimerButtons.pending(context, action) else press(context, action) }
+    return listOf(
+      if (notice.running) context.getString(R.string.timer_notice_pause) to act(PAUSE)
+      else context.getString(R.string.timer_notice_resume) to act(RESUME),
+      context.getString(R.string.timer_notice_switch) to press(context, SWITCH),
+      context.getString(R.string.timer_notice_stop) to act(STOP),
     )
+  }
 
   /**
    * Today's figures as the notification shows them: the time counting
@@ -359,7 +374,7 @@ object TimerNotices {
     today?.countingFromMs?.let {
       builder.setSubText(context.getString(R.string.timer_notice_today)).setWhen(it).setUsesChronometer(true)
     }
-    for ((label, action) in buttons(context, notice)) builder.addAction(0, label, press(context, action))
+    for ((label, press) in buttons(context, notice)) builder.addAction(0, label, press)
     return builder.build()
   }
 
@@ -385,8 +400,8 @@ object TimerNotices {
         .setContentIntent(press(context, DEFAULT_PRESS_ACTION))
         .addExtras(Bundle().apply { putBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, true) })
     if (!notice.running) builder.setShortCriticalText(context.getString(R.string.timer_notice_paused))
-    for ((label, action) in buttons(context, notice)) {
-      builder.addAction(Notification.Action.Builder(null as Icon?, label, press(context, action)).build())
+    for ((label, press) in buttons(context, notice)) {
+      builder.addAction(Notification.Action.Builder(null as Icon?, label, press).build())
     }
     val countingFrom = today?.countingFromMs
     if (figures != null) {

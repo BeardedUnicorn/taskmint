@@ -165,10 +165,17 @@ pub fn run() {
                 };
                 legacy_identifier::run(current_os(), &dirs, &identifier);
             }
-            let state = AppState::open(
-                JsonFileStore::new(app.path().app_data_dir()?),
-                Arc::new(chrono::Utc::now),
-                Arc::new(TauriPlatform::new(handle.clone())),
+            let store = JsonFileStore::new(app.path().app_data_dir()?);
+            let platform = Arc::new(TauriPlatform::new(handle.clone()));
+            #[cfg(not(target_os = "android"))]
+            let state = AppState::open(store, Arc::new(chrono::Utc::now), platform);
+            // On Android a widget's or the notification's button may have
+            // opened the data already, with the app not running: the app and
+            // the buttons share the one copy (headless.rs)
+            #[cfg(target_os = "android")]
+            let state = AppState::over(
+                crate::headless::shared(store, Arc::new(chrono::Utc::now)),
+                platform,
             );
             app.manage(state.clone());
 

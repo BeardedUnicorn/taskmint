@@ -108,6 +108,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- TaskMint: a timer button on the Today widget or the running
+             timer's notification, which acts without opening the app
+             (WidgetAction.kt) -->
+        <receiver android:name=".WidgetAction" android:exported="false" />
+
         <!-- TaskMint: the message that another device published the widgets'
              figures (WidgetPush.kt). The phone has a push address only while
              it syncs with an account (WidgetSync turns it on and off). -->

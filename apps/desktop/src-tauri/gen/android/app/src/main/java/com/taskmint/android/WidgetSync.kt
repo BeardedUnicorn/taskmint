@@ -167,6 +167,8 @@ object WidgetSync {
     prefs(context).edit().putBoolean(TIMER_NOTICE, wanted).apply()
   }
 
+  fun timerNoticeWanted(context: Context): Boolean = prefs(context).getBoolean(TIMER_NOTICE, true)
+
   /** One check soon (the phone has started: the figures kept are from before). */
   fun soon(context: Context) {
     if (!prefs(context).contains(LINK)) return
@@ -272,13 +274,15 @@ object WidgetSync {
     val figures = JSONObject(text("json"))
     if (figures.optInt("version") != Widgets.VERSION) return
 
+    // A timer button here put this phone's figures ahead of the cloud's, until TaskMint is opened
+    if (Widgets.ahead(context)) return
     // Newer than the kept ones, and not a waking device's from a day gone by
     if (!WidgetFigures.takes(figures, writtenMs, Widgets.snapshot(context), Widgets.confirmedAt(context))) return
     // The app may have come forward while this read
     if (inFront()) return
-    Widgets.save(context, figures.put("updatedAtMs", writtenMs).toString())
+    Widgets.save(context, figures.put("updatedAtMs", writtenMs).toString(), own = false)
 
-    if (!prefs(context).getBoolean(TIMER_NOTICE, true)) return
+    if (!timerNoticeWanted(context)) return
     val timer = figures.optJSONObject("timer")
     TimerNotices.setRemote(context, timer?.let { TimerNotice(it.getString("task"), it.time("countingFromMs")) })
   }

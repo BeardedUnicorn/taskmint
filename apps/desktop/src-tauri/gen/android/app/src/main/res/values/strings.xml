@@ -30,6 +30,9 @@
     <string name="widget_earned_today">earned today</string>
     <string name="widget_earned">earned</string>
     <string name="widget_no_timer">No timer running</string>
+    <!-- Under the task the Start button begins (the one used last) -->
+    <string name="widget_not_running">Not running</string>
+    <string name="widget_start_task_description">Start %1$s</string>
     <string name="widget_start">Start</string>
     <string name="widget_pause">Pause</string>
     <string name="widget_resume">Resume</string>

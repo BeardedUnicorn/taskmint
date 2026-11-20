@@ -33,7 +33,7 @@ Integration tests count toward the total, including the desktop's IPC tests and 
 |---|---|---|---|
 | `crates/taskmint-core` | nothing | pure code | – |
 | `apps/desktop/src-tauri` | `src/main.rs`, `src/app.rs` | binary entry; `tauri::Builder`, plugins, `generate_context!`, run loop. They need a real event loop and main thread | [manual QA checklist](qa/excluded-code-checklist.md) |
-| `apps/desktop/src-tauri` | `src/platform/os.rs` | the Platform on Tauri (tray and menu rendering, dialogs, OS notifications, window focus, opening the browser). It needs a real UI session, so it holds calls only, and every decision is in tested code | [manual QA checklist](qa/excluded-code-checklist.md) |
+| `apps/desktop/src-tauri` | `src/platform/os.rs` | the Platform on Tauri (tray and menu rendering, dialogs, OS notifications, window focus, opening the browser). It needs a real UI session, so it holds calls only, and every decision is in tested code. The same goes for its JNI entry, which a phone's timer buttons call with no app running (`headless.rs` has the decisions) | [manual QA checklist](qa/excluded-code-checklist.md) |
 | `crates/taskmint-wasm` | `src/lib.rs` | the `#[wasm_bindgen]` layer over core's tested `host::JsonHost`; it runs only in a wasm engine | `apps/web`'s tests load the real wasm and run commands through it |
 | `apps/web` | `src/wasm/**` | wasm-bindgen's generated JavaScript for `crates/taskmint-wasm` (not committed) | the same tests |
 | `apps/functions` | `src/index.ts` | the Cloud Function's registration and its calls into firebase-admin (Firestore, Cloud Messaging); every decision is in the tested `push.ts` | [manual QA checklist](qa/excluded-code-checklist.md#android) |
