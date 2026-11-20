@@ -14,14 +14,16 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.format.DateFormat
+import android.util.Log
 import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import org.json.JSONObject
 
 /**
@@ -50,11 +52,15 @@ import org.json.JSONObject
  * figures too (preview), in place of its layout's sample.
  */
 object Widgets {
+  private const val TAG = "TaskMintWidgets"
   private const val PREFS = "TaskMintWidgets"
   private const val SNAPSHOT = "snapshot"
   private const val CONFIRMED = "confirmedAtMs"
+  private const val AHEAD = "ahead"
+  /** In the kept snapshot: whether its figures are this phone's own (`save`). */
+  const val OWN = "own"
   /** The snapshot's version these widgets read; an older one shows "Open TaskMint…". */
-  private const val VERSION = 2
+  const val VERSION = 2
   private const val REFRESH_WINDOW_MS = 10 * 60_000L
   /** How often a widget's preview is set, at most: the system takes only a few an hour. */
   private const val PREVIEW_EVERY_MS = 60 * 60_000L
@@ -64,11 +70,18 @@ object Widgets {
 
   fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-  /** Keeps the page's figures and redraws the widgets whose part of them changed. */
-  fun save(context: Context, json: String) {
+  /**
+   * Keeps the figures and redraws the widgets whose part of them changed.
+   * `own`: they're this phone's, worked out from its own data (the page's,
+   * or moved on by a timer button here), not another device's published
+   * ones. A timer button acts here, without opening TaskMint, only on the
+   * phone's own figures: its data has the timer they show (WidgetAction).
+   */
+  fun save(context: Context, json: String, own: Boolean) {
     val before = read(prefs(context).getString(SNAPSHOT, null))
-    prefs(context).edit().putString(SNAPSHOT, json).apply()
-    val after = read(json)
+    val kept = runCatching { JSONObject(json).put(OWN, own).toString() }.getOrDefault(json)
+    prefs(context).edit().putString(SNAPSHOT, kept).apply()
+    val after = read(kept)
     for (kind in kinds) {
       val changed = before == null || after == null || kind.part(before) != kind.part(after)
       if (changed) redraw(context, kind)
@@ -76,10 +89,33 @@ object Widgets {
     }
     // The running timer's notification shows today's figures too
     if (before == null || after == null || TimerNotices.part(before) != TimerNotices.part(after)) {
-      TimerNotices.redraw(context)
+      attempt("the timer's notification") { TimerNotices.redraw(context) }
     }
     scheduleRefresh(context, after)
   }
+
+  /**
+   * Does `work`, and logs what went wrong instead of passing it on. The
+   * widgets are drawn from receivers and from the page's bridge, and from
+   * figures another device or an older TaskMint may have written: one thing
+   * that can't be drawn mustn't stop the rest, the next refresh's alarm
+   * least of all.
+   */
+  private inline fun attempt(what: String, work: () -> Unit) {
+    try {
+      work()
+    } catch (e: Exception) {
+      Log.w(TAG, "Couldn't draw $what", e)
+    }
+  }
+
+  private inline fun <T> orNull(what: String, work: () -> T?): T? =
+    try {
+      work()
+    } catch (e: Exception) {
+      Log.w(TAG, "Couldn't work out $what", e)
+      null
+    }
 
   /**
    * The page's figures are current as of now: it just sent them, or it's
@@ -93,6 +129,18 @@ object Widgets {
   /** When the page last had the kept figures current (0 when it never has). */
   fun confirmedAt(context: Context): Long = prefs(context).getLong(CONFIRMED, 0)
 
+  /**
+   * A timer button changed the phone's data with TaskMint closed
+   * (WidgetAction), and the cloud hasn't heard: the kept figures are ahead
+   * of anything another device has published, until the page sends its own
+   * again (MainActivity.updateWidgets), syncing as it does.
+   */
+  fun setAhead(context: Context, ahead: Boolean) {
+    prefs(context).edit().putBoolean(AHEAD, ahead).apply()
+  }
+
+  fun ahead(context: Context): Boolean = prefs(context).getBoolean(AHEAD, false)
+
   private fun read(json: String?): JSONObject? =
     json?.let { runCatching { JSONObject(it) }.getOrNull() }?.takeIf { it.optInt("version") == VERSION }
 
@@ -105,7 +153,7 @@ object Widgets {
    */
   fun redrawAll(context: Context) {
     for (kind in kinds) redraw(context, kind)
-    TimerNotices.redraw(context)
+    attempt("the timer's notification") { TimerNotices.redraw(context) }
     scheduleRefresh(context, snapshot(context))
   }
 
@@ -160,20 +208,35 @@ object Widgets {
   fun draw(context: Context, kind: WidgetKind, ids: IntArray, fresh: Boolean) {
     val snapshot = snapshot(context)
     drawScrolled(context, kind, ids, snapshot, null)
-    kind.drawn(context, ids, snapshot, fresh)
+    attempt("${kind.provider.simpleName}'s list") { kind.drawn(context, ids, snapshot, fresh) }
   }
+
+  /**
+   * `kind`'s views at `fit`. Figures it can't read (a field missing or of
+   * another type: an older or newer TaskMint wrote them) are drawn as none
+   * are: "Open TaskMint to show your figures here".
+   */
+  private fun viewsOf(context: Context, kind: WidgetKind, snapshot: JSONObject?, fit: Fit, id: Int, scroll: Int?): RemoteViews =
+    try {
+      kind.views(context, snapshot, fit, id, scroll)
+    } catch (e: Exception) {
+      Log.w(TAG, "Couldn't read the figures for ${kind.provider.simpleName}", e)
+      kind.views(context, null, fit, id, scroll)
+    }
 
   /** Draws `kind`'s widgets `ids`, bringing a list's row `scroll` into view (null: leaving it where it is). */
   fun drawScrolled(context: Context, kind: WidgetKind, ids: IntArray, snapshot: JSONObject?, scroll: Int?) {
     val manager = AppWidgetManager.getInstance(context)
     for (id in ids) {
-      val views =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-          RemoteViews(kind.sizes.associateWith { size -> kind.views(context, snapshot, Fit.of(size.width, size.height), id, scroll) })
-        } else {
-          kind.views(context, snapshot, Fit.of(manager.getAppWidgetOptions(id)), id, scroll)
-        }
-      manager.updateAppWidget(id, views)
+      attempt("${kind.provider.simpleName} $id") {
+        val views =
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            RemoteViews(kind.sizes.associateWith { size -> viewsOf(context, kind, snapshot, Fit.of(size.width, size.height), id, scroll) })
+          } else {
+            viewsOf(context, kind, snapshot, Fit.of(manager.getAppWidgetOptions(id)), id, scroll)
+          }
+        manager.updateAppWidget(id, views)
+      }
     }
   }
 
@@ -199,7 +262,7 @@ object Widgets {
    */
   fun redrawMoney(context: Context) {
     redraw(context, TodayViews)
-    TimerNotices.redraw(context)
+    attempt("the timer's notification") { TimerNotices.redraw(context) }
     scheduleRefresh(context, snapshot(context))
   }
 
@@ -221,7 +284,9 @@ object Widgets {
     val shown = { kind: WidgetKind -> manager.getAppWidgetIds(ComponentName(context, kind.provider)).isNotEmpty() }
     val noticeUp = TimerNotices.followsFigures(context)
     val now = System.currentTimeMillis()
-    val nextDollar = if (noticeUp || shown(TodayViews)) snapshot?.let { nextDollarAt(it, now) } else null
+    val nextDollar =
+      if (noticeUp || shown(TodayViews)) orNull("the next dollar") { snapshot?.let { WidgetFigures.nextDollarAt(it, now, today()) } }
+      else null
     if (nextDollar != null) alarms.setWindow(AlarmManager.RTC, nextDollar, MONEY_WINDOW_MS, money) else alarms.cancel(money)
     if (kinds.none(shown) && !noticeUp) {
       alarms.cancel(refresh)
@@ -236,77 +301,49 @@ object Widgets {
         set(Calendar.SECOND, 5)
         set(Calendar.MILLISECOND, 0)
       }.timeInMillis
-    val opens = snapshot?.optJSONObject("payouts")?.time("opensAtMs")?.takeIf { it > now }
-    // A window, not exact: the phone needn't wake for it, and the opening
-    // still shows within minutes of its time
-    val release = snapshot?.let { PayoutsViews.nextChangeAt(it, now) }
-    alarms.setWindow(AlarmManager.RTC, minOf(midnight, opens ?: midnight, release ?: midnight), REFRESH_WINDOW_MS, refresh)
+    val opens = orNull("the opening") { snapshot?.optJSONObject("payouts")?.time("opensAtMs")?.takeIf { it > now } }
+    val release = orNull("the next release") { snapshot?.let { WidgetFigures.nextReleaseAt(it, now) } }
+    val next = minOf(midnight, opens ?: midnight, release ?: midnight)
+    // The opening is the one worth being on time for ("Ready to withdraw"):
+    // a window is at least ten minutes long, so it's set exactly where
+    // exact alarms are allowed (as the reminders' are: Reminders.arm). The
+    // rest come within the window, and the phone doesn't wake for any of them.
+    val exact = next == opens && (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms())
+    if (exact) alarms.setExact(AlarmManager.RTC, next, refresh) else alarms.setWindow(AlarmManager.RTC, next, REFRESH_WINDOW_MS, refresh)
   }
 
-  // ----- Today's money, kept up while a timer runs -----
-
-  private const val HOUR_MS = 3_600_000.0
-  /** The soonest today's money is drawn again, and how late that may be (the phone needn't wake for it). */
-  private const val MONEY_EVERY_MS = 60_000L
+  /** How late today's money may be drawn again (the phone needn't wake for it). */
   private const val MONEY_WINDOW_MS = 60_000L
-
-  /**
-   * Today's money in cents at `now`, as a running timer begun today earns
-   * it (the snapshot's `today.earning`: what the day comes to without that
-   * timer, its rate, and where its time counts from). Null when the money
-   * stands still.
-   */
-  private fun earningCents(today: JSONObject, now: Long): Double? {
-    val earning = today.optJSONObject("earning") ?: return null
-    val ran = (now - earning.getLong("fromMs")).coerceAtLeast(0)
-    return earning.getDouble("baseCents") + earning.getDouble("perHourCents") * ran / HOUR_MS
-  }
-
-  /** "$1,235", "~$1,235" for an estimate: whole dollars, as the page writes money (widgetText.ts). */
-  fun money(cents: Double, estimated: Boolean): String {
-    val dollars = NumberFormat.getCurrencyInstance(Locale.US).apply { maximumFractionDigits = 0 }
-    return (if (estimated) "~" else "") + dollars.format(Math.round(cents / 100))
-  }
-
-  private fun estimate(cents: Double): String = money(cents, true)
-
-  /**
-   * Today's money as it is at `now`: worked out from the running timer's
-   * rate while `running` and the page said how it grows, else as the page
-   * last wrote it.
-   */
-  fun todayMoney(today: JSONObject, running: Boolean, now: Long): String? =
-    (if (running) earningCents(today, now) else null)?.let(::estimate) ?: today.text("money")
-
-  /** When today's money next shows another dollar; null while it stands still or the figures aren't today's. */
-  private fun nextDollarAt(snapshot: JSONObject, now: Long): Long? {
-    if (snapshot.optString("day") != today()) return null
-    if (snapshot.optJSONObject("timer")?.time("countingFromMs") == null) return null
-    val today = snapshot.optJSONObject("today") ?: return null
-    val perHour = today.optJSONObject("earning")?.optDouble("perHourCents") ?: return null
-    val cents = earningCents(today, now) ?: return null
-    if (!(perHour > 0)) return null
-    // Whole dollars round at 50 cents
-    val next = Math.round(cents / 100) * 100 + 50
-    return now + maxOf(((next - cents) / perHour * HOUR_MS).toLong() + 1_000, MONEY_EVERY_MS)
-  }
-
-  /** "3h 12m", "12m": a time as the page writes it (formatDurationCompact). */
-  fun timeInWords(ms: Long): String {
-    val minutes = ms.coerceAtLeast(0) / 60_000
-    return if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
-  }
 
   // ----- What the widgets share -----
 
-  /** A string field that may be null (or missing) in the JSON. */
-  fun JSONObject.text(name: String): String? = if (isNull(name)) null else getString(name)
-
-  fun JSONObject.time(name: String): Long? = if (isNull(name)) null else getLong(name)
-
-  fun JSONObject.whole(name: String): Int? = if (isNull(name)) null else getInt(name)
-
   fun visible(shown: Boolean) = if (shown) View.VISIBLE else View.GONE
+
+  /**
+   * How wide (dp) the widget `id` is when it's drawn at `fit`: its own
+   * width as the launcher gives it, while that's within the size class;
+   * else the class's narrowest (a layout for a size the widget isn't at
+   * now, or the picker's preview).
+   */
+  fun widthDp(context: Context, fit: Fit, id: Int): Float {
+    val own =
+      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) 0f
+      else AppWidgetManager.getInstance(context).getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH).toFloat()
+    val from = fit.narrowestDp
+    return if (own >= from && !(fit.narrow && own >= Fit.WIDE_FROM)) own else from
+  }
+
+  /**
+   * The size (sp) the figure `text` is drawn at, no bigger than `base`, to
+   * fit `roomDp` across at the phone's font size (WidgetFigures.fitSp). An
+   * sp isn't always the font scale's dp: from Android 14 big text grows
+   * less than small, so the scale is measured at `base`.
+   */
+  fun figureSp(context: Context, base: Float, text: String, roomDp: Float): Float {
+    val metrics = context.resources.displayMetrics
+    val scale = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, base, metrics) / (base * metrics.density)
+    return WidgetFigures.fitSp(base, text, roomDp, scale)
+  }
 
   /** The header's name and its right-hand side (none when null). */
   fun header(views: RemoteViews, title: String, aside: String?) {
@@ -333,15 +370,47 @@ object Widgets {
     views.setViewVisibility(R.id.widget_message, View.GONE)
   }
 
-  /** "as of 3:42 PM", in the phone's clock format: when the page worked the figures out. */
-  fun asOf(context: Context, snapshot: JSONObject): String =
-    context.getString(R.string.widget_as_of, DateFormat.getTimeFormat(context).format(Date(snapshot.getLong("updatedAtMs"))))
+  /**
+   * "as of 3:42 PM", in the phone's clock format: when the page worked the
+   * figures out. Once that isn't today, the day too: "as of Tue 3:42 PM",
+   * and "as of Nov 11" from a week on.
+   */
+  fun asOf(context: Context, snapshot: JSONObject): String {
+    val at = Date(snapshot.getLong("updatedAtMs"))
+    val time = DateFormat.getTimeFormat(context).format(at)
+    val ago = WidgetFigures.daysBetween(WidgetFigures.dayAt(at.time, TimeZone.getDefault()), today()) ?: 0
+    val locale = Locale.getDefault()
+    val written =
+      when {
+        ago <= 0 -> time
+        ago < 7 -> "${SimpleDateFormat("EEE", locale).format(at)} $time"
+        else -> SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, "MMMd"), locale).format(at)
+      }
+    return context.getString(R.string.widget_as_of, written)
+  }
+
+  /**
+   * The name of the week the snapshot's `week` is, on the phone's today:
+   * "This week", "Last week" once it has ended, "Week of Nov 8" from then on.
+   */
+  fun weekTitle(context: Context, week: WidgetFigures.WeekNow): String {
+    if (week.weeksAgo <= 0) return context.getString(R.string.widget_week_label)
+    if (week.weeksAgo == 1) return context.getString(R.string.widget_last_week)
+    val start = week.start?.let { runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it) }.getOrNull() }
+    val locale = Locale.getDefault()
+    return if (start == null) context.getString(R.string.widget_last_week)
+    else context.getString(R.string.widget_week_of, SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, "MMMd"), locale).format(start))
+  }
+
+  /** The snapshot's week as it stands today (WidgetFigures.weekNow); this week when the snapshot has no chart. */
+  fun weekNow(snapshot: JSONObject): WidgetFigures.WeekNow =
+    WidgetFigures.weekNow(snapshot.optString("day"), snapshot.optJSONObject("week")?.optJSONArray("days") ?: org.json.JSONArray(), today())
 
   /** A figure as a screen reader says it: "~$45" is "About $45". */
   fun spoken(context: Context, money: String): String =
     if (money.startsWith("~")) context.getString(R.string.widget_about, money.substring(1)) else money
 
-  private fun dayKey(calendar: Calendar): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
+  private fun dayKey(calendar: Calendar): String = WidgetFigures.dayAt(calendar.timeInMillis, calendar.timeZone)
 
   /** Today, as the snapshot's `day` has it (YYYY-MM-DD). */
   fun today(): String = dayKey(Calendar.getInstance())
@@ -370,6 +439,15 @@ enum class Height {
  * whether roomy (four columns: room for a button's words).
  */
 data class Fit(val height: Height, val narrow: Boolean, val roomy: Boolean = false) {
+  /** The narrowest (dp) a widget of this size class is. */
+  val narrowestDp: Float
+    get() =
+      when {
+        narrow -> NARROWEST_SHOWN
+        roomy -> ROOMY_FROM
+        else -> WIDE_FROM
+      }
+
   companion object {
     /** Where (dp) a widget stops being narrow and starts being roomy, and starts being a card and tall. */
     const val WIDE_FROM = 200f
@@ -378,6 +456,8 @@ data class Fit(val height: Height, val narrow: Boolean, val roomy: Boolean = fal
     const val TALL_FROM = 290f
     private const val NARROWEST = 100f
     private const val SHORTEST = 40f
+    /** The narrowest a widget is made (its minResizeWidth). */
+    private const val NARROWEST_SHOWN = 110f
 
     fun of(width: Float, height: Float) =
       Fit(
@@ -461,8 +541,11 @@ abstract class TaskMintWidget : AppWidgetProvider() {
   /** Does `draw`, keeping the process while the redraws it leads to settle. */
   private fun settling(draw: () -> Unit) {
     val pending = goAsync()
-    draw()
-    Widgets.later(Widgets.SETTLE_MS) { pending.finish() }
+    try {
+      draw()
+    } finally {
+      Widgets.later(Widgets.SETTLE_MS) { pending.finish() }
+    }
   }
 
   /** The last of its kind removed: no refresh once no widget is left. */
@@ -478,8 +561,17 @@ abstract class TaskMintWidget : AppWidgetProvider() {
  */
 class WidgetRefresh : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
+    // Today's money is drawn at once; the rest may lead to the Calendar's
+    // list settling at this week, which takes the process a few seconds more
+    if (intent.action == Widgets.MONEY) {
+      Widgets.redrawMoney(context)
+      return
+    }
     val pending = goAsync()
-    if (intent.action == Widgets.MONEY) Widgets.redrawMoney(context) else Widgets.redrawAll(context)
-    Widgets.later(Widgets.SETTLE_MS) { pending.finish() }
+    try {
+      Widgets.redrawAll(context)
+    } finally {
+      Widgets.later(Widgets.SETTLE_MS) { pending.finish() }
+    }
   }
 }

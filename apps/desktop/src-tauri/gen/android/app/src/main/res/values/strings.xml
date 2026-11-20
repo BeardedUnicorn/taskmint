@@ -11,6 +11,9 @@
     <string name="widget_calendar_description">Your recent weeks day by day, and the releases and withdrawal opening ahead</string>
     <string name="widget_week_label">This week</string>
     <string name="widget_week_description">A bar for each day this week, against your daily goal</string>
+    <!-- The week the figures are from, once it has ended (TaskMint closed since) -->
+    <string name="widget_last_week">Last week</string>
+    <string name="widget_week_of">Week of %1$s</string>
 
     <string name="widget_as_of">as of %1$s</string>
     <string name="widget_open_app">Open TaskMint to show your figures here.</string>
@@ -27,6 +30,9 @@
     <string name="widget_earned_today">earned today</string>
     <string name="widget_earned">earned</string>
     <string name="widget_no_timer">No timer running</string>
+    <!-- Under the task the Start button begins (the one used last) -->
+    <string name="widget_not_running">Not running</string>
+    <string name="widget_start_task_description">Start %1$s</string>
     <string name="widget_start">Start</string>
     <string name="widget_pause">Pause</string>
     <string name="widget_resume">Resume</string>
@@ -46,6 +52,8 @@
 
     <!-- Calendar -->
     <string name="widget_nothing_tracked">Nothing tracked yet</string>
+    <!-- Today's badge once the next withdrawal has opened (the page's own words for it) -->
+    <string name="widget_open_now">Open now</string>
 
     <!-- TaskMint: the running timer's notification (TimerNotice.kt): its
          channel in the phone's settings, its buttons, how the timer is, the

@@ -207,6 +207,12 @@ export interface WidgetSnapshot {
      * still (`money` is it).
      */
     earning: { baseCents: number; perHourCents: number; fromMs: number } | null;
+    /**
+     * Today's money in cents while it stands still; null while it grows
+     * (`earning` has it then). With it, a phone whose own button starts or
+     * resumes a timer works out `earning` itself.
+     */
+    moneyCents: number | null;
     goalPercent: number | null;
     /** This week's money and time, as Home has them (a tall widget shows them). */
     week: { money: string; time: string };
@@ -216,7 +222,19 @@ export interface WidgetSnapshot {
     task: string;
     /** While it runs: when it would have started had it never paused. Null while paused. */
     countingFromMs: number | null;
+    /**
+     * What today's money grows by an hour while this timer's task runs; null
+     * when it doesn't grow with it (no rate, or the day's money is the
+     * site's). For a phone's own Resume button.
+     */
+    perHourCents: number | null;
   } | null;
+  /**
+   * The task a phone's Start button begins: the one used most recently, of
+   * those not archived; null before any task has been used. `perHourCents`
+   * as the timer's.
+   */
+  start: { taskId: string; task: string; perHourCents: number | null } | null;
   /** The next withdrawal, else the next release; null when neither is on the way. */
   payouts: WidgetPayouts | null;
   agenda: WidgetAgenda;

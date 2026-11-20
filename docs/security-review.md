@@ -154,8 +154,10 @@ rules; the release signing keys.
   in the app's private storage, encrypted with an AES key that stays in the
   phone's keystore, so a restored backup can't open it. It's forgotten on
   signing out, when the device stops syncing with the account, and when
-  Firebase refuses it. The phone reads one document with it and writes
-  nothing.
+  Firebase refuses it. Of the user's data the phone reads one document with
+  it, the published widgets. It writes one of its own,
+  `users/{uid}/devices/{deviceId}` (its push address, ADR 0005), and deletes
+  that on signing out.
 - **One Cloud Function runs with the project's own access**
   (`apps/functions`, ADR 0005), outside the rules. It reads a user's
   `devices` documents and the changed `published/widgets`, deletes dead

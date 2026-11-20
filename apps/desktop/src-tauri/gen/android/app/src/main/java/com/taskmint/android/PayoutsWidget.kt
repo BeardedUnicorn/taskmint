@@ -1,12 +1,10 @@
 package com.taskmint.android
 
 import android.content.Context
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
-import com.taskmint.android.Widgets.text
-import com.taskmint.android.Widgets.time
 import com.taskmint.android.Widgets.visible
-import org.json.JSONArray
 import org.json.JSONObject
 
 /** The Payouts widget (PayoutsViews). */
@@ -33,6 +31,10 @@ object PayoutsViews : WidgetKind {
 
   override fun part(snapshot: JSONObject) = listOf(snapshot.opt("updatedAtMs"), snapshot.opt("payouts")).toString()
 
+  /** The card's padding either side (widget_padding), and the room the next release takes beside the amount. */
+  private const val PADDING_DP = 32f
+  private const val ASIDE_DP = 100f
+
   override fun views(context: Context, snapshot: JSONObject?, fit: Fit, id: Int, scroll: Int?): RemoteViews {
     val views =
       RemoteViews(context.packageName, if (fit.height == Height.ROW) R.layout.widget_payouts_row else R.layout.widget_payouts)
@@ -47,16 +49,25 @@ object PayoutsViews : WidgetKind {
 
     // The figures as they are now: the page wrote them a while ago, and releases have passed since
     val now = System.currentTimeMillis()
-    val releases = releasesLeft(context, payouts, now)
+    val releases = WidgetFigures.releasesLeft(payouts, now) { context.getString(R.string.widget_release_held, it) }
     val planned = payouts.text("hint") == null
     if (!planned && releases.isEmpty()) return Widgets.message(views, context.getString(R.string.widget_no_payouts))
 
     Widgets.content(views)
     // Until a withdrawal is recorded the big figure is the next release itself
-    val amount = if (planned) withdrawalNow(payouts, now) else releases[0].amount
+    val amount = if (planned) WidgetFigures.withdrawalNow(payouts, now) else releases[0].amount
     val status = if (planned) payouts.getString("status") else releases[0].day
     views.setTextViewText(R.id.payouts_label, payouts.getString("label"))
     views.setTextViewText(R.id.payouts_amount, amount)
+    // As big as fits: the card's width less its padding; one row tall, less
+    // the next release beside it too
+    val row = fit.height == Height.ROW
+    val room = Widgets.widthDp(context, fit, id) - PADDING_DP - (if (row && !fit.narrow) ASIDE_DP else 0f)
+    views.setTextViewTextSize(
+      R.id.payouts_amount,
+      TypedValue.COMPLEX_UNIT_SP,
+      Widgets.figureSp(context, if (row) 24f else 34f, amount, room)
+    )
     views.setContentDescription(R.id.payouts_amount, Widgets.spoken(context, amount))
 
     // Open once its time has passed, though the page hasn't said so yet
@@ -98,64 +109,5 @@ object PayoutsViews : WidgetKind {
     views.setViewVisibility(R.id.payouts_footnote, if (footnote == null) View.GONE else View.VISIBLE)
     views.setTextViewText(R.id.payouts_footnote, footnote ?: "")
     return views
-  }
-
-  /** A release day still ahead, as the widget lists it. */
-  private class Release(val day: String, val amount: String)
-
-  /**
-   * The snapshot's release days that are still to come at `now`: each day's
-   * `parts` go as their time passes (the day with its last), and what's left
-   * of a day is added up. A day without parts (an older snapshot) stays as
-   * the page wrote it.
-   */
-  private fun releasesLeft(context: Context, payouts: JSONObject, now: Long): List<Release> {
-    val days = payouts.optJSONArray("releases") ?: return emptyList()
-    return (0 until days.length()).mapNotNull { index ->
-      val day = days.getJSONObject(index)
-      // Held: released before the next withdrawal opens, so in its amount already
-      val held = day.optBoolean("held")
-      val name = day.getString("day").let { if (held) context.getString(R.string.widget_release_held, it) else it }
-      val parts = day.optJSONArray("parts") ?: return@mapNotNull Release(name, day.getString("amount"))
-      val left = (0 until parts.length()).map(parts::getJSONObject).filter { it.getLong("atMs") > now }
-      when (left.size) {
-        0 -> null
-        parts.length() -> Release(name, day.getString("amount"))
-        else ->
-          Release(
-            name,
-            Widgets.money(left.sumOf { it.getDouble("cents") }, left.any { it.optBoolean("estimated") })
-          )
-      }
-    }
-  }
-
-  /**
-   * What the next withdrawal takes at `now`: the page's amount, and each
-   * release since it was worked out (the snapshot's `growth`), which the
-   * withdrawal takes too once it's open.
-   */
-  private fun withdrawalNow(payouts: JSONObject, now: Long): String {
-    val growth = payouts.optJSONObject("growth")
-    val steps = growth?.optJSONArray("steps")
-    val passed = (0 until (steps?.length() ?: 0)).map { steps!!.getJSONObject(it) }.filter { it.getLong("atMs") <= now }
-    if (growth == null || passed.isEmpty()) return payouts.getString("amount")
-    return Widgets.money(
-      growth.getDouble("cents") + passed.sumOf { it.getDouble("cents") },
-      growth.optBoolean("estimated") || passed.any { it.optBoolean("estimated") }
-    )
-  }
-
-  /** When the figures next change by the clock alone: the soonest release still ahead; null when none is. */
-  fun nextChangeAt(snapshot: JSONObject, now: Long): Long? {
-    val payouts = snapshot.optJSONObject("payouts") ?: return null
-    val times = mutableListOf<Long>()
-    val collect = { steps: JSONArray? ->
-      for (index in 0 until (steps?.length() ?: 0)) times += steps!!.getJSONObject(index).getLong("atMs")
-    }
-    collect(payouts.optJSONObject("growth")?.optJSONArray("steps"))
-    val days = payouts.optJSONArray("releases")
-    for (index in 0 until (days?.length() ?: 0)) collect(days!!.getJSONObject(index).optJSONArray("parts"))
-    return times.filter { it > now }.minOrNull()
   }
 }

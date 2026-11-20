@@ -59,6 +59,12 @@ tauri-plugin-window-state = "2.5"
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-fs = "2.7"
 
+# The widgets' and the notification's buttons call in without the webview
+# (platform/os.rs: Java_com_taskmint_android_Headless_act). The version
+# Tauri's own Android code uses.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
 # Only a phone or tablet sets notifications for the system to show later:
 # the time one fires at, as the notification plugin takes it (platform/os.rs).
 # Android's are TaskMint's own (gen/android: Reminders.kt), which take

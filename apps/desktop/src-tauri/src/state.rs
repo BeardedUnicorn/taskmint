@@ -3,7 +3,8 @@
 // server).
 
 use crate::app_menu::model::AppMenu;
-use crate::backend::{Clock, LocalBackend, Published};
+use crate::backend::{Clock, LocalBackend, Publish, Published};
+use crate::headless::Shared;
 use crate::platform::Platform;
 use crate::store::JsonFileStore;
 use crate::timer_notice::TimerNoticeState;
@@ -47,8 +48,9 @@ pub struct TrayShown {
 
 pub struct Shell {
     /// Sessions, work logs, records and captures, and every command on them,
-    /// in the data files.
-    pub backend: LocalBackend,
+    /// in the data files. Shared on a phone, where a widget's button may
+    /// have opened them before the app (headless.rs).
+    pub backend: Arc<LocalBackend>,
     /// The app data folder.
     pub store: JsonFileStore,
     pub platform: Arc<dyn Platform>,
@@ -89,6 +91,34 @@ impl AppState {
     /// Loads the data in `store`. Saved changes reach the webview as events,
     /// and the tray follows the sessions and the tasks.
     pub fn open(store: JsonFileStore, clock: Clock, platform: Arc<dyn Platform>) -> AppState {
+        let opened = (store.clone(), clock.clone());
+        Self::build(store, clock, platform, move |publish| {
+            Arc::new(LocalBackend::open(opened.0, opened.1, publish))
+        })
+    }
+
+    /// The same, around data that's open already (a phone's: headless.rs):
+    /// its changes reach the webview, the tray and the timer's notification
+    /// from now on, whoever makes them.
+    pub fn over(shared: &Shared, platform: Arc<dyn Platform>) -> AppState {
+        Self::build(
+            shared.store.clone(),
+            shared.clock.clone(),
+            platform,
+            |publish| {
+                shared.listen(publish);
+                shared.backend.clone()
+            },
+        )
+    }
+
+    /// `backend` gives the data, taking what publishes its changes.
+    fn build(
+        store: JsonFileStore,
+        clock: Clock,
+        platform: Arc<dyn Platform>,
+        backend: impl FnOnce(Publish) -> Arc<LocalBackend>,
+    ) -> AppState {
         AppState(Arc::new_cyclic(|shell: &Weak<Shell>| {
             let shell = shell.clone();
             // Nothing is published while the shell is built
@@ -99,7 +129,7 @@ impl AppState {
                     .for_each(|shell| AppState(shell).publish(published))
             };
             Shell {
-                backend: LocalBackend::open(store.clone(), clock.clone(), Box::new(publish)),
+                backend: backend(Box::new(publish)),
                 store,
                 platform,
                 clock,

@@ -327,7 +327,9 @@ class MainActivity : TauriActivity() {
     /** The numbers the home-screen widgets show, as the page worked them out (Widgets). */
     @JavascriptInterface
     fun updateWidgets(json: String) {
-      Widgets.save(this@MainActivity, json)
+      Widgets.save(this@MainActivity, json, own = true)
+      // The page has what a timer button did with TaskMint closed, and syncs it
+      Widgets.setAhead(this@MainActivity, false)
       widgetsFromPage = true
       Widgets.confirm(this@MainActivity)
     }

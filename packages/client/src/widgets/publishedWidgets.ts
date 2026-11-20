@@ -19,8 +19,6 @@ import type { PublishedDoc } from '../cloud/types';
 import { APP_VERSION } from '../utils/appVersion';
 import { fnv1a64 } from '../utils/fnv';
 
-/** The published document's name, under users/{uid}/published. */
-export const WIDGETS_DOC = 'widgets';
 /** The rules refuse a larger one (firebase/firestore.rules). */
 export const MAX_WIDGETS_JSON = 200_000;
 /** How often a running timer's growing figures are published. */

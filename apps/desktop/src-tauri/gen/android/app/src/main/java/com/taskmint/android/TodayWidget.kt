@@ -5,9 +5,7 @@ import android.os.SystemClock
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
-import com.taskmint.android.Widgets.time
 import com.taskmint.android.Widgets.visible
-import com.taskmint.android.Widgets.whole
 import org.json.JSONObject
 
 /** The Today widget (TodayViews). */
@@ -21,11 +19,17 @@ class TodayWidget : TaskMintWidget() {
  * on, from the snapshot's `today` and `timer`. While a timer runs, its task
  * and today's time are the big figures (widget_today_running), the time
  * counting when the timer began today, with the money earned today under
- * them, drawn again with each dollar (Widgets.todayMoney). Otherwise today's
+ * them, drawn again with each dollar (WidgetFigures.todayMoney). Otherwise today's
  * money is the big figure (widget_today). One row tall, it's a line with the
  * timer's button (widget_today_row); tall, it adds this week's figures. It
  * shows what the day comes to, as the timer's notification does, not how
  * long the one timer has run.
+ *
+ * Its button acts in the background, without opening TaskMint, while the
+ * figures are the phone's own (WidgetAction): Pause and Resume the timer
+ * shown, Start the task used last (the snapshot's `start`, which the idle
+ * card names). Over another device's figures, or with no task to start, it
+ * opens TaskMint: to pause or resume there, or to choose a task.
  */
 object TodayViews : WidgetKind {
   override val provider = TodayWidget::class.java
@@ -34,7 +38,15 @@ object TodayViews : WidgetKind {
   override val sizes = Fit.sizes(roomy = true)
 
   override fun part(snapshot: JSONObject) =
-    listOf(snapshot.opt("updatedAtMs"), snapshot.opt("day"), snapshot.opt("today"), snapshot.opt("timer")).toString()
+    listOf(
+      snapshot.opt("updatedAtMs"),
+      snapshot.opt("day"),
+      snapshot.opt("today"),
+      snapshot.opt("timer"),
+      // What its button does
+      snapshot.opt("start"),
+      snapshot.opt(Widgets.OWN),
+    ).toString()
 
   /** Four columns wide: its button has its words. */
   override val previewFit = Fit(Height.CARD, narrow = false, roomy = true)
@@ -69,9 +81,12 @@ object TodayViews : WidgetKind {
     Widgets.content(views)
     val today = snapshot.getJSONObject("today")
     val now = System.currentTimeMillis()
-    // Only today's money grows with a running timer: yesterday's stays as it was written
-    val growing = countingFrom != null && snapshot.optString("day") == Widgets.today()
-    val money = Widgets.todayMoney(today, growing, now) ?: ""
+    // Only today's figures move with a running timer: once the day has
+    // gone (TaskMint closed since, and no other device publishing), they
+    // stand as they were written, under "Yesterday"
+    val current = snapshot.optString("day") == Widgets.today()
+    val growing = countingFrom != null && current
+    val money = WidgetFigures.todayMoney(today, growing, now) ?: ""
     val time = today.getString("time")
     val goal = today.whole("goalPercent")
     Widgets.header(views, Widgets.dayLabel(context, snapshot.getString("day")), if (fit.narrow) null else Widgets.asOf(context, snapshot))
@@ -94,6 +109,8 @@ object TodayViews : WidgetKind {
 
     val week = today.getJSONObject("week")
     views.setViewVisibility(R.id.week_block, visible(fit.height == Height.TALL))
+    // "This week" until the week has ended: then it's last week's
+    views.setTextViewText(R.id.week_label, Widgets.weekTitle(context, Widgets.weekNow(snapshot)))
     views.setTextViewText(R.id.week_money, week.getString("money"))
     views.setContentDescription(R.id.week_money, Widgets.spoken(context, week.getString("money")))
     views.setTextViewText(R.id.week_time, week.getString("time"))
@@ -104,26 +121,54 @@ object TodayViews : WidgetKind {
         countingFrom != null -> Action.PAUSE
         else -> Action.RESUME
       }
-    button(context, views, action, iconOnly = oneRow || !fit.roomy)
+    val own = snapshot.optBoolean(Widgets.OWN)
+    val startTask = snapshot.optJSONObject("start")?.takeIf { own && timer == null }
+    val press =
+      when {
+        startTask != null -> TimerButtons.pending(context, TimerButtons.start(startTask.getString("taskId")))
+        own && timer != null -> TimerButtons.pending(context, action.launch)
+        else -> Launch.pending(context, action.launch)
+      }
+    val spoken =
+      startTask?.let { context.getString(R.string.widget_start_task_description, it.getString("task")) }
+        ?: context.getString(action.description)
+    button(context, views, action, press, spoken, iconOnly = oneRow || !fit.roomy)
 
     if (countingFrom != null) {
       // The clock is today's time: counting from where the page says it
       // would have started (a timer begun today), else stopped at what
       // today has come to (one begun yesterday: its time is yesterday's).
-      // A Chronometer takes boot-relative time.
+      // A Chronometer takes boot-relative time. Figures from a day gone by
+      // stand where they had counted to when they were written, as the
+      // money does.
       val todayFrom = today.time("countingFromMs")
-      val todayMs = if (todayFrom != null) (now - todayFrom).coerceAtLeast(0) else today.time("timeMs") ?: 0
+      val until = if (current) now else snapshot.optLong("updatedAtMs", now)
+      val todayMs = if (todayFrom != null) (until - todayFrom).coerceAtLeast(0) else today.time("timeMs") ?: 0
       val base = SystemClock.elapsedRealtime() - todayMs
-      val counts = todayFrom != null
+      val counts = todayFrom != null && current
       views.setChronometer(R.id.today_clock, base, null, counts)
-      views.setTextViewTextSize(R.id.today_clock, TypedValue.COMPLEX_UNIT_SP, clockSize(fit))
+      // Sized for the longest it will read while it counts: "9:59:59", or
+      // "20:44:57" from ten hours on
+      val longest = if (todayMs >= 10 * 3_600_000L) "20:44:57" else "9:59:59"
+      val width = Widgets.widthDp(context, fit, id)
+      val beside = width - (if (oneRow) ROW_PADDING_DP else CARD_PADDING_DP + INNER_PADDING_DP) - buttonDp(fit, oneRow)
+      views.setTextViewTextSize(
+        R.id.today_clock,
+        TypedValue.COMPLEX_UNIT_SP,
+        Widgets.figureSp(context, clockSize(fit), longest, beside - (if (oneRow && !fit.narrow) ASIDE_DP else 0f))
+      )
       // A narrow card has no room beside the button: the clock goes under it
       val under = !oneRow && fit.narrow
       views.setChronometer(R.id.today_clock_under, base, null, under && counts)
+      views.setTextViewTextSize(
+        R.id.today_clock_under,
+        TypedValue.COMPLEX_UNIT_SP,
+        Widgets.figureSp(context, 26f, longest, width - CARD_PADDING_DP - INNER_PADDING_DP)
+      )
       views.setViewVisibility(R.id.today_clock_under, visible(under))
       if (!oneRow) views.setViewVisibility(R.id.today_clock, visible(!under))
       // The clock has today's time: beside the money, what it is
-      val earned = context.getString(R.string.widget_earned_today)
+      val earned = context.getString(if (current) R.string.widget_earned_today else R.string.widget_earned)
       views.setTextViewText(R.id.today_time, earned)
       views.setTextViewText(R.id.today_time_under, earned)
     } else {
@@ -131,12 +176,42 @@ object TodayViews : WidgetKind {
       views.setChronometer(R.id.today_clock, SystemClock.elapsedRealtime(), null, false)
     }
     if (oneRow) {
-      row(context, views, timer, countingFrom, money, time, goal, fit)
+      // The row has no header to say whose day the figures are
+      val day = if (current) null else Widgets.dayLabel(context, snapshot.getString("day"))
+      row(context, views, timer, countingFrom, money, time, goal, fit, day)
+      // Its big figure (today's money, or the time standing still), as big as fits
+      val room = Widgets.widthDp(context, fit, id) - ROW_PADDING_DP - buttonDp(fit, true) - (if (fit.narrow) 0f else ASIDE_DP)
+      views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, 24f, money, room))
+      views.setTextViewTextSize(R.id.row_paused, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, 24f, time, room))
     } else {
-      card(context, views, timer, layout == R.layout.widget_today_running, fit)
+      val running = layout == R.layout.widget_today_running
+      card(context, views, timer, startTask?.getString("task"), running, fit)
+      if (!running) {
+        // Today's money, as big as fits beside its time (under it when narrow)
+        val room = Widgets.widthDp(context, fit, id) - CARD_PADDING_DP - (if (fit.narrow) 0f else TIME_BESIDE_DP)
+        views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, heroSize(fit), money, room))
+      }
     }
     return views
   }
+
+  /** What's beside a figure, in dp: the widget's padding, the timer card's, a button, a row's right-hand figure, the time by the money. */
+  private const val CARD_PADDING_DP = 32f
+  private const val ROW_PADDING_DP = 24f
+  private const val INNER_PADDING_DP = 18f
+  private const val ASIDE_DP = 92f
+  private const val TIME_BESIDE_DP = 70f
+
+  /** The timer button's width with its margin: with words when roomy, else the round one. */
+  private fun buttonDp(fit: Fit, oneRow: Boolean): Float = if (!oneRow && fit.roomy) 104f else 56f
+
+  /** Today's money at its biggest, by the card's size (a little smaller when narrow). */
+  private fun heroSize(fit: Fit): Float =
+    when {
+      fit.narrow -> 28f
+      fit.height == Height.TALL -> 40f
+      else -> 34f
+    }
 
   /** The running clock's size (sp) beside its button: as big as a 20-hour "20:44:57" fits. */
   private fun clockSize(fit: Fit): Float =
@@ -146,14 +221,21 @@ object TodayViews : WidgetKind {
       Height.TALL -> 40f
     }
 
-  private fun button(context: Context, views: RemoteViews, action: Action, iconOnly: Boolean) {
-    val launch = Launch.pending(context, action.launch)
+  private fun button(
+    context: Context,
+    views: RemoteViews,
+    action: Action,
+    press: android.app.PendingIntent,
+    spoken: String,
+    iconOnly: Boolean,
+  ) {
     views.setTextViewText(R.id.timer_button, context.getString(action.label))
+    views.setContentDescription(R.id.timer_button, spoken)
     views.setTextViewCompoundDrawablesRelative(R.id.timer_button, action.icon, 0, 0, 0)
-    views.setOnClickPendingIntent(R.id.timer_button, launch)
+    views.setOnClickPendingIntent(R.id.timer_button, press)
     views.setImageViewResource(R.id.timer_icon_button, action.icon)
-    views.setContentDescription(R.id.timer_icon_button, context.getString(action.description))
-    views.setOnClickPendingIntent(R.id.timer_icon_button, launch)
+    views.setContentDescription(R.id.timer_icon_button, spoken)
+    views.setOnClickPendingIntent(R.id.timer_icon_button, press)
     views.setViewVisibility(R.id.timer_button, visible(!iconOnly))
     views.setViewVisibility(R.id.timer_icon_button, visible(iconOnly))
   }
@@ -161,9 +243,9 @@ object TodayViews : WidgetKind {
   /**
    * Two rows and more: the figures sized to the room, and the timer card
    * (its clock is set already). Tall, the height to spare is split around
-   * this week.
+   * this week. With no timer, `startTask` is the task Start begins.
    */
-  private fun card(context: Context, views: RemoteViews, timer: JSONObject?, running: Boolean, fit: Fit) {
+  private fun card(context: Context, views: RemoteViews, timer: JSONObject?, startTask: String?, running: Boolean, fit: Fit) {
     val tall = fit.height == Height.TALL
     views.setViewVisibility(R.id.week_spacer, visible(tall))
     // Narrow, the time goes under the money
@@ -171,19 +253,15 @@ object TodayViews : WidgetKind {
     views.setViewVisibility(R.id.today_time_under, visible(fit.narrow))
     if (running) {
       if (tall) views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, 22f)
-    } else {
-      // and the money is a little smaller
-      val hero =
-        when {
-          fit.narrow -> 28f
-          tall -> 40f
-          else -> 34f
-        }
-      views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, hero)
     }
     if (timer == null) {
-      views.setViewVisibility(R.id.timer_task, View.GONE)
-      views.setTextViewText(R.id.timer_status, context.getString(R.string.widget_no_timer))
+      // The task Start begins, when it starts one here; else Start opens TaskMint to choose
+      views.setViewVisibility(R.id.timer_task, visible(startTask != null))
+      views.setTextViewText(R.id.timer_task, startTask ?: "")
+      views.setTextViewText(
+        R.id.timer_status,
+        context.getString(if (startTask != null) R.string.widget_not_running else R.string.widget_no_timer)
+      )
       return
     }
     views.setViewVisibility(R.id.timer_task, View.VISIBLE)
@@ -194,7 +272,8 @@ object TodayViews : WidgetKind {
   /**
    * One row: today's time over the task while a timer runs (counting) or
    * waits paused ("Paused · its task"), or today's money over its time;
-   * wide, the money earned today (or the goal) on the right.
+   * wide, the money earned today (or the goal) on the right. `day` names
+   * the day the figures are from once it isn't today ("Yesterday · 3h 12m").
    */
   private fun row(
     context: Context,
@@ -205,6 +284,7 @@ object TodayViews : WidgetKind {
     time: String,
     goal: Int?,
     fit: Fit,
+    day: String?,
   ) {
     val paused = timer != null && countingFrom == null
     views.setViewVisibility(R.id.today_clock, visible(countingFrom != null))
@@ -213,11 +293,11 @@ object TodayViews : WidgetKind {
     if (paused) views.setTextViewText(R.id.row_paused, time)
     val detail =
       when {
-        timer == null -> context.getString(R.string.widget_time_today, time)
+        timer == null -> if (day == null) context.getString(R.string.widget_time_today, time) else time
         paused -> context.getString(R.string.widget_paused_task, timer.getString("task"))
         else -> timer.getString("task")
       }
-    views.setTextViewText(R.id.row_detail, detail)
+    views.setTextViewText(R.id.row_detail, if (day == null) detail else context.getString(R.string.widget_figures, day, detail))
 
     // Wide: the money earned today beside a timer, or the goal beside today's money
     val aside: Pair<String, String>? =

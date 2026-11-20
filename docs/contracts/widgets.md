@@ -51,6 +51,24 @@ minutes. `timer` names the task and says whether
 it runs (`countingFromMs`) or waits paused; how long the one timer has run
 isn't shown anywhere.
 
+## What a phone's own buttons need
+
+The Today widget's and the notification's timer buttons act on the phone,
+with TaskMint closed ([ADR 0006](../adr/0006-background-timer-buttons.md)),
+and the phone then moves its own copy of the figures on. For that the
+snapshot says:
+
+- `start`: `{taskId, task, perHourCents}`, the task used most recently of
+  those not archived: what Start begins. `null` before any has been used.
+- `timer.perHourCents`, `start.perHourCents`: what today's money grows by an
+  hour while that task's timer runs; `null` when it doesn't grow with it (no
+  rate, or the day's money for the task is the site's).
+- `today.moneyCents`: today's money in cents while it stands still; `null`
+  while it grows (`today.earning` has it then).
+
+A reader that didn't write the figures ignores them: over another device's
+figures the phone's buttons open TaskMint.
+
 ## What moves with the clock
 
 The text is as of the writing, and a phone shows it for hours. `payouts`
@@ -68,7 +86,24 @@ whole dollars.
   `null` with no withdrawal recorded. `cents` is `amount`; the next
   withdrawal takes each step too once `now >= atMs` (all are after it opens),
   up to twelve of them.
-- `payouts.opensAtMs`: "Ready to withdraw" from then.
+- `payouts.opensAtMs`: "Ready to withdraw" from then. The agenda's `opens`
+  badge goes then too, and the row of the reader's today says "Open now".
+
+The days move as well, on the reader's clock:
+
+- `day` is the writer's today. Once it isn't the reader's, Today's figures
+  are named for their day ("Yesterday"), and stand still: a running timer's
+  clock and money stop where they were when written.
+- `week.days[].isToday` and the agenda rows' `isToday` are the writer's too.
+  The reader finds the week's first day from `day` and the marked day, puts
+  today where its own clock says, and names the week "Last week" (then "Week
+  of Nov 8") once it has ended. The agenda opens at the last week header
+  dated on or before the reader's today; a `releaseAhead` badge on a day
+  that has passed is a `release`.
+- `zone` (the published copy's) is the zone the writer's days are in. A
+  reader refuses figures for an earlier day than the ones it has, which a
+  device publishes as it wakes, unless that day was the writer's today in
+  `zone` when they were written.
 
 A snapshot without `parts` or `growth` (an older TaskMint's) is shown as
 written.

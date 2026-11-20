@@ -15,6 +15,7 @@ import type { Task } from '../types/task';
 import { TaskSession, TimerInstance, TimerState } from '../types/timer';
 import { earningsForMs, instanceRate } from '../utils/earnings';
 import { formatDurationCompact } from '../utils/formatters';
+import { lastUsedByTask } from '../utils/taskOrdering';
 import {
   getInstanceDateString,
   getInstanceElapsedMs,
@@ -80,13 +81,45 @@ function earningOf(
   };
 }
 
+/**
+ * What today's money would grow by an hour with a timer on `taskId` at
+ * `rate` running: null when it wouldn't grow (no rate, or the task's money
+ * today is the site's, from a timed import).
+ */
+function growthPerHour(payout: Pick<PayoutData, 'cells' | 'today'>, taskId: string, rate: number): number | null {
+  const cell = payout.cells.find(of => of.taskId === taskId && of.workDay === payout.today);
+  return rate > 0 && !(cell && cell.importedMinutes > 0) ? Math.round(rate * 100) : null;
+}
+
+/** The task used most recently, of those not archived: what a phone's Start button begins. */
+function startTask(
+  payout: Pick<PayoutData, 'cells' | 'today'>,
+  sessions: TaskSession[],
+  tasks: Task[]
+): WidgetSnapshot['start'] {
+  const lastUsed = lastUsedByTask(sessions);
+  let latest: Task | null = null;
+  for (const task of tasks) {
+    const usedMs = lastUsed.get(task.id);
+    if (task.isArchived || usedMs === undefined) continue;
+    if (!latest || usedMs > (lastUsed.get(latest.id) as number)) latest = task;
+  }
+  return (
+    latest && {
+      taskId: latest.id,
+      task: latest.name,
+      perHourCents: growthPerHour(payout, latest.id, latest.hourlyRate ?? 0),
+    }
+  );
+}
+
 export function todayWidget(
   payout: Pick<PayoutData, 'cells' | 'today' | 'nowMs'>,
   goal: Pick<DailyGoalProgressData, 'enabled' | 'percent'>,
   sessions: TaskSession[],
   week: Pick<CalendarWeek, 'earnedCents' | 'estimatedCents' | 'timeMs'>,
   tasks: Task[]
-): Pick<WidgetSnapshot, 'today' | 'timer'> {
+): Pick<WidgetSnapshot, 'today' | 'timer' | 'start'> {
   const totals = periodTotals(payout.cells, payout.today, payout.today);
 
   const live = liveTimer(sessions);
@@ -95,12 +128,18 @@ export function todayWidget(
   const timer = live && {
     task: instanceTaskName(live.instance, live.session),
     countingFromMs: running ? fromMs : null,
+    perHourCents: growthPerHour(
+      payout,
+      instanceTaskId(live.instance, live.session),
+      instanceRate(live.instance, live.session, tasks)
+    ),
   };
 
   // A timer's whole time belongs to the day it started (getInstanceDateString),
   // so today's time and money count only while one begun today runs. They
   // then grow by the second, and where they count from stays put.
   const counts = running && getInstanceDateString(live.instance, live.session.date) === payout.today;
+  const earning = counts ? earningOf(live, payout, sessions, tasks, totals.earnedCents, fromMs) : null;
 
   return {
     today: {
@@ -108,7 +147,9 @@ export function todayWidget(
       time: formatDurationCompact(totals.timeMs),
       countingFromMs: counts ? payout.nowMs - totals.timeMs : null,
       timeMs: counts ? null : totals.timeMs,
-      earning: counts ? earningOf(live, payout, sessions, tasks, totals.earnedCents, fromMs) : null,
+      earning,
+      // Still while the money is: a figure that moved each second would send the snapshot each second
+      moneyCents: earning ? null : totals.earnedCents,
       goalPercent: goal.enabled ? Math.round(goal.percent) : null,
       week: {
         money: widgetMoney(week.earnedCents, week.estimatedCents > 0),
@@ -116,5 +157,6 @@ export function todayWidget(
       },
     },
     timer,
+    start: startTask(payout, sessions, tasks),
   };
 }

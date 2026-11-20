@@ -62,4 +62,7 @@ cargo llvm-cov -p taskmint --features failpoints --summary-only \
   --ignore-filename-regex "$(node scripts/check-coverage-policy.mjs --rust-ignore-regex apps/desktop/src-tauri)" \
   --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100
 
+step "The phone's Kotlin: compiles, and its tests pass (skipped, loudly, without an Android SDK)"
+scripts/check-android.sh
+
 printf '\nAll gates passed.\n'

@@ -18,14 +18,10 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.google.firebase.installations.FirebaseInstallations
 import com.google.firebase.messaging.FirebaseMessaging
-import com.taskmint.android.Widgets.time
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.security.KeyStore
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import javax.crypto.Cipher
@@ -78,8 +74,6 @@ object WidgetSync {
   private const val ONCE = "widget-sync-once"
   private const val EVERY_MINUTES = 15L
   private const val TIMEOUT_MS = 8_000
-  /** The snapshot's version the widgets read (Widgets.VERSION). */
-  private const val SCHEMA = 2
   /** Firebase's words for a refresh token that will never work again. */
   private val REFUSED = setOf("TOKEN_EXPIRED", "USER_DISABLED", "USER_NOT_FOUND", "INVALID_REFRESH_TOKEN")
 
@@ -172,6 +166,8 @@ object WidgetSync {
   fun setTimerNotice(context: Context, wanted: Boolean) {
     prefs(context).edit().putBoolean(TIMER_NOTICE, wanted).apply()
   }
+
+  fun timerNoticeWanted(context: Context): Boolean = prefs(context).getBoolean(TIMER_NOTICE, true)
 
   /** One check soon (the phone has started: the figures kept are from before). */
   fun soon(context: Context) {
@@ -272,31 +268,23 @@ object WidgetSync {
     val fields = published.getJSONObject("fields")
     val whole = { name: String -> fields.getJSONObject(name).getString("integerValue").toLong() }
     val text = { name: String -> fields.getJSONObject(name).getString("stringValue") }
-    if (whole("schema") != SCHEMA.toLong() || whole("epoch") != link.getLong("epoch")) return
+    if (whole("schema") != Widgets.VERSION.toLong() || whole("epoch") != link.getLong("epoch")) return
     if (text("deviceId") == link.getString("deviceId")) return
-    val writtenMs = millis(published.getString("updateTime"))
+    val writtenMs = WidgetFigures.millis(published.getString("updateTime"))
     val figures = JSONObject(text("json"))
-    if (figures.optInt("version") != SCHEMA) return
+    if (figures.optInt("version") != Widgets.VERSION) return
 
-    val kept = Widgets.snapshot(context)
-    // Newer than the kept ones: written after they were, and after the page last had them current
-    val keptMs = maxOf(kept?.optLong("updatedAtMs") ?: 0, Widgets.confirmedAt(context))
-    if (kept != null && (writtenMs <= keptMs || figures.getString("day") < kept.optString("day"))) return
+    // A timer button here put this phone's figures ahead of the cloud's, until TaskMint is opened
+    if (Widgets.ahead(context)) return
+    // Newer than the kept ones, and not a waking device's from a day gone by
+    if (!WidgetFigures.takes(figures, writtenMs, Widgets.snapshot(context), Widgets.confirmedAt(context))) return
     // The app may have come forward while this read
     if (inFront()) return
-    Widgets.save(context, figures.put("updatedAtMs", writtenMs).toString())
+    Widgets.save(context, figures.put("updatedAtMs", writtenMs).toString(), own = false)
 
-    if (!prefs(context).getBoolean(TIMER_NOTICE, true)) return
+    if (!timerNoticeWanted(context)) return
     val timer = figures.optJSONObject("timer")
     TimerNotices.setRemote(context, timer?.let { TimerNotice(it.getString("task"), it.time("countingFromMs")) })
-  }
-
-  /** An RFC 3339 time in UTC ("2026-11-14T21:00:00.123456Z"), as epoch milliseconds. */
-  private fun millis(time: String): Long {
-    val seconds = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-    val whole = seconds.parse(time.substring(0, 19))!!.time
-    val fraction = time.substring(19).trimEnd('Z').trimStart('.')
-    return whole + if (fraction.isEmpty()) 0 else fraction.padEnd(3, '0').substring(0, 3).toLong()
   }
 
   private class Reply(val code: Int, val body: String)

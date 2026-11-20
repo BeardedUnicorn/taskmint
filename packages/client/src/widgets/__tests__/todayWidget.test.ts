@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from 'vitest';
 import { createMockPayoutData } from '../../__tests__/setup/payout-test-utils';
-import { createMockTaskSession, createMockTimerInstance } from '../../__tests__/setup/session-test-utils';
+import {
+  createMockTask,
+  createMockTaskSession,
+  createMockTimerInstance,
+} from '../../__tests__/setup/session-test-utils';
 import { todayWidget } from '../todayWidget';
 import { MINUTE, NOW, TASKS, TODAY, cell, working } from './widgetFixtures';
 
@@ -45,10 +49,14 @@ describe('todayWidget', () => {
         timeMs: null,
         // and its money from the 83 minutes before, at the timer's $30 an hour
         earning: { baseCents: 4_150, perHourCents: 3_000, fromMs: NOW - 50 * MINUTE },
+        // (which has the money while it grows)
+        moneyCents: null,
         goalPercent: 64,
         week: { money: '~$310', time: '14h 20m' },
       },
-      timer: { task: 'Writing', countingFromMs: NOW - 50 * MINUTE },
+      timer: { task: 'Writing', countingFromMs: NOW - 50 * MINUTE, perHourCents: 3_000 },
+      // What the phone's Start button would begin: the task used last
+      start: { taskId: 't', task: 'Writing', perHourCents: 3_000 },
     });
   });
 
@@ -75,7 +83,8 @@ describe('todayWidget', () => {
   });
 
   it("holds today's figures still while the timer is paused, or one begun yesterday still runs", () => {
-    const still = { countingFromMs: null, timeMs: 133 * MINUTE, earning: null };
+    // (the money in cents too, for a phone whose own button resumes the timer)
+    const still = { countingFromMs: null, timeMs: 133 * MINUTE, earning: null, moneyCents: 4_550 };
     expect(todayWidget(payout(), goal, [working(true)], week, TASKS).today).toMatchObject(still);
     expect(todayWidget(payout(), goal, [], week, TASKS).today).toMatchObject(still);
 
@@ -89,7 +98,7 @@ describe('todayWidget', () => {
     });
     const overnight = todayWidget(payout(), goal, [sinceYesterday], week, TASKS);
     expect(overnight.today).toMatchObject(still);
-    expect(overnight.timer).toEqual({ task: 'Writing', countingFromMs: NOW - 20 * 60 * MINUTE });
+    expect(overnight.timer).toMatchObject({ task: 'Writing', countingFromMs: NOW - 20 * 60 * MINUTE });
   });
 
   it('names a paused timer, the one paused last in any session, and leaves the goal out when there is none', () => {
@@ -114,7 +123,54 @@ describe('todayWidget', () => {
     expect(todayWidget(payout(), noGoal, sessions, week, TASKS).timer).toEqual({
       task: 'Editing',
       countingFromMs: null,
+      // (A task that isn't in the list has no rate)
+      perHourCents: null,
     });
+  });
+
+  it("says what a phone's Start and Resume buttons need: the task used last, and how the money would grow", () => {
+    const used = (id: string, taskId: string, minutesAgo: number) =>
+      createMockTaskSession({
+        id,
+        taskId,
+        taskName: taskId,
+        timerInstances: [
+          createMockTimerInstance({ startTime: new Date(NOW - minutesAgo * MINUTE).toISOString(), duration: MINUTE }),
+        ],
+      });
+    const tasks = [
+      createMockTask({ id: 'recent', name: 'Review', hourlyRate: 45 }),
+      // (used before Review was: not the one to start)
+      createMockTask({ id: 'old', name: 'Filing', hourlyRate: 20 }),
+      createMockTask({ id: 'gone', name: 'Archived', hourlyRate: 60, isArchived: true }),
+      createMockTask({ id: 'unpaid', name: 'Chores', hourlyRate: undefined }),
+      createMockTask({ id: 'never', name: 'Someday', hourlyRate: 10 }),
+    ];
+    const sessions = [used('a', 'old', 300), used('b', 'recent', 30), used('c', 'gone', 5), used('d', 'recent', 90)];
+    const start = (s = sessions, cells = payout().cells) => todayWidget(payout(cells), goal, s, week, tasks).start;
+
+    // The archived task was used last of all, but it can't be started
+    expect(start()).toEqual({ taskId: 'recent', task: 'Review', perHourCents: 4_500 });
+    // A task with no rate adds no money
+    expect(start([...sessions, used('e', 'unpaid', 1)])).toEqual({
+      taskId: 'unpaid',
+      task: 'Chores',
+      perHourCents: null,
+    });
+    // Nor does one whose money today is the site's
+    expect(start(sessions, [cell({ taskId: 'recent', actualCents: 9_000, importedMinutes: 60 })])).toMatchObject({
+      taskId: 'recent',
+      perHourCents: null,
+    });
+    // Nothing used yet: Start opens the app to choose
+    expect(start([])).toBeNull();
+
+    // A paused timer on a day the site has paid for doesn't grow the money either
+    const imported = [cell({ actualCents: 12_000, importedMinutes: 90, trackedMs: 50 * MINUTE })];
+    expect(todayWidget(payout(imported), goal, [working(true)], week, TASKS).timer).toMatchObject({
+      perHourCents: null,
+    });
+    expect(todayWidget(payout(), goal, [working(true)], week, TASKS).timer).toMatchObject({ perHourCents: 3_000 });
   });
 
   it('has no timer when nothing runs or waits paused; imported money is not an estimate', () => {

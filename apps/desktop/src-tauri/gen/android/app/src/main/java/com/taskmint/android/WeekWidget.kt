@@ -3,7 +3,6 @@ package com.taskmint.android
 import android.content.Context
 import android.widget.RemoteViews
 import com.taskmint.android.Widgets.visible
-import com.taskmint.android.Widgets.whole
 import org.json.JSONObject
 
 /** The This week widget (WeekViews). */
@@ -17,12 +16,17 @@ class WeekWidget : TaskMintWidget() {
  * against the daily goal's line, with the week's totals; tall, each day's
  * amount under its letter. From the snapshot's `week`, whose levels (0–10000)
  * are the bars' and the line's heights. A tap opens History.
+ *
+ * Which bar is today's follows the phone's clock, not the page's word: with
+ * TaskMint closed over midnight the snapshot's week is still the one shown,
+ * the next day's bar takes the accent, and once the week has ended it's
+ * named "Last week" (WidgetFigures.weekNow).
  */
 object WeekViews : WidgetKind {
   override val provider = WeekWidget::class.java
 
-  /** Only width (where the totals go) and being tall (the amounts) change it. */
-  override val sizes = Fit.sizes(listOf(Height.ROW, Height.TALL))
+  /** Only width (where the totals go; roomy, room for the amounts) and being tall (the amounts) change it. */
+  override val sizes = Fit.sizes(listOf(Height.ROW, Height.TALL), roomy = true)
 
   private val columns = listOf(R.id.column_0, R.id.column_1, R.id.column_2, R.id.column_3, R.id.column_4, R.id.column_5, R.id.column_6)
   private val bars = listOf(R.id.bar_0, R.id.bar_1, R.id.bar_2, R.id.bar_3, R.id.bar_4, R.id.bar_5, R.id.bar_6)
@@ -39,7 +43,7 @@ object WeekViews : WidgetKind {
     )
   private val amounts = listOf(R.id.amount_0, R.id.amount_1, R.id.amount_2, R.id.amount_3, R.id.amount_4, R.id.amount_5, R.id.amount_6)
 
-  override fun part(snapshot: JSONObject) = snapshot.opt("week").toString()
+  override fun part(snapshot: JSONObject) = listOf(snapshot.opt("day"), snapshot.opt("week")).toString()
 
   override fun views(context: Context, snapshot: JSONObject?, fit: Fit, id: Int, scroll: Int?): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.widget_week)
@@ -51,24 +55,28 @@ object WeekViews : WidgetKind {
     }
     Widgets.content(views)
     val totals = week.getString("totals")
-    Widgets.header(views, context.getString(R.string.widget_week_label), if (fit.narrow) null else totals)
+    val now = Widgets.weekNow(snapshot)
+    Widgets.header(views, Widgets.weekTitle(context, now), if (fit.narrow) null else totals)
     views.setViewVisibility(R.id.week_totals_narrow, visible(fit.narrow))
     views.setTextViewText(R.id.week_totals_narrow, totals)
 
     val days = week.getJSONArray("days")
     for (index in columns.indices) {
-      val day = days.optJSONObject(index) ?: continue
-      val today = day.optBoolean("isToday")
+      // A day the snapshot lacks is drawn empty: every draw says what each
+      // column shows, or a launcher keeps what the last one set
+      val day = days.optJSONObject(index) ?: JSONObject()
+      val today = index == now.todayIndex
       views.setImageViewResource(bars[index], if (today) R.drawable.widget_bar_today else R.drawable.widget_bar)
       views.setInt(bars[index], "setImageLevel", day.optInt("level"))
       views.setViewVisibility(letters[index], visible(!today))
       views.setViewVisibility(todayLetters[index], visible(today))
-      views.setTextViewText(letters[index], day.getString("letter"))
-      views.setTextViewText(todayLetters[index], day.getString("letter"))
-      views.setTextViewText(amounts[index], day.getString("amount"))
-      views.setContentDescription(columns[index], day.getString("spoken"))
+      views.setTextViewText(letters[index], day.optString("letter"))
+      views.setTextViewText(todayLetters[index], day.optString("letter"))
+      views.setTextViewText(amounts[index], day.optString("amount"))
+      views.setContentDescription(columns[index], day.optString("spoken"))
     }
-    views.setViewVisibility(R.id.amounts, visible(fit.height == Height.TALL && !fit.narrow))
+    // A column needs four columns' width for an amount ("~$123") to fit under it
+    views.setViewVisibility(R.id.amounts, visible(fit.height == Height.TALL && fit.roomy))
 
     val goal = week.whole("goalLevel")
     views.setViewVisibility(R.id.goal_line, visible(goal != null))

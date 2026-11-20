@@ -165,6 +165,34 @@ fn create_channels(app: &AppHandle) {
     }
 }
 
+/// A widget's or the notification's button, pressed with or without the app
+/// running (gen/android: Headless.kt, called by WidgetAction.kt off the main
+/// thread): runs `action` on the data in `data_dir` and gives headless::run's
+/// reply. Null when it couldn't be run at all, which the phone takes as not
+/// done.
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "system" fn Java_com_taskmint_android_Headless_act<'local>(
+    mut env: jni::JNIEnv<'local>,
+    _class: jni::objects::JClass<'local>,
+    data_dir: jni::objects::JString<'local>,
+    action: jni::objects::JString<'local>,
+) -> jni::sys::jstring {
+    let mut text = |value: &jni::objects::JString<'local>| -> Option<String> {
+        env.get_string(value).ok().map(Into::into)
+    };
+    let reply = match (text(&data_dir), text(&action)) {
+        // A panic mustn't cross into the JVM
+        (Some(data_dir), Some(action)) => {
+            std::panic::catch_unwind(|| crate::headless::run(PathBuf::from(data_dir), &action)).ok()
+        }
+        _ => None,
+    };
+    reply
+        .and_then(|reply| env.new_string(reply).ok())
+        .map_or(std::ptr::null_mut(), |reply| reply.into_raw())
+}
+
 /// What RemindersPlugin's setTimerNotice takes (gen/android:
 /// TimerNotice.kt).
 #[cfg(target_os = "android")]
