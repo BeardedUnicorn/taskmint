@@ -293,13 +293,18 @@ object TimerNotices {
     val snapshot = Widgets.snapshot(context)?.takeIf { it.optString("day") == Widgets.today() } ?: return null
     val today = snapshot.optJSONObject("today") ?: return null
     val now = System.currentTimeMillis()
-    val countingFrom = today.time("countingFromMs")
-    val still = if (countingFrom != null) (now - countingFrom).coerceAtLeast(0) else today.time("timeMs")
-    return Today(
-      countingFromMs = countingFrom.takeIf { notice.running },
-      stillMs = still.takeIf { countingFrom == null || !notice.running },
-      money = WidgetFigures.todayMoney(today, notice.running, now),
-    )
+    return try {
+      val countingFrom = today.time("countingFromMs")
+      val still = if (countingFrom != null) (now - countingFrom).coerceAtLeast(0) else today.time("timeMs")
+      Today(
+        countingFromMs = countingFrom.takeIf { notice.running },
+        stillMs = still.takeIf { countingFrom == null || !notice.running },
+        money = WidgetFigures.todayMoney(today, notice.running, now),
+      )
+    } catch (_: JSONException) {
+      // Figures it can't read (another TaskMint's): the task and "Running" alone
+      null
+    }
   }
 
   private fun status(context: Context, notice: TimerNotice): String =

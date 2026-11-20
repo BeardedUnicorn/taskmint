@@ -213,6 +213,9 @@ class RemindersRestore : BroadcastReceiver() {
         Reminders.restore(context)
         // The system dropped the running timer's notification with the rest
         TimerNotices.restore(context)
+        // and the alarms that keep its figures and the widgets' current
+        // (a widget's own restart sets them too, but there may be none)
+        Widgets.scheduleRefresh(context)
         // The widgets' figures are from before: other devices may have newer
         WidgetSync.soon(context)
       }

@@ -74,8 +74,6 @@ object WidgetSync {
   private const val ONCE = "widget-sync-once"
   private const val EVERY_MINUTES = 15L
   private const val TIMEOUT_MS = 8_000
-  /** The snapshot's version the widgets read (Widgets.VERSION). */
-  private const val SCHEMA = 2
   /** Firebase's words for a refresh token that will never work again. */
   private val REFUSED = setOf("TOKEN_EXPIRED", "USER_DISABLED", "USER_NOT_FOUND", "INVALID_REFRESH_TOKEN")
 
@@ -268,16 +266,14 @@ object WidgetSync {
     val fields = published.getJSONObject("fields")
     val whole = { name: String -> fields.getJSONObject(name).getString("integerValue").toLong() }
     val text = { name: String -> fields.getJSONObject(name).getString("stringValue") }
-    if (whole("schema") != SCHEMA.toLong() || whole("epoch") != link.getLong("epoch")) return
+    if (whole("schema") != Widgets.VERSION.toLong() || whole("epoch") != link.getLong("epoch")) return
     if (text("deviceId") == link.getString("deviceId")) return
     val writtenMs = WidgetFigures.millis(published.getString("updateTime"))
     val figures = JSONObject(text("json"))
-    if (figures.optInt("version") != SCHEMA) return
+    if (figures.optInt("version") != Widgets.VERSION) return
 
-    val kept = Widgets.snapshot(context)
-    // Newer than the kept ones: written after they were, and after the page last had them current
-    val keptMs = maxOf(kept?.optLong("updatedAtMs") ?: 0, Widgets.confirmedAt(context))
-    if (kept != null && (writtenMs <= keptMs || figures.getString("day") < kept.optString("day"))) return
+    // Newer than the kept ones, and not a waking device's from a day gone by
+    if (!WidgetFigures.takes(figures, writtenMs, Widgets.snapshot(context), Widgets.confirmedAt(context))) return
     // The app may have come forward while this read
     if (inFront()) return
     Widgets.save(context, figures.put("updatedAtMs", writtenMs).toString())

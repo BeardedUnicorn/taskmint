@@ -87,7 +87,7 @@ export const ENGINE_OPTIONS: EngineOptions = {
 
 /** The published payout forecast's document (utils/payoutForecast PAYOUT_FORECAST_DOC). */
 export const FORECAST_DOC = 'payoutForecast';
-/** The published widgets' document (widgets/publishedWidgets WIDGETS_DOC). */
+/** The published widgets' document's name, under users/{uid}/published. */
 export const WIDGETS_DOC = 'widgets';
 
 /** A published document as this device has it, and the hash it last published while linked. */

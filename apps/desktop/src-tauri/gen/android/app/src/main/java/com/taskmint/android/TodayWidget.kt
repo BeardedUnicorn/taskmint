@@ -67,8 +67,11 @@ object TodayViews : WidgetKind {
     Widgets.content(views)
     val today = snapshot.getJSONObject("today")
     val now = System.currentTimeMillis()
-    // Only today's money grows with a running timer: yesterday's stays as it was written
-    val growing = countingFrom != null && snapshot.optString("day") == Widgets.today()
+    // Only today's figures move with a running timer: once the day has
+    // gone (TaskMint closed since, and no other device publishing), they
+    // stand as they were written, under "Yesterday"
+    val current = snapshot.optString("day") == Widgets.today()
+    val growing = countingFrom != null && current
     val money = WidgetFigures.todayMoney(today, growing, now) ?: ""
     val time = today.getString("time")
     val goal = today.whole("goalPercent")
@@ -92,6 +95,8 @@ object TodayViews : WidgetKind {
 
     val week = today.getJSONObject("week")
     views.setViewVisibility(R.id.week_block, visible(fit.height == Height.TALL))
+    // "This week" until the week has ended: then it's last week's
+    views.setTextViewText(R.id.week_label, Widgets.weekTitle(context, Widgets.weekNow(snapshot)))
     views.setTextViewText(R.id.week_money, week.getString("money"))
     views.setContentDescription(R.id.week_money, Widgets.spoken(context, week.getString("money")))
     views.setTextViewText(R.id.week_time, week.getString("time"))
@@ -108,11 +113,14 @@ object TodayViews : WidgetKind {
       // The clock is today's time: counting from where the page says it
       // would have started (a timer begun today), else stopped at what
       // today has come to (one begun yesterday: its time is yesterday's).
-      // A Chronometer takes boot-relative time.
+      // A Chronometer takes boot-relative time. Figures from a day gone by
+      // stand where they had counted to when they were written, as the
+      // money does.
       val todayFrom = today.time("countingFromMs")
-      val todayMs = if (todayFrom != null) (now - todayFrom).coerceAtLeast(0) else today.time("timeMs") ?: 0
+      val until = if (current) now else snapshot.optLong("updatedAtMs", now)
+      val todayMs = if (todayFrom != null) (until - todayFrom).coerceAtLeast(0) else today.time("timeMs") ?: 0
       val base = SystemClock.elapsedRealtime() - todayMs
-      val counts = todayFrom != null
+      val counts = todayFrom != null && current
       views.setChronometer(R.id.today_clock, base, null, counts)
       views.setTextViewTextSize(R.id.today_clock, TypedValue.COMPLEX_UNIT_SP, clockSize(fit))
       // A narrow card has no room beside the button: the clock goes under it
@@ -121,7 +129,7 @@ object TodayViews : WidgetKind {
       views.setViewVisibility(R.id.today_clock_under, visible(under))
       if (!oneRow) views.setViewVisibility(R.id.today_clock, visible(!under))
       // The clock has today's time: beside the money, what it is
-      val earned = context.getString(R.string.widget_earned_today)
+      val earned = context.getString(if (current) R.string.widget_earned_today else R.string.widget_earned)
       views.setTextViewText(R.id.today_time, earned)
       views.setTextViewText(R.id.today_time_under, earned)
     } else {
@@ -129,7 +137,9 @@ object TodayViews : WidgetKind {
       views.setChronometer(R.id.today_clock, SystemClock.elapsedRealtime(), null, false)
     }
     if (oneRow) {
-      row(context, views, timer, countingFrom, money, time, goal, fit)
+      // The row has no header to say whose day the figures are
+      val day = if (current) null else Widgets.dayLabel(context, snapshot.getString("day"))
+      row(context, views, timer, countingFrom, money, time, goal, fit, day)
     } else {
       card(context, views, timer, layout == R.layout.widget_today_running, fit)
     }
@@ -192,7 +202,8 @@ object TodayViews : WidgetKind {
   /**
    * One row: today's time over the task while a timer runs (counting) or
    * waits paused ("Paused · its task"), or today's money over its time;
-   * wide, the money earned today (or the goal) on the right.
+   * wide, the money earned today (or the goal) on the right. `day` names
+   * the day the figures are from once it isn't today ("Yesterday · 3h 12m").
    */
   private fun row(
     context: Context,
@@ -203,6 +214,7 @@ object TodayViews : WidgetKind {
     time: String,
     goal: Int?,
     fit: Fit,
+    day: String?,
   ) {
     val paused = timer != null && countingFrom == null
     views.setViewVisibility(R.id.today_clock, visible(countingFrom != null))
@@ -211,11 +223,11 @@ object TodayViews : WidgetKind {
     if (paused) views.setTextViewText(R.id.row_paused, time)
     val detail =
       when {
-        timer == null -> context.getString(R.string.widget_time_today, time)
+        timer == null -> if (day == null) context.getString(R.string.widget_time_today, time) else time
         paused -> context.getString(R.string.widget_paused_task, timer.getString("task"))
         else -> timer.getString("task")
       }
-    views.setTextViewText(R.id.row_detail, detail)
+    views.setTextViewText(R.id.row_detail, if (day == null) detail else context.getString(R.string.widget_figures, day, detail))
 
     // Wide: the money earned today beside a timer, or the goal beside today's money
     val aside: Pair<String, String>? =

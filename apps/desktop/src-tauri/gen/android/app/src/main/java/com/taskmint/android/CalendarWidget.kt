@@ -20,6 +20,12 @@ class CalendarWidget : TaskMintWidget() {
  * week is a header, then its days in a card. It opens at this week when
  * placed, after a restart, and when a new week starts; a figures update
  * leaves the list where it was scrolled. A tap opens the Calendar.
+ *
+ * What depends on the clock follows the phone's, since the rows were
+ * written when the page last worked them out: which day is today (and so
+ * which week the list opens at), and the badge for the next withdrawal's
+ * opening, which becomes "Open now" on today's row once its time has passed
+ * (WidgetFigures.badgesNow).
  */
 object CalendarViews : WidgetKind {
   override val provider = CalendarWidget::class.java
@@ -31,6 +37,8 @@ object CalendarViews : WidgetKind {
   private const val OPENED_WEEK = "calendarOpenedWeek"
   /** Between opening a list's steps: time for it to lay out, then to scroll. */
   private const val OPEN_STEP_MS = 1_200L
+  /** The week the lists are being opened at now (the steps are under way). */
+  @Volatile private var opening: String? = null
 
   private val badgeSlots =
     listOf(
@@ -39,7 +47,10 @@ object CalendarViews : WidgetKind {
       R.id.badge_2_info to R.id.badge_2_success,
     )
 
-  override fun part(snapshot: JSONObject) = listOf(snapshot.opt("day"), snapshot.opt("agenda")).toString()
+  override fun part(snapshot: JSONObject): String {
+    val payouts = snapshot.optJSONObject("payouts")
+    return listOf(snapshot.opt("day"), snapshot.opt("agenda"), payouts?.opt("opensAtMs"), payouts?.opt("isOpen")).toString()
+  }
 
   /** From this week on: the picker's picture can't be scrolled to it. */
   override fun previewOf(snapshot: JSONObject): JSONObject {
@@ -47,15 +58,26 @@ object CalendarViews : WidgetKind {
     val agenda = preview.optJSONObject("agenda") ?: return preview
     val rows = agenda.optJSONArray("rows") ?: return preview
     val fromThisWeek = JSONArray()
-    for (index in agenda.optInt("thisWeekIndex") until rows.length()) fromThisWeek.put(rows.get(index))
+    for (index in thisWeekRow(agenda) until rows.length()) fromThisWeek.put(rows.get(index))
     agenda.put("rows", fromThisWeek).put("thisWeekIndex", 0)
     return preview
+  }
+
+  /** The row of the week the phone's today is in (the page's own, until its day has gone). */
+  private fun thisWeekRow(agenda: JSONObject): Int =
+    WidgetFigures.thisWeekRow(agenda.optJSONArray("rows") ?: JSONArray(), Widgets.today(), agenda.optInt("thisWeekIndex"))
+
+  /** Whether the next withdrawal is open now: the page said so, or its time has passed since. */
+  private fun opened(snapshot: JSONObject): Boolean {
+    val payouts = snapshot.optJSONObject("payouts") ?: return false
+    val opensAt = if (payouts.isNull("opensAtMs")) null else payouts.optLong("opensAtMs")
+    return payouts.optBoolean("isOpen") || (opensAt != null && System.currentTimeMillis() >= opensAt)
   }
 
   /** This week's header: its date and row ("2026-11-08@7"), which moves when earlier weeks come or go. */
   private fun thisWeek(snapshot: JSONObject?): String? {
     val agenda = snapshot?.optJSONObject("agenda") ?: return null
-    val index = agenda.optInt("thisWeekIndex")
+    val index = thisWeekRow(agenda)
     return agenda.optJSONArray("rows")?.optJSONObject(index)?.optString("date")?.let { "$it@$index" }
   }
 
@@ -73,13 +95,15 @@ object CalendarViews : WidgetKind {
     Widgets.header(views, context.getString(R.string.widget_calendar_label), if (fit.narrow) null else aside)
 
     val rows = agenda.getJSONArray("rows")
+    val today = Widgets.today()
+    val opened = opened(snapshot)
     val items = RemoteViewsCompat.RemoteCollectionItems.Builder().setHasStableIds(true).setViewTypeCount(2)
     for (index in 0 until rows.length()) {
       val row = rows.getJSONObject(index)
       val week = row.getString("kind") == "week"
       items.addItem(
         "${row.getString("kind")}:${row.getString("date")}".hashCode().toLong(),
-        if (week) week(context, row) else day(context, row, fit)
+        if (week) week(context, row) else day(context, row, fit, today, opened)
       )
     }
     RemoteViewsCompat.setRemoteAdapter(context, views, id, R.id.agenda_list, items.build())
@@ -98,13 +122,18 @@ object CalendarViews : WidgetKind {
   override fun drawn(context: Context, ids: IntArray, snapshot: JSONObject?, fresh: Boolean) {
     val week = thisWeek(snapshot) ?: return
     val prefs = Widgets.prefs(context)
-    if (!fresh && week == prefs.getString(OPENED_WEEK, null)) return
-    prefs.edit().putString(OPENED_WEEK, week).apply()
+    if (!fresh && (week == prefs.getString(OPENED_WEEK, null) || week == opening)) return
+    opening = week
     val agenda = snapshot!!.getJSONObject("agenda")
     val last = agenda.getJSONArray("rows").length() - 1
+    val target = thisWeekRow(agenda)
     Widgets.later(OPEN_STEP_MS) { Widgets.drawScrolled(context, this, ids, Widgets.snapshot(context), last) }
     Widgets.later(2 * OPEN_STEP_MS) {
-      Widgets.drawScrolled(context, this, ids, Widgets.snapshot(context), agenda.optInt("thisWeekIndex"))
+      Widgets.drawScrolled(context, this, ids, Widgets.snapshot(context), target)
+      // Opened only now: a process that ended before this step (a check of
+      // the published figures doesn't hold it) opens the list at the next draw
+      prefs.edit().putString(OPENED_WEEK, week).apply()
+      if (opening == week) opening = null
     }
   }
 
@@ -118,7 +147,7 @@ object CalendarViews : WidgetKind {
     return views
   }
 
-  private fun day(context: Context, row: JSONObject, fit: Fit): RemoteViews {
+  private fun day(context: Context, row: JSONObject, fit: Fit, day: String, opened: Boolean): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.widget_agenda_day)
     views.setInt(
       R.id.agenda_day,
@@ -133,7 +162,7 @@ object CalendarViews : WidgetKind {
     views.setContentDescription(R.id.agenda_day, row.getString("spoken"))
     views.setOnClickFillInIntent(R.id.agenda_day, Launch.fillIn("calendar"))
 
-    val today = row.optBoolean("isToday")
+    val today = row.optString("date") == day
     views.setViewVisibility(R.id.day_weekday, visible(!today))
     views.setViewVisibility(R.id.day_weekday_today, visible(today))
     views.setViewVisibility(R.id.day_number, visible(!today))
@@ -158,8 +187,8 @@ object CalendarViews : WidgetKind {
     views.setViewVisibility(R.id.day_money, visible(money != null))
     views.setTextViewText(R.id.day_money, money ?: "")
 
-    val badges = row.optJSONArray("badges")
-    val count = minOf(badges?.length() ?: 0, badgeSlots.size)
+    val badges = WidgetFigures.badgesNow(row, day, opened, context.getString(R.string.widget_open_now), badgeSlots.size)
+    val count = badges.size
     views.setViewVisibility(R.id.day_badges, visible(count > 0))
     badgeSlots.forEachIndexed { index, (info, success) ->
       if (index >= count) {
@@ -167,13 +196,13 @@ object CalendarViews : WidgetKind {
         views.setViewVisibility(success, View.GONE)
         return@forEachIndexed
       }
-      val badge = badges!!.getJSONObject(index)
-      val kind = badge.getString("kind")
+      val badge = badges[index]
+      val kind = badge.kind
       val released = kind == "release" || kind == "releaseAhead"
       val shown = if (released) info else success
       views.setViewVisibility(info, visible(released))
       views.setViewVisibility(success, visible(!released))
-      views.setTextViewText(shown, badge.getString("text"))
+      views.setTextViewText(shown, badge.text)
       views.setInt(
         shown,
         "setBackgroundResource",

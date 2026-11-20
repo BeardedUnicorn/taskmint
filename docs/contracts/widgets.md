@@ -68,7 +68,24 @@ whole dollars.
   `null` with no withdrawal recorded. `cents` is `amount`; the next
   withdrawal takes each step too once `now >= atMs` (all are after it opens),
   up to twelve of them.
-- `payouts.opensAtMs`: "Ready to withdraw" from then.
+- `payouts.opensAtMs`: "Ready to withdraw" from then. The agenda's `opens`
+  badge goes then too, and the row of the reader's today says "Open now".
+
+The days move as well, on the reader's clock:
+
+- `day` is the writer's today. Once it isn't the reader's, Today's figures
+  are named for their day ("Yesterday"), and stand still: a running timer's
+  clock and money stop where they were when written.
+- `week.days[].isToday` and the agenda rows' `isToday` are the writer's too.
+  The reader finds the week's first day from `day` and the marked day, puts
+  today where its own clock says, and names the week "Last week" (then "Week
+  of Nov 8") once it has ended. The agenda opens at the last week header
+  dated on or before the reader's today; a `releaseAhead` badge on a day
+  that has passed is a `release`.
+- `zone` (the published copy's) is the zone the writer's days are in. A
+  reader refuses figures for an earlier day than the ones it has, which a
+  device publishes as it wakes, unless that day was the writer's today in
+  `zone` when they were written.
 
 A snapshot without `parts` or `growth` (an older TaskMint's) is shown as
 written.
