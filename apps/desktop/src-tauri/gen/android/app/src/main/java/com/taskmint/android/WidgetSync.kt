@@ -277,10 +277,15 @@ object WidgetSync {
     // A timer button here put this phone's figures ahead of the cloud's, until TaskMint is opened
     if (Widgets.ahead(context)) return
     // Newer than the kept ones, and not a waking device's from a day gone by
-    if (!WidgetFigures.takes(figures, writtenMs, Widgets.snapshot(context), Widgets.confirmedAt(context))) return
+    val kept = Widgets.snapshot(context)
+    if (!WidgetFigures.takes(figures, writtenMs, kept, Widgets.confirmedAt(context))) return
     // The app may have come forward while this read
     if (inFront()) return
-    Widgets.save(context, figures.put("updatedAtMs", writtenMs).toString(), own = false)
+    // The phone's own timer, as another device shows it too (a desktop
+    // publishes a running timer's figures every quarter of an hour): the
+    // phone's data has it, so the timer buttons go on acting here
+    val own = kept != null && kept.optBoolean(Widgets.OWN) && WidgetFigures.sameTimer(kept, figures)
+    Widgets.save(context, figures.put("updatedAtMs", writtenMs).toString(), own)
 
     if (!timerNoticeWanted(context)) return
     val timer = figures.optJSONObject("timer")

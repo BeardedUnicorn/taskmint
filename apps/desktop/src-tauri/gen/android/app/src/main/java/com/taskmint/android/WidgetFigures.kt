@@ -263,6 +263,28 @@ object WidgetFigures {
     return day >= dayAt(writtenMs, TimeZone.getTimeZone(zone))
   }
 
+  /** How far apart two devices may put the moment one running timer counts from. */
+  private const val SAME_TIMER_MS = 2_000L
+
+  /**
+   * Whether `published` figures have the live timer the `kept` ones do: none
+   * in both, or the same task in the same state, counting from the same
+   * moment (every device works that out from the timer's own times). The
+   * phone's own timer, come back from another device: the phone's data has
+   * it, so its buttons still act here (WidgetSync).
+   */
+  fun sameTimer(kept: JSONObject, published: JSONObject): Boolean {
+    val mine = kept.optJSONObject("timer")
+    val theirs = published.optJSONObject("timer")
+    if (mine == null || theirs == null) return mine == null && theirs == null
+    if (mine.optString("task") != theirs.optString("task")) return false
+    val from = { timer: JSONObject -> if (timer.isNull("countingFromMs")) null else timer.optLong("countingFromMs") }
+    val mineFrom = from(mine)
+    val theirsFrom = from(theirs)
+    if (mineFrom == null || theirsFrom == null) return mineFrom == null && theirsFrom == null
+    return Math.abs(mineFrom - theirsFrom) <= SAME_TIMER_MS
+  }
+
   // ----- A timer button pressed on the phone (WidgetAction) -----
 
   /**
@@ -282,8 +304,18 @@ object WidgetFigures {
     val next = JSONObject(snapshot.toString()).put("updatedAtMs", now)
     val timer = acted.optJSONObject("timer")
     val countingFrom = timer?.time("countingFromMs")
-    // The same timer as before (a pause, a resume), or the one Start begins
-    val rate = (snapshot.optJSONObject("timer") ?: snapshot.optJSONObject("start"))?.opt("perHourCents") as? Number
+    // The same timer as before (a pause, a resume), or the one Start begins.
+    // A stop can leave another task's timer, which waited paused, as the live
+    // one: what that adds an hour isn't known here, so its money stands
+    // still until the page says
+    val shown = snapshot.optJSONObject("timer")
+    val rated =
+      when {
+        shown == null -> snapshot.optJSONObject("start")
+        timer != null && timer.optString("task") != shown.optString("task") -> null
+        else -> shown
+      }
+    val rate = rated?.opt("perHourCents") as? Number
     val perHour = rate?.toDouble()
     next.put(
       "timer",

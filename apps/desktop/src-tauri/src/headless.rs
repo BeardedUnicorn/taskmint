@@ -134,8 +134,11 @@ pub fn act(backend: &LocalBackend, now: DateTime<Utc>, action: &str) -> Acted {
             live().is_some_and(|live| !live.is_paused)
         }
         STOP => {
+            // Another task's paused timer is the live one once this one has
+            // stopped: it's done when the timer that was live no longer is
+            let stopping = live().map(|live| live.instance_id);
             call("stop_live_timer", json!({}));
-            live().is_none()
+            live().map(|live| live.instance_id) != stopping || stopping.is_none()
         }
         _ => match action.strip_prefix(START_TASK) {
             Some(task_id) => {
@@ -318,6 +321,32 @@ mod tests {
         );
         // Nothing to stop is stopped too
         assert!(o.act(STOP).done);
+    }
+
+    #[test]
+    fn stop_ends_only_the_live_timer_when_another_task_waits_paused() {
+        let o = opened();
+        o.call(
+            "set_app_record",
+            json!({ "key": "predefinedTasks", "value": [
+                { "id": "t1", "name": "Writing", "createdAt": "x", "updatedAt": "x" },
+                { "id": "t3", "name": "Editing", "createdAt": "x", "updatedAt": "x" }
+            ] }),
+        );
+        o.act("start-task:t1");
+        o.advance(Duration::minutes(10));
+        o.act(PAUSE);
+        o.advance(Duration::minutes(1));
+        assert!(o.act("start-task:t3").done);
+        o.advance(Duration::minutes(5));
+        // Editing stops, and Writing, still paused, is the live timer again
+        assert_eq!(
+            o.act(STOP),
+            Acted {
+                done: true,
+                timer: paused("Writing")
+            }
+        );
     }
 
     #[test]

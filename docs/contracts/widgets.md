@@ -67,7 +67,10 @@ snapshot says:
   while it grows (`today.earning` has it then).
 
 A reader that didn't write the figures ignores them: over another device's
-figures the phone's buttons open TaskMint.
+figures the phone's buttons open TaskMint. The exception is figures whose
+`timer` is the one the phone's own figures had (the same `task`, running or
+paused alike, `countingFromMs` within two seconds; or `null` in both): the
+phone's data has that timer, and its buttons go on acting there.
 
 ## What moves with the clock
 

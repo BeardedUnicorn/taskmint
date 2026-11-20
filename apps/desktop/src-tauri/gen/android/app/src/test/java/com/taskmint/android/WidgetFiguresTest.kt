@@ -460,6 +460,49 @@ class WidgetFiguresTest {
   }
 
   @Test
+  fun stop_can_leave_another_tasks_paused_timer_whose_rate_isnt_known() {
+    val running = WidgetFigures.afterAction(idle(), started(noon), noon, day)
+    // Editing waited paused while Writing ran: it's the live timer once Writing stops
+    val left = acted("""{ "task": "Editing", "countingFromMs": null, "beganToday": true }""")
+    val stopped = WidgetFigures.afterAction(running, left, noon + hour, day)
+    val timer = stopped.getJSONObject("timer")
+    assertEquals("Editing", timer.getString("task"))
+    assertTrue(timer.isNull("countingFromMs"))
+    // Not Writing's $60 an hour
+    assertTrue(timer.isNull("perHourCents"))
+    assertEquals("~$100", stopped.getJSONObject("today").getString("money"))
+
+    // Resumed here, its time counts and the money stands until the page says what it adds
+    val resumed = acted("""{ "task": "Editing", "countingFromMs": ${noon + hour}, "beganToday": true }""")
+    val today = WidgetFigures.afterAction(stopped, resumed, noon + hour, day).getJSONObject("today")
+    assertEquals(noon + hour - 3 * hour, today.getLong("countingFromMs"))
+    assertTrue(today.isNull("earning"))
+    assertEquals(10_000, today.getInt("moneyCents"))
+  }
+
+  private fun withTimer(timer: String) = json("""{ "timer": $timer }""")
+
+  @Test
+  fun a_published_timer_is_the_phones_own_when_its_the_same_one() {
+    val running = withTimer("""{ "task": "Writing", "countingFromMs": $noon, "perHourCents": 6000 }""")
+    // As another device words it: no rate needed, and a moment's difference allowed
+    assertTrue(WidgetFigures.sameTimer(running, withTimer("""{ "task": "Writing", "countingFromMs": ${noon + 1_500} }""")))
+    assertFalse(WidgetFigures.sameTimer(running, withTimer("""{ "task": "Writing", "countingFromMs": ${noon + minute} }""")))
+    assertFalse(WidgetFigures.sameTimer(running, withTimer("""{ "task": "Editing", "countingFromMs": $noon }""")))
+    // Paused there, or stopped
+    assertFalse(WidgetFigures.sameTimer(running, withTimer("""{ "task": "Writing", "countingFromMs": null }""")))
+    assertFalse(WidgetFigures.sameTimer(running, withTimer("null")))
+
+    val paused = withTimer("""{ "task": "Writing", "countingFromMs": null }""")
+    assertTrue(WidgetFigures.sameTimer(paused, withTimer("""{ "task": "Writing", "countingFromMs": null }""")))
+    assertFalse(WidgetFigures.sameTimer(paused, running))
+
+    // Nothing running on either
+    assertTrue(WidgetFigures.sameTimer(withTimer("null"), withTimer("null")))
+    assertFalse(WidgetFigures.sameTimer(withTimer("null"), running))
+  }
+
+  @Test
   fun the_money_stands_when_the_task_adds_none() {
     // No rate, or the day's money is the site's
     val unpaid = idle("""{ "taskId": "t", "task": "Writing", "perHourCents": null }""")
