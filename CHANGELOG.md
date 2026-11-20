@@ -8,6 +8,20 @@ patch fixes things.
 `pnpm release` writes each section from the change notes in `changes/`
 (see [changes/README.md](changes/README.md)). Settings → About shows this file.
 
+## 4.14.0 – 2026-11-20
+
+### Added
+
+- On Android, the Today widget's Start, Pause and Resume and the timer notification's Pause, Resume and Stop now act without opening TaskMint. Start begins the task you used last, which the widget names. Other devices hear of it when TaskMint is next opened on the phone; while the widget shows a timer another device started, its button opens TaskMint as before.
+
+### Fixed
+
+- Android widgets left overnight with TaskMint closed no longer mark yesterday as today: This week and the Calendar follow the phone's date, a week that has ended is named "Last week", and Today's clock stops with its money under "Yesterday".
+- The Calendar widget's "opens at" badge becomes "Open now" when the withdrawal opens, and Payouts says "Ready to withdraw" at that minute instead of up to ten minutes later.
+- Figures a widget can't read (written by an older or newer TaskMint on another device) show "Open TaskMint to show your figures here" instead of stopping every widget from updating.
+- A desktop in a time zone behind the phone's no longer has its figures refused after the phone's midnight.
+- Android widgets size their big figures to the widget's width and the phone's font size, so a long amount in a narrow widget or large system text is no longer cut off. The Calendar widget's dates grow with the font size, and This week shows each day's amount only where a column has room for it.
+
 ## 4.13.5 – 2026-11-17
 
 ### Fixed
