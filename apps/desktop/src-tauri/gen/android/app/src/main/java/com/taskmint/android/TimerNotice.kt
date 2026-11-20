@@ -2,7 +2,6 @@ package com.taskmint.android
 
 import android.annotation.SuppressLint
 import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -76,14 +75,24 @@ data class TimerNotice(
  *   in the phone's settings for TaskMint): today's time then also counts in
  *   a chip in the status bar. Android 17 makes it one; Android 16's first
  *   release takes the request and shows the notification as before.
- * - Android 17 lays it out as figures (Notification.MetricStyle): Today and
- *   Earned.
+ * - Android 17 lays it out as figures (Notification.MetricStyle): Today, a
+ *   clock ("3:12:45") the system counts each second, and Earned.
  *
  * Both figures keep up with TaskMint closed: the time counts on its own, and
  * the money is worked out from the running timer's rate each time it's
- * drawn, which Widgets.scheduleRefresh asks for as each dollar is earned.
- * Without figures for today (none sent yet, or they're yesterday's) it has
- * the task and "Running" or "Paused".
+ * drawn. While the money grows, [TimerTicker] draws it each second the
+ * screen is lit, to the cent ("~$45.37"), with this as its own notification
+ * (a service that keeps running has to show one). Where Android won't let
+ * the ticker start, or before Android 14, it's drawn as each dollar is
+ * earned, in whole dollars (Widgets.scheduleRefresh). Paused, the money
+ * keeps the cents it had got to (TimerTicker.toTheCent). Without figures
+ * for today (none sent yet, or they're yesterday's) it has the task and
+ * "Running" or "Paused".
+ *
+ * Swiped away, it stays gone until the timer changes (`dismissed`), and the
+ * ticker stops with it. Gone for any other reason (Android takes a
+ * service's notification down with its process), it's back at the next
+ * draw.
  *
  * Pause, Resume and Stop act in the background, without opening TaskMint,
  * while the notification is the phone's own timer's (WidgetAction); over a
@@ -110,6 +119,10 @@ object TimerNotices {
   /** What the shell last asked for (absent: none), and whether what's kept isn't that but a published one. */
   private const val SHELL = "shell"
   private const val REMOTE = "remote"
+  /** The user swiped it away: it stays gone until the timer changes. */
+  private const val DISMISSED = "dismissed"
+  /** What a swipe sends (WidgetAction). */
+  const val DISMISSED_ACTION = "com.taskmint.android.TIMER_NOTICE_DISMISSED"
   /** How long a notice from published figures outlives the shell's "none" as the app opens. */
   private const val LET_SYNC_LAND_MS = 5_000L
   /** Bumped by each change: a clear waiting for sync goes ahead only if nothing changed since. */
@@ -143,6 +156,8 @@ object TimerNotices {
    * goes.
    */
   fun channel(context: Context): String {
+    // Made once a process: the notification is drawn each second while its money ticks
+    channelId?.let { return it }
     val live = Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
     val notifications = NotificationManagerCompat.from(context)
     val importance =
@@ -156,8 +171,11 @@ object TimerNotices {
         .build()
     notifications.createNotificationChannel(channel)
     if (live) notifications.deleteNotificationChannel(QUIET_CHANNEL)
+    channelId = channel.id
     return channel.id
   }
+
+  @Volatile private var channelId: String? = null
 
   /** The shell's: shows `notice`, in place of the one before, and keeps it to draw again when today's figures change. */
   fun set(context: Context, notice: TimerNotice) {
@@ -197,8 +215,11 @@ object TimerNotices {
    * The phone has started (RemindersRestore): the system dropped the
    * notification, and the timer it was up for still runs or waits paused.
    */
+  @Synchronized
   fun restore(context: Context) {
-    saved(context).getString(NOTICE, null)?.let(TimerNotice::fromJson)?.let { show(context, it) }
+    val notice = kept(context) ?: return
+    saved(context).edit().remove(DISMISSED).apply()
+    show(context, notice)
   }
 
   /** The app came forward: over a notice from published figures, what the shell last asked for goes back. */
@@ -208,16 +229,25 @@ object TimerNotices {
     if (shell != null) set(context, shell) else clearUnlessChanged(context)
   }
 
+  // One at a time, these and `redraw` and `tick`: the ticker draws on the
+  // main thread while the shell, a timer button and a check of the
+  // published figures each come on their own, and a tick mustn't draw a
+  // running timer over the "Paused" that just went up
+  @Synchronized
   private fun put(context: Context, notice: TimerNotice) {
-    saved(context).edit().putString(NOTICE, notice.toJson()).apply()
+    saved(context).edit().putString(NOTICE, notice.toJson()).remove(DISMISSED).apply()
     show(context, notice)
-    // Today's figures are a day's: they go at midnight (Widgets.redrawAll)
+    // Today's figures are a day's: they go at midnight (Widgets.redrawAll);
+    // and the ticker starts or stops with the timer (TimerTicker.sync)
     Widgets.scheduleRefresh(context)
   }
 
+  @Synchronized
   private fun takeDown(context: Context) {
     change++
-    saved(context).edit().remove(NOTICE).putBoolean(REMOTE, false).apply()
+    saved(context).edit().remove(NOTICE).remove(DISMISSED).putBoolean(REMOTE, false).apply()
+    // While the ticker holds it Android leaves it up: the ticker takes it
+    // down as it stops (scheduleRefresh tells it)
     NotificationManagerCompat.from(context).cancel(ID)
     Widgets.scheduleRefresh(context)
   }
@@ -232,14 +262,70 @@ object TimerNotices {
   fun followsFigures(context: Context): Boolean = saved(context).contains(NOTICE)
 
   /**
-   * Draws it again with today's figures as they are now, if it's still up:
-   * one the user swiped away stays gone until the timer changes.
+   * Draws it again with today's figures as they are now: not one the user
+   * swiped away, which stays gone until the timer changes.
    */
+  @Synchronized
   fun redraw(context: Context) {
-    val notice = saved(context).getString(NOTICE, null)?.let(TimerNotice::fromJson) ?: return
-    val showing = context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == ID }
-    if (showing) show(context, notice)
+    val notice = kept(context) ?: return
+    if (!saved(context).getBoolean(DISMISSED, false)) show(context, notice)
   }
+
+  /** The user swiped it away (WidgetAction): it stays gone, and the ticker stops. */
+  @Synchronized
+  fun dismissed(context: Context) {
+    if (kept(context) == null) return
+    saved(context).edit().putBoolean(DISMISSED, true).apply()
+    // A tick may have drawn it again since the swipe
+    NotificationManagerCompat.from(context).cancel(ID)
+    Widgets.scheduleRefresh(context)
+  }
+
+  /** Whether it's up for the user to see: kept, and not swiped away. */
+  fun up(context: Context): Boolean = kept(context) != null && !saved(context).getBoolean(DISMISSED, false)
+
+  /**
+   * The notice while its money is worth drawing each second: it's up, over
+   * a running timer whose money grows today (WidgetFigures.ticks).
+   */
+  private fun ticking(context: Context): TimerNotice? {
+    if (!up(context) || !NotificationManagerCompat.from(context).areNotificationsEnabled()) return null
+    val notice = kept(context)?.takeIf { it.running } ?: return null
+    return notice.takeIf { WidgetFigures.ticks(Widgets.snapshot(context), Widgets.today()) }
+  }
+
+  /** Whether [TimerTicker] has anything to draw. */
+  fun ticks(context: Context): Boolean = ticking(context) != null
+
+  /**
+   * The ticker's draw, each second: the notification with today's money as
+   * it is now. False once there's nothing to tick for, and the ticker stops.
+   */
+  // areNotificationsEnabled says so first (`ticking`)
+  @SuppressLint("MissingPermission")
+  @Synchronized
+  fun tick(context: Context): Boolean {
+    val notice = ticking(context) ?: return false
+    NotificationManagerCompat.from(context).notify(ID, build(context, notice))
+    return true
+  }
+
+  /**
+   * What the ticker shows as its own (a service that keeps running has to
+   * have a notification, and this is it): the notice as it's kept, or, when
+   * the timer went as the ticker started, a line that's gone again at once.
+   */
+  fun forTicker(context: Context): Notification =
+    kept(context)?.let { build(context, it) }
+      ?: NotificationCompat.Builder(context, channel(context))
+        .setSmallIcon(R.drawable.ic_stat_taskmint)
+        .setColor(ICON_COLOR)
+        .setContentTitle(context.getString(R.string.timer_notice_channel))
+        .setOngoing(true)
+        .setOnlyAlertOnce(true)
+        .build()
+
+  private fun kept(context: Context): TimerNotice? = saved(context).getString(NOTICE, null)?.let(TimerNotice::fromJson)
 
   /** The part of the widgets' figures it shows: it's drawn again when this changes. */
   fun part(snapshot: JSONObject): String {
@@ -268,6 +354,15 @@ object TimerNotices {
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         .putExtra(NOTIFICATION_INTENT_KEY, ID)
         .putExtra(ACTION_INTENT_KEY, action),
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+  /** What swiping it away sends: it's kept that the user did (`dismissed`). */
+  private fun swiped(context: Context): PendingIntent =
+    PendingIntent.getBroadcast(
+      context,
+      "timer:dismissed".hashCode(),
+      Intent(context, WidgetAction::class.java).setAction(DISMISSED_ACTION),
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
@@ -314,7 +409,7 @@ object TimerNotices {
       Today(
         countingFromMs = countingFrom.takeIf { notice.running },
         stillMs = still.takeIf { countingFrom == null || !notice.running },
-        money = WidgetFigures.todayMoney(today, notice.running, now),
+        money = WidgetFigures.todayMoney(today, notice.running, now, toTheCent = TimerTicker.toTheCent(notice.running)),
       )
     } catch (_: JSONException) {
       // Figures it can't read (another TaskMint's): the task and "Running" alone
@@ -349,11 +444,13 @@ object TimerNotices {
   private fun show(context: Context, notice: TimerNotice) {
     val notifications = NotificationManagerCompat.from(context)
     if (!notifications.areNotificationsEnabled()) return
+    notifications.notify(ID, build(context, notice))
+  }
+
+  private fun build(context: Context, notice: TimerNotice): Notification {
     val today = today(context, notice)
-    val notification =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) liveUpdate(context, notice, today)
-      else plain(context, notice, today)
-    notifications.notify(ID, notification)
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) liveUpdate(context, notice, today)
+    else plain(context, notice, today)
   }
 
   /** Before Android 16: the task, today's time counting in the header while it does, the money, and the buttons. */
@@ -370,6 +467,9 @@ object TimerNotices {
         .setOngoing(true)
         .setOnlyAlertOnce(true)
         .setContentIntent(press(context, DEFAULT_PRESS_ACTION))
+        .setDeleteIntent(swiped(context))
+        // As the ticker's own, it's shown at once (Android holds a service's back ten seconds)
+        .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         .setShowWhen(today?.countingFromMs != null)
     today?.countingFromMs?.let {
       builder.setSubText(context.getString(R.string.timer_notice_today)).setWhen(it).setUsesChronometer(true)
@@ -398,6 +498,8 @@ object TimerNotices {
         .setOngoing(true)
         .setOnlyAlertOnce(true)
         .setContentIntent(press(context, DEFAULT_PRESS_ACTION))
+        .setDeleteIntent(swiped(context))
+        .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         .addExtras(Bundle().apply { putBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, true) })
     if (!notice.running) builder.setShortCriticalText(context.getString(R.string.timer_notice_paused))
     for ((label, press) in buttons(context, notice)) {
@@ -421,19 +523,21 @@ object TimerNotices {
 
   /**
    * Android 17's layout: today's time (the figure the status bar's chip
-   * shows), counting or standing still, then the money earned today. Null
-   * without figures for today.
+   * shows), counting or standing still, then the money earned today. The
+   * time is a clock ("3:12:45"), which the system counts each second; in
+   * words ("3h 12m") it would move once a minute. Null without figures for
+   * today.
    */
   @RequiresApi(Build.VERSION_CODES.CINNAMON_BUN)
   private fun figures(context: Context, today: Today?): Notification.MetricStyle? {
     if (today == null) return null
-    val words = Notification.Metric.TimeDifference.FORMAT_ADAPTIVE
+    val clock = Notification.Metric.TimeDifference.FORMAT_CHRONOMETER
     val time =
       when {
         today.countingFromMs != null ->
-          Notification.Metric.TimeDifference.forStopwatch(Instant.ofEpochMilli(today.countingFromMs), words)
+          Notification.Metric.TimeDifference.forStopwatch(Instant.ofEpochMilli(today.countingFromMs), clock)
         today.stillMs != null ->
-          Notification.Metric.TimeDifference.forPausedStopwatch(Duration.ofMillis(today.stillMs), words)
+          Notification.Metric.TimeDifference.forPausedStopwatch(Duration.ofMillis(today.stillMs), clock)
         else -> null
       }
     if (time == null && today.money == null) return null

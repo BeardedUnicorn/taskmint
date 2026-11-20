@@ -1,5 +1,6 @@
 package com.taskmint.android
 
+import java.math.BigDecimal
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -37,6 +38,16 @@ object WidgetFigures {
     return (if (estimated) "~" else "") + dollars.format(Math.round(cents / 100))
   }
 
+  /**
+   * "~$45.37": to the cent, for money drawn each second as a running timer
+   * earns it (TimerTicker). The cent is rounded down: it never shows one
+   * that isn't earned yet.
+   */
+  fun moneyToTheCent(cents: Double, estimated: Boolean): String {
+    val earned = BigDecimal.valueOf(floor(cents.coerceAtLeast(0.0)).toLong(), 2)
+    return (if (estimated) "~" else "") + NumberFormat.getCurrencyInstance(Locale.US).format(earned)
+  }
+
   /** "3h 12m", "12m": a time as the page writes it (formatDurationCompact). */
   fun timeInWords(ms: Long): String {
     val minutes = ms.coerceAtLeast(0) / 60_000
@@ -58,26 +69,60 @@ object WidgetFigures {
   /**
    * Today's money as it is at `now`: worked out from the running timer's
    * rate while `running` and the page said how it grows, else as the page
-   * last wrote it.
+   * last wrote it. In whole dollars, as the page writes it, which a figure
+   * drawn once a dollar can keep true; or `toTheCent`, beside a timer whose
+   * money is drawn each second (TimerTicker): the growing money with its
+   * cents, and standing still (a pause) the cents it had got to
+   * (`today.moneyCents`), not a dollar more or less than was just showing.
    */
-  fun todayMoney(today: JSONObject, running: Boolean, now: Long): String? =
-    (if (running) earningCents(today, now) else null)?.let { money(it, true) } ?: today.text("money")
+  fun todayMoney(today: JSONObject, running: Boolean, now: Long, toTheCent: Boolean = false): String? {
+    val written = today.text("money")
+    val growing = if (running) earningCents(today, now) else null
+    if (!toTheCent) return growing?.let { money(it, true) } ?: written
+    if (growing != null) return moneyToTheCent(growing, true)
+    val still = if (today.isNull("moneyCents")) return written else today.getDouble("moneyCents")
+    return moneyToTheCent(still, estimated = written?.startsWith("~") == true)
+  }
+
+  /**
+   * Whether today's money grows as the clock does: the figures are
+   * `today`'s, a timer runs, and the page said how its money grows
+   * (`today.earning`: a timer begun today, on a task with a rate).
+   */
+  fun ticks(snapshot: JSONObject?, today: String): Boolean {
+    if (snapshot == null || snapshot.optString("day") != today) return false
+    if (snapshot.optJSONObject("timer")?.time("countingFromMs") == null) return false
+    val perHour = snapshot.optJSONObject("today")?.optJSONObject("earning")?.optDouble("perHourCents") ?: return false
+    return perHour > 0
+  }
 
   /**
    * When today's money next shows another dollar; null while it stands
    * still or the figures aren't `today`'s.
    */
   fun nextDollarAt(snapshot: JSONObject, now: Long, today: String): Long? {
-    if (snapshot.optString("day") != today) return null
-    if (snapshot.optJSONObject("timer")?.time("countingFromMs") == null) return null
-    val figures = snapshot.optJSONObject("today") ?: return null
-    val perHour = figures.optJSONObject("earning")?.optDouble("perHourCents") ?: return null
+    if (!ticks(snapshot, today)) return null
+    val figures = snapshot.getJSONObject("today")
+    val perHour = figures.getJSONObject("earning").getDouble("perHourCents")
     val cents = earningCents(figures, now) ?: return null
-    if (!(perHour > 0)) return null
     // Whole dollars round at 50 cents
     val next = Math.round(cents / 100) * 100 + 50
     return now + maxOf(((next - cents) / perHour * HOUR_MS).toLong() + 1_000, MONEY_EVERY_MS)
   }
+
+  /**
+   * Where the seconds a ticking figure is drawn at count from: where
+   * today's time does, so the money is drawn as the clock beside it turns
+   * to its next second (the running timer's own start without that). Null
+   * when the snapshot has neither.
+   */
+  fun tickFrom(snapshot: JSONObject): Long? {
+    val today = snapshot.optJSONObject("today") ?: return null
+    return today.time("countingFromMs") ?: today.optJSONObject("earning")?.time("fromMs")
+  }
+
+  /** The next whole second after `now`, counting seconds from `fromMs`: when a ticking figure is drawn next. */
+  fun nextTickAt(fromMs: Long, now: Long): Long = now + 1_000 - Math.floorMod(now - fromMs, 1_000L)
 
   // ----- Days -----
 

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- TaskMint: the Today widget (TodayWidget), from one row up. Redrawn as the
      page sends new figures, at midnight and when the next withdrawal opens
-     (Widgets.scheduleRefresh), so it never polls. -->
+     (Widgets.scheduleRefresh), and each second while a running timer's
+     money ticks (TimerTicker), so it never polls. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_today_description"
     android:initialLayout="@layout/widget_today"

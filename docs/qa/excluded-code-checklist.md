@@ -342,10 +342,25 @@ On a phone with Google Play services, with the release APK:
       time standing still and Resume, Stop takes it down, and Switch task
       opens the Switch task dialog. Tapping it opens Sessions and it stays.
       After `am kill` and opening TaskMint again it's back. Swiped away, it
-      returns at the next pause or resume. With TaskMint killed and a timer
-      running, the money moves on within minutes of each dollar earned, and
-      after `adb reboot` and an unlock the notification is back without
-      opening TaskMint.
+      returns at the next pause or resume. After `adb reboot` and an unlock
+      the notification is back without opening TaskMint.
+- [ ] **The timer's figures tick (Android 14 and later):** with a timer
+      running on a task with a rate, the lock screen's notification shows
+      Today as a clock ("3:12:45") and Earned to the cent ("~$45.37"), both
+      moving each second, and so does the Today widget's money beside its
+      clock. `adb shell dumpsys activity services <package> | grep
+      TimerTicker` lists the service, and the notification's flags (`dumpsys
+      notification --noredact`) have `FOREGROUND_SERVICE` beside
+      `PROMOTED_ONGOING`. With the screen off its `mUpdateTimeMs` stands
+      still; lit, it moves on each second. Pause stops the service and
+      leaves the clock and the cents where they were; Resume starts it
+      again, from the notification and from the widget. Stop takes the
+      notification down. Swiped away, it stays gone and the service stops.
+      After `adb shell am crash <package>` the notification is gone with
+      the process and back within about two minutes, in whole dollars
+      ("~$45", moving with each dollar earned) until TaskMint is opened or a
+      button is tapped. After an update (`adb install -r`) and after a
+      restart it ticks again without opening TaskMint.
 - [ ] **Asked once, then shown:** on a fresh install, the first Start work
       asks to allow notifications; allowing shows the running timer's
       notification at once.

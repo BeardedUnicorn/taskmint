@@ -44,7 +44,8 @@ import org.json.JSONObject
  * per size class and switch between them as the widget is resized; earlier
  * Androids get the one for the widget's current size. While a timer runs
  * today's time counts on its own (a Chronometer) and today's money is drawn
- * again with each dollar earned. The widgets are redrawn at midnight (Today
+ * again each second, to the cent, while TimerTicker runs, and with each
+ * dollar earned otherwise. The widgets are redrawn at midnight (Today
  * then says "Yesterday" over figures the page hasn't updated) and when the
  * next withdrawal opens (WidgetRefresh).
  *
@@ -161,7 +162,19 @@ object Widgets {
   private fun read(json: String?): JSONObject? =
     json?.let { runCatching { JSONObject(it) }.getOrNull() }?.takeIf { it.optInt("version") == VERSION }
 
-  fun snapshot(context: Context): JSONObject? = read(prefs(context).getString(SNAPSHOT, null))
+  /**
+   * The kept figures. Read only: the same object is handed out until other
+   * figures are kept (they're read each second while TimerTicker draws),
+   * so whoever changes them copies them first.
+   */
+  fun snapshot(context: Context): JSONObject? {
+    val json = prefs(context).getString(SNAPSHOT, null) ?: return null
+    parsed?.let { (of, figures) -> if (of == json) return figures }
+    return read(json).also { parsed = json to it }
+  }
+
+  /** The kept figures as last read, and the text they were read from. */
+  @Volatile private var parsed: Pair<String, JSONObject?>? = null
 
   /**
    * Every widget, from the kept figures (at midnight, the opening, a clock
@@ -278,9 +291,19 @@ object Widgets {
    * would lose its scroll.
    */
   fun redrawMoney(context: Context) {
+    drawMoney(context)
+    scheduleRefresh(context, snapshot(context))
+  }
+
+  /** Today's money where it's shown, as it is now: the Today widget and the running timer's notification. */
+  fun drawMoney(context: Context) {
     redraw(context, TodayViews)
     attempt("the timer's notification") { TimerNotices.redraw(context) }
-    scheduleRefresh(context, snapshot(context))
+  }
+
+  /** The Today widget's money each second (TimerTicker, which draws the notification itself). */
+  fun tickMoney(context: Context) {
+    redraw(context, TodayViews)
   }
 
   /** The refresh's action when it's only for today's money (redrawMoney); every widget otherwise. */
@@ -290,9 +313,12 @@ object Widgets {
    * Redraws every widget at the next local midnight, when the next
    * withdrawal opens or at the next release, whichever comes first, and today's money each time a
    * running timer earns another dollar; nothing once no widget is left and
-   * the running timer's notification isn't up.
+   * the running timer's notification isn't up. The figures or the timer
+   * may have changed, as every caller's have: the ticker that draws today's
+   * money each second starts or stops with them too (TimerTicker.sync).
    */
   fun scheduleRefresh(context: Context, snapshot: JSONObject? = this.snapshot(context)) {
+    attempt("the ticker") { TimerTicker.sync(context) }
     val alarms = context.getSystemService(AlarmManager::class.java) ?: return
     val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     val refresh = PendingIntent.getBroadcast(context, 0, Intent(context, WidgetRefresh::class.java), flags)

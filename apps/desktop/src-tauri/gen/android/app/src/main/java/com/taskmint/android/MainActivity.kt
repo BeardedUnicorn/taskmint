@@ -166,11 +166,14 @@ class MainActivity : TauriActivity() {
   }
 
   // The shell's notice goes back over one shown from published figures
-  // (TimerNotices), and an update downloaded while the app was in the
-  // background gets its installer (AppUpdate)
+  // (TimerNotices), a running timer's money ticks each second if Android
+  // wouldn't let that start in the background (TimerTicker), and an update
+  // downloaded while the app was in the background gets its installer
+  // (AppUpdate)
   override fun onResume() {
     super.onResume()
     TimerNotices.resumed(applicationContext)
+    TimerTicker.sync(applicationContext)
     AppUpdate.resumed(this)
   }
 
