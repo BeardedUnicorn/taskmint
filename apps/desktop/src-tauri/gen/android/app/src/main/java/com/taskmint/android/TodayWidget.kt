@@ -19,7 +19,8 @@ class TodayWidget : TaskMintWidget() {
  * on, from the snapshot's `today` and `timer`. While a timer runs, its task
  * and today's time are the big figures (widget_today_running), the time
  * counting when the timer began today, with the money earned today under
- * them, drawn again with each dollar (WidgetFigures.todayMoney). Otherwise today's
+ * them, drawn again each second to the cent while TimerTicker runs, and
+ * with each dollar otherwise (WidgetFigures.todayMoney). Otherwise today's
  * money is the big figure (widget_today). One row tall, it's a line with the
  * timer's button (widget_today_row); tall, it adds this week's figures. It
  * shows what the day comes to, as the timer's notification does, not how
@@ -87,7 +88,8 @@ object TodayViews : WidgetKind {
     // stand as they were written, under "Yesterday"
     val current = snapshot.optString("day") == Widgets.today()
     val growing = countingFrom != null && current
-    val money = WidgetFigures.todayMoney(today, growing, now) ?: ""
+    // Beside a timer the money has its cents, as its notification's does (TimerTicker.toTheCent)
+    val money = WidgetFigures.todayMoney(today, growing, now, toTheCent = timer != null && TimerTicker.toTheCent(growing)) ?: ""
     val time = today.getString("time")
     val goal = today.whole("goalPercent")
     Widgets.header(views, Widgets.dayLabel(context, snapshot.getString("day")), if (fit.narrow) null else Widgets.asOf(context, snapshot))
@@ -186,22 +188,35 @@ object TodayViews : WidgetKind {
       views.setTextViewTextSize(R.id.row_paused, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, 24f, time, room))
     } else {
       val running = layout == R.layout.widget_today_running
-      card(context, views, timer, startTask?.getString("task"), running, fit)
+      card(context, views, timer, startTask?.getString("task"), fit)
       if (!running) {
         // Today's money, as big as fits beside its time (under it when narrow)
         val room = Widgets.widthDp(context, fit, id) - CARD_PADDING_DP - (if (fit.narrow) 0f else TIME_BESIDE_DP)
         views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, heroSize(fit), money, room))
+      } else {
+        // Under the timer card the money is a smaller figure, a little
+        // bigger when tall, and no bigger than fits beside "earned today"
+        // (to the cent it's a longer one: "~$1,234.56"). Said either way:
+        // a widget made shorter keeps its layout
+        val room = Widgets.widthDp(context, fit, id) - CARD_PADDING_DP - (if (fit.narrow) 0f else EARNED_BESIDE_DP)
+        val base = if (fit.height == Height.TALL) 22f else 18f
+        views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, Widgets.figureSp(context, base, money, room))
       }
     }
     return views
   }
 
-  /** What's beside a figure, in dp: the widget's padding, the timer card's, a button, a row's right-hand figure, the time by the money. */
+  /**
+   * What's beside a figure, in dp: the widget's padding, the timer card's, a
+   * button, a row's right-hand figure, the time by the money, "earned today"
+   * by the money under a running timer.
+   */
   private const val CARD_PADDING_DP = 32f
   private const val ROW_PADDING_DP = 24f
   private const val INNER_PADDING_DP = 18f
   private const val ASIDE_DP = 92f
   private const val TIME_BESIDE_DP = 70f
+  private const val EARNED_BESIDE_DP = 96f
 
   /** The timer button's width with its margin: with words when roomy, else the round one. */
   private fun buttonDp(fit: Fit, oneRow: Boolean): Float = if (!oneRow && fit.roomy) 104f else 56f
@@ -242,19 +257,16 @@ object TodayViews : WidgetKind {
   }
 
   /**
-   * Two rows and more: the figures sized to the room, and the timer card
-   * (its clock is set already). Tall, the height to spare is split around
+   * Two rows and more: what's shown beside what, and the timer card (its
+   * clock is set already, and the figures are sized to the room). Tall, the height to spare is split around
    * this week. With no timer, `startTask` is the task Start begins.
    */
-  private fun card(context: Context, views: RemoteViews, timer: JSONObject?, startTask: String?, running: Boolean, fit: Fit) {
+  private fun card(context: Context, views: RemoteViews, timer: JSONObject?, startTask: String?, fit: Fit) {
     val tall = fit.height == Height.TALL
     views.setViewVisibility(R.id.week_spacer, visible(tall))
     // Narrow, the time goes under the money
     views.setViewVisibility(R.id.today_time, visible(!fit.narrow))
     views.setViewVisibility(R.id.today_time_under, visible(fit.narrow))
-    // Under the timer card the money is a smaller figure, a little bigger
-    // when tall. Said either way: a widget made shorter keeps its layout
-    if (running) views.setTextViewTextSize(R.id.today_money, TypedValue.COMPLEX_UNIT_SP, if (tall) 22f else 18f)
     if (timer == null) {
       // The task Start begins, when it starts one here; else Start opens TaskMint to choose
       views.setViewVisibility(R.id.timer_task, visible(startTask != null))

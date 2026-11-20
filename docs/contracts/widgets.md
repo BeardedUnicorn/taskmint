@@ -51,6 +51,12 @@ minutes. `timer` names the task and says whether
 it runs (`countingFromMs`) or waits paused; how long the one timer has run
 isn't shown anywhere.
 
+A reader may draw those two figures as often as it likes. The Android phone
+draws them each second while a timer earns (today's time as a clock, the
+money to the cent; [ADR 0007](../adr/0007-timer-ticker-service.md)), from
+this same document: a figure that moves each second is never written into
+it.
+
 ## What a phone's own buttons need
 
 The Today widget's and the notification's timer buttons act on the phone,

@@ -31,9 +31,17 @@ import org.json.JSONObject
  * (WidgetSync). When they're another device's of a timer the phone's data
  * may not have yet, the button opens TaskMint as it always did; so does an
  * action that couldn't be done.
+ *
+ * The notification also says here when the user swiped it away
+ * (TimerNotices.dismissed).
  */
 class WidgetAction : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
+    // The running timer's notification, swiped away: it stays gone until the timer changes
+    if (intent.action == TimerNotices.DISMISSED_ACTION) {
+      TimerNotices.dismissed(context.applicationContext)
+      return
+    }
     val action = intent.getStringExtra(Launch.ACTION) ?: return
     val app = context.applicationContext
     val pending = goAsync()

@@ -97,6 +97,76 @@ class WidgetFiguresTest {
     )
   }
 
+  @Test
+  fun money_to_the_cent_never_shows_a_cent_not_yet_earned() {
+    assertEquals("~$45.37", WidgetFigures.moneyToTheCent(4_537.99, true))
+    assertEquals("$1,234.50", WidgetFigures.moneyToTheCent(123_450.0, false))
+    assertEquals("~$0.00", WidgetFigures.moneyToTheCent(0.4, true))
+    assertEquals("~$0.00", WidgetFigures.moneyToTheCent(-3.0, true))
+  }
+
+  @Test
+  fun todays_money_has_its_cents_while_its_drawn_each_second() {
+    val today = today("""{ "baseCents": 4000, "perHourCents": 6000, "fromMs": $noon }""")
+    // $60 an hour is a cent every 600 ms
+    assertEquals("~$40.00", WidgetFigures.todayMoney(today, running = true, now = noon + 599, toTheCent = true))
+    assertEquals("~$40.01", WidgetFigures.todayMoney(today, running = true, now = noon + 600, toTheCent = true))
+    assertEquals("~$70.00", WidgetFigures.todayMoney(today, running = true, now = noon + hour / 2, toTheCent = true))
+    // Standing still without its cents (an older TaskMint's figures), it's as the page wrote it
+    assertEquals("~$40", WidgetFigures.todayMoney(today, running = false, now = noon + hour, toTheCent = true))
+    assertEquals("~$40", WidgetFigures.todayMoney(today(null), running = true, now = noon + hour, toTheCent = true))
+  }
+
+  @Test
+  fun a_pause_leaves_the_cents_the_money_had_got_to() {
+    // $1.70 rounds to "~$2": beside "~$1.69" a second ago it would read as a jump
+    val paused = json("""{ "money": "~$2", "moneyCents": 170, "earning": null }""")
+    assertEquals("~$1.70", WidgetFigures.todayMoney(paused, running = false, now = noon, toTheCent = true))
+    assertEquals("~$2", WidgetFigures.todayMoney(paused, running = false, now = noon))
+    // Money that isn't an estimate has no mark
+    val paid = json("""{ "money": "$12", "moneyCents": 1234, "earning": null }""")
+    assertEquals("$12.34", WidgetFigures.todayMoney(paid, running = false, now = noon, toTheCent = true))
+    // A timer that runs with no way its money grows (no rate, or begun yesterday) has what stands
+    assertEquals("~$1.70", WidgetFigures.todayMoney(paused, running = true, now = noon + hour, toTheCent = true))
+    assertNull(WidgetFigures.todayMoney(json("""{ "money": null, "moneyCents": null }"""), running = false, now = noon, toTheCent = true))
+  }
+
+  @Test
+  fun the_money_ticks_only_while_a_timer_begun_today_earns() {
+    val day = "2026-11-18"
+    assertTrue(WidgetFigures.ticks(running(day, 6_000), day))
+    assertFalse(WidgetFigures.ticks(null, day))
+    // Yesterday's figures stand as they were written
+    assertFalse(WidgetFigures.ticks(running("2026-11-17", 6_000), day))
+    assertFalse(WidgetFigures.ticks(running(day, 0), day))
+    assertFalse(WidgetFigures.ticks(running(day, 6_000, "null"), day))
+    assertFalse(WidgetFigures.ticks(running(day, 6_000, """{ "task": "Writing", "countingFromMs": null }"""), day))
+    assertFalse(WidgetFigures.ticks(json("""{ "day": "$day", "timer": { "countingFromMs": 1 } }"""), day))
+    // A timer begun yesterday, or on a task with no rate: the page says no way the money grows
+    assertFalse(
+      WidgetFigures.ticks(json("""{ "day": "$day", "timer": { "countingFromMs": 1 }, "today": { "earning": null } }"""), day)
+    )
+  }
+
+  @Test
+  fun a_ticking_figure_is_drawn_as_todays_clock_turns_to_its_next_second() {
+    val counting =
+      json("""{ "today": { "countingFromMs": ${noon + 250}, "earning": { "baseCents": 0, "perHourCents": 1, "fromMs": $noon } } }""")
+    assertEquals(noon + 250, WidgetFigures.tickFrom(counting))
+    // Without today's clock, the running timer's own start
+    val earning = json("""{ "today": { "countingFromMs": null, "earning": { "baseCents": 0, "perHourCents": 1, "fromMs": $noon } } }""")
+    assertEquals(noon, WidgetFigures.tickFrom(earning))
+    assertNull(WidgetFigures.tickFrom(json("""{ "today": { "countingFromMs": null, "earning": null } }""")))
+    assertNull(WidgetFigures.tickFrom(json("""{ "day": "2026-11-18" }""")))
+
+    assertEquals(noon + 1_250, WidgetFigures.nextTickAt(noon + 250, noon + 300))
+    assertEquals(noon + 1_250, WidgetFigures.nextTickAt(noon + 250, noon + 1_249))
+    // On the second: the one after
+    assertEquals(noon + 2_250, WidgetFigures.nextTickAt(noon + 250, noon + 1_250))
+    // A clock set back to before the count began still comes to a whole second of it
+    assertEquals(noon + 250, WidgetFigures.nextTickAt(noon + 250, noon - 100))
+  }
+
   // ----- Days -----
 
   @Test

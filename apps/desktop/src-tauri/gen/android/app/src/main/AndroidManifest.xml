@@ -13,6 +13,12 @@
          16 and later): its time then also counts in the status bar
          (TimerNotice.kt) -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <!-- While a timer earns, TaskMint keeps running to draw the money each
+         second on that notification and the Today widget (TimerTicker.kt):
+         a foreground service, of the kind for uses Android has no name for
+         (Android 14 and later) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Whether Advanced Protection is on (Android 16 and later): it blocks
          installing an update from outside the Play Store, and the update
          dialog says so (MainActivity's installsBlocked) -->
@@ -112,6 +118,17 @@
              timer's notification, which acts without opening the app
              (WidgetAction.kt) -->
         <receiver android:name=".WidgetAction" android:exported="false" />
+
+        <!-- TaskMint: draws the money a running timer earns each second, on
+             the timer's notification and the Today widget (TimerTicker.kt) -->
+        <service
+            android:name=".TimerTicker"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Counts the money a running timer earns, each second, on its notification and home-screen widget" />
+        </service>
 
         <!-- TaskMint: the message that another device published the widgets'
              figures (WidgetPush.kt). The phone has a push address only while
