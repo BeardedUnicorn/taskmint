@@ -238,19 +238,38 @@ describe('the Firebase store', () => {
     expect(onFirst.mock.calls).toEqual([[{ docs: [], cursor: null }]]);
   });
 
+  /** The cloud's copies by path (none: not there), read by a transaction that records what it sets. */
+  function transacting(cloud: Record<string, Record<string, unknown>> = {}) {
+    const transaction = {
+      get: vi.fn(async (ref: { path: string }) => {
+        const fields = cloud[ref.path];
+        return {
+          id: ref.path.split('/').at(-1),
+          exists: () => fields !== undefined,
+          get: (field: string) => fields?.[field],
+        };
+      }),
+      set: vi.fn(),
+    };
+    vi.mocked(fs.runTransaction).mockImplementation(async (_db, update) => update(transaction as never));
+    return transaction;
+  }
+
   it('writes documents in batches Firestore takes, with what the rules ask for', async () => {
     const store = await createFirebaseStore(CONFIG);
+    const transaction = transacting();
     const docs = Array.from({ length: BATCH_SIZE + 1 }, (_, i) => ({
       docId: `session~${i}`,
       kind: 'session',
       id: String(i),
       json: i === 0 ? null : '{}',
       hash: i === 0 ? '' : 'h',
+      expects: [],
     }));
-    await store.write('bea', docs, { deviceId: 'desk', epoch: 2, schema: 1 });
-    expect(sdk.batch.commit).toHaveBeenCalledTimes(2);
-    expect(sdk.batch.set).toHaveBeenCalledTimes(BATCH_SIZE + 1);
-    expect(sdk.batch.set.mock.calls[0]).toEqual([
+    expect(await store.write('bea', docs, { deviceId: 'desk', epoch: 2, schema: 1 })).toEqual([]);
+    expect(fs.runTransaction).toHaveBeenCalledTimes(2);
+    expect(transaction.set).toHaveBeenCalledTimes(BATCH_SIZE + 1);
+    expect(transaction.set.mock.calls[0]).toEqual([
       { path: 'users/bea/data/session~0' },
       {
         kind: 'session',
@@ -264,7 +283,79 @@ describe('the Firebase store', () => {
         updatedAt: 'SERVER_TIME',
       },
     ]);
-    expect(sdk.batch.set.mock.calls[1][1]).toMatchObject({ json: '{}', deleted: false });
+    expect(transaction.set.mock.calls[1][1]).toMatchObject({ json: '{}', deleted: false });
+    expect(sdk.batch.commit).not.toHaveBeenCalled();
+  });
+
+  it('only writes over a copy the document expects, and hands back the ones it doesn’t', async () => {
+    const store = await createFirebaseStore(CONFIG);
+    const transaction = transacting({
+      'users/bea/data/session~seen': { hash: 'agreed', json: '{"old":1}', schema: 1, deleted: false },
+      'users/bea/data/session~mine': { hash: 'sent', json: '{"mine":1}', schema: 1, deleted: false },
+      'users/bea/data/session~gone': { hash: '', json: null, schema: 1, deleted: true },
+      'users/bea/data/session~unseen': { hash: 'theirs', json: '{"theirs":1}', schema: 1, deleted: false },
+      'users/bea/data/session~theirs-gone': { hash: '', json: null, schema: 2, deleted: true },
+      'users/bea/data/session~met': { hash: 'theirs', json: '{}', schema: 1, deleted: false },
+    });
+    const doc = (id: string, expects: string[]) => ({
+      docId: `session~${id}`,
+      kind: 'session',
+      id,
+      json: '{"new":1}',
+      hash: 'new',
+      expects,
+    });
+    const refused = await store.write(
+      'bea',
+      [
+        doc('seen', ['agreed', 'new']),
+        doc('mine', ['agreed', 'sent', 'new']),
+        doc('gone', ['', 'new']),
+        doc('unseen', ['agreed', 'new']),
+        doc('theirs-gone', ['agreed', 'new']),
+        // New here, already in the cloud from another device
+        doc('met', ['new']),
+        doc('fresh', ['new']),
+      ],
+      { deviceId: 'desk', epoch: 2, schema: 1 }
+    );
+    expect(refused).toEqual([
+      { docId: 'session~unseen', json: '{"theirs":1}', schema: 1 },
+      { docId: 'session~theirs-gone', json: null, schema: 2 },
+      { docId: 'session~met', json: '{}', schema: 1 },
+    ]);
+    expect(transaction.set.mock.calls.map(([ref]) => ref.path)).toEqual([
+      'users/bea/data/session~seen',
+      'users/bea/data/session~mine',
+      'users/bea/data/session~gone',
+      'users/bea/data/session~fresh',
+    ]);
+  });
+
+  it('leaves writes waiting in the cache offline where the page holds the only copy, and fails elsewhere', async () => {
+    const docs = [{ docId: 'session~a', kind: 'session', id: 'a', json: '{}', hash: 'h', expects: [] }];
+    const meta = { deviceId: 'web', epoch: 1, schema: 1 };
+    const offline = { code: 'unavailable' };
+    vi.mocked(fs.runTransaction).mockRejectedValue(offline);
+
+    const app = await createFirebaseStore(CONFIG);
+    await expect(app.write('bea', docs, meta)).rejects.toBe(offline);
+    expect(sdk.batch.set).not.toHaveBeenCalled();
+
+    const web = await createFirebaseStore({ ...CONFIG, persistentCache: true });
+    expect(await web.write('bea', docs, meta)).toEqual([]);
+    expect(sdk.batch.set).toHaveBeenCalledWith(
+      { path: 'users/bea/data/session~a' },
+      expect.objectContaining({ json: '{}', hash: 'h', deviceId: 'web', updatedAt: 'SERVER_TIME' })
+    );
+    expect(sdk.batch.commit).toHaveBeenCalledTimes(1);
+
+    // Anything else is a failure there too
+    vi.mocked(fs.runTransaction).mockRejectedValue(new Error('quota'));
+    await expect(web.write('bea', docs, meta)).rejects.toThrow('quota');
+    vi.mocked(fs.runTransaction).mockRejectedValue(null);
+    await expect(web.write('bea', docs, meta)).rejects.toBeNull();
+    expect(sdk.batch.commit).toHaveBeenCalledTimes(1);
   });
 
   it('deletes everything on a new epoch, the published documents too', async () => {

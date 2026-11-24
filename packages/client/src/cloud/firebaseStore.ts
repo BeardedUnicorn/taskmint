@@ -57,6 +57,24 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
   };
   const epochOf = (snapshot: { exists(): boolean; get(field: string): unknown }) =>
     snapshot.exists() ? Number(snapshot.get('epoch')) : null;
+  /** A data document as sync reads it. */
+  const cloudDoc = (doc: { id: string; get(field: string): unknown }): CloudDoc => ({
+    docId: doc.id,
+    json: doc.get('deleted') ? null : (doc.get('json') as string),
+    schema: Number(doc.get('schema')),
+  });
+  /** A data document's fields, as the rules ask for them. */
+  const fields = (doc: OutgoingDoc, meta: WriteMeta) => ({
+    kind: doc.kind,
+    id: doc.id,
+    json: doc.json,
+    hash: doc.hash,
+    deleted: doc.json === null,
+    deviceId: meta.deviceId,
+    schema: meta.schema,
+    epoch: meta.epoch,
+    updatedAt: fs.serverTimestamp(),
+  });
   const decode = (cursor: string) => {
     const [seconds, nanoseconds] = cursor.split('.').map(Number);
     return new fs.Timestamp(seconds, nanoseconds);
@@ -128,11 +146,7 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
           const docs: CloudDoc[] = snapshot
             .docChanges()
             .filter(change => change.type !== 'removed' && !change.doc.metadata.hasPendingWrites)
-            .map(({ doc }) => ({
-              docId: doc.id,
-              json: doc.get('deleted') ? null : (doc.get('json') as string),
-              schema: Number(doc.get('schema')),
-            }));
+            .map(({ doc }) => cloudDoc(doc));
           const last = confirmed.at(-1);
           const batch: CloudBatch = {
             docs,
@@ -144,23 +158,34 @@ export async function createFirebaseStore(config: CloudConfig): Promise<CloudSto
       );
     },
     async write(uid, docs: OutgoingDoc[], meta: WriteMeta) {
+      const refused: CloudDoc[] = [];
       for (let start = 0; start < docs.length; start += BATCH_SIZE) {
-        const batch = fs.writeBatch(db);
-        for (const doc of docs.slice(start, start + BATCH_SIZE)) {
-          batch.set(fs.doc(data(uid), doc.docId), {
-            kind: doc.kind,
-            id: doc.id,
-            json: doc.json,
-            hash: doc.hash,
-            deleted: doc.json === null,
-            deviceId: meta.deviceId,
-            schema: meta.schema,
-            epoch: meta.epoch,
-            updatedAt: fs.serverTimestamp(),
+        const chunk = docs.slice(start, start + BATCH_SIZE);
+        const refs = chunk.map(doc => fs.doc(data(uid), doc.docId));
+        try {
+          // In a transaction, so each document is checked against the copy it
+          // replaces: one this device hasn't seen is handed back, not written over
+          const kept = await fs.runTransaction(db, async transaction => {
+            const current = await Promise.all(refs.map(ref => transaction.get(ref)));
+            const unseen: CloudDoc[] = [];
+            chunk.forEach((doc, at) => {
+              const cloud = current[at];
+              if (cloud.exists() && !doc.expects.includes(String(cloud.get('hash')))) unseen.push(cloudDoc(cloud));
+              else transaction.set(refs[at], fields(doc, meta));
+            });
+            return unseen;
           });
+          refused.push(...kept);
+        } catch (error) {
+          if (!config.persistentCache || (error as { code?: unknown } | null)?.code !== 'unavailable') throw error;
+          // Offline, where the page holds the only copy: the writes wait in
+          // Firestore's cache, as a closed tab would otherwise lose them
+          const batch = fs.writeBatch(db);
+          chunk.forEach((doc, at) => batch.set(refs[at], fields(doc, meta)));
+          await batch.commit();
         }
-        await batch.commit();
       }
+      return refused;
     },
     async deleteAll(uid, epoch) {
       const next = epoch + 1;

@@ -12,7 +12,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const change: OutgoingDoc = { docId: 'session~s1', kind: 'session', id: 's1', json: '{}', hash: 'h1' };
+const change: OutgoingDoc = { docId: 'session~s1', kind: 'session', id: 's1', json: '{}', hash: 'h1', expects: [] };
 
 /** A signed-in engine over a fake cloud and a backend answering sync's commands. */
 async function signedIn() {

@@ -61,6 +61,13 @@ became:
      hash of each document it hands out: that document coming in only moves
      the baseline, and what was done here meanwhile (an Undo) stays and goes
      out next;
+   - a write only replaces the copy this device last saw: each outgoing
+     document names the hashes the cloud's copy may have (the baseline's, and
+     this device's own writes on their way), the store checks them in a
+     transaction, and a copy it doesn't expect comes back instead of being
+     written over. That copy is applied like any other and the merge is sent.
+     So a device that was behind (closed, or in the background while a widget
+     button changed its data) can't replace another device's newer changes;
    - a change on both sides merges three ways: arrays keyed by `id` item by
      item (timers inside a session, tasks, notes, templates, withdrawals),
      `dailyGoalAchievements` by date, objects field by field, and this
@@ -73,7 +80,12 @@ became:
    `CloudStore` seam whose real side is the Firebase JS SDK, loaded only when
    sync starts. It listens to `updatedAt > cursor`, applies only documents
    the server has confirmed, and moves the cursor only on answers from the
-   server, never the cache.
+   server, never the cache. A write needs the server (the check is a
+   transaction), so one that fails offline is sent again when the page is
+   shown or the network is back; only the web app, whose page holds the only
+   copy, leaves it in Firestore's cache unchecked. The rules don't make the
+   check themselves: a build from before it still writes over whatever is
+   there, so every device needs this one.
 7. **Deleting the cloud data starts a new epoch.** The rules refuse writes
    from an older epoch, so a device that missed the delete can't write its
    copy back. Devices that see the new epoch stop syncing and keep their

@@ -113,6 +113,19 @@ function onPageHidden(listener: () => void): Unsubscribe {
   };
 }
 
+/** Calls `listener` when the page is shown again or the network is back; returns how to stop. */
+function onPageBack(listener: () => void): Unsubscribe {
+  const shown = () => {
+    if (document.visibilityState === 'visible') listener();
+  };
+  document.addEventListener('visibilitychange', shown);
+  window.addEventListener('online', listener);
+  return () => {
+    document.removeEventListener('visibilitychange', shown);
+    window.removeEventListener('online', listener);
+  };
+}
+
 /** Phases where no data is on its way, so nothing waits for it (firstSync). */
 const WAITS_FOR_NOTHING = new Set<SyncPhase>(['signedOut', 'choose', 'otherAccount', 'error', 'cloudReset']);
 
@@ -128,6 +141,13 @@ export class SyncEngine {
   private choosing: number | null = null;
   /** Sent, by document, with the hash sent, until it comes back. */
   private readonly sent = new Map<string, string>();
+  /**
+   * Documents the cloud wouldn't take (it held a copy this device hadn't
+   * seen), with what each expected there. One that still expects the same
+   * after that copy came in can't be merged here (it doesn't read), and
+   * isn't sent again until something about it changes.
+   */
+  private readonly refused = new Map<string, string>();
   /** Backend calls run one at a time, in order. */
   private queue: Promise<unknown> = Promise.resolve();
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -164,7 +184,10 @@ export class SyncEngine {
   async start(): Promise<void> {
     this.unsubscribe.push(
       this.backend.subscribe(EVENTS.SYNC_PENDING, () => this.send(this.options.sendDelayMs)),
-      onPageHidden(() => this.sendAtOnce())
+      onPageHidden(() => this.sendAtOnce()),
+      // A write needs the server, so one that failed in the background or
+      // offline goes as soon as it can, not when its retry comes round
+      onPageBack(() => this.send(0))
     );
     try {
       this.store = await this.loadStore();
@@ -347,6 +370,7 @@ export class SyncEngine {
     for (const unsubscribe of this.watching.splice(0)) unsubscribe();
     this.linked = null;
     this.sent.clear();
+    this.refused.clear();
     clearTimeout(this.timer);
     for (const slot of this.published.values()) {
       clearTimeout(slot.timer);
@@ -450,7 +474,10 @@ export class SyncEngine {
       await this.run(async () => {
         if (generation !== this.generation) return;
         await this.backend.call('apply_sync_incoming', { docs: batch.docs, cursor: batch.cursor });
-        for (const doc of batch.docs) this.sent.delete(doc.docId);
+        for (const doc of batch.docs) {
+          this.sent.delete(doc.docId);
+          this.refused.delete(doc.docId);
+        }
         this.received = true;
       });
       this.catchUp();
@@ -528,7 +555,9 @@ export class SyncEngine {
     try {
       const status = await this.run(async () => {
         const outgoing = await this.backend.call('get_sync_outgoing');
-        fresh = outgoing.filter(doc => this.sent.get(doc.docId) !== doc.hash);
+        fresh = outgoing.filter(
+          doc => this.sent.get(doc.docId) !== doc.hash && this.refused.get(doc.docId) !== doc.expects.join()
+        );
         for (const doc of fresh) this.sent.set(doc.docId, doc.hash);
         return this.backend.call('get_sync_status');
       });
@@ -539,14 +568,26 @@ export class SyncEngine {
         return OVERTAKEN;
       }
       this.update(status);
-      if (fresh.length > 0) {
-        await this.cloud.write(linked.uid, fresh, {
-          deviceId: linked.deviceId,
-          epoch: linked.epoch,
-          schema: SYNC_SCHEMA,
-        });
-      }
-      return null;
+      if (fresh.length === 0) return null;
+      const unseen = await this.cloud.write(linked.uid, fresh, {
+        deviceId: linked.deviceId,
+        epoch: linked.epoch,
+        schema: SYNC_SCHEMA,
+      });
+      if (unseen.length === 0) return null;
+      // The cloud had changes this device hadn't seen (it was behind: closed,
+      // or in the background). They come in as any others do, merged with
+      // what's here, and the merge is what's sent
+      const merged = await this.run(async () => {
+        if (generation !== this.generation) return false;
+        await this.backend.call('apply_sync_incoming', { docs: unseen, cursor: null });
+        for (const { docId } of unseen) {
+          this.sent.delete(docId);
+          this.refused.set(docId, fresh.find(doc => doc.docId === docId)!.expects.join());
+        }
+        return true;
+      });
+      return merged ? await this.deliver(generation) : OVERTAKEN;
     } catch (error) {
       const why = cloudErrorMessage(error);
       if (generation !== this.generation) return why;
