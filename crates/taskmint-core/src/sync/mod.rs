@@ -13,6 +13,12 @@
 //! moves the baseline and nothing else. Whatever was done here meanwhile
 //! (an Undo, a deletion) stays, and goes out next.
 //!
+//! A device only writes over the copy it last saw: each outgoing document
+//! names the hashes the cloud's copy may have (`OutgoingDoc::expects`), and
+//! the client refuses the write when the cloud holds something else. That
+//! copy then comes in like any other, is merged, and the merge goes out. So
+//! a device that was behind never replaces another device's newer changes.
+//!
 //! The client moves the documents (Firestore); these functions never see
 //! the network.
 
@@ -112,8 +118,9 @@ pub struct SyncAccount {
     pub epoch: u64,
 }
 
-/// A document as this device last agreed with the cloud: its hash and
-/// JSON, or none for a deleted one.
+/// A document as this device last agreed with the cloud: the hash the cloud
+/// has for it ("" for a deleted one), and its JSON as this device reads it,
+/// or none for a deleted one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Synced {
     pub hash: String,
@@ -122,9 +129,12 @@ pub struct Synced {
 }
 
 impl Synced {
-    fn of(json: Option<String>) -> Self {
+    /// `json` as this device reads the document that came as `arrived`. The
+    /// hash is of what came (the one its writer gave it), so it's the cloud's
+    /// even when another version of TaskMint writes the entity differently.
+    fn of(arrived: Option<&str>, json: Option<String>) -> Self {
         Self {
-            hash: json.as_deref().map(hash).unwrap_or_default(),
+            hash: arrived.map(hash).unwrap_or_default(),
             json,
         }
     }
@@ -193,6 +203,12 @@ pub struct OutgoingDoc {
     pub json: Option<String>,
     /// "" for a deletion.
     pub hash: String,
+    /// The hashes the cloud's copy may have for this write to replace it: the
+    /// one this device last agreed on ("" for a deleted document) and its own
+    /// writes on their way. With none of them the document must be new to the
+    /// cloud. Anything else there is a change this device hasn't seen: it's
+    /// applied first (`apply_incoming`), not written over.
+    pub expects: Vec<String>,
 }
 
 /// get_sync_status's reply.
@@ -489,10 +505,8 @@ pub fn apply_incoming(
             }
         }
         workspace.sync.held.remove(&doc.doc_id);
-        workspace
-            .sync
-            .baseline
-            .insert(doc.doc_id, Synced::of(remote_json));
+        let synced = Synced::of(doc.json.as_deref(), remote_json);
+        workspace.sync.baseline.insert(doc.doc_id, synced);
     }
     if !applied.changed.is_empty() {
         if settle::settle(&mut workspace.sessions) {
@@ -513,6 +527,11 @@ pub fn outgoing(workspace: &Workspace) -> Vec<OutgoingDoc> {
     if state.account.is_none() {
         return Vec::new();
     }
+    let expects = |id: &str| -> Vec<String> {
+        let agreed = state.baseline.get(id).map(|synced| synced.hash.clone());
+        let sent = state.sent.get(id).into_iter().flatten().cloned();
+        agreed.into_iter().chain(sent).collect()
+    };
     let local = local_docs(workspace);
     let changed = local
         .iter()
@@ -526,6 +545,7 @@ pub fn outgoing(workspace: &Workspace) -> Vec<OutgoingDoc> {
             id: key.clone(),
             hash: hash(json),
             json: Some(json.clone()),
+            expects: expects(id),
         });
     let deleted = state
         .baseline
@@ -541,6 +561,7 @@ pub fn outgoing(workspace: &Workspace) -> Vec<OutgoingDoc> {
                 id: key,
                 hash: String::new(),
                 json: None,
+                expects: expects(id),
             })
         });
     changed.chain(deleted).collect()
@@ -550,15 +571,17 @@ pub fn outgoing(workspace: &Workspace) -> Vec<OutgoingDoc> {
 /// remembered, so it's known for this device's own when it comes back
 /// (`apply_incoming`). Whether there was one to remember that wasn't already.
 pub fn take_outgoing(workspace: &mut Workspace) -> (Vec<OutgoingDoc>, bool) {
-    let docs = outgoing(workspace);
+    let mut docs = outgoing(workspace);
     let mut noted = false;
-    for doc in &docs {
+    for doc in &mut docs {
         let sent = workspace.sync.sent.entry(doc.doc_id.clone()).or_default();
         if sent.last() != Some(&doc.hash) {
             sent.push(doc.hash.clone());
             let extra = sent.len().saturating_sub(SENT_KEPT);
             sent.drain(..extra);
             noted = true;
+            // Asked again, the document expects the same: this write included
+            doc.expects.push(doc.hash.clone());
         }
     }
     (docs, noted)

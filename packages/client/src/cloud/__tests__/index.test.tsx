@@ -135,7 +135,9 @@ describe('saving what the page has to the cloud', () => {
     await new Promise(resolve => setTimeout(resolve, 10));
     expect(host.backend.call).not.toHaveBeenCalledWith('get_sync_outgoing');
 
-    host.state.outgoing = [{ docId: 'record~dailyGoal', kind: 'record', id: 'dailyGoal', json: '{}', hash: 'h1' }];
+    host.state.outgoing = [
+      { docId: 'record~dailyGoal', kind: 'record', id: 'dailyGoal', json: '{}', hash: 'h1', expects: [] },
+    ];
     land();
     await written;
     await saved;

@@ -1,0 +1,52 @@
+{
+  "name": "a device that was behind names the copy it last saw, and merges the cloud's newer one before sending",
+  "steps": [
+    {
+      "call": "link_sync_account",
+      "args": { "uid": "u1", "epoch": 1, "mode": "merge" },
+      "reply": { "account": { "uid": "u1", "epoch": 1 }, "pending": 0 }
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 100 } },
+      "reply": { "revision": 1 },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "get_sync_outgoing",
+      "reply": [{ "docId": "record~dailyGoal", "json": "{\"targetAmount\":100}" }],
+      "save": { "goal100": "/0/json", "hash100": "/0/hash" }
+    },
+    { "call": "get_sync_outgoing", "reply": [{ "docId": "record~dailyGoal", "expects": ["$hash100"] }] },
+    {
+      "call": "apply_sync_incoming",
+      "args": { "docs": [{ "docId": "record~dailyGoal", "json": "$goal100", "schema": 1 }], "cursor": "c1" },
+      "reply": { "applied": 0, "merged": 0, "skipped": 0, "held": 0 }
+    },
+    {
+      "call": "set_app_record",
+      "args": { "key": "dailyGoal", "value": { "targetAmount": 200 }, "baseRevision": 1 },
+      "reply": { "revision": 2 },
+      "events": ["app-records-changed"]
+    },
+    { "call": "get_sync_outgoing", "save": { "hash200": "/0/hash" } },
+    {
+      "call": "get_sync_outgoing",
+      "reply": [{ "docId": "record~dailyGoal", "expects": ["$hash100", "$hash200"] }]
+    },
+    {
+      "call": "apply_sync_incoming",
+      "args": {
+        "docs": [{ "docId": "record~dailyGoal", "json": "{\"targetAmount\":100,\"streak\":5}", "schema": 1 }],
+        "cursor": null
+      },
+      "reply": { "applied": 0, "merged": 1, "skipped": 0, "held": 0 },
+      "events": ["app-records-changed"]
+    },
+    {
+      "call": "get_app_records",
+      "reply": { "records": { "dailyGoal": { "targetAmount": 200, "streak": 5 } } }
+    },
+    { "call": "get_sync_status", "reply": { "pending": 1, "cursor": "c1" } }
+  ]
+}

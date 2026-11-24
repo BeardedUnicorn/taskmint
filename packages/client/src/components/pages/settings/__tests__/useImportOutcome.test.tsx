@@ -54,7 +54,14 @@ describe('useImportOutcome', () => {
   describe('where the data is only in the cloud', () => {
     it('reloads only once the cloud has what was restored', async () => {
       onTheWeb();
-      const restored: OutgoingDoc = { docId: 'session~s1', kind: 'session', id: 's1', json: '{}', hash: 'h1' };
+      const restored: OutgoingDoc = {
+        docId: 'session~s1',
+        kind: 'session',
+        id: 's1',
+        json: '{}',
+        hash: 'h1',
+        expects: [],
+      };
       const store = createFakeCloudStore();
       store.setEpoch('bea', 1);
       const host = syncHost({ account: { uid: 'bea', epoch: 1 } });

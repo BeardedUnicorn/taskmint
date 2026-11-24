@@ -138,7 +138,7 @@ fn hashes_are_fnv1a_in_hex() {
     assert_eq!(hash(""), "cbf29ce484222325");
     assert_eq!(hash("a"), "af63dc4c8601ec8c");
     assert_eq!(
-        Synced::of(None),
+        Synced::of(None, None),
         Synced {
             hash: String::new(),
             json: None
@@ -517,10 +517,10 @@ fn unreadable_foreign_and_newer_documents_are_left_alone() {
     assert_eq!(applied.changed, Parts::NONE);
     // A held document isn't written over or deleted from here
     assert!(outgoing(&workspace).is_empty());
-    workspace
-        .sync
-        .baseline
-        .insert("session~s1".into(), Synced::of(Some("{}".into())));
+    workspace.sync.baseline.insert(
+        "session~s1".into(),
+        Synced::of(Some("{}"), Some("{}".into())),
+    );
     workspace.sessions.clear();
     assert!(outgoing(&workspace).is_empty());
     assert_eq!(status(&workspace).held, 1);
@@ -844,4 +844,112 @@ fn writes_in_flight_are_forgotten_with_the_account_and_never_pile_up() {
         },
     );
     assert!(workspace.sync.sent.is_empty());
+}
+
+#[test]
+fn a_write_names_the_copies_it_may_replace() {
+    let mut workspace = linked();
+    workspace.records.insert("dailyGoal".into(), json!(1));
+    let first = hash("1");
+
+    // New to the cloud: nothing may be there but this device's own write
+    assert_eq!(outgoing(&workspace)[0].expects, Vec::<String>::new());
+    let (docs, _) = take_outgoing(&mut workspace);
+    assert_eq!(docs[0].expects, std::slice::from_ref(&first));
+    // Asked again, the same
+    let (docs, noted) = take_outgoing(&mut workspace);
+    assert!(!noted);
+    assert_eq!(docs[0].expects, std::slice::from_ref(&first));
+
+    // Changed before that write came back: the cloud has the copy last
+    // agreed on (none here), or that write
+    workspace.records.insert("dailyGoal".into(), json!(2));
+    let (docs, _) = take_outgoing(&mut workspace);
+    assert_eq!(docs[0].expects, [first.clone(), hash("2")]);
+
+    // Agreed with the cloud, then changed: the agreed copy, or the new write
+    agree(&mut workspace);
+    workspace.records.insert("dailyGoal".into(), json!(3));
+    assert_eq!(outgoing(&workspace)[0].expects, [hash("2")]);
+    let (docs, _) = take_outgoing(&mut workspace);
+    assert_eq!(docs[0].expects, [hash("2"), hash("3")]);
+
+    // A deletion replaces the agreed copy too, and a document the cloud
+    // deleted is expected deleted
+    agree(&mut workspace);
+    workspace.records.remove("dailyGoal");
+    let out = outgoing(&workspace);
+    assert_eq!(
+        (out[0].json.as_ref(), &out[0].expects),
+        (None, &vec![hash("3")])
+    );
+    agree(&mut workspace);
+    workspace.records.insert("dailyGoal".into(), json!(4));
+    assert_eq!(outgoing(&workspace)[0].expects, [String::new()]);
+}
+
+#[test]
+fn the_agreed_hash_is_the_clouds_however_this_device_writes_the_entity() {
+    let mut workspace = linked();
+    // Written by another TaskMint, its own way: spaces, another key order
+    let theirs = r#"{ "targetAmount": 5,  "note": "x" }"#;
+    apply_incoming(
+        &mut workspace,
+        vec![incoming("record~dailyGoal", Some(theirs.into()))],
+        None,
+    );
+    workspace
+        .records
+        .insert("dailyGoal".into(), json!({ "targetAmount": 6 }));
+    assert_eq!(outgoing(&workspace)[0].expects, [hash(theirs)]);
+}
+
+#[test]
+fn a_device_that_was_behind_keeps_the_timers_another_started_meanwhile() {
+    // The phone and the cloud agree on the day's session, one timer running
+    let mut phone = linked();
+    phone.sessions.push(session(
+        "s1",
+        "1",
+        json!([timer("first", "2026-11-01T08:00:00Z", true)]),
+    ));
+    agree(&mut phone);
+    let agreed = phone.sync.baseline["session~s1"].hash.clone();
+
+    // With TaskMint closed, the timer is stopped from the phone's notification
+    phone.sessions[0].timer_instances[0] =
+        serde_json::from_value(timer("first", "2026-11-01T08:00:00Z", false)).unwrap();
+
+    // Meanwhile the desktop stopped it too and started two more, one running
+    let desktop = session(
+        "s1",
+        "1",
+        json!([
+            timer("first", "2026-11-01T08:00:00Z", false),
+            timer("second", "2026-11-01T09:00:00Z", false),
+            timer("third", "2026-11-01T10:00:00Z", true)
+        ]),
+    );
+    let cloud = session_json(&desktop);
+
+    // Opened again, the phone's write expects the copy it last saw; the cloud
+    // has the desktop's, so the write is refused and that copy comes in
+    let (docs, _) = take_outgoing(&mut phone);
+    assert!(docs[0].expects.contains(&agreed));
+    assert!(!docs[0].expects.contains(&hash(cloud.as_ref().unwrap())));
+    let applied = apply_incoming(
+        &mut phone,
+        vec![incoming("session~s1", cloud.clone())],
+        None,
+    );
+    assert_eq!(applied.summary.merged, 1);
+
+    let timers = &phone.sessions[0].timer_instances;
+    let ids: Vec<&str> = timers.iter().map(|i| i.id.as_str()).collect();
+    assert_eq!(ids, ["first", "second", "third"]);
+    assert!(timers[2].is_running);
+    // What the phone sends now may replace the desktop's copy, if it differs
+    for doc in take_outgoing(&mut phone).0 {
+        assert!(doc.expects.contains(&hash(cloud.as_ref().unwrap())));
+    }
 }

@@ -1,13 +1,13 @@
 /**
  * A CloudStore in memory, for tests of cloud sync: the test signs users in
  * and out, sets accounts' epochs, and sends the batches the listener gets;
- * the fake records what was written. Each method is a vi.fn, so a test can
+ * the fake records what was written (and takes it all). Each method is a vi.fn, so a test can
  * make one fail (`mockRejectedValueOnce`) or check its calls.
  */
 
 import { vi } from 'vitest';
 import type { OutgoingDoc } from '@taskmint/contracts';
-import type { CloudBatch, CloudStore, CloudUser, PublishedDoc, WriteMeta } from '../cloud/types';
+import type { CloudBatch, CloudDoc, CloudStore, CloudUser, PublishedDoc, WriteMeta } from '../cloud/types';
 
 export interface FakeCloudStore extends CloudStore {
   /** Signs `user` in (null: out), as Firebase reports it. */
@@ -77,8 +77,10 @@ export function createFakeCloudStore(): FakeCloudStore {
         if (open === listener) open = null;
       };
     }),
-    write: vi.fn(async (uid: string, docs: OutgoingDoc[], meta: WriteMeta) => {
+    // Every document is taken: a test has the cloud refuse some with mockResolvedValueOnce
+    write: vi.fn(async (uid: string, docs: OutgoingDoc[], meta: WriteMeta): Promise<CloudDoc[]> => {
       writes.push({ uid, docs, meta });
+      return [];
     }),
     deleteAll: vi.fn(async (uid: string, epoch: number) => {
       store.setEpoch(uid, epoch + 1);

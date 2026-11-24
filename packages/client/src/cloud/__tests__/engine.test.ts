@@ -10,6 +10,7 @@ const doc = (id: string, hash = 'h1'): OutgoingDoc => ({
   id,
   json: '{}',
   hash,
+  expects: [],
 });
 
 const OPTIONS = { sendDelayMs: 5, retryMs: 20, publishDelayMs: 50, publishRetryMs: 100 };
@@ -395,9 +396,6 @@ describe('cloud sync, linked', () => {
     try {
       host.state.outgoing = [doc('s1')];
       host.backend.emit(EVENTS.SYNC_PENDING);
-      // Shown again (or still): it waits as ever
-      visibility.mockReturnValue('visible');
-      document.dispatchEvent(new Event('visibilitychange'));
       await new Promise(resolve => setTimeout(resolve, 20));
       expect(store.write).not.toHaveBeenCalled();
 
@@ -543,7 +541,7 @@ describe('cloud sync, linked', () => {
   it('sends what changed at once when asked to, done once the cloud has it', async () => {
     const { engine, host } = await linked();
     let land!: () => void;
-    vi.mocked(store.write).mockImplementationOnce(() => new Promise<void>(resolve => (land = resolve)));
+    vi.mocked(store.write).mockImplementationOnce(() => new Promise(resolve => (land = () => resolve([]))));
     host.state.outgoing = [doc('s1')];
     // The change's own send is still waiting its turn
     host.backend.emit(EVENTS.SYNC_PENDING);
@@ -562,7 +560,7 @@ describe('cloud sync, linked', () => {
   it('waits for a send already on its way', async () => {
     const { engine, host } = await linked();
     let land!: () => void;
-    vi.mocked(store.write).mockImplementationOnce(() => new Promise<void>(resolve => (land = resolve)));
+    vi.mocked(store.write).mockImplementationOnce(() => new Promise(resolve => (land = () => resolve([]))));
     host.state.outgoing = [doc('s1')];
     engine.syncNow();
     await vi.waitFor(() => expect(store.write).toHaveBeenCalledTimes(1));
@@ -584,7 +582,7 @@ describe('cloud sync, linked', () => {
     await vi.waitFor(() => expect(store.writes).toHaveLength(1));
     // A send that failed on its way fails it too: the cloud lacks its documents
     let fail!: (error: unknown) => void;
-    vi.mocked(store.write).mockImplementationOnce(() => new Promise<void>((_, reject) => (fail = reject)));
+    vi.mocked(store.write).mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)));
     host.state.outgoing = [doc('s2')];
     engine.syncNow();
     await vi.waitFor(() => expect(store.write).toHaveBeenCalledTimes(3));
@@ -596,6 +594,131 @@ describe('cloud sync, linked', () => {
   it('has nothing to send when asked to while not syncing', async () => {
     const engine = await started(syncHost());
     await expect(engine.flush()).rejects.toThrow('Sync isn’t running right now.');
+  });
+
+  /** After the cloud's copy comes in, core has `next` to send (the merge), not what it had. */
+  function mergesTo(host: ReturnType<typeof syncHost>, next: OutgoingDoc[]) {
+    const original = host.backend.call.getMockImplementation()!;
+    host.backend.call.mockImplementation(async (command, args) => {
+      const reply = await original(command, args);
+      if (command === 'apply_sync_incoming') host.state.outgoing = next;
+      return reply;
+    });
+  }
+
+  it('merges a copy it hadn’t seen before writing over it, then sends the merge', async () => {
+    const { engine, host } = await linked();
+    const theirs = { docId: 'session~s1', json: '{"theirs":1}', schema: 1 };
+    const stale = { ...doc('s1', 'stale'), expects: ['agreed', 'stale'] };
+    const merged = { ...doc('s1', 'merged'), expects: ['theirs', 'stale', 'merged'] };
+    host.state.outgoing = [stale, doc('s2')];
+    // This device was behind: the cloud holds another device's newer s1
+    vi.mocked(store.write).mockResolvedValueOnce([theirs]);
+    mergesTo(host, [merged]);
+
+    await engine.flush();
+    // That copy came in as any other does (no cursor: the listener still has it to come)
+    expect(host.state.applied).toEqual([{ docs: [theirs], cursor: null }]);
+    expect(vi.mocked(store.write).mock.calls.map(call => call[1])).toEqual([[stale, doc('s2')], [merged]]);
+    expect(store.writes).toEqual([
+      { uid: 'bea', docs: [merged], meta: { deviceId: 'desk', epoch: 1, schema: SYNC_SCHEMA } },
+    ]);
+    expect(phaseOf(engine)).toBe('syncing');
+  });
+
+  it('doesn’t send again a document whose copy in the cloud it can’t merge, until something changes', async () => {
+    const { engine, host } = await linked();
+    const theirs = { docId: 'session~s1', json: 'unreadable', schema: 1 };
+    const mine = { ...doc('s1'), expects: ['agreed', 'h1'] };
+    host.state.outgoing = [mine];
+    vi.mocked(store.write).mockResolvedValue([theirs]);
+    // Core couldn't read that copy: the document expects what it did
+    mergesTo(host, [mine]);
+    await engine.flush();
+    engine.syncNow();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(store.write).toHaveBeenCalledTimes(1);
+
+    // The cloud's copy comes in by the listener: whatever it holds now, the document is sent again
+    vi.mocked(store.write).mockResolvedValue([]);
+    store.emit({ docs: [{ docId: 'session~s1', json: '{}', schema: 1 }], cursor: 'c1' });
+    await vi.waitFor(() => expect(store.write).toHaveBeenCalledTimes(2));
+
+    // Signing out forgets what was refused
+    const next = { ...doc('s1', 'h2'), expects: ['agreed', 'h2'] };
+    vi.mocked(store.write).mockResolvedValueOnce([theirs]);
+    mergesTo(host, [next]);
+    host.state.outgoing = [next];
+    await engine.flush();
+    expect(store.write).toHaveBeenCalledTimes(3);
+    store.setUser(null);
+    store.setUser(bea());
+    await vi.waitFor(() => expect(store.write).toHaveBeenCalledTimes(4));
+  });
+
+  it('drops a copy it hadn’t seen when a sign-out overtook the write', async () => {
+    const { engine, host } = await linked();
+    host.state.outgoing = [doc('s1')];
+    let land!: () => void;
+    vi.mocked(store.write).mockImplementationOnce(
+      () => new Promise(resolve => (land = () => resolve([{ docId: 'session~s1', json: '{}', schema: 1 }])))
+    );
+    const flushed = engine.flush();
+    await vi.waitFor(() => expect(land).toBeDefined());
+    store.setUser(null);
+    land();
+    await expect(flushed).rejects.toThrow('Signed out before it was sent.');
+    expect(host.state.applied).toEqual([]);
+  });
+
+  it('says so when a copy it hadn’t seen can’t be applied, and sends again later', async () => {
+    const { engine, host } = await linked();
+    host.state.outgoing = [doc('s1')];
+    vi.mocked(store.write).mockResolvedValueOnce([{ docId: 'session~s1', json: '{}', schema: 1 }]);
+    const original = host.backend.call.getMockImplementation()!;
+    host.backend.call.mockImplementation(async (command, args) => {
+      if (command === 'apply_sync_incoming') throw new Error('disk full');
+      return original(command, args);
+    });
+    await expect(engine.flush()).rejects.toThrow('disk full');
+    expect(engine.getView()).toMatchObject({ phase: 'error', error: 'disk full' });
+    host.backend.call.mockImplementation(original);
+    await vi.waitFor(() => expect(store.writes).toHaveLength(1));
+  });
+
+  it('sends what’s waiting as soon as the page is shown again or the network is back', async () => {
+    const host = syncHost({ account: { uid: 'bea', epoch: 1 } });
+    store.setEpoch('bea', 1);
+    const engine = new SyncEngine(asBackend(host.backend), async () => store, { ...OPTIONS, retryMs: 60_000 });
+    await engine.start();
+    store.setUser(bea());
+    await vi.waitFor(() => expect(phaseOf(engine)).toBe('synced'));
+    const visibility = vi.spyOn(document, 'visibilityState', 'get');
+    try {
+      // In the background the network went: the write failed, to be tried again much later
+      vi.mocked(store.write).mockRejectedValueOnce({ code: 'unavailable' });
+      host.state.outgoing = [doc('s1')];
+      engine.syncNow();
+      await vi.waitFor(() => expect(phaseOf(engine)).toBe('error'));
+
+      visibility.mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.waitFor(() => expect(store.writes).toHaveLength(1));
+
+      host.state.outgoing = [doc('s1'), doc('s2')];
+      window.dispatchEvent(new Event('online'));
+      await vi.waitFor(() => expect(store.writes).toHaveLength(2));
+
+      // Stopped: nothing listens any more
+      engine.stop();
+      const calls = host.backend.call.mock.calls.length;
+      window.dispatchEvent(new Event('online'));
+      document.dispatchEvent(new Event('visibilitychange'));
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(host.backend.call.mock.calls.length).toBe(calls);
+    } finally {
+      visibility.mockRestore();
+    }
   });
 
   it('sends nothing for a change while not linked', async () => {

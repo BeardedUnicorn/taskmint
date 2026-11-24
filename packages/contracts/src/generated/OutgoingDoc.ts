@@ -15,4 +15,12 @@ json: string | null,
 /**
  * "" for a deletion.
  */
-hash: string, };
+hash: string, 
+/**
+ * The hashes the cloud's copy may have for this write to replace it: the
+ * one this device last agreed on ("" for a deleted document) and its own
+ * writes on their way. With none of them the document must be new to the
+ * cloud. Anything else there is a change this device hasn't seen: it's
+ * applied first (`apply_incoming`), not written over.
+ */
+expects: Array<string>, };

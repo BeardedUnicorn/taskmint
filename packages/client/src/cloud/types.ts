@@ -108,8 +108,15 @@ export interface CloudStore {
     onBatch: (batch: CloudBatch) => void,
     onError: (error: unknown) => void
   ): Unsubscribe;
-  /** Writes `docs` (null JSON deletes), resolving once the server has them. */
-  write(uid: string, docs: OutgoingDoc[], meta: WriteMeta): Promise<void>;
+  /**
+   * Writes `docs` (null JSON deletes), resolving once the server has them.
+   * A document only replaces a copy it expects (OutgoingDoc.expects), or
+   * none: where the cloud holds something else, a change this device hasn't
+   * seen, nothing is written and that copy is returned, to be merged first.
+   * Needs the server: offline it fails, unless the store keeps unsent writes
+   * (CloudConfig.persistentCache), which then go as they are once it's back.
+   */
+  write(uid: string, docs: OutgoingDoc[], meta: WriteMeta): Promise<CloudDoc[]>;
   /**
    * Moves the account to the next epoch and deletes its documents, the
    * published ones and the phones' push addresses too; the new epoch.

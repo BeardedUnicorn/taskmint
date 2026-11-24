@@ -115,11 +115,11 @@ describe('Settings → Cloud sync, signed in', () => {
     await waitFor(() => expect(screen.getByText('Up to date')).toBeInTheDocument());
     expect(screen.getByText(/saved by a newer version of TaskMint/)).toBeInTheDocument();
 
-    host.state.outgoing = [{ docId: 'session~a', kind: 'session', id: 'a', json: '{}', hash: 'h' }];
+    host.state.outgoing = [{ docId: 'session~a', kind: 'session', id: 'a', json: '{}', hash: 'h', expects: [] }];
     await user.click(screen.getByRole('button', { name: 'Sync now' }));
     expect(await screen.findByText('1 change to send')).toBeInTheDocument();
     expect(store.writes).toHaveLength(1);
-    host.state.outgoing.push({ docId: 'session~b', kind: 'session', id: 'b', json: '{}', hash: 'h' });
+    host.state.outgoing.push({ docId: 'session~b', kind: 'session', id: 'b', json: '{}', hash: 'h', expects: [] });
     await user.click(screen.getByRole('button', { name: 'Sync now' }));
     expect(await screen.findByText('2 changes to send')).toBeInTheDocument();
   });
